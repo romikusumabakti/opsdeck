@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:18
+    container_name: dss-panel-db
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: Admin@123$$$$
+      POSTGRES_DB: dss_panel
+      TZ: Asia/Jakarta
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      start_period: 10s
+
+  app:
+    image: 192.168.55.113:5000/dss-panel-app:${IMAGE_TAG}
+    container_name: dss-panel-app
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://postgres:Admin@123$$@db:5432/dss_panel
+      # Host URL for Inngest to find the app
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      start_period: 100s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  inngest:
+    container_name: inngest_dev
+    image: inngest/inngest
+    environment:
+      # Automatically discover Inngest functions in the Next.js app
+      # 'app' refers to the service name defined above
+      INNGEST_EVENT_KEY: "local"
+      INNGEST_SIGNING_KEY: "local"
+    ports:
+      - "8288:8288"
+    volumes:
+      # Optional: Persist Inngest event history
+      - inngest_data:/var/lib/inngest 
+
+volumes:
+  postgres_data:
+  inngest_data:
