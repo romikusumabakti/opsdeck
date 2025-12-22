@@ -2,6 +2,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { getProjectById } from "@/actions/projects";
 
+export const dynamic = "force-dynamic";
+
 export default async function Layout({
   children,
   params,
