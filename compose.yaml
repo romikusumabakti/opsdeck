@@ -22,7 +22,7 @@ services:
     ports:
       - "80:3000"
     environment:
-      DATABASE_URL: postgres://postgres:Admin@123$$@db:5432/dss_panel
+      DATABASE_URL: postgres://postgres:Admin@123$$$$@db:5432/dss_panel
       # Host URL for Inngest to find the app
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     healthcheck:
