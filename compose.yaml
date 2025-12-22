@@ -16,7 +16,6 @@ services:
       start_period: 10s
 
   app:
-    image: 192.168.55.113:5000/dss-panel-app:${IMAGE_TAG}
     container_name: dss-panel-app
     ports:
       - "8080:8080"
