@@ -53,6 +53,9 @@ importers:
       node-ssh:
         specifier: ^13.2.1
         version: 13.2.1
+      postgres:
+        specifier: ^3.4.7
+        version: 3.4.7
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -7129,8 +7132,7 @@ snapshots:
     dependencies:
       xtend: 4.0.2
 
-  postgres@3.4.7:
-    optional: true
+  postgres@3.4.7: {}
 
   prelude-ls@1.2.1: {}
 
