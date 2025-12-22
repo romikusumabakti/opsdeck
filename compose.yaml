@@ -16,7 +16,6 @@ services:
       start_period: 10s
 
   app:
-    image: 192.168.55.113:5000/opsdeck-app:${IMAGE_TAG}
     container_name: opsdeck-app
     ports:
       - "8080:8080"
