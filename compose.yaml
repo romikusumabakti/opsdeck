@@ -16,6 +16,8 @@ services:
       start_period: 10s
 
   app:
+    build:
+      context: .
     container_name: dss-panel-app
     ports:
       - "8080:8080"
