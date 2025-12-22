@@ -22,7 +22,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh """
-                    mkdir -p /deployments/${APP_NAME}
+                    sudo mkdir -p /deployments/${APP_NAME}
 
                     export IMAGE_TAG=${IMAGE_TAG} &&
                     docker pull ${APP_IMAGE} &&
