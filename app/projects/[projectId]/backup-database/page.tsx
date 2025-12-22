@@ -1,0 +1,24 @@
+import { getProjectById } from "@/actions/projects";
+import { BackupDatabase } from "./backup-database";
+import { Card } from "@/components/ui/card";
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  const project = await getProjectById(parseInt(projectId));
+
+  if (!project) {
+    return <p>Project not found.</p>;
+  }
+
+  return (
+    <Card className="p-8">
+      <h1 className="text-2xl">Create database backup</h1>
+      <p>Create backup for database: {project.dbName}</p>
+      <BackupDatabase project={project} />
+    </Card>
+  );
+}
