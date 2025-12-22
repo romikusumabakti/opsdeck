@@ -1,0 +1,78 @@
+"use client";
+
+import * as React from "react";
+import { Check, ChevronsUpDown } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Project } from "@/lib/db/schema";
+import { useParams, useRouter } from "next/navigation";
+
+export function SelectProject({ projects }: { projects: Project[] }) {
+  const [open, setOpen] = React.useState(false);
+  const router = useRouter();
+  const params = useParams();
+
+  const activeProject =
+    projects.find((p) => p.id === parseInt(params.projectId as string)) ||
+    projects[0];
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-64 justify-between"
+        >
+          {activeProject ? activeProject.name : "Select project..."}
+          <ChevronsUpDown className="opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0">
+        <Command>
+          <CommandInput placeholder="Search project..." className="h-9" />
+          <CommandList>
+            <CommandEmpty>No project found.</CommandEmpty>
+            <CommandGroup>
+              {projects.map((project) => (
+                <CommandItem
+                  key={project.name}
+                  value={project.name}
+                  onSelect={() => {
+                    setOpen(false);
+                    router.push(`/projects/${project.id}`);
+                  }}
+                >
+                  {project.name}
+                  <Check
+                    className={cn(
+                      "ml-auto",
+                      activeProject.id === project.id
+                        ? "opacity-100"
+                        : "opacity-0"
+                    )}
+                  />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
