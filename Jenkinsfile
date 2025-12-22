@@ -19,21 +19,6 @@ pipeline {
     }
 
     stages {
-        stage('Build') {
-            steps {
-                sh "docker build -t ${APP_IMAGE} ."
-            }
-        }
-
-        stage('Push') {
-            steps {
-                sh """
-                    docker start registry || docker run -d -p 5000:5000 --name registry registry:2
-                    docker push ${APP_IMAGE}
-                """
-            }
-        }
-
         stage('Deploy') {
             steps {
                 sh """
