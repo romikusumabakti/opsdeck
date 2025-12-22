@@ -22,11 +22,6 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh """
-                    sudo mkdir -p /deployments/${APP_NAME}
-
-                    export IMAGE_TAG=${IMAGE_TAG} &&
-                    docker pull ${APP_IMAGE} &&
-                    cd /deployments/${APP_NAME} &&
                     docker compose up -d &&
                     docker image prune -a -f
                 """
