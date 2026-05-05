@@ -1,6 +1,6 @@
+import { redirect } from "next/navigation";
 import { listPendingInvitations, listUsers } from "@/actions/users";
 import { getServerSession } from "@/lib/auth-session";
-import { redirect } from "next/navigation";
 import { UsersClient } from "./users-client";
 
 export default async function UsersPage() {

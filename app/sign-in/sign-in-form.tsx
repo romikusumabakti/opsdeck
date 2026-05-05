@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Aperture } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { authClient } from "@/lib/auth-client";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Aperture } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export function SignInForm({ redirectTo }: { redirectTo?: string }) {
   const t = useTranslations("signIn");

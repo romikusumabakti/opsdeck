@@ -33,9 +33,7 @@ export function InvitationEmail({
           <Heading style={heading}>Admin Panel</Heading>
           <Text style={paragraph}>Halo {recipientName},</Text>
           <Text style={paragraph}>
-            {inviterName
-              ? `${inviterName} mengundang Anda`
-              : "Anda diundang"}{" "}
+            {inviterName ? `${inviterName} mengundang Anda` : "Anda diundang"}{" "}
             untuk bergabung di Admin Panel. Klik tombol di bawah untuk membuat
             kata sandi dan mengaktifkan akun Anda.
           </Text>
@@ -63,8 +61,7 @@ export default InvitationEmail;
 
 const body = {
   backgroundColor: "#f6f6f6",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
 const container = {

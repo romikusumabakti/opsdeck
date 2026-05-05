@@ -1,6 +1,16 @@
 "use client";
 
 import {
+  Database,
+  DatabaseBackup,
+  History,
+  LayoutDashboard,
+  Settings,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -12,18 +22,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Project } from "@/lib/db/schema";
+import type { Project } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
-import {
-  Database,
-  DatabaseBackup,
-  History,
-  LayoutDashboard,
-  Settings,
-} from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
 
 const items = [
   {
