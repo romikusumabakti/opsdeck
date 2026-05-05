@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ type UserSummary = {
 };
 
 export function UserMenu({ user }: { user: UserSummary }) {
+  const t = useTranslations("userMenu");
   const router = useRouter();
 
   async function onSignOut() {
@@ -42,7 +44,7 @@ export function UserMenu({ user }: { user: UserSummary }) {
           variant="ghost"
           size="icon"
           className="rounded-full"
-          aria-label="User menu"
+          aria-label={t("ariaLabel")}
         >
           <span className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
             {initials}
@@ -66,14 +68,14 @@ export function UserMenu({ user }: { user: UserSummary }) {
           className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
         >
           <Users className="size-4" />
-          <span>Manajemen Pengguna</span>
+          <span>{t("users")}</span>
         </Link>
         <Link
           href="/account/change-password"
           className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
         >
           <KeyRound className="size-4" />
-          <span>Ubah Password</span>
+          <span>{t("changePassword")}</span>
         </Link>
         <button
           type="button"
@@ -81,7 +83,7 @@ export function UserMenu({ user }: { user: UserSummary }) {
           className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent text-destructive"
         >
           <LogOut className="size-4" />
-          <span>Keluar</span>
+          <span>{t("signOut")}</span>
         </button>
       </PopoverContent>
     </Popover>

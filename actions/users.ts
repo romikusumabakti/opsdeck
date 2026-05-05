@@ -8,6 +8,7 @@ import { sendInvitationEmail } from "@/lib/email/send";
 import { and, eq, isNull, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
+import { getTranslations } from "next-intl/server";
 
 export type ActionResponse =
   | { success: true; message?: string }
@@ -45,17 +46,18 @@ export async function inviteUser(input: {
   name: string;
 }): Promise<ActionResponse> {
   const session = await requireSession();
+  const t = await getTranslations("actionErrors");
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
 
   if (!email || !name) {
-    return { success: false, message: "Nama dan email wajib diisi" };
+    return { success: false, message: t("nameAndEmailRequired") };
   }
   if (!isAllowedEmail(email)) {
     return {
       success: false,
-      message: `Hanya email @${ALLOWED_EMAIL_DOMAIN} yang diizinkan`,
+      message: t("domainNotAllowed", { domain: ALLOWED_EMAIL_DOMAIN }),
     };
   }
 
@@ -66,7 +68,7 @@ export async function inviteUser(input: {
     .limit(1);
 
   if (existing.length > 0) {
-    return { success: false, message: "Email sudah terdaftar" };
+    return { success: false, message: t("emailAlreadyRegistered") };
   }
 
   const token = randomBytes(32).toString("hex");
@@ -101,37 +103,36 @@ export async function inviteUser(input: {
     });
   } catch (err) {
     console.error("Failed to send invitation email:", err);
-    return {
-      success: false,
-      message: "Gagal mengirim email undangan, periksa konfigurasi RESEND_API_KEY",
-    };
+    return { success: false, message: t("emailSendFailed") };
   }
 
   revalidatePath("/users");
-  return { success: true, message: "Undangan terkirim" };
+  return { success: true, message: t("emailSent") };
 }
 
 export async function deleteUser(userId: string): Promise<ActionResponse> {
   const session = await requireSession();
+  const t = await getTranslations("actionErrors");
 
   if (session.user.id === userId) {
-    return { success: false, message: "Tidak bisa menghapus akun sendiri" };
+    return { success: false, message: t("cannotDeleteSelf") };
   }
 
   const ctx = await auth.$context;
   await ctx.internalAdapter.deleteUser(userId);
 
   revalidatePath("/users");
-  return { success: true, message: "User dihapus" };
+  return { success: true, message: t("userDeleted") };
 }
 
 export async function revokeInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
   await requireSession();
+  const t = await getTranslations("actionErrors");
   await db.delete(invitations).where(eq(invitations.id, invitationId));
   revalidatePath("/users");
-  return { success: true, message: "Undangan dibatalkan" };
+  return { success: true, message: t("invitationRevoked") };
 }
 
 /**
@@ -156,18 +157,17 @@ export async function acceptInvitation(input: {
   token: string;
   password: string;
 }): Promise<ActionResponse> {
+  const t = await getTranslations("actionErrors");
+
   const inv = await getInvitationByToken(input.token);
   if (!inv) {
-    return {
-      success: false,
-      message: "Undangan tidak valid atau sudah kadaluarsa",
-    };
+    return { success: false, message: t("invitationInvalid") };
   }
 
   if (!isAllowedEmail(inv.email)) {
     return {
       success: false,
-      message: `Hanya email @${ALLOWED_EMAIL_DOMAIN} yang diizinkan`,
+      message: t("domainNotAllowed", { domain: ALLOWED_EMAIL_DOMAIN }),
     };
   }
 
@@ -176,19 +176,23 @@ export async function acceptInvitation(input: {
   if (input.password.length < ctx.password.config.minPasswordLength) {
     return {
       success: false,
-      message: `Password minimal ${ctx.password.config.minPasswordLength} karakter`,
+      message: t("passwordTooShort", {
+        min: ctx.password.config.minPasswordLength,
+      }),
     };
   }
   if (input.password.length > ctx.password.config.maxPasswordLength) {
     return {
       success: false,
-      message: `Password maksimal ${ctx.password.config.maxPasswordLength} karakter`,
+      message: t("passwordTooLong", {
+        max: ctx.password.config.maxPasswordLength,
+      }),
     };
   }
 
   const existing = await ctx.internalAdapter.findUserByEmail(inv.email);
   if (existing?.user) {
-    return { success: false, message: "Email sudah terdaftar" };
+    return { success: false, message: t("emailAlreadyRegistered") };
   }
 
   const hash = await ctx.password.hash(input.password);
@@ -212,5 +216,5 @@ export async function acceptInvitation(input: {
     .set({ acceptedAt: new Date() })
     .where(eq(invitations.id, inv.id));
 
-  return { success: true, message: "Akun berhasil dibuat" };
+  return { success: true, message: t("accountCreated") };
 }

@@ -2,6 +2,7 @@
 
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,13 +13,14 @@ import {
 import { cn } from "@/lib/utils";
 
 const options = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+  { value: "light", icon: Sun },
+  { value: "dark", icon: Moon },
+  { value: "system", icon: Monitor },
 ] as const;
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const t = useTranslations("themeSwitcher");
 
   return (
     <Popover>
@@ -26,7 +28,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Toggle theme"
+          aria-label={t("ariaLabel")}
           className="relative"
         >
           <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
@@ -34,7 +36,7 @@ export function ThemeToggle() {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-36 p-1">
-        {options.map(({ value, label, icon: Icon }) => (
+        {options.map(({ value, icon: Icon }) => (
           <button
             key={value}
             type="button"
@@ -45,7 +47,7 @@ export function ThemeToggle() {
             )}
           >
             <Icon className="size-4" />
-            <span>{label}</span>
+            <span>{t(value)}</span>
           </button>
         ))}
       </PopoverContent>

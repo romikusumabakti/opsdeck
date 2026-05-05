@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Aperture } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export default async function AcceptInvitePage({
   params,
@@ -16,6 +17,8 @@ export default async function AcceptInvitePage({
 }) {
   const { token } = await params;
   const inv = await getInvitationByToken(token);
+  const t = await getTranslations("acceptInvite");
+  const tApp = await getTranslations("app");
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -23,21 +26,19 @@ export default async function AcceptInvitePage({
         <CardHeader>
           <div className="flex items-center gap-2 mb-2">
             <Aperture />
-            <span className="font-bold">Admin Panel</span>
+            <span className="font-bold">{tApp("name")}</span>
           </div>
           {inv ? (
             <>
-              <CardTitle>Aktivasi Akun</CardTitle>
+              <CardTitle>{t("title")}</CardTitle>
               <CardDescription>
-                Buat password untuk akun <strong>{inv.email}</strong>
+                {t("description", { email: inv.email })}
               </CardDescription>
             </>
           ) : (
             <>
-              <CardTitle>Undangan Tidak Valid</CardTitle>
-              <CardDescription>
-                Link undangan ini tidak valid atau sudah kadaluarsa.
-              </CardDescription>
+              <CardTitle>{t("invalidTitle")}</CardTitle>
+              <CardDescription>{t("invalidDescription")}</CardDescription>
             </>
           )}
         </CardHeader>

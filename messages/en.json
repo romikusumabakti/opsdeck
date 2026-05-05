@@ -1,0 +1,114 @@
+{
+  "app": {
+    "name": "Admin Panel"
+  },
+  "common": {
+    "loading": "Loading...",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "submit": "Submit",
+    "you": "You",
+    "errorGeneric": "Something went wrong"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "backupDatabase": "Backup database",
+    "restoreDatabase": "Restore database",
+    "history": "History",
+    "settings": "Settings",
+    "menu": "Menu"
+  },
+  "header": {
+    "selectProject": "Select project...",
+    "searchProject": "Search project...",
+    "noProject": "No project found."
+  },
+  "userMenu": {
+    "users": "User Management",
+    "changePassword": "Change Password",
+    "signOut": "Sign out",
+    "ariaLabel": "User menu"
+  },
+  "localeSwitcher": {
+    "ariaLabel": "Select language"
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Select theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "signIn": {
+    "title": "Sign in",
+    "description": "Sign in with your @example.com work email",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in...",
+    "errorInvalid": "Invalid email or password"
+  },
+  "acceptInvite": {
+    "title": "Activate Account",
+    "description": "Set a password for the account {email}",
+    "invalidTitle": "Invalid Invitation",
+    "invalidDescription": "This invitation link is invalid or has expired.",
+    "name": "Name",
+    "email": "Email",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "passwordMismatch": "Password confirmation does not match",
+    "submit": "Activate & Sign in",
+    "submitting": "Processing..."
+  },
+  "changePassword": {
+    "title": "Change Password",
+    "description": "Enter your current and new password.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "passwordMismatch": "Password confirmation does not match",
+    "revokeOtherSessions": "Sign me out of all other devices",
+    "submit": "Change Password",
+    "submitting": "Processing...",
+    "success": "Password changed successfully",
+    "errorGeneric": "Failed to change password"
+  },
+  "users": {
+    "inviteCardTitle": "Invite User",
+    "inviteCardDescription": "Email must end with @example.com",
+    "fullName": "Name",
+    "fullNamePlaceholder": "Full name",
+    "email": "Email",
+    "emailPlaceholder": "user@example.com",
+    "inviteSubmit": "Invite",
+    "inviteSubmitting": "Sending...",
+    "pendingTitle": "Pending Invitations",
+    "pendingDescription": "Invitations that have not been activated.",
+    "expiresAt": "Expires {date}",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke invitation",
+    "revokeDescription": "Revoke the invitation for {email}?",
+    "listTitle": "Users ({count})",
+    "deleteTitle": "Delete user",
+    "deleteDescription": "Delete {name} ({email})? This cannot be undone.",
+    "deleteConfirm": "Delete",
+    "deleteAriaLabel": "Delete",
+    "deleteFailed": "Failed"
+  },
+  "actionErrors": {
+    "nameAndEmailRequired": "Name and email are required",
+    "domainNotAllowed": "Only @{domain} emails are allowed",
+    "emailAlreadyRegistered": "Email is already registered",
+    "emailSent": "Invitation sent",
+    "emailSendFailed": "Failed to send invitation email, check RESEND_API_KEY configuration",
+    "cannotDeleteSelf": "Cannot delete your own account",
+    "userDeleted": "User deleted",
+    "invitationRevoked": "Invitation revoked",
+    "invitationInvalid": "Invitation is invalid or has expired",
+    "passwordTooShort": "Password must be at least {min} characters",
+    "passwordTooLong": "Password must be at most {max} characters",
+    "accountCreated": "Account created successfully"
+  }
+}
