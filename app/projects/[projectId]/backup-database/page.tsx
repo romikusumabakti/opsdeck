@@ -1,6 +1,6 @@
 import { getProjectById } from "@/actions/projects";
-import { BackupDatabase } from "./backup-database";
 import { Card } from "@/components/ui/card";
+import { BackupDatabase } from "./backup-database";
 
 export default async function Page({
   params,

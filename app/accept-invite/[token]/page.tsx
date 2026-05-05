@@ -1,5 +1,6 @@
+import { Aperture } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { getInvitationByToken } from "@/actions/users";
-import { AcceptInviteForm } from "./accept-invite-form";
 import {
   Card,
   CardContent,
@@ -7,8 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Aperture } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { AcceptInviteForm } from "./accept-invite-form";
 
 export default async function AcceptInvitePage({
   params,
@@ -44,11 +44,7 @@ export default async function AcceptInvitePage({
         </CardHeader>
         {inv && (
           <CardContent>
-            <AcceptInviteForm
-              token={token}
-              email={inv.email}
-              name={inv.name}
-            />
+            <AcceptInviteForm token={token} email={inv.email} name={inv.name} />
           </CardContent>
         )}
       </Card>

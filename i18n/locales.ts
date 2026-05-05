@@ -11,5 +11,7 @@ export const localeLabels: Record<Locale, string> = {
 };
 
 export function isValidLocale(value: unknown): value is Locale {
-  return typeof value === "string" && (locales as readonly string[]).includes(value);
+  return (
+    typeof value === "string" && (locales as readonly string[]).includes(value)
+  );
 }

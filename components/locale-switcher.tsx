@@ -1,17 +1,16 @@
 "use client";
 
+import { Languages } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTransition } from "react";
-import { Languages } from "lucide-react";
-
+import { setLocale } from "@/actions/locale";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { setLocale } from "@/actions/locale";
-import { locales, localeLabels, type Locale } from "@/i18n/locales";
+import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { cn } from "@/lib/utils";
 
 export function LocaleSwitcher() {

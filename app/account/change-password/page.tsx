@@ -1,4 +1,3 @@
-import { getServerSession } from "@/lib/auth-session";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
@@ -8,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getServerSession } from "@/lib/auth-session";
 import { ChangePasswordForm } from "./change-password-form";
 
 export default async function ChangePasswordPage() {

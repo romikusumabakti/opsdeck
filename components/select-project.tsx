@@ -1,10 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-
-import { cn } from "@/lib/utils";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -19,8 +18,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Project } from "@/lib/db/schema";
-import { useParams, useRouter } from "next/navigation";
+import type { Project } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 
 export function SelectProject({ projects }: { projects: Project[] }) {
   const t = useTranslations("header");

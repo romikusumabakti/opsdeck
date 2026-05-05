@@ -4,14 +4,14 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import "./globals.css";
 import { Aperture } from "lucide-react";
-import { SelectProject } from "@/components/select-project";
 import { getProjects } from "@/actions/projects";
 import { DialogProvider } from "@/components/dialog-provider";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { SelectProject } from "@/components/select-project";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LocaleSwitcher } from "@/components/locale-switcher";
-import { getServerSession } from "@/lib/auth-session";
 import { UserMenu } from "@/components/user-menu";
+import { getServerSession } from "@/lib/auth-session";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
