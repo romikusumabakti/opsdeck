@@ -19,7 +19,11 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json bun.lock* bun.lockb* ./
-RUN bun install --frozen-lockfile
+# `--ignore-scripts` matches the previous pnpm setup which excluded ssh2,
+# cpu-features, sharp, etc. from running their install hooks. Also avoids a
+# SIGILL crash on AVX-less build hosts where Bun's child Node-compat process
+# crashes inside ssh2's install.js.
+RUN bun install --frozen-lockfile --ignore-scripts
 
 # Rebuild the source code only when needed
 FROM base AS builder
