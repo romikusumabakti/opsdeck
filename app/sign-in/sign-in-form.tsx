@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Aperture } from "lucide-react";
 
 export function SignInForm({ redirectTo }: { redirectTo?: string }) {
+  const t = useTranslations("signIn");
+  const tApp = useTranslations("app");
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +38,7 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
     setLoading(false);
 
     if (err) {
-      setError(err.message ?? "Email atau password salah");
+      setError(err.message ?? t("errorInvalid"));
       return;
     }
 
@@ -48,17 +51,15 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
       <CardHeader>
         <div className="flex items-center gap-2 mb-2">
           <Aperture />
-          <span className="font-bold">Admin Panel</span>
+          <span className="font-bold">{tApp("name")}</span>
         </div>
-        <CardTitle>Masuk</CardTitle>
-        <CardDescription>
-          Masuk dengan email kantor @example.com Anda
-        </CardDescription>
+        <CardTitle>{t("title")}</CardTitle>
+        <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("email")}</Label>
             <Input
               id="email"
               type="email"
@@ -66,11 +67,11 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="anda@example.com"
+              placeholder={t("emailPlaceholder")}
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("password")}</Label>
             <Input
               id="password"
               type="password"
@@ -86,7 +87,7 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
             </p>
           )}
           <Button type="submit" disabled={loading}>
-            {loading ? "Memproses..." : "Masuk"}
+            {loading ? t("submitting") : t("submit")}
           </Button>
         </form>
       </CardContent>
