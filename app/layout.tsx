@@ -72,7 +72,12 @@ export default async function RootLayout({
                     <UserMenu user={session.user} />
                   </div>
                 </header>
-              ) : null}
+              ) : (
+                <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+                  <LocaleSwitcher />
+                  <ThemeToggle />
+                </div>
+              )}
               {children}
             </DialogProvider>
           </ThemeProvider>
