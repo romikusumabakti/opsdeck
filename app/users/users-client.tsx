@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  deleteUser,
-  inviteUser,
-  revokeInvitation,
-} from "@/actions/users";
+import { useState, useTransition } from "react";
+import { deleteUser, inviteUser, revokeInvitation } from "@/actions/users";
+import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,8 +15,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDialog } from "@/components/dialog-provider";
-import { Trash2 } from "lucide-react";
 
 type UserRow = {
   id: string;
@@ -215,9 +211,7 @@ export function UsersClient({
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {u.email}
-                  </div>
+                  <div className="text-sm text-muted-foreground">{u.email}</div>
                 </div>
                 {u.id !== currentUserId && (
                   <Button

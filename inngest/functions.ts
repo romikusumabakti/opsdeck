@@ -1,6 +1,6 @@
-import { Project } from "@/lib/db/schema";
-import { inngest } from "./client";
+import type { Project } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { inngest } from "./client";
 
 export const syncJenkinsData = inngest.createFunction(
   { id: "sync-jenkins-data", triggers: { event: "jenkins/sync.data" } },

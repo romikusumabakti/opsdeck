@@ -1,16 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { KeyRound, LogOut, UserRound, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { KeyRound, LogOut, Users, UserRound } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 type UserSummary = {
   id: string;

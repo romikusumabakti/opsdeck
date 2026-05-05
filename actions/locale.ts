@@ -1,7 +1,7 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { isValidLocale, LOCALE_COOKIE, type Locale } from "@/i18n/locales";
 
 export async function setLocale(locale: Locale) {

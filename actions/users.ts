@@ -1,14 +1,14 @@
 "use server";
 
-import { auth, isAllowedEmail, ALLOWED_EMAIL_DOMAIN } from "@/lib/auth";
+import { randomBytes } from "node:crypto";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
+import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
+import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { invitations, users as userTable } from "@/lib/db/schema";
-import { requireSession } from "@/lib/auth-session";
 import { sendInvitationEmail } from "@/lib/email/send";
-import { and, eq, isNull, gt } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { randomBytes } from "node:crypto";
-import { getTranslations } from "next-intl/server";
 
 export type ActionResponse =
   | { success: true; message?: string }
@@ -90,8 +90,7 @@ export async function inviteUser(input: {
     expiresAt,
   });
 
-  const baseUrl =
-    process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
   const inviteUrl = `${baseUrl}/accept-invite/${token}`;
 
   try {

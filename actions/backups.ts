@@ -1,7 +1,7 @@
 "use server";
 
 import { inngest } from "@/inngest/client";
-import { Project } from "@/lib/db/schema";
+import type { Project } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
 
 export async function getBackupList(project: Project) {

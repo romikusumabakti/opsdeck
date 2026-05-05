@@ -1,9 +1,9 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { projects, type NewProject, type Project } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { db } from "@/lib/db";
+import { type NewProject, type Project, projects } from "@/lib/db/schema";
 
 // Define a standard response type for mutations
 type ActionResponse = {

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { authClient } from "@/lib/auth-client";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authClient } from "@/lib/auth-client";
 
 export function ChangePasswordForm() {
   const t = useTranslations("changePassword");

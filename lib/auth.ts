@@ -2,12 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "./db";
-import {
-  accounts,
-  sessions,
-  users,
-  verifications,
-} from "./db/schema";
+import { accounts, sessions, users, verifications } from "./db/schema";
 
 export const ALLOWED_EMAIL_DOMAIN = "example.com";
 
@@ -41,9 +36,7 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
-  trustedOrigins: [
-    process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-  ],
+  trustedOrigins: [process.env.BETTER_AUTH_URL ?? "http://localhost:3000"],
   plugins: [nextCookies()],
 });
 
