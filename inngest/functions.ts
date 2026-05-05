@@ -3,8 +3,7 @@ import { inngest } from "./client";
 import { executeRemoteCommand } from "@/lib/ssh";
 
 export const syncJenkinsData = inngest.createFunction(
-  { id: "sync-jenkins-data" },
-  { event: "jenkins/sync.data" },
+  { id: "sync-jenkins-data", triggers: { event: "jenkins/sync.data" } },
   async ({ event, step }) => {
     await step.sleep("wait-a-moment", "1s");
     return { message: `Hello ${event.data.email}!` };
@@ -12,8 +11,7 @@ export const syncJenkinsData = inngest.createFunction(
 );
 
 export const createDatabaseBackup = inngest.createFunction(
-  { id: "create-db-backup" },
-  { event: "db/backup.requested" },
+  { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
     const project = event.data as Project;
 
@@ -48,10 +46,15 @@ export const createDatabaseBackup = inngest.createFunction(
 );
 
 export const restoreDatabaseBackup = inngest.createFunction(
-  { id: "restore-db-backup" },
-  { event: "db/restore.requested" },
+  { id: "restore-db-backup", triggers: { event: "db/restore.requested" } },
   async ({ event, step }) => {
-    const { filename } = event.data;
+    const data = event.data as Project & { filename: string };
+    const { filename } = data;
+    const credentials = {
+      host: data.dbServerHost,
+      username: data.dbServerUsername,
+      password: data.dbServerPassword,
+    };
     const path = process.env.BACKUP_DIR;
     const container = process.env.DB_CONTAINER_NAME;
     const user = process.env.DB_USER;
@@ -63,7 +66,7 @@ export const restoreDatabaseBackup = inngest.createFunction(
     // This SQL snippet kills all connections to the specific DB except our own runner
     await step.run("kill-connections", async () => {
       const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${db}' AND pid <> pg_backend_pid();" | docker exec -i ${container} psql -U ${user}`;
-      await executeRemoteCommand(event.data, killCmd);
+      await executeRemoteCommand(credentials, killCmd);
     });
 
     // 2. Drop and Recreate (Optional but recommended for clean slate)
@@ -72,7 +75,7 @@ export const restoreDatabaseBackup = inngest.createFunction(
     await step.run("perform-restore", async () => {
       // gunzip the file on host and pipe into docker psql
       const cmd = `gunzip -c ${path}/${filename} | docker exec -i ${container} psql -U ${user} -d ${db}`;
-      await executeRemoteCommand(event.data, cmd);
+      await executeRemoteCommand(credentials, cmd);
     });
 
     return { success: true, restored: filename };
