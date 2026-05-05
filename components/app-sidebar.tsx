@@ -23,36 +23,38 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 const items = [
   {
-    title: "Dashboard",
+    key: "dashboard",
     url: "/",
     icon: LayoutDashboard,
   },
   {
-    title: "Backup database",
+    key: "backupDatabase",
     url: "/backup-database",
     icon: Database,
   },
   {
-    title: "Restore database",
+    key: "restoreDatabase",
     url: "/restore-database",
     icon: DatabaseBackup,
   },
   {
-    title: "History",
+    key: "history",
     url: "/history",
     icon: History,
   },
   {
-    title: "Settings",
+    key: "settings",
     url: "/settings",
     icon: Settings,
   },
-];
+] as const;
 
 export function AppSidebar({ project }: { project: Project }) {
+  const t = useTranslations("nav");
   const pathname = usePathname();
 
   const activeItem = items.find((i) => pathname.endsWith(i.url)) || items[0];
@@ -64,18 +66,18 @@ export function AppSidebar({ project }: { project: Project }) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("menu")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => {
                 const isActive = item.url === activeItem.url;
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.key}>
                     <SidebarMenuButton asChild isActive={isActive}>
                       <Link href={`/projects/${project.id}${item.url}`}>
                         <item.icon strokeWidth={isActive ? 4 : 2} />
                         <span className={cn(isActive && "font-bold")}>
-                          {item.title}
+                          {t(item.key)}
                         </span>
                       </Link>
                     </SidebarMenuButton>

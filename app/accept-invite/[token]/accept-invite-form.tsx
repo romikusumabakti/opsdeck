@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { acceptInvitation } from "@/actions/users";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export function AcceptInviteForm({
   email: string;
   name: string;
 }) {
+  const t = useTranslations("acceptInvite");
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -28,7 +30,7 @@ export function AcceptInviteForm({
     setError(null);
 
     if (password !== confirm) {
-      setError("Konfirmasi password tidak cocok");
+      setError(t("passwordMismatch"));
       return;
     }
 
@@ -61,15 +63,15 @@ export function AcceptInviteForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label>Nama</Label>
+        <Label>{t("name")}</Label>
         <Input value={name} disabled />
       </div>
       <div className="flex flex-col gap-2">
-        <Label>Email</Label>
+        <Label>{t("email")}</Label>
         <Input value={email} disabled />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Password baru</Label>
+        <Label htmlFor="password">{t("newPassword")}</Label>
         <Input
           id="password"
           type="password"
@@ -81,7 +83,7 @@ export function AcceptInviteForm({
         />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="confirm">Konfirmasi password</Label>
+        <Label htmlFor="confirm">{t("confirmPassword")}</Label>
         <Input
           id="confirm"
           type="password"
@@ -98,7 +100,7 @@ export function AcceptInviteForm({
         </p>
       )}
       <Button type="submit" disabled={loading}>
-        {loading ? "Memproses..." : "Aktivasi & Masuk"}
+        {loading ? t("submitting") : t("submit")}
       </Button>
     </form>
   );

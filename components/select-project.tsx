@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { Project } from "@/lib/db/schema";
 import { useParams, useRouter } from "next/navigation";
 
 export function SelectProject({ projects }: { projects: Project[] }) {
+  const t = useTranslations("header");
   const [open, setOpen] = React.useState(false);
   const router = useRouter();
   const params = useParams();
@@ -39,15 +41,15 @@ export function SelectProject({ projects }: { projects: Project[] }) {
           aria-expanded={open}
           className="w-64 justify-between"
         >
-          {activeProject ? activeProject.name : "Select project..."}
+          {activeProject ? activeProject.name : t("selectProject")}
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0">
         <Command>
-          <CommandInput placeholder="Search project..." className="h-9" />
+          <CommandInput placeholder={t("searchProject")} className="h-9" />
           <CommandList>
-            <CommandEmpty>No project found.</CommandEmpty>
+            <CommandEmpty>{t("noProject")}</CommandEmpty>
             <CommandGroup>
               {projects.map((project) => (
                 <CommandItem

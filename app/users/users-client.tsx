@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import {
   deleteUser,
   inviteUser,
@@ -45,6 +46,8 @@ export function UsersClient({
   invitations: InvitationRow[];
   currentUserId: string;
 }) {
+  const t = useTranslations("users");
+  const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -61,7 +64,7 @@ export function UsersClient({
       if (!result.success) {
         setError(result.message);
       } else {
-        setSuccess(result.message ?? "Undangan terkirim");
+        setSuccess(result.message ?? "");
         setName("");
         setEmail("");
       }
@@ -70,16 +73,20 @@ export function UsersClient({
 
   async function onDelete(user: UserRow) {
     const ok = await dialog.confirm({
-      title: "Hapus user",
-      description: `Hapus ${user.name} (${user.email})? Tindakan ini tidak bisa dibatalkan.`,
-      confirmText: "Hapus",
+      title: t("deleteTitle"),
+      description: t("deleteDescription", {
+        name: user.name,
+        email: user.email,
+      }),
+      confirmText: t("deleteConfirm"),
+      cancelText: tCommon("cancel"),
     });
     if (!ok) return;
     startTransition(async () => {
       const result = await deleteUser(user.id);
       if (!result.success) {
         await dialog.alert({
-          title: "Gagal",
+          title: t("deleteFailed"),
           description: result.message,
         });
       }
@@ -88,9 +95,10 @@ export function UsersClient({
 
   async function onRevoke(inv: InvitationRow) {
     const ok = await dialog.confirm({
-      title: "Batalkan undangan",
-      description: `Batalkan undangan untuk ${inv.email}?`,
-      confirmText: "Batalkan",
+      title: t("revokeTitle"),
+      description: t("revokeDescription", { email: inv.email }),
+      confirmText: t("revoke"),
+      cancelText: tCommon("cancel"),
     });
     if (!ok) return;
     startTransition(async () => {
@@ -102,10 +110,8 @@ export function UsersClient({
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Undang Pengguna</CardTitle>
-          <CardDescription>
-            Email harus berakhir dengan @example.com
-          </CardDescription>
+          <CardTitle>{t("inviteCardTitle")}</CardTitle>
+          <CardDescription>{t("inviteCardDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -113,28 +119,28 @@ export function UsersClient({
             className="flex flex-col gap-4 md:flex-row md:items-end"
           >
             <div className="flex flex-col gap-2 flex-1">
-              <Label htmlFor="invite-name">Nama</Label>
+              <Label htmlFor="invite-name">{t("fullName")}</Label>
               <Input
                 id="invite-name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Nama lengkap"
+                placeholder={t("fullNamePlaceholder")}
               />
             </div>
             <div className="flex flex-col gap-2 flex-1">
-              <Label htmlFor="invite-email">Email</Label>
+              <Label htmlFor="invite-email">{t("email")}</Label>
               <Input
                 id="invite-email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
+                placeholder={t("emailPlaceholder")}
               />
             </div>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Mengirim..." : "Undang"}
+              {isPending ? t("inviteSubmitting") : t("inviteSubmit")}
             </Button>
           </form>
           {error && (
@@ -153,10 +159,8 @@ export function UsersClient({
       {invitations.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Undangan Tertunda</CardTitle>
-            <CardDescription>
-              Undangan yang belum diaktivasi user.
-            </CardDescription>
+            <CardTitle>{t("pendingTitle")}</CardTitle>
+            <CardDescription>{t("pendingDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="divide-y">
@@ -171,7 +175,9 @@ export function UsersClient({
                       {inv.email}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Kadaluarsa {new Date(inv.expiresAt).toLocaleString()}
+                      {t("expiresAt", {
+                        date: new Date(inv.expiresAt).toLocaleString(),
+                      })}
                     </div>
                   </div>
                   <Button
@@ -180,7 +186,7 @@ export function UsersClient({
                     onClick={() => onRevoke(inv)}
                     disabled={isPending}
                   >
-                    Batalkan
+                    {t("revoke")}
                   </Button>
                 </li>
               ))}
@@ -191,7 +197,7 @@ export function UsersClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>Pengguna ({users.length})</CardTitle>
+          <CardTitle>{t("listTitle", { count: users.length })}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="divide-y">
@@ -205,7 +211,7 @@ export function UsersClient({
                     {u.name}
                     {u.id === currentUserId && (
                       <span className="ml-2 text-xs text-muted-foreground">
-                        (Anda)
+                        ({tCommon("you")})
                       </span>
                     )}
                   </div>
@@ -219,7 +225,7 @@ export function UsersClient({
                     size="icon"
                     onClick={() => onDelete(u)}
                     disabled={isPending}
-                    aria-label="Hapus"
+                    aria-label={t("deleteAriaLabel")}
                   >
                     <Trash2 className="size-4" />
                   </Button>

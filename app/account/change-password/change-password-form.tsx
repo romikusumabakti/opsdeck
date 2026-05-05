@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function ChangePasswordForm() {
+  const t = useTranslations("changePassword");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -21,7 +23,7 @@ export function ChangePasswordForm() {
     setSuccess(null);
 
     if (newPassword !== confirm) {
-      setError("Konfirmasi password tidak cocok");
+      setError(t("passwordMismatch"));
       return;
     }
 
@@ -34,11 +36,11 @@ export function ChangePasswordForm() {
     setLoading(false);
 
     if (err) {
-      setError(err.message ?? "Gagal mengubah password");
+      setError(err.message ?? t("errorGeneric"));
       return;
     }
 
-    setSuccess("Password berhasil diubah");
+    setSuccess(t("success"));
     setCurrentPassword("");
     setNewPassword("");
     setConfirm("");
@@ -47,7 +49,7 @@ export function ChangePasswordForm() {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="current">Password lama</Label>
+        <Label htmlFor="current">{t("currentPassword")}</Label>
         <Input
           id="current"
           type="password"
@@ -58,7 +60,7 @@ export function ChangePasswordForm() {
         />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="new">Password baru</Label>
+        <Label htmlFor="new">{t("newPassword")}</Label>
         <Input
           id="new"
           type="password"
@@ -70,7 +72,7 @@ export function ChangePasswordForm() {
         />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="confirm">Konfirmasi password baru</Label>
+        <Label htmlFor="confirm">{t("confirmPassword")}</Label>
         <Input
           id="confirm"
           type="password"
@@ -87,7 +89,7 @@ export function ChangePasswordForm() {
           checked={revokeOther}
           onChange={(e) => setRevokeOther(e.target.checked)}
         />
-        Keluarkan saya dari semua perangkat lain
+        {t("revokeOtherSessions")}
       </label>
       {error && (
         <p className="text-sm text-destructive" role="alert">
@@ -100,7 +102,7 @@ export function ChangePasswordForm() {
         </p>
       )}
       <Button type="submit" disabled={loading} className="self-start">
-        {loading ? "Memproses..." : "Ubah Password"}
+        {loading ? t("submitting") : t("submit")}
       </Button>
     </form>
   );
