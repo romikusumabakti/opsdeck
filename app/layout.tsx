@@ -5,6 +5,8 @@ import { Aperture } from "lucide-react";
 import { SelectProject } from "@/components/select-project";
 import { getProjects } from "@/actions/projects";
 import { DialogProvider } from "@/components/dialog-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,24 +31,34 @@ export default async function RootLayout({
   const projects = await getProjects();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen`}
       >
-        <DialogProvider>
-          <header className="flex border-b h-14 shrink-0">
-            <div className="flex w-64 px-6 items-center">
-              <h1 className="font-bold flex gap-2">
-                <Aperture />
-                <span>Admin Panel</span>
-              </h1>
-            </div>
-            <div className="flex items-center">
-              <SelectProject projects={projects} />
-            </div>
-          </header>
-          {children}
-        </DialogProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <DialogProvider>
+            <header className="flex border-b h-14 shrink-0">
+              <div className="flex w-64 px-6 items-center">
+                <h1 className="font-bold flex gap-2">
+                  <Aperture />
+                  <span>Admin Panel</span>
+                </h1>
+              </div>
+              <div className="flex items-center flex-1">
+                <SelectProject projects={projects} />
+              </div>
+              <div className="flex items-center px-4">
+                <ThemeToggle />
+              </div>
+            </header>
+            {children}
+          </DialogProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
