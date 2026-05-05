@@ -2,14 +2,15 @@ pipeline {
     agent any
 
     environment {
-        POSTGRES_PASSWORD  = credentials('dss-panel-postgres-password')
-        BETTER_AUTH_SECRET = credentials('dss-panel-better-auth-secret')
-        RESEND_API_KEY     = credentials('dss-panel-resend-api-key')
+        // Path to the .env on the server (outside the workspace so it survives
+        // git checkouts). Adjust if you keep it elsewhere.
+        ENV_FILE = '/deployments/dss-panel/.env'
     }
 
     stages {
         stage('Deploy') {
             steps {
+                sh "cp ${ENV_FILE} .env"
                 sh "docker compose up -d --build"
             }
         }
