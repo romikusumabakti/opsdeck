@@ -4,7 +4,7 @@ services:
     container_name: dss-panel-db
     restart: always
     environment:
-      POSTGRES_PASSWORD: Admin@123
+      POSTGRES_PASSWORD: Admin-123**
       POSTGRES_DB: dss_panel
       TZ: Asia/Jakarta
     ports:
@@ -22,7 +22,7 @@ services:
     ports:
       - "80:3000"
     environment:
-      DATABASE_URL: postgres://postgres:Admin@123@db:5432/dss_panel
+      DATABASE_URL: postgres://postgres:Admin-123**@db:5432/dss_panel
       # Host URL for Inngest to find the app
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     healthcheck:
@@ -44,7 +44,7 @@ services:
       - "8288:8288"
     volumes:
       # Optional: Persist Inngest event history
-      - inngest_data:/var/lib/inngest 
+      - inngest_data:/var/lib/inngest
 
 volumes:
   postgres_data:
