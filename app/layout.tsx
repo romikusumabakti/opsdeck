@@ -7,6 +7,8 @@ import { getProjects } from "@/actions/projects";
 import { DialogProvider } from "@/components/dialog-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { getServerSession } from "@/lib/auth-session";
+import { UserMenu } from "@/components/user-menu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +30,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const projects = await getProjects();
+  const session = await getServerSession();
+  const projects = session ? await getProjects() : [];
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -42,20 +45,23 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <DialogProvider>
-            <header className="flex border-b h-14 shrink-0">
-              <div className="flex w-64 px-6 items-center">
-                <h1 className="font-bold flex gap-2">
-                  <Aperture />
-                  <span>Admin Panel</span>
-                </h1>
-              </div>
-              <div className="flex items-center flex-1">
-                <SelectProject projects={projects} />
-              </div>
-              <div className="flex items-center px-4">
-                <ThemeToggle />
-              </div>
-            </header>
+            {session ? (
+              <header className="flex border-b h-14 shrink-0">
+                <div className="flex w-64 px-6 items-center">
+                  <h1 className="font-bold flex gap-2">
+                    <Aperture />
+                    <span>Admin Panel</span>
+                  </h1>
+                </div>
+                <div className="flex items-center flex-1">
+                  <SelectProject projects={projects} />
+                </div>
+                <div className="flex items-center gap-2 px-4">
+                  <ThemeToggle />
+                  <UserMenu user={session.user} />
+                </div>
+              </header>
+            ) : null}
             {children}
           </DialogProvider>
         </ThemeProvider>
