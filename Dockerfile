@@ -1,9 +1,17 @@
 # syntax=docker.io/docker/dockerfile:1
 
-# Use the `-baseline` variant: built without AVX/AVX2 instructions for older CPUs.
-# Required by our Jenkins build host (Linux 4.18, no AVX) — switching to the
-# regular `1-alpine` image triggers SIGILL during `bun install`.
-FROM oven/bun:1-alpine-baseline AS base
+# Bun's official Alpine image ships an AVX2-required binary. Our Jenkins build
+# host CPU has no AVX, so we replace `bun` with the `musl-baseline` variant
+# from GitHub releases (built without AVX/AVX2 instructions).
+FROM oven/bun:1.3.13-alpine AS base
+USER root
+RUN apk add --no-cache curl unzip \
+    && curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v1.3.13/bun-linux-x64-musl-baseline.zip" -o /tmp/bun.zip \
+    && unzip -q /tmp/bun.zip -d /tmp \
+    && mv /tmp/bun-linux-x64-musl-baseline/bun /usr/local/bin/bun \
+    && chmod +x /usr/local/bin/bun \
+    && rm -rf /tmp/bun.zip /tmp/bun-linux-x64-musl-baseline \
+    && bun --version
 
 # Install dependencies only when needed
 FROM base AS deps
