@@ -1,6 +1,9 @@
 # syntax=docker.io/docker/dockerfile:1
 
-FROM oven/bun:1-alpine AS base
+# Use the `-baseline` variant: built without AVX/AVX2 instructions for older CPUs.
+# Required by our Jenkins build host (Linux 4.18, no AVX) — switching to the
+# regular `1-alpine` image triggers SIGILL during `bun install`.
+FROM oven/bun:1-alpine-baseline AS base
 
 # Install dependencies only when needed
 FROM base AS deps
