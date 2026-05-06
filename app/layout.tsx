@@ -8,6 +8,7 @@ import { getProjects } from "@/actions/projects";
 import { DialogProvider } from "@/components/dialog-provider";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { SelectProject } from "@/components/select-project";
+import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
@@ -56,7 +57,7 @@ export default async function RootLayout({
           >
             <DialogProvider>
               {session ? (
-                <header className="flex border-b h-14 shrink-0">
+                <header className="flex border-b h-14 shrink-0 sticky top-0 z-40 bg-background">
                   <div className="flex w-64 px-6 items-center">
                     <h1 className="font-bold flex gap-2">
                       <Aperture />
@@ -67,6 +68,7 @@ export default async function RootLayout({
                     <SelectProject projects={projects} />
                   </div>
                   <div className="flex items-center gap-2 px-4">
+                    <ServerTime />
                     <LocaleSwitcher />
                     <ThemeToggle />
                     <UserMenu user={session.user} />
