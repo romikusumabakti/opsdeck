@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { auth } from "./auth";
 
 export async function getServerSession() {
@@ -10,7 +11,8 @@ export async function getServerSession() {
 export async function requireSession() {
   const session = await getServerSession();
   if (!session) {
-    throw new Error("UNAUTHORIZED");
+    // Proxy only checks cookie presence; a stale cookie reaches here.
+    redirect("/sign-in");
   }
   return session;
 }
