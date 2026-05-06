@@ -39,9 +39,14 @@
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
+    "server": "Server",
+    "serverName": "Nama server",
+    "serverNamePlaceholder": "Contoh: Production DB",
     "serverHost": "Host server",
     "serverUsername": "Username SSH",
     "serverPassword": "Password SSH",
+    "createNewServer": "+ Buat server baru…",
+    "noServer": "+ Buat server pertama",
     "serviceType": "Tipe service",
     "serviceName": "Nama service",
     "dbType": "Tipe database",
@@ -55,9 +60,42 @@
   },
   "userMenu": {
     "users": "Manajemen Pengguna",
+    "servers": "Manajemen Server",
     "changePassword": "Ubah Password",
     "signOut": "Keluar",
     "ariaLabel": "Menu pengguna"
+  },
+  "servers": {
+    "title": "Server",
+    "addServer": "Tambah Server",
+    "empty": "Belum ada server. Tambahkan server untuk mulai mendaftarkan proyek.",
+    "editAriaLabel": "Edit",
+    "deleteAriaLabel": "Hapus",
+    "deleteTitle": "Hapus server",
+    "deleteDescription": "Hapus server {name} ({host})? Server yang masih dipakai proyek tidak bisa dihapus.",
+    "deleteConfirm": "Hapus",
+    "deleteFailed": "Gagal"
+  },
+  "serverForm": {
+    "name": "Nama",
+    "namePlaceholder": "Contoh: Production DB",
+    "host": "Host",
+    "username": "Username SSH",
+    "password": "Password SSH",
+    "passwordEdit": "Password SSH (baru)",
+    "passwordEditPlaceholder": "Kosongkan jika tidak diubah",
+    "create": "Buat Server",
+    "saveChanges": "Simpan",
+    "submitting": "Menyimpan...",
+    "cancel": "Batal"
+  },
+  "newServer": {
+    "title": "Tambah Server",
+    "description": "Daftarkan kredensial SSH server baru. Server bisa digunakan oleh banyak proyek."
+  },
+  "editServer": {
+    "title": "Edit Server: {name}",
+    "description": "Ubah kredensial SSH. Kosongkan password jika tidak ingin mengubahnya."
   },
   "localeSwitcher": {
     "ariaLabel": "Pilih bahasa"
@@ -152,6 +190,14 @@
     "passwordTooShort": "Password minimal {min} karakter",
     "passwordTooLong": "Password maksimal {max} karakter",
     "accountCreated": "Akun berhasil dibuat",
-    "setupAlreadyDone": "Pengaturan awal sudah pernah dilakukan"
+    "setupAlreadyDone": "Pengaturan awal sudah pernah dilakukan",
+    "serverCreated": "Server berhasil dibuat",
+    "serverCreateFailed": "Gagal membuat server",
+    "serverUpdated": "Server berhasil diperbarui",
+    "serverUpdateFailed": "Gagal memperbarui server",
+    "serverDeleted": "Server dihapus",
+    "serverDeleteFailed": "Gagal menghapus server",
+    "serverNotFound": "Server tidak ditemukan",
+    "serverInUse": "Server tidak bisa dihapus karena masih dipakai oleh proyek"
   }
 }

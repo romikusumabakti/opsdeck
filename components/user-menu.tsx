@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, LogOut, UserRound, Users } from "lucide-react";
+import { KeyRound, LogOut, Server, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -69,6 +69,13 @@ export function UserMenu({ user }: { user: UserSummary }) {
         >
           <Users className="size-4" />
           <span>{t("users")}</span>
+        </Link>
+        <Link
+          href="/servers"
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        >
+          <Server className="size-4" />
+          <span>{t("servers")}</span>
         </Link>
         <Link
           href="/account/change-password"

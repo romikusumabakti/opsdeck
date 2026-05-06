@@ -1,4 +1,4 @@
-import type { Project } from "@/lib/db/schema";
+import type { ProjectWithServers } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { inngest } from "./client";
 
@@ -13,12 +13,12 @@ export const syncJenkinsData = inngest.createFunction(
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
-    const project = event.data as Project;
+    const project = event.data as ProjectWithServers;
 
     const credentials = {
-      host: project.dbServerHost,
-      username: project.dbServerUsername,
-      password: project.dbServerPassword,
+      host: project.dbServer.host,
+      username: project.dbServer.username,
+      password: project.dbServer.password,
     };
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -48,12 +48,12 @@ export const createDatabaseBackup = inngest.createFunction(
 export const restoreDatabaseBackup = inngest.createFunction(
   { id: "restore-db-backup", triggers: { event: "db/restore.requested" } },
   async ({ event, step }) => {
-    const data = event.data as Project & { filename: string };
+    const data = event.data as ProjectWithServers & { filename: string };
     const { filename } = data;
     const credentials = {
-      host: data.dbServerHost,
-      username: data.dbServerUsername,
-      password: data.dbServerPassword,
+      host: data.dbServer.host,
+      username: data.dbServer.username,
+      password: data.dbServer.password,
     };
     const path = process.env.BACKUP_DIR;
     const container = process.env.DB_CONTAINER_NAME;
