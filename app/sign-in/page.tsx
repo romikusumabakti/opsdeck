@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { hasAnyUser } from "@/actions/users";
 import { getServerSession } from "@/lib/auth-session";
 import { SignInForm } from "./sign-in-form";
 
@@ -12,6 +13,10 @@ export default async function SignInPage({
 
   if (session) {
     redirect(redirectTo || "/");
+  }
+
+  if (!(await hasAnyUser())) {
+    redirect("/setup");
   }
 
   return (

@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 const PUBLIC_PATH_PREFIXES = [
   "/sign-in",
   "/accept-invite",
+  "/setup",
   "/api/auth",
   "/_next",
   "/favicon.ico",
