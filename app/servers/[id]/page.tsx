@@ -20,10 +20,7 @@ export default async function EditServerPage({
   if (!session) redirect("/sign-in?redirect=/servers");
 
   const { id } = await params;
-  const serverId = parseInt(id);
-  if (Number.isNaN(serverId)) notFound();
-
-  const server = await getServerById(serverId);
+  const server = await getServerById(id);
   if (!server) notFound();
 
   const t = await getTranslations("editServer");

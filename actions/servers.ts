@@ -22,7 +22,7 @@ export async function getServers(): Promise<Server[]> {
 }
 
 export async function getServerById(
-  id: number
+  id: string
 ): Promise<Server | undefined> {
   await requireSession();
   const [row] = await db
@@ -50,7 +50,7 @@ export async function createServer(
 }
 
 export async function updateServer(
-  id: number,
+  id: string,
   data: Partial<NewServer>
 ): Promise<SimpleResponse> {
   await requireSession();
@@ -83,7 +83,7 @@ export async function testServerConnection(input: {
   host: string;
   username: string;
   password?: string;
-  serverId?: number;
+  serverId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireSession();
   const t = await getTranslations("actionErrors");
@@ -113,7 +113,7 @@ export async function testServerConnection(input: {
   return testSshConnection({ host, username, password });
 }
 
-export async function deleteServer(id: number): Promise<SimpleResponse> {
+export async function deleteServer(id: string): Promise<SimpleResponse> {
   await requireSession();
   const t = await getTranslations("actionErrors");
   try {

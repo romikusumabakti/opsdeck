@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { v7 as uuidv7 } from "uuid";
 import { db } from "./db";
 import { accounts, sessions, users, verifications } from "./db/schema";
 
@@ -37,6 +38,13 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24, // 1 day
   },
   trustedOrigins: [process.env.BETTER_AUTH_URL ?? "http://localhost:3000"],
+  // Generate UUIDv7 for user/session/account/verification IDs so they are
+  // time-ordered and friendly to B-tree indexes (matches our own tables).
+  advanced: {
+    database: {
+      generateId: () => uuidv7(),
+    },
+  },
   plugins: [nextCookies()],
 });
 

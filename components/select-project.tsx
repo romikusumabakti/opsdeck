@@ -29,7 +29,7 @@ export function SelectProject({ projects }: { projects: Project[] }) {
   const params = useParams();
 
   const activeProject =
-    projects.find((p) => p.id === parseInt(params.projectId as string)) ||
+    projects.find((p) => p.id === (params.projectId as string)) ||
     projects[0];
 
   return (

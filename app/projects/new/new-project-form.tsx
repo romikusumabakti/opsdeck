@@ -20,7 +20,7 @@ type ServerRole = "db" | "backend" | "frontend";
 type FormState = {
   name: string;
 
-  dbServerId: number | null;
+  dbServerId: string | null;
   dbServiceType: (typeof SERVICE_TYPES)[number];
   dbServiceName: string;
   dbType: (typeof DB_TYPES)[number];
@@ -28,11 +28,11 @@ type FormState = {
   dbIsBackupMounted: boolean;
   dbBackupPath: string;
 
-  backendServerId: number | null;
+  backendServerId: string | null;
   backendServiceType: (typeof SERVICE_TYPES)[number];
   backendServiceName: string;
 
-  frontendServerId: number | null;
+  frontendServerId: string | null;
   frontendServiceType: (typeof SERVICE_TYPES)[number];
   frontendServiceName: string;
 };
@@ -390,8 +390,8 @@ function ServerPicker({
   t: (key: string) => string;
   prefix: string;
   servers: Server[];
-  value: number | null;
-  onChange: (id: number | null) => void;
+  value: string | null;
+  onChange: (id: string | null) => void;
   onRequestCreate: () => void;
 }) {
   const selectId = `${prefix}-server`;
@@ -402,10 +402,8 @@ function ServerPicker({
         <Select
           id={selectId}
           required
-          value={value === null ? "" : String(value)}
-          onChange={(e) =>
-            onChange(e.target.value === "" ? null : Number(e.target.value))
-          }
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
           className="flex-1"
         >
           <option value="" disabled>
