@@ -97,6 +97,19 @@
     "deleteAriaLabel": "Hapus",
     "deleteFailed": "Gagal"
   },
+  "setup": {
+    "title": "Pengaturan Awal",
+    "description": "Buat akun admin pertama untuk Admin Panel. Halaman ini hanya muncul saat belum ada pengguna sama sekali.",
+    "name": "Nama",
+    "namePlaceholder": "Nama lengkap",
+    "email": "Email",
+    "emailPlaceholder": "anda@example.com",
+    "password": "Password",
+    "confirmPassword": "Konfirmasi password",
+    "passwordMismatch": "Konfirmasi password tidak cocok",
+    "submit": "Buat Akun & Masuk",
+    "submitting": "Memproses..."
+  },
   "actionErrors": {
     "nameAndEmailRequired": "Nama dan email wajib diisi",
     "domainNotAllowed": "Hanya email @{domain} yang diizinkan",
@@ -109,6 +122,7 @@
     "invitationInvalid": "Undangan tidak valid atau sudah kadaluarsa",
     "passwordTooShort": "Password minimal {min} karakter",
     "passwordTooLong": "Password maksimal {max} karakter",
-    "accountCreated": "Akun berhasil dibuat"
+    "accountCreated": "Akun berhasil dibuat",
+    "setupAlreadyDone": "Pengaturan awal sudah pernah dilakukan"
   }
 }
