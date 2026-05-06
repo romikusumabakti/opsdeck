@@ -40,13 +40,9 @@
     "backend": "Backend",
     "frontend": "Frontend",
     "server": "Server",
-    "serverName": "Nama server",
-    "serverNamePlaceholder": "Contoh: Production DB",
-    "serverHost": "Host server",
-    "serverUsername": "Username SSH",
-    "serverPassword": "Password SSH",
-    "createNewServer": "+ Buat server baru…",
-    "noServer": "+ Buat server pertama",
+    "pickServer": "Pilih server...",
+    "newServerShort": "Server baru",
+    "pickServerRequired": "Pilih server untuk semua role (database, backend, frontend)",
     "serviceType": "Tipe service",
     "serviceName": "Nama service",
     "dbType": "Tipe database",
@@ -87,7 +83,10 @@
     "create": "Buat Server",
     "saveChanges": "Simpan",
     "submitting": "Menyimpan...",
-    "cancel": "Batal"
+    "cancel": "Batal",
+    "testConnection": "Tes koneksi",
+    "testSuccess": "Koneksi berhasil",
+    "testFailed": "Koneksi gagal"
   },
   "newServer": {
     "title": "Tambah Server",
@@ -198,6 +197,8 @@
     "serverDeleted": "Server dihapus",
     "serverDeleteFailed": "Gagal menghapus server",
     "serverNotFound": "Server tidak ditemukan",
-    "serverInUse": "Server tidak bisa dihapus karena masih dipakai oleh proyek"
+    "serverInUse": "Server tidak bisa dihapus karena masih dipakai oleh proyek",
+    "hostAndUsernameRequired": "Host dan username wajib diisi",
+    "passwordRequiredForTest": "Masukkan password untuk tes koneksi"
   }
 }

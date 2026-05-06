@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { createServer, updateServer } from "@/actions/servers";
+import {
+  createServer,
+  testServerConnection,
+  updateServer,
+} from "@/actions/servers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +16,23 @@ import type { Server } from "@/lib/db/schema";
 
 type Mode = { type: "create" } | { type: "edit"; server: Server };
 
-export function ServerForm({ mode }: { mode: Mode }) {
+type Props = {
+  mode: Mode;
+  /**
+   * Optional callbacks to override default navigation behaviour. When provided,
+   * the form skips `router.push("/servers")` so it can be embedded in a modal.
+   */
+  onSuccess?: (server: Server) => void;
+  onCancel?: () => void;
+};
+
+type TestState =
+  | { kind: "idle" }
+  | { kind: "testing" }
+  | { kind: "ok" }
+  | { kind: "fail"; message: string };
+
+export function ServerForm({ mode, onSuccess, onCancel }: Props) {
   const t = useTranslations("serverForm");
   const router = useRouter();
   const initial = mode.type === "edit" ? mode.server : null;
@@ -21,7 +42,38 @@ export function ServerForm({ mode }: { mode: Mode }) {
   const [username, setUsername] = useState(initial?.username ?? "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [testState, setTestState] = useState<TestState>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
+
+  // Any field change invalidates a previous test result.
+  function withReset<F extends (...args: never[]) => void>(fn: F): F {
+    return ((...args: Parameters<F>) => {
+      setTestState({ kind: "idle" });
+      fn(...args);
+    }) as F;
+  }
+
+  async function onTest() {
+    setTestState({ kind: "testing" });
+    const payload: {
+      host: string;
+      username: string;
+      password?: string;
+      serverId?: number;
+    } = {
+      host: host.trim(),
+      username: username.trim(),
+    };
+    if (password.length > 0) payload.password = password;
+    if (mode.type === "edit") payload.serverId = mode.server.id;
+
+    const result = await testServerConnection(payload);
+    if (result.ok) {
+      setTestState({ kind: "ok" });
+    } else {
+      setTestState({ kind: "fail", message: result.message });
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,13 +92,21 @@ export function ServerForm({ mode }: { mode: Mode }) {
         setError(result.message);
         return;
       }
+      if (onSuccess) {
+        onSuccess(result.data);
+        return;
+      }
       router.push("/servers");
       router.refresh();
       return;
     }
 
-    // Edit: only send password if user typed something.
-    const data: { name: string; host: string; username: string; password?: string } = {
+    const data: {
+      name: string;
+      host: string;
+      username: string;
+      password?: string;
+    } = {
       name: name.trim(),
       host: host.trim(),
       username: username.trim(),
@@ -62,6 +122,23 @@ export function ServerForm({ mode }: { mode: Mode }) {
     router.push("/servers");
     router.refresh();
   }
+
+  function handleCancel() {
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    router.push("/servers");
+  }
+
+  // Test button is enabled when host & username are filled, AND either a
+  // password is typed or we're in edit mode (we can fall back to stored).
+  const canTest =
+    host.trim().length > 0 &&
+    username.trim().length > 0 &&
+    (password.length > 0 || mode.type === "edit") &&
+    testState.kind !== "testing" &&
+    !loading;
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -81,7 +158,7 @@ export function ServerForm({ mode }: { mode: Mode }) {
           id="server-host"
           required
           value={host}
-          onChange={(e) => setHost(e.target.value)}
+          onChange={withReset((e) => setHost(e.target.value))}
           placeholder="192.168.x.x"
         />
       </div>
@@ -91,7 +168,7 @@ export function ServerForm({ mode }: { mode: Mode }) {
           id="server-username"
           required
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={withReset((e) => setUsername(e.target.value))}
           autoComplete="off"
         />
       </div>
@@ -104,13 +181,30 @@ export function ServerForm({ mode }: { mode: Mode }) {
           type="password"
           required={mode.type === "create"}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={withReset((e) => setPassword(e.target.value))}
           autoComplete="new-password"
           placeholder={
             mode.type === "edit" ? t("passwordEditPlaceholder") : undefined
           }
         />
       </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onTest}
+          disabled={!canTest}
+        >
+          {testState.kind === "testing" ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : null}
+          {t("testConnection")}
+        </Button>
+        <TestStatus state={testState} t={t} />
+      </div>
+
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -120,7 +214,7 @@ export function ServerForm({ mode }: { mode: Mode }) {
         <Button
           type="button"
           variant="ghost"
-          onClick={() => router.push("/servers")}
+          onClick={handleCancel}
           disabled={loading}
         >
           {t("cancel")}
@@ -134,5 +228,31 @@ export function ServerForm({ mode }: { mode: Mode }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+function TestStatus({
+  state,
+  t,
+}: {
+  state: TestState;
+  t: (key: string) => string;
+}) {
+  if (state.kind === "idle" || state.kind === "testing") return null;
+  if (state.kind === "ok") {
+    return (
+      <span className="text-sm text-green-600 dark:text-green-500 inline-flex items-center gap-1">
+        <CheckCircle2 className="size-4" />
+        {t("testSuccess")}
+      </span>
+    );
+  }
+  return (
+    <span className="text-sm text-destructive inline-flex items-center gap-1 break-all">
+      <XCircle className="size-4 shrink-0" />
+      <span>
+        {t("testFailed")}: {state.message}
+      </span>
+    </span>
   );
 }

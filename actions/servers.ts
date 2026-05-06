@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type NewServer, type Server, servers } from "@/lib/db/schema";
+import { testSshConnection } from "@/lib/ssh";
 
 type CreateResponse =
   | { success: true; data: Server; message?: string }
@@ -71,6 +72,45 @@ export async function updateServer(
     console.error(`Failed to update server ${id}:`, error);
     return { success: false, message: t("serverUpdateFailed") };
   }
+}
+
+/**
+ * Probe an SSH connection without persisting anything. Used by the "Test
+ * connection" button on server forms. In edit mode, the password may be
+ * omitted — we then load the stored password by `serverId`.
+ */
+export async function testServerConnection(input: {
+  host: string;
+  username: string;
+  password?: string;
+  serverId?: number;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  await requireSession();
+  const t = await getTranslations("actionErrors");
+
+  const host = input.host.trim();
+  const username = input.username.trim();
+
+  if (!host || !username) {
+    return { ok: false, message: t("hostAndUsernameRequired") };
+  }
+
+  let password = input.password;
+  if (!password && input.serverId != null) {
+    const [row] = await db
+      .select({ password: servers.password })
+      .from(servers)
+      .where(eq(servers.id, input.serverId))
+      .limit(1);
+    if (!row) return { ok: false, message: t("serverNotFound") };
+    password = row.password;
+  }
+
+  if (!password) {
+    return { ok: false, message: t("passwordRequiredForTest") };
+  }
+
+  return testSshConnection({ host, username, password });
 }
 
 export async function deleteServer(id: number): Promise<SimpleResponse> {
