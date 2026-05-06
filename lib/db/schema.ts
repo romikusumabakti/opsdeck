@@ -12,14 +12,24 @@ import {
 export const serviceTypeEnum = pgEnum("service_type", ["docker", "system"]);
 export const databaseTypeEnum = pgEnum("database_type", ["postgres", "mssql"]);
 
+export const servers = pgTable("servers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  host: text("host").notNull(),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
 
   // --- Database ---
-  dbServerHost: text("db_server_host").notNull(),
-  dbServerUsername: text("db_server_username").notNull(),
-  dbServerPassword: text("db_server_password").notNull(),
+  dbServerId: integer("db_server_id")
+    .notNull()
+    .references(() => servers.id, { onDelete: "restrict" }),
   dbServiceType: serviceTypeEnum("db_service_type").notNull(),
   dbServiceName: text("db_service_name").notNull(),
   dbType: databaseTypeEnum("db_type").notNull(),
@@ -28,16 +38,16 @@ export const projects = pgTable("projects", {
   dbBackupPath: text("db_backup_path").notNull(),
 
   // --- Backend ---
-  backendServerHost: text("backend_server_host").notNull(),
-  backendServerUsername: text("backend_server_username").notNull(),
-  backendServerPassword: text("backend_server_password").notNull(),
+  backendServerId: integer("backend_server_id")
+    .notNull()
+    .references(() => servers.id, { onDelete: "restrict" }),
   backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
   backendServiceName: text("backend_service_name").notNull(),
 
   // --- Frontend ---
-  frontendServerHost: text("frontend_server_host").notNull(),
-  frontendServerUsername: text("frontend_server_username").notNull(),
-  frontendServerPassword: text("frontend_server_password").notNull(),
+  frontendServerId: integer("frontend_server_id")
+    .notNull()
+    .references(() => servers.id, { onDelete: "restrict" }),
   frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
   frontendServiceName: text("frontend_service_name").notNull(),
 });
@@ -127,8 +137,17 @@ export const invitations = pgTable("invitations", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export type Server = InferSelectModel<typeof servers>;
+export type NewServer = InferInsertModel<typeof servers>;
+
 export type Project = InferSelectModel<typeof projects>;
 export type NewProject = InferInsertModel<typeof projects>;
+
+export type ProjectWithServers = Project & {
+  dbServer: Server;
+  backendServer: Server;
+  frontendServer: Server;
+};
 
 export type Task = InferSelectModel<typeof tasks>;
 export type NewTask = InferInsertModel<typeof tasks>;

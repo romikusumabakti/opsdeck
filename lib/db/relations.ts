@@ -2,8 +2,34 @@ import { defineRelations } from "drizzle-orm";
 import * as schema from "./schema";
 
 export const relations = defineRelations(schema, (r) => ({
+  servers: {
+    dbProjects: r.many.projects({
+      from: r.servers.id,
+      to: r.projects.dbServerId,
+    }),
+    backendProjects: r.many.projects({
+      from: r.servers.id,
+      to: r.projects.backendServerId,
+    }),
+    frontendProjects: r.many.projects({
+      from: r.servers.id,
+      to: r.projects.frontendServerId,
+    }),
+  },
   projects: {
     tasks: r.many.tasks(),
+    dbServer: r.one.servers({
+      from: r.projects.dbServerId,
+      to: r.servers.id,
+    }),
+    backendServer: r.one.servers({
+      from: r.projects.backendServerId,
+      to: r.servers.id,
+    }),
+    frontendServer: r.one.servers({
+      from: r.projects.frontendServerId,
+      to: r.servers.id,
+    }),
   },
   tasks: {
     project: r.one.projects({

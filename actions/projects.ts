@@ -3,9 +3,13 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { type NewProject, type Project, projects } from "@/lib/db/schema";
+import {
+  type NewProject,
+  type Project,
+  type ProjectWithServers,
+  projects,
+} from "@/lib/db/schema";
 
-// Define a standard response type for mutations
 type ActionResponse = {
   success: boolean;
   message?: string;
@@ -13,12 +17,12 @@ type ActionResponse = {
 };
 
 /**
- * GET: Fetch all projects
+ * GET: Fetch all projects (without server details — used for the header
+ * picker, sidebar, etc. where only id+name matters).
  */
 export async function getProjects(): Promise<Project[]> {
   try {
-    const allProjects = await db.select().from(projects).orderBy(projects.id);
-    return allProjects;
+    return await db.select().from(projects).orderBy(projects.id);
   } catch (error) {
     console.error("Failed to fetch projects:", error);
     return [];
@@ -26,17 +30,21 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 /**
- * GET: Fetch a single project by ID
+ * GET: Fetch a single project by ID with its three server relations loaded.
  */
-export async function getProjectById(id: number): Promise<Project | undefined> {
+export async function getProjectById(
+  id: number
+): Promise<ProjectWithServers | undefined> {
   try {
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, id))
-      .limit(1);
-
-    return project;
+    const project = await db.query.projects.findFirst({
+      where: { id },
+      with: {
+        dbServer: true,
+        backendServer: true,
+        frontendServer: true,
+      },
+    });
+    return project as ProjectWithServers | undefined;
   } catch (error) {
     console.error(`Failed to fetch project ${id}:`, error);
     return undefined;
@@ -44,18 +52,20 @@ export async function getProjectById(id: number): Promise<Project | undefined> {
 }
 
 /**
- * CREATE: Add a new project
+ * CREATE: Add a new project. Server FKs (dbServerId, backendServerId,
+ * frontendServerId) must already exist — create them via createServer first.
  */
-export async function createProject(data: NewProject): Promise<ActionResponse> {
+export async function createProject(
+  data: NewProject
+): Promise<ActionResponse> {
   try {
-    // Insert and return the created object
     const [insertedProject] = await db
       .insert(projects)
       .values(data)
       .returning();
 
-    // Revalidate the projects list page (adjust path as needed)
     revalidatePath("/projects");
+    revalidatePath("/", "layout");
 
     return {
       success: true,
@@ -68,9 +78,6 @@ export async function createProject(data: NewProject): Promise<ActionResponse> {
   }
 }
 
-/**
- * UPDATE: Edit an existing project
- */
 export async function updateProject(
   id: number,
   data: Partial<NewProject>
@@ -87,7 +94,7 @@ export async function updateProject(
     }
 
     revalidatePath("/projects");
-    revalidatePath(`/projects/${id}`); // Revalidate specific project page if it exists
+    revalidatePath(`/projects/${id}`);
 
     return {
       success: true,
@@ -100,15 +107,10 @@ export async function updateProject(
   }
 }
 
-/**
- * DELETE: Remove a project
- */
 export async function deleteProject(id: number): Promise<ActionResponse> {
   try {
     await db.delete(projects).where(eq(projects.id, id));
-
     revalidatePath("/projects");
-
     return { success: true, message: "Project deleted successfully" };
   } catch (error) {
     console.error(`Failed to delete project ${id}:`, error);
