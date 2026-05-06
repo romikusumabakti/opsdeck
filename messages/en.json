@@ -22,7 +22,36 @@
   "header": {
     "selectProject": "Select project...",
     "searchProject": "Search project...",
-    "noProject": "No project found."
+    "noProject": "No project found.",
+    "createProject": "Create new project"
+  },
+  "projectsEmpty": {
+    "title": "No projects yet",
+    "description": "Create your first project to start managing backups and deployments.",
+    "create": "Create Project"
+  },
+  "newProject": {
+    "title": "Create New Project",
+    "description": "Register a new project along with its database, backend, and frontend server configuration.",
+    "info": "Project Info",
+    "name": "Project name",
+    "namePlaceholder": "e.g. Acme Production",
+    "database": "Database",
+    "backend": "Backend",
+    "frontend": "Frontend",
+    "serverHost": "Server host",
+    "serverUsername": "SSH username",
+    "serverPassword": "SSH password",
+    "serviceType": "Service type",
+    "serviceName": "Service name",
+    "dbType": "Database type",
+    "dbName": "Database name",
+    "isBackupMounted": "Backup directory is mounted on the server",
+    "backupPath": "Backup directory path",
+    "submit": "Create Project",
+    "submitting": "Saving...",
+    "submitFailed": "Failed to create project",
+    "cancel": "Cancel"
   },
   "userMenu": {
     "users": "User Management",

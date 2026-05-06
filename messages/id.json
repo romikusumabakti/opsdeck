@@ -22,7 +22,36 @@
   "header": {
     "selectProject": "Pilih proyek...",
     "searchProject": "Cari proyek...",
-    "noProject": "Proyek tidak ditemukan."
+    "noProject": "Proyek tidak ditemukan.",
+    "createProject": "Buat proyek baru"
+  },
+  "projectsEmpty": {
+    "title": "Belum ada proyek",
+    "description": "Buat proyek pertama untuk mulai mengelola backup dan deployment.",
+    "create": "Buat Proyek"
+  },
+  "newProject": {
+    "title": "Buat Proyek Baru",
+    "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend.",
+    "info": "Informasi Proyek",
+    "name": "Nama proyek",
+    "namePlaceholder": "Contoh: Acme Production",
+    "database": "Database",
+    "backend": "Backend",
+    "frontend": "Frontend",
+    "serverHost": "Host server",
+    "serverUsername": "Username SSH",
+    "serverPassword": "Password SSH",
+    "serviceType": "Tipe service",
+    "serviceName": "Nama service",
+    "dbType": "Tipe database",
+    "dbName": "Nama database",
+    "isBackupMounted": "Direktori backup ter-mount di server",
+    "backupPath": "Path direktori backup",
+    "submit": "Buat Proyek",
+    "submitting": "Menyimpan...",
+    "submitFailed": "Gagal membuat proyek",
+    "cancel": "Batal"
   },
   "userMenu": {
     "users": "Manajemen Pengguna",
