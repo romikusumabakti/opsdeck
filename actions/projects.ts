@@ -33,7 +33,7 @@ export async function getProjects(): Promise<Project[]> {
  * GET: Fetch a single project by ID with its three server relations loaded.
  */
 export async function getProjectById(
-  id: number
+  id: string
 ): Promise<ProjectWithServers | undefined> {
   try {
     const project = await db.query.projects.findFirst({
@@ -79,7 +79,7 @@ export async function createProject(
 }
 
 export async function updateProject(
-  id: number,
+  id: string,
   data: Partial<NewProject>
 ): Promise<ActionResponse> {
   try {
@@ -107,7 +107,7 @@ export async function updateProject(
   }
 }
 
-export async function deleteProject(id: number): Promise<ActionResponse> {
+export async function deleteProject(id: string): Promise<ActionResponse> {
   try {
     await db.delete(projects).where(eq(projects.id, id));
     revalidatePath("/projects");

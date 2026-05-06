@@ -59,7 +59,7 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
       host: string;
       username: string;
       password?: string;
-      serverId?: number;
+      serverId?: string;
     } = {
       host: host.trim(),
       username: username.trim(),
