@@ -4,20 +4,26 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createProject } from "@/actions/projects";
+import { createServer } from "@/actions/servers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 const SERVICE_TYPES = ["docker", "system"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
 
+const NEW_SERVER_VALUE = "__new__";
+
+type ServerSelection =
+  | { mode: "existing"; id: number }
+  | { mode: "new"; name: string; host: string; username: string; password: string };
+
 type FormState = {
   name: string;
 
-  dbServerHost: string;
-  dbServerUsername: string;
-  dbServerPassword: string;
+  dbServer: ServerSelection;
   dbServiceType: (typeof SERVICE_TYPES)[number];
   dbServiceName: string;
   dbType: (typeof DB_TYPES)[number];
@@ -25,46 +31,48 @@ type FormState = {
   dbIsBackupMounted: boolean;
   dbBackupPath: string;
 
-  backendServerHost: string;
-  backendServerUsername: string;
-  backendServerPassword: string;
+  backendServer: ServerSelection;
   backendServiceType: (typeof SERVICE_TYPES)[number];
   backendServiceName: string;
 
-  frontendServerHost: string;
-  frontendServerUsername: string;
-  frontendServerPassword: string;
+  frontendServer: ServerSelection;
   frontendServiceType: (typeof SERVICE_TYPES)[number];
   frontendServiceName: string;
 };
 
-const initial: FormState = {
+const emptyNewServer: ServerSelection = {
+  mode: "new",
   name: "",
-  dbServerHost: "",
-  dbServerUsername: "",
-  dbServerPassword: "",
-  dbServiceType: "docker",
-  dbServiceName: "",
-  dbType: "postgres",
-  dbName: "",
-  dbIsBackupMounted: false,
-  dbBackupPath: "",
-  backendServerHost: "",
-  backendServerUsername: "",
-  backendServerPassword: "",
-  backendServiceType: "docker",
-  backendServiceName: "",
-  frontendServerHost: "",
-  frontendServerUsername: "",
-  frontendServerPassword: "",
-  frontendServiceType: "docker",
-  frontendServiceName: "",
+  host: "",
+  username: "",
+  password: "",
 };
 
-export function NewProjectForm() {
+function initialServerSelection(servers: Server[]): ServerSelection {
+  return servers.length > 0
+    ? { mode: "existing", id: servers[0].id }
+    : { ...emptyNewServer };
+}
+
+export function NewProjectForm({ servers }: { servers: Server[] }) {
   const t = useTranslations("newProject");
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(initial);
+  const [form, setForm] = useState<FormState>(() => ({
+    name: "",
+    dbServer: initialServerSelection(servers),
+    dbServiceType: "docker",
+    dbServiceName: "",
+    dbType: "postgres",
+    dbName: "",
+    dbIsBackupMounted: false,
+    dbBackupPath: "",
+    backendServer: initialServerSelection(servers),
+    backendServiceType: "docker",
+    backendServiceName: "",
+    frontendServer: initialServerSelection(servers),
+    frontendServiceType: "docker",
+    frontendServiceName: "",
+  }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,12 +80,52 @@ export function NewProjectForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function resolveServerId(
+    selection: ServerSelection
+  ): Promise<number | null> {
+    if (selection.mode === "existing") return selection.id;
+
+    const result = await createServer({
+      name: selection.name.trim(),
+      host: selection.host.trim(),
+      username: selection.username.trim(),
+      password: selection.password,
+    });
+    if (!result.success) {
+      setError(result.message);
+      return null;
+    }
+    return result.data.id;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const result = await createProject(form);
+    const dbServerId = await resolveServerId(form.dbServer);
+    if (dbServerId == null) return setLoading(false);
+    const backendServerId = await resolveServerId(form.backendServer);
+    if (backendServerId == null) return setLoading(false);
+    const frontendServerId = await resolveServerId(form.frontendServer);
+    if (frontendServerId == null) return setLoading(false);
+
+    const result = await createProject({
+      name: form.name,
+      dbServerId,
+      dbServiceType: form.dbServiceType,
+      dbServiceName: form.dbServiceName,
+      dbType: form.dbType,
+      dbName: form.dbName,
+      dbIsBackupMounted: form.dbIsBackupMounted,
+      dbBackupPath: form.dbBackupPath,
+      backendServerId,
+      backendServiceType: form.backendServiceType,
+      backendServiceName: form.backendServiceName,
+      frontendServerId,
+      frontendServiceType: form.frontendServiceType,
+      frontendServiceName: form.frontendServiceName,
+    });
 
     setLoading(false);
 
@@ -105,20 +153,39 @@ export function NewProjectForm() {
       </Section>
 
       <Section title={t("database")}>
-        <ServerFields
+        <ServerPicker
           t={t}
           prefix="db"
-          host={form.dbServerHost}
-          username={form.dbServerUsername}
-          password={form.dbServerPassword}
-          serviceType={form.dbServiceType}
-          serviceName={form.dbServiceName}
-          onHost={(v) => setField("dbServerHost", v)}
-          onUsername={(v) => setField("dbServerUsername", v)}
-          onPassword={(v) => setField("dbServerPassword", v)}
-          onServiceType={(v) => setField("dbServiceType", v)}
-          onServiceName={(v) => setField("dbServiceName", v)}
+          servers={servers}
+          value={form.dbServer}
+          onChange={(v) => setField("dbServer", v)}
         />
+        <Field label={t("serviceType")} htmlFor="db-service-type">
+          <Select
+            id="db-service-type"
+            value={form.dbServiceType}
+            onChange={(e) =>
+              setField(
+                "dbServiceType",
+                e.target.value as FormState["dbServiceType"]
+              )
+            }
+          >
+            {SERVICE_TYPES.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t("serviceName")} htmlFor="db-service-name">
+          <Input
+            id="db-service-name"
+            required
+            value={form.dbServiceName}
+            onChange={(e) => setField("dbServiceName", e.target.value)}
+          />
+        </Field>
         <Field label={t("dbType")} htmlFor="dbType">
           <Select
             id="dbType"
@@ -142,14 +209,6 @@ export function NewProjectForm() {
             onChange={(e) => setField("dbName", e.target.value)}
           />
         </Field>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={form.dbIsBackupMounted}
-            onChange={(e) => setField("dbIsBackupMounted", e.target.checked)}
-          />
-          {t("isBackupMounted")}
-        </label>
         <Field label={t("backupPath")} htmlFor="dbBackupPath">
           <Input
             id="dbBackupPath"
@@ -159,40 +218,86 @@ export function NewProjectForm() {
             placeholder="/var/backups/db"
           />
         </Field>
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.dbIsBackupMounted}
+            onChange={(e) => setField("dbIsBackupMounted", e.target.checked)}
+          />
+          {t("isBackupMounted")}
+        </label>
       </Section>
 
       <Section title={t("backend")}>
-        <ServerFields
+        <ServerPicker
           t={t}
           prefix="backend"
-          host={form.backendServerHost}
-          username={form.backendServerUsername}
-          password={form.backendServerPassword}
-          serviceType={form.backendServiceType}
-          serviceName={form.backendServiceName}
-          onHost={(v) => setField("backendServerHost", v)}
-          onUsername={(v) => setField("backendServerUsername", v)}
-          onPassword={(v) => setField("backendServerPassword", v)}
-          onServiceType={(v) => setField("backendServiceType", v)}
-          onServiceName={(v) => setField("backendServiceName", v)}
+          servers={servers}
+          value={form.backendServer}
+          onChange={(v) => setField("backendServer", v)}
         />
+        <Field label={t("serviceType")} htmlFor="backend-service-type">
+          <Select
+            id="backend-service-type"
+            value={form.backendServiceType}
+            onChange={(e) =>
+              setField(
+                "backendServiceType",
+                e.target.value as FormState["backendServiceType"]
+              )
+            }
+          >
+            {SERVICE_TYPES.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t("serviceName")} htmlFor="backend-service-name">
+          <Input
+            id="backend-service-name"
+            required
+            value={form.backendServiceName}
+            onChange={(e) => setField("backendServiceName", e.target.value)}
+          />
+        </Field>
       </Section>
 
       <Section title={t("frontend")}>
-        <ServerFields
+        <ServerPicker
           t={t}
           prefix="frontend"
-          host={form.frontendServerHost}
-          username={form.frontendServerUsername}
-          password={form.frontendServerPassword}
-          serviceType={form.frontendServiceType}
-          serviceName={form.frontendServiceName}
-          onHost={(v) => setField("frontendServerHost", v)}
-          onUsername={(v) => setField("frontendServerUsername", v)}
-          onPassword={(v) => setField("frontendServerPassword", v)}
-          onServiceType={(v) => setField("frontendServiceType", v)}
-          onServiceName={(v) => setField("frontendServiceName", v)}
+          servers={servers}
+          value={form.frontendServer}
+          onChange={(v) => setField("frontendServer", v)}
         />
+        <Field label={t("serviceType")} htmlFor="frontend-service-type">
+          <Select
+            id="frontend-service-type"
+            value={form.frontendServiceType}
+            onChange={(e) =>
+              setField(
+                "frontendServiceType",
+                e.target.value as FormState["frontendServiceType"]
+              )
+            }
+          >
+            {SERVICE_TYPES.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t("serviceName")} htmlFor="frontend-service-name">
+          <Input
+            id="frontend-service-name"
+            required
+            value={form.frontendServiceName}
+            onChange={(e) => setField("frontendServiceName", e.target.value)}
+          />
+        </Field>
       </Section>
 
       {error && (
@@ -273,90 +378,112 @@ function Select({
   );
 }
 
-function ServerFields({
+function ServerPicker({
   t,
   prefix,
-  host,
-  username,
-  password,
-  serviceType,
-  serviceName,
-  onHost,
-  onUsername,
-  onPassword,
-  onServiceType,
-  onServiceName,
+  servers,
+  value,
+  onChange,
 }: {
   t: (key: string) => string;
   prefix: string;
-  host: string;
-  username: string;
-  password: string;
-  serviceType: (typeof SERVICE_TYPES)[number];
-  serviceName: string;
-  onHost: (v: string) => void;
-  onUsername: (v: string) => void;
-  onPassword: (v: string) => void;
-  onServiceType: (v: (typeof SERVICE_TYPES)[number]) => void;
-  onServiceName: (v: string) => void;
+  servers: Server[];
+  value: ServerSelection;
+  onChange: (v: ServerSelection) => void;
 }) {
+  const selectId = `${prefix}-server`;
+  const dropdownValue =
+    value.mode === "existing" ? String(value.id) : NEW_SERVER_VALUE;
+
+  function onDropdownChange(next: string) {
+    if (next === NEW_SERVER_VALUE) {
+      onChange({ ...emptyNewServer });
+      return;
+    }
+    onChange({ mode: "existing", id: Number(next) });
+  }
+
   return (
     <>
-      <Field label={t("serverHost")} htmlFor={`${prefix}-host`}>
-        <Input
-          id={`${prefix}-host`}
-          required
-          value={host}
-          onChange={(e) => onHost(e.target.value)}
-          placeholder="192.168.x.x"
-        />
-      </Field>
-      <Field label={t("serverUsername")} htmlFor={`${prefix}-username`}>
-        <Input
-          id={`${prefix}-username`}
-          required
-          value={username}
-          onChange={(e) => onUsername(e.target.value)}
-          autoComplete="off"
-        />
-      </Field>
-      <Field label={t("serverPassword")} htmlFor={`${prefix}-password`}>
-        <Input
-          id={`${prefix}-password`}
-          type="password"
-          required
-          value={password}
-          onChange={(e) => onPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-      </Field>
-      <Field label={t("serviceType")} htmlFor={`${prefix}-service-type`}>
-        <Select
-          id={`${prefix}-service-type`}
-          value={serviceType}
-          onChange={(e) =>
-            onServiceType(e.target.value as (typeof SERVICE_TYPES)[number])
-          }
-        >
-          {SERVICE_TYPES.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </Select>
-      </Field>
       <Field
-        label={t("serviceName")}
-        htmlFor={`${prefix}-service-name`}
+        label={t("server")}
+        htmlFor={selectId}
         className="sm:col-span-2"
       >
-        <Input
-          id={`${prefix}-service-name`}
-          required
-          value={serviceName}
-          onChange={(e) => onServiceName(e.target.value)}
-        />
+        <Select
+          id={selectId}
+          value={dropdownValue}
+          onChange={(e) => onDropdownChange(e.target.value)}
+        >
+          {servers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name} ({s.host})
+            </option>
+          ))}
+          <option value={NEW_SERVER_VALUE}>
+            {servers.length > 0 ? t("createNewServer") : t("noServer")}
+          </option>
+        </Select>
       </Field>
+      {value.mode === "new" && (
+        <>
+          <Field
+            label={t("serverName")}
+            htmlFor={`${prefix}-server-name`}
+            className="sm:col-span-2"
+          >
+            <Input
+              id={`${prefix}-server-name`}
+              required
+              value={value.name}
+              onChange={(e) => onChange({ ...value, name: e.target.value })}
+              placeholder={t("serverNamePlaceholder")}
+            />
+          </Field>
+          <Field
+            label={t("serverHost")}
+            htmlFor={`${prefix}-server-host`}
+          >
+            <Input
+              id={`${prefix}-server-host`}
+              required
+              value={value.host}
+              onChange={(e) => onChange({ ...value, host: e.target.value })}
+              placeholder="192.168.x.x"
+            />
+          </Field>
+          <Field
+            label={t("serverUsername")}
+            htmlFor={`${prefix}-server-username`}
+          >
+            <Input
+              id={`${prefix}-server-username`}
+              required
+              value={value.username}
+              onChange={(e) =>
+                onChange({ ...value, username: e.target.value })
+              }
+              autoComplete="off"
+            />
+          </Field>
+          <Field
+            label={t("serverPassword")}
+            htmlFor={`${prefix}-server-password`}
+            className="sm:col-span-2"
+          >
+            <Input
+              id={`${prefix}-server-password`}
+              type="password"
+              required
+              value={value.password}
+              onChange={(e) =>
+                onChange({ ...value, password: e.target.value })
+              }
+              autoComplete="new-password"
+            />
+          </Field>
+        </>
+      )}
     </>
   );
 }

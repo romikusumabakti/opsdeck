@@ -39,9 +39,14 @@
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
+    "server": "Server",
+    "serverName": "Server name",
+    "serverNamePlaceholder": "e.g. Production DB",
     "serverHost": "Server host",
     "serverUsername": "SSH username",
     "serverPassword": "SSH password",
+    "createNewServer": "+ Create new server…",
+    "noServer": "+ Create first server",
     "serviceType": "Service type",
     "serviceName": "Service name",
     "dbType": "Database type",
@@ -55,9 +60,42 @@
   },
   "userMenu": {
     "users": "User Management",
+    "servers": "Server Management",
     "changePassword": "Change Password",
     "signOut": "Sign out",
     "ariaLabel": "User menu"
+  },
+  "servers": {
+    "title": "Servers",
+    "addServer": "Add Server",
+    "empty": "No servers yet. Add a server to start registering projects.",
+    "editAriaLabel": "Edit",
+    "deleteAriaLabel": "Delete",
+    "deleteTitle": "Delete server",
+    "deleteDescription": "Delete server {name} ({host})? Servers in use by projects cannot be deleted.",
+    "deleteConfirm": "Delete",
+    "deleteFailed": "Failed"
+  },
+  "serverForm": {
+    "name": "Name",
+    "namePlaceholder": "e.g. Production DB",
+    "host": "Host",
+    "username": "SSH username",
+    "password": "SSH password",
+    "passwordEdit": "SSH password (new)",
+    "passwordEditPlaceholder": "Leave blank to keep unchanged",
+    "create": "Create Server",
+    "saveChanges": "Save",
+    "submitting": "Saving...",
+    "cancel": "Cancel"
+  },
+  "newServer": {
+    "title": "Add Server",
+    "description": "Register a new server's SSH credentials. Servers can be reused across multiple projects."
+  },
+  "editServer": {
+    "title": "Edit Server: {name}",
+    "description": "Update SSH credentials. Leave the password blank to keep it unchanged."
   },
   "localeSwitcher": {
     "ariaLabel": "Select language"
@@ -152,6 +190,14 @@
     "passwordTooShort": "Password must be at least {min} characters",
     "passwordTooLong": "Password must be at most {max} characters",
     "accountCreated": "Account created successfully",
-    "setupAlreadyDone": "Initial setup has already been completed"
+    "setupAlreadyDone": "Initial setup has already been completed",
+    "serverCreated": "Server created successfully",
+    "serverCreateFailed": "Failed to create server",
+    "serverUpdated": "Server updated successfully",
+    "serverUpdateFailed": "Failed to update server",
+    "serverDeleted": "Server deleted",
+    "serverDeleteFailed": "Failed to delete server",
+    "serverNotFound": "Server not found",
+    "serverInUse": "Cannot delete server while still in use by a project"
   }
 }

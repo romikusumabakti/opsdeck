@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { getServers } from "@/actions/servers";
 import {
   Card,
   CardContent,
@@ -10,6 +11,7 @@ import { NewProjectForm } from "./new-project-form";
 
 export default async function NewProjectPage() {
   const t = await getTranslations("newProject");
+  const servers = await getServers();
 
   return (
     <div className="max-w-3xl py-8 px-4 mx-auto w-full">
@@ -19,7 +21,7 @@ export default async function NewProjectPage() {
           <CardDescription>{t("description")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewProjectForm />
+          <NewProjectForm servers={servers} />
         </CardContent>
       </Card>
     </div>
