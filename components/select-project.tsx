@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -12,6 +12,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -63,13 +64,26 @@ export function SelectProject({ projects }: { projects: Project[] }) {
                   <Check
                     className={cn(
                       "ml-auto",
-                      activeProject.id === project.id
+                      activeProject?.id === project.id
                         ? "opacity-100"
                         : "opacity-0"
                     )}
                   />
                 </CommandItem>
               ))}
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup>
+              <CommandItem
+                value="__create-project"
+                onSelect={() => {
+                  setOpen(false);
+                  router.push("/projects/new");
+                }}
+              >
+                <Plus className="size-4" />
+                {t("createProject")}
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>
