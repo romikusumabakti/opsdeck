@@ -23,7 +23,9 @@ services:
     ports:
       - "80:3000"
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-dss_panel}
+      # App connection string. Set explicitly in .env so passwords with special
+      # characters don't break URL parsing (no string concat from POSTGRES_*).
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       # Host URL for Inngest to find the app
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       # Auth

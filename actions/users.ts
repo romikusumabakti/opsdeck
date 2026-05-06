@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
@@ -15,6 +15,82 @@ export type ActionResponse =
   | { success: false; message: string };
 
 const INVITE_EXPIRES_HOURS = 48;
+
+/**
+ * Returns true when there is at least one user in the database. Used by the
+ * /setup page to decide whether the initial-user form should be shown.
+ */
+export async function hasAnyUser(): Promise<boolean> {
+  const [row] = await db.select({ value: count() }).from(userTable);
+  return (row?.value ?? 0) > 0;
+}
+
+/**
+ * Bootstrap action: create the very first user without an invitation. Refuses
+ * if any user already exists (so the endpoint is harmless after setup).
+ */
+export async function createInitialUser(input: {
+  name: string;
+  email: string;
+  password: string;
+}): Promise<ActionResponse> {
+  const t = await getTranslations("actionErrors");
+
+  if (await hasAnyUser()) {
+    return { success: false, message: t("setupAlreadyDone") };
+  }
+
+  const email = input.email.trim().toLowerCase();
+  const name = input.name.trim();
+
+  if (!email || !name) {
+    return { success: false, message: t("nameAndEmailRequired") };
+  }
+  if (!isAllowedEmail(email)) {
+    return {
+      success: false,
+      message: t("domainNotAllowed", { domain: ALLOWED_EMAIL_DOMAIN }),
+    };
+  }
+
+  const ctx = await auth.$context;
+
+  if (input.password.length < ctx.password.config.minPasswordLength) {
+    return {
+      success: false,
+      message: t("passwordTooShort", {
+        min: ctx.password.config.minPasswordLength,
+      }),
+    };
+  }
+  if (input.password.length > ctx.password.config.maxPasswordLength) {
+    return {
+      success: false,
+      message: t("passwordTooLong", {
+        max: ctx.password.config.maxPasswordLength,
+      }),
+    };
+  }
+
+  const hash = await ctx.password.hash(input.password);
+
+  const created = await ctx.internalAdapter.createUser({
+    name,
+    email,
+    emailVerified: true,
+    image: null,
+  });
+
+  await ctx.internalAdapter.linkAccount({
+    userId: created.id,
+    accountId: created.id,
+    providerId: "credential",
+    password: hash,
+  });
+
+  revalidatePath("/", "layout");
+  return { success: true, message: t("accountCreated") };
+}
 
 export async function listUsers() {
   await requireSession();

@@ -97,6 +97,19 @@
     "deleteAriaLabel": "Delete",
     "deleteFailed": "Failed"
   },
+  "setup": {
+    "title": "Initial Setup",
+    "description": "Create the first admin account for Admin Panel. This page only appears when no users exist yet.",
+    "name": "Name",
+    "namePlaceholder": "Full name",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "passwordMismatch": "Password confirmation does not match",
+    "submit": "Create Account & Sign In",
+    "submitting": "Processing..."
+  },
   "actionErrors": {
     "nameAndEmailRequired": "Name and email are required",
     "domainNotAllowed": "Only @{domain} emails are allowed",
@@ -109,6 +122,7 @@
     "invitationInvalid": "Invitation is invalid or has expired",
     "passwordTooShort": "Password must be at least {min} characters",
     "passwordTooLong": "Password must be at most {max} characters",
-    "accountCreated": "Account created successfully"
+    "accountCreated": "Account created successfully",
+    "setupAlreadyDone": "Initial setup has already been completed"
   }
 }
