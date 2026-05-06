@@ -1,19 +1,23 @@
-import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
 import {
   boolean,
-  integer,
   pgEnum,
   pgTable,
-  serial,
   text,
   timestamp,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const serviceTypeEnum = pgEnum("service_type", ["docker", "system"]);
 export const databaseTypeEnum = pgEnum("database_type", ["postgres", "mssql"]);
 
+// All IDs use UUIDv7 (RFC 9562, May 2024) — time-ordered random UUIDs that
+// preserve B-tree index locality unlike v4. Default value uses Postgres 18's
+// built-in `uuidv7()` function for tables we own; better-auth tables generate
+// IDs in JS via `uuid` package (configured in lib/auth.ts).
+
 export const servers = pgTable("servers", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
   name: text("name").notNull(),
   host: text("host").notNull(),
   username: text("username").notNull(),
@@ -23,11 +27,11 @@ export const servers = pgTable("servers", {
 });
 
 export const projects = pgTable("projects", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
   name: text("name").notNull(),
 
   // --- Database ---
-  dbServerId: integer("db_server_id")
+  dbServerId: uuid("db_server_id")
     .notNull()
     .references(() => servers.id, { onDelete: "restrict" }),
   dbServiceType: serviceTypeEnum("db_service_type").notNull(),
@@ -38,14 +42,14 @@ export const projects = pgTable("projects", {
   dbBackupPath: text("db_backup_path").notNull(),
 
   // --- Backend ---
-  backendServerId: integer("backend_server_id")
+  backendServerId: uuid("backend_server_id")
     .notNull()
     .references(() => servers.id, { onDelete: "restrict" }),
   backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
   backendServiceName: text("backend_service_name").notNull(),
 
   // --- Frontend ---
-  frontendServerId: integer("frontend_server_id")
+  frontendServerId: uuid("frontend_server_id")
     .notNull()
     .references(() => servers.id, { onDelete: "restrict" }),
   frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
@@ -59,8 +63,10 @@ export const taskStatusEnum = pgEnum("task_status", [
 ]);
 
 export const tasks = pgTable("tasks", {
-  id: serial("id").primaryKey(),
-  projectId: integer("project_id").notNull(),
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
   description: text("description").notNull(),
   runAt: timestamp("run_at").notNull(),
   completedAt: timestamp("completed_at").notNull(),
@@ -71,7 +77,7 @@ export const tasks = pgTable("tasks", {
 // =========================
 
 export const users = pgTable("users", {
-  id: text("id").primaryKey(),
+  id: uuid("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
@@ -81,8 +87,8 @@ export const users = pgTable("users", {
 });
 
 export const sessions = pgTable("sessions", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
@@ -94,10 +100,12 @@ export const sessions = pgTable("sessions", {
 });
 
 export const accounts = pgTable("accounts", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  // accountId/providerId are external identifiers (provider's user id, OAuth
+  // provider name) — keep as text since they're not always UUID-shaped.
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
   accessToken: text("access_token"),
@@ -112,7 +120,7 @@ export const accounts = pgTable("accounts", {
 });
 
 export const verifications = pgTable("verifications", {
-  id: text("id").primaryKey(),
+  id: uuid("id").primaryKey(),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
@@ -125,11 +133,12 @@ export const verifications = pgTable("verifications", {
 // =========================
 
 export const invitations = pgTable("invitations", {
-  id: text("id").primaryKey(),
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
   email: text("email").notNull(),
   name: text("name").notNull(),
+  // token is a separate random secret used in the invite URL — keep as text.
   token: text("token").notNull().unique(),
-  invitedById: text("invited_by_id").references(() => users.id, {
+  invitedById: uuid("invited_by_id").references(() => users.id, {
     onDelete: "set null",
   }),
   expiresAt: timestamp("expires_at").notNull(),

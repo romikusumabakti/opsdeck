@@ -148,7 +148,6 @@ export async function inviteUser(input: {
   }
 
   const token = randomBytes(32).toString("hex");
-  const id = randomBytes(12).toString("hex");
   const expiresAt = new Date(
     Date.now() + INVITE_EXPIRES_HOURS * 60 * 60 * 1000
   );
@@ -158,7 +157,7 @@ export async function inviteUser(input: {
     .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt)));
 
   await db.insert(invitations).values({
-    id,
+    // id defaults to uuidv7() in DB
     email,
     name,
     token,
