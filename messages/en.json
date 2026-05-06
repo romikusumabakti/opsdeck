@@ -40,13 +40,9 @@
     "backend": "Backend",
     "frontend": "Frontend",
     "server": "Server",
-    "serverName": "Server name",
-    "serverNamePlaceholder": "e.g. Production DB",
-    "serverHost": "Server host",
-    "serverUsername": "SSH username",
-    "serverPassword": "SSH password",
-    "createNewServer": "+ Create new server…",
-    "noServer": "+ Create first server",
+    "pickServer": "Select a server...",
+    "newServerShort": "New server",
+    "pickServerRequired": "Pick a server for every role (database, backend, frontend)",
     "serviceType": "Service type",
     "serviceName": "Service name",
     "dbType": "Database type",
@@ -87,7 +83,10 @@
     "create": "Create Server",
     "saveChanges": "Save",
     "submitting": "Saving...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "testConnection": "Test connection",
+    "testSuccess": "Connection successful",
+    "testFailed": "Connection failed"
   },
   "newServer": {
     "title": "Add Server",
@@ -198,6 +197,8 @@
     "serverDeleted": "Server deleted",
     "serverDeleteFailed": "Failed to delete server",
     "serverNotFound": "Server not found",
-    "serverInUse": "Cannot delete server while still in use by a project"
+    "serverInUse": "Cannot delete server while still in use by a project",
+    "hostAndUsernameRequired": "Host and username are required",
+    "passwordRequiredForTest": "Enter the password to test the connection"
   }
 }
