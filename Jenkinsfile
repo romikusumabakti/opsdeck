@@ -11,7 +11,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh "cp ${ENV_FILE} .env"
-                sh "docker compose up -d --build"
+                sh "docker compose up -d --build --remove-orphans"
             }
         }
     }
