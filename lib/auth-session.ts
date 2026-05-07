@@ -12,7 +12,10 @@ export async function requireSession() {
   const session = await getServerSession();
   if (!session) {
     // Proxy only checks cookie presence; a stale cookie reaches here.
+    // `redirect` is typed `void`, so throw to narrow the return type for
+    // callers that read `session.user.*` directly afterwards.
     await redirect("/sign-in");
+    throw new Error("redirect did not abort");
   }
   return session;
 }

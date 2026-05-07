@@ -14,7 +14,9 @@ export const syncJenkinsData = inngest.createFunction(
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
-    const project = event.data as ProjectWithServers;
+    const { userId, ...project } = event.data as ProjectWithServers & {
+      userId: string;
+    };
 
     const credentials = {
       host: project.dbServer.host,
@@ -47,6 +49,7 @@ export const createDatabaseBackup = inngest.createFunction(
     await step.run("record-task", async () => {
       await db.insert(tasks).values({
         projectId: project.id,
+        userId,
         description: `Backup database (${filename})`,
         runAt: new Date(runAt),
         completedAt: new Date(),
@@ -63,9 +66,10 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
     triggers: { event: "project/simulate-time.legacy" },
   },
   async ({ event, step }) => {
-    const { project, simulatedAt } = event.data as {
+    const { project, simulatedAt, userId } = event.data as {
       project: ProjectWithServers;
       simulatedAt: string;
+      userId: string;
     };
 
     const credentials = {
@@ -114,6 +118,7 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
     await step.run("record-task", async () => {
       await db.insert(tasks).values({
         projectId: project.id,
+        userId,
         description: `Simulate time to ${dateArg} (legacy)`,
         runAt: new Date(runAt),
         completedAt: new Date(),
@@ -127,8 +132,11 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
 export const restoreDatabaseBackup = inngest.createFunction(
   { id: "restore-db-backup", triggers: { event: "db/restore.requested" } },
   async ({ event, step }) => {
-    const data = event.data as ProjectWithServers & { filename: string };
-    const { filename } = data;
+    const data = event.data as ProjectWithServers & {
+      filename: string;
+      userId: string;
+    };
+    const { filename, userId } = data;
     const credentials = {
       host: data.dbServer.host,
       username: data.dbServer.username,
@@ -164,6 +172,7 @@ export const restoreDatabaseBackup = inngest.createFunction(
     await step.run("record-task", async () => {
       await db.insert(tasks).values({
         projectId: data.id,
+        userId,
         description: `Restore database from ${filename}`,
         runAt: new Date(runAt),
         completedAt: new Date(),

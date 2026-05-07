@@ -1,16 +1,26 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { type Task, tasks } from "@/lib/db/schema";
+import type { Task } from "@/lib/db/schema";
 
-export async function getProjectTasks(projectId: string): Promise<Task[]> {
+export type TaskWithUser = Task & {
+  user: { id: string; name: string; email: string } | null;
+};
+
+export async function getProjectTasks(
+  projectId: string
+): Promise<TaskWithUser[]> {
   try {
-    return await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.projectId, projectId))
-      .orderBy(desc(tasks.runAt));
+    const rows = await db.query.tasks.findMany({
+      where: { projectId },
+      with: {
+        user: {
+          columns: { id: true, name: true, email: true },
+        },
+      },
+      orderBy: { runAt: "desc" },
+    });
+    return rows as TaskWithUser[];
   } catch (error) {
     console.error(`Failed to fetch tasks for project ${projectId}:`, error);
     return [];
