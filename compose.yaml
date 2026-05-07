@@ -34,9 +34,10 @@ services:
       # Email (Resend) — optional; email features disabled if empty
       RESEND_API_KEY: ${RESEND_API_KEY-}
       EMAIL_FROM: ${EMAIL_FROM-Admin Panel <no-reply@example.com>}
-      # Inngest — point the SDK at the sibling container over the compose network
-      INNGEST_BASE_URL: http://inngest:8288
-      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-local}
+      # Inngest — `INNGEST_DEV=<url>` puts the SDK in dev mode (no signature
+      # verification, matching the `inngest dev` server's insecure mode) and
+      # points it at the sibling container over the compose network.
+      INNGEST_DEV: http://inngest:8288
     healthcheck:
       # Use Node's built-in fetch — `curl`/`wget` aren't in node:24-alpine.
       test:
