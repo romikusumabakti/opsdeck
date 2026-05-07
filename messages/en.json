@@ -20,7 +20,8 @@
     "copy": "Copy",
     "copied": "Copied to clipboard",
     "copyFailed": "Failed to copy",
-    "verified": "Verified"
+    "verified": "Verified",
+    "urlInvalid": "Enter a valid URL"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -40,6 +41,7 @@
     "changePassword": "Change password",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "simulateTime": "Simulate time",
     "history": "History",
     "settings": "Settings",
     "new": "New",
@@ -69,6 +71,7 @@
     "dashboard": "Dashboard",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "simulateTime": "Simulate time",
     "history": "History",
     "settings": "Settings",
     "menu": "Menu",
@@ -147,6 +150,28 @@
     "successTitle": "Restore queued",
     "successDescription": "A restore for database {dbName} has been queued."
   },
+  "simulateTime": {
+    "title": "Simulate time",
+    "subtitle": "Override the clock used by {name} for testing.",
+    "formTitle": "Simulated date & time",
+    "formDescription": "Pick the date and time the project should think it is.",
+    "modeLabel": "Mode",
+    "modeApi": "Backend API",
+    "modeLegacy": "Legacy (SSH)",
+    "modeApiHint": "Will POST to {url} with '{'simulatedAt'}'.",
+    "modeLegacyHint": "Will change the backend server clock and restart {name}.",
+    "dateTimeLabel": "Date & time",
+    "submit": "Apply",
+    "submitting": "Applying…",
+    "confirmTitle": "Apply simulated time",
+    "confirmDescriptionApi": "Tell the backend API to treat the current time as {dateTime}?",
+    "confirmDescriptionLegacy": "Change the backend server clock to {dateTime} and restart the backend service? This affects everything running on that server.",
+    "successTitle": "Simulated time applied",
+    "successDescriptionApi": "Backend was told the current time is {dateTime}.",
+    "successDescriptionLegacy": "Server clock change to {dateTime} has been queued.",
+    "failureTitle": "Failed to simulate time",
+    "legacyWarning": "This project has no simulate-time API configured, so the legacy approach will change the server clock and restart the backend. Anything else running on that server will also see the new time."
+  },
   "history": {
     "title": "History",
     "subtitle": "Recent backup and restore operations for this project.",
@@ -188,6 +213,8 @@
     "dbName": "Database name",
     "isBackupMounted": "Backup directory is mounted on the server",
     "backupPath": "Backup directory path",
+    "simulateTimeApiUrl": "Simulate-time API URL (optional)",
+    "simulateTimeApiUrlHint": "If the backend exposes a simulate-time endpoint, paste it here. When empty, the panel will fall back to changing the server clock + restarting the backend.",
     "submit": "Create project",
     "saveChanges": "Save changes",
     "submitting": "Saving…",

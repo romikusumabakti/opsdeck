@@ -20,7 +20,8 @@
     "copy": "Salin",
     "copied": "Disalin ke clipboard",
     "copyFailed": "Gagal menyalin",
-    "verified": "Terverifikasi"
+    "verified": "Terverifikasi",
+    "urlInvalid": "Masukkan URL yang valid"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -40,6 +41,7 @@
     "changePassword": "Ubah password",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "simulateTime": "Simulasi waktu",
     "history": "Riwayat",
     "settings": "Pengaturan",
     "new": "Baru",
@@ -69,6 +71,7 @@
     "dashboard": "Dasbor",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "simulateTime": "Simulasi waktu",
     "history": "Riwayat",
     "settings": "Pengaturan",
     "menu": "Menu",
@@ -147,6 +150,28 @@
     "successTitle": "Restore di-queue",
     "successDescription": "Restore untuk database {dbName} sudah di-queue."
   },
+  "simulateTime": {
+    "title": "Simulasi waktu",
+    "subtitle": "Atur ulang jam yang dipakai {name} untuk keperluan testing.",
+    "formTitle": "Tanggal & waktu simulasi",
+    "formDescription": "Pilih tanggal dan jam yang ingin dianggap sebagai waktu sekarang oleh proyek.",
+    "modeLabel": "Mode",
+    "modeApi": "API backend",
+    "modeLegacy": "Legacy (SSH)",
+    "modeApiHint": "Akan memanggil POST {url} dengan '{'simulatedAt'}'.",
+    "modeLegacyHint": "Akan mengubah jam server backend lalu me-restart {name}.",
+    "dateTimeLabel": "Tanggal & waktu",
+    "submit": "Terapkan",
+    "submitting": "Memproses…",
+    "confirmTitle": "Terapkan simulasi waktu",
+    "confirmDescriptionApi": "Beritahu API backend bahwa waktu saat ini adalah {dateTime}?",
+    "confirmDescriptionLegacy": "Ubah jam server backend menjadi {dateTime} dan restart service backend? Ini berdampak ke semua aplikasi yang berjalan di server tersebut.",
+    "successTitle": "Simulasi waktu diterapkan",
+    "successDescriptionApi": "Backend sudah diberitahu bahwa waktu saat ini {dateTime}.",
+    "successDescriptionLegacy": "Perubahan jam server menjadi {dateTime} sudah di-queue.",
+    "failureTitle": "Gagal mensimulasikan waktu",
+    "legacyWarning": "Proyek ini belum punya API simulate-time, jadi pendekatan legacy akan mengubah jam server dan me-restart backend. Aplikasi lain di server yang sama juga akan ikut terpengaruh."
+  },
   "history": {
     "title": "Riwayat",
     "subtitle": "Operasi backup dan restore terakhir untuk proyek ini.",
@@ -188,6 +213,8 @@
     "dbName": "Nama database",
     "isBackupMounted": "Direktori backup ter-mount di server",
     "backupPath": "Path direktori backup",
+    "simulateTimeApiUrl": "URL API simulate-time (opsional)",
+    "simulateTimeApiUrlHint": "Jika backend punya endpoint simulate-time, isi URL-nya di sini. Jika dikosongkan, panel akan jatuh ke pendekatan legacy: ubah jam server lalu restart backend.",
     "submit": "Buat proyek",
     "saveChanges": "Simpan perubahan",
     "submitting": "Menyimpan…",

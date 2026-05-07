@@ -45,6 +45,60 @@ export const createDatabaseBackup = inngest.createFunction(
   }
 );
 
+export const simulateProjectTimeLegacy = inngest.createFunction(
+  {
+    id: "simulate-project-time-legacy",
+    triggers: { event: "project/simulate-time.legacy" },
+  },
+  async ({ event, step }) => {
+    const { project, simulatedAt } = event.data as {
+      project: ProjectWithServers;
+      simulatedAt: string;
+    };
+
+    const credentials = {
+      host: project.backendServer.host,
+      username: project.backendServer.username,
+      password: project.backendServer.password,
+    };
+
+    // `date -s` expects "YYYY-MM-DD HH:MM:SS"; convert from ISO so the shell
+    // gets a clean argument and we don't depend on the remote host's locale.
+    const d = new Date(simulatedAt);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dateArg = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+      d.getUTCDate()
+    )} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
+      d.getUTCSeconds()
+    )}`;
+
+    await step.run("disable-ntp", async () => {
+      // Stops the time daemon from reverting our manual override mid-test.
+      await executeRemoteCommand(
+        credentials,
+        `echo '${credentials.password}' | sudo -S timedatectl set-ntp false`
+      );
+    });
+
+    await step.run("set-system-time", async () => {
+      await executeRemoteCommand(
+        credentials,
+        `echo '${credentials.password}' | sudo -S date -u -s "${dateArg}"`
+      );
+    });
+
+    await step.run("restart-backend", async () => {
+      const cmd =
+        project.backendServiceType === "docker"
+          ? `docker restart ${project.backendServiceName}`
+          : `echo '${credentials.password}' | sudo -S systemctl restart ${project.backendServiceName}`;
+      await executeRemoteCommand(credentials, cmd);
+    });
+
+    return { success: true, simulatedAt };
+  }
+);
+
 export const restoreDatabaseBackup = inngest.createFunction(
   { id: "restore-db-backup", triggers: { event: "db/restore.requested" } },
   async ({ event, step }) => {
