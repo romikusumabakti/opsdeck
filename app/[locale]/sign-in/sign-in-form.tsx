@@ -1,8 +1,11 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Aperture } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,8 +14,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -20,25 +30,24 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
   const t = useTranslations("signIn");
   const tApp = useTranslations("app");
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  const tCommon = useTranslations("common");
 
-    const { error: err } = await authClient.signIn.email({
-      email,
-      password,
-    });
+  const schema = z.object({
+    email: z.string().email(tCommon("emailInvalid")),
+    password: z.string().min(1, tCommon("required")),
+  });
 
-    setLoading(false);
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "" },
+  });
 
-    if (err) {
-      setError(err.message ?? t("errorInvalid"));
+  async function onSubmit(values: z.infer<typeof schema>) {
+    const { error } = await authClient.signIn.email(values);
+
+    if (error) {
+      toast.error(error.message ?? t("errorInvalid"));
       return;
     }
 
@@ -57,39 +66,51 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
         <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">{t("email")}</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t("emailPlaceholder")}
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-col gap-4"
+          >
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("email")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      autoComplete="email"
+                      placeholder={t("emailPlaceholder")}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">{t("password")}</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("password")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="current-password"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={loading}>
-            {loading ? t("submitting") : t("submit")}
-          </Button>
-        </form>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? t("submitting") : t("submit")}
+            </Button>
+          </form>
+        </Form>
       </CardContent>
     </Card>
   );

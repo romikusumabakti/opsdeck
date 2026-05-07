@@ -1,16 +1,27 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import {
   createServer,
   testServerConnection,
   updateServer,
 } from "@/actions/servers";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
 
@@ -38,21 +49,33 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
   const router = useRouter();
   const initial = mode.type === "edit" ? mode.server : null;
 
-  const [name, setName] = useState(initial?.name ?? "");
-  const [host, setHost] = useState(initial?.host ?? "");
-  const [username, setUsername] = useState(initial?.username ?? "");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [testState, setTestState] = useState<TestState>({ kind: "idle" });
-  const [error, setError] = useState<string | null>(null);
+  const schema = z.object({
+    name: z.string().min(1, tCommon("required")),
+    host: z.string().min(1, tCommon("required")),
+    username: z.string().min(1, tCommon("required")),
+    password:
+      mode.type === "create"
+        ? z.string().min(1, tCommon("required"))
+        : z.string(),
+  });
 
-  // Any field change invalidates a previous test result.
-  function withReset<F extends (...args: never[]) => void>(fn: F): F {
-    return ((...args: Parameters<F>) => {
-      setTestState({ kind: "idle" });
-      fn(...args);
-    }) as F;
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: initial?.name ?? "",
+      host: initial?.host ?? "",
+      username: initial?.username ?? "",
+      password: "",
+    },
+  });
+
+  const [testState, setTestState] = useState<TestState>({ kind: "idle" });
+
+  function resetTest() {
+    setTestState({ kind: "idle" });
   }
+
+  const watched = form.watch();
 
   async function onTest() {
     setTestState({ kind: "testing" });
@@ -62,10 +85,10 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
       password?: string;
       serverId?: string;
     } = {
-      host: host.trim(),
-      username: username.trim(),
+      host: watched.host.trim(),
+      username: watched.username.trim(),
     };
-    if (password.length > 0) payload.password = password;
+    if (watched.password.length > 0) payload.password = watched.password;
     if (mode.type === "edit") payload.serverId = mode.server.id;
 
     const result = await testServerConnection(payload);
@@ -76,23 +99,19 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
     }
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
+  async function onSubmit(values: z.infer<typeof schema>) {
     if (mode.type === "create") {
       const result = await createServer({
-        name: name.trim(),
-        host: host.trim(),
-        username: username.trim(),
-        password,
+        name: values.name.trim(),
+        host: values.host.trim(),
+        username: values.username.trim(),
+        password: values.password,
       });
-      setLoading(false);
       if (!result.success) {
-        setError(result.message);
+        toast.error(result.message);
         return;
       }
+      toast.success(result.message ?? "");
       if (onSuccess) {
         onSuccess(result.data);
         return;
@@ -108,18 +127,18 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
       username: string;
       password?: string;
     } = {
-      name: name.trim(),
-      host: host.trim(),
-      username: username.trim(),
+      name: values.name.trim(),
+      host: values.host.trim(),
+      username: values.username.trim(),
     };
-    if (password.length > 0) data.password = password;
+    if (values.password.length > 0) data.password = values.password;
 
     const result = await updateServer(mode.server.id, data);
-    setLoading(false);
     if (!result.success) {
-      setError(result.message);
+      toast.error(result.message);
       return;
     }
+    toast.success(result.message ?? "");
     router.push("/servers");
     router.refresh();
   }
@@ -132,103 +151,140 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
     router.push("/servers");
   }
 
+  const loading = form.formState.isSubmitting;
+
   // Test button is enabled when host & username are filled, AND either a
   // password is typed or we're in edit mode (we can fall back to stored).
   const canTest =
-    host.trim().length > 0 &&
-    username.trim().length > 0 &&
-    (password.length > 0 || mode.type === "edit") &&
+    watched.host.trim().length > 0 &&
+    watched.username.trim().length > 0 &&
+    (watched.password.length > 0 || mode.type === "edit") &&
     testState.kind !== "testing" &&
     !loading;
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="server-name">{t("name")}</Label>
-        <Input
-          id="server-name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("namePlaceholder")}
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+      >
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("name")}</FormLabel>
+              <FormControl>
+                <Input placeholder={t("namePlaceholder")} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="server-host">{t("host")}</Label>
-        <Input
-          id="server-host"
-          required
-          value={host}
-          onChange={withReset((e) => setHost(e.target.value))}
-          placeholder="192.168.x.x"
+        <FormField
+          control={form.control}
+          name="host"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("host")}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="192.168.x.x"
+                  {...field}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="server-username">{t("username")}</Label>
-        <Input
-          id="server-username"
-          required
-          value={username}
-          onChange={withReset((e) => setUsername(e.target.value))}
-          autoComplete="off"
+        <FormField
+          control={form.control}
+          name="username"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("username")}</FormLabel>
+              <FormControl>
+                <Input
+                  autoComplete="off"
+                  {...field}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="server-password">
-          {mode.type === "edit" ? t("passwordEdit") : t("password")}
-        </Label>
-        <Input
-          id="server-password"
-          type="password"
-          required={mode.type === "create"}
-          value={password}
-          onChange={withReset((e) => setPassword(e.target.value))}
-          autoComplete="new-password"
-          placeholder={
-            mode.type === "edit" ? t("passwordEditPlaceholder") : undefined
-          }
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                {mode.type === "edit" ? t("passwordEdit") : t("password")}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={
+                    mode.type === "edit"
+                      ? t("passwordEditPlaceholder")
+                      : undefined
+                  }
+                  {...field}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onTest}
-          disabled={!canTest}
-        >
-          {testState.kind === "testing" ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : null}
-          {t("testConnection")}
-        </Button>
-        <TestStatus state={testState} t={t} />
-      </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onTest}
+            disabled={!canTest}
+          >
+            {testState.kind === "testing" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : null}
+            {t("testConnection")}
+          </Button>
+          <TestStatus state={testState} t={t} />
+        </div>
 
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="flex justify-end gap-2 pt-2">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={handleCancel}
-          disabled={loading}
-        >
-          {tCommon("cancel")}
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading
-            ? t("submitting")
-            : mode.type === "edit"
-              ? t("saveChanges")
-              : t("create")}
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleCancel}
+            disabled={loading}
+          >
+            {tCommon("cancel")}
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading
+              ? t("submitting")
+              : mode.type === "edit"
+                ? t("saveChanges")
+                : t("create")}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }
 
