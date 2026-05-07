@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
-import { cn } from "@/lib/utils";
 
 const items = [
   {
@@ -58,11 +57,22 @@ export function AppSidebar({ project }: { project: Project }) {
   const pathname = usePathname();
 
   const activeItem = items.find((i) => pathname.endsWith(i.url)) || items[0];
+  const initial = (project.name || "?").charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="absolute h-[calc(100vh-64px)] overflow-y-auto *:divide-y">
-      <SidebarHeader className="px-4">
-        <h2 className="text-xl font-bold">{project.name}</h2>
+    <Sidebar className="absolute h-[calc(100svh-3.5rem)] border-r">
+      <SidebarHeader className="px-3 py-3 border-b">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="size-9 rounded-md bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">
+            {initial}
+          </span>
+          <h2
+            className="font-semibold truncate leading-tight"
+            title={project.name}
+          >
+            {project.name}
+          </h2>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -73,12 +83,14 @@ export function AppSidebar({ project }: { project: Project }) {
                 const isActive = item.url === activeItem.url;
                 return (
                   <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild isActive={isActive}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={t(item.key)}
+                    >
                       <Link href={`/projects/${project.id}${item.url}`}>
-                        <item.icon strokeWidth={isActive ? 4 : 2} />
-                        <span className={cn(isActive && "font-bold")}>
-                          {t(item.key)}
-                        </span>
+                        <item.icon />
+                        <span>{t(item.key)}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -88,7 +100,7 @@ export function AppSidebar({ project }: { project: Project }) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="px-4 py-3">
+      <SidebarFooter className="px-4 py-3 border-t">
         <Copyright />
       </SidebarFooter>
     </Sidebar>
