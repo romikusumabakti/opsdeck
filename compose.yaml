@@ -38,7 +38,14 @@ services:
       INNGEST_BASE_URL: http://inngest:8288
       INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-local}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      # Use Node's built-in fetch — `curl`/`wget` aren't in node:24-alpine.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       start_period: 100s
     depends_on:
       postgres:
