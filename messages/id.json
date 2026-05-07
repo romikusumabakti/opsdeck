@@ -156,7 +156,9 @@
   },
   "newProject": {
     "title": "Buat proyek baru",
-    "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend."
+    "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend.",
+    "formTitle": "Konfigurasi proyek",
+    "formDescription": "Pilih server untuk setiap role (database, backend, frontend) dan isi detail service."
   },
   "projectForm": {
     "info": "Informasi proyek",
@@ -263,15 +265,23 @@
     "submitting": "Menyimpan…",
     "testConnection": "Tes koneksi",
     "testSuccess": "Koneksi berhasil",
-    "testFailed": "Koneksi gagal"
+    "testFailed": "Koneksi gagal",
+    "usageTitle": "Digunakan oleh",
+    "usageDescription": "Proyek yang menggunakan server ini.",
+    "usageEmptyTitle": "Belum digunakan",
+    "usageEmptyDescription": "Belum ada proyek yang menggunakan server ini."
   },
   "newServer": {
     "title": "Tambah server",
-    "description": "Daftarkan kredensial SSH server baru. Server bisa digunakan oleh banyak proyek."
+    "description": "Daftarkan kredensial SSH server baru. Server bisa digunakan oleh banyak proyek.",
+    "formTitle": "Kredensial SSH",
+    "formDescription": "Isi host, username, dan password. Gunakan Tes koneksi untuk memverifikasi sebelum menyimpan."
   },
   "editServer": {
     "title": "Edit server: {name}",
-    "description": "Ubah kredensial SSH. Kosongkan password jika tidak ingin mengubahnya."
+    "description": "Ubah kredensial SSH dan lihat proyek yang menggunakan server ini.",
+    "formTitle": "Kredensial SSH",
+    "formDescription": "Kosongkan password jika tidak ingin mengubahnya."
   },
   "localeSwitcher": {
     "ariaLabel": "Pilih bahasa"

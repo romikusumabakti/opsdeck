@@ -1,3 +1,4 @@
+import { ServerCog } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ServerForm } from "@/components/server-form";
 import {
@@ -24,11 +25,18 @@ export default async function NewServerPage({
   const t = await getTranslations("newServer");
 
   return (
-    <div className="max-w-xl py-8 px-4 mx-auto w-full">
+    <div className="max-w-2xl py-8 px-4 mx-auto w-full">
+      <div className="mb-6 flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("description")}</p>
+      </div>
       <Card>
         <CardHeader>
-          <CardTitle>{t("title")}</CardTitle>
-          <CardDescription>{t("description")}</CardDescription>
+          <div className="flex items-center gap-2">
+            <ServerCog className="size-5 text-muted-foreground" />
+            <CardTitle className="text-base">{t("formTitle")}</CardTitle>
+          </div>
+          <CardDescription>{t("formDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <ServerForm mode={{ type: "create" }} />

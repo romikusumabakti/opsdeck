@@ -1,12 +1,52 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { type NewServer, type Server, servers } from "@/lib/db/schema";
+import {
+  type NewServer,
+  type Project,
+  projects,
+  type Server,
+  servers,
+} from "@/lib/db/schema";
 import { testSshConnection } from "@/lib/ssh";
+
+export type ServerUsage = {
+  project: Pick<Project, "id" | "name">;
+  roles: ("db" | "backend" | "frontend")[];
+};
+
+export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
+  await requireSession();
+  const rows = await db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      dbServerId: projects.dbServerId,
+      backendServerId: projects.backendServerId,
+      frontendServerId: projects.frontendServerId,
+    })
+    .from(projects)
+    .where(
+      or(
+        eq(projects.dbServerId, serverId),
+        eq(projects.backendServerId, serverId),
+        eq(projects.frontendServerId, serverId)
+      )
+    )
+    .orderBy(projects.name);
+
+  return rows.map((p) => {
+    const roles: ServerUsage["roles"] = [];
+    if (p.dbServerId === serverId) roles.push("db");
+    if (p.backendServerId === serverId) roles.push("backend");
+    if (p.frontendServerId === serverId) roles.push("frontend");
+    return { project: { id: p.id, name: p.name }, roles };
+  });
+}
 
 type CreateResponse =
   | { success: true; data: Server; message?: string }
