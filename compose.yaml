@@ -34,6 +34,9 @@ services:
       # Email (Resend) — optional; email features disabled if empty
       RESEND_API_KEY: ${RESEND_API_KEY-}
       EMAIL_FROM: ${EMAIL_FROM-Admin Panel <no-reply@example.com>}
+      # Inngest — point the SDK at the sibling container over the compose network
+      INNGEST_BASE_URL: http://inngest:8288
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-local}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       start_period: 100s
