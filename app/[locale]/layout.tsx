@@ -9,6 +9,8 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 import { getProjects } from "@/actions/projects";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { CommandPalette } from "@/components/command-palette";
 import { DialogProvider } from "@/components/dialog-provider";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { SelectProject } from "@/components/select-project";
@@ -101,9 +103,10 @@ export default async function LocaleLayout({
                     <div className="hidden lg:flex items-center pr-2">
                       <ServerTime />
                     </div>
-                    <div className="hidden lg:flex h-5 items-center">
+                    <div className="hidden lg:flex h-5 items-center pr-1">
                       <Separator orientation="vertical" />
                     </div>
+                    <CommandPalette projects={projects} />
                     <LocaleSwitcher />
                     <ThemeToggle />
                     <UserMenu user={session.user} />
@@ -116,6 +119,7 @@ export default async function LocaleLayout({
                 </div>
               )}
               <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+                {session && <Breadcrumbs projects={projects} />}
                 {children}
               </div>
               <Toaster />

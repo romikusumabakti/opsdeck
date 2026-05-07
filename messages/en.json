@@ -26,6 +26,37 @@
     "next": "Next",
     "pageOf": "Page {current} of {total}"
   },
+  "breadcrumbs": {
+    "projects": "Projects",
+    "servers": "Servers",
+    "users": "Users",
+    "account": "Account",
+    "changePassword": "Change password",
+    "backupDatabase": "Backup database",
+    "restoreDatabase": "Restore database",
+    "history": "History",
+    "settings": "Settings",
+    "new": "New",
+    "edit": "Edit",
+    "loading": "Loading…"
+  },
+  "commandPalette": {
+    "triggerLabel": "Search…",
+    "title": "Command palette",
+    "description": "Search for a command, page, or project.",
+    "placeholder": "Type a command or search…",
+    "noResults": "No results found.",
+    "navigation": "Navigation",
+    "projects": "Projects",
+    "account": "Account",
+    "theme": "Theme",
+    "language": "Language",
+    "current": "current",
+    "locale": {
+      "en": "English",
+      "id": "Bahasa Indonesia"
+    }
+  },
   "nav": {
     "dashboard": "Dashboard",
     "backupDatabase": "Backup database",
