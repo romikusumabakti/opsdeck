@@ -1,14 +1,35 @@
 "use client";
 
-import { LogOut, Server, UserRound, Users } from "lucide-react";
-import { useTranslations } from "next-intl";
+import {
+  Languages,
+  LogOut,
+  Monitor,
+  Moon,
+  Server,
+  Sun,
+  UserRound,
+  Users,
+} from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { useTheme } from "next-themes";
+import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Link, useRouter } from "@/i18n/navigation";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { type Locale, localeLabels, locales } from "@/i18n/locales";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
 type UserSummary = {
@@ -18,14 +39,35 @@ type UserSummary = {
   image?: string | null;
 };
 
+const themeOptions = [
+  { value: "light", icon: Sun },
+  { value: "dark", icon: Moon },
+  { value: "system", icon: Monitor },
+] as const;
+
 export function UserMenu({ user }: { user: UserSummary }) {
   const t = useTranslations("userMenu");
+  const tTheme = useTranslations("themeSwitcher");
+  const tLocale = useTranslations("localeSwitcher");
   const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = useLocale() as Locale;
+  const { theme = "system", setTheme } = useTheme();
+  const [pending, startTransition] = useTransition();
 
   async function onSignOut() {
     await authClient.signOut();
     router.push("/sign-in");
     router.refresh();
+  }
+
+  function onLocaleChange(value: string) {
+    const locale = value as Locale;
+    if (locale === currentLocale) return;
+    startTransition(() => {
+      router.replace(pathname, { locale });
+      router.refresh();
+    });
   }
 
   const initials = (user.name || user.email)
@@ -37,8 +79,8 @@ export function UserMenu({ user }: { user: UserSummary }) {
     .toUpperCase();
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
@@ -49,49 +91,83 @@ export function UserMenu({ user }: { user: UserSummary }) {
             {initials}
           </span>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 p-1">
-        <div className="px-3 py-2 border-b mb-1">
-          <div className="flex items-center gap-2">
-            <UserRound className="size-4 text-muted-foreground" />
-            <div className="min-w-0">
-              <div className="text-sm font-medium truncate">{user.name}</div>
-              <div className="text-xs text-muted-foreground truncate">
-                {user.email}
-              </div>
-            </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-sm font-medium truncate">{user.name}</span>
+            <span className="text-xs text-muted-foreground truncate">
+              {user.email}
+            </span>
           </div>
-        </div>
-        <Link
-          href="/users"
-          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-        >
-          <Users className="size-4" />
-          <span>{t("users")}</span>
-        </Link>
-        <Link
-          href="/servers"
-          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-        >
-          <Server className="size-4" />
-          <span>{t("servers")}</span>
-        </Link>
-        <Link
-          href="/account"
-          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-        >
-          <UserRound className="size-4 text-muted-foreground" />
-          <span>{t("account")}</span>
-        </Link>
-        <button
-          type="button"
-          onClick={onSignOut}
-          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent text-destructive"
-        >
-          <LogOut className="size-4" />
-          <span>{t("signOut")}</span>
-        </button>
-      </PopoverContent>
-    </Popover>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => router.push("/account")}>
+          <UserRound />
+          {t("account")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/users")}>
+          <Users />
+          {t("users")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/servers")}>
+          <Server />
+          {t("servers")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            {theme === "dark" ? (
+              <Moon />
+            ) : theme === "light" ? (
+              <Sun />
+            ) : (
+              <Monitor />
+            )}
+            {tTheme("ariaLabel")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={theme}
+                onValueChange={(v) => setTheme(v)}
+              >
+                {themeOptions.map(({ value, icon: Icon }) => (
+                  <DropdownMenuRadioItem key={value} value={value}>
+                    <Icon className="size-4" />
+                    {tTheme(value)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger disabled={pending}>
+            <Languages />
+            {tLocale("ariaLabel")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={currentLocale}
+                onValueChange={onLocaleChange}
+              >
+                {locales.map((locale) => (
+                  <DropdownMenuRadioItem key={locale} value={locale}>
+                    {localeLabels[locale]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={onSignOut}>
+          <LogOut />
+          {t("signOut")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

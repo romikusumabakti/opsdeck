@@ -100,14 +100,9 @@ export default async function LocaleLayout({
                   <div className="ml-auto flex items-center gap-1">
                     <div className="hidden md:flex items-center gap-2 pr-1">
                       <ServerTime />
-                      <Separator
-                        orientation="vertical"
-                        className="!h-5"
-                      />
+                      <Separator orientation="vertical" className="!h-5" />
                     </div>
                     <CommandPalette projects={projects} />
-                    <LocaleSwitcher />
-                    <ThemeToggle />
                     <UserMenu user={session.user} />
                   </div>
                 </header>
