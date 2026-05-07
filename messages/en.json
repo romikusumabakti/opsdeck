@@ -156,7 +156,9 @@
   },
   "newProject": {
     "title": "Create new project",
-    "description": "Register a new project along with its database, backend, and frontend server configuration."
+    "description": "Register a new project along with its database, backend, and frontend server configuration.",
+    "formTitle": "Project configuration",
+    "formDescription": "Pick a server for each role (database, backend, frontend) and provide service details."
   },
   "projectForm": {
     "info": "Project info",
@@ -263,15 +265,23 @@
     "submitting": "Saving…",
     "testConnection": "Test connection",
     "testSuccess": "Connection successful",
-    "testFailed": "Connection failed"
+    "testFailed": "Connection failed",
+    "usageTitle": "Used by",
+    "usageDescription": "Projects that reference this server.",
+    "usageEmptyTitle": "Not in use",
+    "usageEmptyDescription": "No project is currently using this server."
   },
   "newServer": {
     "title": "Add server",
-    "description": "Register a new server's SSH credentials. Servers can be reused across multiple projects."
+    "description": "Register a new server's SSH credentials. Servers can be reused across multiple projects.",
+    "formTitle": "SSH credentials",
+    "formDescription": "Provide host, username, and password. Use Test connection to verify before saving."
   },
   "editServer": {
     "title": "Edit server: {name}",
-    "description": "Update SSH credentials. Leave the password blank to keep it unchanged."
+    "description": "Update SSH credentials and review where this server is used.",
+    "formTitle": "SSH credentials",
+    "formDescription": "Leave the password blank to keep it unchanged."
   },
   "localeSwitcher": {
     "ariaLabel": "Select language"
