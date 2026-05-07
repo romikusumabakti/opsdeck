@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { FolderPlus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 
 export async function ProjectsEmpty() {
   const t = await getTranslations("projectsEmpty");

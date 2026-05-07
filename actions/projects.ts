@@ -55,9 +55,7 @@ export async function getProjectById(
  * CREATE: Add a new project. Server FKs (dbServerId, backendServerId,
  * frontendServerId) must already exist — create them via createServer first.
  */
-export async function createProject(
-  data: NewProject
-): Promise<ActionResponse> {
+export async function createProject(data: NewProject): Promise<ActionResponse> {
   try {
     const [insertedProject] = await db
       .insert(projects)

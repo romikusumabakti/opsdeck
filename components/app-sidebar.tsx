@@ -7,9 +7,8 @@ import {
   LayoutDashboard,
   Settings,
 } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Copyright } from "@/components/copyright";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +21,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Link, usePathname } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
@@ -88,7 +88,9 @@ export function AppSidebar({ project }: { project: Project }) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter />
+      <SidebarFooter className="px-4 py-3">
+        <Copyright />
+      </SidebarFooter>
     </Sidebar>
   );
 }

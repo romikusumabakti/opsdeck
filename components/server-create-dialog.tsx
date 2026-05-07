@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { ServerForm } from "@/components/server-form";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ServerForm } from "@/components/server-form";
 import type { Server } from "@/lib/db/schema";
 
 export function ServerCreateDialog({
