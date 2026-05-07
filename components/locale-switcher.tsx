@@ -3,7 +3,6 @@
 import { Languages } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTransition } from "react";
-import { setLocale } from "@/actions/locale";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -11,17 +10,21 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 export function LocaleSwitcher() {
   const current = useLocale() as Locale;
   const t = useTranslations("localeSwitcher");
+  const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
   function onSelect(locale: Locale) {
     if (locale === current) return;
     startTransition(() => {
-      setLocale(locale);
+      router.replace(pathname, { locale });
+      router.refresh();
     });
   }
 

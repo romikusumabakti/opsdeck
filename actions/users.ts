@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -166,7 +166,10 @@ export async function inviteUser(input: {
   });
 
   const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-  const inviteUrl = `${baseUrl}/accept-invite/${token}`;
+  // Inherit the inviter's current locale so the recipient lands on the same
+  // language they were invited in.
+  const locale = await getLocale();
+  const inviteUrl = `${baseUrl}/${locale}/accept-invite/${token}`;
 
   try {
     await sendInvitationEmail(email, {

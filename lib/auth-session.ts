@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect } from "@/i18n/navigation";
 import { auth } from "./auth";
 
 export async function getServerSession() {
@@ -12,7 +12,7 @@ export async function requireSession() {
   const session = await getServerSession();
   if (!session) {
     // Proxy only checks cookie presence; a stale cookie reaches here.
-    redirect("/sign-in");
+    await redirect("/sign-in");
   }
   return session;
 }

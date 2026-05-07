@@ -9,7 +9,8 @@
     "save": "Save",
     "submit": "Submit",
     "you": "You",
-    "errorGeneric": "Something went wrong"
+    "errorGeneric": "Something went wrong",
+    "projectNotFound": "Project not found"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -29,6 +30,35 @@
     "title": "No projects yet",
     "description": "Create your first project to start managing backups and deployments.",
     "create": "Create Project"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "database": "Database",
+    "backend": "Backend",
+    "frontend": "Frontend"
+  },
+  "backupDb": {
+    "title": "Create database backup",
+    "description": "Create backup for database: {dbName}",
+    "button": "Backup",
+    "confirmTitle": "Backup Database",
+    "confirmDescription": "Are you sure you want to create a backup for database {dbName}?",
+    "confirmButton": "Backup",
+    "successTitle": "Backup Created",
+    "successDescription": "A backup for database {dbName} has been created successfully.",
+    "successButton": "OK"
+  },
+  "restoreDb": {
+    "title": "Restore database backup",
+    "selectBackup": "Select backup...",
+    "searchBackup": "Search backup...",
+    "noBackup": "No backup found.",
+    "restore": "Restore",
+    "backupSize": "Backup size: {sizeMb} MB ({sizeBytes} bytes)",
+    "backupsNotFound": "No backups available"
+  },
+  "history": {
+    "title": "History"
   },
   "newProject": {
     "title": "Create New Project",
