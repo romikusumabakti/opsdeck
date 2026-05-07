@@ -200,6 +200,8 @@
     "errorGeneric": "Gagal mengubah password"
   },
   "users": {
+    "title": "Manajemen Pengguna",
+    "subtitle": "Kelola pengguna panel dan undangan yang masih tertunda.",
     "inviteCardTitle": "Undang Pengguna",
     "inviteCardDescription": "Email harus berakhir dengan @example.com",
     "fullName": "Nama",
@@ -214,7 +216,7 @@
     "revoke": "Batalkan",
     "revokeTitle": "Batalkan undangan",
     "revokeDescription": "Batalkan undangan untuk {email}?",
-    "listTitle": "Pengguna ({count})",
+    "listCardTitle": "Pengguna",
     "deleteTitle": "Hapus user",
     "deleteDescription": "Hapus {name} ({email})? Tindakan ini tidak bisa dibatalkan.",
     "deleteConfirm": "Hapus",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Clock, Mail, Trash2, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { deleteUser, inviteUser, revokeInvitation } from "@/actions/users";
@@ -32,6 +32,16 @@ type InvitationRow = {
   expiresAt: Date;
   createdAt: Date;
 };
+
+function getInitials(value: string) {
+  return value
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 export function UsersClient({
   users,
@@ -136,6 +146,7 @@ export function UsersClient({
               />
             </div>
             <Button type="submit" disabled={isPending}>
+              <UserPlus className="size-4" />
               {isPending ? t("inviteSubmitting") : t("inviteSubmit")}
             </Button>
           </form>
@@ -155,25 +166,36 @@ export function UsersClient({
       {invitations.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>{t("pendingTitle")}</CardTitle>
+            <CardTitle>
+              {t("pendingTitle")}{" "}
+              <span className="text-muted-foreground font-normal">
+                ({invitations.length})
+              </span>
+            </CardTitle>
             <CardDescription>{t("pendingDescription")}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ul className="divide-y">
+          <CardContent className="p-0">
+            <ul className="divide-y border-t">
               {invitations.map((inv) => (
                 <li
                   key={inv.id}
-                  className="py-3 flex items-center justify-between gap-4"
+                  className="flex items-center justify-between gap-4 px-6 py-3"
                 >
-                  <div>
-                    <div className="font-medium">{inv.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {inv.email}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {t("expiresAt", {
-                        date: new Date(inv.expiresAt).toLocaleString(),
-                      })}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <Mail className="size-4 text-muted-foreground" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{inv.name}</div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {inv.email}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Clock className="size-3" />
+                        {t("expiresAt", {
+                          date: new Date(inv.expiresAt).toLocaleString(),
+                        })}
+                      </div>
                     </div>
                   </div>
                   <Button
@@ -181,6 +203,7 @@ export function UsersClient({
                     size="sm"
                     onClick={() => onRevoke(inv)}
                     disabled={isPending}
+                    className="shrink-0"
                   >
                     {t("revoke")}
                   </Button>
@@ -193,39 +216,55 @@ export function UsersClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("listTitle", { count: users.length })}</CardTitle>
+          <CardTitle>
+            {t("listCardTitle")}{" "}
+            <span className="text-muted-foreground font-normal">
+              ({users.length})
+            </span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ul className="divide-y">
-            {users.map((u) => (
-              <li
-                key={u.id}
-                className="py-3 flex items-center justify-between gap-4"
-              >
-                <div>
-                  <div className="font-medium">
-                    {u.name}
-                    {u.id === currentUserId && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        ({tCommon("you")})
-                      </span>
-                    )}
+        <CardContent className="p-0">
+          <ul className="divide-y border-t">
+            {users.map((u) => {
+              const isYou = u.id === currentUserId;
+              return (
+                <li
+                  key={u.id}
+                  className="flex items-center justify-between gap-4 px-6 py-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
+                      {getInitials(u.name || u.email)}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">{u.name}</span>
+                        {isYou && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground shrink-0">
+                            {tCommon("you")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {u.email}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">{u.email}</div>
-                </div>
-                {u.id !== currentUserId && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(u)}
-                    disabled={isPending}
-                    aria-label={t("deleteAriaLabel")}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                )}
-              </li>
-            ))}
+                  {!isYou && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDelete(u)}
+                      disabled={isPending}
+                      aria-label={t("deleteAriaLabel")}
+                      className="shrink-0"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </CardContent>
       </Card>
