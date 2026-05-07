@@ -13,7 +13,18 @@
     "projectNotFound": "Proyek tidak ditemukan",
     "required": "Wajib diisi",
     "emailInvalid": "Masukkan alamat email yang valid",
-    "passwordTooShort": "Password minimal {min} karakter"
+    "passwordTooShort": "Password minimal {min} karakter",
+    "actions": "Aksi",
+    "openMenu": "Buka menu",
+    "edit": "Ubah"
+  },
+  "dataTable": {
+    "searchPlaceholder": "Cari…",
+    "columns": "Kolom",
+    "noResults": "Tidak ada hasil.",
+    "previous": "Sebelumnya",
+    "next": "Berikutnya",
+    "pageOf": "Halaman {current} dari {total}"
   },
   "nav": {
     "dashboard": "Dasbor",
@@ -133,7 +144,11 @@
     "deleteTitle": "Hapus server",
     "deleteDescription": "Hapus server {name} ({host})? Server yang masih dipakai proyek tidak bisa dihapus.",
     "deleteFailed": "Gagal menghapus server",
-    "deletedSuccess": "Server dihapus"
+    "deletedSuccess": "Server dihapus",
+    "searchPlaceholder": "Cari berdasarkan nama…",
+    "colName": "Nama",
+    "colHost": "Host",
+    "colUsername": "Username"
   },
   "serverForm": {
     "name": "Nama",
@@ -226,7 +241,11 @@
     "deleteAriaLabel": "Hapus pengguna",
     "deleteFailed": "Gagal menghapus pengguna",
     "deletedSuccess": "Pengguna dihapus",
-    "revokedSuccess": "Undangan dibatalkan"
+    "revokedSuccess": "Undangan dibatalkan",
+    "searchPlaceholder": "Cari berdasarkan nama…",
+    "colUser": "Pengguna",
+    "colInvitee": "Diundang",
+    "colExpires": "Kadaluarsa"
   },
   "setup": {
     "title": "Pengaturan awal",

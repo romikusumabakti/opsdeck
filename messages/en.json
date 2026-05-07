@@ -13,7 +13,18 @@
     "projectNotFound": "Project not found",
     "required": "This field is required",
     "emailInvalid": "Enter a valid email address",
-    "passwordTooShort": "Password must be at least {min} characters"
+    "passwordTooShort": "Password must be at least {min} characters",
+    "actions": "Actions",
+    "openMenu": "Open menu",
+    "edit": "Edit"
+  },
+  "dataTable": {
+    "searchPlaceholder": "Search…",
+    "columns": "Columns",
+    "noResults": "No results.",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {current} of {total}"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -133,7 +144,11 @@
     "deleteTitle": "Delete server",
     "deleteDescription": "Delete server {name} ({host})? Servers in use by projects cannot be deleted.",
     "deleteFailed": "Failed to delete server",
-    "deletedSuccess": "Server deleted"
+    "deletedSuccess": "Server deleted",
+    "searchPlaceholder": "Search by name…",
+    "colName": "Name",
+    "colHost": "Host",
+    "colUsername": "Username"
   },
   "serverForm": {
     "name": "Name",
@@ -226,7 +241,11 @@
     "deleteAriaLabel": "Delete user",
     "deleteFailed": "Failed to delete user",
     "deletedSuccess": "User deleted",
-    "revokedSuccess": "Invitation revoked"
+    "revokedSuccess": "Invitation revoked",
+    "searchPlaceholder": "Search by name…",
+    "colUser": "User",
+    "colInvitee": "Invitee",
+    "colExpires": "Expires"
   },
   "setup": {
     "title": "Initial setup",
