@@ -84,7 +84,7 @@ export function UsersClient({
         name: user.name,
         email: user.email,
       }),
-      confirmText: t("deleteConfirm"),
+      confirmText: tCommon("delete"),
       cancelText: tCommon("cancel"),
     });
     if (!ok) return;
