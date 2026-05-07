@@ -71,7 +71,11 @@
     "restoreDatabase": "Restore database",
     "history": "Riwayat",
     "settings": "Pengaturan",
-    "menu": "Menu"
+    "menu": "Menu",
+    "manage": "Kelola",
+    "servers": "Server",
+    "users": "Pengguna",
+    "projects": "Proyek"
   },
   "header": {
     "selectProject": "Pilih proyek…",
@@ -83,6 +87,11 @@
     "title": "Belum ada proyek",
     "description": "Buat proyek pertama untuk mulai mengelola backup dan deployment.",
     "create": "Buat proyek"
+  },
+  "home": {
+    "title": "Proyek",
+    "subtitle": "Pilih proyek untuk mengelola backup, restore, dan riwayat.",
+    "create": "Proyek baru"
   },
   "dashboard": {
     "title": "Dasbor",
