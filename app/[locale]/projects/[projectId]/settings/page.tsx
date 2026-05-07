@@ -32,8 +32,11 @@ export default async function ProjectSettingsPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl w-full mx-auto py-4">
-      <h2 className="text-2xl">{t("title")}</h2>
+    <div className="flex flex-col gap-6 max-w-3xl w-full mx-auto">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      </div>
 
       <Card>
         <CardHeader>

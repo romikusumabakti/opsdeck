@@ -16,7 +16,10 @@
     "passwordTooShort": "Password must be at least {min} characters",
     "actions": "Actions",
     "openMenu": "Open menu",
-    "edit": "Edit"
+    "edit": "Edit",
+    "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Failed to copy"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -78,6 +81,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "subtitle": "Configuration overview for {name}.",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
@@ -97,24 +101,37 @@
     }
   },
   "backupDb": {
-    "title": "Create database backup",
-    "description": "Create backup for database: {dbName}",
-    "button": "Backup",
+    "title": "Backup database",
+    "subtitle": "Create a new backup snapshot of {dbName}.",
+    "targetTitle": "Backup target",
+    "targetDescription": "The database below will be dumped and stored on the configured backup path.",
+    "infoNote": "Backups are queued and run in the background. Check the History page to track recent runs.",
+    "button": "Run backup now",
     "confirmTitle": "Backup database",
     "confirmDescription": "Are you sure you want to create a backup for database {dbName}?",
     "confirmButton": "Backup",
-    "successTitle": "Backup created",
-    "successDescription": "A backup for database {dbName} has been created successfully.",
+    "successTitle": "Backup queued",
+    "successDescription": "A backup for database {dbName} has been queued.",
     "successButton": "OK"
   },
   "restoreDb": {
-    "title": "Restore database backup",
+    "title": "Restore database",
+    "subtitle": "Restore {dbName} from a previous backup snapshot.",
+    "pickerTitle": "Select a backup",
+    "pickerDescription": "Pick the snapshot you want to restore from.",
+    "selectBackupLabel": "Backup file",
     "selectBackup": "Select backup…",
     "searchBackup": "Search backup…",
     "noBackup": "No backup found.",
     "restore": "Restore",
-    "backupSize": "Backup size: {sizeMb} MB ({sizeBytes} bytes)",
-    "backupsNotFound": "No backups available"
+    "backupSize": "Size: {sizeMb} MB ({sizeBytes} bytes)",
+    "backupsNotFound": "No backups available",
+    "backupsNotFoundDescription": "There are no backup files at the configured path yet.",
+    "dangerNote": "Restoring will overwrite the current database state. This cannot be undone.",
+    "confirmTitle": "Restore database",
+    "confirmDescription": "Restore {dbName} from {filename}? This will overwrite the current database.",
+    "successTitle": "Restore queued",
+    "successDescription": "A restore for database {dbName} has been queued."
   },
   "history": {
     "title": "History",
@@ -163,7 +180,8 @@
     "savedSuccess": "Project saved"
   },
   "projectSettings": {
-    "title": "Settings",
+    "title": "Project settings",
+    "subtitle": "Edit the project configuration or remove the project entirely.",
     "editTitle": "Project details",
     "editDescription": "Update the project's database, backend, and frontend server configuration.",
     "dangerZoneTitle": "Danger zone",
