@@ -16,6 +16,7 @@ import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { getServerSession } from "@/lib/auth-session";
 import "../globals.css";
@@ -81,10 +82,13 @@ export default async function LocaleLayout({
               {session ? (
                 <header className="flex border-b h-14 shrink-0 sticky top-0 z-40 bg-background">
                   <div className="flex w-64 px-6 items-center">
-                    <h1 className="font-bold flex gap-2">
+                    <Link
+                      href="/"
+                      className="font-bold flex gap-2 items-center hover:opacity-80 transition-opacity"
+                    >
                       <Aperture />
                       <span>{t("name")}</span>
-                    </h1>
+                    </Link>
                   </div>
                   <div className="flex items-center flex-1">
                     <SelectProject projects={projects} />

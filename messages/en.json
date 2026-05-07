@@ -200,6 +200,8 @@
     "errorGeneric": "Failed to change password"
   },
   "users": {
+    "title": "User Management",
+    "subtitle": "Manage panel users and pending invitations.",
     "inviteCardTitle": "Invite User",
     "inviteCardDescription": "Email must end with @example.com",
     "fullName": "Name",
@@ -214,7 +216,7 @@
     "revoke": "Revoke",
     "revokeTitle": "Revoke invitation",
     "revokeDescription": "Revoke the invitation for {email}?",
-    "listTitle": "Users ({count})",
+    "listCardTitle": "Users",
     "deleteTitle": "Delete user",
     "deleteDescription": "Delete {name} ({email})? This cannot be undone.",
     "deleteConfirm": "Delete",
