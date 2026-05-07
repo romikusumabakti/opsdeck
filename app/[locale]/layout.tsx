@@ -16,6 +16,7 @@ import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
+import { Toaster } from "@/components/ui/sonner";
 import { UserMenu } from "@/components/user-menu";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
@@ -117,6 +118,7 @@ export default async function LocaleLayout({
               <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
                 {children}
               </div>
+              <Toaster />
             </DialogProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

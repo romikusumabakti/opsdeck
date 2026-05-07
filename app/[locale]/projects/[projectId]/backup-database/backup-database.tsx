@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
@@ -22,11 +23,9 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
           cancelText: tCommon("cancel"),
         });
         if (!ok) return;
-        createDatabaseBackup(project);
-        dialog.alert({
-          title: t("successTitle"),
+        await createDatabaseBackup(project);
+        toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: project.dbName }),
-          confirmText: t("successButton"),
         });
       }}
     >

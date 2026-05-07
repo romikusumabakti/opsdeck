@@ -1,11 +1,23 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { createProject, updateProject } from "@/actions/projects";
 import { ServerCreateDialog } from "@/components/server-create-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
@@ -16,26 +28,6 @@ const SERVICE_TYPES = ["docker", "system"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
 
 type ServerRole = "db" | "backend" | "frontend";
-
-type FormState = {
-  name: string;
-
-  dbServerId: string | null;
-  dbServiceType: (typeof SERVICE_TYPES)[number];
-  dbServiceName: string;
-  dbType: (typeof DB_TYPES)[number];
-  dbName: string;
-  dbIsBackupMounted: boolean;
-  dbBackupPath: string;
-
-  backendServerId: string | null;
-  backendServiceType: (typeof SERVICE_TYPES)[number];
-  backendServiceName: string;
-
-  frontendServerId: string | null;
-  frontendServiceType: (typeof SERVICE_TYPES)[number];
-  frontendServiceName: string;
-};
 
 type Mode = { type: "create" } | { type: "edit"; project: Project };
 
@@ -54,100 +46,87 @@ export function ProjectForm({
   const [servers, setServers] = useState<Server[]>(initialServers);
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
 
-  const [form, setForm] = useState<FormState>(() => {
-    if (mode.type === "edit") {
-      const p = mode.project;
-      return {
-        name: p.name,
-        dbServerId: p.dbServerId,
-        dbServiceType: p.dbServiceType,
-        dbServiceName: p.dbServiceName,
-        dbType: p.dbType,
-        dbName: p.dbName,
-        dbIsBackupMounted: p.dbIsBackupMounted,
-        dbBackupPath: p.dbBackupPath,
-        backendServerId: p.backendServerId,
-        backendServiceType: p.backendServiceType,
-        backendServiceName: p.backendServiceName,
-        frontendServerId: p.frontendServerId,
-        frontendServiceType: p.frontendServiceType,
-        frontendServiceName: p.frontendServiceName,
-      };
-    }
-    return {
-      name: "",
-      dbServerId: initialServers[0]?.id ?? null,
-      dbServiceType: "docker",
-      dbServiceName: "",
-      dbType: "postgres",
-      dbName: "",
-      dbIsBackupMounted: false,
-      dbBackupPath: "",
-      backendServerId: initialServers[0]?.id ?? null,
-      backendServiceType: "docker",
-      backendServiceName: "",
-      frontendServerId: initialServers[0]?.id ?? null,
-      frontendServiceType: "docker",
-      frontendServiceName: "",
-    };
+  const schema = z.object({
+    name: z.string().min(1, tCommon("required")),
+
+    dbServerId: z.string().min(1, t("pickServerRequired")),
+    dbServiceType: z.enum(SERVICE_TYPES),
+    dbServiceName: z.string().min(1, tCommon("required")),
+    dbType: z.enum(DB_TYPES),
+    dbName: z.string().min(1, tCommon("required")),
+    dbIsBackupMounted: z.boolean(),
+    dbBackupPath: z.string().min(1, tCommon("required")),
+
+    backendServerId: z.string().min(1, t("pickServerRequired")),
+    backendServiceType: z.enum(SERVICE_TYPES),
+    backendServiceName: z.string().min(1, tCommon("required")),
+
+    frontendServerId: z.string().min(1, t("pickServerRequired")),
+    frontendServiceType: z.enum(SERVICE_TYPES),
+    frontendServiceName: z.string().min(1, tCommon("required")),
   });
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  type FormValues = z.infer<typeof schema>;
 
-  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues:
+      mode.type === "edit"
+        ? {
+            name: mode.project.name,
+            dbServerId: mode.project.dbServerId,
+            dbServiceType: mode.project.dbServiceType,
+            dbServiceName: mode.project.dbServiceName,
+            dbType: mode.project.dbType,
+            dbName: mode.project.dbName,
+            dbIsBackupMounted: mode.project.dbIsBackupMounted,
+            dbBackupPath: mode.project.dbBackupPath,
+            backendServerId: mode.project.backendServerId,
+            backendServiceType: mode.project.backendServiceType,
+            backendServiceName: mode.project.backendServiceName,
+            frontendServerId: mode.project.frontendServerId,
+            frontendServiceType: mode.project.frontendServiceType,
+            frontendServiceName: mode.project.frontendServiceName,
+          }
+        : {
+            name: "",
+            dbServerId: initialServers[0]?.id ?? "",
+            dbServiceType: "docker",
+            dbServiceName: "",
+            dbType: "postgres",
+            dbName: "",
+            dbIsBackupMounted: false,
+            dbBackupPath: "",
+            backendServerId: initialServers[0]?.id ?? "",
+            backendServiceType: "docker",
+            backendServiceName: "",
+            frontendServerId: initialServers[0]?.id ?? "",
+            frontendServiceType: "docker",
+            frontendServiceName: "",
+          },
+  });
 
   function onServerCreated(server: Server) {
     setServers((prev) => [...prev, server]);
-    if (dialogRole === "db") setField("dbServerId", server.id);
-    if (dialogRole === "backend") setField("backendServerId", server.id);
-    if (dialogRole === "frontend") setField("frontendServerId", server.id);
+    if (dialogRole === "db") form.setValue("dbServerId", server.id);
+    if (dialogRole === "backend") form.setValue("backendServerId", server.id);
+    if (dialogRole === "frontend") form.setValue("frontendServerId", server.id);
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    if (
-      form.dbServerId == null ||
-      form.backendServerId == null ||
-      form.frontendServerId == null
-    ) {
-      setError(t("pickServerRequired"));
-      return;
-    }
-
-    setLoading(true);
-    const payload = {
-      name: form.name,
-      dbServerId: form.dbServerId,
-      dbServiceType: form.dbServiceType,
-      dbServiceName: form.dbServiceName,
-      dbType: form.dbType,
-      dbName: form.dbName,
-      dbIsBackupMounted: form.dbIsBackupMounted,
-      dbBackupPath: form.dbBackupPath,
-      backendServerId: form.backendServerId,
-      backendServiceType: form.backendServiceType,
-      backendServiceName: form.backendServiceName,
-      frontendServerId: form.frontendServerId,
-      frontendServiceType: form.frontendServiceType,
-      frontendServiceName: form.frontendServiceName,
-    };
-
+  async function onSubmit(values: FormValues) {
     const result =
       mode.type === "create"
-        ? await createProject(payload)
-        : await updateProject(mode.project.id, payload);
-
-    setLoading(false);
+        ? await createProject(values)
+        : await updateProject(mode.project.id, values);
 
     if (!result.success || !result.data) {
-      setError(result.message ?? t("submitFailed"));
+      toast.error(result.message ?? t("submitFailed"));
       return;
     }
+
+    toast.success(
+      mode.type === "create" ? t("createdSuccess") : t("savedSuccess")
+    );
 
     if (mode.type === "create") {
       router.push(`/projects/${result.data.id}`);
@@ -155,196 +134,244 @@ export function ProjectForm({
     router.refresh();
   }
 
+  const loading = form.formState.isSubmitting;
+
   return (
     <>
-      <form onSubmit={onSubmit} className="flex flex-col gap-8">
-        <Section title={t("info")}>
-          <Field label={t("name")} htmlFor="name">
-            <Input
-              id="name"
-              required
-              value={form.name}
-              onChange={(e) => setField("name", e.target.value)}
-              placeholder={t("namePlaceholder")}
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-8"
+        >
+          <Section title={t("info")}>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>{t("name")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t("namePlaceholder")} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </Field>
-        </Section>
+          </Section>
 
-        <Section title={t("database")}>
-          <ServerPicker
-            t={t}
-            prefix="db"
-            servers={servers}
-            value={form.dbServerId}
-            onChange={(id) => setField("dbServerId", id)}
-            onRequestCreate={() => setDialogRole("db")}
-          />
-          <Field label={t("serviceType")} htmlFor="db-service-type">
-            <Select
-              id="db-service-type"
-              value={form.dbServiceType}
-              onChange={(e) =>
-                setField(
-                  "dbServiceType",
-                  e.target.value as FormState["dbServiceType"]
-                )
-              }
+          <Section title={t("database")}>
+            <ServerPicker
+              t={t}
+              control={form.control}
+              name="dbServerId"
+              servers={servers}
+              onRequestCreate={() => setDialogRole("db")}
+            />
+            <FormField
+              control={form.control}
+              name="dbServiceType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("serviceType")}</FormLabel>
+                  <FormControl>
+                    <Select {...field}>
+                      {SERVICE_TYPES.map((v) => (
+                        <option key={v} value={v}>
+                          {tEnums(`serviceTypes.${v}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbServiceName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("serviceName")}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("dbType")}</FormLabel>
+                  <FormControl>
+                    <Select {...field}>
+                      {DB_TYPES.map((v) => (
+                        <option key={v} value={v}>
+                          {tEnums(`dbTypes.${v}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("dbName")}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbBackupPath"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("backupPath")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="/var/backups/db" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbIsBackupMounted"
+              render={({ field }) => (
+                <FormItem className="grid-flow-col items-center justify-start gap-2 sm:col-span-2">
+                  <FormControl>
+                    <input
+                      id="db-backup-mounted"
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={(e) => field.onChange(e.target.checked)}
+                      className="size-4"
+                    />
+                  </FormControl>
+                  <Label
+                    htmlFor="db-backup-mounted"
+                    className="text-sm font-normal"
+                  >
+                    {t("isBackupMounted")}
+                  </Label>
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          <Section title={t("backend")}>
+            <ServerPicker
+              t={t}
+              control={form.control}
+              name="backendServerId"
+              servers={servers}
+              onRequestCreate={() => setDialogRole("backend")}
+            />
+            <FormField
+              control={form.control}
+              name="backendServiceType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("serviceType")}</FormLabel>
+                  <FormControl>
+                    <Select {...field}>
+                      {SERVICE_TYPES.map((v) => (
+                        <option key={v} value={v}>
+                          {tEnums(`serviceTypes.${v}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="backendServiceName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("serviceName")}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          <Section title={t("frontend")}>
+            <ServerPicker
+              t={t}
+              control={form.control}
+              name="frontendServerId"
+              servers={servers}
+              onRequestCreate={() => setDialogRole("frontend")}
+            />
+            <FormField
+              control={form.control}
+              name="frontendServiceType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("serviceType")}</FormLabel>
+                  <FormControl>
+                    <Select {...field}>
+                      {SERVICE_TYPES.map((v) => (
+                        <option key={v} value={v}>
+                          {tEnums(`serviceTypes.${v}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="frontendServiceName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("serviceName")}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </Section>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => router.back()}
+              disabled={loading}
             >
-              {SERVICE_TYPES.map((v) => (
-                <option key={v} value={v}>
-                  {tEnums(`serviceTypes.${v}`)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("serviceName")} htmlFor="db-service-name">
-            <Input
-              id="db-service-name"
-              required
-              value={form.dbServiceName}
-              onChange={(e) => setField("dbServiceName", e.target.value)}
-            />
-          </Field>
-          <Field label={t("dbType")} htmlFor="dbType">
-            <Select
-              id="dbType"
-              value={form.dbType}
-              onChange={(e) =>
-                setField("dbType", e.target.value as FormState["dbType"])
-              }
-            >
-              {DB_TYPES.map((v) => (
-                <option key={v} value={v}>
-                  {tEnums(`dbTypes.${v}`)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("dbName")} htmlFor="dbName">
-            <Input
-              id="dbName"
-              required
-              value={form.dbName}
-              onChange={(e) => setField("dbName", e.target.value)}
-            />
-          </Field>
-          <Field label={t("backupPath")} htmlFor="dbBackupPath">
-            <Input
-              id="dbBackupPath"
-              required
-              value={form.dbBackupPath}
-              onChange={(e) => setField("dbBackupPath", e.target.value)}
-              placeholder="/var/backups/db"
-            />
-          </Field>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.dbIsBackupMounted}
-              onChange={(e) => setField("dbIsBackupMounted", e.target.checked)}
-            />
-            {t("isBackupMounted")}
-          </label>
-        </Section>
-
-        <Section title={t("backend")}>
-          <ServerPicker
-            t={t}
-            prefix="backend"
-            servers={servers}
-            value={form.backendServerId}
-            onChange={(id) => setField("backendServerId", id)}
-            onRequestCreate={() => setDialogRole("backend")}
-          />
-          <Field label={t("serviceType")} htmlFor="backend-service-type">
-            <Select
-              id="backend-service-type"
-              value={form.backendServiceType}
-              onChange={(e) =>
-                setField(
-                  "backendServiceType",
-                  e.target.value as FormState["backendServiceType"]
-                )
-              }
-            >
-              {SERVICE_TYPES.map((v) => (
-                <option key={v} value={v}>
-                  {tEnums(`serviceTypes.${v}`)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("serviceName")} htmlFor="backend-service-name">
-            <Input
-              id="backend-service-name"
-              required
-              value={form.backendServiceName}
-              onChange={(e) => setField("backendServiceName", e.target.value)}
-            />
-          </Field>
-        </Section>
-
-        <Section title={t("frontend")}>
-          <ServerPicker
-            t={t}
-            prefix="frontend"
-            servers={servers}
-            value={form.frontendServerId}
-            onChange={(id) => setField("frontendServerId", id)}
-            onRequestCreate={() => setDialogRole("frontend")}
-          />
-          <Field label={t("serviceType")} htmlFor="frontend-service-type">
-            <Select
-              id="frontend-service-type"
-              value={form.frontendServiceType}
-              onChange={(e) =>
-                setField(
-                  "frontendServiceType",
-                  e.target.value as FormState["frontendServiceType"]
-                )
-              }
-            >
-              {SERVICE_TYPES.map((v) => (
-                <option key={v} value={v}>
-                  {tEnums(`serviceTypes.${v}`)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t("serviceName")} htmlFor="frontend-service-name">
-            <Input
-              id="frontend-service-name"
-              required
-              value={form.frontendServiceName}
-              onChange={(e) => setField("frontendServiceName", e.target.value)}
-            />
-          </Field>
-        </Section>
-
-        {error && (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => router.back()}
-            disabled={loading}
-          >
-            {tCommon("cancel")}
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading
-              ? t("submitting")
-              : mode.type === "edit"
-                ? t("saveChanges")
-                : t("submit")}
-          </Button>
-        </div>
-      </form>
+              {tCommon("cancel")}
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading
+                ? t("submitting")
+                : mode.type === "edit"
+                  ? t("saveChanges")
+                  : t("submit")}
+            </Button>
+          </div>
+        </form>
+      </Form>
 
       <ServerCreateDialog
         open={dialogRole !== null}
@@ -374,25 +401,6 @@ function Section({
   );
 }
 
-function Field({
-  label,
-  htmlFor,
-  children,
-  className,
-}: {
-  label: string;
-  htmlFor?: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-    </div>
-  );
-}
-
 function Select({
   className,
   children,
@@ -414,47 +422,46 @@ function Select({
 
 function ServerPicker({
   t,
-  prefix,
+  control,
+  name,
   servers,
-  value,
-  onChange,
   onRequestCreate,
 }: {
   t: (key: string) => string;
-  prefix: string;
+  // biome-ignore lint/suspicious/noExplicitAny: control type is generic over form values
+  control: any;
+  name: string;
   servers: Server[];
-  value: string | null;
-  onChange: (id: string | null) => void;
   onRequestCreate: () => void;
 }) {
-  const selectId = `${prefix}-server`;
-
   return (
-    <Field label={t("server")} htmlFor={selectId} className="sm:col-span-2">
-      <div className="flex gap-2">
-        <Select
-          id={selectId}
-          required
-          value={value ?? ""}
-          onChange={(e) =>
-            onChange(e.target.value === "" ? null : e.target.value)
-          }
-          className="flex-1"
-        >
-          <option value="" disabled>
-            {t("pickServer")}
-          </option>
-          {servers.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} ({s.host})
-            </option>
-          ))}
-        </Select>
-        <Button type="button" variant="outline" onClick={onRequestCreate}>
-          <Plus className="size-4" />
-          <span className="hidden sm:inline">{t("newServerShort")}</span>
-        </Button>
-      </div>
-    </Field>
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="sm:col-span-2">
+          <FormLabel>{t("server")}</FormLabel>
+          <div className="flex gap-2">
+            <FormControl>
+              <Select {...field} value={field.value ?? ""} className="flex-1">
+                <option value="" disabled>
+                  {t("pickServer")}
+                </option>
+                {servers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.host})
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <Button type="button" variant="outline" onClick={onRequestCreate}>
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">{t("newServerShort")}</span>
+            </Button>
+          </div>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 }

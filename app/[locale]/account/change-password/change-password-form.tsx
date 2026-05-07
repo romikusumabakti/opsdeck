@@ -1,109 +1,147 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
 export function ChangePasswordForm() {
   const t = useTranslations("changePassword");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [revokeOther, setRevokeOther] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const tCommon = useTranslations("common");
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    if (newPassword !== confirm) {
-      setError(t("passwordMismatch"));
-      return;
-    }
-
-    setLoading(true);
-    const { error: err } = await authClient.changePassword({
-      currentPassword,
-      newPassword,
-      revokeOtherSessions: revokeOther,
+  const schema = z
+    .object({
+      currentPassword: z.string().min(1, tCommon("required")),
+      newPassword: z.string().min(8, tCommon("passwordTooShort", { min: 8 })),
+      confirm: z.string(),
+      revokeOther: z.boolean(),
+    })
+    .refine((d) => d.newPassword === d.confirm, {
+      message: t("passwordMismatch"),
+      path: ["confirm"],
     });
-    setLoading(false);
 
-    if (err) {
-      setError(err.message ?? t("errorGeneric"));
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirm: "",
+      revokeOther: false,
+    },
+  });
+
+  async function onSubmit(values: z.infer<typeof schema>) {
+    const { error } = await authClient.changePassword({
+      currentPassword: values.currentPassword,
+      newPassword: values.newPassword,
+      revokeOtherSessions: values.revokeOther,
+    });
+
+    if (error) {
+      toast.error(error.message ?? t("errorGeneric"));
       return;
     }
 
-    setSuccess(t("success"));
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirm("");
+    toast.success(t("success"));
+    form.reset({
+      currentPassword: "",
+      newPassword: "",
+      confirm: "",
+      revokeOther: values.revokeOther,
+    });
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="current">{t("currentPassword")}</Label>
-        <Input
-          id="current"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+      >
+        <FormField
+          control={form.control}
+          name="currentPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("currentPassword")}</FormLabel>
+              <FormControl>
+                <Input
+                  type="password"
+                  autoComplete="current-password"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="new">{t("newPassword")}</Label>
-        <Input
-          id="new"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
+        <FormField
+          control={form.control}
+          name="newPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("newPassword")}</FormLabel>
+              <FormControl>
+                <Input type="password" autoComplete="new-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="confirm">{t("confirmPassword")}</Label>
-        <Input
-          id="confirm"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+        <FormField
+          control={form.control}
+          name="confirm"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("confirmPassword")}</FormLabel>
+              <FormControl>
+                <Input type="password" autoComplete="new-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={revokeOther}
-          onChange={(e) => setRevokeOther(e.target.checked)}
+        <FormField
+          control={form.control}
+          name="revokeOther"
+          render={({ field }) => (
+            <FormItem className="grid-flow-col items-center justify-start gap-2">
+              <FormControl>
+                <input
+                  id="revoke-other"
+                  type="checkbox"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                  className="size-4"
+                />
+              </FormControl>
+              <Label htmlFor="revoke-other" className="text-sm font-normal">
+                {t("revokeOtherSessions")}
+              </Label>
+            </FormItem>
+          )}
         />
-        {t("revokeOtherSessions")}
-      </label>
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="text-sm text-green-600" role="status">
-          {success}
-        </p>
-      )}
-      <Button type="submit" disabled={loading} className="self-start">
-        {loading ? t("submitting") : t("submit")}
-      </Button>
-    </form>
+        <Button
+          type="submit"
+          disabled={form.formState.isSubmitting}
+          className="self-start"
+        >
+          {form.formState.isSubmitting ? t("submitting") : t("submit")}
+        </Button>
+      </form>
+    </Form>
   );
 }

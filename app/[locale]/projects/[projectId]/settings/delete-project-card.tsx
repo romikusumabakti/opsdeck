@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTransition } from "react";
+import { toast } from "sonner";
 import { deleteProject } from "@/actions/projects";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
@@ -28,12 +29,10 @@ export function DeleteProjectCard({ project }: { project: Project }) {
     startTransition(async () => {
       const result = await deleteProject(project.id);
       if (!result.success) {
-        await dialog.alert({
-          title: t("deleteFailed"),
-          description: result.message,
-        });
+        toast.error(result.message);
         return;
       }
+      toast.success(t("deletedSuccess", { name: project.name }));
       router.push("/");
       router.refresh();
     });
