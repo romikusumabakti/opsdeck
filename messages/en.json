@@ -71,7 +71,11 @@
     "restoreDatabase": "Restore database",
     "history": "History",
     "settings": "Settings",
-    "menu": "Menu"
+    "menu": "Menu",
+    "manage": "Manage",
+    "servers": "Servers",
+    "users": "Users",
+    "projects": "Projects"
   },
   "header": {
     "selectProject": "Select project…",
@@ -83,6 +87,11 @@
     "title": "No projects yet",
     "description": "Create your first project to start managing backups and deployments.",
     "create": "Create project"
+  },
+  "home": {
+    "title": "Projects",
+    "subtitle": "Pick a project to manage backups, restores, and history.",
+    "create": "New project"
   },
   "dashboard": {
     "title": "Dashboard",
