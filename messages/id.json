@@ -19,7 +19,8 @@
     "edit": "Ubah",
     "copy": "Salin",
     "copied": "Disalin ke clipboard",
-    "copyFailed": "Gagal menyalin"
+    "copyFailed": "Gagal menyalin",
+    "verified": "Terverifikasi"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -41,7 +42,9 @@
     "settings": "Pengaturan",
     "new": "Baru",
     "edit": "Ubah",
-    "loading": "Memuat…"
+    "loading": "Memuat…",
+    "security": "Keamanan",
+    "sessions": "Sesi"
   },
   "commandPalette": {
     "triggerLabel": "Cari…",
@@ -195,9 +198,41 @@
   "userMenu": {
     "users": "Manajemen pengguna",
     "servers": "Manajemen server",
+    "account": "Akun",
     "changePassword": "Ubah password",
+    "sessions": "Sesi aktif",
     "signOut": "Keluar",
     "ariaLabel": "Menu pengguna"
+  },
+  "account": {
+    "title": "Akun",
+    "subtitle": "Kelola profil, keamanan, dan sesi aktif Anda.",
+    "tabs": {
+      "profile": "Profil",
+      "security": "Keamanan",
+      "sessions": "Sesi"
+    },
+    "profile": {
+      "title": "Profil",
+      "description": "Identitas akun Anda di Admin Panel."
+    },
+    "security": {
+      "title": "Password",
+      "description": "Perbarui password untuk menjaga keamanan akun."
+    },
+    "sessions": {
+      "title": "Sesi aktif",
+      "description": "Perangkat yang sedang masuk ke akun Anda.",
+      "current": "Perangkat ini",
+      "unknownIp": "IP tidak diketahui",
+      "signedInAt": "Masuk pada {date}",
+      "revoke": "Cabut",
+      "revokeTitle": "Cabut sesi",
+      "revokeDescription": "Keluarkan perangkat ini sekarang. User harus login kembali.",
+      "revokedSuccess": "Sesi dicabut",
+      "emptyTitle": "Tidak ada sesi aktif",
+      "emptyDescription": "Tidak ada perangkat lain yang sedang masuk ke akun Anda."
+    }
   },
   "servers": {
     "title": "Server",

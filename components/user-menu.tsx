@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, LogOut, Server, UserRound, Users } from "lucide-react";
+import { LogOut, Server, UserRound, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,11 +77,11 @@ export function UserMenu({ user }: { user: UserSummary }) {
           <span>{t("servers")}</span>
         </Link>
         <Link
-          href="/account/change-password"
+          href="/account"
           className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
         >
-          <KeyRound className="size-4" />
-          <span>{t("changePassword")}</span>
+          <UserRound className="size-4 text-muted-foreground" />
+          <span>{t("account")}</span>
         </Link>
         <button
           type="button"
