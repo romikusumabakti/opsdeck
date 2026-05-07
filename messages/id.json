@@ -26,6 +26,37 @@
     "next": "Berikutnya",
     "pageOf": "Halaman {current} dari {total}"
   },
+  "breadcrumbs": {
+    "projects": "Proyek",
+    "servers": "Server",
+    "users": "Pengguna",
+    "account": "Akun",
+    "changePassword": "Ubah password",
+    "backupDatabase": "Backup database",
+    "restoreDatabase": "Restore database",
+    "history": "Riwayat",
+    "settings": "Pengaturan",
+    "new": "Baru",
+    "edit": "Ubah",
+    "loading": "Memuat…"
+  },
+  "commandPalette": {
+    "triggerLabel": "Cari…",
+    "title": "Command palette",
+    "description": "Cari perintah, halaman, atau proyek.",
+    "placeholder": "Ketik perintah atau cari…",
+    "noResults": "Tidak ada hasil.",
+    "navigation": "Navigasi",
+    "projects": "Proyek",
+    "account": "Akun",
+    "theme": "Tema",
+    "language": "Bahasa",
+    "current": "saat ini",
+    "locale": {
+      "en": "English",
+      "id": "Bahasa Indonesia"
+    }
+  },
   "nav": {
     "dashboard": "Dasbor",
     "backupDatabase": "Backup database",
