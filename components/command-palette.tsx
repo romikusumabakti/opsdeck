@@ -11,6 +11,7 @@ import {
   Search,
   Server,
   Sun,
+  UserRound,
   Users,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -160,13 +161,25 @@ export function CommandPalette({ projects }: { projects: Project[] }) {
           <CommandSeparator />
           <CommandGroup heading={t("account")}>
             <CommandItem
-              value="change password"
-              onSelect={() =>
-                run(() => router.push("/account/change-password"))
-              }
+              value="account profile"
+              onSelect={() => run(() => router.push("/account"))}
+            >
+              <UserRound />
+              {tUserMenu("account")}
+            </CommandItem>
+            <CommandItem
+              value="change password security"
+              onSelect={() => run(() => router.push("/account?tab=security"))}
             >
               <KeyRound />
               {tUserMenu("changePassword")}
+            </CommandItem>
+            <CommandItem
+              value="sessions devices"
+              onSelect={() => run(() => router.push("/account?tab=sessions"))}
+            >
+              <Monitor />
+              {tUserMenu("sessions")}
             </CommandItem>
             <CommandItem value="sign out logout" onSelect={onSignOut}>
               <LogOut />

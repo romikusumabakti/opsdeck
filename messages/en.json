@@ -19,7 +19,8 @@
     "edit": "Edit",
     "copy": "Copy",
     "copied": "Copied to clipboard",
-    "copyFailed": "Failed to copy"
+    "copyFailed": "Failed to copy",
+    "verified": "Verified"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -41,7 +42,9 @@
     "settings": "Settings",
     "new": "New",
     "edit": "Edit",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "security": "Security",
+    "sessions": "Sessions"
   },
   "commandPalette": {
     "triggerLabel": "Search…",
@@ -195,9 +198,41 @@
   "userMenu": {
     "users": "User management",
     "servers": "Server management",
+    "account": "Account",
     "changePassword": "Change password",
+    "sessions": "Active sessions",
     "signOut": "Sign out",
     "ariaLabel": "User menu"
+  },
+  "account": {
+    "title": "Account",
+    "subtitle": "Manage your profile, security, and active sessions.",
+    "tabs": {
+      "profile": "Profile",
+      "security": "Security",
+      "sessions": "Sessions"
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "Your account identity within Admin Panel."
+    },
+    "security": {
+      "title": "Password",
+      "description": "Update your password to keep your account secure."
+    },
+    "sessions": {
+      "title": "Active sessions",
+      "description": "Devices currently signed in to your account.",
+      "current": "This device",
+      "unknownIp": "Unknown IP",
+      "signedInAt": "Signed in {date}",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke session",
+      "revokeDescription": "Sign out this device immediately. The user will need to sign in again.",
+      "revokedSuccess": "Session revoked",
+      "emptyTitle": "No active sessions",
+      "emptyDescription": "There are no other devices signed in to your account."
+    }
   },
   "servers": {
     "title": "Servers",
