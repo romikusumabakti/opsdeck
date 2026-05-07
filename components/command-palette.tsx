@@ -89,12 +89,16 @@ export function CommandPalette({ projects }: { projects: Project[] }) {
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className="text-muted-foreground gap-2 px-2"
+        className="text-muted-foreground bg-muted/40 hover:bg-muted/60 gap-2 px-2.5 md:w-56 lg:w-64 md:justify-between font-normal"
         aria-label={t("triggerLabel")}
       >
-        <Search className="size-4" />
-        <span className="hidden md:inline text-xs">{t("triggerLabel")}</span>
-        <kbd className="hidden md:inline-flex pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
+        <span className="flex items-center gap-2 min-w-0">
+          <Search className="size-4 shrink-0" />
+          <span className="hidden md:inline text-sm truncate">
+            {t("triggerLabel")}
+          </span>
+        </span>
+        <kbd className="hidden md:inline-flex pointer-events-none h-5 select-none items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-[10px] font-medium shrink-0">
           <span className="text-xs">⌘</span>K
         </kbd>
       </Button>
