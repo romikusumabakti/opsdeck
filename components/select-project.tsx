@@ -39,13 +39,19 @@ export function SelectProject({ projects }: { projects: Project[] }) {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-64 justify-between"
+          className="w-full max-w-xs justify-between"
+          title={activeProject?.name}
         >
-          {activeProject ? activeProject.name : t("selectProject")}
-          <ChevronsUpDown className="opacity-50" />
+          <span className="truncate">
+            {activeProject ? activeProject.name : t("selectProject")}
+          </span>
+          <ChevronsUpDown className="opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-0">
+      <PopoverContent
+        align="start"
+        className="w-[var(--radix-popper-anchor-width)] min-w-64 max-w-[calc(100vw-2rem)] p-0"
+      >
         <Command>
           <CommandInput placeholder={t("searchProject")} className="h-9" />
           <CommandList>
@@ -60,10 +66,10 @@ export function SelectProject({ projects }: { projects: Project[] }) {
                     router.push(`/projects/${project.id}`);
                   }}
                 >
-                  {project.name}
+                  <span className="truncate">{project.name}</span>
                   <Check
                     className={cn(
-                      "ml-auto",
+                      "ml-auto shrink-0",
                       activeProject?.id === project.id
                         ? "opacity-100"
                         : "opacity-0"

@@ -15,6 +15,7 @@ import { SelectProject } from "@/components/select-project";
 import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Separator } from "@/components/ui/separator";
 import { UserMenu } from "@/components/user-menu";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
@@ -80,33 +81,42 @@ export default async function LocaleLayout({
           >
             <DialogProvider>
               {session ? (
-                <header className="flex border-b h-14 shrink-0 sticky top-0 z-40 bg-background">
-                  <div className="flex w-64 px-6 items-center">
+                <header className="flex border-b h-14 shrink-0 bg-background">
+                  <div className="flex w-64 px-4 items-center shrink-0">
                     <Link
                       href="/"
-                      className="font-bold flex gap-2 items-center hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-2 font-semibold hover:opacity-90 transition-opacity"
                     >
-                      <Aperture />
-                      <span>{t("name")}</span>
+                      <span className="size-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
+                        <Aperture className="size-4" />
+                      </span>
+                      <span className="truncate">{t("name")}</span>
                     </Link>
                   </div>
-                  <div className="flex items-center flex-1">
+                  <div className="flex items-center flex-1 min-w-0 px-2">
                     <SelectProject projects={projects} />
                   </div>
-                  <div className="flex items-center gap-2 px-4">
-                    <ServerTime />
+                  <div className="flex items-center gap-1 px-3">
+                    <div className="hidden lg:flex items-center pr-2">
+                      <ServerTime />
+                    </div>
+                    <div className="hidden lg:flex h-5 items-center">
+                      <Separator orientation="vertical" />
+                    </div>
                     <LocaleSwitcher />
                     <ThemeToggle />
                     <UserMenu user={session.user} />
                   </div>
                 </header>
               ) : (
-                <div className="fixed top-3 right-4 z-50 flex items-center gap-2">
+                <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
                   <LocaleSwitcher />
                   <ThemeToggle />
                 </div>
               )}
-              {children}
+              <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+                {children}
+              </div>
             </DialogProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

@@ -60,7 +60,7 @@ export function AppSidebar({ project }: { project: Project }) {
   const initial = (project.name || "?").charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="absolute h-[calc(100svh-3.5rem)] border-r">
+    <Sidebar className="absolute h-full border-r">
       <SidebarHeader className="px-3 py-3 border-b">
         <div className="flex items-center gap-2 min-w-0">
           <span className="size-9 rounded-md bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">
