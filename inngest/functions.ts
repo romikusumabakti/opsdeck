@@ -1,4 +1,5 @@
-import type { ProjectWithServers } from "@/lib/db/schema";
+import { db } from "@/lib/db";
+import { type ProjectWithServers, tasks } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { inngest } from "./client";
 
@@ -21,10 +22,11 @@ export const createDatabaseBackup = inngest.createFunction(
       password: project.dbServer.password,
     };
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `${project.dbName}_${timestamp}.sql.gz`;
+    // Memoize start time so retries don't shift runAt forward.
+    const runAt = await step.run("capture-start-time", () =>
+      new Date().toISOString()
+    );
 
-    // 1. Ensure directory exists
     await step.run("ensure-backup-dir", async () => {
       await executeRemoteCommand(
         credentials,
@@ -32,13 +34,23 @@ export const createDatabaseBackup = inngest.createFunction(
       );
     });
 
-    // 2. Run pg_dump via Docker and pipe to host filesystem
-    // We use gzip to save space and reduce IO
-    await step.run("run-pg-dump", async () => {
-      const cmd = `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${project.dbBackupPath}/${filename}`;
+    // pg_dump piped through gzip to save space and IO. Filename is generated
+    // inside the step so it's stable across retries (memoized by Inngest).
+    const filename = await step.run("run-pg-dump", async () => {
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const fname = `${project.dbName}_${ts}.sql.gz`;
+      const cmd = `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${project.dbBackupPath}/${fname}`;
       await executeRemoteCommand(credentials, cmd);
-      console.log(cmd);
-      return { filename };
+      return fname;
+    });
+
+    await step.run("record-task", async () => {
+      await db.insert(tasks).values({
+        projectId: project.id,
+        description: `Backup database (${filename})`,
+        runAt: new Date(runAt),
+        completedAt: new Date(),
+      });
     });
 
     return { success: true, filename };
@@ -72,6 +84,10 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
       d.getUTCSeconds()
     )}`;
 
+    const runAt = await step.run("capture-start-time", () =>
+      new Date().toISOString()
+    );
+
     await step.run("disable-ntp", async () => {
       // Stops the time daemon from reverting our manual override mid-test.
       await executeRemoteCommand(
@@ -95,6 +111,15 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
       await executeRemoteCommand(credentials, cmd);
     });
 
+    await step.run("record-task", async () => {
+      await db.insert(tasks).values({
+        projectId: project.id,
+        description: `Simulate time to ${dateArg} (legacy)`,
+        runAt: new Date(runAt),
+        completedAt: new Date(),
+      });
+    });
+
     return { success: true, simulatedAt };
   }
 );
@@ -112,14 +137,18 @@ export const restoreDatabaseBackup = inngest.createFunction(
     const path = process.env.BACKUP_DIR;
     const container = process.env.DB_CONTAINER_NAME;
     const user = process.env.DB_USER;
-    const db = process.env.DB_NAME;
+    const dbName = process.env.DB_NAME;
 
     if (!filename) throw new Error("Filename is required");
+
+    const runAt = await step.run("capture-start-time", () =>
+      new Date().toISOString()
+    );
 
     // 1. Terminate existing connections
     // This SQL snippet kills all connections to the specific DB except our own runner
     await step.run("kill-connections", async () => {
-      const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${db}' AND pid <> pg_backend_pid();" | docker exec -i ${container} psql -U ${user}`;
+      const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}' AND pid <> pg_backend_pid();" | docker exec -i ${container} psql -U ${user}`;
       await executeRemoteCommand(credentials, killCmd);
     });
 
@@ -128,8 +157,17 @@ export const restoreDatabaseBackup = inngest.createFunction(
     // Here we assume standard restore over existing schema
     await step.run("perform-restore", async () => {
       // gunzip the file on host and pipe into docker psql
-      const cmd = `gunzip -c ${path}/${filename} | docker exec -i ${container} psql -U ${user} -d ${db}`;
+      const cmd = `gunzip -c ${path}/${filename} | docker exec -i ${container} psql -U ${user} -d ${dbName}`;
       await executeRemoteCommand(credentials, cmd);
+    });
+
+    await step.run("record-task", async () => {
+      await db.insert(tasks).values({
+        projectId: data.id,
+        description: `Restore database from ${filename}`,
+        runAt: new Date(runAt),
+        completedAt: new Date(),
+      });
     });
 
     return { success: true, restored: filename };

@@ -1,7 +1,8 @@
 "use server";
 
 import { inngest } from "@/inngest/client";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import { db } from "@/lib/db";
+import { type ProjectWithServers, tasks } from "@/lib/db/schema";
 
 type SimulateTimeResult =
   | { success: true; mode: "api" | "legacy" }
@@ -41,6 +42,7 @@ export async function simulateProjectTime(
   const apiUrl = project.backendSimulateTimeApiUrl?.trim();
 
   if (apiUrl) {
+    const runAt = new Date();
     try {
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -55,6 +57,12 @@ export async function simulateProjectTime(
           error: `${response.status} ${response.statusText}`,
         };
       }
+      await db.insert(tasks).values({
+        projectId: project.id,
+        description: `Simulate time to ${simulatedAt}`,
+        runAt,
+        completedAt: new Date(),
+      });
       return { success: true, mode: "api" };
     } catch (error) {
       return { success: false, mode: "api", error: describeFetchError(error) };
