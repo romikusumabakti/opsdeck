@@ -216,7 +216,9 @@
     },
     "profile": {
       "title": "Profil",
-      "description": "Identitas akun Anda di Admin Panel."
+      "description": "Identitas akun Anda di Admin Panel.",
+      "nameLabel": "Nama",
+      "updatedSuccess": "Profil diperbarui"
     },
     "security": {
       "title": "Password",
