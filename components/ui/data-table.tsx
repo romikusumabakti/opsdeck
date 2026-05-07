@@ -12,7 +12,12 @@ import {
   useReactTable,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Settings2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 
@@ -21,6 +26,8 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -32,6 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+const PAGE_SIZES = [10, 25, 50, 100] as const;
 
 type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[];
@@ -77,6 +86,16 @@ export function DataTable<TData, TValue>({
   const filterValue = filterColumn
     ? ((table.getColumn(filterColumn)?.getFilterValue() as string) ?? "")
     : "";
+
+  const pagination = table.getState().pagination;
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const fromIdx =
+    filteredCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
+  const toIdx = Math.min(
+    (pagination.pageIndex + 1) * pagination.pageSize,
+    filteredCount
+  );
+  const showFooter = filteredCount > 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -125,7 +144,10 @@ export function DataTable<TData, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className={header.column.columnDef.meta?.headClassName}>
+                  <TableHead
+                    key={header.id}
+                    className={header.column.columnDef.meta?.headClassName}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -145,7 +167,10 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClassName}>
+                    <TableCell
+                      key={cell.id}
+                      className={cell.column.columnDef.meta?.cellClassName}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -167,33 +192,69 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      {table.getPageCount() > 1 && (
-        <div className="flex items-center justify-between gap-2 px-1">
+      {showFooter && (
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
           <div className="text-sm text-muted-foreground">
-            {t("pageOf", {
-              current: table.getState().pagination.pageIndex + 1,
-              total: table.getPageCount(),
+            {t("showingRange", {
+              from: fromIdx,
+              to: toIdx,
+              total: filteredCount,
             })}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeft className="size-4" />
-              {t("previous")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              {t("next")}
-              <ChevronRight className="size-4" />
-            </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {t("rowsPerPage")}
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1">
+                    {pagination.pageSize}
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuRadioGroup
+                    value={String(pagination.pageSize)}
+                    onValueChange={(v) => table.setPageSize(Number(v))}
+                  >
+                    {PAGE_SIZES.map((size) => (
+                      <DropdownMenuRadioItem key={size} value={String(size)}>
+                        {size}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {table.getPageCount() > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  {t("pageOf", {
+                    current: pagination.pageIndex + 1,
+                    total: table.getPageCount(),
+                  })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                  aria-label={t("previous")}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                  aria-label={t("next")}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
