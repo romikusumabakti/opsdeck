@@ -13,11 +13,11 @@
     "projectNotFound": "Proyek tidak ditemukan"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Dasbor",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
-    "history": "History",
-    "settings": "Settings",
+    "history": "Riwayat",
+    "settings": "Pengaturan",
     "menu": "Menu"
   },
   "header": {
@@ -32,10 +32,24 @@
     "create": "Buat Proyek"
   },
   "dashboard": {
-    "title": "Dashboard",
+    "title": "Dasbor",
     "database": "Database",
     "backend": "Backend",
-    "frontend": "Frontend"
+    "frontend": "Frontend",
+    "server": "Server",
+    "host": "Host",
+    "serviceType": "Tipe service",
+    "serviceName": "Nama service",
+    "dbType": "Tipe database",
+    "dbName": "Nama database",
+    "serviceTypes": {
+      "docker": "Docker",
+      "system": "System"
+    },
+    "dbTypes": {
+      "postgres": "PostgreSQL",
+      "mssql": "Microsoft SQL Server"
+    }
   },
   "backupDb": {
     "title": "Buat backup database",
@@ -49,11 +63,11 @@
     "successButton": "OK"
   },
   "restoreDb": {
-    "title": "Restore backup database",
+    "title": "Pulihkan backup database",
     "selectBackup": "Pilih backup...",
     "searchBackup": "Cari backup...",
     "noBackup": "Backup tidak ditemukan.",
-    "restore": "Restore",
+    "restore": "Pulihkan",
     "backupSize": "Ukuran backup: {sizeMb} MB ({sizeBytes} bytes)",
     "backupsNotFound": "Belum ada backup"
   },
@@ -62,7 +76,9 @@
   },
   "newProject": {
     "title": "Buat Proyek Baru",
-    "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend.",
+    "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend."
+  },
+  "projectForm": {
     "info": "Informasi Proyek",
     "name": "Nama proyek",
     "namePlaceholder": "Contoh: Acme Production",
@@ -80,9 +96,21 @@
     "isBackupMounted": "Direktori backup ter-mount di server",
     "backupPath": "Path direktori backup",
     "submit": "Buat Proyek",
+    "saveChanges": "Simpan perubahan",
     "submitting": "Menyimpan...",
-    "submitFailed": "Gagal membuat proyek",
+    "submitFailed": "Gagal menyimpan proyek",
     "cancel": "Batal"
+  },
+  "projectSettings": {
+    "title": "Pengaturan",
+    "editTitle": "Detail proyek",
+    "editDescription": "Perbarui konfigurasi server database, backend, dan frontend untuk proyek ini.",
+    "dangerZoneTitle": "Zona berbahaya",
+    "dangerZoneDescription": "Menghapus proyek juga akan menghapus riwayat task-nya. Tindakan ini tidak bisa dibatalkan.",
+    "deleteButton": "Hapus proyek",
+    "deleteTitle": "Hapus proyek",
+    "deleteDescription": "Hapus proyek {name}? Tindakan ini tidak bisa dibatalkan.",
+    "deleteFailed": "Gagal menghapus proyek"
   },
   "userMenu": {
     "users": "Manajemen Pengguna",
