@@ -13,5 +13,5 @@ export function getResend(): Resend {
 }
 
 export function getFromAddress(): string {
-  return process.env.EMAIL_FROM ?? "Admin Panel <no-reply@example.com>";
+  return process.env.EMAIL_FROM ?? "Admin Panel <no-reply@aktuariku.id>";
 }
