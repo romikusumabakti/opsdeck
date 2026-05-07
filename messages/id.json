@@ -117,7 +117,22 @@
     "backupsNotFound": "Belum ada backup"
   },
   "history": {
-    "title": "Riwayat"
+    "title": "Riwayat",
+    "subtitle": "Operasi backup dan restore terakhir untuk proyek ini.",
+    "emptyTitle": "Belum ada riwayat",
+    "emptyDescription": "Aktivitas backup dan restore akan muncul di sini setelah eksekusi pertama.",
+    "searchPlaceholder": "Cari berdasarkan deskripsi…",
+    "colDescription": "Deskripsi",
+    "colRunAt": "Dijalankan",
+    "colDuration": "Durasi"
+  },
+  "shortcuts": {
+    "title": "Pintasan keyboard",
+    "description": "Percepat workflow dengan pintasan berikut.",
+    "groupGeneral": "Umum",
+    "openCommandPalette": "Buka command palette",
+    "openShortcuts": "Buka dialog pintasan ini",
+    "closeDialog": "Tutup dialog yang terbuka"
   },
   "newProject": {
     "title": "Buat proyek baru",

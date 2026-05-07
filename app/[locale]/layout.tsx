@@ -12,6 +12,7 @@ import { getProjects } from "@/actions/projects";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CommandPalette } from "@/components/command-palette";
 import { DialogProvider } from "@/components/dialog-provider";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { SelectProject } from "@/components/select-project";
 import { ServerTime } from "@/components/server-time";
@@ -122,6 +123,7 @@ export default async function LocaleLayout({
                 {session && <Breadcrumbs projects={projects} />}
                 {children}
               </div>
+              {session && <KeyboardShortcuts />}
               <Toaster />
             </DialogProvider>
           </ThemeProvider>
