@@ -10,7 +10,10 @@
     "submit": "Submit",
     "you": "You",
     "errorGeneric": "Something went wrong",
-    "projectNotFound": "Project not found"
+    "projectNotFound": "Project not found",
+    "required": "This field is required",
+    "emailInvalid": "Enter a valid email address",
+    "passwordTooShort": "Password must be at least {min} characters"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -98,7 +101,9 @@
     "submit": "Create project",
     "saveChanges": "Save changes",
     "submitting": "Saving…",
-    "submitFailed": "Failed to save project"
+    "submitFailed": "Failed to save project",
+    "createdSuccess": "Project created",
+    "savedSuccess": "Project saved"
   },
   "projectSettings": {
     "title": "Settings",
@@ -109,7 +114,8 @@
     "deleteButton": "Delete project",
     "deleteTitle": "Delete project",
     "deleteDescription": "Delete project {name}? This action cannot be undone.",
-    "deleteFailed": "Failed to delete project"
+    "deleteFailed": "Failed to delete project",
+    "deletedSuccess": "Project {name} deleted"
   },
   "userMenu": {
     "users": "User management",
@@ -126,7 +132,8 @@
     "deleteAriaLabel": "Delete server",
     "deleteTitle": "Delete server",
     "deleteDescription": "Delete server {name} ({host})? Servers in use by projects cannot be deleted.",
-    "deleteFailed": "Failed to delete server"
+    "deleteFailed": "Failed to delete server",
+    "deletedSuccess": "Server deleted"
   },
   "serverForm": {
     "name": "Name",
@@ -217,7 +224,9 @@
     "deleteTitle": "Delete user",
     "deleteDescription": "Delete {name} ({email})? This cannot be undone.",
     "deleteAriaLabel": "Delete user",
-    "deleteFailed": "Failed to delete user"
+    "deleteFailed": "Failed to delete user",
+    "deletedSuccess": "User deleted",
+    "revokedSuccess": "Invitation revoked"
   },
   "setup": {
     "title": "Initial setup",

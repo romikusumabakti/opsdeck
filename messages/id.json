@@ -10,7 +10,10 @@
     "submit": "Kirim",
     "you": "Anda",
     "errorGeneric": "Terjadi kesalahan",
-    "projectNotFound": "Proyek tidak ditemukan"
+    "projectNotFound": "Proyek tidak ditemukan",
+    "required": "Wajib diisi",
+    "emailInvalid": "Masukkan alamat email yang valid",
+    "passwordTooShort": "Password minimal {min} karakter"
   },
   "nav": {
     "dashboard": "Dasbor",
@@ -98,7 +101,9 @@
     "submit": "Buat proyek",
     "saveChanges": "Simpan perubahan",
     "submitting": "Menyimpan…",
-    "submitFailed": "Gagal menyimpan proyek"
+    "submitFailed": "Gagal menyimpan proyek",
+    "createdSuccess": "Proyek berhasil dibuat",
+    "savedSuccess": "Proyek berhasil disimpan"
   },
   "projectSettings": {
     "title": "Pengaturan",
@@ -109,7 +114,8 @@
     "deleteButton": "Hapus proyek",
     "deleteTitle": "Hapus proyek",
     "deleteDescription": "Hapus proyek {name}? Tindakan ini tidak bisa dibatalkan.",
-    "deleteFailed": "Gagal menghapus proyek"
+    "deleteFailed": "Gagal menghapus proyek",
+    "deletedSuccess": "Proyek {name} dihapus"
   },
   "userMenu": {
     "users": "Manajemen pengguna",
@@ -126,7 +132,8 @@
     "deleteAriaLabel": "Hapus server",
     "deleteTitle": "Hapus server",
     "deleteDescription": "Hapus server {name} ({host})? Server yang masih dipakai proyek tidak bisa dihapus.",
-    "deleteFailed": "Gagal menghapus server"
+    "deleteFailed": "Gagal menghapus server",
+    "deletedSuccess": "Server dihapus"
   },
   "serverForm": {
     "name": "Nama",
@@ -217,7 +224,9 @@
     "deleteTitle": "Hapus pengguna",
     "deleteDescription": "Hapus {name} ({email})? Tindakan ini tidak bisa dibatalkan.",
     "deleteAriaLabel": "Hapus pengguna",
-    "deleteFailed": "Gagal menghapus pengguna"
+    "deleteFailed": "Gagal menghapus pengguna",
+    "deletedSuccess": "Pengguna dihapus",
+    "revokedSuccess": "Undangan dibatalkan"
   },
   "setup": {
     "title": "Pengaturan awal",

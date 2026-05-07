@@ -1,8 +1,12 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Clock, Mail, Trash2, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { deleteUser, inviteUser, revokeInvitation } from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
@@ -13,8 +17,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 type UserRow = {
   id: string;
@@ -56,25 +67,25 @@ export function UsersClient({
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
-  function onInvite(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    startTransition(async () => {
-      const result = await inviteUser({ name, email });
-      if (!result.success) {
-        setError(result.message);
-      } else {
-        setSuccess(result.message ?? "");
-        setName("");
-        setEmail("");
-      }
-    });
+  const schema = z.object({
+    name: z.string().min(1, tCommon("required")),
+    email: z.string().email(tCommon("emailInvalid")),
+  });
+
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", email: "" },
+  });
+
+  async function onInvite(values: z.infer<typeof schema>) {
+    const result = await inviteUser(values);
+    if (!result.success) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success(result.message ?? "");
+    form.reset({ name: "", email: "" });
   }
 
   async function onDelete(user: UserRow) {
@@ -91,11 +102,10 @@ export function UsersClient({
     startTransition(async () => {
       const result = await deleteUser(user.id);
       if (!result.success) {
-        await dialog.alert({
-          title: t("deleteFailed"),
-          description: result.message,
-        });
+        toast.error(result.message);
+        return;
       }
+      toast.success(result.message ?? t("deletedSuccess"));
     });
   }
 
@@ -108,7 +118,12 @@ export function UsersClient({
     });
     if (!ok) return;
     startTransition(async () => {
-      await revokeInvitation(inv.id);
+      const result = await revokeInvitation(inv.id);
+      if (!result.success) {
+        toast.error(result.message ?? "");
+        return;
+      }
+      toast.success(result.message ?? t("revokedSuccess"));
     });
   }
 
@@ -120,46 +135,56 @@ export function UsersClient({
           <CardDescription>{t("inviteCardDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={onInvite}
-            className="flex flex-col gap-4 md:flex-row md:items-end"
-          >
-            <div className="flex flex-col gap-2 flex-1">
-              <Label htmlFor="invite-name">{t("fullName")}</Label>
-              <Input
-                id="invite-name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("fullNamePlaceholder")}
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onInvite)}
+              className="flex flex-col gap-4 md:flex-row md:items-start"
+            >
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel>{t("fullName")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t("fullNamePlaceholder")}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="flex flex-col gap-2 flex-1">
-              <Label htmlFor="invite-email">{t("email")}</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t("emailPlaceholder")}
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel>{t("email")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder={t("emailPlaceholder")}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <Button type="submit" disabled={isPending}>
-              <UserPlus className="size-4" />
-              {isPending ? t("inviteSubmitting") : t("inviteSubmit")}
-            </Button>
-          </form>
-          {error && (
-            <p className="mt-3 text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="mt-3 text-sm text-green-600" role="status">
-              {success}
-            </p>
-          )}
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting}
+                className="md:mt-6"
+              >
+                <UserPlus className="size-4" />
+                {form.formState.isSubmitting
+                  ? t("inviteSubmitting")
+                  : t("inviteSubmit")}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
 

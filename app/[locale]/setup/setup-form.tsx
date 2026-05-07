@@ -1,49 +1,62 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { createInitialUser } from "@/actions/users";
 import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
 export function SetupForm() {
   const t = useTranslations("setup");
+  const tCommon = useTranslations("common");
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  const schema = z
+    .object({
+      name: z.string().min(1, tCommon("required")),
+      email: z.string().email(tCommon("emailInvalid")),
+      password: z.string().min(8, tCommon("passwordTooShort", { min: 8 })),
+      confirm: z.string(),
+    })
+    .refine((d) => d.password === d.confirm, {
+      message: t("passwordMismatch"),
+      path: ["confirm"],
+    });
 
-    if (password !== confirm) {
-      setError(t("passwordMismatch"));
-      return;
-    }
+  const form = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: "", email: "", password: "", confirm: "" },
+  });
 
-    setLoading(true);
-
-    const result = await createInitialUser({ name, email, password });
+  async function onSubmit(values: z.infer<typeof schema>) {
+    const result = await createInitialUser({
+      name: values.name,
+      email: values.email,
+      password: values.password,
+    });
 
     if (!result.success) {
-      setLoading(false);
-      setError(result.message);
+      toast.error(result.message);
       return;
     }
 
     const { error: signInErr } = await authClient.signIn.email({
-      email,
-      password,
+      email: values.email,
+      password: values.password,
     });
-
-    setLoading(false);
 
     if (signInErr) {
       router.push("/sign-in");
@@ -55,61 +68,72 @@ export function SetupForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name">{t("name")}</Label>
-        <Input
-          id="name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t("namePlaceholder")}
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+      >
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("name")}</FormLabel>
+              <FormControl>
+                <Input placeholder={t("namePlaceholder")} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="email">{t("email")}</Label>
-        <Input
-          id="email"
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={t("emailPlaceholder")}
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("email")}</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  autoComplete="email"
+                  placeholder={t("emailPlaceholder")}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="password">{t("password")}</Label>
-        <Input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("password")}</FormLabel>
+              <FormControl>
+                <Input type="password" autoComplete="new-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="confirm">{t("confirmPassword")}</Label>
-        <Input
-          id="confirm"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={8}
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+        <FormField
+          control={form.control}
+          name="confirm"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("confirmPassword")}</FormLabel>
+              <FormControl>
+                <Input type="password" autoComplete="new-password" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-      <Button type="submit" disabled={loading}>
-        {loading ? t("submitting") : t("submit")}
-      </Button>
-    </form>
+        <Button type="submit" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? t("submitting") : t("submit")}
+        </Button>
+      </form>
+    </Form>
   );
 }

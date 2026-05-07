@@ -3,6 +3,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTransition } from "react";
+import { toast } from "sonner";
 import { deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
@@ -30,11 +31,10 @@ export function ServersClient({ servers }: { servers: Server[] }) {
     startTransition(async () => {
       const result = await deleteServer(server.id);
       if (!result.success) {
-        await dialog.alert({
-          title: t("deleteFailed"),
-          description: result.message,
-        });
+        toast.error(result.message);
+        return;
       }
+      toast.success(result.message ?? t("deletedSuccess"));
     });
   }
 
