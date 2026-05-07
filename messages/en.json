@@ -117,7 +117,22 @@
     "backupsNotFound": "No backups available"
   },
   "history": {
-    "title": "History"
+    "title": "History",
+    "subtitle": "Recent backup and restore operations for this project.",
+    "emptyTitle": "No history yet",
+    "emptyDescription": "Backup and restore activity will appear here after the first run.",
+    "searchPlaceholder": "Search by description…",
+    "colDescription": "Description",
+    "colRunAt": "Run at",
+    "colDuration": "Duration"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Speed up your workflow with these shortcuts.",
+    "groupGeneral": "General",
+    "openCommandPalette": "Open command palette",
+    "openShortcuts": "Open this shortcuts dialog",
+    "closeDialog": "Close any open dialog"
   },
   "newProject": {
     "title": "Create new project",

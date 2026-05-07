@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById } from "@/actions/projects";
-import { Card } from "@/components/ui/card";
+import { getProjectTasks } from "@/actions/tasks";
+import { HistoryClient } from "./history-client";
 
 export default async function Page({
   params,
@@ -9,17 +10,25 @@ export default async function Page({
 }) {
   const { locale, projectId } = await params;
   setRequestLocale(locale);
-  const project = await getProjectById(projectId);
-  const t = await getTranslations("history");
-  const tCommon = await getTranslations("common");
+
+  const [project, tasks, t, tCommon] = await Promise.all([
+    getProjectById(projectId),
+    getProjectTasks(projectId),
+    getTranslations("history"),
+    getTranslations("common"),
+  ]);
 
   if (!project) {
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
   return (
-    <Card className="p-8">
-      <h1 className="text-2xl">{t("title")}</h1>
-    </Card>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      </div>
+      <HistoryClient tasks={tasks} />
+    </div>
   );
 }
