@@ -58,7 +58,7 @@ services:
     # `dev` runs the single-binary in-memory mode (event API + executor + UI on
     # one port). `-u` registers the panel's /api/inngest endpoint so functions
     # can be discovered and invoked over the compose network.
-    command: ["dev", "-u", "http://app:3000/api/inngest"]
+    command: ["inngest", "dev", "-u", "http://app:3000/api/inngest"]
     environment:
       INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-local}
       INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-local}
