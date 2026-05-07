@@ -28,7 +28,9 @@
     "noResults": "Tidak ada hasil.",
     "previous": "Sebelumnya",
     "next": "Berikutnya",
-    "pageOf": "Halaman {current} dari {total}"
+    "pageOf": "Halaman {current} dari {total}",
+    "rowsPerPage": "Baris per halaman",
+    "showingRange": "Menampilkan {from}-{to} dari {total}"
   },
   "breadcrumbs": {
     "projects": "Proyek",
