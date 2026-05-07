@@ -216,7 +216,9 @@
     },
     "profile": {
       "title": "Profile",
-      "description": "Your account identity within Admin Panel."
+      "description": "Your account identity within Admin Panel.",
+      "nameLabel": "Name",
+      "updatedSuccess": "Profile updated"
     },
     "security": {
       "title": "Password",
