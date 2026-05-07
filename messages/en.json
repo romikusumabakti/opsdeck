@@ -169,7 +169,8 @@
   "servers": {
     "title": "Servers",
     "addServer": "Add server",
-    "empty": "No servers yet. Add a server to start registering projects.",
+    "emptyTitle": "No servers yet",
+    "empty": "Add a server to start registering projects.",
     "editAriaLabel": "Edit server",
     "deleteAriaLabel": "Delete server",
     "deleteTitle": "Delete server",
