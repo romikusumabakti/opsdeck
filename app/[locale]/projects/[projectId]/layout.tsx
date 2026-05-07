@@ -21,13 +21,11 @@ export default async function Layout({
   }
 
   return (
-    <div className="relative">
-      <SidebarProvider className="h-[calc(100svh-3.5rem)] *:h-[calc(100svh-3.5rem)]">
-        <AppSidebar project={project} />
-        <main className="px-8 py-4 overflow-y-auto flex flex-col grow">
-          {children}
-        </main>
-      </SidebarProvider>
-    </div>
+    <SidebarProvider className="relative flex-1 min-h-0">
+      <AppSidebar project={project} />
+      <main className="px-8 py-4 overflow-y-auto flex flex-col grow">
+        {children}
+      </main>
+    </SidebarProvider>
   );
 }
