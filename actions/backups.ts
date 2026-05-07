@@ -46,7 +46,9 @@ export async function createDatabaseBackup(project: ProjectWithServers) {
   });
 }
 
-export async function restoreDatabaseBackup(project: ProjectWithServers) {
+export async function restoreDatabaseBackup(
+  project: ProjectWithServers & { filename: string }
+) {
   await inngest.send({
     name: "db/restore.requested",
     data: project,

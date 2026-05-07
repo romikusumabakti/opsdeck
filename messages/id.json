@@ -16,7 +16,10 @@
     "passwordTooShort": "Password minimal {min} karakter",
     "actions": "Aksi",
     "openMenu": "Buka menu",
-    "edit": "Ubah"
+    "edit": "Ubah",
+    "copy": "Salin",
+    "copied": "Disalin ke clipboard",
+    "copyFailed": "Gagal menyalin"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -78,6 +81,7 @@
   },
   "dashboard": {
     "title": "Dasbor",
+    "subtitle": "Ringkasan konfigurasi {name}.",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
@@ -97,24 +101,37 @@
     }
   },
   "backupDb": {
-    "title": "Buat backup database",
-    "description": "Buat backup untuk database: {dbName}",
-    "button": "Backup",
+    "title": "Backup database",
+    "subtitle": "Buat snapshot backup baru untuk {dbName}.",
+    "targetTitle": "Target backup",
+    "targetDescription": "Database di bawah akan di-dump dan disimpan di path backup yang dikonfigurasi.",
+    "infoNote": "Backup di-queue dan dijalankan di background. Cek halaman Riwayat untuk memantau eksekusi.",
+    "button": "Jalankan backup sekarang",
     "confirmTitle": "Backup database",
     "confirmDescription": "Yakin ingin membuat backup untuk database {dbName}?",
     "confirmButton": "Backup",
-    "successTitle": "Backup dibuat",
-    "successDescription": "Backup untuk database {dbName} berhasil dibuat.",
+    "successTitle": "Backup di-queue",
+    "successDescription": "Backup untuk database {dbName} sudah di-queue.",
     "successButton": "OK"
   },
   "restoreDb": {
-    "title": "Pulihkan backup database",
+    "title": "Restore database",
+    "subtitle": "Restore {dbName} dari snapshot backup sebelumnya.",
+    "pickerTitle": "Pilih backup",
+    "pickerDescription": "Pilih snapshot yang ingin dipulihkan.",
+    "selectBackupLabel": "File backup",
     "selectBackup": "Pilih backup…",
     "searchBackup": "Cari backup…",
     "noBackup": "Backup tidak ditemukan.",
-    "restore": "Pulihkan",
-    "backupSize": "Ukuran backup: {sizeMb} MB ({sizeBytes} bytes)",
-    "backupsNotFound": "Belum ada backup"
+    "restore": "Restore",
+    "backupSize": "Ukuran: {sizeMb} MB ({sizeBytes} bytes)",
+    "backupsNotFound": "Belum ada backup",
+    "backupsNotFoundDescription": "Belum ada file backup di path yang dikonfigurasi.",
+    "dangerNote": "Restore akan menimpa kondisi database saat ini. Tindakan ini tidak bisa dibatalkan.",
+    "confirmTitle": "Restore database",
+    "confirmDescription": "Restore {dbName} dari {filename}? Ini akan menimpa database saat ini.",
+    "successTitle": "Restore di-queue",
+    "successDescription": "Restore untuk database {dbName} sudah di-queue."
   },
   "history": {
     "title": "Riwayat",
@@ -163,7 +180,8 @@
     "savedSuccess": "Proyek berhasil disimpan"
   },
   "projectSettings": {
-    "title": "Pengaturan",
+    "title": "Pengaturan proyek",
+    "subtitle": "Ubah konfigurasi proyek atau hapus proyek seluruhnya.",
     "editTitle": "Detail proyek",
     "editDescription": "Perbarui konfigurasi server database, backend, dan frontend untuk proyek ini.",
     "dangerZoneTitle": "Zona berbahaya",

@@ -1,5 +1,6 @@
 "use client";
 
+import { Database } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
@@ -14,7 +15,6 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
 
   return (
     <Button
-      className="ml-auto"
       onClick={async () => {
         const ok = await dialog.confirm({
           title: t("confirmTitle"),
@@ -29,6 +29,7 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
         });
       }}
     >
+      <Database className="size-4" />
       {t("button")}
     </Button>
   );
