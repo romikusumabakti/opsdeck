@@ -1,6 +1,7 @@
 "use server";
 
 import { inngest } from "@/inngest/client";
+import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type ProjectWithServers, tasks } from "@/lib/db/schema";
 
@@ -39,6 +40,7 @@ export async function simulateProjectTime(
   project: ProjectWithServers,
   simulatedAt: string
 ): Promise<SimulateTimeResult> {
+  const session = await requireSession();
   const apiUrl = project.backendSimulateTimeApiUrl?.trim();
 
   if (apiUrl) {
@@ -59,6 +61,7 @@ export async function simulateProjectTime(
       }
       await db.insert(tasks).values({
         projectId: project.id,
+        userId: session.user.id,
         description: `Simulate time to ${simulatedAt}`,
         runAt,
         completedAt: new Date(),
@@ -72,7 +75,7 @@ export async function simulateProjectTime(
   try {
     await inngest.send({
       name: "project/simulate-time.legacy",
-      data: { project, simulatedAt },
+      data: { project, simulatedAt, userId: session.user.id },
     });
     return { success: true, mode: "legacy" };
   } catch (error) {

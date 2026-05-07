@@ -71,6 +71,9 @@ export const tasks = pgTable("tasks", {
   projectId: uuid("project_id")
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
+  // Nullable + set null on user delete: preserve audit history even after the
+  // initiating user is removed. UI shows "Unknown" when null.
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   description: text("description").notNull(),
   runAt: timestamp("run_at").notNull(),
   completedAt: timestamp("completed_at").notNull(),
