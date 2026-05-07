@@ -28,7 +28,9 @@
     "noResults": "No results.",
     "previous": "Previous",
     "next": "Next",
-    "pageOf": "Page {current} of {total}"
+    "pageOf": "Page {current} of {total}",
+    "rowsPerPage": "Rows per page",
+    "showingRange": "Showing {from}-{to} of {total}"
   },
   "breadcrumbs": {
     "projects": "Projects",
