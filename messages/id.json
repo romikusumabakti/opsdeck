@@ -9,7 +9,8 @@
     "save": "Simpan",
     "submit": "Kirim",
     "you": "Anda",
-    "errorGeneric": "Terjadi kesalahan"
+    "errorGeneric": "Terjadi kesalahan",
+    "projectNotFound": "Proyek tidak ditemukan"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -29,6 +30,35 @@
     "title": "Belum ada proyek",
     "description": "Buat proyek pertama untuk mulai mengelola backup dan deployment.",
     "create": "Buat Proyek"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "database": "Database",
+    "backend": "Backend",
+    "frontend": "Frontend"
+  },
+  "backupDb": {
+    "title": "Buat backup database",
+    "description": "Buat backup untuk database: {dbName}",
+    "button": "Backup",
+    "confirmTitle": "Backup Database",
+    "confirmDescription": "Yakin ingin membuat backup untuk database {dbName}?",
+    "confirmButton": "Backup",
+    "successTitle": "Backup Dibuat",
+    "successDescription": "Backup untuk database {dbName} berhasil dibuat.",
+    "successButton": "OK"
+  },
+  "restoreDb": {
+    "title": "Restore backup database",
+    "selectBackup": "Pilih backup...",
+    "searchBackup": "Cari backup...",
+    "noBackup": "Backup tidak ditemukan.",
+    "restore": "Restore",
+    "backupSize": "Ukuran backup: {sizeMb} MB ({sizeBytes} bytes)",
+    "backupsNotFound": "Belum ada backup"
+  },
+  "history": {
+    "title": "Riwayat"
   },
   "newProject": {
     "title": "Buat Proyek Baru",

@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useRouter } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
@@ -29,8 +30,7 @@ export function SelectProject({ projects }: { projects: Project[] }) {
   const params = useParams();
 
   const activeProject =
-    projects.find((p) => p.id === (params.projectId as string)) ||
-    projects[0];
+    projects.find((p) => p.id === (params.projectId as string)) || projects[0];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

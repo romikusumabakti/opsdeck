@@ -21,9 +21,7 @@ export async function getServers(): Promise<Server[]> {
   return db.select().from(servers).orderBy(servers.name);
 }
 
-export async function getServerById(
-  id: string
-): Promise<Server | undefined> {
+export async function getServerById(id: string): Promise<Server | undefined> {
   await requireSession();
   const [row] = await db
     .select()
@@ -33,9 +31,7 @@ export async function getServerById(
   return row;
 }
 
-export async function createServer(
-  data: NewServer
-): Promise<CreateResponse> {
+export async function createServer(data: NewServer): Promise<CreateResponse> {
   await requireSession();
   const t = await getTranslations("actionErrors");
   try {
