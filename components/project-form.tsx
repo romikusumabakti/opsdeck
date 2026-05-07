@@ -60,6 +60,10 @@ export function ProjectForm({
     backendServerId: z.string().min(1, t("pickServerRequired")),
     backendServiceType: z.enum(SERVICE_TYPES),
     backendServiceName: z.string().min(1, tCommon("required")),
+    backendSimulateTimeApiUrl: z.union([
+      z.string().trim().url(tCommon("urlInvalid")),
+      z.literal(""),
+    ]),
 
     frontendServerId: z.string().min(1, t("pickServerRequired")),
     frontendServiceType: z.enum(SERVICE_TYPES),
@@ -84,6 +88,8 @@ export function ProjectForm({
             backendServerId: mode.project.backendServerId,
             backendServiceType: mode.project.backendServiceType,
             backendServiceName: mode.project.backendServiceName,
+            backendSimulateTimeApiUrl:
+              mode.project.backendSimulateTimeApiUrl ?? "",
             frontendServerId: mode.project.frontendServerId,
             frontendServiceType: mode.project.frontendServiceType,
             frontendServiceName: mode.project.frontendServiceName,
@@ -100,6 +106,7 @@ export function ProjectForm({
             backendServerId: initialServers[0]?.id ?? "",
             backendServiceType: "docker",
             backendServiceName: "",
+            backendSimulateTimeApiUrl: "",
             frontendServerId: initialServers[0]?.id ?? "",
             frontendServiceType: "docker",
             frontendServiceName: "",
@@ -114,10 +121,16 @@ export function ProjectForm({
   }
 
   async function onSubmit(values: FormValues) {
+    const payload = {
+      ...values,
+      backendSimulateTimeApiUrl: values.backendSimulateTimeApiUrl
+        ? values.backendSimulateTimeApiUrl
+        : null,
+    };
     const result =
       mode.type === "create"
-        ? await createProject(values)
-        : await updateProject(mode.project.id, values);
+        ? await createProject(payload)
+        : await updateProject(mode.project.id, payload);
 
     if (!result.success || !result.data) {
       toast.error(result.message ?? t("submitFailed"));
@@ -305,6 +318,27 @@ export function ProjectForm({
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="backendSimulateTimeApiUrl"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>{t("simulateTimeApiUrl")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="url"
+                      placeholder="https://api.example.com/system-time"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("simulateTimeApiUrlHint")}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
