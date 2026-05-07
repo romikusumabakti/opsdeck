@@ -169,7 +169,8 @@
   "servers": {
     "title": "Server",
     "addServer": "Tambah server",
-    "empty": "Belum ada server. Tambahkan server untuk mulai mendaftarkan proyek.",
+    "emptyTitle": "Belum ada server",
+    "empty": "Tambahkan server untuk mulai mendaftarkan proyek.",
     "editAriaLabel": "Edit server",
     "deleteAriaLabel": "Hapus server",
     "deleteTitle": "Hapus server",

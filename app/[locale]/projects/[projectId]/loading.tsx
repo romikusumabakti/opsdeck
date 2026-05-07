@@ -1,5 +1,5 @@
-import { LoaderCircle } from "lucide-react";
+import { DashboardSkeleton } from "@/components/skeletons/dashboard-skeleton";
 
 export default function Loading() {
-  return <LoaderCircle className="m-auto h-16 w-16 grow animate-spin" />;
+  return <DashboardSkeleton />;
 }

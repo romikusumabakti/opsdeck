@@ -1,7 +1,14 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowUpDown,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Server as ServerIcon,
+  Trash2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useTransition } from "react";
@@ -9,7 +16,6 @@ import { toast } from "sonner";
 import { deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
   DropdownMenu,
@@ -19,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
 
@@ -145,14 +152,21 @@ export function ServersClient({ servers }: { servers: Server[] }) {
 
   if (servers.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-16 flex flex-col items-center text-center gap-3">
-          <p className="text-muted-foreground">{t("empty")}</p>
-          <Button asChild size="sm">
-            <Link href="/servers/new">{t("addServer")}</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="rounded-lg border bg-card">
+        <EmptyState
+          icon={ServerIcon}
+          title={t("emptyTitle")}
+          description={t("empty")}
+          action={
+            <Button asChild>
+              <Link href="/servers/new">
+                <Plus className="size-4" />
+                {t("addServer")}
+              </Link>
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
