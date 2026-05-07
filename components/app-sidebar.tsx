@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Clock,
   Database,
   DatabaseBackup,
   History,
@@ -26,6 +27,7 @@ const projectItems = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
   { key: "backupDatabase", url: "/backup-database", icon: Database },
   { key: "restoreDatabase", url: "/restore-database", icon: DatabaseBackup },
+  { key: "simulateTime", url: "/simulate-time", icon: Clock },
   { key: "history", url: "/history", icon: History },
   { key: "settings", url: "/settings", icon: Settings },
 ] as const;
