@@ -48,6 +48,7 @@ export function ProjectForm({
 }) {
   const t = useTranslations("projectForm");
   const tEnums = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
   const router = useRouter();
 
   const [servers, setServers] = useState<Server[]>(initialServers);
@@ -333,7 +334,7 @@ export function ProjectForm({
             onClick={() => router.back()}
             disabled={loading}
           >
-            {t("cancel")}
+            {tCommon("cancel")}
           </Button>
           <Button type="submit" disabled={loading}>
             {loading

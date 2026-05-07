@@ -3,7 +3,7 @@
     "name": "Admin Panel"
   },
   "common": {
-    "loading": "Memproses...",
+    "loading": "Memproses…",
     "cancel": "Batal",
     "delete": "Hapus",
     "save": "Simpan",
@@ -21,15 +21,15 @@
     "menu": "Menu"
   },
   "header": {
-    "selectProject": "Pilih proyek...",
-    "searchProject": "Cari proyek...",
+    "selectProject": "Pilih proyek…",
+    "searchProject": "Cari proyek…",
     "noProject": "Proyek tidak ditemukan.",
     "createProject": "Buat proyek baru"
   },
   "projectsEmpty": {
     "title": "Belum ada proyek",
     "description": "Buat proyek pertama untuk mulai mengelola backup dan deployment.",
-    "create": "Buat Proyek"
+    "create": "Buat proyek"
   },
   "dashboard": {
     "title": "Dasbor",
@@ -55,17 +55,17 @@
     "title": "Buat backup database",
     "description": "Buat backup untuk database: {dbName}",
     "button": "Backup",
-    "confirmTitle": "Backup Database",
+    "confirmTitle": "Backup database",
     "confirmDescription": "Yakin ingin membuat backup untuk database {dbName}?",
     "confirmButton": "Backup",
-    "successTitle": "Backup Dibuat",
+    "successTitle": "Backup dibuat",
     "successDescription": "Backup untuk database {dbName} berhasil dibuat.",
     "successButton": "OK"
   },
   "restoreDb": {
     "title": "Pulihkan backup database",
-    "selectBackup": "Pilih backup...",
-    "searchBackup": "Cari backup...",
+    "selectBackup": "Pilih backup…",
+    "searchBackup": "Cari backup…",
     "noBackup": "Backup tidak ditemukan.",
     "restore": "Pulihkan",
     "backupSize": "Ukuran backup: {sizeMb} MB ({sizeBytes} bytes)",
@@ -75,18 +75,18 @@
     "title": "Riwayat"
   },
   "newProject": {
-    "title": "Buat Proyek Baru",
+    "title": "Buat proyek baru",
     "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend."
   },
   "projectForm": {
-    "info": "Informasi Proyek",
+    "info": "Informasi proyek",
     "name": "Nama proyek",
     "namePlaceholder": "Contoh: Acme Production",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
     "server": "Server",
-    "pickServer": "Pilih server...",
+    "pickServer": "Pilih server…",
     "newServerShort": "Server baru",
     "pickServerRequired": "Pilih server untuk semua role (database, backend, frontend)",
     "serviceType": "Tipe service",
@@ -95,11 +95,10 @@
     "dbName": "Nama database",
     "isBackupMounted": "Direktori backup ter-mount di server",
     "backupPath": "Path direktori backup",
-    "submit": "Buat Proyek",
+    "submit": "Buat proyek",
     "saveChanges": "Simpan perubahan",
-    "submitting": "Menyimpan...",
-    "submitFailed": "Gagal menyimpan proyek",
-    "cancel": "Batal"
+    "submitting": "Menyimpan…",
+    "submitFailed": "Gagal menyimpan proyek"
   },
   "projectSettings": {
     "title": "Pengaturan",
@@ -113,22 +112,21 @@
     "deleteFailed": "Gagal menghapus proyek"
   },
   "userMenu": {
-    "users": "Manajemen Pengguna",
-    "servers": "Manajemen Server",
-    "changePassword": "Ubah Password",
+    "users": "Manajemen pengguna",
+    "servers": "Manajemen server",
+    "changePassword": "Ubah password",
     "signOut": "Keluar",
     "ariaLabel": "Menu pengguna"
   },
   "servers": {
     "title": "Server",
-    "addServer": "Tambah Server",
+    "addServer": "Tambah server",
     "empty": "Belum ada server. Tambahkan server untuk mulai mendaftarkan proyek.",
-    "editAriaLabel": "Edit",
-    "deleteAriaLabel": "Hapus",
+    "editAriaLabel": "Edit server",
+    "deleteAriaLabel": "Hapus server",
     "deleteTitle": "Hapus server",
     "deleteDescription": "Hapus server {name} ({host})? Server yang masih dipakai proyek tidak bisa dihapus.",
-    "deleteConfirm": "Hapus",
-    "deleteFailed": "Gagal"
+    "deleteFailed": "Gagal menghapus server"
   },
   "serverForm": {
     "name": "Nama",
@@ -138,20 +136,19 @@
     "password": "Password SSH",
     "passwordEdit": "Password SSH (baru)",
     "passwordEditPlaceholder": "Kosongkan jika tidak diubah",
-    "create": "Buat Server",
+    "create": "Buat server",
     "saveChanges": "Simpan",
-    "submitting": "Menyimpan...",
-    "cancel": "Batal",
+    "submitting": "Menyimpan…",
     "testConnection": "Tes koneksi",
     "testSuccess": "Koneksi berhasil",
     "testFailed": "Koneksi gagal"
   },
   "newServer": {
-    "title": "Tambah Server",
+    "title": "Tambah server",
     "description": "Daftarkan kredensial SSH server baru. Server bisa digunakan oleh banyak proyek."
   },
   "editServer": {
-    "title": "Edit Server: {name}",
+    "title": "Edit server: {name}",
     "description": "Ubah kredensial SSH. Kosongkan password jika tidak ingin mengubahnya."
   },
   "localeSwitcher": {
@@ -170,61 +167,60 @@
     "emailPlaceholder": "anda@example.com",
     "password": "Password",
     "submit": "Masuk",
-    "submitting": "Memproses...",
+    "submitting": "Memproses…",
     "errorInvalid": "Email atau password salah"
   },
   "acceptInvite": {
-    "title": "Aktivasi Akun",
+    "title": "Aktivasi akun",
     "description": "Buat password untuk akun {email}",
-    "invalidTitle": "Undangan Tidak Valid",
+    "invalidTitle": "Undangan tidak valid",
     "invalidDescription": "Link undangan ini tidak valid atau sudah kadaluarsa.",
     "name": "Nama",
     "email": "Email",
     "newPassword": "Password baru",
     "confirmPassword": "Konfirmasi password",
     "passwordMismatch": "Konfirmasi password tidak cocok",
-    "submit": "Aktivasi & Masuk",
-    "submitting": "Memproses..."
+    "submit": "Aktivasi & masuk",
+    "submitting": "Memproses…"
   },
   "changePassword": {
-    "title": "Ubah Password",
+    "title": "Ubah password",
     "description": "Masukkan password lama dan password baru Anda.",
     "currentPassword": "Password lama",
     "newPassword": "Password baru",
     "confirmPassword": "Konfirmasi password baru",
     "passwordMismatch": "Konfirmasi password tidak cocok",
     "revokeOtherSessions": "Keluarkan saya dari semua perangkat lain",
-    "submit": "Ubah Password",
-    "submitting": "Memproses...",
+    "submit": "Ubah password",
+    "submitting": "Memproses…",
     "success": "Password berhasil diubah",
     "errorGeneric": "Gagal mengubah password"
   },
   "users": {
-    "title": "Manajemen Pengguna",
+    "title": "Manajemen pengguna",
     "subtitle": "Kelola pengguna panel dan undangan yang masih tertunda.",
-    "inviteCardTitle": "Undang Pengguna",
+    "inviteCardTitle": "Undang pengguna",
     "inviteCardDescription": "Email harus berakhir dengan @example.com",
     "fullName": "Nama",
     "fullNamePlaceholder": "Nama lengkap",
     "email": "Email",
     "emailPlaceholder": "user@example.com",
     "inviteSubmit": "Undang",
-    "inviteSubmitting": "Mengirim...",
-    "pendingTitle": "Undangan Tertunda",
-    "pendingDescription": "Undangan yang belum diaktivasi user.",
+    "inviteSubmitting": "Mengirim…",
+    "pendingTitle": "Undangan tertunda",
+    "pendingDescription": "Undangan yang belum diaktivasi pengguna.",
     "expiresAt": "Kadaluarsa {date}",
     "revoke": "Batalkan",
     "revokeTitle": "Batalkan undangan",
     "revokeDescription": "Batalkan undangan untuk {email}?",
     "listCardTitle": "Pengguna",
-    "deleteTitle": "Hapus user",
+    "deleteTitle": "Hapus pengguna",
     "deleteDescription": "Hapus {name} ({email})? Tindakan ini tidak bisa dibatalkan.",
-    "deleteConfirm": "Hapus",
-    "deleteAriaLabel": "Hapus",
-    "deleteFailed": "Gagal"
+    "deleteAriaLabel": "Hapus pengguna",
+    "deleteFailed": "Gagal menghapus pengguna"
   },
   "setup": {
-    "title": "Pengaturan Awal",
+    "title": "Pengaturan awal",
     "description": "Buat akun admin pertama untuk Admin Panel. Halaman ini hanya muncul saat belum ada pengguna sama sekali.",
     "name": "Nama",
     "namePlaceholder": "Nama lengkap",
@@ -233,8 +229,8 @@
     "password": "Password",
     "confirmPassword": "Konfirmasi password",
     "passwordMismatch": "Konfirmasi password tidak cocok",
-    "submit": "Buat Akun & Masuk",
-    "submitting": "Memproses..."
+    "submit": "Buat akun & masuk",
+    "submitting": "Memproses…"
   },
   "actionErrors": {
     "nameAndEmailRequired": "Nama dan email wajib diisi",
@@ -243,7 +239,7 @@
     "emailSent": "Undangan terkirim",
     "emailSendFailed": "Gagal mengirim email undangan, periksa konfigurasi RESEND_API_KEY",
     "cannotDeleteSelf": "Tidak bisa menghapus akun sendiri",
-    "userDeleted": "User dihapus",
+    "userDeleted": "Pengguna dihapus",
     "invitationRevoked": "Undangan dibatalkan",
     "invitationInvalid": "Undangan tidak valid atau sudah kadaluarsa",
     "passwordTooShort": "Password minimal {min} karakter",
