@@ -3,7 +3,7 @@
     "name": "Admin Panel"
   },
   "common": {
-    "loading": "Loading...",
+    "loading": "Loading…",
     "cancel": "Cancel",
     "delete": "Delete",
     "save": "Save",
@@ -21,15 +21,15 @@
     "menu": "Menu"
   },
   "header": {
-    "selectProject": "Select project...",
-    "searchProject": "Search project...",
+    "selectProject": "Select project…",
+    "searchProject": "Search project…",
     "noProject": "No project found.",
     "createProject": "Create new project"
   },
   "projectsEmpty": {
     "title": "No projects yet",
     "description": "Create your first project to start managing backups and deployments.",
-    "create": "Create Project"
+    "create": "Create project"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -55,17 +55,17 @@
     "title": "Create database backup",
     "description": "Create backup for database: {dbName}",
     "button": "Backup",
-    "confirmTitle": "Backup Database",
+    "confirmTitle": "Backup database",
     "confirmDescription": "Are you sure you want to create a backup for database {dbName}?",
     "confirmButton": "Backup",
-    "successTitle": "Backup Created",
+    "successTitle": "Backup created",
     "successDescription": "A backup for database {dbName} has been created successfully.",
     "successButton": "OK"
   },
   "restoreDb": {
     "title": "Restore database backup",
-    "selectBackup": "Select backup...",
-    "searchBackup": "Search backup...",
+    "selectBackup": "Select backup…",
+    "searchBackup": "Search backup…",
     "noBackup": "No backup found.",
     "restore": "Restore",
     "backupSize": "Backup size: {sizeMb} MB ({sizeBytes} bytes)",
@@ -75,18 +75,18 @@
     "title": "History"
   },
   "newProject": {
-    "title": "Create New Project",
+    "title": "Create new project",
     "description": "Register a new project along with its database, backend, and frontend server configuration."
   },
   "projectForm": {
-    "info": "Project Info",
+    "info": "Project info",
     "name": "Project name",
     "namePlaceholder": "e.g. Acme Production",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
     "server": "Server",
-    "pickServer": "Select a server...",
+    "pickServer": "Select a server…",
     "newServerShort": "New server",
     "pickServerRequired": "Pick a server for every role (database, backend, frontend)",
     "serviceType": "Service type",
@@ -95,11 +95,10 @@
     "dbName": "Database name",
     "isBackupMounted": "Backup directory is mounted on the server",
     "backupPath": "Backup directory path",
-    "submit": "Create Project",
+    "submit": "Create project",
     "saveChanges": "Save changes",
-    "submitting": "Saving...",
-    "submitFailed": "Failed to save project",
-    "cancel": "Cancel"
+    "submitting": "Saving…",
+    "submitFailed": "Failed to save project"
   },
   "projectSettings": {
     "title": "Settings",
@@ -113,22 +112,21 @@
     "deleteFailed": "Failed to delete project"
   },
   "userMenu": {
-    "users": "User Management",
-    "servers": "Server Management",
-    "changePassword": "Change Password",
+    "users": "User management",
+    "servers": "Server management",
+    "changePassword": "Change password",
     "signOut": "Sign out",
     "ariaLabel": "User menu"
   },
   "servers": {
     "title": "Servers",
-    "addServer": "Add Server",
+    "addServer": "Add server",
     "empty": "No servers yet. Add a server to start registering projects.",
-    "editAriaLabel": "Edit",
-    "deleteAriaLabel": "Delete",
+    "editAriaLabel": "Edit server",
+    "deleteAriaLabel": "Delete server",
     "deleteTitle": "Delete server",
     "deleteDescription": "Delete server {name} ({host})? Servers in use by projects cannot be deleted.",
-    "deleteConfirm": "Delete",
-    "deleteFailed": "Failed"
+    "deleteFailed": "Failed to delete server"
   },
   "serverForm": {
     "name": "Name",
@@ -138,20 +136,19 @@
     "password": "SSH password",
     "passwordEdit": "SSH password (new)",
     "passwordEditPlaceholder": "Leave blank to keep unchanged",
-    "create": "Create Server",
+    "create": "Create server",
     "saveChanges": "Save",
-    "submitting": "Saving...",
-    "cancel": "Cancel",
+    "submitting": "Saving…",
     "testConnection": "Test connection",
     "testSuccess": "Connection successful",
     "testFailed": "Connection failed"
   },
   "newServer": {
-    "title": "Add Server",
+    "title": "Add server",
     "description": "Register a new server's SSH credentials. Servers can be reused across multiple projects."
   },
   "editServer": {
-    "title": "Edit Server: {name}",
+    "title": "Edit server: {name}",
     "description": "Update SSH credentials. Leave the password blank to keep it unchanged."
   },
   "localeSwitcher": {
@@ -170,47 +167,47 @@
     "emailPlaceholder": "you@example.com",
     "password": "Password",
     "submit": "Sign in",
-    "submitting": "Signing in...",
+    "submitting": "Signing in…",
     "errorInvalid": "Invalid email or password"
   },
   "acceptInvite": {
-    "title": "Activate Account",
+    "title": "Activate account",
     "description": "Set a password for the account {email}",
-    "invalidTitle": "Invalid Invitation",
+    "invalidTitle": "Invalid invitation",
     "invalidDescription": "This invitation link is invalid or has expired.",
     "name": "Name",
     "email": "Email",
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "Password confirmation does not match",
-    "submit": "Activate & Sign in",
-    "submitting": "Processing..."
+    "submit": "Activate & sign in",
+    "submitting": "Processing…"
   },
   "changePassword": {
-    "title": "Change Password",
+    "title": "Change password",
     "description": "Enter your current and new password.",
     "currentPassword": "Current password",
     "newPassword": "New password",
     "confirmPassword": "Confirm new password",
     "passwordMismatch": "Password confirmation does not match",
     "revokeOtherSessions": "Sign me out of all other devices",
-    "submit": "Change Password",
-    "submitting": "Processing...",
+    "submit": "Change password",
+    "submitting": "Processing…",
     "success": "Password changed successfully",
     "errorGeneric": "Failed to change password"
   },
   "users": {
-    "title": "User Management",
+    "title": "User management",
     "subtitle": "Manage panel users and pending invitations.",
-    "inviteCardTitle": "Invite User",
+    "inviteCardTitle": "Invite user",
     "inviteCardDescription": "Email must end with @example.com",
     "fullName": "Name",
     "fullNamePlaceholder": "Full name",
     "email": "Email",
     "emailPlaceholder": "user@example.com",
     "inviteSubmit": "Invite",
-    "inviteSubmitting": "Sending...",
-    "pendingTitle": "Pending Invitations",
+    "inviteSubmitting": "Sending…",
+    "pendingTitle": "Pending invitations",
     "pendingDescription": "Invitations that have not been activated.",
     "expiresAt": "Expires {date}",
     "revoke": "Revoke",
@@ -219,12 +216,11 @@
     "listCardTitle": "Users",
     "deleteTitle": "Delete user",
     "deleteDescription": "Delete {name} ({email})? This cannot be undone.",
-    "deleteConfirm": "Delete",
-    "deleteAriaLabel": "Delete",
-    "deleteFailed": "Failed"
+    "deleteAriaLabel": "Delete user",
+    "deleteFailed": "Failed to delete user"
   },
   "setup": {
-    "title": "Initial Setup",
+    "title": "Initial setup",
     "description": "Create the first admin account for Admin Panel. This page only appears when no users exist yet.",
     "name": "Name",
     "namePlaceholder": "Full name",
@@ -233,8 +229,8 @@
     "password": "Password",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "Password confirmation does not match",
-    "submit": "Create Account & Sign In",
-    "submitting": "Processing..."
+    "submit": "Create account & sign in",
+    "submitting": "Processing…"
   },
   "actionErrors": {
     "nameAndEmailRequired": "Name and email are required",

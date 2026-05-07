@@ -34,6 +34,7 @@ type TestState =
 
 export function ServerForm({ mode, onSuccess, onCancel }: Props) {
   const t = useTranslations("serverForm");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const initial = mode.type === "edit" ? mode.server : null;
 
@@ -217,7 +218,7 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
           onClick={handleCancel}
           disabled={loading}
         >
-          {t("cancel")}
+          {tCommon("cancel")}
         </Button>
         <Button type="submit" disabled={loading}>
           {loading

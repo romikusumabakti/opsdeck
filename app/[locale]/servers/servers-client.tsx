@@ -23,7 +23,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         name: server.name,
         host: server.host,
       }),
-      confirmText: t("deleteConfirm"),
+      confirmText: tCommon("delete"),
       cancelText: tCommon("cancel"),
     });
     if (!ok) return;
