@@ -174,13 +174,15 @@
   },
   "history": {
     "title": "History",
-    "subtitle": "Recent backup and restore operations for this project.",
+    "subtitle": "Recent backup, restore, and time simulation operations for this project.",
     "emptyTitle": "No history yet",
-    "emptyDescription": "Backup and restore activity will appear here after the first run.",
+    "emptyDescription": "Backup, restore, and time simulation activity will appear here after the first run.",
     "searchPlaceholder": "Search by description…",
     "colDescription": "Description",
+    "colUser": "By",
     "colRunAt": "Run at",
-    "colDuration": "Duration"
+    "colDuration": "Duration",
+    "userUnknown": "Unknown"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

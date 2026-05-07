@@ -8,7 +8,7 @@ export default function Loading() {
         <Skeleton className="h-7 w-32" />
         <Skeleton className="h-4 w-72" />
       </div>
-      <DataTableSkeleton columns={3} rows={6} />
+      <DataTableSkeleton columns={4} rows={6} />
     </div>
   );
 }

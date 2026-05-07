@@ -4,10 +4,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, History as HistoryIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import type { TaskWithUser } from "@/actions/tasks";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { Task } from "@/lib/db/schema";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -18,10 +18,10 @@ function formatDuration(ms: number): string {
   return `${m}m ${rs}s`;
 }
 
-export function HistoryClient({ tasks }: { tasks: Task[] }) {
+export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
   const t = useTranslations("history");
 
-  const columns = React.useMemo<ColumnDef<Task>[]>(
+  const columns = React.useMemo<ColumnDef<TaskWithUser>[]>(
     () => [
       {
         accessorKey: "description",
@@ -29,6 +29,23 @@ export function HistoryClient({ tasks }: { tasks: Task[] }) {
         cell: ({ row }) => (
           <span className="font-medium">{row.getValue("description")}</span>
         ),
+      },
+      {
+        id: "user",
+        accessorFn: (row) => row.user?.name ?? "",
+        header: t("colUser"),
+        cell: ({ row }) => {
+          const user = row.original.user;
+          return user ? (
+            <span className="text-sm text-muted-foreground" title={user.email}>
+              {user.name}
+            </span>
+          ) : (
+            <span className="text-sm italic text-muted-foreground">
+              {t("userUnknown")}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "runAt",

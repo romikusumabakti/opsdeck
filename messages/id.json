@@ -174,13 +174,15 @@
   },
   "history": {
     "title": "Riwayat",
-    "subtitle": "Operasi backup dan restore terakhir untuk proyek ini.",
+    "subtitle": "Operasi backup, restore, dan simulasi waktu terakhir untuk proyek ini.",
     "emptyTitle": "Belum ada riwayat",
-    "emptyDescription": "Aktivitas backup dan restore akan muncul di sini setelah eksekusi pertama.",
+    "emptyDescription": "Aktivitas backup, restore, dan simulasi waktu akan muncul di sini setelah eksekusi pertama.",
     "searchPlaceholder": "Cari berdasarkan deskripsi…",
     "colDescription": "Deskripsi",
+    "colUser": "Oleh",
     "colRunAt": "Dijalankan",
-    "colDuration": "Durasi"
+    "colDuration": "Durasi",
+    "userUnknown": "Tidak diketahui"
   },
   "shortcuts": {
     "title": "Pintasan keyboard",

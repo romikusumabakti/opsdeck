@@ -1,6 +1,7 @@
 "use server";
 
 import { inngest } from "@/inngest/client";
+import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
 
@@ -40,17 +41,19 @@ export async function getBackupList(project: ProjectWithServers) {
 }
 
 export async function createDatabaseBackup(project: ProjectWithServers) {
+  const session = await requireSession();
   await inngest.send({
     name: "db/backup.requested",
-    data: project,
+    data: { ...project, userId: session.user.id },
   });
 }
 
 export async function restoreDatabaseBackup(
   project: ProjectWithServers & { filename: string }
 ) {
+  const session = await requireSession();
   await inngest.send({
     name: "db/restore.requested",
-    data: project,
+    data: { ...project, userId: session.user.id },
   });
 }
