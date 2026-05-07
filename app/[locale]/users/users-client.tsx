@@ -1,14 +1,23 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Clock, Mail, Trash2, UserPlus } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  ArrowUpDown,
+  Mail,
+  MoreHorizontal,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { deleteUser, inviteUser, revokeInvitation } from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,6 +26,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Form,
   FormControl,
@@ -88,44 +105,175 @@ export function UsersClient({
     form.reset({ name: "", email: "" });
   }
 
-  async function onDelete(user: UserRow) {
-    const ok = await dialog.confirm({
-      title: t("deleteTitle"),
-      description: t("deleteDescription", {
-        name: user.name,
-        email: user.email,
-      }),
-      confirmText: tCommon("delete"),
-      cancelText: tCommon("cancel"),
-    });
-    if (!ok) return;
-    startTransition(async () => {
-      const result = await deleteUser(user.id);
-      if (!result.success) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success(result.message ?? t("deletedSuccess"));
-    });
-  }
+  const onDelete = React.useCallback(
+    async (user: UserRow) => {
+      const ok = await dialog.confirm({
+        title: t("deleteTitle"),
+        description: t("deleteDescription", {
+          name: user.name,
+          email: user.email,
+        }),
+        confirmText: tCommon("delete"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        const result = await deleteUser(user.id);
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(result.message ?? t("deletedSuccess"));
+      });
+    },
+    [dialog, t, tCommon]
+  );
 
-  async function onRevoke(inv: InvitationRow) {
-    const ok = await dialog.confirm({
-      title: t("revokeTitle"),
-      description: t("revokeDescription", { email: inv.email }),
-      confirmText: t("revoke"),
-      cancelText: tCommon("cancel"),
-    });
-    if (!ok) return;
-    startTransition(async () => {
-      const result = await revokeInvitation(inv.id);
-      if (!result.success) {
-        toast.error(result.message ?? "");
-        return;
-      }
-      toast.success(result.message ?? t("revokedSuccess"));
-    });
-  }
+  const onRevoke = React.useCallback(
+    async (inv: InvitationRow) => {
+      const ok = await dialog.confirm({
+        title: t("revokeTitle"),
+        description: t("revokeDescription", { email: inv.email }),
+        confirmText: t("revoke"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        const result = await revokeInvitation(inv.id);
+        if (!result.success) {
+          toast.error(result.message ?? "");
+          return;
+        }
+        toast.success(result.message ?? t("revokedSuccess"));
+      });
+    },
+    [dialog, t, tCommon]
+  );
+
+  const userColumns = React.useMemo<ColumnDef<UserRow>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3 h-8"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            {t("colUser")}
+            <ArrowUpDown className="size-3.5" />
+          </Button>
+        ),
+        cell: ({ row }) => {
+          const user = row.original;
+          const isYou = user.id === currentUserId;
+          return (
+            <div className="flex items-center gap-3">
+              <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
+                {getInitials(user.name || user.email)}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium truncate">{user.name}</span>
+                  {isYou && (
+                    <Badge variant="secondary" className="text-xs">
+                      {tCommon("you")}
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-sm text-muted-foreground truncate">
+                  {user.email}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        meta: { headClassName: "w-12", cellClassName: "w-12" },
+        cell: ({ row }) => {
+          const user = row.original;
+          if (user.id === currentUserId) return null;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={tCommon("openMenu")}
+                  disabled={isPending}
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => onDelete(user)}
+                >
+                  <Trash2 className="size-4" />
+                  {tCommon("delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [currentUserId, t, tCommon, isPending, onDelete]
+  );
+
+  const invitationColumns = React.useMemo<ColumnDef<InvitationRow>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: t("colInvitee"),
+        cell: ({ row }) => {
+          const inv = row.original;
+          return (
+            <div className="flex items-center gap-3">
+              <span className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <Mail className="size-4 text-muted-foreground" />
+              </span>
+              <div className="min-w-0">
+                <div className="font-medium truncate">{inv.name}</div>
+                <div className="text-sm text-muted-foreground truncate">
+                  {inv.email}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "expiresAt",
+        header: t("colExpires"),
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {new Date(row.getValue("expiresAt") as Date).toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        meta: { headClassName: "w-12", cellClassName: "w-12" },
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onRevoke(row.original)}
+            disabled={isPending}
+          >
+            {t("revoke")}
+          </Button>
+        ),
+      },
+    ],
+    [t, isPending, onRevoke]
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -199,42 +347,12 @@ export function UsersClient({
             </CardTitle>
             <CardDescription>{t("pendingDescription")}</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <ul className="divide-y border-t">
-              {invitations.map((inv) => (
-                <li
-                  key={inv.id}
-                  className="flex items-center justify-between gap-4 px-6 py-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <Mail className="size-4 text-muted-foreground" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{inv.name}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {inv.email}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <Clock className="size-3" />
-                        {t("expiresAt", {
-                          date: new Date(inv.expiresAt).toLocaleString(),
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRevoke(inv)}
-                    disabled={isPending}
-                    className="shrink-0"
-                  >
-                    {t("revoke")}
-                  </Button>
-                </li>
-              ))}
-            </ul>
+          <CardContent>
+            <DataTable
+              columns={invitationColumns}
+              data={invitations}
+              initialPageSize={5}
+            />
           </CardContent>
         </Card>
       )}
@@ -248,49 +366,13 @@ export function UsersClient({
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <ul className="divide-y border-t">
-            {users.map((u) => {
-              const isYou = u.id === currentUserId;
-              return (
-                <li
-                  key={u.id}
-                  className="flex items-center justify-between gap-4 px-6 py-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
-                      {getInitials(u.name || u.email)}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{u.name}</span>
-                        {isYou && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground shrink-0">
-                            {tCommon("you")}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {u.email}
-                      </div>
-                    </div>
-                  </div>
-                  {!isYou && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDelete(u)}
-                      disabled={isPending}
-                      aria-label={t("deleteAriaLabel")}
-                      className="shrink-0"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+        <CardContent>
+          <DataTable
+            columns={userColumns}
+            data={users}
+            filterColumn="name"
+            filterPlaceholder={t("searchPlaceholder")}
+          />
         </CardContent>
       </Card>
     </div>
