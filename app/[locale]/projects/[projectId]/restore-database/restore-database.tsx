@@ -1,8 +1,11 @@
 "use client";
 
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { toast } from "sonner";
+import { restoreDatabaseBackup } from "@/actions/backups";
+import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -12,55 +15,98 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import type { ProjectWithServers } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
-export function RestoreDatabase({ backups }: { backups: Backup[] }) {
+export function RestoreDatabase({
+  project,
+  backups,
+}: {
+  project: ProjectWithServers;
+  backups: Backup[];
+}) {
   const t = useTranslations("restoreDb");
+  const tCommon = useTranslations("common");
+  const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
 
-  const backup = backups.find((backup) => backup.name === value);
+  const backup = backups.find((b) => b.name === value);
+
+  async function onRestore() {
+    if (!backup) return;
+    const ok = await dialog.confirm({
+      title: t("confirmTitle"),
+      description: t("confirmDescription", {
+        filename: backup.name,
+        dbName: project.dbName,
+      }),
+      confirmText: t("restore"),
+      cancelText: tCommon("cancel"),
+    });
+    if (!ok) return;
+    await restoreDatabaseBackup({ ...project, filename: backup.name });
+    toast.success(t("successTitle"), {
+      description: t("successDescription", { dbName: project.dbName }),
+    });
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
+    <div className="flex flex-col gap-3">
+      <Label htmlFor="restore-backup-picker">{t("selectBackupLabel")}</Label>
+      <div className="flex flex-col sm:flex-row gap-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
+              id="restore-backup-picker"
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-96 justify-between"
+              className="flex-1 justify-between"
             >
-              {backup ? backup.name : t("selectBackup")}
-              <ChevronsUpDown className="opacity-50" />
+              {backup ? (
+                <span className="truncate font-mono text-xs">
+                  {backup.name}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  {t("selectBackup")}
+                </span>
+              )}
+              <ChevronsUpDown className="opacity-50 shrink-0" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-96 p-0">
+          <PopoverContent
+            align="start"
+            className="w-[var(--radix-popper-anchor-width)] p-0"
+          >
             <Command>
               <CommandInput placeholder={t("searchBackup")} className="h-9" />
               <CommandList>
                 <CommandEmpty>{t("noBackup")}</CommandEmpty>
                 <CommandGroup>
-                  {backups.map((backup) => (
+                  {backups.map((b) => (
                     <CommandItem
-                      key={backup.name}
-                      value={backup.name}
+                      key={b.name}
+                      value={b.name}
                       onSelect={(currentValue) => {
                         setValue(currentValue === value ? "" : currentValue);
                         setOpen(false);
                       }}
                     >
-                      {backup.name}
+                      <span className="truncate font-mono text-xs">
+                        {b.name}
+                      </span>
                       <Check
                         className={cn(
                           "ml-auto",
-                          value === backup.name ? "opacity-100" : "opacity-0"
+                          value === b.name ? "opacity-100" : "opacity-0"
                         )}
                       />
                     </CommandItem>
@@ -70,18 +116,26 @@ export function RestoreDatabase({ backups }: { backups: Backup[] }) {
             </Command>
           </PopoverContent>
         </Popover>
-        <Button>{t("restore")}</Button>
+        <Button
+          variant="destructive"
+          disabled={!backup}
+          onClick={onRestore}
+          className="shrink-0"
+        >
+          <RotateCcw className="size-4" />
+          {t("restore")}
+        </Button>
       </div>
       {backup &&
         (() => {
-          const backupSize = parseInt(backup.size);
+          const backupSize = parseInt(backup.size, 10);
           return (
-            <div className="text-sm">
+            <p className="text-xs text-muted-foreground">
               {t("backupSize", {
                 sizeMb: (backupSize / 1_024 / 1_024).toFixed(2),
                 sizeBytes: backupSize.toLocaleString(),
               })}
-            </div>
+            </p>
           );
         })()}
     </div>
