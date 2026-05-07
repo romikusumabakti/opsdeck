@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServers } from "@/actions/servers";
+import { ProjectForm } from "@/components/project-form";
 import {
   Card,
   CardContent,
@@ -7,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { NewProjectForm } from "./new-project-form";
 
 export default async function NewProjectPage({
   params,
@@ -27,7 +27,7 @@ export default async function NewProjectPage({
           <CardDescription>{t("description")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewProjectForm servers={servers} />
+          <ProjectForm mode={{ type: "create" }} servers={servers} />
         </CardContent>
       </Card>
     </div>

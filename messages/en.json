@@ -35,7 +35,21 @@
     "title": "Dashboard",
     "database": "Database",
     "backend": "Backend",
-    "frontend": "Frontend"
+    "frontend": "Frontend",
+    "server": "Server",
+    "host": "Host",
+    "serviceType": "Service type",
+    "serviceName": "Service name",
+    "dbType": "Database type",
+    "dbName": "Database name",
+    "serviceTypes": {
+      "docker": "Docker",
+      "system": "System"
+    },
+    "dbTypes": {
+      "postgres": "PostgreSQL",
+      "mssql": "Microsoft SQL Server"
+    }
   },
   "backupDb": {
     "title": "Create database backup",
@@ -62,7 +76,9 @@
   },
   "newProject": {
     "title": "Create New Project",
-    "description": "Register a new project along with its database, backend, and frontend server configuration.",
+    "description": "Register a new project along with its database, backend, and frontend server configuration."
+  },
+  "projectForm": {
     "info": "Project Info",
     "name": "Project name",
     "namePlaceholder": "e.g. Acme Production",
@@ -80,9 +96,21 @@
     "isBackupMounted": "Backup directory is mounted on the server",
     "backupPath": "Backup directory path",
     "submit": "Create Project",
+    "saveChanges": "Save changes",
     "submitting": "Saving...",
-    "submitFailed": "Failed to create project",
+    "submitFailed": "Failed to save project",
     "cancel": "Cancel"
+  },
+  "projectSettings": {
+    "title": "Settings",
+    "editTitle": "Project details",
+    "editDescription": "Update the project's database, backend, and frontend server configuration.",
+    "dangerZoneTitle": "Danger zone",
+    "dangerZoneDescription": "Deleting a project also removes its task history. This cannot be undone.",
+    "deleteButton": "Delete project",
+    "deleteTitle": "Delete project",
+    "deleteDescription": "Delete project {name}? This action cannot be undone.",
+    "deleteFailed": "Failed to delete project"
   },
   "userMenu": {
     "users": "User Management",

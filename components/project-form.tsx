@@ -3,13 +3,13 @@
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { createProject } from "@/actions/projects";
+import { createProject, updateProject } from "@/actions/projects";
 import { ServerCreateDialog } from "@/components/server-create-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
-import type { Server } from "@/lib/db/schema";
+import type { Project, Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 const SERVICE_TYPES = ["docker", "system"] as const;
@@ -37,35 +37,59 @@ type FormState = {
   frontendServiceName: string;
 };
 
-export function NewProjectForm({
+type Mode = { type: "create" } | { type: "edit"; project: Project };
+
+export function ProjectForm({
+  mode,
   servers: initialServers,
 }: {
+  mode: Mode;
   servers: Server[];
 }) {
-  const t = useTranslations("newProject");
+  const t = useTranslations("projectForm");
+  const tEnums = useTranslations("dashboard");
   const router = useRouter();
 
-  // Local servers state — appended to whenever the dialog creates a new one,
-  // so it appears in every picker's dropdown immediately.
   const [servers, setServers] = useState<Server[]>(initialServers);
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
 
-  const [form, setForm] = useState<FormState>(() => ({
-    name: "",
-    dbServerId: initialServers[0]?.id ?? null,
-    dbServiceType: "docker",
-    dbServiceName: "",
-    dbType: "postgres",
-    dbName: "",
-    dbIsBackupMounted: false,
-    dbBackupPath: "",
-    backendServerId: initialServers[0]?.id ?? null,
-    backendServiceType: "docker",
-    backendServiceName: "",
-    frontendServerId: initialServers[0]?.id ?? null,
-    frontendServiceType: "docker",
-    frontendServiceName: "",
-  }));
+  const [form, setForm] = useState<FormState>(() => {
+    if (mode.type === "edit") {
+      const p = mode.project;
+      return {
+        name: p.name,
+        dbServerId: p.dbServerId,
+        dbServiceType: p.dbServiceType,
+        dbServiceName: p.dbServiceName,
+        dbType: p.dbType,
+        dbName: p.dbName,
+        dbIsBackupMounted: p.dbIsBackupMounted,
+        dbBackupPath: p.dbBackupPath,
+        backendServerId: p.backendServerId,
+        backendServiceType: p.backendServiceType,
+        backendServiceName: p.backendServiceName,
+        frontendServerId: p.frontendServerId,
+        frontendServiceType: p.frontendServiceType,
+        frontendServiceName: p.frontendServiceName,
+      };
+    }
+    return {
+      name: "",
+      dbServerId: initialServers[0]?.id ?? null,
+      dbServiceType: "docker",
+      dbServiceName: "",
+      dbType: "postgres",
+      dbName: "",
+      dbIsBackupMounted: false,
+      dbBackupPath: "",
+      backendServerId: initialServers[0]?.id ?? null,
+      backendServiceType: "docker",
+      backendServiceName: "",
+      frontendServerId: initialServers[0]?.id ?? null,
+      frontendServiceType: "docker",
+      frontendServiceName: "",
+    };
+  });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +119,7 @@ export function NewProjectForm({
     }
 
     setLoading(true);
-    const result = await createProject({
+    const payload = {
       name: form.name,
       dbServerId: form.dbServerId,
       dbServiceType: form.dbServiceType,
@@ -110,7 +134,13 @@ export function NewProjectForm({
       frontendServerId: form.frontendServerId,
       frontendServiceType: form.frontendServiceType,
       frontendServiceName: form.frontendServiceName,
-    });
+    };
+
+    const result =
+      mode.type === "create"
+        ? await createProject(payload)
+        : await updateProject(mode.project.id, payload);
+
     setLoading(false);
 
     if (!result.success || !result.data) {
@@ -118,7 +148,9 @@ export function NewProjectForm({
       return;
     }
 
-    router.push(`/projects/${result.data.id}`);
+    if (mode.type === "create") {
+      router.push(`/projects/${result.data.id}`);
+    }
     router.refresh();
   }
 
@@ -159,7 +191,7 @@ export function NewProjectForm({
             >
               {SERVICE_TYPES.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tEnums(`serviceTypes.${v}`)}
                 </option>
               ))}
             </Select>
@@ -182,7 +214,7 @@ export function NewProjectForm({
             >
               {DB_TYPES.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tEnums(`dbTypes.${v}`)}
                 </option>
               ))}
             </Select>
@@ -236,7 +268,7 @@ export function NewProjectForm({
             >
               {SERVICE_TYPES.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tEnums(`serviceTypes.${v}`)}
                 </option>
               ))}
             </Select>
@@ -273,7 +305,7 @@ export function NewProjectForm({
             >
               {SERVICE_TYPES.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tEnums(`serviceTypes.${v}`)}
                 </option>
               ))}
             </Select>
@@ -304,7 +336,11 @@ export function NewProjectForm({
             {t("cancel")}
           </Button>
           <Button type="submit" disabled={loading}>
-            {loading ? t("submitting") : t("submit")}
+            {loading
+              ? t("submitting")
+              : mode.type === "edit"
+                ? t("saveChanges")
+                : t("submit")}
           </Button>
         </div>
       </form>
