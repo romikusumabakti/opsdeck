@@ -4,8 +4,15 @@ import { randomBytes } from "node:crypto";
 import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
-import { requireSession } from "@/lib/auth-session";
+import {
+  ALLOWED_EMAIL_DOMAIN,
+  auth,
+  isAllowedEmail,
+  ROLE_ADMIN,
+  ROLE_MEMBER,
+  type UserRole,
+} from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { invitations, users as userTable } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
@@ -74,11 +81,14 @@ export async function createInitialUser(input: {
 
   const hash = await ctx.password.hash(input.password);
 
+  // The bootstrap user owns the panel — promote to admin so they can manage
+  // users/servers. Subsequent users are created as "member" via invitation.
   const created = await ctx.internalAdapter.createUser({
     name,
     email,
     emailVerified: true,
     image: null,
+    role: ROLE_ADMIN,
   });
 
   await ctx.internalAdapter.linkAccount({
@@ -93,7 +103,7 @@ export async function createInitialUser(input: {
 }
 
 export async function listUsers() {
-  await requireSession();
+  await requireAdmin();
   return db
     .select({
       id: userTable.id,
@@ -101,6 +111,7 @@ export async function listUsers() {
       email: userTable.email,
       emailVerified: userTable.emailVerified,
       image: userTable.image,
+      role: userTable.role,
       createdAt: userTable.createdAt,
     })
     .from(userTable)
@@ -108,7 +119,7 @@ export async function listUsers() {
 }
 
 export async function listPendingInvitations() {
-  await requireSession();
+  await requireAdmin();
   const now = new Date();
   return db
     .select()
@@ -120,12 +131,14 @@ export async function listPendingInvitations() {
 export async function inviteUser(input: {
   email: string;
   name: string;
+  role: UserRole;
 }): Promise<ActionResponse> {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const t = await getTranslations("actionErrors");
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
+  const role: UserRole = input.role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
 
   if (!email || !name) {
     return { success: false, message: t("nameAndEmailRequired") };
@@ -160,6 +173,7 @@ export async function inviteUser(input: {
     // id defaults to uuidv7() in DB
     email,
     name,
+    role,
     token,
     invitedById: session.user.id,
     expiresAt,
@@ -188,7 +202,7 @@ export async function inviteUser(input: {
 }
 
 export async function deleteUser(userId: string): Promise<ActionResponse> {
-  const session = await requireSession();
+  const session = await requireAdmin();
   const t = await getTranslations("actionErrors");
 
   if (session.user.id === userId) {
@@ -205,7 +219,7 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
 export async function revokeInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
-  await requireSession();
+  await requireAdmin();
   const t = await getTranslations("actionErrors");
   await db.delete(invitations).where(eq(invitations.id, invitationId));
   revalidatePath("/users");
@@ -274,11 +288,16 @@ export async function acceptInvitation(input: {
 
   const hash = await ctx.password.hash(input.password);
 
+  // Promote per the invitation's stored role. Validate against known roles
+  // in case the row was tampered with directly in the DB.
+  const role: UserRole = inv.role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
+
   const created = await ctx.internalAdapter.createUser({
     name: inv.name,
     email: inv.email,
     emailVerified: true,
     image: null,
+    role,
   });
 
   await ctx.internalAdapter.linkAccount({

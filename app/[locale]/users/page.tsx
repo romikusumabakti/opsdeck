@@ -1,7 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listPendingInvitations, listUsers } from "@/actions/users";
-import { redirect } from "@/i18n/navigation";
-import { getServerSession } from "@/lib/auth-session";
+import { requireAdmin } from "@/lib/auth-session";
 import { UsersClient } from "./users-client";
 
 export default async function UsersPage({
@@ -12,8 +11,7 @@ export default async function UsersPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const session = await getServerSession();
-  if (!session) await redirect("/sign-in?redirect=/users");
+  const session = await requireAdmin();
 
   const [users, invitations] = await Promise.all([
     listUsers(),

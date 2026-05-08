@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { requireAdmin } from "@/lib/auth-session";
 import { DeleteProjectCard } from "./delete-project-card";
 
 export default async function ProjectSettingsPage({
@@ -18,6 +19,8 @@ export default async function ProjectSettingsPage({
 }) {
   const { locale, projectId } = await params;
   setRequestLocale(locale);
+
+  await requireAdmin();
 
   const [project, servers] = await Promise.all([
     getProjectById(projectId),

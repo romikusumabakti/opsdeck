@@ -379,6 +379,11 @@
     "fullNamePlaceholder": "Full name",
     "email": "Email",
     "emailPlaceholder": "user@example.com",
+    "roleLabel": "Role",
+    "role": {
+      "admin": "Admin",
+      "member": "Member"
+    },
     "inviteSubmit": "Invite",
     "inviteSubmitting": "Sending…",
     "pendingTitle": "Pending invitations",

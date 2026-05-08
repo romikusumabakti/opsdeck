@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 
-export async function ProjectsEmpty() {
+export async function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
   const t = await getTranslations("projectsEmpty");
 
   return (
@@ -14,9 +14,11 @@ export async function ProjectsEmpty() {
         title={t("title")}
         description={t("description")}
         action={
-          <Button asChild>
-            <Link href="/projects/new">{t("create")}</Link>
-          </Button>
+          canCreate ? (
+            <Button asChild>
+              <Link href="/projects/new">{t("create")}</Link>
+            </Button>
+          ) : undefined
         }
       />
     </div>

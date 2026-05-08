@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
   type NewProject,
@@ -56,6 +57,7 @@ export async function getProjectById(
  * frontendServerId) must already exist — create them via createServer first.
  */
 export async function createProject(data: NewProject): Promise<ActionResponse> {
+  await requireAdmin();
   try {
     const [insertedProject] = await db
       .insert(projects)
@@ -80,6 +82,7 @@ export async function updateProject(
   id: string,
   data: Partial<NewProject>
 ): Promise<ActionResponse> {
+  await requireAdmin();
   try {
     const [updatedProject] = await db
       .update(projects)
@@ -106,6 +109,7 @@ export async function updateProject(
 }
 
 export async function deleteProject(id: string): Promise<ActionResponse> {
+  await requireAdmin();
   try {
     await db.delete(projects).where(eq(projects.id, id));
     revalidatePath("/projects");

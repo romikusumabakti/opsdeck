@@ -83,12 +83,19 @@ export const tasks = pgTable("tasks", {
 // Auth (better-auth) tables
 // =========================
 
+// `role`, `banned`, `banReason`, `banExpires` are managed by the better-auth
+// admin plugin (lib/auth.ts). Default role for invited users is "member"; the
+// bootstrap user created in `createInitialUser` is promoted to "admin".
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  role: text("role").notNull().default("member"),
+  banned: boolean("banned").notNull().default(false),
+  banReason: text("ban_reason"),
+  banExpires: timestamp("ban_expires"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -102,6 +109,10 @@ export const sessions = pgTable("sessions", {
   expiresAt: timestamp("expires_at").notNull(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
+  // Set by the admin plugin during impersonation; null on normal sessions.
+  impersonatedBy: uuid("impersonated_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -143,6 +154,9 @@ export const invitations = pgTable("invitations", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   email: text("email").notNull(),
   name: text("name").notNull(),
+  // The role assigned to the user upon accepting the invitation. Validated
+  // against ROLE_ADMIN/ROLE_MEMBER in actions/users.ts.
+  role: text("role").notNull().default("member"),
   // token is a separate random secret used in the invite URL — keep as text.
   token: text("token").notNull().unique(),
   invitedById: uuid("invited_by_id").references(() => users.id, {

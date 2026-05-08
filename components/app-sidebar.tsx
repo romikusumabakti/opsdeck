@@ -24,17 +24,34 @@ import { Link, usePathname } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
 
 const projectItems = [
-  { key: "dashboard", url: "", icon: LayoutDashboard },
-  { key: "backupDatabase", url: "/backup-database", icon: Database },
-  { key: "restoreDatabase", url: "/restore-database", icon: DatabaseBackup },
-  { key: "simulateTime", url: "/simulate-time", icon: Clock },
-  { key: "history", url: "/history", icon: History },
-  { key: "settings", url: "/settings", icon: Settings },
+  { key: "dashboard", url: "", icon: LayoutDashboard, adminOnly: false },
+  {
+    key: "backupDatabase",
+    url: "/backup-database",
+    icon: Database,
+    adminOnly: false,
+  },
+  {
+    key: "restoreDatabase",
+    url: "/restore-database",
+    icon: DatabaseBackup,
+    adminOnly: false,
+  },
+  { key: "simulateTime", url: "/simulate-time", icon: Clock, adminOnly: false },
+  { key: "history", url: "/history", icon: History, adminOnly: false },
+  { key: "settings", url: "/settings", icon: Settings, adminOnly: true },
 ] as const;
 
-export function AppSidebar({ activeProject }: { activeProject: Project }) {
+export function AppSidebar({
+  activeProject,
+  isAdmin,
+}: {
+  activeProject: Project;
+  isAdmin: boolean;
+}) {
   const tNav = useTranslations("nav");
   const pathname = usePathname();
+  const items = projectItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <Sidebar collapsible="icon" className="top-14 !h-[calc(100svh-3.5rem)]">
@@ -42,7 +59,7 @@ export function AppSidebar({ activeProject }: { activeProject: Project }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {projectItems.map((item) => {
+              {items.map((item) => {
                 const itemPath = `/projects/${activeProject.id}${item.url}`;
                 const isActive =
                   item.url === ""

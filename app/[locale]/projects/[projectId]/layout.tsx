@@ -6,6 +6,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { getServerSession, isAdmin } from "@/lib/auth-session";
 
 export default async function Layout({
   children,
@@ -17,7 +18,11 @@ export default async function Layout({
   const { locale, projectId } = await params;
   setRequestLocale(locale);
 
-  const project = await getProjectById(projectId);
+  const [project, session] = await Promise.all([
+    getProjectById(projectId),
+    getServerSession(),
+  ]);
+  const admin = session ? isAdmin(session) : false;
 
   if (!project) {
     const tCommon = await getTranslations("common");
@@ -30,7 +35,7 @@ export default async function Layout({
 
   return (
     <SidebarProvider className="flex-1 min-h-0">
-      <AppSidebar activeProject={project} />
+      <AppSidebar activeProject={project} isAdmin={admin} />
       <SidebarInset>
         <div className="flex items-center gap-2 px-4 py-2 md:hidden border-b">
           <SidebarTrigger />
