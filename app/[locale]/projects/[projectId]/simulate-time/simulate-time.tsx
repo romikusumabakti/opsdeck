@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { CalendarIcon, Clock } from "lucide-react";
+import { ChevronDownIcon, Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -10,23 +10,27 @@ import { simulateProjectTime } from "@/actions/simulate-time";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { ProjectWithServers } from "@/lib/db/schema";
-import { cn } from "@/lib/utils";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-function timeString(d: Date) {
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 export function SimulateTime({ project }: { project: ProjectWithServers }) {
   const t = useTranslations("simulateTime");
@@ -34,21 +38,23 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
   const locale = useLocale();
   const dateFnsLocale = locale === "id" ? idLocale : undefined;
   const dialog = useDialog();
-  const [date, setDate] = React.useState<Date>(() => new Date());
-  const [time, setTime] = React.useState<string>(() => timeString(new Date()));
   const [open, setOpen] = React.useState(false);
+  const [date, setDate] = React.useState<Date | undefined>(() => new Date());
+  const [hour, setHour] = React.useState<number>(() => new Date().getHours());
+  const [minute, setMinute] = React.useState<number>(() =>
+    new Date().getMinutes()
+  );
   const [submitting, setSubmitting] = React.useState(false);
 
   const isLegacy = !project.backendSimulateTimeApiUrl?.trim();
 
   const combined = React.useMemo(() => {
-    const [h, m, s] = time.split(":").map((v) => parseInt(v, 10) || 0);
-    const next = new Date(date);
-    next.setHours(h, m, s, 0);
+    const next = new Date(date ?? new Date());
+    next.setHours(hour, minute, 0, 0);
     return next;
-  }, [date, time]);
+  }, [date, hour, minute]);
 
-  const displayLabel = format(combined, "PPP HH:mm:ss", {
+  const displayLabel = format(combined, "PPP HH:mm", {
     locale: dateFnsLocale,
   });
 
@@ -82,54 +88,107 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <Label>{t("dateTimeLabel")}</Label>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "flex-1 justify-start font-normal",
-                !date && "text-muted-foreground"
-              )}
+    <div className="flex flex-col gap-4">
+      <FieldGroup className="flex-row">
+        <Field>
+          <FieldLabel htmlFor="simulate-time-date">{t("dateLabel")}</FieldLabel>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                id="simulate-time-date"
+                className="w-40 justify-between font-normal"
+              >
+                {date
+                  ? format(date, "PPP", { locale: dateFnsLocale })
+                  : t("selectDate")}
+                <ChevronDownIcon />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-auto overflow-hidden p-0"
+              align="start"
             >
-              <CalendarIcon className="size-4" />
-              {displayLabel}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-0">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={(d) => {
-                if (d) setDate(d);
-              }}
-              locale={dateFnsLocale}
-              autoFocus
-            />
-            <div className="border-t p-3 flex items-center gap-2">
-              <Clock className="size-4 text-muted-foreground" />
-              <Input
-                type="time"
-                step={1}
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="flex-1"
+              <Calendar
+                mode="single"
+                selected={date}
+                captionLayout="dropdown"
+                defaultMonth={date}
+                locale={dateFnsLocale}
+                onSelect={(d) => {
+                  setDate(d);
+                  setOpen(false);
+                }}
               />
-            </div>
-          </PopoverContent>
-        </Popover>
-        <Button
-          onClick={onSubmit}
-          disabled={submitting}
-          variant={isLegacy ? "destructive" : "default"}
-          className="shrink-0"
-        >
-          <Clock className="size-4" />
-          {submitting ? t("submitting") : t("submit")}
-        </Button>
-      </div>
+            </PopoverContent>
+          </Popover>
+        </Field>
+        <Field className="w-fit">
+          <FieldLabel htmlFor="simulate-time-hour">{t("timeLabel")}</FieldLabel>
+          <div className="flex items-center gap-1">
+            <Select
+              value={String(hour)}
+              onValueChange={(v) => setHour(Number(v))}
+            >
+              <SelectTrigger
+                id="simulate-time-hour"
+                aria-label={t("hourLabel")}
+                className="w-[4.5rem] tabular-nums"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {HOURS.map((h) => (
+                  <SelectItem
+                    key={h}
+                    value={String(h)}
+                    className="tabular-nums"
+                  >
+                    {pad(h)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span
+              aria-hidden="true"
+              className="text-muted-foreground select-none"
+            >
+              :
+            </span>
+            <Select
+              value={String(minute)}
+              onValueChange={(v) => setMinute(Number(v))}
+            >
+              <SelectTrigger
+                aria-label={t("minuteLabel")}
+                className="w-[4.5rem] tabular-nums"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {MINUTES.map((m) => (
+                  <SelectItem
+                    key={m}
+                    value={String(m)}
+                    className="tabular-nums"
+                  >
+                    {pad(m)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Field>
+      </FieldGroup>
+      <Button
+        onClick={onSubmit}
+        disabled={submitting}
+        variant={isLegacy ? "destructive" : "default"}
+        className="self-start"
+      >
+        <Clock className="size-4" />
+        {submitting ? t("submitting") : t("submit")}
+      </Button>
     </div>
   );
 }
