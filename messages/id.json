@@ -379,6 +379,11 @@
     "fullNamePlaceholder": "Nama lengkap",
     "email": "Email",
     "emailPlaceholder": "user@example.com",
+    "roleLabel": "Peran",
+    "role": {
+      "admin": "Admin",
+      "member": "Anggota"
+    },
     "inviteSubmit": "Undang",
     "inviteSubmitting": "Mengirim…",
     "pendingTitle": "Undangan tertunda",

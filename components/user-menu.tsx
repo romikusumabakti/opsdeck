@@ -45,7 +45,13 @@ const themeOptions = [
   { value: "system", icon: Monitor },
 ] as const;
 
-export function UserMenu({ user }: { user: UserSummary }) {
+export function UserMenu({
+  user,
+  isAdmin,
+}: {
+  user: UserSummary;
+  isAdmin: boolean;
+}) {
   const t = useTranslations("userMenu");
   const tTheme = useTranslations("themeSwitcher");
   const tLocale = useTranslations("localeSwitcher");
@@ -106,14 +112,18 @@ export function UserMenu({ user }: { user: UserSummary }) {
           <UserRound />
           {t("account")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/users")}>
-          <Users />
-          {t("users")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/servers")}>
-          <Server />
-          {t("servers")}
-        </DropdownMenuItem>
+        {isAdmin && (
+          <>
+            <DropdownMenuItem onClick={() => router.push("/users")}>
+              <Users />
+              {t("users")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/servers")}>
+              <Server />
+              {t("servers")}
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

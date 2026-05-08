@@ -33,7 +33,13 @@ import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
 import type { Project } from "@/lib/db/schema";
 
-export function CommandPalette({ projects }: { projects: Project[] }) {
+export function CommandPalette({
+  projects,
+  isAdmin,
+}: {
+  projects: Project[];
+  isAdmin: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const locale = useLocale();
@@ -121,20 +127,24 @@ export function CommandPalette({ projects }: { projects: Project[] }) {
               <Folder />
               {tNav("dashboard")}
             </CommandItem>
-            <CommandItem
-              value="servers"
-              onSelect={() => run(() => router.push("/servers"))}
-            >
-              <Server />
-              {tUserMenu("servers")}
-            </CommandItem>
-            <CommandItem
-              value="users"
-              onSelect={() => run(() => router.push("/users"))}
-            >
-              <Users />
-              {tUserMenu("users")}
-            </CommandItem>
+            {isAdmin && (
+              <>
+                <CommandItem
+                  value="servers"
+                  onSelect={() => run(() => router.push("/servers"))}
+                >
+                  <Server />
+                  {tUserMenu("servers")}
+                </CommandItem>
+                <CommandItem
+                  value="users"
+                  onSelect={() => run(() => router.push("/users"))}
+                >
+                  <Users />
+                  {tUserMenu("users")}
+                </CommandItem>
+              </>
+            )}
           </CommandGroup>
 
           {projects.length > 0 && (
@@ -151,13 +161,15 @@ export function CommandPalette({ projects }: { projects: Project[] }) {
                     <span className="truncate">{p.name}</span>
                   </CommandItem>
                 ))}
-                <CommandItem
-                  value="new project create"
-                  onSelect={() => run(() => router.push("/projects/new"))}
-                >
-                  <Plus />
-                  {tHeader("createProject")}
-                </CommandItem>
+                {isAdmin && (
+                  <CommandItem
+                    value="new project create"
+                    onSelect={() => run(() => router.push("/projects/new"))}
+                  >
+                    <Plus />
+                    {tHeader("createProject")}
+                  </CommandItem>
+                )}
               </CommandGroup>
             </>
           )}

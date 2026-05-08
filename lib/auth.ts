@@ -1,11 +1,16 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { admin } from "better-auth/plugins/admin";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "./db";
 import { accounts, sessions, users, verifications } from "./db/schema";
 
 export const ALLOWED_EMAIL_DOMAIN = "example.com";
+
+export const ROLE_ADMIN = "admin";
+export const ROLE_MEMBER = "member";
+export type UserRole = typeof ROLE_ADMIN | typeof ROLE_MEMBER;
 
 export function isAllowedEmail(email: string): boolean {
   return email.toLowerCase().trim().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
@@ -45,7 +50,13 @@ export const auth = betterAuth({
       generateId: () => uuidv7(),
     },
   },
-  plugins: [nextCookies()],
+  plugins: [
+    admin({
+      defaultRole: ROLE_MEMBER,
+      adminRoles: [ROLE_ADMIN],
+    }),
+    nextCookies(),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;
