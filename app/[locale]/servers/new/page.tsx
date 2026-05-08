@@ -8,8 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { redirect } from "@/i18n/navigation";
-import { getServerSession } from "@/lib/auth-session";
+import { requireAdmin } from "@/lib/auth-session";
 
 export default async function NewServerPage({
   params,
@@ -19,8 +18,7 @@ export default async function NewServerPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const session = await getServerSession();
-  if (!session) await redirect("/sign-in?redirect=/servers/new");
+  await requireAdmin();
 
   const t = await getTranslations("newServer");
 

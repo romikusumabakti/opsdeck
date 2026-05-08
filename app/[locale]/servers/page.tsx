@@ -2,8 +2,8 @@ import { Plus } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServers } from "@/actions/servers";
 import { Button } from "@/components/ui/button";
-import { Link, redirect } from "@/i18n/navigation";
-import { getServerSession } from "@/lib/auth-session";
+import { Link } from "@/i18n/navigation";
+import { requireAdmin } from "@/lib/auth-session";
 import { ServersClient } from "./servers-client";
 
 export default async function ServersPage({
@@ -14,8 +14,7 @@ export default async function ServersPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const session = await getServerSession();
-  if (!session) await redirect("/sign-in?redirect=/servers");
+  await requireAdmin();
 
   const servers = await getServers();
   const t = await getTranslations("servers");

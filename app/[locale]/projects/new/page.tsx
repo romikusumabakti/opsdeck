@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { requireAdmin } from "@/lib/auth-session";
 
 export default async function NewProjectPage({
   params,
@@ -17,6 +18,9 @@ export default async function NewProjectPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+
+  await requireAdmin();
+
   const t = await getTranslations("newProject");
   const servers = await getServers();
 

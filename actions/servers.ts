@@ -3,7 +3,7 @@
 import { eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { requireSession } from "@/lib/auth-session";
+import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
   type NewServer,
@@ -72,7 +72,7 @@ export async function getServerById(id: string): Promise<Server | undefined> {
 }
 
 export async function createServer(data: NewServer): Promise<CreateResponse> {
-  await requireSession();
+  await requireAdmin();
   const t = await getTranslations("actionErrors");
   try {
     const [created] = await db.insert(servers).values(data).returning();
@@ -89,7 +89,7 @@ export async function updateServer(
   id: string,
   data: Partial<NewServer>
 ): Promise<SimpleResponse> {
-  await requireSession();
+  await requireAdmin();
   const t = await getTranslations("actionErrors");
   try {
     const [updated] = await db
@@ -121,7 +121,7 @@ export async function testServerConnection(input: {
   password?: string;
   serverId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireSession();
+  await requireAdmin();
   const t = await getTranslations("actionErrors");
 
   const host = input.host.trim();
@@ -150,7 +150,7 @@ export async function testServerConnection(input: {
 }
 
 export async function deleteServer(id: string): Promise<SimpleResponse> {
-  await requireSession();
+  await requireAdmin();
   const t = await getTranslations("actionErrors");
   try {
     await db.delete(servers).where(eq(servers.id, id));

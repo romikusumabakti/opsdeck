@@ -6,12 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
+import { getServerSession, isAdmin } from "@/lib/auth-session";
 
 export default async function Home() {
-  const projects = await getProjects();
+  const [projects, session] = await Promise.all([
+    getProjects(),
+    getServerSession(),
+  ]);
+  const admin = session ? isAdmin(session) : false;
 
   if (projects.length === 0) {
-    return <ProjectsEmpty />;
+    return <ProjectsEmpty canCreate={admin} />;
   }
 
   const t = await getTranslations("home");
@@ -26,12 +31,14 @@ export default async function Home() {
           </h1>
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
-        <Button asChild>
-          <Link href="/projects/new">
-            <Plus className="size-4" />
-            {t("create")}
-          </Link>
-        </Button>
+        {admin && (
+          <Button asChild>
+            <Link href="/projects/new">
+              <Plus className="size-4" />
+              {t("create")}
+            </Link>
+          </Button>
+        )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {projects.map((project) => (

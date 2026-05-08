@@ -22,7 +22,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { UserMenu } from "@/components/user-menu";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
-import { getServerSession } from "@/lib/auth-session";
+import { getServerSession, isAdmin } from "@/lib/auth-session";
 import "../globals.css";
 
 const geistSans = Geist({
@@ -67,6 +67,7 @@ export default async function LocaleLayout({
 
   const session = await getServerSession();
   const projects = session ? await getProjects() : [];
+  const admin = session ? isAdmin(session) : false;
   const t = await getTranslations({ locale, namespace: "app" });
   const messages = await getMessages({ locale });
 
@@ -102,8 +103,8 @@ export default async function LocaleLayout({
                       <ServerTime />
                       <Separator orientation="vertical" className="!h-5" />
                     </div>
-                    <CommandPalette projects={projects} />
-                    <UserMenu user={session.user} />
+                    <CommandPalette projects={projects} isAdmin={admin} />
+                    <UserMenu user={session.user} isAdmin={admin} />
                   </div>
                 </header>
               ) : (

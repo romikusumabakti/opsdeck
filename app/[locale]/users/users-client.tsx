@@ -43,6 +43,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/auth";
+import { cn } from "@/lib/utils";
+
+const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
 
 type UserRow = {
   id: string;
@@ -50,6 +54,7 @@ type UserRow = {
   email: string;
   emailVerified: boolean;
   image: string | null;
+  role: string;
   createdAt: Date;
 };
 
@@ -57,6 +62,7 @@ type InvitationRow = {
   id: string;
   email: string;
   name: string;
+  role: string;
   expiresAt: Date;
   createdAt: Date;
 };
@@ -88,11 +94,12 @@ export function UsersClient({
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
     email: z.string().email(tCommon("emailInvalid")),
+    role: z.enum([ROLE_MEMBER, ROLE_ADMIN]),
   });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", email: "" },
+    defaultValues: { name: "", email: "", role: ROLE_MEMBER },
   });
 
   async function onInvite(values: z.infer<typeof schema>) {
@@ -102,7 +109,7 @@ export function UsersClient({
       return;
     }
     toast.success(result.message ?? "");
-    form.reset({ name: "", email: "" });
+    form.reset({ name: "", email: "", role: ROLE_MEMBER });
   }
 
   const onDelete = React.useCallback(
@@ -181,6 +188,7 @@ export function UsersClient({
                       {tCommon("you")}
                     </Badge>
                   )}
+                  <RoleBadge role={user.role} t={t} />
                 </div>
                 <div className="text-sm text-muted-foreground truncate">
                   {user.email}
@@ -239,7 +247,10 @@ export function UsersClient({
                 <Mail className="size-4 text-muted-foreground" />
               </span>
               <div className="min-w-0">
-                <div className="font-medium truncate">{inv.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium truncate">{inv.name}</span>
+                  <RoleBadge role={inv.role} t={t} />
+                </div>
                 <div className="text-sm text-muted-foreground truncate">
                   {inv.email}
                 </div>
@@ -321,6 +332,25 @@ export function UsersClient({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem className="md:w-40">
+                    <FormLabel>{t("roleLabel")}</FormLabel>
+                    <FormControl>
+                      <RoleSelect {...field}>
+                        {ROLE_OPTIONS.map((r) => (
+                          <option key={r} value={r}>
+                            {t(`role.${r}`)}
+                          </option>
+                        ))}
+                      </RoleSelect>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <Button
                 type="submit"
                 disabled={form.formState.isSubmitting}
@@ -376,5 +406,37 @@ export function UsersClient({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function RoleBadge({ role, t }: { role: string; t: (key: string) => string }) {
+  const known = role === ROLE_ADMIN || role === ROLE_MEMBER;
+  const label = known ? t(`role.${role}`) : role;
+  return (
+    <Badge
+      variant={role === ROLE_ADMIN ? "default" : "secondary"}
+      className="text-xs"
+    >
+      {label}
+    </Badge>
+  );
+}
+
+function RoleSelect({
+  className,
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={cn(
+        "border-input bg-transparent dark:bg-input/30 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none",
+        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </select>
   );
 }

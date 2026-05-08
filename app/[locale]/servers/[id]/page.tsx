@@ -12,8 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Link, redirect } from "@/i18n/navigation";
-import { getServerSession } from "@/lib/auth-session";
+import { Link } from "@/i18n/navigation";
+import { requireAdmin } from "@/lib/auth-session";
 
 export default async function EditServerPage({
   params,
@@ -23,8 +23,7 @@ export default async function EditServerPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const session = await getServerSession();
-  if (!session) await redirect("/sign-in?redirect=/servers");
+  await requireAdmin();
 
   const [server, usage] = await Promise.all([
     getServerById(id),
