@@ -39,7 +39,7 @@ export function InvitationEmail({
           </Text>
           <Section style={{ textAlign: "center", margin: "32px 0" }}>
             <Button style={button} href={inviteUrl}>
-              Aktifkan Akun
+              Aktifkan akun
             </Button>
           </Section>
           <Text style={muted}>

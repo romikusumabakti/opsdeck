@@ -5,12 +5,11 @@ import { admin } from "better-auth/plugins/admin";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "./db";
 import { accounts, sessions, users, verifications } from "./db/schema";
+import { ROLE_ADMIN, ROLE_MEMBER } from "./roles";
+
+export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
 
 export const ALLOWED_EMAIL_DOMAIN = "example.com";
-
-export const ROLE_ADMIN = "admin";
-export const ROLE_MEMBER = "member";
-export type UserRole = typeof ROLE_ADMIN | typeof ROLE_MEMBER;
 
 export function isAllowedEmail(email: string): boolean {
   return email.toLowerCase().trim().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);

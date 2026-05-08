@@ -43,7 +43,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/auth";
+import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
