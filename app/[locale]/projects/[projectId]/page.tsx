@@ -8,11 +8,13 @@ import {
   Tag,
 } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Suspense } from "react";
 import { getProjectById } from "@/actions/projects";
 import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Server } from "@/lib/db/schema";
+import { RecentActivity, RecentActivitySkeleton } from "./recent-activity";
 
 export default async function Page({
   params,
@@ -101,6 +103,9 @@ export default async function Page({
           </CardContent>
         </Card>
       </div>
+      <Suspense fallback={<RecentActivitySkeleton />}>
+        <RecentActivity projectId={projectId} />
+      </Suspense>
     </div>
   );
 }

@@ -75,8 +75,14 @@ export const tasks = pgTable("tasks", {
   // initiating user is removed. UI shows "Unknown" when null.
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   description: text("description").notNull(),
+  status: taskStatusEnum("status").notNull().default("started"),
+  // Streaming log appended by Inngest steps via appendTaskOutput. Lines are
+  // separated by `\n`; the SSE endpoint emits the full snapshot on each tick.
+  output: text("output").notNull().default(""),
+  errorMessage: text("error_message"),
   runAt: timestamp("run_at").notNull(),
-  completedAt: timestamp("completed_at").notNull(),
+  // Null while still running. Set once status transitions to success/failed.
+  completedAt: timestamp("completed_at"),
 });
 
 // =========================

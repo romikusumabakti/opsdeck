@@ -6,6 +6,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { restoreDatabaseBackup } from "@/actions/backups";
 import { useDialog } from "@/components/dialog-provider";
+import { LiveTaskPanel } from "@/components/live-task-panel";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -36,25 +37,41 @@ export function RestoreDatabase({
   const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
+  const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
+  const [submitting, startTransition] = React.useTransition();
 
   const backup = backups.find((b) => b.name === value);
 
-  async function onRestore() {
+  function onRestore() {
     if (!backup) return;
-    const ok = await dialog.confirm({
-      title: t("confirmTitle"),
-      description: t("confirmDescription", {
-        filename: backup.name,
-        dbName: project.dbName,
-      }),
-      confirmText: t("restore"),
-      cancelText: tCommon("cancel"),
-    });
-    if (!ok) return;
-    await restoreDatabaseBackup({ ...project, filename: backup.name });
-    toast.success(t("successTitle"), {
-      description: t("successDescription", { dbName: project.dbName }),
-    });
+    void (async () => {
+      const ok = await dialog.confirm({
+        title: t("confirmTitle"),
+        description: t("confirmDescription", {
+          filename: backup.name,
+          dbName: project.dbName,
+        }),
+        confirmText: t("restore"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        try {
+          const { taskId } = await restoreDatabaseBackup({
+            ...project,
+            filename: backup.name,
+          });
+          setActiveTaskId(taskId);
+          toast.success(t("successTitle"), {
+            description: t("successDescription", { dbName: project.dbName }),
+          });
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : tCommon("errorGeneric")
+          );
+        }
+      });
+    })();
   }
 
   return (
@@ -118,12 +135,12 @@ export function RestoreDatabase({
         </Popover>
         <Button
           variant="destructive"
-          disabled={!backup}
+          disabled={!backup || submitting}
           onClick={onRestore}
           className="shrink-0"
         >
           <RotateCcw className="size-4" />
-          {t("restore")}
+          {submitting ? t("queuing") : t("restore")}
         </Button>
       </div>
       {backup &&
@@ -138,6 +155,13 @@ export function RestoreDatabase({
             </p>
           );
         })()}
+      {activeTaskId && (
+        <LiveTaskPanel
+          key={activeTaskId}
+          taskId={activeTaskId}
+          onDismiss={() => setActiveTaskId(null)}
+        />
+      )}
     </div>
   );
 }
