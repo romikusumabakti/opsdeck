@@ -26,3 +26,34 @@ export async function getProjectTasks(
     return [];
   }
 }
+
+export type TaskSnapshot = Pick<
+  Task,
+  | "id"
+  | "projectId"
+  | "description"
+  | "status"
+  | "output"
+  | "errorMessage"
+  | "runAt"
+  | "completedAt"
+>;
+
+export async function getTaskSnapshot(
+  taskId: string
+): Promise<TaskSnapshot | null> {
+  const row = await db.query.tasks.findFirst({
+    where: { id: taskId },
+    columns: {
+      id: true,
+      projectId: true,
+      description: true,
+      status: true,
+      output: true,
+      errorMessage: true,
+      runAt: true,
+      completedAt: true,
+    },
+  });
+  return row ?? null;
+}

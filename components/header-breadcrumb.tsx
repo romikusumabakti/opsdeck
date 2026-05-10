@@ -18,7 +18,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
+import { Link, usePathname } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
@@ -95,7 +96,10 @@ function ProjectSwitcher({
   projects: Project[];
   activeProject: Project;
 }) {
-  const router = useRouter();
+  // View Transitions API gives the project switch a perceptible crossfade so
+  // it doesn't look like an instant context wipe; helps locate which content
+  // changed when many sections re-render at once.
+  const router = useViewTransitionRouter();
   const tHeader = useTranslations("header");
   const [open, setOpen] = React.useState(false);
 

@@ -1,6 +1,6 @@
-import { db } from "@/lib/db";
-import { type ProjectWithServers, tasks } from "@/lib/db/schema";
+import type { ProjectWithServers } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { appendTaskOutput, completeTask, failTask } from "@/lib/task-progress";
 import { inngest } from "./client";
 
 export const syncJenkinsData = inngest.createFunction(
@@ -11,11 +11,40 @@ export const syncJenkinsData = inngest.createFunction(
   }
 );
 
+// Inngest's step.run signature is generic and Jsonifies its return type, which
+// breaks a strict generic wrapper. Use a loose shape here and cast back at the
+// call sites — runtime values are unchanged, the Jsonify is purely for the
+// memoization layer.
+type StepShape = {
+  run: (id: string, fn: () => Promise<unknown>) => Promise<unknown>;
+};
+
+// Wraps a step so its label is appended to task output before/after running,
+// and any thrown error gets logged then surfaced as a task failure.
+async function tracked<T>(
+  taskId: string,
+  step: StepShape,
+  id: string,
+  label: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  await step.run(`${id}-log-start`, () => appendTaskOutput(taskId, label));
+  try {
+    return (await step.run(id, fn)) as T;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await step.run(`${id}-log-fail`, () =>
+      appendTaskOutput(taskId, `✗ ${label} — ${message}`)
+    );
+    throw err;
+  }
+}
+
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
-    const { userId, ...project } = event.data as ProjectWithServers & {
-      userId: string;
+    const { taskId, ...project } = event.data as ProjectWithServers & {
+      taskId: string;
     };
 
     const credentials = {
@@ -24,39 +53,45 @@ export const createDatabaseBackup = inngest.createFunction(
       password: project.dbServer.password,
     };
 
-    // Memoize start time so retries don't shift runAt forward.
-    const runAt = await step.run("capture-start-time", () =>
-      new Date().toISOString()
-    );
-
-    await step.run("ensure-backup-dir", async () => {
-      await executeRemoteCommand(
-        credentials,
-        `mkdir -p ${project.dbBackupPath}`
+    try {
+      await tracked(
+        taskId,
+        step,
+        "ensure-backup-dir",
+        "Ensuring backup directory exists",
+        async () => {
+          await executeRemoteCommand(
+            credentials,
+            `mkdir -p ${project.dbBackupPath}`
+          );
+        }
       );
-    });
 
-    // pg_dump piped through gzip to save space and IO. Filename is generated
-    // inside the step so it's stable across retries (memoized by Inngest).
-    const filename = await step.run("run-pg-dump", async () => {
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      const fname = `${project.dbName}_${ts}.sql.gz`;
-      const cmd = `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${project.dbBackupPath}/${fname}`;
-      await executeRemoteCommand(credentials, cmd);
-      return fname;
-    });
+      const filename = await tracked(
+        taskId,
+        step,
+        "run-pg-dump",
+        `Running pg_dump for ${project.dbName}`,
+        async () => {
+          const ts = new Date().toISOString().replace(/[:.]/g, "-");
+          const fname = `${project.dbName}_${ts}.sql.gz`;
+          const cmd = `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${project.dbBackupPath}/${fname}`;
+          await executeRemoteCommand(credentials, cmd);
+          return fname;
+        }
+      );
 
-    await step.run("record-task", async () => {
-      await db.insert(tasks).values({
-        projectId: project.id,
-        userId,
-        description: `Backup database (${filename})`,
-        runAt: new Date(runAt),
-        completedAt: new Date(),
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, `✓ Backup file created: ${filename}`);
+        await completeTask(taskId);
       });
-    });
 
-    return { success: true, filename };
+      return { success: true, filename };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
   }
 );
 
@@ -66,10 +101,10 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
     triggers: { event: "project/simulate-time.legacy" },
   },
   async ({ event, step }) => {
-    const { project, simulatedAt, userId } = event.data as {
+    const { project, simulatedAt, taskId } = event.data as {
       project: ProjectWithServers;
       simulatedAt: string;
-      userId: string;
+      taskId: string;
     };
 
     const credentials = {
@@ -88,44 +123,59 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
       d.getUTCSeconds()
     )}`;
 
-    const runAt = await step.run("capture-start-time", () =>
-      new Date().toISOString()
-    );
-
-    await step.run("disable-ntp", async () => {
-      // Stops the time daemon from reverting our manual override mid-test.
-      await executeRemoteCommand(
-        credentials,
-        `echo '${credentials.password}' | sudo -S timedatectl set-ntp false`
+    try {
+      await tracked(
+        taskId,
+        step,
+        "disable-ntp",
+        "Disabling NTP on backend server",
+        async () => {
+          // Stops the time daemon from reverting our manual override mid-test.
+          await executeRemoteCommand(
+            credentials,
+            `echo '${credentials.password}' | sudo -S timedatectl set-ntp false`
+          );
+        }
       );
-    });
 
-    await step.run("set-system-time", async () => {
-      await executeRemoteCommand(
-        credentials,
-        `echo '${credentials.password}' | sudo -S date -u -s "${dateArg}"`
+      await tracked(
+        taskId,
+        step,
+        "set-system-time",
+        `Setting system time to ${dateArg} UTC`,
+        async () => {
+          await executeRemoteCommand(
+            credentials,
+            `echo '${credentials.password}' | sudo -S date -u -s "${dateArg}"`
+          );
+        }
       );
-    });
 
-    await step.run("restart-backend", async () => {
-      const cmd =
-        project.backendServiceType === "docker"
-          ? `docker restart ${project.backendServiceName}`
-          : `echo '${credentials.password}' | sudo -S systemctl restart ${project.backendServiceName}`;
-      await executeRemoteCommand(credentials, cmd);
-    });
+      await tracked(
+        taskId,
+        step,
+        "restart-backend",
+        `Restarting backend service ${project.backendServiceName}`,
+        async () => {
+          const cmd =
+            project.backendServiceType === "docker"
+              ? `docker restart ${project.backendServiceName}`
+              : `echo '${credentials.password}' | sudo -S systemctl restart ${project.backendServiceName}`;
+          await executeRemoteCommand(credentials, cmd);
+        }
+      );
 
-    await step.run("record-task", async () => {
-      await db.insert(tasks).values({
-        projectId: project.id,
-        userId,
-        description: `Simulate time to ${dateArg} (legacy)`,
-        runAt: new Date(runAt),
-        completedAt: new Date(),
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, "✓ Simulate-time complete");
+        await completeTask(taskId);
       });
-    });
 
-    return { success: true, simulatedAt };
+      return { success: true, simulatedAt };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
   }
 );
 
@@ -134,9 +184,9 @@ export const restoreDatabaseBackup = inngest.createFunction(
   async ({ event, step }) => {
     const data = event.data as ProjectWithServers & {
       filename: string;
-      userId: string;
+      taskId: string;
     };
-    const { filename, userId } = data;
+    const { filename, taskId } = data;
     const credentials = {
       host: data.dbServer.host,
       username: data.dbServer.username,
@@ -147,38 +197,41 @@ export const restoreDatabaseBackup = inngest.createFunction(
     const user = process.env.DB_USER;
     const dbName = process.env.DB_NAME;
 
-    if (!filename) throw new Error("Filename is required");
+    try {
+      if (!filename) throw new Error("Filename is required");
 
-    const runAt = await step.run("capture-start-time", () =>
-      new Date().toISOString()
-    );
+      await tracked(
+        taskId,
+        step,
+        "kill-connections",
+        `Terminating active connections to ${dbName}`,
+        async () => {
+          const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}' AND pid <> pg_backend_pid();" | docker exec -i ${container} psql -U ${user}`;
+          await executeRemoteCommand(credentials, killCmd);
+        }
+      );
 
-    // 1. Terminate existing connections
-    // This SQL snippet kills all connections to the specific DB except our own runner
-    await step.run("kill-connections", async () => {
-      const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}' AND pid <> pg_backend_pid();" | docker exec -i ${container} psql -U ${user}`;
-      await executeRemoteCommand(credentials, killCmd);
-    });
+      await tracked(
+        taskId,
+        step,
+        "perform-restore",
+        `Restoring from ${filename}`,
+        async () => {
+          const cmd = `gunzip -c ${path}/${filename} | docker exec -i ${container} psql -U ${user} -d ${dbName}`;
+          await executeRemoteCommand(credentials, cmd);
+        }
+      );
 
-    // 2. Drop and Recreate (Optional but recommended for clean slate)
-    // Or simpler: just run psql with --clean --if-exists flags in pg_dump options
-    // Here we assume standard restore over existing schema
-    await step.run("perform-restore", async () => {
-      // gunzip the file on host and pipe into docker psql
-      const cmd = `gunzip -c ${path}/${filename} | docker exec -i ${container} psql -U ${user} -d ${dbName}`;
-      await executeRemoteCommand(credentials, cmd);
-    });
-
-    await step.run("record-task", async () => {
-      await db.insert(tasks).values({
-        projectId: data.id,
-        userId,
-        description: `Restore database from ${filename}`,
-        runAt: new Date(runAt),
-        completedAt: new Date(),
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, `✓ Restore complete (${filename})`);
+        await completeTask(taskId);
       });
-    });
 
-    return { success: true, restored: filename };
+      return { success: true, restored: filename };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
   }
 );

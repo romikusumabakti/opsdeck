@@ -2,9 +2,11 @@
 
 import { Database } from "lucide-react";
 import { useTranslations } from "next-intl";
+import * as React from "react";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
 import { useDialog } from "@/components/dialog-provider";
+import { LiveTaskPanel } from "@/components/live-task-panel";
 import { Button } from "@/components/ui/button";
 import type { ProjectWithServers } from "@/lib/db/schema";
 
@@ -12,25 +14,48 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
+  const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
+  const [submitting, startTransition] = React.useTransition();
 
-  return (
-    <Button
-      onClick={async () => {
-        const ok = await dialog.confirm({
-          title: t("confirmTitle"),
-          description: t("confirmDescription", { dbName: project.dbName }),
-          confirmText: t("confirmButton"),
-          cancelText: tCommon("cancel"),
-        });
-        if (!ok) return;
-        await createDatabaseBackup(project);
+  async function onClick() {
+    const ok = await dialog.confirm({
+      title: t("confirmTitle"),
+      description: t("confirmDescription", { dbName: project.dbName }),
+      confirmText: t("confirmButton"),
+      cancelText: tCommon("cancel"),
+    });
+    if (!ok) return;
+
+    startTransition(async () => {
+      try {
+        const { taskId } = await createDatabaseBackup(project);
+        setActiveTaskId(taskId);
         toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: project.dbName }),
         });
-      }}
-    >
-      <Database className="size-4" />
-      {t("button")}
-    </Button>
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : tCommon("errorGeneric")
+        );
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4 w-full">
+      <div className="flex justify-end">
+        <Button onClick={onClick} disabled={submitting}>
+          <Database className="size-4" />
+          {submitting ? t("queuing") : t("button")}
+        </Button>
+      </div>
+      {activeTaskId && (
+        <LiveTaskPanel
+          key={activeTaskId}
+          taskId={activeTaskId}
+          onDismiss={() => setActiveTaskId(null)}
+        />
+      )}
+    </div>
   );
 }

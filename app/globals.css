@@ -123,3 +123,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* View Transitions: smooth crossfade between project states. The default
+   browser timing (300ms) is too slow for utility navigation — 180ms keeps
+   it perceptible without slowing the user down. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 180ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

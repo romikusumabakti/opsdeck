@@ -1,10 +1,17 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, History as HistoryIcon } from "lucide-react";
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  CircleAlert,
+  History as HistoryIcon,
+  Loader2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import type { TaskWithUser } from "@/actions/tasks";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,8 +28,24 @@ function formatDuration(ms: number): string {
 export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
   const t = useTranslations("history");
 
+  // Tick every second so the duration column for in-progress tasks updates
+  // live. Cheap because filteredCount is small and only re-renders cells.
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => {
+    if (!tasks.some((task) => task.status === "started")) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [tasks]);
+
   const columns = React.useMemo<ColumnDef<TaskWithUser>[]>(
     () => [
+      {
+        id: "status",
+        accessorKey: "status",
+        header: t("colStatus"),
+        cell: ({ row }) => <StatusBadge status={row.original.status} t={t} />,
+        meta: { headClassName: "w-32" },
+      },
       {
         accessorKey: "description",
         header: t("colDescription"),
@@ -71,11 +94,14 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
         header: t("colDuration"),
         cell: ({ row }) => {
           const task = row.original;
-          const ms =
-            new Date(task.completedAt).getTime() -
-            new Date(task.runAt).getTime();
+          // Tasks still running have no completedAt; show live elapsed time
+          // so the user sees the operation hasn't stalled.
+          const endMs = task.completedAt
+            ? new Date(task.completedAt).getTime()
+            : Date.now();
+          const ms = endMs - new Date(task.runAt).getTime();
           return (
-            <span className="font-mono text-xs text-muted-foreground">
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">
               {formatDuration(ms)}
             </span>
           );
@@ -104,5 +130,36 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
       filterColumn="description"
       filterPlaceholder={t("searchPlaceholder")}
     />
+  );
+}
+
+function StatusBadge({
+  status,
+  t,
+}: {
+  status: TaskWithUser["status"];
+  t: (key: string) => string;
+}) {
+  if (status === "success") {
+    return (
+      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 border-transparent gap-1">
+        <CheckCircle2 className="size-3" />
+        {t("statusSuccess")}
+      </Badge>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <CircleAlert className="size-3" />
+        {t("statusFailed")}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <Loader2 className="size-3 animate-spin" />
+      {t("statusRunning")}
+    </Badge>
   );
 }
