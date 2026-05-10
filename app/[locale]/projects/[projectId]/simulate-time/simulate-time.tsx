@@ -8,6 +8,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { simulateProjectTime } from "@/actions/simulate-time";
 import { useDialog } from "@/components/dialog-provider";
+import { LiveTaskPanel } from "@/components/live-task-panel";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -45,6 +46,7 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
     new Date().getMinutes()
   );
   const [submitting, setSubmitting] = React.useState(false);
+  const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
 
   const isLegacy = !project.backendSimulateTimeApiUrl?.trim();
 
@@ -75,6 +77,9 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
+      }
+      if (result.mode === "legacy") {
+        setActiveTaskId(result.taskId);
       }
       toast.success(t("successTitle"), {
         description:
@@ -189,6 +194,13 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
         <Clock className="size-4" />
         {submitting ? t("submitting") : t("submit")}
       </Button>
+      {activeTaskId && (
+        <LiveTaskPanel
+          key={activeTaskId}
+          taskId={activeTaskId}
+          onDismiss={() => setActiveTaskId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { useTransition } from "react";
+import { useOptimistic, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -91,6 +91,21 @@ export function UsersClient({
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
 
+  // Optimistic state for the pending invitations list. When a new invite is
+  // sent, we render a placeholder row immediately so the user sees the result
+  // of their action before the server round-trip + revalidatePath completes.
+  // React rolls this back automatically when the transition resolves.
+  type OptimisticAction =
+    | { type: "add"; invitation: InvitationRow }
+    | { type: "remove"; id: string };
+  const [optimisticInvitations, applyOptimistic] = useOptimistic<
+    InvitationRow[],
+    OptimisticAction
+  >(invitations, (state, action) => {
+    if (action.type === "add") return [...state, action.invitation];
+    return state.filter((inv) => inv.id !== action.id);
+  });
+
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
     email: z.string().email(tCommon("emailInvalid")),
@@ -102,14 +117,27 @@ export function UsersClient({
     defaultValues: { name: "", email: "", role: ROLE_MEMBER },
   });
 
-  async function onInvite(values: z.infer<typeof schema>) {
-    const result = await inviteUser(values);
-    if (!result.success) {
-      toast.error(result.message);
-      return;
-    }
-    toast.success(result.message ?? "");
-    form.reset({ name: "", email: "", role: ROLE_MEMBER });
+  function onInvite(values: z.infer<typeof schema>) {
+    startTransition(async () => {
+      applyOptimistic({
+        type: "add",
+        invitation: {
+          id: `optimistic-${Date.now()}`,
+          name: values.name,
+          email: values.email,
+          role: values.role,
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000),
+          createdAt: new Date(),
+        },
+      });
+      const result = await inviteUser(values);
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message ?? "");
+      form.reset({ name: "", email: "", role: ROLE_MEMBER });
+    });
   }
 
   const onDelete = React.useCallback(
@@ -146,6 +174,7 @@ export function UsersClient({
       });
       if (!ok) return;
       startTransition(async () => {
+        applyOptimistic({ type: "remove", id: inv.id });
         const result = await revokeInvitation(inv.id);
         if (!result.success) {
           toast.error(result.message ?? "");
@@ -154,7 +183,7 @@ export function UsersClient({
         toast.success(result.message ?? t("revokedSuccess"));
       });
     },
-    [dialog, t, tCommon]
+    [dialog, t, tCommon, applyOptimistic]
   );
 
   const userColumns = React.useMemo<ColumnDef<UserRow>[]>(
@@ -366,13 +395,13 @@ export function UsersClient({
         </CardContent>
       </Card>
 
-      {invitations.length > 0 && (
+      {optimisticInvitations.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>
               {t("pendingTitle")}{" "}
               <span className="text-muted-foreground font-normal">
-                ({invitations.length})
+                ({optimisticInvitations.length})
               </span>
             </CardTitle>
             <CardDescription>{t("pendingDescription")}</CardDescription>
@@ -380,7 +409,7 @@ export function UsersClient({
           <CardContent>
             <DataTable
               columns={invitationColumns}
-              data={invitations}
+              data={optimisticInvitations}
               initialPageSize={5}
             />
           </CardContent>

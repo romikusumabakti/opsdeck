@@ -4,6 +4,7 @@ import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { createTask } from "@/lib/task-progress";
 
 export async function getBackupList(project: ProjectWithServers) {
   try {
@@ -40,20 +41,34 @@ export async function getBackupList(project: ProjectWithServers) {
   }
 }
 
-export async function createDatabaseBackup(project: ProjectWithServers) {
+export async function createDatabaseBackup(
+  project: ProjectWithServers
+): Promise<{ taskId: string }> {
   const session = await requireSession();
+  const taskId = await createTask({
+    projectId: project.id,
+    userId: session.user.id,
+    description: `Backup database (${project.dbName})`,
+  });
   await inngest.send({
     name: "db/backup.requested",
-    data: { ...project, userId: session.user.id },
+    data: { ...project, taskId },
   });
+  return { taskId };
 }
 
 export async function restoreDatabaseBackup(
   project: ProjectWithServers & { filename: string }
-) {
+): Promise<{ taskId: string }> {
   const session = await requireSession();
+  const taskId = await createTask({
+    projectId: project.id,
+    userId: session.user.id,
+    description: `Restore database from ${project.filename}`,
+  });
   await inngest.send({
     name: "db/restore.requested",
-    data: { ...project, userId: session.user.id },
+    data: { ...project, taskId },
   });
+  return { taskId };
 }

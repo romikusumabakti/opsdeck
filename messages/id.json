@@ -115,6 +115,14 @@
     "dbTypes": {
       "postgres": "PostgreSQL",
       "mssql": "Microsoft SQL Server"
+    },
+    "recentActivity": {
+      "title": "Aktivitas terbaru",
+      "viewAll": "Lihat semua",
+      "empty": "Belum ada aktivitas. Jalankan backup, restore, atau simulasi waktu untuk melihatnya di sini.",
+      "statusRunning": "Berjalan",
+      "statusSuccess": "Sukses",
+      "statusFailed": "Gagal"
     }
   },
   "backupDb": {
@@ -122,8 +130,9 @@
     "subtitle": "Buat snapshot backup baru untuk {dbName}.",
     "targetTitle": "Target backup",
     "targetDescription": "Database di bawah akan di-dump dan disimpan di path backup yang dikonfigurasi.",
-    "infoNote": "Backup di-queue dan dijalankan di background. Cek halaman Riwayat untuk memantau eksekusi.",
+    "infoNote": "Backup berjalan di background — progres tampil di bawah. Riwayat sebelumnya tersedia di halaman Riwayat.",
     "button": "Jalankan backup sekarang",
+    "queuing": "Mengantrikan…",
     "confirmTitle": "Backup database",
     "confirmDescription": "Yakin ingin membuat backup untuk database {dbName}?",
     "confirmButton": "Backup",
@@ -141,6 +150,7 @@
     "searchBackup": "Cari backup…",
     "noBackup": "Backup tidak ditemukan.",
     "restore": "Restore",
+    "queuing": "Mengantrikan…",
     "backupSize": "Ukuran: {sizeMb} MB ({sizeBytes} bytes)",
     "backupsNotFound": "Belum ada backup",
     "backupsNotFoundDescription": "Belum ada file backup di path yang dikonfigurasi.",
@@ -182,11 +192,29 @@
     "emptyTitle": "Belum ada riwayat",
     "emptyDescription": "Aktivitas backup, restore, dan simulasi waktu akan muncul di sini setelah eksekusi pertama.",
     "searchPlaceholder": "Cari berdasarkan deskripsi…",
+    "colStatus": "Status",
     "colDescription": "Deskripsi",
     "colUser": "Oleh",
     "colRunAt": "Dijalankan",
     "colDuration": "Durasi",
-    "userUnknown": "Tidak diketahui"
+    "userUnknown": "Tidak diketahui",
+    "statusRunning": "Berjalan",
+    "statusSuccess": "Sukses",
+    "statusFailed": "Gagal"
+  },
+  "liveTask": {
+    "starting": "Memulai…",
+    "elapsed": "Berjalan: {duration}",
+    "statusRunning": "Berjalan",
+    "statusSuccess": "Sukses",
+    "statusFailed": "Gagal",
+    "errorLabel": "Error",
+    "logsLabel": "Output",
+    "lines": "baris",
+    "waitingForOutput": "Menunggu output…",
+    "notFound": "Task tidak ditemukan.",
+    "connectionError": "Koneksi terputus. Muat ulang halaman untuk melanjutkan streaming.",
+    "dismiss": "Tutup"
   },
   "shortcuts": {
     "title": "Pintasan keyboard",

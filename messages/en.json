@@ -115,6 +115,14 @@
     "dbTypes": {
       "postgres": "PostgreSQL",
       "mssql": "Microsoft SQL Server"
+    },
+    "recentActivity": {
+      "title": "Recent activity",
+      "viewAll": "View all",
+      "empty": "No activity yet. Run a backup, restore, or simulate-time to see it here.",
+      "statusRunning": "Running",
+      "statusSuccess": "Success",
+      "statusFailed": "Failed"
     }
   },
   "backupDb": {
@@ -122,8 +130,9 @@
     "subtitle": "Create a new backup snapshot of {dbName}.",
     "targetTitle": "Backup target",
     "targetDescription": "The database below will be dumped and stored on the configured backup path.",
-    "infoNote": "Backups are queued and run in the background. Check the History page to track recent runs.",
+    "infoNote": "Backups run in the background — progress streams below. You can also review past runs in History.",
     "button": "Run backup now",
+    "queuing": "Queuing…",
     "confirmTitle": "Backup database",
     "confirmDescription": "Are you sure you want to create a backup for database {dbName}?",
     "confirmButton": "Backup",
@@ -141,6 +150,7 @@
     "searchBackup": "Search backup…",
     "noBackup": "No backup found.",
     "restore": "Restore",
+    "queuing": "Queuing…",
     "backupSize": "Size: {sizeMb} MB ({sizeBytes} bytes)",
     "backupsNotFound": "No backups available",
     "backupsNotFoundDescription": "There are no backup files at the configured path yet.",
@@ -182,11 +192,29 @@
     "emptyTitle": "No history yet",
     "emptyDescription": "Backup, restore, and time simulation activity will appear here after the first run.",
     "searchPlaceholder": "Search by description…",
+    "colStatus": "Status",
     "colDescription": "Description",
     "colUser": "By",
     "colRunAt": "Run at",
     "colDuration": "Duration",
-    "userUnknown": "Unknown"
+    "userUnknown": "Unknown",
+    "statusRunning": "Running",
+    "statusSuccess": "Success",
+    "statusFailed": "Failed"
+  },
+  "liveTask": {
+    "starting": "Starting…",
+    "elapsed": "Elapsed: {duration}",
+    "statusRunning": "Running",
+    "statusSuccess": "Success",
+    "statusFailed": "Failed",
+    "errorLabel": "Error",
+    "logsLabel": "Output",
+    "lines": "lines",
+    "waitingForOutput": "Waiting for output…",
+    "notFound": "Task not found.",
+    "connectionError": "Lost connection. Reload the page to resume streaming.",
+    "dismiss": "Dismiss"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

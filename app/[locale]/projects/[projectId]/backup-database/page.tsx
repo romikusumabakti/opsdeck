@@ -75,9 +75,7 @@ export default async function Page({
             <Info className="size-4 shrink-0 mt-0.5" />
             <p>{t("infoNote")}</p>
           </div>
-          <div className="flex justify-end">
-            <BackupDatabase project={project} />
-          </div>
+          <BackupDatabase project={project} />
         </CardContent>
       </Card>
     </div>
