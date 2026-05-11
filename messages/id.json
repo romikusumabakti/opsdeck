@@ -540,9 +540,33 @@
     "email": "Email",
     "emailPlaceholder": "anda@example.com",
     "password": "Password",
+    "forgotPassword": "Lupa kata sandi?",
     "submit": "Masuk",
     "submitting": "Memproses…",
     "errorInvalid": "Email atau password salah"
+  },
+  "forgotPassword": {
+    "title": "Lupa kata sandi",
+    "description": "Masukkan email Anda. Kami akan mengirim link reset jika akun ditemukan.",
+    "email": "Email",
+    "emailPlaceholder": "anda@example.com",
+    "submit": "Kirim link reset",
+    "submitting": "Mengirim…",
+    "successMessage": "Jika email Anda terdaftar, link reset kata sandi telah dikirim. Cek inbox Anda.",
+    "backToSignIn": "Kembali ke halaman masuk"
+  },
+  "resetPassword": {
+    "title": "Reset kata sandi",
+    "description": "Buat kata sandi baru untuk akun Anda.",
+    "invalidTitle": "Link tidak valid",
+    "invalidDescription": "Link reset kata sandi ini tidak valid atau sudah kadaluarsa.",
+    "requestAgain": "Minta link reset baru",
+    "newPassword": "Kata sandi baru",
+    "confirmPassword": "Konfirmasi kata sandi",
+    "passwordMismatch": "Konfirmasi kata sandi tidak cocok",
+    "submit": "Reset kata sandi",
+    "submitting": "Memproses…",
+    "success": "Kata sandi berhasil direset, silakan masuk"
   },
   "acceptInvite": {
     "title": "Aktivasi akun",

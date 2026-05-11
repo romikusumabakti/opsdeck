@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
 export function SignInForm({ redirectTo }: { redirectTo?: string }) {
@@ -108,7 +108,15 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("password")}</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>{t("password")}</FormLabel>
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      {t("forgotPassword")}
+                    </Link>
+                  </div>
                   <FormControl>
                     <PasswordInput
                       autoComplete="current-password"
