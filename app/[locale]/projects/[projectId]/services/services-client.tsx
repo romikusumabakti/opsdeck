@@ -36,14 +36,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { ProjectWithServers } from "@/lib/db/schema";
-import type { ServiceAction, ServiceRole, ServiceState } from "@/lib/services";
+import type {
+  ServiceAction,
+  ServiceRole,
+  ServiceState,
+  ServiceType,
+} from "@/lib/services";
 import { cn } from "@/lib/utils";
 
 type RoleMeta = {
   role: ServiceRole;
   icon: React.ComponentType<{ className?: string }>;
   titleKey: "database" | "backend" | "frontend";
-  serviceType: "docker" | "system";
+  serviceType: ServiceType;
   serviceName: string;
   serverName: string;
 };

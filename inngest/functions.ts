@@ -265,10 +265,12 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
         "restart-backend",
         `Restarting backend service ${project.backendServiceName}`,
         async () => {
-          const cmd =
-            project.backendServiceType === "docker"
-              ? `docker restart ${shq(project.backendServiceName)}`
-              : sudo(`systemctl restart ${shq(project.backendServiceName)}`);
+          const cmd = buildControlCommand(
+            project.backendServiceType,
+            project.backendServiceName,
+            "restart",
+            credentials.password
+          );
           await executeRemoteCommand(credentials, cmd);
         }
       );
