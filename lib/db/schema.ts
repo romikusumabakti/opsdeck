@@ -62,6 +62,9 @@ export const projects = pgTable("projects", {
   // per docs/time-mocking-api.md. When unset, falls back to the legacy
   // `date -s` + service restart approach.
   backendMockTimeApiUrl: text("backend_mock_time_api_url"),
+  // Optional API key sent as the `X-Api-Key` header on every mock-time API
+  // request. Leave null when the endpoint is unauthenticated.
+  backendMockTimeApiKey: text("backend_mock_time_api_key"),
 
   // --- Frontend ---
   frontendServerId: uuid("frontend_server_id")

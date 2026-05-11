@@ -68,6 +68,9 @@ export function ProjectForm({
         z.string().trim().url(tCommon("urlInvalid")),
         z.literal(""),
       ]),
+      // Empty string is allowed. On edit, empty means "keep the stored key"
+      // (handled in onSubmit). On create, empty means no auth header is sent.
+      backendMockTimeApiKey: z.string(),
 
       frontendServerId: z.string().min(1, t("pickServerRequired")),
       frontendServiceType: z.enum(SERVICE_TYPES),
@@ -109,6 +112,7 @@ export function ProjectForm({
             backendServiceType: mode.project.backendServiceType,
             backendServiceName: mode.project.backendServiceName,
             backendMockTimeApiUrl: mode.project.backendMockTimeApiUrl ?? "",
+            backendMockTimeApiKey: "",
             frontendServerId: mode.project.frontendServerId,
             frontendServiceType: mode.project.frontendServiceType,
             frontendServiceName: mode.project.frontendServiceName,
@@ -126,6 +130,7 @@ export function ProjectForm({
             backendServiceType: "docker",
             backendServiceName: "",
             backendMockTimeApiUrl: "",
+            backendMockTimeApiKey: "",
             frontendServerId: initialServers[0]?.id ?? "",
             frontendServiceType: "docker",
             frontendServiceName: "",
@@ -140,7 +145,7 @@ export function ProjectForm({
   }
 
   async function onSubmit(values: FormValues) {
-    const { dbPassword, ...rest } = values;
+    const { dbPassword, backendMockTimeApiKey, ...rest } = values;
     const base = {
       ...rest,
       backendMockTimeApiUrl: values.backendMockTimeApiUrl
@@ -149,7 +154,7 @@ export function ProjectForm({
     };
     // On create: persist password (null for postgres). On edit: only include it
     // when the user typed something — empty means "keep stored value".
-    const payload =
+    const withPassword =
       mode.type === "create"
         ? {
             ...base,
@@ -158,6 +163,17 @@ export function ProjectForm({
         : dbPassword
           ? { ...base, dbPassword }
           : base;
+    // Same edit semantics as dbPassword: blank = keep stored key. On create,
+    // blank means "no auth" → persist null.
+    const payload =
+      mode.type === "create"
+        ? {
+            ...withPassword,
+            backendMockTimeApiKey: backendMockTimeApiKey || null,
+          }
+        : backendMockTimeApiKey
+          ? { ...withPassword, backendMockTimeApiKey }
+          : withPassword;
     const result =
       mode.type === "create"
         ? await createProject(payload)
@@ -375,6 +391,31 @@ export function ProjectForm({
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
                     {t("mockTimeApiUrlHint")}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="backendMockTimeApiKey"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>{t("mockTimeApiKey")}</FormLabel>
+                  <FormControl>
+                    <PasswordInput
+                      autoComplete="new-password"
+                      placeholder={
+                        mode.type === "edit" &&
+                        mode.project.backendMockTimeApiKey
+                          ? t("mockTimeApiKeyEditPlaceholder")
+                          : ""
+                      }
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("mockTimeApiKeyHint")}
                   </p>
                   <FormMessage />
                 </FormItem>

@@ -3,7 +3,7 @@
 REST API untuk mengontrol waktu sistem dalam lingkungan testing. Endpoint ini **hanya tersedia di environment non-produksi** (dev/staging/test).
 
 - **Base URL:** `https://api.example.com/v1`
-- **Auth:** `Authorization: Bearer <token>`
+- **Auth:** `X-Api-Key: <key>` (opsional, jika endpoint diproteksi)
 - **Content-Type:** `application/json`
 - **Timestamp:** ISO 8601 UTC (`2026-05-11T10:30:00Z`)
 - **Duration:** ISO 8601 (`PT1H30M`, `P1D`, `-PT15M`)
@@ -121,7 +121,7 @@ Reset ke waktu real (unmock + unfreeze).
 | 200    | Berhasil                                      |
 | 204    | Berhasil tanpa body (reset)                   |
 | 400    | Body / format tidak valid                     |
-| 401    | Token hilang atau invalid                     |
+| 401    | API key hilang atau invalid                   |
 | 403    | Dilarang di environment ini (mis. production) |
 | 409    | State conflict (mis. `advance` saat tidak frozen) |
 
