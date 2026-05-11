@@ -15,8 +15,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { authClient } from "@/lib/auth-client";
 
 export function ChangePasswordForm() {
@@ -79,11 +79,7 @@ export function ChangePasswordForm() {
             <FormItem>
               <FormLabel>{t("currentPassword")}</FormLabel>
               <FormControl>
-                <Input
-                  type="password"
-                  autoComplete="current-password"
-                  {...field}
-                />
+                <PasswordInput autoComplete="current-password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -96,7 +92,7 @@ export function ChangePasswordForm() {
             <FormItem>
               <FormLabel>{t("newPassword")}</FormLabel>
               <FormControl>
-                <Input type="password" autoComplete="new-password" {...field} />
+                <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -109,7 +105,7 @@ export function ChangePasswordForm() {
             <FormItem>
               <FormLabel>{t("confirmPassword")}</FormLabel>
               <FormControl>
-                <Input type="password" autoComplete="new-password" {...field} />
+                <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

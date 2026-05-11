@@ -8,7 +8,7 @@ import {
   History as HistoryIcon,
   Loader2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import type { TaskWithUser } from "@/actions/tasks";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ function formatDuration(ms: number): string {
 
 export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
   const t = useTranslations("history");
+  const format = useFormatter();
 
   // Tick every second so the duration column for in-progress tasks updates
   // live. Cheap because filteredCount is small and only re-renders cells.
@@ -85,7 +86,10 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
         ),
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {new Date(row.getValue("runAt") as Date).toLocaleString()}
+            {format.dateTime(new Date(row.getValue("runAt") as Date), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
           </span>
         ),
       },
@@ -108,7 +112,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
         },
       },
     ],
-    [t]
+    [t, format]
   );
 
   if (tasks.length === 0) {

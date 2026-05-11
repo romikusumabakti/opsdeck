@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -109,8 +110,7 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                 <FormItem>
                   <FormLabel>{t("password")}</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       autoComplete="current-password"
                       {...field}
                       onChange={(e) => {

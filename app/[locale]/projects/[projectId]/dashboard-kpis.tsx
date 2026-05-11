@@ -9,17 +9,18 @@ import {
   Loader2,
   TrendingUp,
 } from "lucide-react";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { getProjectKpis, type KpiEntry } from "@/actions/tasks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Task } from "@/lib/db/schema";
 
 export async function DashboardKpis({ projectId }: { projectId: string }) {
-  const [kpis, t, locale] = await Promise.all([
+  const [kpis, t, locale, format] = await Promise.all([
     getProjectKpis(projectId),
     getTranslations("dashboard.kpis"),
     getLocale(),
+    getFormatter(),
   ]);
   const dateFnsLocale = locale === "id" ? idLocale : undefined;
 
@@ -30,6 +31,7 @@ export async function DashboardKpis({ projectId }: { projectId: string }) {
         label={t("lastBackup")}
         entry={kpis.lastBackup}
         dateFnsLocale={dateFnsLocale}
+        format={format}
         emptyText={t("never")}
       />
       <KpiCard
@@ -37,6 +39,7 @@ export async function DashboardKpis({ projectId }: { projectId: string }) {
         label={t("lastRestore")}
         entry={kpis.lastRestore}
         dateFnsLocale={dateFnsLocale}
+        format={format}
         emptyText={t("never")}
       />
       <KpiCard
@@ -44,6 +47,7 @@ export async function DashboardKpis({ projectId }: { projectId: string }) {
         label={t("lastSimulate")}
         entry={kpis.lastSimulate}
         dateFnsLocale={dateFnsLocale}
+        format={format}
         emptyText={t("never")}
       />
       <Card>
@@ -76,12 +80,14 @@ function KpiCard({
   label,
   entry,
   dateFnsLocale,
+  format,
   emptyText,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   entry: KpiEntry;
   dateFnsLocale: Locale | undefined;
+  format: Awaited<ReturnType<typeof getFormatter>>;
   emptyText: string;
 }) {
   return (
@@ -103,7 +109,7 @@ function KpiCard({
               </span>
             </div>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {new Date(entry.runAt).toLocaleString(undefined, {
+              {format.dateTime(new Date(entry.runAt), {
                 dateStyle: "medium",
                 timeStyle: "short",
               })}
