@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -60,6 +61,10 @@ export function ProfileCard({ user }: { user: UserSummary }) {
     resolver: zodResolver(schema),
     defaultValues: { name: user.name },
   });
+
+  useUnsavedChanges(
+    editing && form.formState.isDirty && !form.formState.isSubmitting
+  );
 
   async function onSubmit(values: z.infer<typeof schema>) {
     const trimmed = values.name.trim();

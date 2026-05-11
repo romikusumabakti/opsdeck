@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { authClient } from "@/lib/auth-client";
 
 export function ChangePasswordForm() {
@@ -44,6 +45,8 @@ export function ChangePasswordForm() {
       revokeOther: false,
     },
   });
+
+  useUnsavedChanges(form.formState.isDirty && !form.formState.isSubmitting);
 
   async function onSubmit(values: z.infer<typeof schema>) {
     const { error } = await authClient.changePassword({

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { Project, Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
@@ -179,6 +180,8 @@ export function ProjectForm({
   }
 
   const loading = form.formState.isSubmitting;
+
+  useUnsavedChanges(form.formState.isDirty && !loading);
 
   return (
     <>
