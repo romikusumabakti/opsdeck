@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gte, like, sql } from "drizzle-orm";
+import { and, desc, eq, gte, like, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { type Task, tasks } from "@/lib/db/schema";
 
@@ -20,6 +20,39 @@ export type RunningTask = Pick<
 // background jobs (backup/restore/simulate-time) even after dismissing the
 // per-page dialog. Capped at 10 — more than that is a system-health issue,
 // not a UX problem.
+export type ProjectActivity = {
+  status: Task["status"];
+  runAt: Date;
+};
+
+/**
+ * Returns a map of {projectId -> most recent task} so the projects list can
+ * show an at-a-glance health dot per card. Uses Postgres `DISTINCT ON` —
+ * cheaper than fetching the latest task per project in N round-trips.
+ */
+export async function getProjectsLastActivity(): Promise<
+  Record<string, ProjectActivity>
+> {
+  try {
+    const rows = await db
+      .selectDistinctOn([tasks.projectId], {
+        projectId: tasks.projectId,
+        status: tasks.status,
+        runAt: tasks.runAt,
+      })
+      .from(tasks)
+      .orderBy(tasks.projectId, desc(tasks.runAt));
+    const map: Record<string, ProjectActivity> = {};
+    for (const row of rows) {
+      map[row.projectId] = { status: row.status, runAt: row.runAt };
+    }
+    return map;
+  } catch (error) {
+    console.error("Failed to fetch project last-activity:", error);
+    return {};
+  }
+}
+
 export async function getRunningTasks(): Promise<RunningTask[]> {
   try {
     const rows = await db.query.tasks.findMany({

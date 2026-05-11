@@ -110,7 +110,8 @@
   "home": {
     "title": "Projects",
     "subtitle": "Pick a project to manage backups, restores, and history.",
-    "create": "New project"
+    "create": "New project",
+    "neverActive": "No activity yet"
   },
   "dashboard": {
     "title": "Dashboard",
