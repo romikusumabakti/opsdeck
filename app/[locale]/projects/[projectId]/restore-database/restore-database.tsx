@@ -8,6 +8,7 @@ import { restoreDatabaseBackup } from "@/actions/backups";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Command,
   CommandEmpty,
@@ -159,13 +160,12 @@ export function RestoreDatabase({
           );
         })()}
       <div className="flex items-start gap-2 mt-1">
-        <input
+        <Checkbox
           id="restore-restart-backend"
-          type="checkbox"
           checked={restartBackend}
-          onChange={(e) => setRestartBackend(e.target.checked)}
+          onCheckedChange={(checked) => setRestartBackend(checked === true)}
           disabled={submitting}
-          className="size-4 mt-0.5"
+          className="mt-0.5"
         />
         <Label
           htmlFor="restore-restart-backend"
