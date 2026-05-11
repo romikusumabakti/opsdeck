@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useRouter } from "@/i18n/navigation";
 import type { Project, Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
@@ -281,8 +282,7 @@ export function ProjectForm({
                 <FormItem>
                   <FormLabel>{t("dbPassword")}</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       autoComplete="new-password"
                       placeholder={
                         mode.type === "edit"

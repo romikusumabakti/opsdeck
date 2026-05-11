@@ -9,7 +9,7 @@ import {
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { useForm } from "react-hook-form";
@@ -88,6 +88,7 @@ export function UsersClient({
 }) {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const format = useFormatter();
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
 
@@ -300,7 +301,10 @@ export function UsersClient({
         header: t("colExpires"),
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {new Date(row.getValue("expiresAt") as Date).toLocaleString()}
+            {format.dateTime(new Date(row.getValue("expiresAt") as Date), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
           </span>
         ),
       },
@@ -319,7 +323,7 @@ export function UsersClient({
         ),
       },
     ],
-    [t, isPending, onRevoke]
+    [t, isPending, onRevoke, format]
   );
 
   return (

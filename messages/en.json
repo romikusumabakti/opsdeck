@@ -21,7 +21,9 @@
     "copied": "Copied to clipboard",
     "copyFailed": "Failed to copy",
     "verified": "Verified",
-    "urlInvalid": "Enter a valid URL"
+    "urlInvalid": "Enter a valid URL",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
