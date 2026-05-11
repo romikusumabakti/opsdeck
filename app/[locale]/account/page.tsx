@@ -36,10 +36,10 @@ export default async function AccountPage({
   const defaultTab = tab === "security" || tab === "sessions" ? tab : "profile";
 
   return (
-    <div className="max-w-3xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+    <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      <Tabs defaultValue={defaultTab} className="gap-6">
+      <Tabs defaultValue={defaultTab} className="gap-6 max-w-3xl w-full">
         <TabsList>
           <TabsTrigger value="profile">
             <UserRound className="size-4" />
@@ -91,6 +91,6 @@ export default async function AccountPage({
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </>
   );
 }

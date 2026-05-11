@@ -15,14 +15,8 @@ export default async function Layout({
 
   if (!project) {
     const tCommon = await getTranslations("common");
-    return (
-      <div className="px-4 sm:px-8 py-6">
-        <p>{tCommon("projectNotFound")}</p>
-      </div>
-    );
+    return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  return (
-    <div className="px-4 sm:px-8 py-6 flex flex-col gap-6">{children}</div>
-  );
+  return <>{children}</>;
 }

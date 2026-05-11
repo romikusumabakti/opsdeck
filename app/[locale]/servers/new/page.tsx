@@ -24,9 +24,9 @@ export default async function NewServerPage({
   const t = await getTranslations("newServer");
 
   return (
-    <div className="max-w-2xl py-8 px-4 mx-auto w-full flex flex-col gap-6">
+    <>
       <PageHeader title={t("title")} subtitle={t("description")} />
-      <Card>
+      <Card className="max-w-2xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <ServerCog className="size-5 text-muted-foreground" />
@@ -38,6 +38,6 @@ export default async function NewServerPage({
           <ServerForm mode={{ type: "create" }} />
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

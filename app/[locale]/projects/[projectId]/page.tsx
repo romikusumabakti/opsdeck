@@ -41,7 +41,7 @@ export default async function Page({
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle", { name: project.name })}
@@ -109,7 +109,7 @@ export default async function Page({
       <Suspense fallback={<RecentActivitySkeleton />}>
         <RecentActivity projectId={projectId} />
       </Suspense>
-    </div>
+    </>
   );
 }
 
