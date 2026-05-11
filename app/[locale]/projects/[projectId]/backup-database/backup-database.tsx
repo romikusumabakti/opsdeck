@@ -1,20 +1,32 @@
 "use client";
 
-import { Database } from "lucide-react";
+import { Database, FileArchive } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
+import { CopyButton } from "@/components/copy-button";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import type { ProjectWithServers } from "@/lib/db/schema";
+
+// Matches the marker emitted by inngest/functions.ts after a successful dump.
+// Kept here as a single source of truth for the parser — if the marker text
+// ever changes in the worker, update both sides.
+const FILENAME_MARKER = /✓ Backup file created:\s*(.+?)\s*$/m;
+
+function extractFilename(output: string): string | null {
+  const match = output.match(FILENAME_MARKER);
+  return match ? match[1] : null;
+}
 
 export function BackupDatabase({ project }: { project: ProjectWithServers }) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
+  const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [submitting, startTransition] = React.useTransition();
 
   async function onClick() {
@@ -41,6 +53,26 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
     });
   }
 
+  function onTaskSuccess(snapshot: { output: string }) {
+    const filename = extractFilename(snapshot.output);
+    if (!filename) return;
+    setLastFilename(filename);
+    toast.success(t("createdToast"), {
+      description: filename,
+      action: {
+        label: tCommon("copy"),
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(filename);
+            toast.success(tCommon("copied"));
+          } catch {
+            toast.error(tCommon("copyFailed"));
+          }
+        },
+      },
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4 w-full">
       <div className="flex justify-end">
@@ -49,6 +81,18 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
           {submitting ? t("queuing") : t("button")}
         </Button>
       </div>
+      {lastFilename && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+          <FileArchive className="size-4 shrink-0 text-muted-foreground" />
+          <span className="text-muted-foreground shrink-0">
+            {t("lastFileLabel")}
+          </span>
+          <code className="font-mono text-xs truncate flex-1 min-w-0">
+            {lastFilename}
+          </code>
+          <CopyButton value={lastFilename} label={tCommon("copy")} />
+        </div>
+      )}
       <LiveTaskDialog
         taskId={activeTaskId}
         onOpenChange={(open) => {
@@ -57,6 +101,21 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
         title={t("title")}
         description={
           <code className="font-mono text-xs">{project.dbName}</code>
+        }
+        onSuccess={onTaskSuccess}
+        footer={
+          lastFilename && activeTaskId ? (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <FileArchive className="size-4 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground shrink-0">
+                {t("lastFileLabel")}
+              </span>
+              <code className="font-mono text-xs truncate flex-1 min-w-0">
+                {lastFilename}
+              </code>
+              <CopyButton value={lastFilename} label={tCommon("copy")} />
+            </div>
+          ) : null
         }
       />
     </div>
