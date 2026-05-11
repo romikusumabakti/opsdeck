@@ -18,7 +18,16 @@ export async function executeRemoteCommand(
     const result = await ssh.execCommand(command);
 
     if (result.code !== 0) {
-      throw new Error(`SSH Command Failed: ${result.stderr}`);
+      // Some tools (sqlcmd, mysql client, etc.) write errors to stdout instead
+      // of stderr, so include both streams in the surfaced message — otherwise
+      // a non-zero exit shows up as "SSH Command Failed:" with no detail.
+      const detail = [result.stderr, result.stdout]
+        .map((s) => s?.trim())
+        .filter(Boolean)
+        .join("\n");
+      throw new Error(
+        `SSH Command Failed (exit ${result.code}): ${detail || "(no output)"}`
+      );
     }
 
     return result.stdout;

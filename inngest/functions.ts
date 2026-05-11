@@ -156,10 +156,12 @@ async function runMssqlBackup(
   // Pipe the SQL into sqlcmd via stdin so the query (which contains quotes and
   // brackets) doesn't have to survive shell parsing. `-C` trusts the server
   // cert (required by mssql-tools18 against the default self-signed cert).
+  // `-r0` routes severity ≥11 messages to stderr so failures surface in the
+  // SSH error path instead of being silently swallowed on stdout.
   const cmd =
     `printf '%s\\n' ${shq(query)} | ` +
     `docker exec -i ${shq(project.dbServiceName)} ` +
-    `sqlcmd -S localhost -U sa -P ${shq(project.dbPassword)} -C -b`;
+    `sqlcmd -S localhost -U sa -P ${shq(project.dbPassword)} -C -b -r0`;
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -387,6 +389,6 @@ async function runMssqlRestore(
   const cmd =
     `printf '%s\\n' ${shq(query)} | ` +
     `docker exec -i ${shq(data.dbServiceName)} ` +
-    `sqlcmd -S localhost -U sa -P ${shq(data.dbPassword)} -C -b`;
+    `sqlcmd -S localhost -U sa -P ${shq(data.dbPassword)} -C -b -r0`;
   await executeRemoteCommand(credentials, cmd);
 }
