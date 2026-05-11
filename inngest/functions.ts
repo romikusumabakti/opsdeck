@@ -89,7 +89,7 @@ function buildSqlcmdCommand(
     .map(shq)
     .join(" ");
   const wrapper =
-    'for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do ' +
+    "for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do " +
     '[ -x "$p" ] && exec "$p" "$@"; done; exec sqlcmd "$@"';
   return (
     `printf '%s\\n' ${shq(query)} | ` +
@@ -101,10 +101,11 @@ function buildSqlcmdCommand(
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
-    const { taskId, compress, ...project } = event.data as ProjectWithServers & {
-      taskId: string;
-      compress?: boolean;
-    };
+    const { taskId, compress, ...project } =
+      event.data as ProjectWithServers & {
+        taskId: string;
+        compress?: boolean;
+      };
     const useCompression = compress ?? true;
 
     const credentials = {
@@ -133,9 +134,19 @@ export const createDatabaseBackup = inngest.createFunction(
         async () => {
           const ts = new Date().toISOString().replace(/[:.]/g, "-");
           if (project.dbType === "mssql") {
-            return await runMssqlBackup(project, ts, credentials, useCompression);
+            return await runMssqlBackup(
+              project,
+              ts,
+              credentials,
+              useCompression
+            );
           }
-          return await runPostgresBackup(project, ts, credentials, useCompression);
+          return await runPostgresBackup(
+            project,
+            ts,
+            credentials,
+            useCompression
+          );
         }
       );
 
@@ -213,15 +224,15 @@ async function runMssqlBackup(
   return fname;
 }
 
-export const simulateProjectTimeLegacy = inngest.createFunction(
+export const mockProjectTimeLegacy = inngest.createFunction(
   {
-    id: "simulate-project-time-legacy",
-    triggers: { event: "project/simulate-time.legacy" },
+    id: "mock-project-time-legacy",
+    triggers: { event: "project/mock-time.legacy" },
   },
   async ({ event, step }) => {
-    const { project, simulatedAt, taskId } = event.data as {
+    const { project, mockedAt, taskId } = event.data as {
       project: ProjectWithServers;
-      simulatedAt: string;
+      mockedAt: string;
       taskId: string;
     };
 
@@ -233,7 +244,7 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
 
     // `date -s` expects "YYYY-MM-DD HH:MM:SS"; convert from ISO so the shell
     // gets a clean argument and we don't depend on the remote host's locale.
-    const d = new Date(simulatedAt);
+    const d = new Date(mockedAt);
     const pad = (n: number) => String(n).padStart(2, "0");
     const dateArg = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
       d.getUTCDate()
@@ -256,7 +267,10 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
         "Disabling NTP on backend server",
         async () => {
           // Stops the time daemon from reverting our manual override mid-test.
-          await executeRemoteCommand(credentials, sudo("timedatectl set-ntp false"));
+          await executeRemoteCommand(
+            credentials,
+            sudo("timedatectl set-ntp false")
+          );
         }
       );
 
@@ -290,11 +304,11 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
       );
 
       await step.run("finish", async () => {
-        await appendTaskOutput(taskId, "✓ Simulate-time complete");
+        await appendTaskOutput(taskId, "✓ Mock-time complete");
         await completeTask(taskId);
       });
 
-      return { success: true, simulatedAt };
+      return { success: true, mockedAt };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Heads-up for the operator: by the time we reach here, NTP is off and

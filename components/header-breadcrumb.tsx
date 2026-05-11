@@ -81,8 +81,8 @@ function getProjectSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.backupDatabase";
     case "restore-database":
       return "breadcrumbs.restoreDatabase";
-    case "simulate-time":
-      return "breadcrumbs.simulateTime";
+    case "mock-time":
+      return "breadcrumbs.mockTime";
     case "history":
       return "breadcrumbs.history";
     case "settings":
@@ -167,10 +167,7 @@ export function HeaderBreadcrumb({ projects }: { projects: Project[] }) {
   return (
     <>
       <Separator orientation="vertical" className="h-5" />
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-1 min-w-0"
-      >
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1 min-w-0">
         {activeProject ? (
           <ProjectSwitcher projects={projects} activeProject={activeProject} />
         ) : null}

@@ -64,7 +64,7 @@ export function ProjectForm({
       backendServerId: z.string().min(1, t("pickServerRequired")),
       backendServiceType: z.enum(SERVICE_TYPES),
       backendServiceName: z.string().min(1, tCommon("required")),
-      backendSimulateTimeApiUrl: z.union([
+      backendMockTimeApiUrl: z.union([
         z.string().trim().url(tCommon("urlInvalid")),
         z.literal(""),
       ]),
@@ -108,8 +108,7 @@ export function ProjectForm({
             backendServerId: mode.project.backendServerId,
             backendServiceType: mode.project.backendServiceType,
             backendServiceName: mode.project.backendServiceName,
-            backendSimulateTimeApiUrl:
-              mode.project.backendSimulateTimeApiUrl ?? "",
+            backendMockTimeApiUrl: mode.project.backendMockTimeApiUrl ?? "",
             frontendServerId: mode.project.frontendServerId,
             frontendServiceType: mode.project.frontendServiceType,
             frontendServiceName: mode.project.frontendServiceName,
@@ -126,7 +125,7 @@ export function ProjectForm({
             backendServerId: initialServers[0]?.id ?? "",
             backendServiceType: "docker",
             backendServiceName: "",
-            backendSimulateTimeApiUrl: "",
+            backendMockTimeApiUrl: "",
             frontendServerId: initialServers[0]?.id ?? "",
             frontendServiceType: "docker",
             frontendServiceName: "",
@@ -144,8 +143,8 @@ export function ProjectForm({
     const { dbPassword, ...rest } = values;
     const base = {
       ...rest,
-      backendSimulateTimeApiUrl: values.backendSimulateTimeApiUrl
-        ? values.backendSimulateTimeApiUrl
+      backendMockTimeApiUrl: values.backendMockTimeApiUrl
+        ? values.backendMockTimeApiUrl
         : null,
     };
     // On create: persist password (null for postgres). On edit: only include it
@@ -362,10 +361,10 @@ export function ProjectForm({
             />
             <FormField
               control={form.control}
-              name="backendSimulateTimeApiUrl"
+              name="backendMockTimeApiUrl"
               render={({ field }) => (
                 <FormItem className="sm:col-span-2">
-                  <FormLabel>{t("simulateTimeApiUrl")}</FormLabel>
+                  <FormLabel>{t("mockTimeApiUrl")}</FormLabel>
                   <FormControl>
                     <Input
                       type="url"
@@ -375,7 +374,7 @@ export function ProjectForm({
                     />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
-                    {t("simulateTimeApiUrlHint")}
+                    {t("mockTimeApiUrlHint")}
                   </p>
                   <FormMessage />
                 </FormItem>

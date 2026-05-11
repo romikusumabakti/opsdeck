@@ -17,7 +17,7 @@ export type RunningTask = Pick<
 
 // Returns currently-running tasks across all projects, newest first. Used by
 // the global header indicator so users can see and jump back into long
-// background jobs (backup/restore/simulate-time) even after dismissing the
+// background jobs (backup/restore/mock-time) even after dismissing the
 // per-page dialog. Capped at 10 — more than that is a system-health issue,
 // not a UX problem.
 export type ProjectActivity = {
@@ -129,7 +129,7 @@ export async function getTaskSnapshot(
   return row ?? null;
 }
 
-export type KpiKind = "backup" | "restore" | "simulate";
+export type KpiKind = "backup" | "restore" | "mock";
 
 export type KpiEntry = {
   runAt: Date;
@@ -139,7 +139,7 @@ export type KpiEntry = {
 export type ProjectKpis = {
   lastBackup: KpiEntry;
   lastRestore: KpiEntry;
-  lastSimulate: KpiEntry;
+  lastMock: KpiEntry;
   // Aggregate over the past 7 days. successRate is null if there were no
   // completed runs (avoids "0%" looking like a failure when it's just empty).
   totalRuns7d: number;
@@ -147,12 +147,12 @@ export type ProjectKpis = {
 };
 
 // Description prefixes set by the action layer in actions/backups.ts and
-// actions/simulate-time.ts. Keeping the KPI grouping derived from these
+// actions/mock-time.ts. Keeping the KPI grouping derived from these
 // prefixes avoids a schema migration to add a "kind" column.
 const KPI_PREFIX: Record<KpiKind, string> = {
   backup: "Backup database",
   restore: "Restore database",
-  simulate: "Simulate time",
+  mock: "Mock time",
 };
 
 async function findLatestByKind(
@@ -177,10 +177,10 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   try {
-    const [lastBackup, lastRestore, lastSimulate, recent] = await Promise.all([
+    const [lastBackup, lastRestore, lastMock, recent] = await Promise.all([
       findLatestByKind(projectId, "backup"),
       findLatestByKind(projectId, "restore"),
-      findLatestByKind(projectId, "simulate"),
+      findLatestByKind(projectId, "mock"),
       db
         .select({ status: tasks.status })
         .from(tasks)
@@ -198,7 +198,7 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
     return {
       lastBackup,
       lastRestore,
-      lastSimulate,
+      lastMock,
       totalRuns7d,
       successRate7d,
     };
@@ -207,7 +207,7 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
     return {
       lastBackup: null,
       lastRestore: null,
-      lastSimulate: null,
+      lastMock: null,
       totalRuns7d: 0,
       successRate7d: null,
     };

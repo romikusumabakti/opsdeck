@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SimulateTime } from "./simulate-time";
+import { MockTime } from "./mock-time";
 
 export default async function Page({
   params,
@@ -20,14 +20,14 @@ export default async function Page({
   const { locale, projectId } = await params;
   setRequestLocale(locale);
   const project = await getProjectById(projectId);
-  const t = await getTranslations("simulateTime");
+  const t = await getTranslations("mockTime");
   const tCommon = await getTranslations("common");
 
   if (!project) {
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const hasApi = Boolean(project.backendSimulateTimeApiUrl?.trim());
+  const hasApi = Boolean(project.backendMockTimeApiUrl?.trim());
 
   return (
     <>
@@ -55,14 +55,14 @@ export default async function Page({
               <span className="text-xs text-muted-foreground mt-1">
                 {hasApi
                   ? t("modeApiHint", {
-                      url: project.backendSimulateTimeApiUrl ?? "",
+                      url: project.backendMockTimeApiUrl ?? "",
                     })
                   : t("modeLegacyHint", { name: project.backendServiceName })}
               </span>
             </div>
           </div>
 
-          <SimulateTime project={project} />
+          <MockTime project={project} />
 
           {!hasApi && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
