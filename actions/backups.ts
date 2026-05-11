@@ -23,11 +23,11 @@ export async function getBackupList(
     const extensionPattern =
       project.dbType === "postgres" ? "\\.sql\\.gz" : "\\.bak";
 
-    const listCmd = project.dbIsBackupMounted
-      ? `ls -lt ${shq(project.dbBackupPath)}`
-      : `docker exec ${shq(project.dbServiceName)} ls -lt ${shq(project.dbBackupPath)}`;
-
-    const cmd = `${listCmd} | grep ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+    // Wrap `ls | grep | awk` in `sh -c` inside the container so the pipeline
+    // runs against the container's filesystem (matches where backups are
+    // actually written).
+    const pipeline = `ls -lt ${shq(project.dbBackupPath)} | grep ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+    const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(pipeline)}`;
     const output = await executeRemoteCommand(
       {
         host: project.dbServer.host,

@@ -112,9 +112,7 @@ export const createDatabaseBackup = inngest.createFunction(
         "ensure-backup-dir",
         "Ensuring backup directory exists",
         async () => {
-          const mkdirCmd = project.dbIsBackupMounted
-            ? `mkdir -p ${shq(project.dbBackupPath)}`
-            : `docker exec ${shq(project.dbServiceName)} mkdir -p ${shq(project.dbBackupPath)}`;
+          const mkdirCmd = `docker exec ${shq(project.dbServiceName)} mkdir -p ${shq(project.dbBackupPath)}`;
           await executeRemoteCommand(credentials, mkdirCmd);
         }
       );
@@ -158,14 +156,9 @@ async function runPostgresBackup(
   // before the CREATE statements, so the dump can be restored into a database
   // that already has the schema (otherwise CREATE TABLE errors out on
   // re-restore). `set -o pipefail` so pg_dump failures bubble up instead of
-  // getting masked by gzip's exit 0. When mounted, redirect on the host so the
-  // file shows up on both sides of the bind. Otherwise run the whole pipe
-  // inside the container so the file lands where getBackupList (docker exec
-  // ls) can see it.
+  // getting masked by gzip's exit 0.
   const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(project.dbName)}`;
-  const cmd = project.dbIsBackupMounted
-    ? `set -o pipefail; docker exec ${shq(project.dbServiceName)} ${dumpCmd} | gzip > ${shq(target)}`
-    : `docker exec ${shq(project.dbServiceName)} sh -c ${shq(`set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`)}`;
+  const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(`set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`)}`;
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -384,13 +377,9 @@ async function runPostgresRestore(
 ): Promise<void> {
   const source = `${data.dbBackupPath}/${filename}`;
   // `-v ON_ERROR_STOP=on` aborts psql at the first failing statement instead
-  // of silently continuing through a half-broken restore. Symmetric to
-  // runPostgresBackup: gunzip on host when mounted, inside the container
-  // otherwise — the file lives where the backup step put it.
+  // of silently continuing through a half-broken restore.
   const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(data.dbName)}`;
-  const cmd = data.dbIsBackupMounted
-    ? `set -o pipefail; gunzip -c ${shq(source)} | docker exec -i ${shq(data.dbServiceName)} ${psqlCmd}`
-    : `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`)}`;
+  const cmd = `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`)}`;
   await executeRemoteCommand(credentials, cmd);
 }
 

@@ -19,7 +19,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import type { Project, Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
@@ -58,7 +57,6 @@ export function ProjectForm({
       // Empty string is valid here; superRefine enforces it for mssql on create.
       // On edit, empty means "keep the stored password" (handled in onSubmit).
       dbPassword: z.string(),
-      dbIsBackupMounted: z.boolean(),
       dbBackupPath: z.string().min(1, tCommon("required")),
 
       backendServerId: z.string().min(1, t("pickServerRequired")),
@@ -104,7 +102,6 @@ export function ProjectForm({
             dbType: mode.project.dbType,
             dbName: mode.project.dbName,
             dbPassword: "",
-            dbIsBackupMounted: mode.project.dbIsBackupMounted,
             dbBackupPath: mode.project.dbBackupPath,
             backendServerId: mode.project.backendServerId,
             backendServiceType: mode.project.backendServiceType,
@@ -123,7 +120,6 @@ export function ProjectForm({
             dbType: "postgres",
             dbName: "",
             dbPassword: "",
-            dbIsBackupMounted: false,
             dbBackupPath: "",
             backendServerId: initialServers[0]?.id ?? "",
             backendServiceType: "docker",
@@ -307,35 +303,15 @@ export function ProjectForm({
               control={form.control}
               name="dbBackupPath"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="sm:col-span-2">
                   <FormLabel>{t("backupPath")}</FormLabel>
                   <FormControl>
                     <Input placeholder="/var/backups/db" {...field} />
                   </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("backupPathHint")}
+                  </p>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbIsBackupMounted"
-              render={({ field }) => (
-                <FormItem className="grid-flow-col items-center justify-start gap-2 sm:col-span-2">
-                  <FormControl>
-                    <input
-                      id="db-backup-mounted"
-                      type="checkbox"
-                      checked={field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                      className="size-4"
-                    />
-                  </FormControl>
-                  <Label
-                    htmlFor="db-backup-mounted"
-                    className="text-sm font-normal"
-                  >
-                    {t("isBackupMounted")}
-                  </Label>
                 </FormItem>
               )}
             />

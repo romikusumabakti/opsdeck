@@ -41,7 +41,9 @@ export const projects = pgTable("projects", {
   // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
   // relies on trusted local auth (`-U postgres`) inside the container.
   dbPassword: text("db_password"),
-  dbIsBackupMounted: boolean("db_is_backup_mounted").notNull(),
+  // Path inside the container where backup files live. All operations run via
+  // `docker exec`, so this is the only path the panel needs to know about —
+  // bind-mount configuration is the operator's concern.
   dbBackupPath: text("db_backup_path").notNull(),
 
   // --- Backend ---
