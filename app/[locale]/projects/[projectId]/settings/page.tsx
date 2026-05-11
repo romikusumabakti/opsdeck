@@ -36,30 +36,32 @@ export default async function ProjectSettingsPage({
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl w-full mx-auto">
+    <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("editTitle")}</CardTitle>
-          <CardDescription>{t("editDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProjectForm mode={{ type: "edit", project }} servers={servers} />
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-6 max-w-2xl w-full">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("editTitle")}</CardTitle>
+            <CardDescription>{t("editDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ProjectForm mode={{ type: "edit", project }} servers={servers} />
+          </CardContent>
+        </Card>
 
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="text-destructive">
-            {t("dangerZoneTitle")}
-          </CardTitle>
-          <CardDescription>{t("dangerZoneDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeleteProjectCard project={project} />
-        </CardContent>
-      </Card>
-    </div>
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-destructive">
+              {t("dangerZoneTitle")}
+            </CardTitle>
+            <CardDescription>{t("dangerZoneDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeleteProjectCard project={project} />
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

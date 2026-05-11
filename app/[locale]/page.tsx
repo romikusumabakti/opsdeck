@@ -24,7 +24,7 @@ export default async function Home() {
   const tDash = await getTranslations("dashboard");
 
   return (
-    <div className="max-w-5xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+    <>
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle")}
@@ -70,6 +70,6 @@ export default async function Home() {
           </Link>
         ))}
       </div>
-    </div>
+    </>
   );
 }

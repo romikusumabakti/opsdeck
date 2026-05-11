@@ -22,13 +22,13 @@ export default async function UsersPage({
   const t = await getTranslations("users");
 
   return (
-    <div className="max-w-4xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+    <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <UsersClient
         users={users}
         invitations={invitations}
         currentUserId={session.user.id}
       />
-    </div>
+    </>
   );
 }
