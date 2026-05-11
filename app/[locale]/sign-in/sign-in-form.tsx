@@ -1,11 +1,12 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Aperture } from "lucide-react";
+import { Aperture, CircleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +31,7 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
   const t = useTranslations("signIn");
   const tApp = useTranslations("app");
   const router = useRouter();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const tCommon = useTranslations("common");
 
@@ -44,10 +46,11 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
   });
 
   async function onSubmit(values: z.infer<typeof schema>) {
+    setSubmitError(null);
     const { error } = await authClient.signIn.email(values);
 
     if (error) {
-      toast.error(error.message ?? t("errorInvalid"));
+      setSubmitError(error.message ?? t("errorInvalid"));
       return;
     }
 
@@ -71,6 +74,12 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
+            {submitError && (
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            )}
             <FormField
               control={form.control}
               name="email"
@@ -83,6 +92,10 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                       autoComplete="email"
                       placeholder={t("emailPlaceholder")}
                       {...field}
+                      onChange={(e) => {
+                        setSubmitError(null);
+                        field.onChange(e);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -100,6 +113,10 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                       type="password"
                       autoComplete="current-password"
                       {...field}
+                      onChange={(e) => {
+                        setSubmitError(null);
+                        field.onChange(e);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
