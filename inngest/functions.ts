@@ -59,6 +59,39 @@ function pgQuoteId(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+// Build a `printf QUERY | docker exec -i SERVICE sh -c '... sqlcmd ...'`
+// invocation. `sqlcmd` isn't on $PATH in Microsoft's mssql images — it lives
+// at /opt/mssql-tools18/bin (newer) or /opt/mssql-tools/bin (older). Probe
+// both before falling back to PATH lookup so we don't have to know which
+// SQL Server version each project is on.
+function buildSqlcmdCommand(
+  query: string,
+  password: string,
+  serviceName: string
+): string {
+  const args = [
+    "-S",
+    "localhost",
+    "-U",
+    "sa",
+    "-P",
+    password,
+    "-C",
+    "-b",
+    "-r0",
+  ]
+    .map(shq)
+    .join(" ");
+  const wrapper =
+    'for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do ' +
+    '[ -x "$p" ] && exec "$p" "$@"; done; exec sqlcmd "$@"';
+  return (
+    `printf '%s\\n' ${shq(query)} | ` +
+    `docker exec -i ${shq(serviceName)} ` +
+    `sh -c ${shq(wrapper)} sh ${args}`
+  );
+}
+
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
@@ -158,10 +191,11 @@ async function runMssqlBackup(
   // cert (required by mssql-tools18 against the default self-signed cert).
   // `-r0` routes severity ≥11 messages to stderr so failures surface in the
   // SSH error path instead of being silently swallowed on stdout.
-  const cmd =
-    `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${shq(project.dbServiceName)} ` +
-    `sqlcmd -S localhost -U sa -P ${shq(project.dbPassword)} -C -b -r0`;
+  const cmd = buildSqlcmdCommand(
+    query,
+    project.dbPassword,
+    project.dbServiceName
+  );
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -386,9 +420,6 @@ async function runMssqlRestore(
     `  THROW 50000, @err, 1;\n` +
     `END CATCH;\n` +
     `ALTER DATABASE [${dbId}] SET MULTI_USER;`;
-  const cmd =
-    `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${shq(data.dbServiceName)} ` +
-    `sqlcmd -S localhost -U sa -P ${shq(data.dbPassword)} -C -b -r0`;
+  const cmd = buildSqlcmdCommand(query, data.dbPassword, data.dbServiceName);
   await executeRemoteCommand(credentials, cmd);
 }
