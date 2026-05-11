@@ -328,6 +328,91 @@ export const mockProjectTimeLegacy = inngest.createFunction(
   }
 );
 
+export const mockProjectTimeResetLegacy = inngest.createFunction(
+  {
+    id: "mock-project-time-reset-legacy",
+    triggers: { event: "project/mock-time.reset-legacy" },
+  },
+  async ({ event, step }) => {
+    const { project, taskId } = event.data as {
+      project: ProjectWithServers;
+      taskId: string;
+    };
+
+    const credentials = {
+      host: project.backendServer.host,
+      username: project.backendServer.username,
+      password: project.backendServer.password,
+    };
+
+    const sudo = (cmd: string) =>
+      `printf '%s\\n' ${shq(credentials.password)} | sudo -S ${cmd}`;
+
+    try {
+      await tracked(
+        taskId,
+        step,
+        "enable-ntp",
+        "Re-enabling NTP on backend server",
+        async () => {
+          await executeRemoteCommand(
+            credentials,
+            sudo("timedatectl set-ntp true")
+          );
+        }
+      );
+
+      // Force an immediate resync. NTP just re-enables polling — without a
+      // restart, the host can sit on the mocked time for a polling interval.
+      // Try systemd-timesyncd and chronyd; `|| true` keeps the step green when
+      // only one of them is installed.
+      await tracked(
+        taskId,
+        step,
+        "sync-clock",
+        "Forcing immediate clock sync",
+        async () => {
+          await executeRemoteCommand(
+            credentials,
+            sudo(
+              "systemctl restart systemd-timesyncd 2>/dev/null || systemctl restart chronyd 2>/dev/null || true"
+            )
+          );
+        }
+      );
+
+      await tracked(
+        taskId,
+        step,
+        "restart-backend",
+        `Restarting backend service ${project.backendServiceName}`,
+        async () => {
+          const cmd = buildControlCommand(
+            project.backendServiceType,
+            project.backendServiceName,
+            "restart",
+            credentials.password
+          );
+          await executeRemoteCommand(credentials, cmd);
+        }
+      );
+
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, "✓ Clock reset complete");
+        await completeTask(taskId);
+      });
+
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", async () => {
+        await failTask(taskId, message);
+      });
+      throw err;
+    }
+  }
+);
+
 export const restoreDatabaseBackup = inngest.createFunction(
   { id: "restore-db-backup", triggers: { event: "db/restore.requested" } },
   async ({ event, step }) => {

@@ -279,6 +279,8 @@
       "submit": "Travel",
       "submitting": "Traveling…",
       "confirm": "Travel to {dateTime}? The clock will resume running from there.",
+      "confirmLegacy": "Change the backend server clock to {dateTime} and restart the backend service? Anything else running on that server will also see the new time.",
+      "queuedDescriptionLegacy": "Server clock change to {dateTime} has been queued.",
       "successTitle": "Clock traveled",
       "successDescription": "Clock is now at {dateTime}."
     },
@@ -297,6 +299,7 @@
     "advance": {
       "title": "Advance",
       "description": "Shift the frozen clock forward (or backward with a negative duration). Only available while frozen.",
+      "descriptionLegacy": "Shift the backend server clock forward (or backward) relative to its current time. Restarts the backend.",
       "amountLabel": "Amount",
       "unitLabel": "Unit",
       "directionLabel": "Direction",
@@ -309,6 +312,8 @@
         "hours": "Hours",
         "days": "Days"
       },
+      "confirmLegacy": "Advance the backend server clock by {duration} and restart the backend service? Anything else running on that server will also see the new time.",
+      "queuedDescriptionLegacy": "Advance by {duration} has been queued.",
       "successTitle": "Clock advanced",
       "successDescription": "Clock is now at {dateTime}.",
       "notFrozen": "The clock must be frozen first before you can advance it.",
@@ -317,9 +322,12 @@
     "reset": {
       "title": "Reset",
       "description": "Drop the mock and unfreeze. The clock will return to real wall-clock time.",
+      "descriptionLegacy": "Re-enable NTP on the backend server, force an immediate clock sync, and restart the backend service.",
       "submit": "Reset to real time",
       "submitting": "Resetting…",
       "confirm": "Reset the clock back to real time? This clears any mock and unfreezes.",
+      "confirmLegacy": "Re-enable NTP on the backend server, force a clock sync, and restart the backend service?",
+      "queuedDescriptionLegacy": "Clock reset has been queued.",
       "successTitle": "Clock reset",
       "successDescription": "Clock is back to real time."
     },
