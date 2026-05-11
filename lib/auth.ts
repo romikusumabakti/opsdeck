@@ -41,7 +41,6 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
-  trustedOrigins: [process.env.BETTER_AUTH_URL ?? "http://localhost:3000"],
   // Generate UUIDv7 for user/session/account/verification IDs so they are
   // time-ordered and friendly to B-tree indexes (matches our own tables).
   advanced: {
