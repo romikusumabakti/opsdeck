@@ -8,6 +8,7 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type RowSelectionState,
   type SortingState,
   useReactTable,
   type VisibilityState,
@@ -24,6 +25,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -51,6 +53,20 @@ type DataTableProps<TData, TValue> = {
   filterPlaceholder?: string;
   emptyMessage?: string;
   initialPageSize?: number;
+  /**
+   * Stable row id derived from the data. Required when `bulkActions` is set so
+   * selection survives re-sort/filter/optimistic mutations.
+   */
+  getRowId?: (row: TData) => string;
+  /**
+   * Render bulk-action buttons when at least one row is selected. Receives the
+   * list of selected row IDs (per `getRowId`) and a `clearSelection` callback
+   * so the action can reset the selection after a successful operation.
+   */
+  bulkActions?: (
+    selectedIds: string[],
+    clearSelection: () => void
+  ) => React.ReactNode;
 };
 
 export function DataTable<TData, TValue>({
@@ -60,6 +76,8 @@ export function DataTable<TData, TValue>({
   filterPlaceholder,
   emptyMessage,
   initialPageSize = 10,
+  getRowId,
+  bulkActions,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -68,10 +86,42 @@ export function DataTable<TData, TValue>({
   );
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+
+  const columnsWithSelect = React.useMemo<ColumnDef<TData, TValue>[]>(() => {
+    if (!bulkActions) return columns;
+    const selectColumn: ColumnDef<TData, TValue> = {
+      id: "__select",
+      header: ({ table }) => {
+        const all = table.getIsAllPageRowsSelected();
+        const some = table.getIsSomePageRowsSelected();
+        return (
+          <Checkbox
+            checked={all ? true : some ? "indeterminate" : false}
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(value === true)
+            }
+            aria-label={t("selectAll")}
+          />
+        );
+      },
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(value === true)}
+          aria-label={t("selectRow")}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+      meta: { headClassName: "w-10", cellClassName: "w-10" },
+    };
+    return [selectColumn, ...columns];
+  }, [bulkActions, columns, t]);
 
   const table = useReactTable({
     data,
-    columns,
+    columns: columnsWithSelect,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -79,11 +129,20 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: !!bulkActions,
+    getRowId,
     initialState: {
       pagination: { pageSize: initialPageSize },
     },
-    state: { sorting, columnFilters, columnVisibility },
+    state: { sorting, columnFilters, columnVisibility, rowSelection },
   });
+
+  const selectedIds = React.useMemo(
+    () => Object.keys(rowSelection).filter((id) => rowSelection[id]),
+    [rowSelection]
+  );
+  const clearSelection = React.useCallback(() => setRowSelection({}), []);
 
   const filterValue = filterColumn
     ? ((table.getColumn(filterColumn)?.getFilterValue() as string) ?? "")
@@ -101,6 +160,19 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="flex flex-col gap-3">
+      {bulkActions && selectedIds.length > 0 && (
+        <div className="flex items-center gap-2 justify-between rounded-md border bg-muted/40 px-3 py-2">
+          <span className="text-sm font-medium">
+            {t("selectedCount", { count: selectedIds.length })}
+          </span>
+          <div className="flex items-center gap-2">
+            {bulkActions(selectedIds, clearSelection)}
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              {t("clearSelection")}
+            </Button>
+          </div>
+        </div>
+      )}
       {(filterColumn || table.getAllColumns().some((c) => c.getCanHide())) && (
         <div className="flex items-center gap-2">
           {filterColumn && (
@@ -184,7 +256,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={columnsWithSelect.length}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {emptyMessage ?? t("noResults")}
