@@ -38,6 +38,9 @@ export const projects = pgTable("projects", {
   dbServiceName: text("db_service_name").notNull(),
   dbType: databaseTypeEnum("db_type").notNull(),
   dbName: text("db_name").notNull(),
+  // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
+  // relies on trusted local auth (`-U postgres`) inside the container.
+  dbPassword: text("db_password"),
   dbIsBackupMounted: boolean("db_is_backup_mounted").notNull(),
   dbBackupPath: text("db_backup_path").notNull(),
 

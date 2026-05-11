@@ -40,6 +40,25 @@ async function tracked<T>(
   }
 }
 
+// Wraps a value as a POSIX single-quoted shell argument. Single quotes inside
+// are escaped via the `'\''` trick (close, escaped quote, reopen). Use for any
+// untrusted value passed to ssh.execCommand.
+function shq(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+// Escape a value used inside a T-SQL single-quoted string literal (e.g. file
+// paths in `N'...'`). SQL standard: a single quote is doubled.
+function sqlQuoteString(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+// Escape a SQL Server identifier wrapped in [brackets]. A literal `]` must be
+// doubled to `]]`.
+function sqlBracketId(value: string): string {
+  return value.replace(/]/g, "]]");
+}
+
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
@@ -61,8 +80,8 @@ export const createDatabaseBackup = inngest.createFunction(
         "Ensuring backup directory exists",
         async () => {
           const mkdirCmd = project.dbIsBackupMounted
-            ? `mkdir -p ${project.dbBackupPath}`
-            : `docker exec ${project.dbServiceName} mkdir -p ${project.dbBackupPath}`;
+            ? `mkdir -p ${shq(project.dbBackupPath)}`
+            : `docker exec ${project.dbServiceName} mkdir -p ${shq(project.dbBackupPath)}`;
           await executeRemoteCommand(credentials, mkdirCmd);
         }
       );
@@ -70,21 +89,14 @@ export const createDatabaseBackup = inngest.createFunction(
       const filename = await tracked(
         taskId,
         step,
-        "run-pg-dump",
-        `Running pg_dump for ${project.dbName}`,
+        "run-backup",
+        `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${project.dbName}`,
         async () => {
           const ts = new Date().toISOString().replace(/[:.]/g, "-");
-          const fname = `${project.dbName}_${ts}.sql.gz`;
-          const target = `${project.dbBackupPath}/${fname}`;
-          // When mounted, redirect on the host so the file shows up on both
-          // sides of the bind. Otherwise run the whole pipe inside the
-          // container so the file lands where getBackupList (docker exec ls)
-          // can see it.
-          const cmd = project.dbIsBackupMounted
-            ? `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${target}`
-            : `docker exec ${project.dbServiceName} sh -c 'pg_dump -U postgres ${project.dbName} | gzip > ${target}'`;
-          await executeRemoteCommand(credentials, cmd);
-          return fname;
+          if (project.dbType === "mssql") {
+            return await runMssqlBackup(project, ts, credentials);
+          }
+          return await runPostgresBackup(project, ts, credentials);
         }
       );
 
@@ -101,6 +113,51 @@ export const createDatabaseBackup = inngest.createFunction(
     }
   }
 );
+
+async function runPostgresBackup(
+  project: ProjectWithServers,
+  ts: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<string> {
+  const fname = `${project.dbName}_${ts}.sql.gz`;
+  const target = `${project.dbBackupPath}/${fname}`;
+  // `set -o pipefail` so pg_dump failures bubble up instead of getting masked
+  // by gzip's exit 0. When mounted, redirect on the host so the file shows up
+  // on both sides of the bind. Otherwise run the whole pipe inside the
+  // container so the file lands where getBackupList (docker exec ls) can see it.
+  const cmd = project.dbIsBackupMounted
+    ? `set -o pipefail; docker exec ${project.dbServiceName} pg_dump -U postgres ${shq(project.dbName)} | gzip > ${shq(target)}`
+    : `docker exec ${project.dbServiceName} sh -c ${shq(`set -o pipefail; pg_dump -U postgres ${shq(project.dbName)} | gzip > ${shq(target)}`)}`;
+  await executeRemoteCommand(credentials, cmd);
+  return fname;
+}
+
+async function runMssqlBackup(
+  project: ProjectWithServers,
+  ts: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<string> {
+  if (!project.dbPassword) {
+    throw new Error(
+      "Project dbPassword is required for MSSQL backups (sqlcmd needs it)"
+    );
+  }
+  const fname = `${project.dbName}_${ts}.bak`;
+  const target = `${project.dbBackupPath}/${fname}`;
+  const query =
+    `BACKUP DATABASE [${sqlBracketId(project.dbName)}] ` +
+    `TO DISK = N'${sqlQuoteString(target)}' ` +
+    `WITH FORMAT, INIT, COMPRESSION, STATS = 5`;
+  // Pipe the SQL into sqlcmd via stdin so the query (which contains quotes and
+  // brackets) doesn't have to survive shell parsing. `-C` trusts the server
+  // cert (required by mssql-tools18 against the default self-signed cert).
+  const cmd =
+    `printf '%s\\n' ${shq(query)} | ` +
+    `docker exec -i ${project.dbServiceName} ` +
+    `sqlcmd -S localhost -U sa -P ${shq(project.dbPassword)} -C -b`;
+  await executeRemoteCommand(credentials, cmd);
+  return fname;
+}
 
 export const simulateProjectTimeLegacy = inngest.createFunction(
   {
@@ -203,33 +260,36 @@ export const restoreDatabaseBackup = inngest.createFunction(
     try {
       if (!filename) throw new Error("Filename is required");
 
-      await tracked(
-        taskId,
-        step,
-        "kill-connections",
-        `Terminating active connections to ${data.dbName}`,
-        async () => {
-          const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${data.dbName}' AND pid <> pg_backend_pid();" | docker exec -i ${data.dbServiceName} psql -U postgres`;
-          await executeRemoteCommand(credentials, killCmd);
-        }
-      );
-
-      await tracked(
-        taskId,
-        step,
-        "perform-restore",
-        `Restoring from ${filename}`,
-        async () => {
-          const source = `${data.dbBackupPath}/${filename}`;
-          // Symmetric to createDatabaseBackup: gunzip on host when mounted,
-          // inside the container otherwise — the file lives where the backup
-          // step put it.
-          const cmd = data.dbIsBackupMounted
-            ? `gunzip -c ${source} | docker exec -i ${data.dbServiceName} psql -U postgres -d ${data.dbName}`
-            : `docker exec -i ${data.dbServiceName} sh -c 'gunzip -c ${source} | psql -U postgres -d ${data.dbName}'`;
-          await executeRemoteCommand(credentials, cmd);
-        }
-      );
+      if (data.dbType === "mssql") {
+        await tracked(
+          taskId,
+          step,
+          "perform-restore",
+          `Restoring ${data.dbName} from ${filename}`,
+          async () => {
+            await runMssqlRestore(data, filename, credentials);
+          }
+        );
+      } else {
+        await tracked(
+          taskId,
+          step,
+          "kill-connections",
+          `Terminating active connections to ${data.dbName}`,
+          async () => {
+            await runPostgresKillConnections(data, credentials);
+          }
+        );
+        await tracked(
+          taskId,
+          step,
+          "perform-restore",
+          `Restoring from ${filename}`,
+          async () => {
+            await runPostgresRestore(data, filename, credentials);
+          }
+        );
+      }
 
       await step.run("finish", async () => {
         await appendTaskOutput(taskId, `✓ Restore complete (${filename})`);
@@ -244,3 +304,64 @@ export const restoreDatabaseBackup = inngest.createFunction(
     }
   }
 );
+
+async function runPostgresKillConnections(
+  data: ProjectWithServers,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const query =
+    `SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity ` +
+    `WHERE datname = '${data.dbName.replace(/'/g, "''")}' ` +
+    `AND pid <> pg_backend_pid();`;
+  const cmd =
+    `printf '%s\\n' ${shq(query)} | ` +
+    `docker exec -i ${data.dbServiceName} psql -U postgres`;
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runPostgresRestore(
+  data: ProjectWithServers,
+  filename: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const source = `${data.dbBackupPath}/${filename}`;
+  // Symmetric to runPostgresBackup: gunzip on host when mounted, inside the
+  // container otherwise — the file lives where the backup step put it.
+  const cmd = data.dbIsBackupMounted
+    ? `set -o pipefail; gunzip -c ${shq(source)} | docker exec -i ${data.dbServiceName} psql -U postgres -d ${shq(data.dbName)}`
+    : `docker exec -i ${data.dbServiceName} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | psql -U postgres -d ${shq(data.dbName)}`)}`;
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMssqlRestore(
+  data: ProjectWithServers,
+  filename: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  if (!data.dbPassword) {
+    throw new Error(
+      "Project dbPassword is required for MSSQL restores (sqlcmd needs it)"
+    );
+  }
+  const source = `${data.dbBackupPath}/${filename}`;
+  const dbId = sqlBracketId(data.dbName);
+  // Kill connections by flipping to SINGLE_USER, then restore. TRY/CATCH so
+  // a failed restore still flips back to MULTI_USER instead of leaving the DB
+  // wedged. THROW re-raises the original error to non-zero exit sqlcmd.
+  const query =
+    `ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
+    `BEGIN TRY\n` +
+    `  RESTORE DATABASE [${dbId}] FROM DISK = N'${sqlQuoteString(source)}' WITH REPLACE;\n` +
+    `END TRY\n` +
+    `BEGIN CATCH\n` +
+    `  DECLARE @err NVARCHAR(MAX) = ERROR_MESSAGE();\n` +
+    `  ALTER DATABASE [${dbId}] SET MULTI_USER;\n` +
+    `  THROW 50000, @err, 1;\n` +
+    `END CATCH;\n` +
+    `ALTER DATABASE [${dbId}] SET MULTI_USER;`;
+  const cmd =
+    `printf '%s\\n' ${shq(query)} | ` +
+    `docker exec -i ${data.dbServiceName} ` +
+    `sqlcmd -S localhost -U sa -P ${shq(data.dbPassword)} -C -b`;
+  await executeRemoteCommand(credentials, cmd);
+}
