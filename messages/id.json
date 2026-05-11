@@ -181,7 +181,9 @@
     "confirmButton": "Backup",
     "successTitle": "Backup di-queue",
     "successDescription": "Backup untuk database {dbName} sudah di-queue.",
-    "successButton": "OK"
+    "successButton": "OK",
+    "createdToast": "File backup berhasil dibuat",
+    "lastFileLabel": "File backup terakhir:"
   },
   "restoreDb": {
     "title": "Restore database",

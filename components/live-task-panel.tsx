@@ -31,6 +31,9 @@ type Props = {
   taskId: string;
   // Optional: keeps the panel mounted by parent so it can be dismissed.
   onDismiss?: () => void;
+  // Fires once when the task transitions into success — handy for parents
+  // that want to surface a result (e.g. copy generated filename to clipboard).
+  onSuccess?: (snapshot: TaskSnapshot) => void;
 };
 
 function formatDuration(ms: number): string {
@@ -42,7 +45,7 @@ function formatDuration(ms: number): string {
   return `${m}m ${rs}s`;
 }
 
-export function LiveTaskPanel({ taskId, onDismiss }: Props) {
+export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
   const t = useTranslations("liveTask");
   const [snapshot, setSnapshot] = React.useState<TaskSnapshot | null>(null);
   const [streamError, setStreamError] = React.useState<string | null>(null);
@@ -66,15 +69,34 @@ export function LiveTaskPanel({ taskId, onDismiss }: Props) {
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
+  // Latest onSuccess via ref so the EventSource effect doesn't have to
+  // re-subscribe whenever the parent passes a fresh callback reference.
+  const onSuccessRef = React.useRef(onSuccess);
+  React.useEffect(() => {
+    onSuccessRef.current = onSuccess;
+  }, [onSuccess]);
+  // Guard against firing the callback twice if the server replays the final
+  // snapshot (e.g. on resume after a transient disconnect).
+  const successFiredRef = React.useRef(false);
+
   React.useEffect(() => {
     setSnapshot(null);
     setStreamError(null);
+    successFiredRef.current = false;
     const es = new EventSource(`/api/tasks/${taskId}/stream`);
 
     es.addEventListener("snapshot", (ev) => {
       try {
         const data = JSON.parse((ev as MessageEvent).data) as TaskSnapshot;
         setSnapshot(data);
+        if (
+          data.status === "success" &&
+          !successFiredRef.current &&
+          onSuccessRef.current
+        ) {
+          successFiredRef.current = true;
+          onSuccessRef.current(data);
+        }
         if (data.status !== "started") {
           es.close();
         }
