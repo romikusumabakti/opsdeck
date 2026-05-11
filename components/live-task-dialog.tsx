@@ -15,6 +15,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: React.ReactNode;
+  // Forwarded to LiveTaskPanel — fires when the task succeeds.
+  onSuccess?: React.ComponentProps<typeof LiveTaskPanel>["onSuccess"];
+  // Optional content rendered below the live panel (e.g. copy filename).
+  footer?: React.ReactNode;
 };
 
 // Wraps LiveTaskPanel inside a Dialog. The dialog is "open" iff taskId is set;
@@ -26,6 +30,8 @@ export function LiveTaskDialog({
   onOpenChange,
   title,
   description,
+  onSuccess,
+  footer,
 }: Props) {
   return (
     <Dialog open={taskId !== null} onOpenChange={onOpenChange}>
@@ -40,7 +46,14 @@ export function LiveTaskDialog({
             </DialogDescription>
           )}
         </DialogHeader>
-        {taskId && <LiveTaskPanel key={taskId} taskId={taskId} />}
+        {taskId && (
+          <LiveTaskPanel
+            key={taskId}
+            taskId={taskId}
+            onSuccess={onSuccess}
+          />
+        )}
+        {footer}
       </DialogContent>
     </Dialog>
   );

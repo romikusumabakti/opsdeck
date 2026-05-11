@@ -181,7 +181,9 @@
     "confirmButton": "Backup",
     "successTitle": "Backup queued",
     "successDescription": "A backup for database {dbName} has been queued.",
-    "successButton": "OK"
+    "successButton": "OK",
+    "createdToast": "Backup file created",
+    "lastFileLabel": "Last backup file:"
   },
   "restoreDb": {
     "title": "Restore database",
