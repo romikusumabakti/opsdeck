@@ -13,7 +13,7 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
-import { deleteServer } from "@/actions/servers";
+import { bulkDeleteServers, deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -36,12 +36,14 @@ export function ServersClient({ servers }: { servers: Server[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Optimistic removal: drop the row from the table immediately so the user
+  // Optimistic removal: drop the row(s) from the table immediately so the user
   // sees the result of their click. React rolls back automatically if the
   // server action throws or the parent revalidation produces a different list.
-  const [optimisticServers, removeOptimistic] = useOptimistic<Server[], string>(
-    servers,
-    (state, idToRemove) => state.filter((s) => s.id !== idToRemove)
+  const [optimisticServers, removeOptimistic] = useOptimistic<
+    Server[],
+    string[]
+  >(servers, (state, idsToRemove) =>
+    state.filter((s) => !idsToRemove.includes(s.id))
   );
 
   const onDelete = React.useCallback(
@@ -57,13 +59,48 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimistic(server.id);
+        removeOptimistic([server.id]);
         const result = await deleteServer(server.id);
         if (!result.success) {
           toast.error(result.message);
           return;
         }
         toast.success(result.message ?? t("deletedSuccess"));
+      });
+    },
+    [dialog, t, tCommon, removeOptimistic]
+  );
+
+  const onBulkDelete = React.useCallback(
+    async (ids: string[], clearSelection: () => void) => {
+      const ok = await dialog.confirm({
+        title: t("bulkDeleteTitle", { count: ids.length }),
+        description: t("bulkDeleteDescription"),
+        confirmText: tCommon("delete"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        // Optimistically remove only the rows that aren't in-use; we don't
+        // know which those are yet, so drop them all and let the server
+        // result + revalidation restore any FK-blocked rows on next render.
+        removeOptimistic(ids);
+        clearSelection();
+        const result = await bulkDeleteServers(ids);
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        if (result.failed.length === 0) {
+          toast.success(t("bulkDeletedSuccess", { count: result.deleted }));
+        } else {
+          toast.warning(
+            t("bulkDeletedPartial", {
+              deleted: result.deleted,
+              failed: result.failed.length,
+            })
+          );
+        }
       });
     },
     [dialog, t, tCommon, removeOptimistic]
@@ -185,6 +222,18 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       data={optimisticServers}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
+      getRowId={(row) => row.id}
+      bulkActions={(ids, clearSelection) => (
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => onBulkDelete(ids, clearSelection)}
+          disabled={isPending}
+        >
+          <Trash2 className="size-4" />
+          {t("bulkDelete")}
+        </Button>
+      )}
     />
   );
 }
