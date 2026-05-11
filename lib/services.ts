@@ -5,7 +5,7 @@ export type ServiceRole = "db" | "backend" | "frontend";
 export type ServiceAction = "start" | "stop" | "restart";
 export type ServiceState = "running" | "stopped" | "not-found" | "unknown";
 
-export type ServiceType = "docker" | "system" | "kubernetes";
+export type ServiceType = "docker" | "systemd" | "kubernetes";
 
 // Sentinel emitted by the status command when the underlying tool can't find
 // the resource (otherwise `docker inspect` / `kubectl get` exits non-zero and
