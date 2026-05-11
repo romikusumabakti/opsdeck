@@ -6,7 +6,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { restoreDatabaseBackup } from "@/actions/backups";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskPanel } from "@/components/live-task-panel";
+import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -156,13 +156,24 @@ export function RestoreDatabase({
             </p>
           );
         })()}
-      {activeTaskId && (
-        <LiveTaskPanel
-          key={activeTaskId}
-          taskId={activeTaskId}
-          onDismiss={() => setActiveTaskId(null)}
-        />
-      )}
+      <LiveTaskDialog
+        taskId={activeTaskId}
+        onOpenChange={(open) => {
+          if (!open) setActiveTaskId(null);
+        }}
+        title={t("title")}
+        description={
+          <>
+            <code className="font-mono text-xs">{project.dbName}</code>
+            {backup && (
+              <>
+                <span>·</span>
+                <code className="font-mono text-xs">{backup.name}</code>
+              </>
+            )}
+          </>
+        }
+      />
     </div>
   );
 }

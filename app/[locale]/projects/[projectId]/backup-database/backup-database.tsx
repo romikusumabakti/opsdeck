@@ -6,7 +6,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskPanel } from "@/components/live-task-panel";
+import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import type { ProjectWithServers } from "@/lib/db/schema";
 
@@ -49,13 +49,16 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
           {submitting ? t("queuing") : t("button")}
         </Button>
       </div>
-      {activeTaskId && (
-        <LiveTaskPanel
-          key={activeTaskId}
-          taskId={activeTaskId}
-          onDismiss={() => setActiveTaskId(null)}
-        />
-      )}
+      <LiveTaskDialog
+        taskId={activeTaskId}
+        onOpenChange={(open) => {
+          if (!open) setActiveTaskId(null);
+        }}
+        title={t("title")}
+        description={
+          <code className="font-mono text-xs">{project.dbName}</code>
+        }
+      />
     </div>
   );
 }

@@ -22,7 +22,7 @@ import {
   type ServiceStatusResult,
 } from "@/actions/services";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskPanel } from "@/components/live-task-panel";
+import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -151,7 +151,13 @@ function ServiceCard({
 
   const [pendingAction, setPendingAction] =
     React.useState<ServiceAction | null>(null);
-  const [taskId, setTaskId] = React.useState<string | null>(null);
+  // The action that owns the currently-open task dialog. Kept separate from
+  // pendingAction (which clears once the action handler returns) so the
+  // dialog title can keep displaying e.g. "Restart" until the user closes it.
+  const [activeTask, setActiveTask] = React.useState<{
+    taskId: string;
+    action: ServiceAction;
+  } | null>(null);
 
   async function onAction(action: ServiceAction) {
     const titleLabel = tDash(meta.titleKey);
@@ -174,13 +180,7 @@ function ServiceCard({
         meta.role,
         action
       );
-      setTaskId(newTaskId);
-      toast.success(t(`successTitle.${action}`), {
-        description: t("successDescription", {
-          action: t(`actions.${action}`),
-          serviceName: meta.serviceName,
-        }),
-      });
+      setActiveTask({ taskId: newTaskId, action });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : tCommon("errorGeneric"));
     } finally {
@@ -191,11 +191,14 @@ function ServiceCard({
   const state = status?.state ?? "unknown";
   const Icon = meta.icon;
   const busy = loading || pendingAction !== null;
-  // After a control task finishes, refresh state — wired via LiveTaskPanel's
-  // dismiss callback so users can click X to close *and* trigger a refetch.
-  function onPanelDismiss() {
-    setTaskId(null);
-    onRefresh();
+  // Closing the dialog (X / ESC / overlay-click) clears the task and re-fetches
+  // status. The task itself keeps running server-side even if the user dismisses
+  // early — refresh will surface the eventual final state.
+  function onOpenChange(open: boolean) {
+    if (!open) {
+      setActiveTask(null);
+      onRefresh();
+    }
   }
 
   return (
@@ -275,15 +278,23 @@ function ServiceCard({
             <code className="font-mono break-all">{status.error}</code>
           </div>
         )}
-
-        {taskId && (
-          <LiveTaskPanel
-            key={taskId}
-            taskId={taskId}
-            onDismiss={onPanelDismiss}
-          />
-        )}
       </CardContent>
+
+      <LiveTaskDialog
+        taskId={activeTask?.taskId ?? null}
+        onOpenChange={onOpenChange}
+        title={
+          activeTask
+            ? t(`confirmTitle.${activeTask.action}`)
+            : tDash(meta.titleKey)
+        }
+        description={
+          <>
+            <code className="font-mono text-xs">{meta.serviceName}</code>
+            <span>· {meta.serverName}</span>
+          </>
+        }
+      />
     </Card>
   );
 }
