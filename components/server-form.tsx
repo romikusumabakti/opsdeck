@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useRouter } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
 
@@ -230,8 +231,7 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
                 {mode.type === "edit" ? t("passwordEdit") : t("password")}
               </FormLabel>
               <FormControl>
-                <Input
-                  type="password"
+                <PasswordInput
                   autoComplete="new-password"
                   placeholder={
                     mode.type === "edit"

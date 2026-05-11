@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, LogOut, Monitor } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { useDialog } from "@/components/dialog-provider";
@@ -35,6 +35,7 @@ function shortenUserAgent(ua: string | null | undefined): string {
 export function SessionsList({ currentToken }: { currentToken: string }) {
   const t = useTranslations("account.sessions");
   const tCommon = useTranslations("common");
+  const format = useFormatter();
   const dialog = useDialog();
   const [sessions, setSessions] = React.useState<Session[] | null>(null);
   const [pendingToken, setPendingToken] = React.useState<string | null>(null);
@@ -117,7 +118,10 @@ export function SessionsList({ currentToken }: { currentToken: string }) {
                 <div className="text-xs text-muted-foreground">
                   {s.ipAddress ?? t("unknownIp")} ·{" "}
                   {t("signedInAt", {
-                    date: new Date(s.createdAt).toLocaleString(),
+                    date: format.dateTime(new Date(s.createdAt), {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }),
                   })}
                 </div>
               </div>

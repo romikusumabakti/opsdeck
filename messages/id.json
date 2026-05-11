@@ -21,7 +21,9 @@
     "copied": "Disalin ke clipboard",
     "copyFailed": "Gagal menyalin",
     "verified": "Terverifikasi",
-    "urlInvalid": "Masukkan URL yang valid"
+    "urlInvalid": "Masukkan URL yang valid",
+    "showPassword": "Tampilkan password",
+    "hidePassword": "Sembunyikan password"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
