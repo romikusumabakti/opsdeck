@@ -8,6 +8,43 @@ export type TaskWithUser = Task & {
   user: { id: string; name: string; email: string } | null;
 };
 
+export type RunningTask = Pick<
+  Task,
+  "id" | "projectId" | "description" | "runAt"
+> & {
+  project: { id: string; name: string } | null;
+};
+
+// Returns currently-running tasks across all projects, newest first. Used by
+// the global header indicator so users can see and jump back into long
+// background jobs (backup/restore/simulate-time) even after dismissing the
+// per-page dialog. Capped at 10 — more than that is a system-health issue,
+// not a UX problem.
+export async function getRunningTasks(): Promise<RunningTask[]> {
+  try {
+    const rows = await db.query.tasks.findMany({
+      where: { status: "started" },
+      columns: {
+        id: true,
+        projectId: true,
+        description: true,
+        runAt: true,
+      },
+      with: {
+        project: {
+          columns: { id: true, name: true },
+        },
+      },
+      orderBy: { runAt: "desc" },
+      limit: 10,
+    });
+    return rows as RunningTask[];
+  } catch (error) {
+    console.error("Failed to fetch running tasks:", error);
+    return [];
+  }
+}
+
 export async function getProjectTasks(
   projectId: string
 ): Promise<TaskWithUser[]> {
