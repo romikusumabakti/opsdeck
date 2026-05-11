@@ -56,10 +56,10 @@ export const projects = pgTable("projects", {
     .references(() => servers.id, { onDelete: "restrict" }),
   backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
   backendServiceName: text("backend_service_name").notNull(),
-  // If set, the simulate-time feature will POST to this URL instead of
+  // If set, the time-mocking feature will POST to this URL instead of
   // falling back to the legacy `date -s` + restart approach. The endpoint
-  // is expected to accept JSON body `{ simulatedAt: <ISO string> }`.
-  backendSimulateTimeApiUrl: text("backend_simulate_time_api_url"),
+  // is expected to accept JSON body `{ mockedAt: <ISO string> }`.
+  backendMockTimeApiUrl: text("backend_mock_time_api_url"),
 
   // --- Frontend ---
   frontendServerId: uuid("frontend_server_id")

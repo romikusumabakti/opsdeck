@@ -47,7 +47,7 @@ const projectItems = [
     icon: DatabaseBackup,
     adminOnly: false,
   },
-  { key: "simulateTime", url: "/simulate-time", icon: Clock, adminOnly: false },
+  { key: "mockTime", url: "/mock-time", icon: Clock, adminOnly: false },
   { key: "history", url: "/history", icon: History, adminOnly: false },
   { key: "settings", url: "/settings", icon: Settings, adminOnly: true },
 ] as const;
