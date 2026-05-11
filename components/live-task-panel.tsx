@@ -155,7 +155,7 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
     <div
       className={cn(
         "rounded-lg border bg-card overflow-hidden transition-colors",
-        status === "success" && "border-emerald-500/40",
+        status === "success" && "border-success/40",
         status === "failed" && "border-destructive/50",
         status === "started" && "border-primary/30"
       )}
@@ -242,7 +242,7 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
 
 function StatusIcon({ status }: { status: TaskStatus }) {
   if (status === "success")
-    return <CheckCircle2 className="size-5 text-emerald-500 shrink-0" />;
+    return <CheckCircle2 className="size-5 text-success shrink-0" />;
   if (status === "failed")
     return <CircleAlert className="size-5 text-destructive shrink-0" />;
   return <Loader2 className="size-5 text-primary animate-spin shrink-0" />;
@@ -257,7 +257,7 @@ function StatusBadge({
 }) {
   if (status === "success") {
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 border-transparent">
+      <Badge className="bg-success/15 text-success hover:bg-success/15 border-transparent">
         {t("statusSuccess")}
       </Badge>
     );

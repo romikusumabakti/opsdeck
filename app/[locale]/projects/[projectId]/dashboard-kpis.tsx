@@ -132,7 +132,7 @@ function StatusDot({ status }: { status: Task["status"] }) {
   if (status === "failed") {
     return <CircleAlert className="size-3 text-destructive shrink-0" />;
   }
-  return <CheckCircle2 className="size-3 text-emerald-500 shrink-0" />;
+  return <CheckCircle2 className="size-3 text-success shrink-0" />;
 }
 
 export function DashboardKpisSkeleton() {

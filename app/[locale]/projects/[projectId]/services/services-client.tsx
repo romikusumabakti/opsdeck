@@ -341,11 +341,8 @@ function StatusBadge({
   }
   if (state === "running") {
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 border-transparent gap-1">
-        <span
-          className="size-1.5 rounded-full bg-emerald-500"
-          aria-hidden="true"
-        />
+      <Badge className="bg-success/15 text-success hover:bg-success/15 border-transparent gap-1">
+        <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
         {t("states.running")}
       </Badge>
     );
