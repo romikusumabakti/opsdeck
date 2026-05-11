@@ -11,7 +11,10 @@ type SimulateTimeResult =
   | { success: true; mode: "legacy"; taskId: string }
   | { success: false; mode: "api" | "legacy"; error: string };
 
-const API_TIMEOUT_MS = 5000;
+// 30s leaves headroom for endpoints that do non-trivial work on receiving the
+// new time (e.g. restarting workers). The previous 5s timed out under normal
+// load even when the underlying request would have succeeded.
+const API_TIMEOUT_MS = 30_000;
 
 // Node's fetch retries every resolved address (Happy Eyeballs). When all fail
 // it surfaces an AggregateError under `cause` whose `errors[]` each carry the
@@ -47,22 +50,28 @@ export async function simulateProjectTime(
 
   if (apiUrl) {
     const runAt = new Date();
+    let response: Response;
     try {
-      const response = await fetch(apiUrl, {
+      response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ simulatedAt }),
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
       });
-      if (!response.ok) {
-        return {
-          success: false,
-          mode: "api",
-          error: `${response.status} ${response.statusText}`,
-        };
-      }
-      // API mode is sync (a single POST), so we record the completed task
-      // directly instead of going through the live-progress flow.
+    } catch (error) {
+      return { success: false, mode: "api", error: describeFetchError(error) };
+    }
+    if (!response.ok) {
+      return {
+        success: false,
+        mode: "api",
+        error: `${response.status} ${response.statusText}`,
+      };
+    }
+    // The remote clock has already moved by this point — record the task as
+    // audit, but don't let an insert failure turn a successful simulate-time
+    // call into a user-visible error.
+    try {
       await db.insert(tasks).values({
         projectId: project.id,
         userId: session.user.id,
@@ -71,10 +80,13 @@ export async function simulateProjectTime(
         runAt,
         completedAt: new Date(),
       });
-      return { success: true, mode: "api" };
-    } catch (error) {
-      return { success: false, mode: "api", error: describeFetchError(error) };
+    } catch (auditError) {
+      console.error(
+        "simulate-time API succeeded but failed to record audit task",
+        auditError
+      );
     }
+    return { success: true, mode: "api" };
   }
 
   try {
