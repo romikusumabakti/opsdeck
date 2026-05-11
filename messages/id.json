@@ -244,7 +244,7 @@
     "modeLabel": "Mode",
     "modeApi": "API backend",
     "modeLegacy": "Legacy (SSH)",
-    "modeApiHint": "Akan memanggil POST {url} dengan '{'mockedAt'}'.",
+    "modeApiHint": "Akan menghubungi clock API di {url}.",
     "modeLegacyHint": "Akan mengubah jam server backend lalu me-restart {name}.",
     "dateLabel": "Tanggal",
     "timeLabel": "Waktu",
@@ -254,13 +254,82 @@
     "submit": "Terapkan",
     "submitting": "Memproses…",
     "confirmTitle": "Terapkan mock waktu",
-    "confirmDescriptionApi": "Beritahu API backend bahwa waktu saat ini adalah {dateTime}?",
     "confirmDescriptionLegacy": "Ubah jam server backend menjadi {dateTime} dan restart service backend? Ini berdampak ke semua aplikasi yang berjalan di server tersebut.",
     "successTitle": "Mock waktu diterapkan",
-    "successDescriptionApi": "Backend sudah diberitahu bahwa waktu saat ini {dateTime}.",
     "successDescriptionLegacy": "Perubahan jam server menjadi {dateTime} sudah di-queue.",
     "failureTitle": "Gagal mock waktu",
-    "legacyWarning": "Proyek ini belum punya API mock-time, jadi pendekatan legacy akan mengubah jam server dan me-restart backend. Aplikasi lain di server yang sama juga akan ikut terpengaruh."
+    "legacyWarning": "Proyek ini belum punya API mock-time, jadi pendekatan legacy akan mengubah jam server dan me-restart backend. Aplikasi lain di server yang sama juga akan ikut terpengaruh.",
+    "clockState": {
+      "title": "Status clock",
+      "description": "Status terkini dari clock backend.",
+      "now": "Sekarang",
+      "mocked": "Di-mock",
+      "frozen": "Dibekukan",
+      "real": "Waktu real",
+      "running": "Berjalan",
+      "yes": "Ya",
+      "no": "Tidak",
+      "refresh": "Muat ulang",
+      "loading": "Memuat status clock…",
+      "loadError": "Gagal memuat status clock"
+    },
+    "travel": {
+      "title": "Travel",
+      "description": "Lompat ke tanggal dan waktu yang dipilih. Clock tetap berjalan dari sana.",
+      "submit": "Travel",
+      "submitting": "Memproses…",
+      "confirm": "Travel ke {dateTime}? Clock akan tetap berjalan dari sana.",
+      "successTitle": "Clock dipindahkan",
+      "successDescription": "Clock sekarang di {dateTime}."
+    },
+    "freeze": {
+      "title": "Bekukan",
+      "description": "Hentikan clock. Pilih target untuk membekukan di titik itu, atau bekukan di waktu sekarang.",
+      "submitAt": "Bekukan di titik yang dipilih",
+      "submitNow": "Bekukan di waktu sekarang",
+      "submitting": "Membekukan…",
+      "confirmAt": "Bekukan clock di {dateTime}?",
+      "confirmNow": "Bekukan clock di waktu sekarang?",
+      "successTitle": "Clock dibekukan",
+      "successDescriptionAt": "Clock dibekukan di {dateTime}.",
+      "successDescriptionNow": "Clock dibekukan di waktu sekarang."
+    },
+    "advance": {
+      "title": "Advance",
+      "description": "Geser clock yang sedang dibekukan maju (atau mundur dengan durasi negatif). Hanya tersedia saat dibekukan.",
+      "amountLabel": "Jumlah",
+      "unitLabel": "Satuan",
+      "directionLabel": "Arah",
+      "forward": "Maju",
+      "backward": "Mundur",
+      "submit": "Advance",
+      "submitting": "Memproses…",
+      "units": {
+        "minutes": "Menit",
+        "hours": "Jam",
+        "days": "Hari"
+      },
+      "successTitle": "Clock digeser",
+      "successDescription": "Clock sekarang di {dateTime}.",
+      "notFrozen": "Clock harus dibekukan dulu sebelum bisa di-advance.",
+      "amountInvalid": "Masukkan jumlah positif."
+    },
+    "reset": {
+      "title": "Reset",
+      "description": "Buang mock dan unfreeze. Clock kembali ke waktu real.",
+      "submit": "Reset ke waktu real",
+      "submitting": "Mereset…",
+      "confirm": "Reset clock ke waktu real? Ini akan menghapus mock dan unfreeze.",
+      "successTitle": "Clock direset",
+      "successDescription": "Clock kembali ke waktu real."
+    },
+    "auditDescription": {
+      "travel": "Travel clock ke {target}",
+      "freezeAt": "Bekukan clock di {at}",
+      "freezeNow": "Bekukan clock di waktu sekarang",
+      "advance": "Advance clock dengan {duration}",
+      "reset": "Reset clock ke waktu real"
+    }
   },
   "history": {
     "title": "Riwayat",

@@ -56,9 +56,11 @@ export const projects = pgTable("projects", {
     .references(() => servers.id, { onDelete: "restrict" }),
   backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
   backendServiceName: text("backend_service_name").notNull(),
-  // If set, the time-mocking feature will POST to this URL instead of
-  // falling back to the legacy `date -s` + restart approach. The endpoint
-  // is expected to accept JSON body `{ mockedAt: <ISO string> }`.
+  // URL of the project's clock resource (e.g. `https://api.example.com/v1/clock`).
+  // When set, the time-mocking feature talks to this REST API
+  // (GET/DELETE the URL itself, POST to `/travel`, `/freeze`, `/advance`)
+  // per docs/time-mocking-api.md. When unset, falls back to the legacy
+  // `date -s` + service restart approach.
   backendMockTimeApiUrl: text("backend_mock_time_api_url"),
 
   // --- Frontend ---
