@@ -513,6 +513,16 @@
     "deleteFailed": "Failed to delete user",
     "deletedSuccess": "User deleted",
     "revokedSuccess": "Invitation revoked",
+    "bulkDelete": "Delete selected",
+    "bulkDeleteTitle": "Delete {count, plural, one {# user} other {# users}}?",
+    "bulkDeleteDescription": "This permanently deletes the selected users. Your own account is always excluded.",
+    "bulkDeletedSuccess": "{count, plural, one {# user} other {# users}} deleted",
+    "bulkDeletedPartial": "{deleted} deleted · {failed} failed",
+    "bulkDeletedNothing": "Nothing to delete — your own account was excluded.",
+    "bulkRevoke": "Revoke selected",
+    "bulkRevokeTitle": "Revoke {count, plural, one {# invitation} other {# invitations}}?",
+    "bulkRevokeDescription": "Selected invitations will be deleted and the links will stop working.",
+    "bulkRevokedSuccess": "{count, plural, one {# invitation} other {# invitations}} revoked",
     "searchPlaceholder": "Search by name…",
     "colUser": "User",
     "colInvitee": "Invitee",
@@ -554,6 +564,7 @@
     "serverNotFound": "Server not found",
     "serverInUse": "Cannot delete server while still in use by a project",
     "hostAndUsernameRequired": "Host and username are required",
-    "passwordRequiredForTest": "Enter the password to test the connection"
+    "passwordRequiredForTest": "Enter the password to test the connection",
+    "errorGeneric": "Something went wrong"
   }
 }
