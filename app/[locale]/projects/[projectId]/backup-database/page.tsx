@@ -29,13 +29,13 @@ export default async function Page({
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl w-full mx-auto">
+    <>
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle", { dbName: project.dbName })}
       />
 
-      <Card>
+      <Card className="max-w-2xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Database className="size-5 text-muted-foreground" />
@@ -77,6 +77,6 @@ export default async function Page({
           <BackupDatabase project={project} />
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

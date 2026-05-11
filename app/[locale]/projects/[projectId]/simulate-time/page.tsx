@@ -30,13 +30,13 @@ export default async function Page({
   const hasApi = Boolean(project.backendSimulateTimeApiUrl?.trim());
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl w-full mx-auto">
+    <>
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle", { name: project.name })}
       />
 
-      <Card>
+      <Card className="max-w-2xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Clock className="size-5 text-muted-foreground" />
@@ -72,6 +72,6 @@ export default async function Page({
           )}
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

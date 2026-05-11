@@ -26,9 +26,9 @@ export default async function NewProjectPage({
   const servers = await getServers();
 
   return (
-    <div className="max-w-3xl py-8 px-4 mx-auto w-full flex flex-col gap-6">
+    <>
       <PageHeader title={t("title")} subtitle={t("description")} />
-      <Card>
+      <Card className="max-w-2xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <FolderPlus className="size-5 text-muted-foreground" />
@@ -40,6 +40,6 @@ export default async function NewProjectPage({
           <ProjectForm mode={{ type: "create" }} servers={servers} />
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

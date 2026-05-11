@@ -24,9 +24,9 @@ export default async function Page({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <HistoryClient tasks={tasks} />
-    </div>
+    </>
   );
 }

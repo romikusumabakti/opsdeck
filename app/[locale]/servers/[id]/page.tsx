@@ -37,12 +37,12 @@ export default async function EditServerPage({
   const tDash = await getTranslations("dashboard");
 
   return (
-    <div className="max-w-4xl py-8 px-4 mx-auto w-full flex flex-col gap-6">
+    <>
       <PageHeader
         title={t("title", { name: server.name })}
         subtitle={t("description")}
       />
-      <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_18rem] max-w-5xl w-full">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -101,6 +101,6 @@ export default async function EditServerPage({
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }
