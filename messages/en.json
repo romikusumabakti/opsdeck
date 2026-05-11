@@ -374,6 +374,7 @@
   },
   "servers": {
     "title": "Servers",
+    "subtitle": "Manage SSH-accessible servers used by projects.",
     "addServer": "Add server",
     "emptyTitle": "No servers yet",
     "empty": "Add a server to start registering projects.",
