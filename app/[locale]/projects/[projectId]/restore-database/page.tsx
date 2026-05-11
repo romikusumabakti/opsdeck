@@ -2,6 +2,7 @@ import { AlertTriangle, DatabaseBackup } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getBackupList } from "@/actions/backups";
 import { getProjectById } from "@/actions/projects";
+import { PageHeader } from "@/components/page-header";
 import {
   Card,
   CardContent,
@@ -31,12 +32,10 @@ export default async function Page({
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl w-full mx-auto">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("subtitle", { dbName: project.dbName })}
-        </p>
-      </div>
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle", { dbName: project.dbName })}
+      />
 
       <Card>
         <CardHeader>

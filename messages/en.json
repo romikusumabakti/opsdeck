@@ -123,6 +123,16 @@
       "statusRunning": "Running",
       "statusSuccess": "Success",
       "statusFailed": "Failed"
+    },
+    "kpis": {
+      "lastBackup": "Last backup",
+      "lastRestore": "Last restore",
+      "lastSimulate": "Last simulate",
+      "activity7d": "Activity (7d)",
+      "runs": "runs",
+      "successRate": "{pct}% success",
+      "noCompleted": "No completed runs yet",
+      "never": "Never"
     }
   },
   "backupDb": {

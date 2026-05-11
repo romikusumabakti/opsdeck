@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listPendingInvitations, listUsers } from "@/actions/users";
+import { PageHeader } from "@/components/page-header";
 import { requireAdmin } from "@/lib/auth-session";
 import { UsersClient } from "./users-client";
 
@@ -21,11 +22,8 @@ export default async function UsersPage({
   const t = await getTranslations("users");
 
   return (
-    <div className="max-w-4xl py-8 mx-auto w-full px-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
-      </div>
+    <div className="max-w-4xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <UsersClient
         users={users}
         invitations={invitations}

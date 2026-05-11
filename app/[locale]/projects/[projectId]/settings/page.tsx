@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById } from "@/actions/projects";
 import { getServers } from "@/actions/servers";
+import { PageHeader } from "@/components/page-header";
 import { ProjectForm } from "@/components/project-form";
 import {
   Card,
@@ -36,10 +37,7 @@ export default async function ProjectSettingsPage({
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl w-full mx-auto">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-      </div>
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
       <Card>
         <CardHeader>

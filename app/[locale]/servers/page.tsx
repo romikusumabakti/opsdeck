@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServers } from "@/actions/servers";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth-session";
@@ -20,16 +21,19 @@ export default async function ServersPage({
   const t = await getTranslations("servers");
 
   return (
-    <div className="max-w-4xl py-8 mx-auto w-full px-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <Button asChild>
-          <Link href="/servers/new">
-            <Plus className="size-4" />
-            {t("addServer")}
-          </Link>
-        </Button>
-      </div>
+    <div className="max-w-4xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          <Button asChild>
+            <Link href="/servers/new">
+              <Plus className="size-4" />
+              {t("addServer")}
+            </Link>
+          </Button>
+        }
+      />
       <ServersClient servers={servers} />
     </div>
   );
