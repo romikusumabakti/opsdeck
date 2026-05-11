@@ -198,6 +198,8 @@
     "backupsNotFound": "No backups available",
     "backupsNotFoundDescription": "There are no backup files at the configured path yet.",
     "dangerNote": "Restoring will overwrite the current database state. This cannot be undone.",
+    "restartBackendLabel": "Restart backend after restore",
+    "restartBackendHint": "Restarts {backendName} so it drops stale DB connections and clears in-memory caches.",
     "confirmTitle": "Restore database",
     "confirmDescription": "Restore {dbName} from {filename}? This will overwrite the current database.",
     "successTitle": "Restore queued",

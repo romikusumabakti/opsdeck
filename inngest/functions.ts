@@ -304,8 +304,9 @@ export const restoreDatabaseBackup = inngest.createFunction(
     const data = event.data as ProjectWithServers & {
       filename: string;
       taskId: string;
+      restartBackend?: boolean;
     };
-    const { filename, taskId } = data;
+    const { filename, taskId, restartBackend } = data;
     const credentials = {
       host: data.dbServer.host,
       username: data.dbServer.username,
@@ -342,6 +343,32 @@ export const restoreDatabaseBackup = inngest.createFunction(
           `Restoring from ${filename}`,
           async () => {
             await runPostgresRestore(data, filename, credentials);
+          }
+        );
+      }
+
+      // Optional follow-up: restart backend so it picks up the fresh DB state
+      // (drops stale connections, clears in-memory caches). Runs against the
+      // backend server's credentials, not the DB server's.
+      if (restartBackend) {
+        await tracked(
+          taskId,
+          step,
+          "restart-backend",
+          `Restarting backend ${data.backendServiceName}`,
+          async () => {
+            const backendCreds = {
+              host: data.backendServer.host,
+              username: data.backendServer.username,
+              password: data.backendServer.password,
+            };
+            const cmd = buildControlCommand(
+              data.backendServiceType,
+              data.backendServiceName,
+              "restart",
+              backendCreds.password
+            );
+            await executeRemoteCommand(backendCreds, cmd);
           }
         );
       }

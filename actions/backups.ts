@@ -68,13 +68,18 @@ export async function createDatabaseBackup(
 }
 
 export async function restoreDatabaseBackup(
-  project: ProjectWithServers & { filename: string }
+  project: ProjectWithServers & {
+    filename: string;
+    restartBackend?: boolean;
+  }
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
-    description: `Restore database from ${project.filename}`,
+    description: project.restartBackend
+      ? `Restore database from ${project.filename} (+ restart backend)`
+      : `Restore database from ${project.filename}`,
   });
   await inngest.send({
     name: "db/restore.requested",
