@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { getRunningTasks, type RunningTask } from "@/actions/tasks";
+import type { RunningTask } from "@/actions/tasks";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,8 +11,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-
-const POLL_INTERVAL_MS = 8000;
 
 function toMs(value: Date | string): number {
   // Server actions serialize Date to string over the wire — TS types still
@@ -36,41 +34,24 @@ export function ActiveTasksIndicator() {
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => Date.now());
 
-  // Poll for running tasks. Pause when the tab is hidden so a backgrounded
-  // window doesn't keep hammering the DB. A visibility flip triggers an
-  // immediate refresh so the badge is fresh when the user returns.
+  // Subscribe to a server-sent stream of the running-task list. The server
+  // polls the DB and pushes diffs, so we get fresh state without each client
+  // hammering the DB on its own timer. EventSource auto-reconnects on
+  // transient errors and after the server's 10-minute max-duration close.
   React.useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    const es = new EventSource("/api/tasks/running/stream");
 
-    async function tick() {
+    es.addEventListener("snapshot", (ev) => {
       try {
-        const next = await getRunningTasks();
-        if (cancelled) return;
-        setTasks(next);
-      } finally {
-        if (!cancelled && document.visibilityState === "visible") {
-          timer = setTimeout(tick, POLL_INTERVAL_MS);
-        }
+        const data = JSON.parse((ev as MessageEvent).data) as RunningTask[];
+        setTasks(data);
+      } catch {
+        /* ignore malformed frame */
       }
-    }
+    });
 
-    function onVisibility() {
-      if (document.visibilityState === "visible") {
-        if (timer) clearTimeout(timer);
-        tick();
-      } else if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    }
-
-    tick();
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
+      es.close();
     };
   }, []);
 
