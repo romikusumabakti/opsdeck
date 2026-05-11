@@ -8,7 +8,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { simulateProjectTime } from "@/actions/simulate-time";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskPanel } from "@/components/live-task-panel";
+import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -194,13 +194,14 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
         <Clock className="size-4" />
         {submitting ? t("submitting") : t("submit")}
       </Button>
-      {activeTaskId && (
-        <LiveTaskPanel
-          key={activeTaskId}
-          taskId={activeTaskId}
-          onDismiss={() => setActiveTaskId(null)}
-        />
-      )}
+      <LiveTaskDialog
+        taskId={activeTaskId}
+        onOpenChange={(open) => {
+          if (!open) setActiveTaskId(null);
+        }}
+        title={t("title")}
+        description={<span>{displayLabel}</span>}
+      />
     </div>
   );
 }
