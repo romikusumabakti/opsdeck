@@ -9,6 +9,7 @@ import {
   History,
   LayoutDashboard,
   Server,
+  ServerCog,
   Settings,
   Users,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/|$)/i;
 
 const projectItems = [
   { key: "dashboard", url: "", icon: LayoutDashboard, adminOnly: false },
+  { key: "services", url: "/services", icon: ServerCog, adminOnly: false },
   {
     key: "backupDatabase",
     url: "/backup-database",

@@ -1,4 +1,10 @@
 import type { ProjectWithServers } from "@/lib/db/schema";
+import {
+  buildControlCommand,
+  getServiceConfig,
+  type ServiceAction,
+  type ServiceRole,
+} from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { appendTaskOutput, completeTask, failTask } from "@/lib/task-progress";
@@ -382,6 +388,60 @@ async function runPostgresRestore(
   const cmd = `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`)}`;
   await executeRemoteCommand(credentials, cmd);
 }
+
+export const controlService = inngest.createFunction(
+  { id: "control-service", triggers: { event: "service/control.requested" } },
+  async ({ event, step }) => {
+    const { project, role, action, taskId } = event.data as {
+      project: ProjectWithServers;
+      role: ServiceRole;
+      action: ServiceAction;
+      taskId: string;
+    };
+    const cfg = getServiceConfig(project, role);
+    const credentials = {
+      host: cfg.server.host,
+      username: cfg.server.username,
+      password: cfg.server.password,
+    };
+
+    try {
+      await tracked(
+        taskId,
+        step,
+        "service-control",
+        `${action} ${cfg.serviceName} (${cfg.serviceType})`,
+        async () => {
+          const cmd = buildControlCommand(
+            cfg.serviceType,
+            cfg.serviceName,
+            action,
+            credentials.password
+          );
+          const output = await executeRemoteCommand(credentials, cmd);
+          const trimmed = output.trim();
+          if (trimmed) {
+            await appendTaskOutput(taskId, trimmed);
+          }
+        }
+      );
+
+      await step.run("finish", async () => {
+        await appendTaskOutput(
+          taskId,
+          `✓ ${action} ${cfg.serviceName} complete`
+        );
+        await completeTask(taskId);
+      });
+
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
+  }
+);
 
 async function runMssqlRestore(
   data: ProjectWithServers,

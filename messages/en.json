@@ -42,6 +42,7 @@
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
     "simulateTime": "Simulate time",
+    "services": "Services",
     "history": "History",
     "settings": "Settings",
     "new": "New",
@@ -69,6 +70,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "services": "Services",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
     "simulateTime": "Simulate time",
@@ -134,6 +136,37 @@
       "noCompleted": "No completed runs yet",
       "never": "Never"
     }
+  },
+  "services": {
+    "title": "Services",
+    "subtitle": "View status and start, stop, or restart services for {name}.",
+    "infoNote": "Status is checked over SSH. Start, stop, and restart run in the background — progress streams in the card.",
+    "typeLabel": "Type",
+    "refresh": "Refresh",
+    "states": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "notFound": "Not found",
+      "unknown": "Unknown",
+      "checking": "Checking…"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart"
+    },
+    "confirmTitle": {
+      "start": "Start service",
+      "stop": "Stop service",
+      "restart": "Restart service"
+    },
+    "confirmDescription": "{action} {target} service ({serviceName})? This will affect everything depending on it.",
+    "successTitle": {
+      "start": "Start queued",
+      "stop": "Stop queued",
+      "restart": "Restart queued"
+    },
+    "successDescription": "{action} for {serviceName} has been queued."
   },
   "backupDb": {
     "title": "Backup database",

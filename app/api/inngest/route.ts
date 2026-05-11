@@ -1,5 +1,6 @@
 import { serve } from "inngest/next";
 import {
+  controlService,
   createDatabaseBackup,
   restoreDatabaseBackup,
   simulateProjectTimeLegacy,
@@ -14,5 +15,6 @@ export const { GET, POST, PUT } = serve({
     createDatabaseBackup,
     restoreDatabaseBackup,
     simulateProjectTimeLegacy,
+    controlService,
   ],
 });

@@ -42,6 +42,7 @@
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
     "simulateTime": "Simulasi waktu",
+    "services": "Service",
     "history": "Riwayat",
     "settings": "Pengaturan",
     "new": "Baru",
@@ -69,6 +70,7 @@
   },
   "nav": {
     "dashboard": "Dasbor",
+    "services": "Service",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
     "simulateTime": "Simulasi waktu",
@@ -134,6 +136,37 @@
       "noCompleted": "Belum ada operasi selesai",
       "never": "Belum pernah"
     }
+  },
+  "services": {
+    "title": "Service",
+    "subtitle": "Lihat status serta start, stop, atau restart service untuk {name}.",
+    "infoNote": "Status diperiksa melalui SSH. Start, stop, dan restart berjalan di background — progres tampil di kartu.",
+    "typeLabel": "Tipe",
+    "refresh": "Muat ulang",
+    "states": {
+      "running": "Berjalan",
+      "stopped": "Berhenti",
+      "notFound": "Tidak ditemukan",
+      "unknown": "Tidak diketahui",
+      "checking": "Memeriksa…"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart"
+    },
+    "confirmTitle": {
+      "start": "Start service",
+      "stop": "Stop service",
+      "restart": "Restart service"
+    },
+    "confirmDescription": "{action} service {target} ({serviceName})? Ini berdampak ke semua yang bergantung padanya.",
+    "successTitle": {
+      "start": "Start di-queue",
+      "stop": "Stop di-queue",
+      "restart": "Restart di-queue"
+    },
+    "successDescription": "{action} untuk {serviceName} sudah di-queue."
   },
   "backupDb": {
     "title": "Backup database",
