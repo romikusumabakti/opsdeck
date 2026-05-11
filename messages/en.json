@@ -153,7 +153,8 @@
     "actions": {
       "start": "Start",
       "stop": "Stop",
-      "restart": "Restart"
+      "restart": "Restart",
+      "viewLogs": "View logs"
     },
     "confirmTitle": {
       "start": "Start service",
@@ -166,7 +167,17 @@
       "stop": "Stop queued",
       "restart": "Restart queued"
     },
-    "successDescription": "{action} for {serviceName} has been queued."
+    "successDescription": "{action} for {serviceName} has been queued.",
+    "logs": {
+      "title": "{target} logs",
+      "linesLabel": "Tail",
+      "lines": "lines",
+      "refresh": "Refresh",
+      "copy": "Copy logs",
+      "outputLabel": "Output",
+      "loading": "Fetching logs…",
+      "empty": "No log output."
+    }
   },
   "backupDb": {
     "title": "Backup database",

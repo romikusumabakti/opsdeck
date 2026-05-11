@@ -153,7 +153,8 @@
     "actions": {
       "start": "Start",
       "stop": "Stop",
-      "restart": "Restart"
+      "restart": "Restart",
+      "viewLogs": "Lihat log"
     },
     "confirmTitle": {
       "start": "Start service",
@@ -166,7 +167,17 @@
       "stop": "Stop di-queue",
       "restart": "Restart di-queue"
     },
-    "successDescription": "{action} untuk {serviceName} sudah di-queue."
+    "successDescription": "{action} untuk {serviceName} sudah di-queue.",
+    "logs": {
+      "title": "Log {target}",
+      "linesLabel": "Tail",
+      "lines": "baris",
+      "refresh": "Muat ulang",
+      "copy": "Salin log",
+      "outputLabel": "Output",
+      "loading": "Mengambil log…",
+      "empty": "Belum ada output log."
+    }
   },
   "backupDb": {
     "title": "Backup database",
