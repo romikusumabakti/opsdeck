@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import { useTransition } from "react";
+import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 import { deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
@@ -36,6 +36,14 @@ export function ServersClient({ servers }: { servers: Server[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  // Optimistic removal: drop the row from the table immediately so the user
+  // sees the result of their click. React rolls back automatically if the
+  // server action throws or the parent revalidation produces a different list.
+  const [optimisticServers, removeOptimistic] = useOptimistic<Server[], string>(
+    servers,
+    (state, idToRemove) => state.filter((s) => s.id !== idToRemove)
+  );
+
   const onDelete = React.useCallback(
     async (server: Server) => {
       const ok = await dialog.confirm({
@@ -49,6 +57,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       });
       if (!ok) return;
       startTransition(async () => {
+        removeOptimistic(server.id);
         const result = await deleteServer(server.id);
         if (!result.success) {
           toast.error(result.message);
@@ -57,7 +66,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         toast.success(result.message ?? t("deletedSuccess"));
       });
     },
-    [dialog, t, tCommon]
+    [dialog, t, tCommon, removeOptimistic]
   );
 
   const columns = React.useMemo<ColumnDef<Server>[]>(
@@ -150,7 +159,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
     [t, tCommon, isPending, router, onDelete]
   );
 
-  if (servers.length === 0) {
+  if (optimisticServers.length === 0) {
     return (
       <div className="rounded-lg border bg-card">
         <EmptyState
@@ -173,7 +182,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
   return (
     <DataTable
       columns={columns}
-      data={servers}
+      data={optimisticServers}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
     />

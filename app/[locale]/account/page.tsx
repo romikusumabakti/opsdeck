@@ -1,6 +1,7 @@
 import { KeyRound, Monitor, UserRound } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ChangePasswordForm } from "@/app/[locale]/account/change-password/change-password-form";
+import { PageHeader } from "@/components/page-header";
 import {
   Card,
   CardContent,
@@ -35,11 +36,8 @@ export default async function AccountPage({
   const defaultTab = tab === "security" || tab === "sessions" ? tab : "profile";
 
   return (
-    <div className="max-w-3xl py-8 mx-auto w-full px-4">
-      <div className="mb-6 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-      </div>
+    <div className="max-w-3xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
       <Tabs defaultValue={defaultTab} className="gap-6">
         <TabsList>

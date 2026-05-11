@@ -2,6 +2,7 @@ import { Folder, ServerCog } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServerById, getServerUsage } from "@/actions/servers";
+import { PageHeader } from "@/components/page-header";
 import { ServerForm } from "@/components/server-form";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -36,13 +37,11 @@ export default async function EditServerPage({
   const tDash = await getTranslations("dashboard");
 
   return (
-    <div className="max-w-4xl py-8 px-4 mx-auto w-full">
-      <div className="mb-6 flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {t("title", { name: server.name })}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("description")}</p>
-      </div>
+    <div className="max-w-4xl py-8 px-4 mx-auto w-full flex flex-col gap-6">
+      <PageHeader
+        title={t("title", { name: server.name })}
+        subtitle={t("description")}
+      />
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
         <Card>
           <CardHeader>

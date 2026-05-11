@@ -123,6 +123,16 @@
       "statusRunning": "Berjalan",
       "statusSuccess": "Sukses",
       "statusFailed": "Gagal"
+    },
+    "kpis": {
+      "lastBackup": "Backup terakhir",
+      "lastRestore": "Restore terakhir",
+      "lastSimulate": "Simulasi terakhir",
+      "activity7d": "Aktivitas (7 hari)",
+      "runs": "operasi",
+      "successRate": "{pct}% sukses",
+      "noCompleted": "Belum ada operasi selesai",
+      "never": "Belum pernah"
     }
   },
   "backupDb": {

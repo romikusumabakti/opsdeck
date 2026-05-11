@@ -106,6 +106,12 @@ export function UsersClient({
     return state.filter((inv) => inv.id !== action.id);
   });
 
+  // Same pattern for the users list — drop the row immediately on delete.
+  const [optimisticUsers, removeOptimisticUser] = useOptimistic<
+    UserRow[],
+    string
+  >(users, (state, idToRemove) => state.filter((u) => u.id !== idToRemove));
+
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
     email: z.string().email(tCommon("emailInvalid")),
@@ -153,6 +159,7 @@ export function UsersClient({
       });
       if (!ok) return;
       startTransition(async () => {
+        removeOptimisticUser(user.id);
         const result = await deleteUser(user.id);
         if (!result.success) {
           toast.error(result.message);
@@ -161,7 +168,7 @@ export function UsersClient({
         toast.success(result.message ?? t("deletedSuccess"));
       });
     },
-    [dialog, t, tCommon]
+    [dialog, t, tCommon, removeOptimisticUser]
   );
 
   const onRevoke = React.useCallback(
@@ -421,14 +428,14 @@ export function UsersClient({
           <CardTitle>
             {t("listCardTitle")}{" "}
             <span className="text-muted-foreground font-normal">
-              ({users.length})
+              ({optimisticUsers.length})
             </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <DataTable
             columns={userColumns}
-            data={users}
+            data={optimisticUsers}
             filterColumn="name"
             filterPlaceholder={t("searchPlaceholder")}
           />
