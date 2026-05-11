@@ -244,7 +244,7 @@
     "modeLabel": "Mode",
     "modeApi": "Backend API",
     "modeLegacy": "Legacy (SSH)",
-    "modeApiHint": "Will POST to {url} with '{'mockedAt'}'.",
+    "modeApiHint": "Will talk to the clock API at {url}.",
     "modeLegacyHint": "Will change the backend server clock and restart {name}.",
     "dateLabel": "Date",
     "timeLabel": "Time",
@@ -254,13 +254,82 @@
     "submit": "Apply",
     "submitting": "Applying…",
     "confirmTitle": "Apply mocked time",
-    "confirmDescriptionApi": "Tell the backend API to treat the current time as {dateTime}?",
     "confirmDescriptionLegacy": "Change the backend server clock to {dateTime} and restart the backend service? This affects everything running on that server.",
     "successTitle": "Mocked time applied",
-    "successDescriptionApi": "Backend was told the current time is {dateTime}.",
     "successDescriptionLegacy": "Server clock change to {dateTime} has been queued.",
     "failureTitle": "Failed to mock time",
-    "legacyWarning": "This project has no time-mocking API configured, so the legacy approach will change the server clock and restart the backend. Anything else running on that server will also see the new time."
+    "legacyWarning": "This project has no time-mocking API configured, so the legacy approach will change the server clock and restart the backend. Anything else running on that server will also see the new time.",
+    "clockState": {
+      "title": "Clock state",
+      "description": "Current state of the backend clock.",
+      "now": "Now",
+      "mocked": "Mocked",
+      "frozen": "Frozen",
+      "real": "Real time",
+      "running": "Running",
+      "yes": "Yes",
+      "no": "No",
+      "refresh": "Refresh",
+      "loading": "Loading clock state…",
+      "loadError": "Failed to load clock state"
+    },
+    "travel": {
+      "title": "Travel",
+      "description": "Jump to the selected date and time. The clock keeps running from there.",
+      "submit": "Travel",
+      "submitting": "Traveling…",
+      "confirm": "Travel to {dateTime}? The clock will resume running from there.",
+      "successTitle": "Clock traveled",
+      "successDescription": "Clock is now at {dateTime}."
+    },
+    "freeze": {
+      "title": "Freeze",
+      "description": "Stop the clock. Pick a target to freeze it at, or freeze it where it is now.",
+      "submitAt": "Freeze at selected",
+      "submitNow": "Freeze at current time",
+      "submitting": "Freezing…",
+      "confirmAt": "Freeze the clock at {dateTime}?",
+      "confirmNow": "Freeze the clock at its current time?",
+      "successTitle": "Clock frozen",
+      "successDescriptionAt": "Clock frozen at {dateTime}.",
+      "successDescriptionNow": "Clock frozen at its current time."
+    },
+    "advance": {
+      "title": "Advance",
+      "description": "Shift the frozen clock forward (or backward with a negative duration). Only available while frozen.",
+      "amountLabel": "Amount",
+      "unitLabel": "Unit",
+      "directionLabel": "Direction",
+      "forward": "Forward",
+      "backward": "Backward",
+      "submit": "Advance",
+      "submitting": "Advancing…",
+      "units": {
+        "minutes": "Minutes",
+        "hours": "Hours",
+        "days": "Days"
+      },
+      "successTitle": "Clock advanced",
+      "successDescription": "Clock is now at {dateTime}.",
+      "notFrozen": "The clock must be frozen first before you can advance it.",
+      "amountInvalid": "Enter a positive amount."
+    },
+    "reset": {
+      "title": "Reset",
+      "description": "Drop the mock and unfreeze. The clock will return to real wall-clock time.",
+      "submit": "Reset to real time",
+      "submitting": "Resetting…",
+      "confirm": "Reset the clock back to real time? This clears any mock and unfreezes.",
+      "successTitle": "Clock reset",
+      "successDescription": "Clock is back to real time."
+    },
+    "auditDescription": {
+      "travel": "Travel clock to {target}",
+      "freezeAt": "Freeze clock at {at}",
+      "freezeNow": "Freeze clock at current time",
+      "advance": "Advance clock by {duration}",
+      "reset": "Reset clock to real time"
+    }
   },
   "history": {
     "title": "History",

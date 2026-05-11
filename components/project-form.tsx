@@ -368,7 +368,7 @@ export function ProjectForm({
                   <FormControl>
                     <Input
                       type="url"
-                      placeholder="https://api.example.com/system-time"
+                      placeholder="https://api.example.com/v1/clock"
                       {...field}
                       value={field.value ?? ""}
                     />
