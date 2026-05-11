@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
@@ -224,6 +224,74 @@ export async function revokeInvitation(
   await db.delete(invitations).where(eq(invitations.id, invitationId));
   revalidatePath("/users");
   return { success: true, message: t("invitationRevoked") };
+}
+
+export type BulkUsersResult =
+  | {
+      success: true;
+      deleted: number;
+      skippedSelf: boolean;
+      failed: { id: string; message: string }[];
+    }
+  | { success: false; message: string };
+
+/**
+ * Bulk-delete users. Skips the caller's own account (UI prevents selecting
+ * self, but enforce on the server too — a tampered client could still POST
+ * its own ID). Partial success is allowed: one failure doesn't block the
+ * rest, matching the bulk-servers behavior.
+ */
+export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
+  const session = await requireAdmin();
+  const t = await getTranslations("actionErrors");
+
+  const targets = ids.filter((id) => id !== session.user.id);
+  const skippedSelf = targets.length !== ids.length;
+
+  if (targets.length === 0) {
+    revalidatePath("/users");
+    return { success: true, deleted: 0, skippedSelf, failed: [] };
+  }
+
+  const ctx = await auth.$context;
+  let deleted = 0;
+  const failed: { id: string; message: string }[] = [];
+  for (const id of targets) {
+    try {
+      await ctx.internalAdapter.deleteUser(id);
+      deleted += 1;
+    } catch (error) {
+      console.error(`Failed to delete user ${id}:`, error);
+      failed.push({ id, message: t("errorGeneric") });
+    }
+  }
+  revalidatePath("/users");
+  return { success: true, deleted, skippedSelf, failed };
+}
+
+export type BulkInvitationsResult =
+  | { success: true; revoked: number }
+  | { success: false; message: string };
+
+export async function bulkRevokeInvitations(
+  ids: string[]
+): Promise<BulkInvitationsResult> {
+  await requireAdmin();
+  const t = await getTranslations("actionErrors");
+  if (ids.length === 0) {
+    return { success: true, revoked: 0 };
+  }
+  try {
+    const result = await db
+      .delete(invitations)
+      .where(inArray(invitations.id, ids))
+      .returning({ id: invitations.id });
+    revalidatePath("/users");
+    return { success: true, revoked: result.length };
+  } catch (error) {
+    console.error("Failed to bulk-revoke invitations:", error);
+    return { success: false, message: t("errorGeneric") };
+  }
 }
 
 /**
