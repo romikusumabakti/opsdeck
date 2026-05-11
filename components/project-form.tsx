@@ -25,7 +25,7 @@ import { useRouter } from "@/i18n/navigation";
 import type { Project, Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
-const SERVICE_TYPES = ["docker", "system", "kubernetes"] as const;
+const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
 
 type ServerRole = "db" | "backend" | "frontend";
