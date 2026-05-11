@@ -137,7 +137,13 @@ function StaticCrumb({
   );
 }
 
-export function HeaderBreadcrumb({ projects }: { projects: Project[] }) {
+export function HeaderBreadcrumb({
+  projects,
+  isAdmin,
+}: {
+  projects: Project[];
+  isAdmin: boolean;
+}) {
   const pathname = usePathname();
   const t = useTranslations();
 
@@ -169,7 +175,11 @@ export function HeaderBreadcrumb({ projects }: { projects: Project[] }) {
       <Separator orientation="vertical" className="h-5" />
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 min-w-0">
         {activeProject ? (
-          <ProjectSwitcher projects={projects} activeProject={activeProject} />
+          <ProjectSwitcher
+            projects={projects}
+            activeProject={activeProject}
+            isAdmin={isAdmin}
+          />
         ) : null}
         {trailing.map((seg, i) => {
           const isLast = i === trailing.length - 1;
@@ -192,9 +202,11 @@ export function HeaderBreadcrumb({ projects }: { projects: Project[] }) {
 function ProjectSwitcher({
   projects,
   activeProject,
+  isAdmin,
 }: {
   projects: Project[];
   activeProject: Project;
+  isAdmin: boolean;
 }) {
   // View Transitions API gives the project switch a perceptible crossfade so
   // it doesn't look like an instant context wipe; helps locate which content
@@ -256,16 +268,20 @@ function ProjectSwitcher({
                 ))}
               </CommandGroup>
             )}
-            <CommandSeparator />
-            <CommandGroup>
-              <CommandItem
-                value="__create-project"
-                onSelect={() => go("/projects/new")}
-              >
-                <Plus className="size-4" />
-                {tHeader("createProject")}
-              </CommandItem>
-            </CommandGroup>
+            {isAdmin && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    value="__create-project"
+                    onSelect={() => go("/projects/new")}
+                  >
+                    <Plus className="size-4" />
+                    {tHeader("createProject")}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
