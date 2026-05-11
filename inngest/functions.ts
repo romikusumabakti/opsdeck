@@ -60,10 +60,10 @@ export const createDatabaseBackup = inngest.createFunction(
         "ensure-backup-dir",
         "Ensuring backup directory exists",
         async () => {
-          await executeRemoteCommand(
-            credentials,
-            `mkdir -p ${project.dbBackupPath}`
-          );
+          const mkdirCmd = project.dbIsBackupMounted
+            ? `mkdir -p ${project.dbBackupPath}`
+            : `docker exec ${project.dbServiceName} mkdir -p ${project.dbBackupPath}`;
+          await executeRemoteCommand(credentials, mkdirCmd);
         }
       );
 
@@ -75,7 +75,14 @@ export const createDatabaseBackup = inngest.createFunction(
         async () => {
           const ts = new Date().toISOString().replace(/[:.]/g, "-");
           const fname = `${project.dbName}_${ts}.sql.gz`;
-          const cmd = `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${project.dbBackupPath}/${fname}`;
+          const target = `${project.dbBackupPath}/${fname}`;
+          // When mounted, redirect on the host so the file shows up on both
+          // sides of the bind. Otherwise run the whole pipe inside the
+          // container so the file lands where getBackupList (docker exec ls)
+          // can see it.
+          const cmd = project.dbIsBackupMounted
+            ? `docker exec ${project.dbServiceName} pg_dump -U postgres ${project.dbName} | gzip > ${target}`
+            : `docker exec ${project.dbServiceName} sh -c 'pg_dump -U postgres ${project.dbName} | gzip > ${target}'`;
           await executeRemoteCommand(credentials, cmd);
           return fname;
         }
@@ -192,10 +199,6 @@ export const restoreDatabaseBackup = inngest.createFunction(
       username: data.dbServer.username,
       password: data.dbServer.password,
     };
-    const path = process.env.BACKUP_DIR;
-    const container = process.env.DB_CONTAINER_NAME;
-    const user = process.env.DB_USER;
-    const dbName = process.env.DB_NAME;
 
     try {
       if (!filename) throw new Error("Filename is required");
@@ -204,9 +207,9 @@ export const restoreDatabaseBackup = inngest.createFunction(
         taskId,
         step,
         "kill-connections",
-        `Terminating active connections to ${dbName}`,
+        `Terminating active connections to ${data.dbName}`,
         async () => {
-          const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}' AND pid <> pg_backend_pid();" | docker exec -i ${container} psql -U ${user}`;
+          const killCmd = `echo "SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${data.dbName}' AND pid <> pg_backend_pid();" | docker exec -i ${data.dbServiceName} psql -U postgres`;
           await executeRemoteCommand(credentials, killCmd);
         }
       );
@@ -217,7 +220,13 @@ export const restoreDatabaseBackup = inngest.createFunction(
         "perform-restore",
         `Restoring from ${filename}`,
         async () => {
-          const cmd = `gunzip -c ${path}/${filename} | docker exec -i ${container} psql -U ${user} -d ${dbName}`;
+          const source = `${data.dbBackupPath}/${filename}`;
+          // Symmetric to createDatabaseBackup: gunzip on host when mounted,
+          // inside the container otherwise — the file lives where the backup
+          // step put it.
+          const cmd = data.dbIsBackupMounted
+            ? `gunzip -c ${source} | docker exec -i ${data.dbServiceName} psql -U postgres -d ${data.dbName}`
+            : `docker exec -i ${data.dbServiceName} sh -c 'gunzip -c ${source} | psql -U postgres -d ${data.dbName}'`;
           await executeRemoteCommand(credentials, cmd);
         }
       );

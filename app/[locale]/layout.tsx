@@ -107,7 +107,7 @@ export default async function LocaleLayout({
                   <SidebarInset className="min-w-0">
                     <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b sticky top-0 z-30 bg-background">
                       <SidebarTrigger className="-ml-1" />
-                      <Separator orientation="vertical" className="!h-5 mr-1" />
+                      <Separator orientation="vertical" className="h-5 mr-1" />
                       <HeaderBreadcrumb projects={projects} />
                       <div className="ml-auto flex items-center gap-2">
                         <div className="hidden md:flex items-center gap-2 pr-1">

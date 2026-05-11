@@ -28,7 +28,9 @@ export default async function Page({
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const backups = (await getBackupList(project)).data;
+  const result = await getBackupList(project);
+  const backups = result.success ? result.data : [];
+  const listError = result.success ? null : result.error;
 
   return (
     <>
@@ -46,7 +48,12 @@ export default async function Page({
           <CardDescription>{t("pickerDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {!backups || backups.length === 0 ? (
+          {listError ? (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+              <p>{listError}</p>
+            </div>
+          ) : backups.length === 0 ? (
             <EmptyState
               icon={DatabaseBackup}
               title={t("backupsNotFound")}
