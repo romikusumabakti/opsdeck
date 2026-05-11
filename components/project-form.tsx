@@ -46,29 +46,49 @@ export function ProjectForm({
   const [servers, setServers] = useState<Server[]>(initialServers);
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
 
-  const schema = z.object({
-    name: z.string().min(1, tCommon("required")),
+  const schema = z
+    .object({
+      name: z.string().min(1, tCommon("required")),
 
-    dbServerId: z.string().min(1, t("pickServerRequired")),
-    dbServiceType: z.enum(SERVICE_TYPES),
-    dbServiceName: z.string().min(1, tCommon("required")),
-    dbType: z.enum(DB_TYPES),
-    dbName: z.string().min(1, tCommon("required")),
-    dbIsBackupMounted: z.boolean(),
-    dbBackupPath: z.string().min(1, tCommon("required")),
+      dbServerId: z.string().min(1, t("pickServerRequired")),
+      dbServiceType: z.enum(SERVICE_TYPES),
+      dbServiceName: z.string().min(1, tCommon("required")),
+      dbType: z.enum(DB_TYPES),
+      dbName: z.string().min(1, tCommon("required")),
+      // Empty string is valid here; superRefine enforces it for mssql on create.
+      // On edit, empty means "keep the stored password" (handled in onSubmit).
+      dbPassword: z.string(),
+      dbIsBackupMounted: z.boolean(),
+      dbBackupPath: z.string().min(1, tCommon("required")),
 
-    backendServerId: z.string().min(1, t("pickServerRequired")),
-    backendServiceType: z.enum(SERVICE_TYPES),
-    backendServiceName: z.string().min(1, tCommon("required")),
-    backendSimulateTimeApiUrl: z.union([
-      z.string().trim().url(tCommon("urlInvalid")),
-      z.literal(""),
-    ]),
+      backendServerId: z.string().min(1, t("pickServerRequired")),
+      backendServiceType: z.enum(SERVICE_TYPES),
+      backendServiceName: z.string().min(1, tCommon("required")),
+      backendSimulateTimeApiUrl: z.union([
+        z.string().trim().url(tCommon("urlInvalid")),
+        z.literal(""),
+      ]),
 
-    frontendServerId: z.string().min(1, t("pickServerRequired")),
-    frontendServiceType: z.enum(SERVICE_TYPES),
-    frontendServiceName: z.string().min(1, tCommon("required")),
-  });
+      frontendServerId: z.string().min(1, t("pickServerRequired")),
+      frontendServiceType: z.enum(SERVICE_TYPES),
+      frontendServiceName: z.string().min(1, tCommon("required")),
+    })
+    .superRefine((data, ctx) => {
+      // mssql needs an `sa` password for sqlcmd. On create, the field must be
+      // filled. On edit, empty means "no change" — we only fail if there's no
+      // stored password to fall back to (handled at submit time too, but
+      // surface the error inline where possible).
+      if (data.dbType !== "mssql") return;
+      const hasStored =
+        mode.type === "edit" && Boolean(mode.project.dbPassword);
+      if (!data.dbPassword && !hasStored) {
+        ctx.addIssue({
+          code: "custom",
+          message: t("dbPasswordRequiredForMssql"),
+          path: ["dbPassword"],
+        });
+      }
+    });
 
   type FormValues = z.infer<typeof schema>;
 
@@ -83,6 +103,7 @@ export function ProjectForm({
             dbServiceName: mode.project.dbServiceName,
             dbType: mode.project.dbType,
             dbName: mode.project.dbName,
+            dbPassword: "",
             dbIsBackupMounted: mode.project.dbIsBackupMounted,
             dbBackupPath: mode.project.dbBackupPath,
             backendServerId: mode.project.backendServerId,
@@ -101,6 +122,7 @@ export function ProjectForm({
             dbServiceName: "",
             dbType: "postgres",
             dbName: "",
+            dbPassword: "",
             dbIsBackupMounted: false,
             dbBackupPath: "",
             backendServerId: initialServers[0]?.id ?? "",
@@ -121,12 +143,24 @@ export function ProjectForm({
   }
 
   async function onSubmit(values: FormValues) {
-    const payload = {
-      ...values,
+    const { dbPassword, ...rest } = values;
+    const base = {
+      ...rest,
       backendSimulateTimeApiUrl: values.backendSimulateTimeApiUrl
         ? values.backendSimulateTimeApiUrl
         : null,
     };
+    // On create: persist password (null for postgres). On edit: only include it
+    // when the user typed something — empty means "keep stored value".
+    const payload =
+      mode.type === "create"
+        ? {
+            ...base,
+            dbPassword: values.dbType === "mssql" ? dbPassword : null,
+          }
+        : dbPassword
+          ? { ...base, dbPassword }
+          : base;
     const result =
       mode.type === "create"
         ? await createProject(payload)
@@ -240,6 +274,31 @@ export function ProjectForm({
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("dbPassword")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder={
+                        mode.type === "edit"
+                          ? t("dbPasswordEditPlaceholder")
+                          : ""
+                      }
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("dbPasswordHint")}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
