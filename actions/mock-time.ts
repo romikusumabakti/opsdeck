@@ -96,9 +96,14 @@ async function clockFetch(
   const base = clockUrl(project);
   if (!base) throw new Error("Project has no mock-time API URL configured");
   const url = req.path ? `${base}${req.path}` : base;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const apiKey = project.backendMockTimeApiKey?.trim();
+  if (apiKey) headers["X-Api-Key"] = apiKey;
   const init: RequestInit = {
     method: req.method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     signal: AbortSignal.timeout(API_TIMEOUT_MS),
   };
   if (req.body !== undefined) init.body = JSON.stringify(req.body);
