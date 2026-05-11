@@ -1,6 +1,6 @@
-import { Aperture } from "lucide-react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import {
@@ -9,6 +9,7 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 import { getProjects } from "@/actions/projects";
+import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { DialogProvider } from "@/components/dialog-provider";
 import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
@@ -18,9 +19,12 @@ import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { UserMenu } from "@/components/user-menu";
-import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { getServerSession, isAdmin } from "@/lib/auth-session";
 import "../globals.css";
@@ -68,13 +72,17 @@ export default async function LocaleLayout({
   const session = await getServerSession();
   const projects = session ? await getProjects() : [];
   const admin = session ? isAdmin(session) : false;
-  const t = await getTranslations({ locale, namespace: "app" });
   const messages = await getMessages({ locale });
+
+  // Sidebar open state is persisted in a cookie by the SidebarProvider client;
+  // read it on the server so the initial render matches and avoids a flash.
+  const sidebarStateCookie = (await cookies()).get("sidebar_state")?.value;
+  const sidebarDefaultOpen = sidebarStateCookie !== "false";
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider
@@ -85,38 +93,44 @@ export default async function LocaleLayout({
           >
             <DialogProvider>
               {session ? (
-                <header className="flex border-b h-14 shrink-0 items-center gap-2 px-4 bg-background sticky top-0 z-30">
-                  <Link
-                    href="/"
-                    className="flex items-center gap-2 font-semibold hover:opacity-90 transition-opacity shrink-0"
-                  >
-                    <span className="size-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                      <Aperture className="size-4" />
-                    </span>
-                    <span className="truncate hidden sm:inline">
-                      {t("name")}
-                    </span>
-                  </Link>
-                  <HeaderBreadcrumb projects={projects} />
-                  <div className="ml-auto flex items-center gap-1">
-                    <div className="hidden md:flex items-center gap-2 pr-1">
-                      <ServerTime />
-                      <Separator orientation="vertical" className="!h-5" />
+                <SidebarProvider defaultOpen={sidebarDefaultOpen}>
+                  <AppSidebar
+                    projects={projects}
+                    isAdmin={admin}
+                    user={{
+                      id: session.user.id,
+                      name: session.user.name,
+                      email: session.user.email,
+                      image: session.user.image ?? null,
+                    }}
+                  />
+                  <SidebarInset className="min-w-0">
+                    <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b sticky top-0 z-30 bg-background">
+                      <SidebarTrigger className="-ml-1" />
+                      <Separator orientation="vertical" className="!h-5 mr-1" />
+                      <HeaderBreadcrumb projects={projects} />
+                      <div className="ml-auto flex items-center gap-2">
+                        <div className="hidden md:flex items-center gap-2 pr-1">
+                          <ServerTime />
+                        </div>
+                        <CommandPalette projects={projects} isAdmin={admin} />
+                      </div>
+                    </header>
+                    <div className="flex-1 min-h-0 flex flex-col">
+                      {children}
                     </div>
-                    <CommandPalette projects={projects} isAdmin={admin} />
-                    <UserMenu user={session.user} isAdmin={admin} />
-                  </div>
-                </header>
+                  </SidebarInset>
+                  <KeyboardShortcuts />
+                </SidebarProvider>
               ) : (
-                <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
-                  <LocaleSwitcher />
-                  <ThemeToggle />
+                <div className="flex flex-col min-h-screen">
+                  <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
+                    <LocaleSwitcher />
+                    <ThemeToggle />
+                  </div>
+                  <div className="flex-1 min-h-0 flex flex-col">{children}</div>
                 </div>
               )}
-              <div className="flex-1 min-h-0 flex flex-col overflow-y-auto">
-                {children}
-              </div>
-              {session && <KeyboardShortcuts />}
               <Toaster />
             </DialogProvider>
           </ThemeProvider>

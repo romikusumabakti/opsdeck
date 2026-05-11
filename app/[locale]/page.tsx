@@ -1,6 +1,7 @@
 import { ChevronRight, Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { getProjects } from "@/actions/projects";
+import { PageHeader } from "@/components/page-header";
 import { ProjectsEmpty } from "@/components/projects-empty";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,23 +24,21 @@ export default async function Home() {
   const tDash = await getTranslations("dashboard");
 
   return (
-    <div className="max-w-5xl py-8 mx-auto w-full px-4">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("title")}
-          </h1>
-          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-        </div>
-        {admin && (
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus className="size-4" />
-              {t("create")}
-            </Link>
-          </Button>
-        )}
-      </div>
+    <div className="max-w-5xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          admin ? (
+            <Button asChild>
+              <Link href="/projects/new">
+                <Plus className="size-4" />
+                {t("create")}
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {projects.map((project) => (
           <Link

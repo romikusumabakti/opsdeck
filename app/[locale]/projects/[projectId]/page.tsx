@@ -11,9 +11,11 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
 import { getProjectById } from "@/actions/projects";
 import { CopyButton } from "@/components/copy-button";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Server } from "@/lib/db/schema";
+import { DashboardKpis, DashboardKpisSkeleton } from "./dashboard-kpis";
 import { RecentActivity, RecentActivitySkeleton } from "./recent-activity";
 
 export default async function Page({
@@ -40,12 +42,13 @@ export default async function Page({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("subtitle", { name: project.name })}
-        </p>
-      </div>
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle", { name: project.name })}
+      />
+      <Suspense fallback={<DashboardKpisSkeleton />}>
+        <DashboardKpis projectId={projectId} />
+      </Suspense>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center gap-2 space-y-0">

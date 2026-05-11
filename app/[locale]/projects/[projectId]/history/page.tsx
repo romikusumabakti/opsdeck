@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById } from "@/actions/projects";
 import { getProjectTasks } from "@/actions/tasks";
+import { PageHeader } from "@/components/page-header";
 import { HistoryClient } from "./history-client";
 
 export default async function Page({
@@ -24,10 +25,7 @@ export default async function Page({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-      </div>
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <HistoryClient tasks={tasks} />
     </div>
   );

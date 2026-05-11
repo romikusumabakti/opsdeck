@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
   return (
-    <div className="max-w-4xl py-8 mx-auto w-full px-4">
+    <div className="max-w-4xl py-8 mx-auto w-full px-4 flex flex-col gap-6">
       <PageHeaderSkeleton withAction={false} />
       <div className="flex flex-col gap-6">
         <Card>
