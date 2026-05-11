@@ -198,6 +198,8 @@
     "backupsNotFound": "Belum ada backup",
     "backupsNotFoundDescription": "Belum ada file backup di path yang dikonfigurasi.",
     "dangerNote": "Restore akan menimpa kondisi database saat ini. Tindakan ini tidak bisa dibatalkan.",
+    "restartBackendLabel": "Restart backend setelah restore",
+    "restartBackendHint": "Restart {backendName} agar koneksi DB lama diputus dan cache di memory dibersihkan.",
     "confirmTitle": "Restore database",
     "confirmDescription": "Restore {dbName} dari {filename}? Ini akan menimpa database saat ini.",
     "successTitle": "Restore di-queue",

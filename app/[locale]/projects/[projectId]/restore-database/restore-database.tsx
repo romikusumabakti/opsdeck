@@ -38,6 +38,7 @@ export function RestoreDatabase({
   const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
+  const [restartBackend, setRestartBackend] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [submitting, startTransition] = React.useTransition();
 
@@ -61,6 +62,7 @@ export function RestoreDatabase({
           const { taskId } = await restoreDatabaseBackup({
             ...project,
             filename: backup.name,
+            restartBackend,
           });
           setActiveTaskId(taskId);
           toast.success(t("successTitle"), {
@@ -156,6 +158,29 @@ export function RestoreDatabase({
             </p>
           );
         })()}
+      <div className="flex items-start gap-2 mt-1">
+        <input
+          id="restore-restart-backend"
+          type="checkbox"
+          checked={restartBackend}
+          onChange={(e) => setRestartBackend(e.target.checked)}
+          disabled={submitting}
+          className="size-4 mt-0.5"
+        />
+        <Label
+          htmlFor="restore-restart-backend"
+          className="text-sm font-normal cursor-pointer"
+        >
+          <span className="flex flex-col gap-0.5">
+            <span>{t("restartBackendLabel")}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("restartBackendHint", {
+                backendName: project.backendServiceName,
+              })}
+            </span>
+          </span>
+        </Label>
+      </div>
       <LiveTaskDialog
         taskId={activeTaskId}
         onOpenChange={(open) => {
