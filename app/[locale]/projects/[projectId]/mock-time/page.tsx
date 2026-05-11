@@ -1,5 +1,8 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { Clock, Info, ServerCog } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { cache } from "react";
 import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +13,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ApiDocsSheet } from "./api-docs-sheet";
 import { MockTime } from "./mock-time";
+
+const getApiDocs = cache(async () =>
+  readFile(path.join(process.cwd(), "docs", "time-mocking-api.md"), "utf-8")
+);
 
 export default async function Page({
   params,
@@ -19,7 +27,10 @@ export default async function Page({
 }) {
   const { locale, projectId } = await params;
   setRequestLocale(locale);
-  const project = await getProjectById(projectId);
+  const [project, apiDocs] = await Promise.all([
+    getProjectById(projectId),
+    getApiDocs(),
+  ]);
   const t = await getTranslations("mockTime");
   const tCommon = await getTranslations("common");
 
@@ -34,6 +45,7 @@ export default async function Page({
       <PageHeader
         title={t("title")}
         subtitle={t("subtitle", { name: project.name })}
+        action={<ApiDocsSheet content={apiDocs} />}
       />
 
       <Card className="max-w-2xl w-full">
