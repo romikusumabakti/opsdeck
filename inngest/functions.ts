@@ -1,4 +1,5 @@
 import type { ProjectWithServers } from "@/lib/db/schema";
+import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { appendTaskOutput, completeTask, failTask } from "@/lib/task-progress";
 import { inngest } from "./client";
@@ -40,13 +41,6 @@ async function tracked<T>(
   }
 }
 
-// Wraps a value as a POSIX single-quoted shell argument. Single quotes inside
-// are escaped via the `'\''` trick (close, escaped quote, reopen). Use for any
-// untrusted value passed to ssh.execCommand.
-function shq(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
 // Escape a value used inside a T-SQL single-quoted string literal (e.g. file
 // paths in `N'...'`). SQL standard: a single quote is doubled.
 function sqlQuoteString(value: string): string {
@@ -57,6 +51,12 @@ function sqlQuoteString(value: string): string {
 // doubled to `]]`.
 function sqlBracketId(value: string): string {
   return value.replace(/]/g, "]]");
+}
+
+// Escape a Postgres identifier wrapped in "double quotes". A literal `"` must
+// be doubled to `""`.
+function pgQuoteId(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 export const createDatabaseBackup = inngest.createFunction(
@@ -81,7 +81,7 @@ export const createDatabaseBackup = inngest.createFunction(
         async () => {
           const mkdirCmd = project.dbIsBackupMounted
             ? `mkdir -p ${shq(project.dbBackupPath)}`
-            : `docker exec ${project.dbServiceName} mkdir -p ${shq(project.dbBackupPath)}`;
+            : `docker exec ${shq(project.dbServiceName)} mkdir -p ${shq(project.dbBackupPath)}`;
           await executeRemoteCommand(credentials, mkdirCmd);
         }
       );
@@ -121,13 +121,18 @@ async function runPostgresBackup(
 ): Promise<string> {
   const fname = `${project.dbName}_${ts}.sql.gz`;
   const target = `${project.dbBackupPath}/${fname}`;
-  // `set -o pipefail` so pg_dump failures bubble up instead of getting masked
-  // by gzip's exit 0. When mounted, redirect on the host so the file shows up
-  // on both sides of the bind. Otherwise run the whole pipe inside the
-  // container so the file lands where getBackupList (docker exec ls) can see it.
+  // `--clean --if-exists` emits idempotent DROP IF EXISTS for every object
+  // before the CREATE statements, so the dump can be restored into a database
+  // that already has the schema (otherwise CREATE TABLE errors out on
+  // re-restore). `set -o pipefail` so pg_dump failures bubble up instead of
+  // getting masked by gzip's exit 0. When mounted, redirect on the host so the
+  // file shows up on both sides of the bind. Otherwise run the whole pipe
+  // inside the container so the file lands where getBackupList (docker exec
+  // ls) can see it.
+  const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(project.dbName)}`;
   const cmd = project.dbIsBackupMounted
-    ? `set -o pipefail; docker exec ${project.dbServiceName} pg_dump -U postgres ${shq(project.dbName)} | gzip > ${shq(target)}`
-    : `docker exec ${project.dbServiceName} sh -c ${shq(`set -o pipefail; pg_dump -U postgres ${shq(project.dbName)} | gzip > ${shq(target)}`)}`;
+    ? `set -o pipefail; docker exec ${shq(project.dbServiceName)} ${dumpCmd} | gzip > ${shq(target)}`
+    : `docker exec ${shq(project.dbServiceName)} sh -c ${shq(`set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`)}`;
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -153,7 +158,7 @@ async function runMssqlBackup(
   // cert (required by mssql-tools18 against the default self-signed cert).
   const cmd =
     `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${project.dbServiceName} ` +
+    `docker exec -i ${shq(project.dbServiceName)} ` +
     `sqlcmd -S localhost -U sa -P ${shq(project.dbPassword)} -C -b`;
   await executeRemoteCommand(credentials, cmd);
   return fname;
@@ -187,6 +192,13 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
       d.getUTCSeconds()
     )}`;
 
+    // `sudo -S` reads the password from stdin. Piping via `printf '%s\n'`
+    // with a properly shell-quoted argument keeps a password containing
+    // single quotes or shell metacharacters from breaking the command (or,
+    // worse, becoming a command injection).
+    const sudo = (cmd: string) =>
+      `printf '%s\\n' ${shq(credentials.password)} | sudo -S ${cmd}`;
+
     try {
       await tracked(
         taskId,
@@ -195,10 +207,7 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
         "Disabling NTP on backend server",
         async () => {
           // Stops the time daemon from reverting our manual override mid-test.
-          await executeRemoteCommand(
-            credentials,
-            `echo '${credentials.password}' | sudo -S timedatectl set-ntp false`
-          );
+          await executeRemoteCommand(credentials, sudo("timedatectl set-ntp false"));
         }
       );
 
@@ -210,7 +219,7 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
         async () => {
           await executeRemoteCommand(
             credentials,
-            `echo '${credentials.password}' | sudo -S date -u -s "${dateArg}"`
+            sudo(`date -u -s ${shq(dateArg)}`)
           );
         }
       );
@@ -223,8 +232,8 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
         async () => {
           const cmd =
             project.backendServiceType === "docker"
-              ? `docker restart ${project.backendServiceName}`
-              : `echo '${credentials.password}' | sudo -S systemctl restart ${project.backendServiceName}`;
+              ? `docker restart ${shq(project.backendServiceName)}`
+              : sudo(`systemctl restart ${shq(project.backendServiceName)}`);
           await executeRemoteCommand(credentials, cmd);
         }
       );
@@ -237,7 +246,18 @@ export const simulateProjectTimeLegacy = inngest.createFunction(
       return { success: true, simulatedAt };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await step.run("record-failure", () => failTask(taskId, message));
+      // Heads-up for the operator: by the time we reach here, NTP is off and
+      // the system clock may already be set. The server is in an inconsistent
+      // state until someone re-enables NTP — surface that in the task log so
+      // it's obvious from the UI without digging into the failure.
+      await step.run("record-failure", async () => {
+        await appendTaskOutput(
+          taskId,
+          "⚠ Backend server may be in inconsistent state — NTP disabled and time potentially overridden. " +
+            "To recover, run `sudo timedatectl set-ntp true` on the backend server."
+        );
+        await failTask(taskId, message);
+      });
       throw err;
     }
   }
@@ -274,10 +294,10 @@ export const restoreDatabaseBackup = inngest.createFunction(
         await tracked(
           taskId,
           step,
-          "kill-connections",
-          `Terminating active connections to ${data.dbName}`,
+          "recreate-database",
+          `Dropping and recreating ${data.dbName}`,
           async () => {
-            await runPostgresKillConnections(data, credentials);
+            await runPostgresRecreateDatabase(data, credentials);
           }
         );
         await tracked(
@@ -305,17 +325,19 @@ export const restoreDatabaseBackup = inngest.createFunction(
   }
 );
 
-async function runPostgresKillConnections(
+async function runPostgresRecreateDatabase(
   data: ProjectWithServers,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const query =
-    `SELECT pid, pg_terminate_backend(pid) FROM pg_stat_activity ` +
-    `WHERE datname = '${data.dbName.replace(/'/g, "''")}' ` +
-    `AND pid <> pg_backend_pid();`;
+  // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
+  // doesn't fail with "database is being accessed by other users". Then
+  // recreate so the dump pipes into a clean DB — this lets us handle dumps
+  // produced both with and without `--clean --if-exists`.
+  const dbId = pgQuoteId(data.dbName);
+  const query = `DROP DATABASE IF EXISTS ${dbId} WITH (FORCE); CREATE DATABASE ${dbId};`;
   const cmd =
     `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${data.dbServiceName} psql -U postgres`;
+    `docker exec -i ${shq(data.dbServiceName)} psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -325,11 +347,14 @@ async function runPostgresRestore(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const source = `${data.dbBackupPath}/${filename}`;
-  // Symmetric to runPostgresBackup: gunzip on host when mounted, inside the
-  // container otherwise — the file lives where the backup step put it.
+  // `-v ON_ERROR_STOP=on` aborts psql at the first failing statement instead
+  // of silently continuing through a half-broken restore. Symmetric to
+  // runPostgresBackup: gunzip on host when mounted, inside the container
+  // otherwise — the file lives where the backup step put it.
+  const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(data.dbName)}`;
   const cmd = data.dbIsBackupMounted
-    ? `set -o pipefail; gunzip -c ${shq(source)} | docker exec -i ${data.dbServiceName} psql -U postgres -d ${shq(data.dbName)}`
-    : `docker exec -i ${data.dbServiceName} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | psql -U postgres -d ${shq(data.dbName)}`)}`;
+    ? `set -o pipefail; gunzip -c ${shq(source)} | docker exec -i ${shq(data.dbServiceName)} ${psqlCmd}`
+    : `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`)}`;
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -361,7 +386,7 @@ async function runMssqlRestore(
     `ALTER DATABASE [${dbId}] SET MULTI_USER;`;
   const cmd =
     `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${data.dbServiceName} ` +
+    `docker exec -i ${shq(data.dbServiceName)} ` +
     `sqlcmd -S localhost -U sa -P ${shq(data.dbPassword)} -C -b`;
   await executeRemoteCommand(credentials, cmd);
 }

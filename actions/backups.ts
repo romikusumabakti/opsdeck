@@ -3,6 +3,7 @@
 import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
+import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
 import type { Backup } from "@/lib/types";
@@ -15,16 +16,18 @@ export async function getBackupList(
   project: ProjectWithServers
 ): Promise<BackupListResult> {
   try {
+    // Match exactly what createDatabaseBackup writes — `.sql.gz` for postgres
+    // (always gzipped) and `.bak` for mssql (RESTORE DATABASE cannot read a
+    // gzipped file directly). Anything else in the folder is ignored so users
+    // can't pick an unrestoreable file from the dropdown.
     const extensionPattern =
-      project.dbType === "postgres"
-        ? "\\.sql\\(\\.gz\\)\\?"
-        : "\\.bak\\(\\.gz\\)\\?";
+      project.dbType === "postgres" ? "\\.sql\\.gz" : "\\.bak";
 
     const listCmd = project.dbIsBackupMounted
-      ? `ls -lt ${project.dbBackupPath}`
-      : `docker exec ${project.dbServiceName} ls -lt ${project.dbBackupPath}`;
+      ? `ls -lt ${shq(project.dbBackupPath)}`
+      : `docker exec ${shq(project.dbServiceName)} ls -lt ${shq(project.dbBackupPath)}`;
 
-    const cmd = `${listCmd} | grep "${extensionPattern}$" | awk '{print $5, $9}'`;
+    const cmd = `${listCmd} | grep ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
     const output = await executeRemoteCommand(
       {
         host: project.dbServer.host,
