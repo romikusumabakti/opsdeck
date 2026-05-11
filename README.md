@@ -52,7 +52,6 @@ further accounts can only be created via invitation from `/users`.
 | `NEXT_PUBLIC_APP_URL` | no | Exposed to the client; defaults to `http://localhost:3000`. |
 | `RESEND_API_KEY` | no | Without it, invitation emails fail to send. |
 | `EMAIL_FROM` | no | Defaults to `Admin Panel <no-reply@example.com>`. |
-| `BACKUP_DIR`, `DB_CONTAINER_NAME`, `DB_USER`, `DB_NAME` | yes for restore | Read by the `restore-db-backup` Inngest function. |
 
 For Docker Compose, also set `POSTGRES_PASSWORD` (required) and
 optionally `POSTGRES_USER`, `POSTGRES_DB`, `INNGEST_EVENT_KEY`,
@@ -122,14 +121,16 @@ proxy.ts                Edge middleware: redirects unauthenticated requests to /
 
 `createDatabaseBackup` (event `db/backup.requested`) SSHes into
 `project.dbServer`, ensures `dbBackupPath` exists, then runs
-`docker exec <dbServiceName> pg_dump -U postgres <dbName> | gzip` and
-writes to the host filesystem.
+`docker exec <dbServiceName> pg_dump -U postgres <dbName> | gzip`. When
+`dbIsBackupMounted` is true the redirect happens on the host (the file
+is visible to both sides of the bind); otherwise the whole pipe runs
+inside the container so the file lands where `getBackupList` reads from.
 
 `restoreDatabaseBackup` (event `db/restore.requested`) terminates open
 connections to the target database and pipes a gzipped dump back into
-`docker exec ... psql`. It currently reads `BACKUP_DIR`,
-`DB_CONTAINER_NAME`, `DB_USER`, `DB_NAME` from the environment rather
-than from the project record.
+`docker exec ... psql`, using `dbServiceName`, `dbBackupPath`, and
+`dbName` from the project record (gunzip runs on host when mounted,
+inside the container otherwise).
 
 Both functions execute remote shell commands, so server credentials in
 the `servers` table effectively grant code execution on those hosts.
