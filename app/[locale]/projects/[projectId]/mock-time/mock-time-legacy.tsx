@@ -257,7 +257,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
             {t("travel.description")}
           </p>
         </header>
-        <div className="flex flex-row items-end gap-4 flex-wrap">
+        <div className="flex flex-row items-end gap-2 flex-wrap">
           <DateTimePicker
             date={date}
             hour={hour}
@@ -291,8 +291,8 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
             {t("advance.descriptionLegacy")}
           </p>
         </header>
-        <FieldGroup className="flex-row items-end gap-4 flex-wrap">
-          <Field className="w-24">
+        <FieldGroup className="flex-row items-end gap-2 flex-wrap">
+          <Field className="flex-1">
             <FieldLabel htmlFor="legacy-advance-amount">
               {t("advance.amountLabel")}
             </FieldLabel>
@@ -307,7 +307,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
               className="tabular-nums"
             />
           </Field>
-          <Field className="w-32">
+          <Field className="flex-1">
             <FieldLabel htmlFor="legacy-advance-unit">
               {t("advance.unitLabel")}
             </FieldLabel>
@@ -330,7 +330,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
               </SelectContent>
             </Select>
           </Field>
-          <Field className="w-32">
+          <Field className="flex-1">
             <FieldLabel htmlFor="legacy-advance-direction">
               {t("advance.directionLabel")}
             </FieldLabel>

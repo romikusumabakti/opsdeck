@@ -330,7 +330,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
             {t("travel.description")}
           </p>
         </header>
-        <div className="flex flex-row items-end gap-4 flex-wrap">
+        <div className="flex flex-row items-end gap-2 flex-wrap">
           <DateTimePicker
             date={date}
             hour={hour}
@@ -360,7 +360,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
             {t("freeze.description")}
           </p>
         </header>
-        <div className="flex flex-row gap-4 flex-wrap">
+        <div className="flex flex-row gap-2 flex-wrap">
           <Button variant="outline" onClick={onFreezeAt} disabled={anyPending}>
             <Snowflake className="size-4" />
             {pendingAction === "freezeAt"
@@ -390,8 +390,8 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
             {t("advance.notFrozen")}
           </p>
         ) : null}
-        <FieldGroup className="flex-row items-end gap-4 flex-wrap">
-          <Field className="w-24">
+        <FieldGroup className="flex-row items-end gap-2 flex-wrap">
+          <Field className="flex-1">
             <FieldLabel htmlFor="advance-amount">
               {t("advance.amountLabel")}
             </FieldLabel>
@@ -406,7 +406,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
               className="tabular-nums"
             />
           </Field>
-          <Field className="w-32">
+          <Field className="flex-1">
             <FieldLabel htmlFor="advance-unit">
               {t("advance.unitLabel")}
             </FieldLabel>
@@ -429,7 +429,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
               </SelectContent>
             </Select>
           </Field>
-          <Field className="w-32">
+          <Field className="flex-1">
             <FieldLabel htmlFor="advance-direction">
               {t("advance.directionLabel")}
             </FieldLabel>
@@ -449,7 +449,10 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
               </SelectContent>
             </Select>
           </Field>
-          <Button onClick={onAdvance} disabled={!isFrozen || anyPending}>
+          <Button
+            onClick={onAdvance}
+            disabled={!isFrozen || anyPending}
+          >
             <FastForward className="size-4" />
             {pendingAction === "advance"
               ? t("advance.submitting")
