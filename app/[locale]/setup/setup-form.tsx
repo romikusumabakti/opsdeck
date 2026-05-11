@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -41,6 +42,8 @@ export function SetupForm() {
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", password: "", confirm: "" },
   });
+
+  useUnsavedChanges(form.formState.isDirty && !form.formState.isSubmitting);
 
   async function onSubmit(values: z.infer<typeof schema>) {
     const result = await createInitialUser({
