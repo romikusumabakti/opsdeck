@@ -5,8 +5,15 @@ import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
+import type { Backup } from "@/lib/types";
 
-export async function getBackupList(project: ProjectWithServers) {
+type BackupListResult =
+  | { success: true; data: Backup[] }
+  | { success: false; error: string };
+
+export async function getBackupList(
+  project: ProjectWithServers
+): Promise<BackupListResult> {
   try {
     const extensionPattern =
       project.dbType === "postgres"

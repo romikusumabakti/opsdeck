@@ -23,6 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ProjectWithServers } from "@/lib/db/schema";
+import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function RestoreDatabase({
