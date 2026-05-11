@@ -9,6 +9,8 @@ import { CopyButton } from "@/components/copy-button";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import type { ProjectWithServers } from "@/lib/db/schema";
 
 // Matches the marker emitted by inngest/functions.ts after a successful dump.
@@ -27,6 +29,7 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
   const dialog = useDialog();
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
+  const [compress, setCompress] = React.useState(true);
   const [submitting, startTransition] = React.useTransition();
 
   async function onClick() {
@@ -40,7 +43,7 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
 
     startTransition(async () => {
       try {
-        const { taskId } = await createDatabaseBackup(project);
+        const { taskId } = await createDatabaseBackup({ ...project, compress });
         setActiveTaskId(taskId);
         toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: project.dbName }),
@@ -75,6 +78,26 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id="backup-compress"
+          checked={compress}
+          onCheckedChange={(checked) => setCompress(checked === true)}
+          disabled={submitting}
+          className="mt-0.5"
+        />
+        <Label
+          htmlFor="backup-compress"
+          className="text-sm font-normal cursor-pointer"
+        >
+          <span className="flex flex-col gap-0.5">
+            <span>{t("compressLabel")}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("compressHint")}
+            </span>
+          </span>
+        </Label>
+      </div>
       <div className="flex justify-end">
         <Button onClick={onClick} disabled={submitting}>
           <Database className="size-4" />

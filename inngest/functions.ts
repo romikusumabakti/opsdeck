@@ -101,9 +101,11 @@ function buildSqlcmdCommand(
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
-    const { taskId, ...project } = event.data as ProjectWithServers & {
+    const { taskId, compress, ...project } = event.data as ProjectWithServers & {
       taskId: string;
+      compress?: boolean;
     };
+    const useCompression = compress ?? true;
 
     const credentials = {
       host: project.dbServer.host,
@@ -127,13 +129,13 @@ export const createDatabaseBackup = inngest.createFunction(
         taskId,
         step,
         "run-backup",
-        `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${project.dbName}`,
+        `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${project.dbName}${useCompression ? "" : " (uncompressed)"}`,
         async () => {
           const ts = new Date().toISOString().replace(/[:.]/g, "-");
           if (project.dbType === "mssql") {
-            return await runMssqlBackup(project, ts, credentials);
+            return await runMssqlBackup(project, ts, credentials, useCompression);
           }
-          return await runPostgresBackup(project, ts, credentials);
+          return await runPostgresBackup(project, ts, credentials, useCompression);
         }
       );
 
@@ -154,17 +156,23 @@ export const createDatabaseBackup = inngest.createFunction(
 async function runPostgresBackup(
   project: ProjectWithServers,
   ts: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: { host: string; username: string; password: string },
+  compress: boolean
 ): Promise<string> {
-  const fname = `${project.dbName}_${ts}.sql.gz`;
+  const fname = compress
+    ? `${project.dbName}_${ts}.sql.gz`
+    : `${project.dbName}_${ts}.sql`;
   const target = `${project.dbBackupPath}/${fname}`;
   // `--clean --if-exists` emits idempotent DROP IF EXISTS for every object
   // before the CREATE statements, so the dump can be restored into a database
   // that already has the schema (otherwise CREATE TABLE errors out on
-  // re-restore). `set -o pipefail` so pg_dump failures bubble up instead of
-  // getting masked by gzip's exit 0.
+  // re-restore). When piping through gzip, `set -o pipefail` so pg_dump
+  // failures bubble up instead of getting masked by gzip's exit 0.
   const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(project.dbName)}`;
-  const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(`set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`)}`;
+  const inner = compress
+    ? `set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`
+    : `${dumpCmd} > ${shq(target)}`;
+  const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(inner)}`;
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -172,7 +180,8 @@ async function runPostgresBackup(
 async function runMssqlBackup(
   project: ProjectWithServers,
   ts: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: { host: string; username: string; password: string },
+  compress: boolean
 ): Promise<string> {
   if (!project.dbPassword) {
     throw new Error(
@@ -181,10 +190,15 @@ async function runMssqlBackup(
   }
   const fname = `${project.dbName}_${ts}.bak`;
   const target = `${project.dbBackupPath}/${fname}`;
+  // MSSQL .bak format is the same regardless of compression — the COMPRESSION
+  // option just toggles internal block-level compression. NO_COMPRESSION is
+  // the explicit opt-out (also the engine default when omitted, but explicit
+  // is clearer in the audit log).
+  const compressionClause = compress ? "COMPRESSION" : "NO_COMPRESSION";
   const query =
     `BACKUP DATABASE [${sqlBracketId(project.dbName)}] ` +
     `TO DISK = N'${sqlQuoteString(target)}' ` +
-    `WITH FORMAT, INIT, COMPRESSION, STATS = 5`;
+    `WITH FORMAT, INIT, ${compressionClause}, STATS = 5`;
   // Pipe the SQL into sqlcmd via stdin so the query (which contains quotes and
   // brackets) doesn't have to survive shell parsing. `-C` trusts the server
   // cert (required by mssql-tools18 against the default self-signed cert).
@@ -412,9 +426,14 @@ async function runPostgresRestore(
 ): Promise<void> {
   const source = `${data.dbBackupPath}/${filename}`;
   // `-v ON_ERROR_STOP=on` aborts psql at the first failing statement instead
-  // of silently continuing through a half-broken restore.
+  // of silently continuing through a half-broken restore. Branch on the file
+  // suffix so we can restore both gzipped (`.sql.gz`) and plain (`.sql`)
+  // dumps produced by createDatabaseBackup.
   const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(data.dbName)}`;
-  const cmd = `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(`set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`)}`;
+  const inner = filename.endsWith(".gz")
+    ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
+    : `${psqlCmd} < ${shq(source)}`;
+  const cmd = `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(inner)}`;
   await executeRemoteCommand(credentials, cmd);
 }
 

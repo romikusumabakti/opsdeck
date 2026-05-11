@@ -210,7 +210,9 @@
     "successDescription": "Backup untuk database {dbName} sudah di-queue.",
     "successButton": "OK",
     "createdToast": "File backup berhasil dibuat",
-    "lastFileLabel": "File backup terakhir:"
+    "lastFileLabel": "File backup terakhir:",
+    "compressLabel": "Kompres backup",
+    "compressHint": "Disarankan — menghasilkan file yang lebih kecil (gzip untuk Postgres, kompresi internal untuk MSSQL)."
   },
   "restoreDb": {
     "title": "Restore database",
