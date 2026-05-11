@@ -329,6 +329,11 @@
       "freezeNow": "Bekukan clock di waktu sekarang",
       "advance": "Advance clock dengan {duration}",
       "reset": "Reset clock ke waktu real"
+    },
+    "docs": {
+      "button": "Dokumentasi API",
+      "title": "Time Mocking API",
+      "description": "Referensi REST API untuk mengontrol waktu sistem di lingkungan testing."
     }
   },
   "history": {

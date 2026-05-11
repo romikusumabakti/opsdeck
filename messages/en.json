@@ -329,6 +329,11 @@
       "freezeNow": "Freeze clock at current time",
       "advance": "Advance clock by {duration}",
       "reset": "Reset clock to real time"
+    },
+    "docs": {
+      "button": "API docs",
+      "title": "Time Mocking API",
+      "description": "REST API reference for controlling system time in testing environments."
     }
   },
   "history": {
