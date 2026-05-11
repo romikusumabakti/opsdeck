@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -120,12 +121,12 @@ export function ChangePasswordForm() {
           render={({ field }) => (
             <FormItem className="grid-flow-col items-center justify-start gap-2">
               <FormControl>
-                <input
+                <Checkbox
                   id="revoke-other"
-                  type="checkbox"
                   checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  className="size-4"
+                  onCheckedChange={(checked) =>
+                    field.onChange(checked === true)
+                  }
                 />
               </FormControl>
               <Label htmlFor="revoke-other" className="text-sm font-normal">
