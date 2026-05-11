@@ -4,6 +4,7 @@ import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type ProjectWithServers, tasks } from "@/lib/db/schema";
+import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
 
 export type ClockState = {
@@ -313,5 +314,133 @@ export async function mockProjectTimeLegacy(
     return { success: true, mode: "legacy", taskId };
   } catch (error) {
     return { success: false, mode: "legacy", error: describeFetchError(error) };
+  }
+}
+
+function legacyCredentials(project: ProjectWithServers) {
+  return {
+    host: project.backendServer.host,
+    username: project.backendServer.username,
+    password: project.backendServer.password,
+  };
+}
+
+// Parse the ISO 8601 duration subset the UI emits: optional `-`, P[n]D, then
+// optional T[n]H[n]M[n]S. Returns the duration in milliseconds, or null if the
+// string doesn't match.
+function parseIsoDurationMs(duration: string): number | null {
+  const match = duration.match(
+    /^(-?)P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/
+  );
+  if (!match) return null;
+  const [, sign, d, h, m, s] = match;
+  if (!d && !h && !m && !s) return null;
+  const totalSeconds =
+    Number(d ?? 0) * 86400 +
+    Number(h ?? 0) * 3600 +
+    Number(m ?? 0) * 60 +
+    Number(s ?? 0);
+  const ms = totalSeconds * 1000;
+  return sign === "-" ? -ms : ms;
+}
+
+// Best-effort drift threshold: a remote clock that disagrees with the panel's
+// wall clock by more than this is assumed to have been previously mocked.
+// Legitimate NTP-synced hosts should drift by milliseconds; 5 minutes is well
+// above that.
+const LEGACY_MOCK_DRIFT_THRESHOLD_MS = 5 * 60 * 1000;
+
+export async function getClockStateLegacy(
+  project: ProjectWithServers
+): Promise<ApiResult<ClockState>> {
+  await requireSession();
+  try {
+    const stdout = await executeRemoteCommand(
+      legacyCredentials(project),
+      "date -u +%Y-%m-%dT%H:%M:%SZ"
+    );
+    const now = stdout.trim();
+    const remoteMs = new Date(now).getTime();
+    if (Number.isNaN(remoteMs)) {
+      return {
+        success: false,
+        error: `Invalid date output from server: ${now}`,
+      };
+    }
+    const drift = Math.abs(Date.now() - remoteMs);
+    return {
+      success: true,
+      data: {
+        now,
+        mocked: drift > LEGACY_MOCK_DRIFT_THRESHOLD_MS,
+        frozen: false,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: describeFetchError(err) };
+  }
+}
+
+export async function advanceClockLegacy(
+  project: ProjectWithServers,
+  duration: string
+): Promise<LegacyResult> {
+  const session = await requireSession();
+  const offsetMs = parseIsoDurationMs(duration);
+  if (offsetMs === null) {
+    return {
+      success: false,
+      mode: "legacy",
+      error: `Invalid duration: ${duration}`,
+    };
+  }
+  // Anchor on the backend server's *current* clock so an advance applied to an
+  // already-mocked time shifts from there, not from the panel's wall clock.
+  // Falls back to panel time if the read fails — surface as audit failure.
+  let baseMs: number;
+  try {
+    const stdout = await executeRemoteCommand(
+      legacyCredentials(project),
+      "date -u +%Y-%m-%dT%H:%M:%SZ"
+    );
+    const parsed = new Date(stdout.trim()).getTime();
+    baseMs = Number.isNaN(parsed) ? Date.now() : parsed;
+  } catch (err) {
+    return { success: false, mode: "legacy", error: describeFetchError(err) };
+  }
+  const targetIso = new Date(baseMs + offsetMs).toISOString();
+  try {
+    const taskId = await createTask({
+      projectId: project.id,
+      userId: session.user.id,
+      description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
+    });
+    await inngest.send({
+      name: "project/mock-time.legacy",
+      data: { project, mockedAt: targetIso, taskId },
+    });
+    return { success: true, mode: "legacy", taskId };
+  } catch (err) {
+    return { success: false, mode: "legacy", error: describeFetchError(err) };
+  }
+}
+
+export async function resetClockLegacy(
+  project: ProjectWithServers
+): Promise<LegacyResult> {
+  const session = await requireSession();
+  try {
+    const taskId = await createTask({
+      projectId: project.id,
+      userId: session.user.id,
+      description: "Reset clock to real time (legacy)",
+    });
+    await inngest.send({
+      name: "project/mock-time.reset-legacy",
+      data: { project, taskId },
+    });
+    return { success: true, mode: "legacy", taskId };
+  } catch (err) {
+    return { success: false, mode: "legacy", error: describeFetchError(err) };
   }
 }

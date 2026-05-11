@@ -279,6 +279,8 @@
       "submit": "Travel",
       "submitting": "Memproses…",
       "confirm": "Travel ke {dateTime}? Clock akan tetap berjalan dari sana.",
+      "confirmLegacy": "Ubah jam server backend menjadi {dateTime} dan restart service backend? Aplikasi lain di server tersebut juga akan ikut terpengaruh.",
+      "queuedDescriptionLegacy": "Perubahan jam server menjadi {dateTime} sudah di-queue.",
       "successTitle": "Clock dipindahkan",
       "successDescription": "Clock sekarang di {dateTime}."
     },
@@ -297,6 +299,7 @@
     "advance": {
       "title": "Advance",
       "description": "Geser clock yang sedang dibekukan maju (atau mundur dengan durasi negatif). Hanya tersedia saat dibekukan.",
+      "descriptionLegacy": "Geser jam server backend maju (atau mundur) relatif terhadap waktu saat ini. Akan me-restart backend.",
       "amountLabel": "Jumlah",
       "unitLabel": "Satuan",
       "directionLabel": "Arah",
@@ -309,6 +312,8 @@
         "hours": "Jam",
         "days": "Hari"
       },
+      "confirmLegacy": "Geser jam server backend sebesar {duration} dan restart service backend? Aplikasi lain di server tersebut juga akan ikut terpengaruh.",
+      "queuedDescriptionLegacy": "Advance sebesar {duration} sudah di-queue.",
       "successTitle": "Clock digeser",
       "successDescription": "Clock sekarang di {dateTime}.",
       "notFrozen": "Clock harus dibekukan dulu sebelum bisa di-advance.",
@@ -317,9 +322,12 @@
     "reset": {
       "title": "Reset",
       "description": "Buang mock dan unfreeze. Clock kembali ke waktu real.",
+      "descriptionLegacy": "Aktifkan kembali NTP di server backend, paksa sync jam, dan restart service backend.",
       "submit": "Reset ke waktu real",
       "submitting": "Mereset…",
       "confirm": "Reset clock ke waktu real? Ini akan menghapus mock dan unfreeze.",
+      "confirmLegacy": "Aktifkan kembali NTP di server backend, paksa sync jam, dan restart service backend?",
+      "queuedDescriptionLegacy": "Reset clock sudah di-queue.",
       "successTitle": "Clock direset",
       "successDescription": "Clock kembali ke waktu real."
     },
