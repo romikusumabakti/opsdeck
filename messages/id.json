@@ -31,6 +31,8 @@
     "noResults": "Tidak ada hasil.",
     "previous": "Sebelumnya",
     "next": "Berikutnya",
+    "first": "Halaman pertama",
+    "last": "Halaman terakhir",
     "pageOf": "Halaman {current} dari {total}",
     "rowsPerPage": "Baris per halaman",
     "showingRange": "Menampilkan {from}-{to} dari {total}"
@@ -88,7 +90,8 @@
     "selectProject": "Pilih proyek…",
     "searchProject": "Cari proyek…",
     "noProject": "Proyek tidak ditemukan.",
-    "createProject": "Buat proyek baru"
+    "createProject": "Buat proyek baru",
+    "skipToContent": "Lewati ke konten utama"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# tugas berjalan} other {# tugas berjalan}}",
