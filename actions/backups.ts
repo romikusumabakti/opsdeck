@@ -16,17 +16,17 @@ export async function getBackupList(
   project: ProjectWithServers
 ): Promise<BackupListResult> {
   try {
-    // Match exactly what createDatabaseBackup writes — `.sql.gz` for postgres
-    // (always gzipped) and `.bak` for mssql (RESTORE DATABASE cannot read a
-    // gzipped file directly). Anything else in the folder is ignored so users
-    // can't pick an unrestoreable file from the dropdown.
+    // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
+    // postgres (compressed or not) and `.bak` for mssql. Anything else in the
+    // folder is ignored so users can't pick an unrestoreable file from the
+    // dropdown.
     const extensionPattern =
-      project.dbType === "postgres" ? "\\.sql\\.gz" : "\\.bak";
+      project.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
 
     // Wrap `ls | grep | awk` in `sh -c` inside the container so the pipeline
     // runs against the container's filesystem (matches where backups are
-    // actually written).
-    const pipeline = `ls -lt ${shq(project.dbBackupPath)} | grep ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+    // actually written). `grep -E` for the optional `.gz` alternation.
+    const pipeline = `ls -lt ${shq(project.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
     const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(pipeline)}`;
     const output = await executeRemoteCommand(
       {
@@ -52,17 +52,20 @@ export async function getBackupList(
 }
 
 export async function createDatabaseBackup(
-  project: ProjectWithServers
+  project: ProjectWithServers & { compress?: boolean }
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
+  const compress = project.compress ?? true;
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
-    description: `Backup database (${project.dbName})`,
+    description: compress
+      ? `Backup database (${project.dbName})`
+      : `Backup database (${project.dbName}, uncompressed)`,
   });
   await inngest.send({
     name: "db/backup.requested",
-    data: { ...project, taskId },
+    data: { ...project, compress, taskId },
   });
   return { taskId };
 }

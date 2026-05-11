@@ -210,7 +210,9 @@
     "successDescription": "A backup for database {dbName} has been queued.",
     "successButton": "OK",
     "createdToast": "Backup file created",
-    "lastFileLabel": "Last backup file:"
+    "lastFileLabel": "Last backup file:",
+    "compressLabel": "Compress backup",
+    "compressHint": "Recommended — produces a smaller file (gzip for Postgres, internal compression for MSSQL)."
   },
   "restoreDb": {
     "title": "Restore database",
