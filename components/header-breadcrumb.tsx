@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -18,34 +18,121 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
-const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/|$)/i;
+const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/([^/?#]+))?/i;
 
-type StaticCrumb = { href: string; labelKey: "nav.servers" | "nav.projects" };
+type StaticSegment = {
+  kind: "static";
+  href?: string;
+  labelKey: string;
+};
 
-function getStaticCrumb(pathname: string): StaticCrumb | null {
-  // /servers/[id] or /servers/new — back to /servers list
+// Section landing pages that share a parent with deeper routes. Top-level
+// list pages (e.g. /servers, /users, /account) intentionally show no crumb —
+// the sidebar already highlights them and the in-page PageHeader carries the
+// title. We only add crumbs where they reveal context the user can't see
+// elsewhere (a sub-page name, or a non-project deep route).
+function getStaticSegments(pathname: string): StaticSegment[] {
+  // /servers/new
+  if (pathname === "/servers/new") {
+    return [
+      { kind: "static", href: "/servers", labelKey: "breadcrumbs.servers" },
+      { kind: "static", labelKey: "breadcrumbs.new" },
+    ];
+  }
+  // /servers/[id] — edit view
   if (pathname.startsWith("/servers/")) {
-    return { href: "/servers", labelKey: "nav.servers" };
+    return [
+      { kind: "static", href: "/servers", labelKey: "breadcrumbs.servers" },
+      { kind: "static", labelKey: "breadcrumbs.edit" },
+    ];
   }
-  // /projects/new — back to / (project list home)
+  // /projects/new
   if (pathname === "/projects/new") {
-    return { href: "/", labelKey: "nav.projects" };
+    return [
+      { kind: "static", href: "/", labelKey: "breadcrumbs.projects" },
+      { kind: "static", labelKey: "breadcrumbs.new" },
+    ];
   }
-  return null;
+  // /account/change-password
+  if (pathname === "/account/change-password") {
+    return [
+      { kind: "static", href: "/account", labelKey: "breadcrumbs.account" },
+      { kind: "static", labelKey: "breadcrumbs.changePassword" },
+    ];
+  }
+  return [];
+}
+
+// Map the project sub-route slug onto an i18n key in the `breadcrumbs`
+// namespace. Returning null means we render only the project switcher (the
+// project dashboard itself — no extra crumb needed since the project name
+// already anchors the location).
+function getProjectSubKey(slug: string | undefined): string | null {
+  switch (slug) {
+    case "services":
+      return "breadcrumbs.services";
+    case "backup-database":
+      return "breadcrumbs.backupDatabase";
+    case "restore-database":
+      return "breadcrumbs.restoreDatabase";
+    case "simulate-time":
+      return "breadcrumbs.simulateTime";
+    case "history":
+      return "breadcrumbs.history";
+    case "settings":
+      return "breadcrumbs.settings";
+    default:
+      return null;
+  }
 }
 
 function Slash() {
   return (
     <span
-      className="text-muted-foreground/60 text-lg font-light select-none"
+      className="text-muted-foreground/50 text-base font-light select-none"
       aria-hidden="true"
     >
       /
+    </span>
+  );
+}
+
+function StaticCrumb({
+  href,
+  label,
+  isLast,
+}: {
+  href?: string;
+  label: string;
+  isLast: boolean;
+}) {
+  const base =
+    "text-sm font-medium px-2 h-8 inline-flex items-center rounded-md";
+  if (href && !isLast) {
+    return (
+      <Link
+        href={href}
+        className={cn(
+          base,
+          "text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        )}
+      >
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <span
+      className={cn(base, isLast ? "text-foreground" : "text-muted-foreground")}
+      aria-current={isLast ? "page" : undefined}
+    >
+      {label}
     </span>
   );
 }
@@ -54,39 +141,55 @@ export function HeaderBreadcrumb({ projects }: { projects: Project[] }) {
   const pathname = usePathname();
   const t = useTranslations();
 
-  // Project context: render switcher
   const match = PROJECT_PATH_REGEX.exec(pathname);
   const activeProjectId = match?.[1];
+  const projectSubSlug = match?.[2];
   const activeProject = activeProjectId
     ? (projects.find((p) => p.id === activeProjectId) ?? null)
     : null;
 
+  // Build the trailing segment list (after the optional project switcher).
+  let trailing: StaticSegment[] = [];
   if (activeProject) {
-    return (
-      <>
-        <Slash />
-        <ProjectSwitcher projects={projects} activeProject={activeProject} />
-      </>
-    );
+    const subKey = getProjectSubKey(projectSubSlug);
+    if (subKey) {
+      trailing = [{ kind: "static", labelKey: subKey }];
+    }
+  } else {
+    trailing = getStaticSegments(pathname);
   }
 
-  // Static breadcrumb for deep non-project routes
-  const crumb = getStaticCrumb(pathname);
-  if (crumb) {
-    return (
-      <>
-        <Slash />
-        <Link
-          href={crumb.href}
-          className="text-sm font-medium hover:text-foreground text-muted-foreground transition-colors px-2 h-8 inline-flex items-center rounded-md hover:bg-accent"
-        >
-          {t(crumb.labelKey)}
-        </Link>
-      </>
-    );
+  const hasContent = activeProject !== null || trailing.length > 0;
+  if (!hasContent) {
+    return null;
   }
 
-  return null;
+  return (
+    <>
+      <Separator orientation="vertical" className="h-5" />
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1 min-w-0"
+      >
+        {activeProject ? (
+          <ProjectSwitcher projects={projects} activeProject={activeProject} />
+        ) : null}
+        {trailing.map((seg, i) => {
+          const isLast = i === trailing.length - 1;
+          return (
+            <React.Fragment key={`${seg.labelKey}-${i}`}>
+              {(activeProject || i > 0) && <Slash />}
+              <StaticCrumb
+                href={seg.href}
+                label={t(seg.labelKey as never)}
+                isLast={isLast}
+              />
+            </React.Fragment>
+          );
+        })}
+      </nav>
+    </>
+  );
 }
 
 function ProjectSwitcher({
@@ -121,7 +224,7 @@ function ProjectSwitcher({
           <span className="truncate max-w-[140px] sm:max-w-[240px]">
             {activeProject.name}
           </span>
-          <ChevronsUpDown className="size-3.5 opacity-50 shrink-0" />
+          <ChevronDown className="size-3.5 opacity-60 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-0">
