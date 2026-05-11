@@ -96,3 +96,26 @@ export function buildControlCommand(
   // stdin so it never appears as an argv (which would be visible in `ps`).
   return `printf '%s\\n' ${shq(sudoPassword)} | sudo -S systemctl ${action} ${shq(serviceName)}`;
 }
+
+export const LOG_LINE_OPTIONS = [100, 200, 500, 1000] as const;
+export type LogLines = (typeof LOG_LINE_OPTIONS)[number];
+
+// Docker logs writes to stderr by default, and journalctl may exit non-zero on
+// empty units — both reasons we wrap in `sh -c` with `2>&1` and `|| true` so the
+// remote command always exits 0 and we get all output on stdout.
+export function buildLogsCommand(
+  serviceType: ServiceType,
+  serviceName: string,
+  lines: number,
+  sudoPassword: string
+): string {
+  if (serviceType === "docker") {
+    const inner = `docker logs --tail ${lines} --timestamps ${shq(serviceName)} 2>&1 || true`;
+    return `sh -c ${shq(inner)}`;
+  }
+  // `--no-pager` avoids less/more pagination over SSH. `--output=short-iso`
+  // gives a compact UTC-style timestamp that's easy to read in a log viewer.
+  const journal = `journalctl -u ${shq(serviceName)} -n ${lines} --no-pager --output=short-iso 2>&1 || true`;
+  const inner = `printf '%s\\n' ${shq(sudoPassword)} | sudo -S ${journal}`;
+  return `sh -c ${shq(inner)}`;
+}

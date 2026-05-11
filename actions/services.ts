@@ -4,8 +4,10 @@ import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import {
+  buildLogsCommand,
   buildStatusCommand,
   getServiceConfig,
+  LOG_LINE_OPTIONS,
   parseServiceState,
   type ServiceAction,
   type ServiceRole,
@@ -85,4 +87,42 @@ function actionLabel(action: ServiceAction): string {
   if (action === "start") return "Start";
   if (action === "stop") return "Stop";
   return "Restart";
+}
+
+export type ServiceLogsResult = {
+  role: ServiceRole;
+  lines: number;
+  output: string;
+  fetchedAt: string;
+};
+
+export async function getServiceLogs(
+  project: ProjectWithServers,
+  role: ServiceRole,
+  lines: number
+): Promise<ServiceLogsResult> {
+  await requireSession();
+  const allowed: number = LOG_LINE_OPTIONS.includes(lines as never)
+    ? lines
+    : LOG_LINE_OPTIONS[1];
+  const cfg = getServiceConfig(project, role);
+  const output = await executeRemoteCommand(
+    {
+      host: cfg.server.host,
+      username: cfg.server.username,
+      password: cfg.server.password,
+    },
+    buildLogsCommand(
+      cfg.serviceType,
+      cfg.serviceName,
+      allowed,
+      cfg.server.password
+    )
+  );
+  return {
+    role,
+    lines: allowed,
+    output: output.trimEnd(),
+    fetchedAt: new Date().toISOString(),
+  };
 }
