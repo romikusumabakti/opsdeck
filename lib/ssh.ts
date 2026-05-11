@@ -1,7 +1,5 @@
 import { NodeSSH } from "node-ssh";
 
-const ssh = new NodeSSH();
-
 export async function executeRemoteCommand(
   {
     host,
@@ -10,14 +8,12 @@ export async function executeRemoteCommand(
   }: { host: string; username: string; password: string },
   command: string
 ) {
+  // Fresh client per call: a shared singleton races when concurrent callers
+  // (e.g. parallel Inngest steps, overlapping backup/restore requests) all
+  // connect/dispose the same instance and tear down each other's session.
+  const ssh = new NodeSSH();
   try {
-    await ssh.connect({
-      host,
-      username,
-      password,
-      // privateKeyPath:
-      //   process.env.SSH_PRIVATE_KEY_PATH ?? "C:/Users/Lenovo/.ssh/id_ed25519",
-    });
+    await ssh.connect({ host, username, password });
 
     const result = await ssh.execCommand(command);
 
