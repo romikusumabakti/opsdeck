@@ -15,7 +15,13 @@ import { useOptimistic, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { deleteUser, inviteUser, revokeInvitation } from "@/actions/users";
+import {
+  bulkDeleteUsers,
+  bulkRevokeInvitations,
+  deleteUser,
+  inviteUser,
+  revokeInvitation,
+} from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,20 +104,22 @@ export function UsersClient({
   // React rolls this back automatically when the transition resolves.
   type OptimisticAction =
     | { type: "add"; invitation: InvitationRow }
-    | { type: "remove"; id: string };
+    | { type: "remove"; ids: string[] };
   const [optimisticInvitations, applyOptimistic] = useOptimistic<
     InvitationRow[],
     OptimisticAction
   >(invitations, (state, action) => {
     if (action.type === "add") return [...state, action.invitation];
-    return state.filter((inv) => inv.id !== action.id);
+    return state.filter((inv) => !action.ids.includes(inv.id));
   });
 
-  // Same pattern for the users list — drop the row immediately on delete.
-  const [optimisticUsers, removeOptimisticUser] = useOptimistic<
+  // Same pattern for the users list — drop the row(s) immediately on delete.
+  const [optimisticUsers, removeOptimisticUsers] = useOptimistic<
     UserRow[],
-    string
-  >(users, (state, idToRemove) => state.filter((u) => u.id !== idToRemove));
+    string[]
+  >(users, (state, idsToRemove) =>
+    state.filter((u) => !idsToRemove.includes(u.id))
+  );
 
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
@@ -160,7 +168,7 @@ export function UsersClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimisticUser(user.id);
+        removeOptimisticUsers([user.id]);
         const result = await deleteUser(user.id);
         if (!result.success) {
           toast.error(result.message);
@@ -169,7 +177,7 @@ export function UsersClient({
         toast.success(result.message ?? t("deletedSuccess"));
       });
     },
-    [dialog, t, tCommon, removeOptimisticUser]
+    [dialog, t, tCommon, removeOptimisticUsers]
   );
 
   const onRevoke = React.useCallback(
@@ -182,13 +190,74 @@ export function UsersClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        applyOptimistic({ type: "remove", id: inv.id });
+        applyOptimistic({ type: "remove", ids: [inv.id] });
         const result = await revokeInvitation(inv.id);
         if (!result.success) {
           toast.error(result.message ?? "");
           return;
         }
         toast.success(result.message ?? t("revokedSuccess"));
+      });
+    },
+    [dialog, t, tCommon, applyOptimistic]
+  );
+
+  const onBulkDeleteUsers = React.useCallback(
+    async (ids: string[], clearSelection: () => void) => {
+      const targets = ids.filter((id) => id !== currentUserId);
+      if (targets.length === 0) {
+        toast.warning(t("bulkDeletedNothing"));
+        clearSelection();
+        return;
+      }
+      const ok = await dialog.confirm({
+        title: t("bulkDeleteTitle", { count: targets.length }),
+        description: t("bulkDeleteDescription"),
+        confirmText: tCommon("delete"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        removeOptimisticUsers(targets);
+        clearSelection();
+        const result = await bulkDeleteUsers(targets);
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        if (result.failed.length === 0) {
+          toast.success(t("bulkDeletedSuccess", { count: result.deleted }));
+        } else {
+          toast.warning(
+            t("bulkDeletedPartial", {
+              deleted: result.deleted,
+              failed: result.failed.length,
+            })
+          );
+        }
+      });
+    },
+    [dialog, t, tCommon, currentUserId, removeOptimisticUsers]
+  );
+
+  const onBulkRevoke = React.useCallback(
+    async (ids: string[], clearSelection: () => void) => {
+      const ok = await dialog.confirm({
+        title: t("bulkRevokeTitle", { count: ids.length }),
+        description: t("bulkRevokeDescription"),
+        confirmText: t("revoke"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        applyOptimistic({ type: "remove", ids });
+        clearSelection();
+        const result = await bulkRevokeInvitations(ids);
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(t("bulkRevokedSuccess", { count: result.revoked }));
       });
     },
     [dialog, t, tCommon, applyOptimistic]
@@ -422,6 +491,18 @@ export function UsersClient({
               columns={invitationColumns}
               data={optimisticInvitations}
               initialPageSize={5}
+              getRowId={(row) => row.id}
+              bulkActions={(ids, clearSelection) => (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onBulkRevoke(ids, clearSelection)}
+                  disabled={isPending}
+                >
+                  <Trash2 className="size-4" />
+                  {t("bulkRevoke")}
+                </Button>
+              )}
             />
           </CardContent>
         </Card>
@@ -442,6 +523,19 @@ export function UsersClient({
             data={optimisticUsers}
             filterColumn="name"
             filterPlaceholder={t("searchPlaceholder")}
+            getRowId={(row) => row.id}
+            canSelectRow={(row) => row.id !== currentUserId}
+            bulkActions={(ids, clearSelection) => (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onBulkDeleteUsers(ids, clearSelection)}
+                disabled={isPending}
+              >
+                <Trash2 className="size-4" />
+                {t("bulkDelete")}
+              </Button>
+            )}
           />
         </CardContent>
       </Card>

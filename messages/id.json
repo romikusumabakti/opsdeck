@@ -513,6 +513,16 @@
     "deleteFailed": "Gagal menghapus pengguna",
     "deletedSuccess": "Pengguna dihapus",
     "revokedSuccess": "Undangan dibatalkan",
+    "bulkDelete": "Hapus yang dipilih",
+    "bulkDeleteTitle": "Hapus {count, plural, one {# pengguna} other {# pengguna}}?",
+    "bulkDeleteDescription": "Tindakan ini menghapus pengguna yang dipilih secara permanen. Akun Anda sendiri selalu dikecualikan.",
+    "bulkDeletedSuccess": "{count, plural, one {# pengguna} other {# pengguna}} dihapus",
+    "bulkDeletedPartial": "{deleted} dihapus · {failed} gagal",
+    "bulkDeletedNothing": "Tidak ada yang dihapus — akun Anda sendiri dikecualikan.",
+    "bulkRevoke": "Batalkan yang dipilih",
+    "bulkRevokeTitle": "Batalkan {count, plural, one {# undangan} other {# undangan}}?",
+    "bulkRevokeDescription": "Undangan yang dipilih akan dihapus dan link-nya berhenti berfungsi.",
+    "bulkRevokedSuccess": "{count, plural, one {# undangan} other {# undangan}} dibatalkan",
     "searchPlaceholder": "Cari berdasarkan nama…",
     "colUser": "Pengguna",
     "colInvitee": "Diundang",
@@ -554,6 +564,7 @@
     "serverNotFound": "Server tidak ditemukan",
     "serverInUse": "Server tidak bisa dihapus karena masih dipakai oleh proyek",
     "hostAndUsernameRequired": "Host dan username wajib diisi",
-    "passwordRequiredForTest": "Masukkan password untuk tes koneksi"
+    "passwordRequiredForTest": "Masukkan password untuk tes koneksi",
+    "errorGeneric": "Terjadi kesalahan"
   }
 }

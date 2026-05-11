@@ -67,6 +67,12 @@ type DataTableProps<TData, TValue> = {
     selectedIds: string[],
     clearSelection: () => void
   ) => React.ReactNode;
+  /**
+   * When `bulkActions` is set, this predicate decides whether each row can be
+   * selected. Defaults to every row selectable. Use to exclude rows where the
+   * action would fail (e.g. the current user in a "delete users" table).
+   */
+  canSelectRow?: (row: TData) => boolean;
 };
 
 export function DataTable<TData, TValue>({
@@ -78,6 +84,7 @@ export function DataTable<TData, TValue>({
   initialPageSize = 10,
   getRowId,
   bulkActions,
+  canSelectRow,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -109,6 +116,7 @@ export function DataTable<TData, TValue>({
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(value === true)}
+          disabled={!row.getCanSelect()}
           aria-label={t("selectRow")}
         />
       ),
@@ -130,7 +138,11 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    enableRowSelection: !!bulkActions,
+    enableRowSelection: bulkActions
+      ? canSelectRow
+        ? (row) => canSelectRow(row.original)
+        : true
+      : false,
     getRowId,
     initialState: {
       pagination: { pageSize: initialPageSize },
