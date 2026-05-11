@@ -12,26 +12,80 @@ import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { ProjectWithServers } from "@/lib/db/schema";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+function formatDigits(digits: string) {
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+}
+
+function parseDigits(digits: string) {
+  const h = Number(digits.slice(0, 2) || "0");
+  const m = Number(digits.slice(2, 4) || "0");
+  return { h, m, valid: digits.length > 0 && h <= 23 && m <= 59 };
+}
+
+function TimeInput({
+  id,
+  hour,
+  minute,
+  onChange,
+  ariaLabel,
+}: {
+  id?: string;
+  hour: number;
+  minute: number;
+  onChange: (hour: number, minute: number) => void;
+  ariaLabel: string;
+}) {
+  const canonical = `${pad(hour)}:${pad(minute)}`;
+  const [display, setDisplay] = React.useState(canonical);
+
+  React.useEffect(() => {
+    setDisplay(canonical);
+  }, [canonical]);
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      maxLength={5}
+      placeholder="HH:MM"
+      value={display}
+      aria-label={ariaLabel}
+      className="w-20 text-center tabular-nums"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+        setDisplay(formatDigits(digits));
+        const { h, m, valid } = parseDigits(digits);
+        if (valid) onChange(h, m);
+      }}
+      onBlur={() => {
+        const digits = display.replace(/\D/g, "");
+        const { h, m, valid } = parseDigits(digits);
+        if (!valid) {
+          setDisplay(canonical);
+          return;
+        }
+        setDisplay(`${pad(h)}:${pad(m)}`);
+        onChange(h, m);
+      }}
+    />
+  );
+}
 
 export function MockTime({ project }: { project: ProjectWithServers }) {
   const t = useTranslations("mockTime");
@@ -94,7 +148,7 @@ export function MockTime({ project }: { project: ProjectWithServers }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <FieldGroup className="flex-row">
+      <FieldGroup className="flex-row items-end gap-4">
         <Field>
           <FieldLabel htmlFor="mock-time-date">{t("dateLabel")}</FieldLabel>
           <Popover open={open} onOpenChange={setOpen}>
@@ -129,71 +183,27 @@ export function MockTime({ project }: { project: ProjectWithServers }) {
           </Popover>
         </Field>
         <Field className="w-fit">
-          <FieldLabel htmlFor="mock-time-hour">{t("timeLabel")}</FieldLabel>
-          <div className="flex items-center gap-1">
-            <Select
-              value={String(hour)}
-              onValueChange={(v) => setHour(Number(v))}
-            >
-              <SelectTrigger
-                id="mock-time-hour"
-                aria-label={t("hourLabel")}
-                className="w-[4.5rem] tabular-nums"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {HOURS.map((h) => (
-                  <SelectItem
-                    key={h}
-                    value={String(h)}
-                    className="tabular-nums"
-                  >
-                    {pad(h)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span
-              aria-hidden="true"
-              className="text-muted-foreground select-none"
-            >
-              :
-            </span>
-            <Select
-              value={String(minute)}
-              onValueChange={(v) => setMinute(Number(v))}
-            >
-              <SelectTrigger
-                aria-label={t("minuteLabel")}
-                className="w-[4.5rem] tabular-nums"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {MINUTES.map((m) => (
-                  <SelectItem
-                    key={m}
-                    value={String(m)}
-                    className="tabular-nums"
-                  >
-                    {pad(m)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FieldLabel htmlFor="mock-time-time">{t("timeLabel")}</FieldLabel>
+          <TimeInput
+            id="mock-time-time"
+            hour={hour}
+            minute={minute}
+            onChange={(h, m) => {
+              setHour(h);
+              setMinute(m);
+            }}
+            ariaLabel={t("timeLabel")}
+          />
         </Field>
+        <Button
+          onClick={onSubmit}
+          disabled={submitting}
+          variant={isLegacy ? "destructive" : "default"}
+        >
+          <Clock className="size-4" />
+          {submitting ? t("submitting") : t("submit")}
+        </Button>
       </FieldGroup>
-      <Button
-        onClick={onSubmit}
-        disabled={submitting}
-        variant={isLegacy ? "destructive" : "default"}
-        className="self-start"
-      >
-        <Clock className="size-4" />
-        {submitting ? t("submitting") : t("submit")}
-      </Button>
       <LiveTaskDialog
         taskId={activeTaskId}
         onOpenChange={(open) => {
