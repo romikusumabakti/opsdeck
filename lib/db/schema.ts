@@ -10,7 +10,7 @@ import {
 
 export const serviceTypeEnum = pgEnum("service_type", [
   "docker",
-  "system",
+  "systemd",
   "kubernetes",
 ]);
 export const databaseTypeEnum = pgEnum("database_type", ["postgres", "mssql"]);
