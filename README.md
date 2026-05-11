@@ -120,17 +120,18 @@ proxy.ts                Edge middleware: redirects unauthenticated requests to /
 ## Backup & restore
 
 `createDatabaseBackup` (event `db/backup.requested`) SSHes into
-`project.dbServer`, ensures `dbBackupPath` exists, then runs
-`docker exec <dbServiceName> pg_dump -U postgres <dbName> | gzip`. When
-`dbIsBackupMounted` is true the redirect happens on the host (the file
-is visible to both sides of the bind); otherwise the whole pipe runs
-inside the container so the file lands where `getBackupList` reads from.
+`project.dbServer`, ensures `dbBackupPath` exists inside the container,
+then runs `pg_dump | gzip` (or `BACKUP DATABASE` via `sqlcmd` for MSSQL)
+through `docker exec`. All filesystem operations target the container —
+`dbBackupPath` is interpreted as a container-internal path. Bind-mount
+configuration (if the operator wants host-side access to backups) is the
+operator's concern in docker-compose, not the panel's.
 
 `restoreDatabaseBackup` (event `db/restore.requested`) terminates open
-connections to the target database and pipes a gzipped dump back into
-`docker exec ... psql`, using `dbServiceName`, `dbBackupPath`, and
-`dbName` from the project record (gunzip runs on host when mounted,
-inside the container otherwise).
+connections to the target database and pipes the dump back through
+`docker exec ... psql` (or `RESTORE DATABASE` via `sqlcmd` for MSSQL),
+using `dbServiceName`, `dbBackupPath`, and `dbName` from the project
+record.
 
 Both functions execute remote shell commands, so server credentials in
 the `servers` table effectively grant code execution on those hosts.
