@@ -540,9 +540,33 @@
     "email": "Email",
     "emailPlaceholder": "you@example.com",
     "password": "Password",
+    "forgotPassword": "Forgot password?",
     "submit": "Sign in",
     "submitting": "Signing in…",
     "errorInvalid": "Invalid email or password"
+  },
+  "forgotPassword": {
+    "title": "Forgot password",
+    "description": "Enter your email and we'll send a reset link if the account exists.",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "submit": "Send reset link",
+    "submitting": "Sending…",
+    "successMessage": "If your email is registered, a password reset link has been sent. Check your inbox.",
+    "backToSignIn": "Back to sign in"
+  },
+  "resetPassword": {
+    "title": "Reset password",
+    "description": "Create a new password for your account.",
+    "invalidTitle": "Invalid link",
+    "invalidDescription": "This password reset link is invalid or has expired.",
+    "requestAgain": "Request a new link",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "passwordMismatch": "Password confirmation does not match",
+    "submit": "Reset password",
+    "submitting": "Processing…",
+    "success": "Password reset successfully, please sign in"
   },
   "acceptInvite": {
     "title": "Activate account",

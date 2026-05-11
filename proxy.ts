@@ -5,7 +5,13 @@ import { routing } from "./i18n/routing";
 
 const intlMiddleware = createMiddleware(routing);
 
-const PUBLIC_FIRST_SEGMENTS = new Set(["sign-in", "accept-invite", "setup"]);
+const PUBLIC_FIRST_SEGMENTS = new Set([
+  "sign-in",
+  "accept-invite",
+  "setup",
+  "forgot-password",
+  "reset-password",
+]);
 const LOCALE_PREFIX_REGEX = new RegExp(
   `^/(${routing.locales.join("|")})(?=/|$)`
 );
