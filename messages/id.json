@@ -374,6 +374,7 @@
   },
   "servers": {
     "title": "Server",
+    "subtitle": "Kelola server berbasis SSH yang digunakan oleh proyek.",
     "addServer": "Tambah server",
     "emptyTitle": "Belum ada server",
     "empty": "Tambahkan server untuk mulai mendaftarkan proyek.",
