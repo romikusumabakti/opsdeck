@@ -114,7 +114,7 @@ export default async function LocaleLayout({
                   <SidebarInset className="min-w-0">
                     <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                       <SidebarTrigger className="-ml-1" />
-                      <HeaderBreadcrumb projects={projects} />
+                      <HeaderBreadcrumb projects={projects} isAdmin={admin} />
                       <div className="ml-auto flex items-center gap-2">
                         <ActiveTasksIndicator />
                         <div className="hidden md:flex items-center gap-2 pr-1">
