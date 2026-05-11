@@ -9,6 +9,7 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 import { getProjects } from "@/actions/projects";
+import { ActiveTasksIndicator } from "@/components/active-tasks-indicator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { DialogProvider } from "@/components/dialog-provider";
@@ -18,7 +19,6 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
@@ -105,11 +105,11 @@ export default async function LocaleLayout({
                     }}
                   />
                   <SidebarInset className="min-w-0">
-                    <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b sticky top-0 z-30 bg-background">
+                    <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                       <SidebarTrigger className="-ml-1" />
-                      <Separator orientation="vertical" className="h-5 mr-1" />
                       <HeaderBreadcrumb projects={projects} />
                       <div className="ml-auto flex items-center gap-2">
+                        <ActiveTasksIndicator />
                         <div className="hidden md:flex items-center gap-2 pr-1">
                           <ServerTime />
                         </div>

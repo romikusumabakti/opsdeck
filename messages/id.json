@@ -52,7 +52,7 @@
     "sessions": "Sesi"
   },
   "commandPalette": {
-    "triggerLabel": "Cari…",
+    "triggerLabel": "Cari atau buka…",
     "title": "Command palette",
     "description": "Cari perintah, halaman, atau proyek.",
     "placeholder": "Ketik perintah atau cari…",
@@ -87,6 +87,11 @@
     "searchProject": "Cari proyek…",
     "noProject": "Proyek tidak ditemukan.",
     "createProject": "Buat proyek baru"
+  },
+  "activeTasks": {
+    "trigger": "{count, plural, one {# tugas berjalan} other {# tugas berjalan}}",
+    "title": "Tugas berjalan",
+    "subtitle": "{count, plural, one {# tugas sedang berjalan} other {# tugas sedang berjalan}}"
   },
   "projectsEmpty": {
     "title": "Belum ada proyek",
