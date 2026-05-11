@@ -3,6 +3,7 @@ import {
   controlService,
   createDatabaseBackup,
   mockProjectTimeLegacy,
+  mockProjectTimeResetLegacy,
   restoreDatabaseBackup,
   syncJenkinsData,
 } from "@/inngest/functions";
@@ -15,6 +16,7 @@ export const { GET, POST, PUT } = serve({
     createDatabaseBackup,
     restoreDatabaseBackup,
     mockProjectTimeLegacy,
+    mockProjectTimeResetLegacy,
     controlService,
   ],
 });
