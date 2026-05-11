@@ -6,7 +6,7 @@ import { ChevronDownIcon, Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { simulateProjectTime } from "@/actions/simulate-time";
+import { mockProjectTime } from "@/actions/mock-time";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
@@ -33,8 +33,8 @@ function pad(n: number) {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
-export function SimulateTime({ project }: { project: ProjectWithServers }) {
-  const t = useTranslations("simulateTime");
+export function MockTime({ project }: { project: ProjectWithServers }) {
+  const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
   const locale = useLocale();
   const dateFnsLocale = locale === "id" ? idLocale : undefined;
@@ -48,7 +48,7 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
   const [submitting, setSubmitting] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
 
-  const isLegacy = !project.backendSimulateTimeApiUrl?.trim();
+  const isLegacy = !project.backendMockTimeApiUrl?.trim();
 
   const combined = React.useMemo(() => {
     const next = new Date(date ?? new Date());
@@ -73,7 +73,7 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
 
     setSubmitting(true);
     try {
-      const result = await simulateProjectTime(project, combined.toISOString());
+      const result = await mockProjectTime(project, combined.toISOString());
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
@@ -96,12 +96,12 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
     <div className="flex flex-col gap-4">
       <FieldGroup className="flex-row">
         <Field>
-          <FieldLabel htmlFor="simulate-time-date">{t("dateLabel")}</FieldLabel>
+          <FieldLabel htmlFor="mock-time-date">{t("dateLabel")}</FieldLabel>
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                id="simulate-time-date"
+                id="mock-time-date"
                 className="w-40 justify-between font-normal"
               >
                 {date
@@ -129,14 +129,14 @@ export function SimulateTime({ project }: { project: ProjectWithServers }) {
           </Popover>
         </Field>
         <Field className="w-fit">
-          <FieldLabel htmlFor="simulate-time-hour">{t("timeLabel")}</FieldLabel>
+          <FieldLabel htmlFor="mock-time-hour">{t("timeLabel")}</FieldLabel>
           <div className="flex items-center gap-1">
             <Select
               value={String(hour)}
               onValueChange={(v) => setHour(Number(v))}
             >
               <SelectTrigger
-                id="simulate-time-hour"
+                id="mock-time-hour"
                 aria-label={t("hourLabel")}
                 className="w-[4.5rem] tabular-nums"
               >

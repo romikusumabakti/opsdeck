@@ -44,8 +44,8 @@ export async function DashboardKpis({ projectId }: { projectId: string }) {
       />
       <KpiCard
         icon={Clock}
-        label={t("lastSimulate")}
-        entry={kpis.lastSimulate}
+        label={t("lastMock")}
+        entry={kpis.lastMock}
         dateFnsLocale={dateFnsLocale}
         format={format}
         emptyText={t("never")}

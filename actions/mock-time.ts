@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { type ProjectWithServers, tasks } from "@/lib/db/schema";
 import { createTask } from "@/lib/task-progress";
 
-type SimulateTimeResult =
+type MockTimeResult =
   | { success: true; mode: "api" }
   | { success: true; mode: "legacy"; taskId: string }
   | { success: false; mode: "api" | "legacy"; error: string };
@@ -41,12 +41,12 @@ function describeFetchError(err: unknown): string {
   return String(err);
 }
 
-export async function simulateProjectTime(
+export async function mockProjectTime(
   project: ProjectWithServers,
-  simulatedAt: string
-): Promise<SimulateTimeResult> {
+  mockedAt: string
+): Promise<MockTimeResult> {
   const session = await requireSession();
-  const apiUrl = project.backendSimulateTimeApiUrl?.trim();
+  const apiUrl = project.backendMockTimeApiUrl?.trim();
 
   if (apiUrl) {
     const runAt = new Date();
@@ -55,7 +55,7 @@ export async function simulateProjectTime(
       response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ simulatedAt }),
+        body: JSON.stringify({ mockedAt }),
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
       });
     } catch (error) {
@@ -69,20 +69,20 @@ export async function simulateProjectTime(
       };
     }
     // The remote clock has already moved by this point — record the task as
-    // audit, but don't let an insert failure turn a successful simulate-time
+    // audit, but don't let an insert failure turn a successful mock-time
     // call into a user-visible error.
     try {
       await db.insert(tasks).values({
         projectId: project.id,
         userId: session.user.id,
-        description: `Simulate time to ${simulatedAt}`,
+        description: `Mock time to ${mockedAt}`,
         status: "success",
         runAt,
         completedAt: new Date(),
       });
     } catch (auditError) {
       console.error(
-        "simulate-time API succeeded but failed to record audit task",
+        "mock-time API succeeded but failed to record audit task",
         auditError
       );
     }
@@ -93,11 +93,11 @@ export async function simulateProjectTime(
     const taskId = await createTask({
       projectId: project.id,
       userId: session.user.id,
-      description: `Simulate time to ${simulatedAt} (legacy)`,
+      description: `Mock time to ${mockedAt} (legacy)`,
     });
     await inngest.send({
-      name: "project/simulate-time.legacy",
-      data: { project, simulatedAt, taskId },
+      name: "project/mock-time.legacy",
+      data: { project, mockedAt, taskId },
     });
     return { success: true, mode: "legacy", taskId };
   } catch (error) {
