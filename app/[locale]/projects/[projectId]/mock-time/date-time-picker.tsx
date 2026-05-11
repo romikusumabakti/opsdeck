@@ -103,7 +103,7 @@ export function DateTimePicker({
   const [open, setOpen] = React.useState(false);
 
   return (
-    <FieldGroup className="flex-1 flex-row items-end gap-4">
+    <FieldGroup className="flex-1 flex-row items-end gap-2">
       <Field className="flex-1">
         <FieldLabel htmlFor={`${idPrefix}-date`}>{t("dateLabel")}</FieldLabel>
         <Popover open={open} onOpenChange={setOpen}>
