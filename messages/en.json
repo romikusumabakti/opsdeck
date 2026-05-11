@@ -35,7 +35,11 @@
     "last": "Last page",
     "pageOf": "Page {current} of {total}",
     "rowsPerPage": "Rows per page",
-    "showingRange": "Showing {from}-{to} of {total}"
+    "showingRange": "Showing {from}-{to} of {total}",
+    "selectAll": "Select all rows on this page",
+    "selectRow": "Select row",
+    "selectedCount": "{count, plural, one {# row selected} other {# rows selected}}",
+    "clearSelection": "Clear"
   },
   "breadcrumbs": {
     "projects": "Projects",
@@ -394,6 +398,11 @@
     "deleteDescription": "Delete server {name} ({host})? Servers in use by projects cannot be deleted.",
     "deleteFailed": "Failed to delete server",
     "deletedSuccess": "Server deleted",
+    "bulkDelete": "Delete selected",
+    "bulkDeleteTitle": "Delete {count, plural, one {# server} other {# servers}}?",
+    "bulkDeleteDescription": "This permanently deletes the selected servers. Servers in use by a project will be skipped.",
+    "bulkDeletedSuccess": "{count, plural, one {# server} other {# servers}} deleted",
+    "bulkDeletedPartial": "{deleted} deleted · {failed} skipped (in use)",
     "searchPlaceholder": "Search by name…",
     "colName": "Name",
     "colHost": "Host",

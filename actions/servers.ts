@@ -149,6 +149,56 @@ export async function testServerConnection(input: {
   return testSshConnection({ host, username, password });
 }
 
+export type BulkDeleteServersResult =
+  | {
+      success: true;
+      deleted: number;
+      failed: { id: string; message: string }[];
+    }
+  | { success: false; message: string };
+
+/**
+ * Bulk-delete servers by ID. Servers referenced by any project (FK violation,
+ * pg code 23503) are skipped and reported back so the caller can surface a
+ * partial-success toast — the operation is intentionally not transactional
+ * because one in-use server shouldn't block deleting the rest.
+ */
+export async function bulkDeleteServers(
+  ids: string[]
+): Promise<BulkDeleteServersResult> {
+  await requireAdmin();
+  const t = await getTranslations("actionErrors");
+  if (ids.length === 0) {
+    return { success: true, deleted: 0, failed: [] };
+  }
+  let deleted = 0;
+  const failed: { id: string; message: string }[] = [];
+  for (const id of ids) {
+    try {
+      const result = await db
+        .delete(servers)
+        .where(eq(servers.id, id))
+        .returning({ id: servers.id });
+      if (result.length > 0) {
+        deleted += 1;
+      } else {
+        failed.push({ id, message: t("serverNotFound") });
+      }
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      if (code === "23503") {
+        failed.push({ id, message: t("serverInUse") });
+        continue;
+      }
+      console.error(`Failed to delete server ${id}:`, error);
+      failed.push({ id, message: t("serverDeleteFailed") });
+    }
+  }
+  revalidatePath("/servers");
+  revalidatePath("/projects/new");
+  return { success: true, deleted, failed };
+}
+
 export async function deleteServer(id: string): Promise<SimpleResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");

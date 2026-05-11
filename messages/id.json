@@ -35,7 +35,11 @@
     "last": "Halaman terakhir",
     "pageOf": "Halaman {current} dari {total}",
     "rowsPerPage": "Baris per halaman",
-    "showingRange": "Menampilkan {from}-{to} dari {total}"
+    "showingRange": "Menampilkan {from}-{to} dari {total}",
+    "selectAll": "Pilih semua baris di halaman ini",
+    "selectRow": "Pilih baris",
+    "selectedCount": "{count, plural, one {# baris dipilih} other {# baris dipilih}}",
+    "clearSelection": "Bersihkan"
   },
   "breadcrumbs": {
     "projects": "Proyek",
@@ -394,6 +398,11 @@
     "deleteDescription": "Hapus server {name} ({host})? Server yang masih dipakai proyek tidak bisa dihapus.",
     "deleteFailed": "Gagal menghapus server",
     "deletedSuccess": "Server dihapus",
+    "bulkDelete": "Hapus yang dipilih",
+    "bulkDeleteTitle": "Hapus {count, plural, one {# server} other {# server}}?",
+    "bulkDeleteDescription": "Tindakan ini menghapus server yang dipilih secara permanen. Server yang masih dipakai proyek akan dilewati.",
+    "bulkDeletedSuccess": "{count, plural, one {# server} other {# server}} dihapus",
+    "bulkDeletedPartial": "{deleted} dihapus · {failed} dilewati (masih dipakai)",
     "searchPlaceholder": "Cari berdasarkan nama…",
     "colName": "Nama",
     "colHost": "Host",
