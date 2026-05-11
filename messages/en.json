@@ -31,6 +31,8 @@
     "noResults": "No results.",
     "previous": "Previous",
     "next": "Next",
+    "first": "First page",
+    "last": "Last page",
     "pageOf": "Page {current} of {total}",
     "rowsPerPage": "Rows per page",
     "showingRange": "Showing {from}-{to} of {total}"
@@ -88,7 +90,8 @@
     "selectProject": "Select project…",
     "searchProject": "Search project…",
     "noProject": "No project found.",
-    "createProject": "Create new project"
+    "createProject": "Create new project",
+    "skipToContent": "Skip to main content"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# running task} other {# running tasks}}",

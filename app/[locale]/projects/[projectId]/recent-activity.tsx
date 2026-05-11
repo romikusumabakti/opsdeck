@@ -85,7 +85,7 @@ function ActivityRow({
 function StatusGlyph({ status }: { status: TaskWithUser["status"] }) {
   if (status === "success") {
     return (
-      <span className="size-7 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+      <span className="size-7 rounded-full bg-success/15 text-success flex items-center justify-center shrink-0">
         <CheckCircle2 className="size-3.5" />
       </span>
     );
@@ -115,7 +115,7 @@ function StatusBadge({
     return (
       <Badge
         variant="secondary"
-        className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-transparent text-[10px] uppercase tracking-wide"
+        className="bg-success/15 text-success border-transparent text-[10px] uppercase tracking-wide"
       >
         {t("statusSuccess")}
       </Badge>

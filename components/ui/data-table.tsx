@@ -16,6 +16,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Settings2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -238,6 +240,16 @@ export function DataTable<TData, TValue>({
                 <Button
                   variant="outline"
                   size="icon-sm"
+                  onClick={() => table.firstPage()}
+                  disabled={!table.getCanPreviousPage()}
+                  aria-label={t("first")}
+                  className="hidden sm:inline-flex"
+                >
+                  <ChevronsLeft className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
                   onClick={() => table.previousPage()}
                   disabled={!table.getCanPreviousPage()}
                   aria-label={t("previous")}
@@ -252,6 +264,16 @@ export function DataTable<TData, TValue>({
                   aria-label={t("next")}
                 >
                   <ChevronRight className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => table.lastPage()}
+                  disabled={!table.getCanNextPage()}
+                  aria-label={t("last")}
+                  className="hidden sm:inline-flex"
+                >
+                  <ChevronsRight className="size-4" />
                 </Button>
               </div>
             )}

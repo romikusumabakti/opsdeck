@@ -73,6 +73,7 @@ export default async function LocaleLayout({
   const projects = session ? await getProjects() : [];
   const admin = session ? isAdmin(session) : false;
   const messages = await getMessages({ locale });
+  const tHeader = await getTranslations({ locale, namespace: "header" });
 
   // Sidebar open state is persisted in a cookie by the SidebarProvider client;
   // read it on the server so the initial render matches and avoids a flash.
@@ -94,6 +95,12 @@ export default async function LocaleLayout({
             <DialogProvider>
               {session ? (
                 <SidebarProvider defaultOpen={sidebarDefaultOpen}>
+                  <a
+                    href="#main-content"
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    {tHeader("skipToContent")}
+                  </a>
                   <AppSidebar
                     projects={projects}
                     isAdmin={admin}
@@ -116,7 +123,11 @@ export default async function LocaleLayout({
                         <CommandPalette projects={projects} isAdmin={admin} />
                       </div>
                     </header>
-                    <main className="flex-1 min-h-0 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6">
+                    <main
+                      id="main-content"
+                      tabIndex={-1}
+                      className="flex-1 min-h-0 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
+                    >
                       {children}
                     </main>
                   </SidebarInset>

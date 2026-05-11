@@ -298,7 +298,7 @@ function TestStatus({
   if (state.kind === "idle" || state.kind === "testing") return null;
   if (state.kind === "ok") {
     return (
-      <span className="text-sm text-green-600 dark:text-green-500 inline-flex items-center gap-1">
+      <span className="text-sm text-success inline-flex items-center gap-1">
         <CheckCircle2 className="size-4" />
         {t("testSuccess")}
       </span>

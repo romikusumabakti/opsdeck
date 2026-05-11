@@ -146,7 +146,7 @@ function StatusBadge({
 }) {
   if (status === "success") {
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 border-transparent gap-1">
+      <Badge className="bg-success/15 text-success hover:bg-success/15 border-transparent gap-1">
         <CheckCircle2 className="size-3" />
         {t("statusSuccess")}
       </Badge>
