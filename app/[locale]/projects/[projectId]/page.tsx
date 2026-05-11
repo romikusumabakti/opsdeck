@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Server } from "@/lib/db/schema";
+import type { ServiceType } from "@/lib/services";
 import { DashboardKpis, DashboardKpisSkeleton } from "./dashboard-kpis";
 import { RecentActivity, RecentActivitySkeleton } from "./recent-activity";
 
@@ -142,7 +143,7 @@ function ServiceSummary({
   labels,
   t,
 }: {
-  type: "docker" | "system";
+  type: ServiceType;
   name: string;
   labels: Labels;
   t: (key: string) => string;

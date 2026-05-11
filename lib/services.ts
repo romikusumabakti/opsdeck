@@ -5,11 +5,12 @@ export type ServiceRole = "db" | "backend" | "frontend";
 export type ServiceAction = "start" | "stop" | "restart";
 export type ServiceState = "running" | "stopped" | "not-found" | "unknown";
 
-export type ServiceType = "docker" | "system";
+export type ServiceType = "docker" | "system" | "kubernetes";
 
-// Sentinel emitted by the status command when docker can't find the container
-// (otherwise `docker inspect` exits non-zero and executeRemoteCommand throws).
-const DOCKER_NOT_FOUND_MARKER = "__dss_not_found__";
+// Sentinel emitted by the status command when the underlying tool can't find
+// the resource (otherwise `docker inspect` / `kubectl get` exits non-zero and
+// executeRemoteCommand throws).
+const NOT_FOUND_MARKER = "__dss_not_found__";
 
 export type ServiceConfig = {
   role: ServiceRole;
@@ -53,7 +54,15 @@ export function buildStatusCommand(
   serviceName: string
 ): string {
   if (serviceType === "docker") {
-    const inner = `docker container inspect -f '{{.State.Status}}' ${shq(serviceName)} 2>/dev/null || echo ${DOCKER_NOT_FOUND_MARKER}`;
+    const inner = `docker container inspect -f '{{.State.Status}}' ${shq(serviceName)} 2>/dev/null || echo ${NOT_FOUND_MARKER}`;
+    return `sh -c ${shq(inner)}`;
+  }
+  if (serviceType === "kubernetes") {
+    // Emit "<desired> <ready>" so the parser can distinguish stopped (desired=0),
+    // running (ready>=1), and transitioning (desired>0, ready=0). jsonpath
+    // prints an empty string when `readyReplicas` is absent (pre-rollout), which
+    // we treat as 0 ready.
+    const inner = `kubectl get deploy ${shq(serviceName)} -o jsonpath='{.spec.replicas} {.status.readyReplicas}' 2>/dev/null || echo ${NOT_FOUND_MARKER}`;
     return `sh -c ${shq(inner)}`;
   }
   // `systemctl is-active` exits non-zero for inactive/failed/unknown, but we
@@ -70,8 +79,18 @@ export function parseServiceState(
   const value = output.trim();
   if (!value) return "unknown";
   if (serviceType === "docker") {
-    if (value === DOCKER_NOT_FOUND_MARKER) return "not-found";
+    if (value === NOT_FOUND_MARKER) return "not-found";
     if (value === "running") return "running";
+    return "stopped";
+  }
+  if (serviceType === "kubernetes") {
+    if (value === NOT_FOUND_MARKER) return "not-found";
+    const [desiredStr, readyStr] = value.split(/\s+/);
+    const desired = Number.parseInt(desiredStr ?? "", 10);
+    const ready = Number.parseInt(readyStr ?? "", 10);
+    if (!Number.isFinite(desired)) return "unknown";
+    if (desired === 0) return "stopped";
+    if (Number.isFinite(ready) && ready >= 1) return "running";
     return "stopped";
   }
   if (value === "active" || value === "activating") return "running";
@@ -81,8 +100,9 @@ export function parseServiceState(
   return "unknown";
 }
 
-// systemctl needs sudo; docker doesn't (the SSH user is assumed to be in the
-// docker group, same assumption made by the backup/restore commands).
+// systemctl needs sudo; docker and kubectl don't (the SSH user is assumed to
+// be in the docker group / have a working KUBECONFIG, same assumption made by
+// the backup/restore commands).
 export function buildControlCommand(
   serviceType: ServiceType,
   serviceName: string,
@@ -91,6 +111,16 @@ export function buildControlCommand(
 ): string {
   if (serviceType === "docker") {
     return `docker ${action} ${shq(serviceName)}`;
+  }
+  if (serviceType === "kubernetes") {
+    // Restart maps to `rollout restart` (preserves replica count). Start/stop
+    // map to `scale`: start assumes a single replica (panel scope is dev/test
+    // single-instance services), stop scales to 0.
+    if (action === "restart") {
+      return `kubectl rollout restart deploy ${shq(serviceName)}`;
+    }
+    const replicas = action === "start" ? 1 : 0;
+    return `kubectl scale deploy ${shq(serviceName)} --replicas=${replicas}`;
   }
   // `printf '%s\n' PASSWORD | sudo -S CMD` feeds the password to sudo via
   // stdin so it never appears as an argv (which would be visible in `ps`).
@@ -111,6 +141,13 @@ export function buildLogsCommand(
 ): string {
   if (serviceType === "docker") {
     const inner = `docker logs --tail ${lines} --timestamps ${shq(serviceName)} 2>&1 || true`;
+    return `sh -c ${shq(inner)}`;
+  }
+  if (serviceType === "kubernetes") {
+    // `deploy/<name>` selects one of the deployment's pods. `--timestamps`
+    // prefixes each line with an RFC3339 timestamp so the viewer can correlate
+    // with other sources.
+    const inner = `kubectl logs deploy/${shq(serviceName)} --tail ${lines} --timestamps 2>&1 || true`;
     return `sh -c ${shq(inner)}`;
   }
   // `--no-pager` avoids less/more pagination over SSH. `--output=short-iso`

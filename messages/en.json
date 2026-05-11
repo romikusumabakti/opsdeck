@@ -127,7 +127,8 @@
     "dbName": "Database name",
     "serviceTypes": {
       "docker": "Docker",
-      "system": "System"
+      "system": "System",
+      "kubernetes": "Kubernetes"
     },
     "dbTypes": {
       "postgres": "PostgreSQL",
