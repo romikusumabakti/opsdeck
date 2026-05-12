@@ -199,8 +199,26 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
 
   const anyPending = pendingAction !== null;
   const isMocked = clock?.mocked === true;
-  const nowLabel = clock
-    ? format(new Date(clock.now), "PPP HH:mm:ss", { locale: dateFnsLocale })
+
+  // Anchor on the server's mocked `now` rather than `new Date()`; the project
+  // clock may be time-traveled.
+  const [displayedNow, setDisplayedNow] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    if (!clock) {
+      setDisplayedNow(null);
+      return;
+    }
+    const serverMs = new Date(clock.now).getTime();
+    const localMs = Date.now();
+    setDisplayedNow(new Date(serverMs));
+    const id = setInterval(() => {
+      setDisplayedNow(new Date(serverMs + (Date.now() - localMs)));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [clock]);
+
+  const nowLabel = displayedNow
+    ? format(displayedNow, "PPP HH:mm:ss", { locale: dateFnsLocale })
     : null;
 
   return (
