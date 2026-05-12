@@ -201,6 +201,37 @@ export async function inviteUser(input: {
   return { success: true, message: t("emailSent") };
 }
 
+export async function updateUserRole(input: {
+  userId: string;
+  role: UserRole;
+}): Promise<ActionResponse> {
+  const session = await requireAdmin();
+  const t = await getTranslations("actionErrors");
+
+  if (session.user.id === input.userId) {
+    return { success: false, message: t("cannotChangeOwnRole") };
+  }
+
+  const role: UserRole = input.role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
+
+  // Direct Drizzle update: the admin plugin's `setRole` API only accepts its
+  // built-in role names in TypeScript types, but our `member` role is custom.
+  // Updating our own users table avoids that mismatch and is what `setRole`
+  // does internally anyway.
+  const result = await db
+    .update(userTable)
+    .set({ role, updatedAt: new Date() })
+    .where(eq(userTable.id, input.userId))
+    .returning({ id: userTable.id });
+
+  if (result.length === 0) {
+    return { success: false, message: t("errorGeneric") };
+  }
+
+  revalidatePath("/users");
+  return { success: true, message: t("roleUpdated") };
+}
+
 export async function deleteUser(userId: string): Promise<ActionResponse> {
   const session = await requireAdmin();
   const t = await getTranslations("actionErrors");
