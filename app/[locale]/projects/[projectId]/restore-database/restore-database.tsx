@@ -118,7 +118,10 @@ export function RestoreDatabase({
                       value={b.name}
                       onSelect={(currentValue) => {
                         setValue(currentValue === value ? "" : currentValue);
-                        setOpen(false);
+                        // Defer close past the click event so Radix Popover's
+                        // dismiss + focus-restore doesn't race the same tick
+                        // (causes a brief reopen flicker on slower envs).
+                        requestAnimationFrame(() => setOpen(false));
                       }}
                     >
                       <span className="truncate font-mono text-xs">
