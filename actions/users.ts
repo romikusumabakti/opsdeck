@@ -201,6 +201,35 @@ export async function inviteUser(input: {
   return { success: true, message: t("emailSent") };
 }
 
+export async function updateUserName(input: {
+  userId: string;
+  name: string;
+}): Promise<ActionResponse> {
+  await requireAdmin();
+  const t = await getTranslations("actionErrors");
+
+  const name = input.name.trim();
+  if (!name) {
+    return { success: false, message: t("nameRequired") };
+  }
+  if (name.length > 100) {
+    return { success: false, message: t("nameTooLong") };
+  }
+
+  const result = await db
+    .update(userTable)
+    .set({ name, updatedAt: new Date() })
+    .where(eq(userTable.id, input.userId))
+    .returning({ id: userTable.id });
+
+  if (result.length === 0) {
+    return { success: false, message: t("errorGeneric") };
+  }
+
+  revalidatePath("/users");
+  return { success: true, message: t("nameUpdated") };
+}
+
 export async function updateUserRole(input: {
   userId: string;
   role: UserRole;

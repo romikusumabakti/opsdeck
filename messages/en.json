@@ -454,8 +454,7 @@
     "profile": {
       "title": "Profile",
       "description": "Your account identity within Admin Panel.",
-      "nameLabel": "Name",
-      "updatedSuccess": "Profile updated"
+      "nameManagedByAdmin": "Your name is managed by administrators. Contact an admin to update it."
     },
     "security": {
       "title": "Password",
@@ -619,6 +618,10 @@
     "roleChangeDescription": "Change {name}'s role to {role}?",
     "roleChangeConfirm": "Change role",
     "roleChangedSuccess": "Role updated",
+    "renameAction": "Rename",
+    "renameTitle": "Rename user",
+    "renameDescription": "Enter a new name for {name}.",
+    "renamedSuccess": "User renamed",
     "inviteSubmit": "Invite",
     "inviteSubmitting": "Sending…",
     "pendingTitle": "Pending invitations",
@@ -670,6 +673,9 @@
     "emailSendFailed": "Failed to send invitation email, check RESEND_API_KEY configuration",
     "cannotDeleteSelf": "Cannot delete your own account",
     "cannotChangeOwnRole": "Cannot change your own role",
+    "nameRequired": "Name is required",
+    "nameTooLong": "Name must be at most 100 characters",
+    "nameUpdated": "Name updated",
     "roleUpdated": "Role updated",
     "userDeleted": "User deleted",
     "invitationRevoked": "Invitation revoked",

@@ -6,6 +6,7 @@ import {
   ArrowUpDown,
   Mail,
   MoreHorizontal,
+  Pencil,
   ShieldCheck,
   Trash2,
   UserCog,
@@ -23,6 +24,7 @@ import {
   deleteUser,
   inviteUser,
   revokeInvitation,
+  updateUserName,
   updateUserRole,
 } from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
@@ -118,10 +120,11 @@ export function UsersClient({
   });
 
   // Same pattern for the users list — drop the row(s) immediately on delete,
-  // or flip the role inline on role change.
+  // or flip the role/name inline on update.
   type OptimisticUserAction =
     | { type: "remove"; ids: string[] }
-    | { type: "updateRole"; id: string; role: UserRole };
+    | { type: "updateRole"; id: string; role: UserRole }
+    | { type: "updateName"; id: string; name: string };
   const [optimisticUsers, applyOptimisticUsers] = useOptimistic<
     UserRow[],
     OptimisticUserAction
@@ -129,8 +132,13 @@ export function UsersClient({
     if (action.type === "remove") {
       return state.filter((u) => !action.ids.includes(u.id));
     }
+    if (action.type === "updateRole") {
+      return state.map((u) =>
+        u.id === action.id ? { ...u, role: action.role } : u
+      );
+    }
     return state.map((u) =>
-      u.id === action.id ? { ...u, role: action.role } : u
+      u.id === action.id ? { ...u, name: action.name } : u
     );
   });
 
@@ -188,6 +196,39 @@ export function UsersClient({
           return;
         }
         toast.success(result.message ?? t("deletedSuccess"));
+      });
+    },
+    [dialog, t, tCommon, applyOptimisticUsers]
+  );
+
+  const onRename = React.useCallback(
+    async (user: UserRow) => {
+      const next = await dialog.prompt({
+        title: t("renameTitle"),
+        description: t("renameDescription", { name: user.name }),
+        defaultValue: user.name,
+        placeholder: t("fullNamePlaceholder"),
+        confirmText: tCommon("save"),
+        cancelText: tCommon("cancel"),
+      });
+      if (next === null) return;
+      const trimmed = next.trim();
+      if (!trimmed || trimmed === user.name) return;
+      startTransition(async () => {
+        applyOptimisticUsers({
+          type: "updateName",
+          id: user.id,
+          name: trimmed,
+        });
+        const result = await updateUserName({
+          userId: user.id,
+          name: trimmed,
+        });
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(result.message ?? t("renamedSuccess"));
       });
     },
     [dialog, t, tCommon, applyOptimisticUsers]
@@ -347,7 +388,7 @@ export function UsersClient({
         meta: { headClassName: "w-12", cellClassName: "w-12" },
         cell: ({ row }) => {
           const user = row.original;
-          if (user.id === currentUserId) return null;
+          const isSelf = user.id === currentUserId;
           const isAdmin = user.role === ROLE_ADMIN;
           const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
           return (
@@ -364,29 +405,39 @@ export function UsersClient({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => onChangeRole(user, nextRole)}>
-                  {isAdmin ? (
-                    <UserCog className="size-4" />
-                  ) : (
-                    <ShieldCheck className="size-4" />
-                  )}
-                  {t(`roleChangeTo.${nextRole}`)}
+                <DropdownMenuItem onClick={() => onRename(user)}>
+                  <Pencil className="size-4" />
+                  {t("renameAction")}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => onDelete(user)}
-                >
-                  <Trash2 className="size-4" />
-                  {tCommon("delete")}
-                </DropdownMenuItem>
+                {!isSelf && (
+                  <DropdownMenuItem
+                    onClick={() => onChangeRole(user, nextRole)}
+                  >
+                    {isAdmin ? (
+                      <UserCog className="size-4" />
+                    ) : (
+                      <ShieldCheck className="size-4" />
+                    )}
+                    {t(`roleChangeTo.${nextRole}`)}
+                  </DropdownMenuItem>
+                )}
+                {!isSelf && <DropdownMenuSeparator />}
+                {!isSelf && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => onDelete(user)}
+                  >
+                    <Trash2 className="size-4" />
+                    {tCommon("delete")}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           );
         },
       },
     ],
-    [currentUserId, t, tCommon, isPending, onDelete, onChangeRole]
+    [currentUserId, t, tCommon, isPending, onDelete, onChangeRole, onRename]
   );
 
   const invitationColumns = React.useMemo<ColumnDef<InvitationRow>[]>(
