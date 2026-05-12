@@ -454,8 +454,7 @@
     "profile": {
       "title": "Profil",
       "description": "Identitas akun Anda di Admin Panel.",
-      "nameLabel": "Nama",
-      "updatedSuccess": "Profil diperbarui"
+      "nameManagedByAdmin": "Nama Anda dikelola oleh administrator. Hubungi admin untuk mengubahnya."
     },
     "security": {
       "title": "Password",
@@ -619,6 +618,10 @@
     "roleChangeDescription": "Ubah peran {name} menjadi {role}?",
     "roleChangeConfirm": "Ubah peran",
     "roleChangedSuccess": "Peran diperbarui",
+    "renameAction": "Ganti nama",
+    "renameTitle": "Ganti nama pengguna",
+    "renameDescription": "Masukkan nama baru untuk {name}.",
+    "renamedSuccess": "Nama pengguna diperbarui",
     "inviteSubmit": "Undang",
     "inviteSubmitting": "Mengirim…",
     "pendingTitle": "Undangan tertunda",
@@ -670,6 +673,9 @@
     "emailSendFailed": "Gagal mengirim email undangan, periksa konfigurasi RESEND_API_KEY",
     "cannotDeleteSelf": "Tidak bisa menghapus akun sendiri",
     "cannotChangeOwnRole": "Tidak bisa mengubah peran sendiri",
+    "nameRequired": "Nama wajib diisi",
+    "nameTooLong": "Nama maksimal 100 karakter",
+    "nameUpdated": "Nama pengguna diperbarui",
     "roleUpdated": "Peran diperbarui",
     "userDeleted": "Pengguna dihapus",
     "invitationRevoked": "Undangan dibatalkan",
