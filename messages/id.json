@@ -611,6 +611,14 @@
       "admin": "Admin",
       "member": "Anggota"
     },
+    "roleChangeTo": {
+      "admin": "Jadikan admin",
+      "member": "Turunkan jadi anggota"
+    },
+    "roleChangeTitle": "Ubah peran",
+    "roleChangeDescription": "Ubah peran {name} menjadi {role}?",
+    "roleChangeConfirm": "Ubah peran",
+    "roleChangedSuccess": "Peran diperbarui",
     "inviteSubmit": "Undang",
     "inviteSubmitting": "Mengirim…",
     "pendingTitle": "Undangan tertunda",
@@ -661,6 +669,8 @@
     "emailSent": "Undangan terkirim",
     "emailSendFailed": "Gagal mengirim email undangan, periksa konfigurasi RESEND_API_KEY",
     "cannotDeleteSelf": "Tidak bisa menghapus akun sendiri",
+    "cannotChangeOwnRole": "Tidak bisa mengubah peran sendiri",
+    "roleUpdated": "Peran diperbarui",
     "userDeleted": "Pengguna dihapus",
     "invitationRevoked": "Undangan dibatalkan",
     "invitationInvalid": "Undangan tidak valid atau sudah kadaluarsa",
