@@ -6,7 +6,9 @@ import {
   ArrowUpDown,
   Mail,
   MoreHorizontal,
+  ShieldCheck,
   Trash2,
+  UserCog,
   UserPlus,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -21,6 +23,7 @@ import {
   deleteUser,
   inviteUser,
   revokeInvitation,
+  updateUserRole,
 } from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +41,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -113,13 +117,22 @@ export function UsersClient({
     return state.filter((inv) => !action.ids.includes(inv.id));
   });
 
-  // Same pattern for the users list — drop the row(s) immediately on delete.
-  const [optimisticUsers, removeOptimisticUsers] = useOptimistic<
+  // Same pattern for the users list — drop the row(s) immediately on delete,
+  // or flip the role inline on role change.
+  type OptimisticUserAction =
+    | { type: "remove"; ids: string[] }
+    | { type: "updateRole"; id: string; role: UserRole };
+  const [optimisticUsers, applyOptimisticUsers] = useOptimistic<
     UserRow[],
-    string[]
-  >(users, (state, idsToRemove) =>
-    state.filter((u) => !idsToRemove.includes(u.id))
-  );
+    OptimisticUserAction
+  >(users, (state, action) => {
+    if (action.type === "remove") {
+      return state.filter((u) => !action.ids.includes(u.id));
+    }
+    return state.map((u) =>
+      u.id === action.id ? { ...u, role: action.role } : u
+    );
+  });
 
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
@@ -168,7 +181,7 @@ export function UsersClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimisticUsers([user.id]);
+        applyOptimisticUsers({ type: "remove", ids: [user.id] });
         const result = await deleteUser(user.id);
         if (!result.success) {
           toast.error(result.message);
@@ -177,7 +190,32 @@ export function UsersClient({
         toast.success(result.message ?? t("deletedSuccess"));
       });
     },
-    [dialog, t, tCommon, removeOptimisticUsers]
+    [dialog, t, tCommon, applyOptimisticUsers]
+  );
+
+  const onChangeRole = React.useCallback(
+    async (user: UserRow, role: UserRole) => {
+      const ok = await dialog.confirm({
+        title: t("roleChangeTitle"),
+        description: t("roleChangeDescription", {
+          name: user.name,
+          role: t(`role.${role}`),
+        }),
+        confirmText: t("roleChangeConfirm"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        applyOptimisticUsers({ type: "updateRole", id: user.id, role });
+        const result = await updateUserRole({ userId: user.id, role });
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(result.message ?? t("roleChangedSuccess"));
+      });
+    },
+    [dialog, t, tCommon, applyOptimisticUsers]
   );
 
   const onRevoke = React.useCallback(
@@ -218,7 +256,7 @@ export function UsersClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimisticUsers(targets);
+        applyOptimisticUsers({ type: "remove", ids: targets });
         clearSelection();
         const result = await bulkDeleteUsers(targets);
         if (!result.success) {
@@ -237,7 +275,7 @@ export function UsersClient({
         }
       });
     },
-    [dialog, t, tCommon, currentUserId, removeOptimisticUsers]
+    [dialog, t, tCommon, currentUserId, applyOptimisticUsers]
   );
 
   const onBulkRevoke = React.useCallback(
@@ -310,6 +348,8 @@ export function UsersClient({
         cell: ({ row }) => {
           const user = row.original;
           if (user.id === currentUserId) return null;
+          const isAdmin = user.role === ROLE_ADMIN;
+          const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -324,6 +364,15 @@ export function UsersClient({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => onChangeRole(user, nextRole)}>
+                  {isAdmin ? (
+                    <UserCog className="size-4" />
+                  ) : (
+                    <ShieldCheck className="size-4" />
+                  )}
+                  {t(`roleChangeTo.${nextRole}`)}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   variant="destructive"
                   onClick={() => onDelete(user)}
@@ -337,7 +386,7 @@ export function UsersClient({
         },
       },
     ],
-    [currentUserId, t, tCommon, isPending, onDelete]
+    [currentUserId, t, tCommon, isPending, onDelete, onChangeRole]
   );
 
   const invitationColumns = React.useMemo<ColumnDef<InvitationRow>[]>(

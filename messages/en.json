@@ -611,6 +611,14 @@
       "admin": "Admin",
       "member": "Member"
     },
+    "roleChangeTo": {
+      "admin": "Promote to admin",
+      "member": "Demote to member"
+    },
+    "roleChangeTitle": "Change role",
+    "roleChangeDescription": "Change {name}'s role to {role}?",
+    "roleChangeConfirm": "Change role",
+    "roleChangedSuccess": "Role updated",
     "inviteSubmit": "Invite",
     "inviteSubmitting": "Sending…",
     "pendingTitle": "Pending invitations",
@@ -661,6 +669,8 @@
     "emailSent": "Invitation sent",
     "emailSendFailed": "Failed to send invitation email, check RESEND_API_KEY configuration",
     "cannotDeleteSelf": "Cannot delete your own account",
+    "cannotChangeOwnRole": "Cannot change your own role",
+    "roleUpdated": "Role updated",
     "userDeleted": "User deleted",
     "invitationRevoked": "Invitation revoked",
     "invitationInvalid": "Invitation is invalid or has expired",
