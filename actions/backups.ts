@@ -3,6 +3,7 @@
 import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
+import { buildDbShellCommand } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
@@ -23,11 +24,20 @@ export async function getBackupList(
     const extensionPattern =
       project.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
 
-    // Wrap `ls | grep | awk` in `sh -c` inside the container so the pipeline
-    // runs against the container's filesystem (matches where backups are
-    // actually written). `grep -E` for the optional `.gz` alternation.
-    const pipeline = `ls -lt ${shq(project.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
-    const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(pipeline)}`;
+    // `grep -E` for the optional `.gz` alternation. Run as the DB's OS user
+    // for systemd so the listing works even when the backup dir is mode 700
+    // (typical for Postgres data dirs and mssql backup dirs); no-op for
+    // docker/kubernetes where the exec wrapper already enters the container.
+    const inner = `ls -lt ${shq(project.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+    const cmd = buildDbShellCommand(
+      project.dbServiceType,
+      project.dbServiceName,
+      inner,
+      {
+        runAsUser: project.dbType === "postgres" ? "postgres" : "mssql",
+        sudoPassword: project.dbServer.password,
+      }
+    );
     const output = await executeRemoteCommand(
       {
         host: project.dbServer.host,

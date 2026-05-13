@@ -130,6 +130,45 @@ export function buildControlCommand(
 export const LOG_LINE_OPTIONS = [100, 200, 500, 1000] as const;
 export type LogLines = (typeof LOG_LINE_OPTIONS)[number];
 
+// Wraps a shell pipeline `inner` so it runs in the database service's
+// execution environment. `docker exec` / `kubectl exec` run the pipeline
+// inside the container/pod (so it sees the container's filesystem and the
+// container user). `systemd` runs it directly on the SSH host; when
+// `runAsUser` is set, the pipeline is invoked via `sudo -S -u <user>` so
+// Postgres peer auth and OS-level write permissions (e.g. mssql owning
+// /var/opt/mssql/backups) are satisfied without forcing the operator to
+// chmod 777 the backup path. `runAsUser` is ignored for docker/kubernetes
+// since the exec wrappers already enter the container as its configured user.
+export function buildDbShellCommand(
+  serviceType: ServiceType,
+  serviceName: string,
+  inner: string,
+  options: {
+    runAsUser?: string;
+    sudoPassword?: string;
+  } = {}
+): string {
+  if (serviceType === "docker") {
+    return `docker exec ${shq(serviceName)} sh -c ${shq(inner)}`;
+  }
+  if (serviceType === "kubernetes") {
+    return `kubectl exec deploy/${shq(serviceName)} -- sh -c ${shq(inner)}`;
+  }
+  if (options.runAsUser) {
+    if (!options.sudoPassword) {
+      throw new Error(
+        `buildDbShellCommand: sudoPassword is required when runAsUser is set (got runAsUser="${options.runAsUser}")`
+      );
+    }
+    // sudo -S consumes one newline-terminated password from stdin, then
+    // execs the inner shell as `runAsUser`. The inner shell manages its own
+    // stdin (e.g. `printf QUERY | psql`) — no stdin conflict because the
+    // outer printf only emits a single line consumed entirely by sudo.
+    return `printf '%s\\n' ${shq(options.sudoPassword)} | sudo -S -u ${shq(options.runAsUser)} sh -c ${shq(inner)}`;
+  }
+  return `sh -c ${shq(inner)}`;
+}
+
 // Docker logs writes to stderr by default, and journalctl may exit non-zero on
 // empty units — both reasons we wrap in `sh -c` with `2>&1` and `|| true` so the
 // remote command always exits 0 and we get all output on stdout.
