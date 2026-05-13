@@ -37,6 +37,7 @@ export function TimeInput({
       id={id}
       type="time"
       step={60}
+      lang="en-GB"
       value={`${pad(hour)}:${pad(minute)}`}
       aria-label={ariaLabel}
       className="w-32 tabular-nums"
