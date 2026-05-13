@@ -139,6 +139,13 @@ export type LogLines = (typeof LOG_LINE_OPTIONS)[number];
 // /var/opt/mssql/backups) are satisfied without forcing the operator to
 // chmod 777 the backup path. `runAsUser` is ignored for docker/kubernetes
 // since the exec wrappers already enter the container as its configured user.
+//
+// Uses `bash -c` rather than `sh -c` because callers rely on `set -o
+// pipefail` to catch mid-pipe failures (e.g. pg_dump → gzip). dash, the
+// default /bin/sh on Debian/Ubuntu, doesn't support pipefail and would
+// error out with "Illegal option -o pipefail". Bash is present by default
+// on systemd hosts and in the official postgres/mssql images; if you ship
+// a minimal image without it (e.g. postgres:alpine), install bash.
 export function buildDbShellCommand(
   serviceType: ServiceType,
   serviceName: string,
@@ -149,10 +156,10 @@ export function buildDbShellCommand(
   } = {}
 ): string {
   if (serviceType === "docker") {
-    return `docker exec ${shq(serviceName)} sh -c ${shq(inner)}`;
+    return `docker exec ${shq(serviceName)} bash -c ${shq(inner)}`;
   }
   if (serviceType === "kubernetes") {
-    return `kubectl exec deploy/${shq(serviceName)} -- sh -c ${shq(inner)}`;
+    return `kubectl exec deploy/${shq(serviceName)} -- bash -c ${shq(inner)}`;
   }
   if (options.runAsUser) {
     if (!options.sudoPassword) {
@@ -164,9 +171,9 @@ export function buildDbShellCommand(
     // execs the inner shell as `runAsUser`. The inner shell manages its own
     // stdin (e.g. `printf QUERY | psql`) — no stdin conflict because the
     // outer printf only emits a single line consumed entirely by sudo.
-    return `printf '%s\\n' ${shq(options.sudoPassword)} | sudo -S -u ${shq(options.runAsUser)} sh -c ${shq(inner)}`;
+    return `printf '%s\\n' ${shq(options.sudoPassword)} | sudo -S -u ${shq(options.runAsUser)} bash -c ${shq(inner)}`;
   }
-  return `sh -c ${shq(inner)}`;
+  return `bash -c ${shq(inner)}`;
 }
 
 // Docker logs writes to stderr by default, and journalctl may exit non-zero on
