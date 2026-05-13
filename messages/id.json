@@ -408,7 +408,7 @@
     "dbPasswordEditPlaceholder": "Kosongkan jika tidak diubah",
     "dbPasswordRequiredForMssql": "Password database wajib diisi untuk Microsoft SQL Server",
     "backupPath": "Path direktori backup",
-    "backupPathHint": "Path di dalam container database tempat file backup ditulis. Konfigurasi bind mount diatur terpisah di docker-compose jika ingin diakses dari host.",
+    "backupPathHint": "Lokasi penyimpanan file backup. Untuk Docker/Kubernetes, path berada di dalam container/pod (konfigurasikan bind mount atau volume terpisah jika perlu diakses dari host). Untuk systemd, path berada di filesystem host dan harus dapat ditulis oleh pengguna OS database (postgres/mssql).",
     "mockTimeApiUrl": "URL API mock-time (opsional)",
     "mockTimeApiUrlHint": "Jika backend punya endpoint mock-time, isi URL-nya di sini. Jika dikosongkan, panel akan jatuh ke pendekatan legacy: ubah jam server lalu restart backend.",
     "mockTimeApiKey": "API key mock-time (opsional)",
