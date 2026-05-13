@@ -408,7 +408,7 @@
     "dbPasswordEditPlaceholder": "Leave blank to keep unchanged",
     "dbPasswordRequiredForMssql": "Database password is required for Microsoft SQL Server",
     "backupPath": "Backup directory path",
-    "backupPathHint": "Path inside the database container where backup files are written. Configure your bind mount separately in docker-compose if you also need host-side access.",
+    "backupPathHint": "Where backup files are written. For Docker/Kubernetes, the path lives inside the container/pod (configure bind mounts or volumes separately if you need host-side access). For systemd, the path lives on the host filesystem and must be writable by the database's OS user (postgres/mssql).",
     "mockTimeApiUrl": "Time-mocking API URL (optional)",
     "mockTimeApiUrlHint": "If the backend exposes a time-mocking endpoint, paste it here. When empty, the panel will fall back to changing the server clock + restarting the backend.",
     "mockTimeApiKey": "Time-mocking API key (optional)",

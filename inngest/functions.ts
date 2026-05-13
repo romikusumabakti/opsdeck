@@ -1,9 +1,11 @@
 import type { ProjectWithServers } from "@/lib/db/schema";
 import {
   buildControlCommand,
+  buildDbShellCommand,
   getServiceConfig,
   type ServiceAction,
   type ServiceRole,
+  type ServiceType,
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -65,14 +67,20 @@ function pgQuoteId(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-// Build a `printf QUERY | docker exec -i SERVICE sh -c '... sqlcmd ...'`
-// invocation. `sqlcmd` isn't on $PATH in Microsoft's mssql images — it lives
-// at /opt/mssql-tools18/bin (newer) or /opt/mssql-tools/bin (older). Probe
-// both before falling back to PATH lookup so we don't have to know which
-// SQL Server version each project is on.
+// Pipe the SQL query into a sqlcmd invocation, branching on the service type
+// so the same call works for docker, kubernetes, and systemd. sqlcmd isn't on
+// $PATH in Microsoft's mssql images (and isn't always on $PATH on host
+// installs either) — it lives at /opt/mssql-tools18/bin (newer) or
+// /opt/mssql-tools/bin (older). Probe both before falling back to PATH
+// lookup so we don't have to know which SQL Server version each project is
+// on. The `printf | sqlcmd` pipeline is built into the inner so it runs in
+// the same shell context as sqlcmd — that keeps stdin handling local and
+// avoids competing with `sudo -S` on systemd. sqlcmd authenticates over TCP
+// to localhost:1433 with -U/-P, so no `runAsUser` is needed for systemd.
 function buildSqlcmdCommand(
   query: string,
   password: string,
+  serviceType: ServiceType,
   serviceName: string
 ): string {
   const args = [
@@ -88,14 +96,11 @@ function buildSqlcmdCommand(
   ]
     .map(shq)
     .join(" ");
-  const wrapper =
+  const sqlcmdInvoke =
     "for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do " +
-    '[ -x "$p" ] && exec "$p" "$@"; done; exec sqlcmd "$@"';
-  return (
-    `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${shq(serviceName)} ` +
-    `sh -c ${shq(wrapper)} sh ${args}`
-  );
+    `[ -x "$p" ] && exec "$p" ${args}; done; exec sqlcmd ${args}`;
+  const inner = `printf '%s\\n' ${shq(query)} | sh -c ${shq(sqlcmdInvoke)}`;
+  return buildDbShellCommand(serviceType, serviceName, inner);
 }
 
 export const createDatabaseBackup = inngest.createFunction(
@@ -121,7 +126,19 @@ export const createDatabaseBackup = inngest.createFunction(
         "ensure-backup-dir",
         "Ensuring backup directory exists",
         async () => {
-          const mkdirCmd = `docker exec ${shq(project.dbServiceName)} mkdir -p ${shq(project.dbBackupPath)}`;
+          // Run as the DB's OS user so the directory ends up owned by the
+          // process that later writes into it: pg_dump runs as `postgres`,
+          // and SQL Server's BACKUP DATABASE writes the .bak file from the
+          // `mssql` server process. No-op `runAsUser` for docker/kubernetes
+          // — the exec wrapper already enters the container.
+          const runAsUser =
+            project.dbType === "postgres" ? "postgres" : "mssql";
+          const mkdirCmd = buildDbShellCommand(
+            project.dbServiceType,
+            project.dbServiceName,
+            `mkdir -p ${shq(project.dbBackupPath)}`,
+            { runAsUser, sudoPassword: credentials.password }
+          );
           await executeRemoteCommand(credentials, mkdirCmd);
         }
       );
@@ -183,7 +200,15 @@ async function runPostgresBackup(
   const inner = compress
     ? `set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`
     : `${dumpCmd} > ${shq(target)}`;
-  const cmd = `docker exec ${shq(project.dbServiceName)} sh -c ${shq(inner)}`;
+  // `runAsUser: "postgres"` satisfies systemd-postgres peer auth (and is a
+  // no-op for docker/kubernetes, which already enter the container as the
+  // appropriate user).
+  const cmd = buildDbShellCommand(
+    project.dbServiceType,
+    project.dbServiceName,
+    inner,
+    { runAsUser: "postgres", sudoPassword: credentials.password }
+  );
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -218,6 +243,7 @@ async function runMssqlBackup(
   const cmd = buildSqlcmdCommand(
     query,
     project.dbPassword,
+    project.dbServiceType,
     project.dbServiceName
   );
   await executeRemoteCommand(credentials, cmd);
@@ -512,9 +538,16 @@ async function runPostgresRecreateDatabase(
   // produced both with and without `--clean --if-exists`.
   const dbId = pgQuoteId(data.dbName);
   const query = `DROP DATABASE IF EXISTS ${dbId} WITH (FORCE); CREATE DATABASE ${dbId};`;
-  const cmd =
-    `printf '%s\\n' ${shq(query)} | ` +
-    `docker exec -i ${shq(data.dbServiceName)} psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  // Pipe the query inside the inner shell so the pipeline doesn't compete
+  // with sudo -S's stdin on systemd; `runAsUser: "postgres"` is a no-op for
+  // docker/kubernetes.
+  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const cmd = buildDbShellCommand(
+    data.dbServiceType,
+    data.dbServiceName,
+    inner,
+    { runAsUser: "postgres", sudoPassword: credentials.password }
+  );
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -532,7 +565,12 @@ async function runPostgresRestore(
   const inner = filename.endsWith(".gz")
     ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
     : `${psqlCmd} < ${shq(source)}`;
-  const cmd = `docker exec -i ${shq(data.dbServiceName)} sh -c ${shq(inner)}`;
+  const cmd = buildDbShellCommand(
+    data.dbServiceType,
+    data.dbServiceName,
+    inner,
+    { runAsUser: "postgres", sudoPassword: credentials.password }
+  );
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -616,6 +654,11 @@ async function runMssqlRestore(
     `  THROW 50000, @err, 1;\n` +
     `END CATCH;\n` +
     `ALTER DATABASE [${dbId}] SET MULTI_USER;`;
-  const cmd = buildSqlcmdCommand(query, data.dbPassword, data.dbServiceName);
+  const cmd = buildSqlcmdCommand(
+    query,
+    data.dbPassword,
+    data.dbServiceType,
+    data.dbServiceName
+  );
   await executeRemoteCommand(credentials, cmd);
 }
