@@ -19,17 +19,6 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-function formatDigits(digits: string) {
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
-}
-
-function parseDigits(digits: string) {
-  const h = Number(digits.slice(0, 2) || "0");
-  const m = Number(digits.slice(2, 4) || "0");
-  return { h, m, valid: digits.length > 0 && h <= 23 && m <= 59 };
-}
-
 export function TimeInput({
   id,
   hour,
@@ -43,40 +32,19 @@ export function TimeInput({
   onChange: (hour: number, minute: number) => void;
   ariaLabel: string;
 }) {
-  const canonical = `${pad(hour)}:${pad(minute)}`;
-  const [display, setDisplay] = React.useState(canonical);
-
-  React.useEffect(() => {
-    setDisplay(canonical);
-  }, [canonical]);
-
   return (
     <Input
       id={id}
-      type="text"
-      inputMode="numeric"
-      autoComplete="off"
-      maxLength={5}
-      placeholder="HH:MM"
-      value={display}
+      type="time"
+      step={60}
+      value={`${pad(hour)}:${pad(minute)}`}
       aria-label={ariaLabel}
-      className="w-20 text-center tabular-nums"
-      onFocus={(e) => e.currentTarget.select()}
+      className="w-32 tabular-nums"
       onChange={(e) => {
-        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-        setDisplay(formatDigits(digits));
-        const { h, m, valid } = parseDigits(digits);
-        if (valid) onChange(h, m);
-      }}
-      onBlur={() => {
-        const digits = display.replace(/\D/g, "");
-        const { h, m, valid } = parseDigits(digits);
-        if (!valid) {
-          setDisplay(canonical);
-          return;
-        }
-        setDisplay(`${pad(h)}:${pad(m)}`);
-        onChange(h, m);
+        const v = e.target.value;
+        if (!v) return;
+        const [h, m] = v.split(":").map(Number);
+        if (Number.isFinite(h) && Number.isFinite(m)) onChange(h, m);
       }}
     />
   );
