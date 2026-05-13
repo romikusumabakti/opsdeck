@@ -39,7 +39,6 @@ Required:
 - `DATABASE_URL` — Postgres connection string
 - `BETTER_AUTH_SECRET` — random secret for session signing
 - `BETTER_AUTH_URL` — base URL (e.g. `http://localhost:3000`)
-- `NEXT_PUBLIC_APP_URL` — public app URL (used by Inngest callbacks)
 
 Optional:
 
