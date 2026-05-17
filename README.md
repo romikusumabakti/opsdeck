@@ -2,7 +2,7 @@
 
 Whitelabel internal admin panel — manages server SSH credentials, database backup/restore jobs, Jenkins-driven deployments, and project/service inventory.
 
-Branding (app name, company name, allowed email domain) is configurable via env vars — see [Environment](#environment). Defaults match the original the company (the company) deployment.
+Branding (app name, company name, allowed email domain) is configurable via env vars — see [Environment](#environment).
 
 ## Stack
 
@@ -48,11 +48,13 @@ Optional:
 - `INNGEST_DEV` — URL of the local Inngest dev server
 - `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — required in production
 
-Whitelabel branding (all optional, with sensible defaults in `lib/branding.ts`):
+Whitelabel branding (all required for a branded deployment):
 
-- `NEXT_PUBLIC_APP_NAME` — displayed app name (default: `Admin Panel`)
-- `NEXT_PUBLIC_COMPANY_NAME` — footer copyright (default: `the company`)
-- `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — email domain accepted for sign-up/invite (default: `example.com`)
+- `NEXT_PUBLIC_APP_NAME` — displayed app name (e.g. `Admin Panel`)
+- `NEXT_PUBLIC_COMPANY_NAME` — footer copyright (e.g. `Acme Corp`)
+- `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — email domain accepted for sign-up/invite (e.g. `acme.com`)
+
+If unset, defaults fall back to generic placeholders (`Admin Panel`, `the company`, `example.com`) — set these for any real deployment.
 
 ## Scripts
 

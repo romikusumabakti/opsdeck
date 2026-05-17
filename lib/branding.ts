@@ -5,8 +5,8 @@
  * lives here so the codebase stays generic. Values are read from
  * `NEXT_PUBLIC_*` env vars so they're available on both server and client.
  *
- * The defaults match the original the company deployment so existing
- * setups keep working without setting any new env vars.
+ * The fallback defaults are intentionally generic — set the env vars for
+ * any real deployment.
  */
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "Admin Panel";
