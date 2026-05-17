@@ -7,6 +7,7 @@ import {
   Mail,
   MoreHorizontal,
   Pencil,
+  Send,
   ShieldCheck,
   Trash2,
   UserCog,
@@ -23,6 +24,7 @@ import {
   bulkRevokeInvitations,
   deleteUser,
   inviteUser,
+  resendInvitation,
   revokeInvitation,
   updateUserName,
   updateUserRole,
@@ -110,12 +112,18 @@ export function UsersClient({
   // React rolls this back automatically when the transition resolves.
   type OptimisticAction =
     | { type: "add"; invitation: InvitationRow }
-    | { type: "remove"; ids: string[] };
+    | { type: "remove"; ids: string[] }
+    | { type: "renew"; id: string; expiresAt: Date };
   const [optimisticInvitations, applyOptimistic] = useOptimistic<
     InvitationRow[],
     OptimisticAction
   >(invitations, (state, action) => {
     if (action.type === "add") return [...state, action.invitation];
+    if (action.type === "renew") {
+      return state.map((inv) =>
+        inv.id === action.id ? { ...inv, expiresAt: action.expiresAt } : inv
+      );
+    }
     return state.filter((inv) => !action.ids.includes(inv.id));
   });
 
@@ -276,6 +284,32 @@ export function UsersClient({
           return;
         }
         toast.success(result.message ?? t("revokedSuccess"));
+      });
+    },
+    [dialog, t, tCommon, applyOptimistic]
+  );
+
+  const onResend = React.useCallback(
+    async (inv: InvitationRow) => {
+      const ok = await dialog.confirm({
+        title: t("resendTitle"),
+        description: t("resendDescription", { email: inv.email }),
+        confirmText: t("resend"),
+        cancelText: tCommon("cancel"),
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        applyOptimistic({
+          type: "renew",
+          id: inv.id,
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000),
+        });
+        const result = await resendInvitation(inv.id);
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(result.message ?? t("resendSuccess"));
       });
     },
     [dialog, t, tCommon, applyOptimistic]
@@ -444,7 +478,17 @@ export function UsersClient({
     () => [
       {
         accessorKey: "name",
-        header: t("colInvitee"),
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3 h-8"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            {t("colInvitee")}
+            <ArrowUpDown className="size-3.5" />
+          </Button>
+        ),
         cell: ({ row }) => {
           const inv = row.original;
           return (
@@ -468,31 +512,64 @@ export function UsersClient({
       {
         accessorKey: "expiresAt",
         header: t("colExpires"),
-        cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
-            {format.dateTime(new Date(row.getValue("expiresAt") as Date), {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const expiresAt = new Date(row.getValue("expiresAt") as Date);
+          const isExpired = expiresAt.getTime() < Date.now();
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {format.dateTime(expiresAt, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </span>
+              {isExpired && (
+                <Badge variant="destructive" className="text-xs">
+                  {t("expiredBadge")}
+                </Badge>
+              )}
+            </div>
+          );
+        },
       },
       {
         id: "actions",
         meta: { headClassName: "w-12", cellClassName: "w-12" },
-        cell: ({ row }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onRevoke(row.original)}
-            disabled={isPending}
-          >
-            {t("revoke")}
-          </Button>
-        ),
+        cell: ({ row }) => {
+          const inv = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={tCommon("openMenu")}
+                  disabled={isPending}
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => onResend(inv)}>
+                  <Send className="size-4" />
+                  {t("resend")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => onRevoke(inv)}
+                >
+                  <Trash2 className="size-4" />
+                  {t("revoke")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
       },
     ],
-    [t, isPending, onRevoke, format]
+    [t, tCommon, isPending, onRevoke, onResend, format]
   );
 
   return (
@@ -592,6 +669,8 @@ export function UsersClient({
               data={optimisticInvitations}
               initialPageSize={5}
               getRowId={(row) => row.id}
+              filterColumn="name"
+              filterPlaceholder={t("searchPlaceholder")}
               bulkActions={(ids, clearSelection) => (
                 <Button
                   variant="destructive"
