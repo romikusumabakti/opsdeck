@@ -9,7 +9,7 @@
  * any real deployment.
  */
 
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "Admin Panel";
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "OpsDeck";
 
 export const COMPANY_NAME =
   process.env.NEXT_PUBLIC_COMPANY_NAME ?? "the company";
