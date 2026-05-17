@@ -223,6 +223,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
+      urlKey="srv"
       bulkActions={(ids, clearSelection) => (
         <Button
           variant="destructive"

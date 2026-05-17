@@ -144,6 +144,13 @@ export type ProjectKpis = {
   // completed runs (avoids "0%" looking like a failure when it's just empty).
   totalRuns7d: number;
   successRate7d: number | null;
+  // Run count for the previous 7-day window (days 8-14 ago). Used to show a
+  // delta indicator on the activity KPI so users see direction at a glance.
+  prevTotalRuns7d: number;
+  // Daily run counts for the last 7 days, oldest-to-newest. dailyRuns[6] is
+  // today. Drives the sparkline; UTC day boundaries keep the bucketing
+  // deterministic regardless of viewer timezone.
+  dailyRuns: number[];
 };
 
 // Description prefixes set by the action layer in actions/backups.ts and
@@ -173,8 +180,13 @@ async function findLatestByKind(
   return row ?? null;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // Pull 14 days so we can compute both the current 7d window (for the
+  // existing total/success metrics + sparkline) and the prior 7d window
+  // (for the delta indicator) in a single round-trip.
+  const since14 = new Date(Date.now() - 14 * DAY_MS);
 
   try {
     const [lastBackup, lastRestore, lastMock, recent] = await Promise.all([
@@ -182,13 +194,38 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
       findLatestByKind(projectId, "restore"),
       findLatestByKind(projectId, "mock"),
       db
-        .select({ status: tasks.status })
+        .select({ status: tasks.status, runAt: tasks.runAt })
         .from(tasks)
-        .where(and(eq(tasks.projectId, projectId), gte(tasks.runAt, since))),
+        .where(and(eq(tasks.projectId, projectId), gte(tasks.runAt, since14))),
     ]);
 
-    const totalRuns7d = recent.length;
-    const completed = recent.filter((r) => r.status !== "started");
+    // Bucket by UTC day-index relative to today. Day 0 = today, day 6 = a
+    // week ago, day 13 = two weeks ago. dailyRuns is reversed at the end so
+    // the sparkline reads left-to-right (oldest -> newest).
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+
+    const dailyRuns = new Array(7).fill(0);
+    let totalRuns7d = 0;
+    let prevTotalRuns7d = 0;
+    const completedCurrent: { status: Task["status"] }[] = [];
+
+    for (const row of recent) {
+      const runDay = new Date(row.runAt);
+      runDay.setUTCHours(0, 0, 0, 0);
+      const daysBack = Math.floor(
+        (todayStart.getTime() - runDay.getTime()) / DAY_MS
+      );
+      if (daysBack >= 0 && daysBack <= 6) {
+        dailyRuns[6 - daysBack] += 1;
+        totalRuns7d += 1;
+        completedCurrent.push(row);
+      } else if (daysBack >= 7 && daysBack <= 13) {
+        prevTotalRuns7d += 1;
+      }
+    }
+
+    const completed = completedCurrent.filter((r) => r.status !== "started");
     const successes = completed.filter((r) => r.status === "success").length;
     const successRate7d =
       completed.length === 0
@@ -201,6 +238,8 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
       lastMock,
       totalRuns7d,
       successRate7d,
+      prevTotalRuns7d,
+      dailyRuns,
     };
   } catch (error) {
     console.error(`Failed to load KPIs for project ${projectId}:`, error);
@@ -210,6 +249,8 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
       lastMock: null,
       totalRuns7d: 0,
       successRate7d: null,
+      prevTotalRuns7d: 0,
+      dailyRuns: new Array(7).fill(0),
     };
   }
 }
