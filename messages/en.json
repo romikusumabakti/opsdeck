@@ -23,7 +23,15 @@
     "verified": "Verified",
     "urlInvalid": "Enter a valid URL",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "confirmTypingLabel": "To confirm, type the value below:",
+    "confirmTypingPlaceholder": "Type to confirm",
+    "tryAgain": "Try again",
+    "backToHome": "Back to home",
+    "errorTitle": "Something went wrong",
+    "errorDescription": "An unexpected error occurred. You can try again or head back home.",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The page you’re looking for doesn’t exist or has been moved."
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -100,7 +108,22 @@
   "activeTasks": {
     "trigger": "{count, plural, one {# running task} other {# running tasks}}",
     "title": "Running tasks",
-    "subtitle": "{count, plural, one {# task currently running} other {# tasks currently running}}"
+    "subtitle": "{count, plural, one {# task currently running} other {# tasks currently running}}",
+    "notifyTitleSuccess": "Task completed",
+    "notifyTitleFailed": "Task failed"
+  },
+  "notifications": {
+    "title": "Browser notifications",
+    "description": "Get notified when long-running tasks (backup, restore, mock time) finish — even when this tab isn't focused.",
+    "enable": "Enable notifications",
+    "disable": "Disable notifications",
+    "enabled": "Notifications enabled",
+    "blockedTitle": "Notifications are blocked",
+    "blockedDescription": "Allow notifications for this site in your browser settings, then refresh.",
+    "unsupportedTitle": "Not supported",
+    "unsupportedDescription": "Your browser doesn't support web notifications.",
+    "permissionDeniedTitle": "Permission denied",
+    "permissionDeniedDescription": "You can re-allow notifications from your browser's site settings."
   },
   "projectsEmpty": {
     "title": "No projects yet",

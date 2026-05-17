@@ -11,12 +11,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
-// Define the types of dialogs available
-type DialogType = "alert" | "confirm" | "prompt";
+type DialogType = "alert" | "confirm" | "prompt" | "confirmTyping";
 
-// Define the options passed to the hook
 interface DialogOptions {
   title?: string;
   description?: React.ReactNode;
@@ -24,18 +25,26 @@ interface DialogOptions {
   cancelText?: string;
   defaultValue?: string; // For prompt only
   placeholder?: string; // For prompt only
+  destructive?: boolean; // Styles confirm button as destructive
+  // confirmTyping only:
+  phrase?: string;
+  phraseLabel?: React.ReactNode;
 }
 
 interface DialogState {
   open: boolean;
   type: DialogType;
   options: DialogOptions;
+  // biome-ignore lint/suspicious/noExplicitAny: resolver type varies by dialog kind
   resolve: (value: any) => void;
 }
 
 const DialogContext = React.createContext<{
   alert: (options: DialogOptions) => Promise<void>;
   confirm: (options: DialogOptions) => Promise<boolean>;
+  confirmTyping: (
+    options: DialogOptions & { phrase: string }
+  ) => Promise<boolean>;
   prompt: (options: DialogOptions) => Promise<string | null>;
 } | null>(null);
 
@@ -48,11 +57,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [promptValue, setPromptValue] = React.useState("");
+  const [typingValue, setTypingValue] = React.useState("");
 
-  // Reset prompt value when dialog opens/closes
+  // Reset input values when dialog opens/closes
   React.useEffect(() => {
-    if (dialogState.open && dialogState.type === "prompt") {
+    if (!dialogState.open) return;
+    if (dialogState.type === "prompt") {
       setPromptValue(dialogState.options.defaultValue || "");
+    } else if (dialogState.type === "confirmTyping") {
+      setTypingValue("");
     }
   }, [dialogState.open, dialogState.type, dialogState.options.defaultValue]);
 
@@ -88,6 +101,20 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const confirmTyping = (options: DialogOptions & { phrase: string }) => {
+    return new Promise<boolean>((resolve) => {
+      setDialogState({
+        open: true,
+        type: "confirmTyping",
+        options: { destructive: true, ...options },
+        resolve: (value: boolean) => {
+          closeDialog();
+          resolve(value);
+        },
+      });
+    });
+  };
+
   const prompt = (options: DialogOptions) => {
     return new Promise<string | null>((resolve) => {
       setDialogState({
@@ -102,18 +129,24 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  // Helper to handle the "Confirm/OK" click
+  const typingMatches =
+    dialogState.type === "confirmTyping" &&
+    typingValue.trim() === (dialogState.options.phrase ?? "").trim() &&
+    typingValue.length > 0;
+
   const handleConfirm = () => {
     if (dialogState.type === "prompt") {
       dialogState.resolve(promptValue);
+    } else if (dialogState.type === "confirmTyping") {
+      if (!typingMatches) return;
+      dialogState.resolve(true);
     } else if (dialogState.type === "confirm") {
       dialogState.resolve(true);
     } else {
-      dialogState.resolve(true); // Alert just resolves
+      dialogState.resolve(true);
     }
   };
 
-  // Helper to handle the "Cancel" click
   const handleCancel = () => {
     if (dialogState.type === "prompt") {
       dialogState.resolve(null);
@@ -122,16 +155,23 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Handle enter key in prompt
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && dialogState.type === "prompt") {
+    if (e.key !== "Enter") return;
+    if (dialogState.type === "prompt") {
+      e.preventDefault();
+      handleConfirm();
+    } else if (dialogState.type === "confirmTyping" && typingMatches) {
       e.preventDefault();
       handleConfirm();
     }
   };
 
+  const isDestructive = dialogState.options.destructive === true;
+  const confirmDisabled =
+    dialogState.type === "confirmTyping" && !typingMatches;
+
   return (
-    <DialogContext.Provider value={{ alert, confirm, prompt }}>
+    <DialogContext.Provider value={{ alert, confirm, confirmTyping, prompt }}>
       {children}
 
       <AlertDialog
@@ -160,13 +200,47 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
+          {dialogState.type === "confirmTyping" && (
+            <div className="flex flex-col gap-2">
+              {dialogState.options.phraseLabel && (
+                <Label
+                  htmlFor="dialog-confirm-typing-input"
+                  className="text-sm"
+                >
+                  {dialogState.options.phraseLabel}
+                </Label>
+              )}
+              <div className="rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm select-all">
+                {dialogState.options.phrase}
+              </div>
+              <Input
+                id="dialog-confirm-typing-input"
+                autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                value={typingValue}
+                onChange={(e) => setTypingValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={dialogState.options.placeholder}
+                aria-invalid={typingValue.length > 0 && !typingMatches}
+              />
+            </div>
+          )}
+
           <AlertDialogFooter>
             {dialogState.type !== "alert" && (
               <AlertDialogCancel onClick={handleCancel}>
                 {dialogState.options.cancelText ?? "Cancel"}
               </AlertDialogCancel>
             )}
-            <AlertDialogAction onClick={handleConfirm}>
+            <AlertDialogAction
+              onClick={handleConfirm}
+              disabled={confirmDisabled}
+              className={cn(
+                isDestructive && buttonVariants({ variant: "destructive" })
+              )}
+            >
               {dialogState.options.confirmText ?? "Continue"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -176,7 +250,6 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Custom hook to consume the context
 export const useDialog = () => {
   const context = React.useContext(DialogContext);
   if (!context) {
