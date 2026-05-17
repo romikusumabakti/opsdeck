@@ -150,7 +150,11 @@
       "runs": "operasi",
       "successRate": "{pct}% sukses",
       "noCompleted": "Belum ada operasi selesai",
-      "never": "Belum pernah"
+      "never": "Belum pernah",
+      "deltaUp": "Naik dibanding 7 hari sebelumnya",
+      "deltaDown": "Turun dibanding 7 hari sebelumnya",
+      "deltaFlat": "Tidak berubah dibanding 7 hari sebelumnya",
+      "sparklineLabel": "Jumlah operasi harian dalam 7 hari terakhir"
     }
   },
   "services": {

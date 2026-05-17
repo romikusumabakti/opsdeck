@@ -468,10 +468,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
               </SelectContent>
             </Select>
           </Field>
-          <Button
-            onClick={onAdvance}
-            disabled={!isFrozen || anyPending}
-          >
+          <Button onClick={onAdvance} disabled={!isFrozen || anyPending}>
             <FastForward className="size-4" />
             {pendingAction === "advance"
               ? t("advance.submitting")

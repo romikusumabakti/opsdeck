@@ -8,6 +8,7 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type PaginationState,
   type RowSelectionState,
   type SortingState,
   useReactTable,
@@ -22,6 +23,11 @@ import {
   Settings2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -73,6 +79,14 @@ type DataTableProps<TData, TValue> = {
    * action would fail (e.g. the current user in a "delete users" table).
    */
   canSelectRow?: (row: TData) => boolean;
+  /**
+   * When set, the filter/sort/page state is mirrored to the URL with this
+   * key as a prefix (e.g. `srv_q`, `srv_s`, `srv_d`, `srv_p`, `srv_ps`). That
+   * makes search results shareable and lets reloads preserve table state. Each
+   * table on the same page needs a unique key so they don't fight over the
+   * same params.
+   */
+  urlKey?: string;
 };
 
 export function DataTable<TData, TValue>({
@@ -85,15 +99,28 @@ export function DataTable<TData, TValue>({
   getRowId,
   bulkActions,
   canSelectRow,
+  urlKey,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Lazy initializers read once from the URL on mount when urlKey is set so
+  // the table mirrors a shared/reloaded link. After mount the state is
+  // controlled internally; the effect below writes it back to the URL.
+  const [sorting, setSorting] = React.useState<SortingState>(() =>
+    readSortingFromParams(searchParams, urlKey)
+  );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
+    () => readFiltersFromParams(searchParams, urlKey, filterColumn)
   );
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [pagination, setPagination] = React.useState<PaginationState>(() =>
+    readPaginationFromParams(searchParams, urlKey, initialPageSize)
+  );
 
   const columnsWithSelect = React.useMemo<ColumnDef<TData, TValue>[]>(() => {
     if (!bulkActions) return columns;
@@ -138,17 +165,73 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onPaginationChange: setPagination,
     enableRowSelection: bulkActions
       ? canSelectRow
         ? (row) => canSelectRow(row.original)
         : true
       : false,
     getRowId,
-    initialState: {
-      pagination: { pageSize: initialPageSize },
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      pagination,
     },
-    state: { sorting, columnFilters, columnVisibility, rowSelection },
   });
+
+  // Sync state -> URL. Skipped on the first run because lazy initializers
+  // already populated state from the URL; running it on mount would clobber
+  // the existing query string with default values.
+  const firstSyncRun = React.useRef(true);
+  React.useEffect(() => {
+    if (!urlKey) return;
+    if (firstSyncRun.current) {
+      firstSyncRun.current = false;
+      return;
+    }
+    // Read window.location.search instead of the React `searchParams` because
+    // multiple state changes in the same tick (e.g. filter typing also resets
+    // the page) would otherwise each see a stale snapshot and clobber each
+    // other. Reading the live URL keeps the merge correct.
+    const params = new URLSearchParams(window.location.search);
+    const filterValue =
+      filterColumn != null
+        ? ((columnFilters.find((f) => f.id === filterColumn)?.value as
+            | string
+            | undefined) ?? "")
+        : "";
+    writeParam(params, `${urlKey}_q`, filterValue);
+    const sort = sorting[0];
+    writeParam(params, `${urlKey}_s`, sort?.id ?? "");
+    writeParam(params, `${urlKey}_d`, sort ? (sort.desc ? "desc" : "asc") : "");
+    writeParam(
+      params,
+      `${urlKey}_p`,
+      pagination.pageIndex > 0 ? String(pagination.pageIndex) : ""
+    );
+    writeParam(
+      params,
+      `${urlKey}_ps`,
+      pagination.pageSize !== initialPageSize
+        ? String(pagination.pageSize)
+        : ""
+    );
+    const next = params.toString();
+    const current = window.location.search.replace(/^\?/, "");
+    if (next === current) return;
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+  }, [
+    urlKey,
+    filterColumn,
+    columnFilters,
+    sorting,
+    pagination,
+    initialPageSize,
+    router,
+    pathname,
+  ]);
 
   const selectedIds = React.useMemo(
     () => Object.keys(rowSelection).filter((id) => rowSelection[id]),
@@ -160,7 +243,6 @@ export function DataTable<TData, TValue>({
     ? ((table.getColumn(filterColumn)?.getFilterValue() as string) ?? "")
     : "";
 
-  const pagination = table.getState().pagination;
   const filteredCount = table.getFilteredRowModel().rows.length;
   const fromIdx =
     filteredCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
@@ -373,5 +455,53 @@ declare module "@tanstack/react-table" {
   interface ColumnMeta<TData extends unknown, TValue> {
     headClassName?: string;
     cellClassName?: string;
+  }
+}
+
+function readSortingFromParams(
+  params: URLSearchParams,
+  urlKey: string | undefined
+): SortingState {
+  if (!urlKey) return [];
+  const id = params.get(`${urlKey}_s`);
+  if (!id) return [];
+  const desc = params.get(`${urlKey}_d`) === "desc";
+  return [{ id, desc }];
+}
+
+function readFiltersFromParams(
+  params: URLSearchParams,
+  urlKey: string | undefined,
+  filterColumn: string | undefined
+): ColumnFiltersState {
+  if (!urlKey || !filterColumn) return [];
+  const q = params.get(`${urlKey}_q`);
+  return q ? [{ id: filterColumn, value: q }] : [];
+}
+
+function readPaginationFromParams(
+  params: URLSearchParams,
+  urlKey: string | undefined,
+  fallbackPageSize: number
+): PaginationState {
+  if (!urlKey) {
+    return { pageIndex: 0, pageSize: fallbackPageSize };
+  }
+  const pageIndex = Math.max(0, Number(params.get(`${urlKey}_p`) ?? 0) || 0);
+  const parsedSize = Number(params.get(`${urlKey}_ps`));
+  const pageSize =
+    Number.isFinite(parsedSize) && parsedSize > 0 ? parsedSize : fallbackPageSize;
+  return { pageIndex, pageSize };
+}
+
+function writeParam(
+  params: URLSearchParams,
+  key: string,
+  value: string
+): void {
+  if (value === "") {
+    params.delete(key);
+  } else {
+    params.set(key, value);
   }
 }

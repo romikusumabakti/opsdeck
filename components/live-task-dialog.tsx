@@ -47,11 +47,7 @@ export function LiveTaskDialog({
           )}
         </DialogHeader>
         {taskId && (
-          <LiveTaskPanel
-            key={taskId}
-            taskId={taskId}
-            onSuccess={onSuccess}
-          />
+          <LiveTaskPanel key={taskId} taskId={taskId} onSuccess={onSuccess} />
         )}
         {footer}
       </DialogContent>
