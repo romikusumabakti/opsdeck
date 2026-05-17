@@ -1,71 +1,79 @@
 # OpsDeck
 
-A whitelabel admin panel for managing servers, projects, services, and database lifecycle tasks over SSH.
+Whitelabel admin panel for managing servers, projects, services, and database lifecycle tasks over SSH.
 
 ## Stack
 
-- **Next.js 16** (App Router) on **React 19**
-- **Drizzle ORM** + **PostgreSQL**
-- **better-auth** for authentication and invitations
-- **Inngest** for background jobs
-- **node-ssh** for remote server operations
-- **Tailwind CSS 4** + **Radix UI**
-- **next-intl** for i18n
-- **Biome** for lint/format
+- Next.js 16 (App Router) on React 19
+- PostgreSQL via Drizzle ORM
+- better-auth (sessions, invitations, password reset)
+- Inngest for background jobs and progress streaming
+- node-ssh for remote operations
+- Tailwind CSS 4, Radix UI, shadcn-style primitives
+- next-intl, Resend (optional), Biome
 
-Node >= 24. Package manager: **pnpm** (also supports Bun via `bun.lock`).
+Requires Node >= 24. Package manager: pnpm.
 
-## Getting started
+## Quick start
 
 ```bash
 pnpm install
-cp .env.example .env   # if present; otherwise create one — see Environment
-pnpm db:push           # apply schema to the database
+cp .env.example .env.local
+pnpm db:push
 pnpm dev
 ```
 
-The app boots on http://localhost:3000.
+App runs at http://localhost:3000.
+
+For the full stack (Postgres + Inngest + app) run via Docker:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
 
 ## Scripts
 
-| Script | What it does |
-|--------|--------------|
-| `pnpm dev` | Start the Next.js dev server |
-| `pnpm build` | Production build |
-| `pnpm start` | Run the production build |
-| `pnpm lint` / `format` / `check` | Biome lint / format / both |
-| `pnpm db:generate` | Generate Drizzle migrations from schema |
-| `pnpm db:migrate` | Apply pending migrations |
-| `pnpm db:push` | Push schema directly (dev only) |
-| `pnpm db:studio` | Open Drizzle Studio |
+| Command | Purpose |
+|---|---|
+| `pnpm dev` | Next.js dev server |
+| `pnpm build` / `pnpm start` | Production build / serve |
+| `pnpm check` | Biome lint + format (write) |
+| `pnpm db:generate` | Generate Drizzle migrations |
+| `pnpm db:migrate` | Apply migrations |
+| `pnpm db:push` | Push schema directly (dev) |
+| `pnpm db:studio` | Drizzle Studio |
 
 ## Environment
 
-Required for any real deployment — see `lib/branding.ts`:
+Copy `.env.example` and fill in. Required keys:
 
-```env
-NEXT_PUBLIC_APP_NAME=Your Panel Name
-NEXT_PUBLIC_COMPANY_NAME=Your Company
-NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN=yourdomain.com
-```
+- `DATABASE_URL` — Postgres connection string
+- `BETTER_AUTH_SECRET` — generate with `openssl rand -base64 32`
+- `BETTER_AUTH_URL` — public base URL of the app
+- `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — whitelabel branding (baked into the client bundle at build time; set these before `pnpm build`)
 
-Plus the usual database, auth, and mail provider credentials (Postgres URL, better-auth secret, Resend key, Inngest signing key, etc.). The fallback branding defaults are generic placeholders and should not be relied on in production.
+Optional:
+
+- `RESEND_API_KEY`, `EMAIL_FROM` — email delivery; email features disable cleanly if unset
+- `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — Inngest dev server config
+
+`isAllowedEmail()` in `lib/branding.ts` gates sign-up/invites to the configured email domain.
 
 ## Layout
 
 ```
-app/[locale]/        Routes (servers, projects, users, account, auth flows)
-actions/             Server actions
-components/          UI components (Radix + shadcn-style primitives)
-hooks/               React hooks
-i18n/                next-intl setup
-inngest/             Background job definitions
-lib/                 Shared utilities, branding, db client, auth
-messages/            i18n message catalogs
-public/              Static assets
-docs/                Internal documentation (see docs/time-mocking-api.md)
+app/[locale]/   Routes (servers, projects, users, account, auth flows, setup)
+app/api/        Route handlers (auth, inngest, health)
+actions/        Server actions (servers, projects, services, backups, tasks, users)
+components/     UI primitives + feature components
+lib/            auth, db, ssh, branding, email, shared utils
+inngest/        Background job definitions
+i18n/           next-intl setup
+messages/       i18n catalogs
+docs/           Internal docs
 ```
 
 ## Deployment
 
-A `Dockerfile` and `compose.yaml` are provided for containerized deploys; `Jenkinsfile` covers CI. Set the `NEXT_PUBLIC_*` branding vars at build time so they are baked into the client bundle.
+`Dockerfile` + `compose.yaml` provide a containerised setup (app, Postgres, Inngest dev server). For production, set the `NEXT_PUBLIC_*` branding vars at build time so they end up in the client bundle, and point `INNGEST_DEV` at a hosted Inngest or remove it to use signed prod mode.
