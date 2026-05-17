@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { DEFAULT_EMAIL_FROM } from "../branding";
 
 let _resend: Resend | null = null;
 
@@ -13,5 +14,5 @@ export function getResend(): Resend {
 }
 
 export function getFromAddress(): string {
-  return process.env.EMAIL_FROM ?? "Admin Panel <no-reply@aktuariku.id>";
+  return process.env.EMAIL_FROM ?? DEFAULT_EMAIL_FROM;
 }

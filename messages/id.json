@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Admin Panel"
+    "name": "{{APP_NAME}}"
   },
   "common": {
     "loading": "Memproses…",
@@ -478,7 +478,7 @@
     },
     "profile": {
       "title": "Profil",
-      "description": "Identitas akun Anda di Admin Panel.",
+      "description": "Identitas akun Anda di {{APP_NAME}}.",
       "nameManagedByAdmin": "Nama Anda dikelola oleh administrator. Hubungi admin untuk mengubahnya."
     },
     "security": {
@@ -563,9 +563,9 @@
   },
   "signIn": {
     "title": "Masuk",
-    "description": "Masuk dengan email kantor @example.com Anda",
+    "description": "Masuk dengan email kantor @{{EMAIL_DOMAIN}} Anda",
     "email": "Email",
-    "emailPlaceholder": "anda@example.com",
+    "emailPlaceholder": "anda@{{EMAIL_DOMAIN}}",
     "password": "Password",
     "forgotPassword": "Lupa kata sandi?",
     "submit": "Masuk",
@@ -576,7 +576,7 @@
     "title": "Lupa kata sandi",
     "description": "Masukkan email Anda. Kami akan mengirim link reset jika akun ditemukan.",
     "email": "Email",
-    "emailPlaceholder": "anda@example.com",
+    "emailPlaceholder": "anda@{{EMAIL_DOMAIN}}",
     "submit": "Kirim link reset",
     "submitting": "Mengirim…",
     "successMessage": "Jika email Anda terdaftar, link reset kata sandi telah dikirim. Cek inbox Anda.",
@@ -625,11 +625,11 @@
     "title": "Manajemen pengguna",
     "subtitle": "Kelola pengguna panel dan undangan yang masih tertunda.",
     "inviteCardTitle": "Undang pengguna",
-    "inviteCardDescription": "Email harus berakhir dengan @example.com",
+    "inviteCardDescription": "Email harus berakhir dengan @{{EMAIL_DOMAIN}}",
     "fullName": "Nama",
     "fullNamePlaceholder": "Nama lengkap",
     "email": "Email",
-    "emailPlaceholder": "user@example.com",
+    "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "Peran",
     "role": {
       "admin": "Admin",
@@ -684,11 +684,11 @@
   },
   "setup": {
     "title": "Pengaturan awal",
-    "description": "Buat akun admin pertama untuk Admin Panel. Halaman ini hanya muncul saat belum ada pengguna sama sekali.",
+    "description": "Buat akun admin pertama untuk {{APP_NAME}}. Halaman ini hanya muncul saat belum ada pengguna sama sekali.",
     "name": "Nama",
     "namePlaceholder": "Nama lengkap",
     "email": "Email",
-    "emailPlaceholder": "anda@example.com",
+    "emailPlaceholder": "anda@{{EMAIL_DOMAIN}}",
     "password": "Password",
     "confirmPassword": "Konfirmasi password",
     "passwordMismatch": "Konfirmasi password tidak cocok",

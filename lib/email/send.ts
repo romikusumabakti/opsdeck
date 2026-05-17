@@ -1,4 +1,5 @@
 import { render } from "@react-email/render";
+import { APP_NAME } from "../branding";
 import { getFromAddress, getResend } from "./client";
 import {
   InvitationEmail,
@@ -20,7 +21,7 @@ export async function sendInvitationEmail(
   const { error } = await resend.emails.send({
     from: getFromAddress(),
     to,
-    subject: "Undangan ke Admin Panel",
+    subject: `Undangan ke ${APP_NAME}`,
     html,
     text,
   });
@@ -41,7 +42,7 @@ export async function sendResetPasswordEmail(
   const { error } = await resend.emails.send({
     from: getFromAddress(),
     to,
-    subject: "Reset kata sandi Admin Panel",
+    subject: `Reset kata sandi ${APP_NAME}`,
     html,
     text,
   });
