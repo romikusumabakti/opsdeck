@@ -23,7 +23,15 @@
     "verified": "Terverifikasi",
     "urlInvalid": "Masukkan URL yang valid",
     "showPassword": "Tampilkan password",
-    "hidePassword": "Sembunyikan password"
+    "hidePassword": "Sembunyikan password",
+    "confirmTypingLabel": "Untuk konfirmasi, ketik nilai di bawah ini:",
+    "confirmTypingPlaceholder": "Ketik untuk konfirmasi",
+    "tryAgain": "Coba lagi",
+    "backToHome": "Kembali ke beranda",
+    "errorTitle": "Terjadi kesalahan",
+    "errorDescription": "Terjadi kesalahan tak terduga. Anda dapat mencoba lagi atau kembali ke beranda.",
+    "notFoundTitle": "Halaman tidak ditemukan",
+    "notFoundDescription": "Halaman yang Anda cari tidak ada atau telah dipindahkan."
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -100,7 +108,22 @@
   "activeTasks": {
     "trigger": "{count, plural, one {# tugas berjalan} other {# tugas berjalan}}",
     "title": "Tugas berjalan",
-    "subtitle": "{count, plural, one {# tugas sedang berjalan} other {# tugas sedang berjalan}}"
+    "subtitle": "{count, plural, one {# tugas sedang berjalan} other {# tugas sedang berjalan}}",
+    "notifyTitleSuccess": "Tugas selesai",
+    "notifyTitleFailed": "Tugas gagal"
+  },
+  "notifications": {
+    "title": "Notifikasi browser",
+    "description": "Dapatkan notifikasi saat tugas berdurasi panjang (backup, restore, mock time) selesai — bahkan ketika tab ini tidak aktif.",
+    "enable": "Aktifkan notifikasi",
+    "disable": "Nonaktifkan notifikasi",
+    "enabled": "Notifikasi aktif",
+    "blockedTitle": "Notifikasi diblokir",
+    "blockedDescription": "Izinkan notifikasi untuk situs ini di pengaturan browser, lalu muat ulang.",
+    "unsupportedTitle": "Tidak didukung",
+    "unsupportedDescription": "Browser Anda tidak mendukung notifikasi web.",
+    "permissionDeniedTitle": "Izin ditolak",
+    "permissionDeniedDescription": "Anda dapat mengizinkan ulang notifikasi dari pengaturan situs di browser."
   },
   "projectsEmpty": {
     "title": "Belum ada proyek",

@@ -1,6 +1,7 @@
 import { KeyRound, Monitor, UserRound } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ChangePasswordForm } from "@/app/[locale]/account/change-password/change-password-form";
+import { NotificationsToggle } from "@/components/notifications-toggle";
 import { PageHeader } from "@/components/page-header";
 import {
   Card,
@@ -32,6 +33,7 @@ export default async function AccountPage({
   }
 
   const t = await getTranslations("account");
+  const tNotif = await getTranslations("notifications");
 
   const defaultTab = tab === "security" || tab === "sessions" ? tab : "profile";
 
@@ -55,7 +57,7 @@ export default async function AccountPage({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile">
+        <TabsContent value="profile" className="flex flex-col gap-6">
           <ProfileCard
             user={{
               id: session.user.id,
@@ -65,6 +67,15 @@ export default async function AccountPage({
               image: session.user.image ?? null,
             }}
           />
+          <Card>
+            <CardHeader>
+              <CardTitle>{tNotif("title")}</CardTitle>
+              <CardDescription>{tNotif("description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NotificationsToggle />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="security">

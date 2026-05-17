@@ -186,12 +186,15 @@ export function UsersClient({
 
   const onDelete = React.useCallback(
     async (user: UserRow) => {
-      const ok = await dialog.confirm({
+      const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
         description: t("deleteDescription", {
           name: user.name,
           email: user.email,
         }),
+        phrase: user.email,
+        phraseLabel: tCommon("confirmTypingLabel"),
+        placeholder: tCommon("confirmTypingPlaceholder"),
         confirmText: tCommon("delete"),
         cancelText: tCommon("cancel"),
       });
@@ -274,6 +277,7 @@ export function UsersClient({
         description: t("revokeDescription", { email: inv.email }),
         confirmText: t("revoke"),
         cancelText: tCommon("cancel"),
+        destructive: true,
       });
       if (!ok) return;
       startTransition(async () => {
@@ -328,6 +332,7 @@ export function UsersClient({
         description: t("bulkDeleteDescription"),
         confirmText: tCommon("delete"),
         cancelText: tCommon("cancel"),
+        destructive: true,
       });
       if (!ok) return;
       startTransition(async () => {
@@ -360,6 +365,7 @@ export function UsersClient({
         description: t("bulkRevokeDescription"),
         confirmText: t("revoke"),
         cancelText: tCommon("cancel"),
+        destructive: true,
       });
       if (!ok) return;
       startTransition(async () => {

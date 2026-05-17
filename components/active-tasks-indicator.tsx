@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useTaskCompletionNotifications } from "@/hooks/use-task-notifications";
 
 function toMs(value: Date | string): number {
   // Server actions serialize Date to string over the wire — TS types still
@@ -33,6 +34,11 @@ export function ActiveTasksIndicator() {
   const [open, setOpen] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => Date.now());
+
+  useTaskCompletionNotifications(tasks, {
+    titleSuccess: t("notifyTitleSuccess"),
+    titleFailed: t("notifyTitleFailed"),
+  });
 
   // Subscribe to a server-sent stream of the running-task list. The server
   // polls the DB and pushes diffs, so we get fresh state without each client
