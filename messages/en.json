@@ -119,12 +119,10 @@
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
-    "server": "Server",
-    "host": "Host",
-    "serviceType": "Service type",
-    "serviceName": "Service name",
-    "dbType": "Database type",
-    "dbName": "Database name",
+    "stack": {
+      "title": "Stack",
+      "manage": "Manage"
+    },
     "serviceTypes": {
       "docker": "Docker",
       "systemd": "systemd",

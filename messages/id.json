@@ -119,12 +119,10 @@
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
-    "server": "Server",
-    "host": "Host",
-    "serviceType": "Tipe service",
-    "serviceName": "Nama service",
-    "dbType": "Tipe database",
-    "dbName": "Nama database",
+    "stack": {
+      "title": "Stack",
+      "manage": "Kelola"
+    },
     "serviceTypes": {
       "docker": "Docker",
       "systemd": "systemd",

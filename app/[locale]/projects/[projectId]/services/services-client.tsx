@@ -3,7 +3,6 @@
 import {
   Atom,
   CircleAlert,
-  CircleHelp,
   Database,
   FileText,
   Loader2,
@@ -26,6 +25,7 @@ import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { PageHeader } from "@/components/page-header";
 import { ServiceLogsDialog } from "@/components/service-logs-dialog";
+import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,12 +36,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { ProjectWithServers } from "@/lib/db/schema";
-import type {
-  ServiceAction,
-  ServiceRole,
-  ServiceState,
-  ServiceType,
-} from "@/lib/services";
+import type { ServiceAction, ServiceRole, ServiceType } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
 type RoleMeta = {
@@ -219,7 +214,7 @@ function ServiceCard({
               {tDash(meta.titleKey)}
             </CardTitle>
           </div>
-          <StatusBadge state={state} loading={loading} t={t} />
+          <ServiceStatusBadge state={state} loading={loading} />
         </div>
         <CardDescription className="truncate">
           <code className="font-mono text-xs">{meta.serviceName}</code>
@@ -324,57 +319,5 @@ function ServiceCard({
         onOpenChange={(open) => setLogsOpen(open)}
       />
     </Card>
-  );
-}
-
-function StatusBadge({
-  state,
-  loading,
-  t,
-}: {
-  state: ServiceState;
-  loading: boolean;
-  t: (key: string) => string;
-}) {
-  if (loading) {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <Loader2 className="size-3 animate-spin" />
-        {t("states.checking")}
-      </Badge>
-    );
-  }
-  if (state === "running") {
-    return (
-      <Badge className="bg-success/15 text-success hover:bg-success/15 border-transparent gap-1">
-        <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
-        {t("states.running")}
-      </Badge>
-    );
-  }
-  if (state === "stopped") {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <span
-          className="size-1.5 rounded-full bg-muted-foreground"
-          aria-hidden="true"
-        />
-        {t("states.stopped")}
-      </Badge>
-    );
-  }
-  if (state === "not-found") {
-    return (
-      <Badge variant="destructive" className="gap-1">
-        <CircleAlert className="size-3" />
-        {t("states.notFound")}
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="gap-1">
-      <CircleHelp className="size-3" />
-      {t("states.unknown")}
-    </Badge>
   );
 }
