@@ -60,6 +60,7 @@ export function SessionsList({ currentToken }: { currentToken: string }) {
       description: t("revokeDescription"),
       confirmText: t("revoke"),
       cancelText: tCommon("cancel"),
+      destructive: true,
     });
     if (!ok) return;
     setPendingToken(session.token);

@@ -48,12 +48,15 @@ export function ServersClient({ servers }: { servers: Server[] }) {
 
   const onDelete = React.useCallback(
     async (server: Server) => {
-      const ok = await dialog.confirm({
+      const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
         description: t("deleteDescription", {
           name: server.name,
           host: server.host,
         }),
+        phrase: server.name,
+        phraseLabel: tCommon("confirmTypingLabel"),
+        placeholder: tCommon("confirmTypingPlaceholder"),
         confirmText: tCommon("delete"),
         cancelText: tCommon("cancel"),
       });
@@ -78,6 +81,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         description: t("bulkDeleteDescription"),
         confirmText: tCommon("delete"),
         cancelText: tCommon("cancel"),
+        destructive: true,
       });
       if (!ok) return;
       startTransition(async () => {

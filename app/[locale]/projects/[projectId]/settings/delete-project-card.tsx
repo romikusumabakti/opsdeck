@@ -18,9 +18,12 @@ export function DeleteProjectCard({ project }: { project: Project }) {
   const [isPending, startTransition] = useTransition();
 
   async function onDelete() {
-    const ok = await dialog.confirm({
+    const ok = await dialog.confirmTyping({
       title: t("deleteTitle"),
       description: t("deleteDescription", { name: project.name }),
+      phrase: project.name,
+      phraseLabel: tCommon("confirmTypingLabel"),
+      placeholder: tCommon("confirmTypingPlaceholder"),
       confirmText: tCommon("delete"),
       cancelText: tCommon("cancel"),
     });
