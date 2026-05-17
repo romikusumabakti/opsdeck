@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
@@ -120,11 +120,12 @@ export async function listUsers() {
 
 export async function listPendingInvitations() {
   await requireAdmin();
-  const now = new Date();
+  // Include expired invitations too — admins should be able to see them and
+  // either resend or revoke. The UI flags expired rows with a badge.
   return db
     .select()
     .from(invitations)
-    .where(and(isNull(invitations.acceptedAt), gt(invitations.expiresAt, now)))
+    .where(isNull(invitations.acceptedAt))
     .orderBy(invitations.createdAt);
 }
 
@@ -284,6 +285,62 @@ export async function revokeInvitation(
   await db.delete(invitations).where(eq(invitations.id, invitationId));
   revalidatePath("/users");
   return { success: true, message: t("invitationRevoked") };
+}
+
+export async function resendInvitation(
+  invitationId: string
+): Promise<ActionResponse> {
+  const session = await requireAdmin();
+  const t = await getTranslations("actionErrors");
+
+  const [inv] = await db
+    .select()
+    .from(invitations)
+    .where(eq(invitations.id, invitationId))
+    .limit(1);
+
+  if (!inv || inv.acceptedAt) {
+    return { success: false, message: t("invitationInvalid") };
+  }
+
+  const existing = await db
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(eq(userTable.email, inv.email))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return { success: false, message: t("emailAlreadyRegistered") };
+  }
+
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(
+    Date.now() + INVITE_EXPIRES_HOURS * 60 * 60 * 1000
+  );
+
+  await db
+    .update(invitations)
+    .set({ token, expiresAt })
+    .where(eq(invitations.id, invitationId));
+
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+  const locale = await getLocale();
+  const inviteUrl = `${baseUrl}/${locale}/accept-invite/${token}`;
+
+  try {
+    await sendInvitationEmail(inv.email, {
+      recipientName: inv.name,
+      inviterName: session.user.name,
+      inviteUrl,
+      expiresInHours: INVITE_EXPIRES_HOURS,
+    });
+  } catch (err) {
+    console.error("Failed to resend invitation email:", err);
+    return { success: false, message: t("emailSendFailed") };
+  }
+
+  revalidatePath("/users");
+  return { success: true, message: t("emailSent") };
 }
 
 export type BulkUsersResult =
