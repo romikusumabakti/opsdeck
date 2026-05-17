@@ -1,89 +1,71 @@
 # Admin Panel
 
-Whitelabel internal admin panel — manages server SSH credentials, database backup/restore jobs, Jenkins-driven deployments, and project/service inventory.
-
-Branding (app name, company name, allowed email domain) is configurable via env vars — see [Environment](#environment).
+A whitelabel admin panel for managing servers, projects, services, and database lifecycle tasks over SSH.
 
 ## Stack
 
-- **Framework:** Next.js 16 (App Router) + React 19
-- **Auth:** better-auth (email/password, invites, password reset)
-- **DB:** PostgreSQL 18 via Drizzle ORM
-- **Background jobs:** Inngest (backup/restore, long-running SSH tasks)
-- **SSH:** node-ssh for remote command execution
-- **Email:** Resend + React Email templates
-- **i18n:** next-intl
-- **UI:** Tailwind CSS v4 + Radix UI primitives
-- **Tooling:** pnpm, Biome, TypeScript
+- **Next.js 16** (App Router) on **React 19**
+- **Drizzle ORM** + **PostgreSQL**
+- **better-auth** for authentication and invitations
+- **Inngest** for background jobs
+- **node-ssh** for remote server operations
+- **Tailwind CSS 4** + **Radix UI**
+- **next-intl** for i18n
+- **Biome** for lint/format
 
-## Prerequisites
+Node >= 24. Package manager: **pnpm** (also supports Bun via `bun.lock`).
 
-- Node.js >= 24
-- pnpm 10 (`corepack enable pnpm`)
-- Docker + Docker Compose (for Postgres + Inngest dev server)
-
-## Setup
+## Getting started
 
 ```bash
 pnpm install
-cp .env.example .env   # then fill in the required variables (see below)
-docker compose up -d postgres inngest
+cp .env.example .env   # if present; otherwise create one — see Environment
 pnpm db:push           # apply schema to the database
 pnpm dev
 ```
 
-App runs at <http://localhost:3000>. The Inngest dev UI runs at <http://localhost:8288>.
-
-## Environment
-
-Required:
-
-- `DATABASE_URL` — Postgres connection string
-- `BETTER_AUTH_SECRET` — random secret for session signing
-- `BETTER_AUTH_URL` — base URL (e.g. `http://localhost:3000`)
-
-Optional:
-
-- `RESEND_API_KEY`, `EMAIL_FROM` — email features disabled when unset. If `EMAIL_FROM` is omitted it falls back to `"<APP_NAME> <no-reply@<EMAIL_DOMAIN>>"`.
-- `INNGEST_DEV` — URL of the local Inngest dev server
-- `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — required in production
-
-Whitelabel branding (all required for a branded deployment):
-
-- `NEXT_PUBLIC_APP_NAME` — displayed app name (e.g. `Admin Panel`)
-- `NEXT_PUBLIC_COMPANY_NAME` — footer copyright (e.g. `Acme Corp`)
-- `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — email domain accepted for sign-up/invite (e.g. `acme.com`)
-
-If unset, defaults fall back to generic placeholders (`Admin Panel`, `the company`, `example.com`) — set these for any real deployment.
+The app boots on http://localhost:3000.
 
 ## Scripts
 
-| Command           | Description                              |
-|-------------------|------------------------------------------|
-| `pnpm dev`        | Start Next.js dev server                 |
-| `pnpm build`      | Production build                         |
-| `pnpm start`      | Run the production build                 |
-| `pnpm check`      | Biome format + lint with autofix         |
-| `pnpm lint`       | Biome lint only                          |
-| `pnpm db:generate`| Generate Drizzle migrations from schema  |
-| `pnpm db:migrate` | Apply pending migrations                 |
-| `pnpm db:push`    | Push schema directly (dev shortcut)      |
-| `pnpm db:studio`  | Open Drizzle Studio                      |
+| Script | What it does |
+|--------|--------------|
+| `pnpm dev` | Start the Next.js dev server |
+| `pnpm build` | Production build |
+| `pnpm start` | Run the production build |
+| `pnpm lint` / `format` / `check` | Biome lint / format / both |
+| `pnpm db:generate` | Generate Drizzle migrations from schema |
+| `pnpm db:migrate` | Apply pending migrations |
+| `pnpm db:push` | Push schema directly (dev only) |
+| `pnpm db:studio` | Open Drizzle Studio |
 
-## Project Layout
+## Environment
+
+Required for any real deployment — see `lib/branding.ts`:
+
+```env
+NEXT_PUBLIC_APP_NAME=Your Panel Name
+NEXT_PUBLIC_COMPANY_NAME=Your Company
+NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN=yourdomain.com
+```
+
+Plus the usual database, auth, and mail provider credentials (Postgres URL, better-auth secret, Resend key, Inngest signing key, etc.). The fallback branding defaults are generic placeholders and should not be relied on in production.
+
+## Layout
 
 ```
-app/[locale]/   # localized routes (sign-in, projects, servers, users, …)
-app/api/        # auth, health, inngest, task endpoints
-actions/        # server actions (backups, servers, services, users, …)
-inngest/        # Inngest client and background functions
-lib/            # auth, db (schema/relations), email, ssh, roles, utils
-components/     # UI components (Radix + Tailwind)
-messages/       # next-intl translations
-hooks/          # React hooks
-docs/           # internal documentation
+app/[locale]/        Routes (servers, projects, users, account, auth flows)
+actions/             Server actions
+components/          UI components (Radix + shadcn-style primitives)
+hooks/               React hooks
+i18n/                next-intl setup
+inngest/             Background job definitions
+lib/                 Shared utilities, branding, db client, auth
+messages/            i18n message catalogs
+public/              Static assets
+docs/                Internal documentation (see docs/time-mocking-api.md)
 ```
 
 ## Deployment
 
-Production runs via `docker compose up -d --build` on the deploy host. Jenkins (`Jenkinsfile`) copies the host `.env` into the workspace and rebuilds the stack. The Next.js image uses the standalone output (see `Dockerfile`).
+A `Dockerfile` and `compose.yaml` are provided for containerized deploys; `Jenkinsfile` covers CI. Set the `NEXT_PUBLIC_*` branding vars at build time so they are baked into the client bundle.
