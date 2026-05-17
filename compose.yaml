@@ -29,9 +29,15 @@ services:
       # Auth
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
-      # Email (Resend) — optional; email features disabled if empty
+      # Whitelabel branding — surfaced to the client via NEXT_PUBLIC_*
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME-}
+      NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME-}
+      NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN: ${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}
+      # Email (Resend) — optional; email features disabled if empty.
+      # When EMAIL_FROM is unset, lib/branding.ts derives a default from
+      # NEXT_PUBLIC_APP_NAME + NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN.
       RESEND_API_KEY: ${RESEND_API_KEY-}
-      EMAIL_FROM: ${EMAIL_FROM-Admin Panel <no-reply@example.com>}
+      EMAIL_FROM: ${EMAIL_FROM-}
       # Inngest — `INNGEST_DEV=<url>` puts the SDK in dev mode (no signature
       # verification, matching the `inngest dev` server's insecure mode) and
       # points it at the sibling container over the compose network.
