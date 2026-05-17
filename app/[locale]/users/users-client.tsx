@@ -671,6 +671,7 @@ export function UsersClient({
               getRowId={(row) => row.id}
               filterColumn="name"
               filterPlaceholder={t("searchPlaceholder")}
+              urlKey="inv"
               bulkActions={(ids, clearSelection) => (
                 <Button
                   variant="destructive"
@@ -704,6 +705,7 @@ export function UsersClient({
             filterPlaceholder={t("searchPlaceholder")}
             getRowId={(row) => row.id}
             canSelectRow={(row) => row.id !== currentUserId}
+            urlKey="usr"
             bulkActions={(ids, clearSelection) => (
               <Button
                 variant="destructive"

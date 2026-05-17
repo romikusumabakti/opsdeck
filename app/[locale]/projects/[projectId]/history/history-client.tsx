@@ -133,6 +133,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
       data={tasks}
       filterColumn="description"
       filterPlaceholder={t("searchPlaceholder")}
+      urlKey="hist"
     />
   );
 }

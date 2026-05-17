@@ -150,7 +150,11 @@
       "runs": "runs",
       "successRate": "{pct}% success",
       "noCompleted": "No completed runs yet",
-      "never": "Never"
+      "never": "Never",
+      "deltaUp": "Up vs. previous 7 days",
+      "deltaDown": "Down vs. previous 7 days",
+      "deltaFlat": "No change vs. previous 7 days",
+      "sparklineLabel": "Daily run count for the past 7 days"
     }
   },
   "services": {
