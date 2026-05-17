@@ -12,14 +12,6 @@ import { executeRemoteCommand } from "@/lib/ssh";
 import { appendTaskOutput, completeTask, failTask } from "@/lib/task-progress";
 import { inngest } from "./client";
 
-export const syncJenkinsData = inngest.createFunction(
-  { id: "sync-jenkins-data", triggers: { event: "jenkins/sync.data" } },
-  async ({ event, step }) => {
-    await step.sleep("wait-a-moment", "1s");
-    return { message: `Hello ${event.data.email}!` };
-  }
-);
-
 // Inngest's step.run signature is generic and Jsonifies its return type, which
 // breaks a strict generic wrapper. Use a loose shape here and cast back at the
 // call sites — runtime values are unchanged, the Jsonify is purely for the
