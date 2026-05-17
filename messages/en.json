@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Admin Panel"
+    "name": "{{APP_NAME}}"
   },
   "common": {
     "loading": "Loading…",
@@ -478,7 +478,7 @@
     },
     "profile": {
       "title": "Profile",
-      "description": "Your account identity within Admin Panel.",
+      "description": "Your account identity within {{APP_NAME}}.",
       "nameManagedByAdmin": "Your name is managed by administrators. Contact an admin to update it."
     },
     "security": {
@@ -563,9 +563,9 @@
   },
   "signIn": {
     "title": "Sign in",
-    "description": "Sign in with your @example.com work email",
+    "description": "Sign in with your @{{EMAIL_DOMAIN}} work email",
     "email": "Email",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@{{EMAIL_DOMAIN}}",
     "password": "Password",
     "forgotPassword": "Forgot password?",
     "submit": "Sign in",
@@ -576,7 +576,7 @@
     "title": "Forgot password",
     "description": "Enter your email and we'll send a reset link if the account exists.",
     "email": "Email",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@{{EMAIL_DOMAIN}}",
     "submit": "Send reset link",
     "submitting": "Sending…",
     "successMessage": "If your email is registered, a password reset link has been sent. Check your inbox.",
@@ -625,11 +625,11 @@
     "title": "User management",
     "subtitle": "Manage panel users and pending invitations.",
     "inviteCardTitle": "Invite user",
-    "inviteCardDescription": "Email must end with @example.com",
+    "inviteCardDescription": "Email must end with @{{EMAIL_DOMAIN}}",
     "fullName": "Name",
     "fullNamePlaceholder": "Full name",
     "email": "Email",
-    "emailPlaceholder": "user@example.com",
+    "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "Role",
     "role": {
       "admin": "Admin",
@@ -684,11 +684,11 @@
   },
   "setup": {
     "title": "Initial setup",
-    "description": "Create the first admin account for Admin Panel. This page only appears when no users exist yet.",
+    "description": "Create the first admin account for {{APP_NAME}}. This page only appears when no users exist yet.",
     "name": "Name",
     "namePlaceholder": "Full name",
     "email": "Email",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "you@{{EMAIL_DOMAIN}}",
     "password": "Password",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "Password confirmation does not match",

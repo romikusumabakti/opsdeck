@@ -1,6 +1,8 @@
 # Admin Panel
 
-Internal admin panel for **the company** (the company) — manages server SSH credentials, database backup/restore jobs, Jenkins-driven deployments, and project/service inventory.
+Whitelabel internal admin panel — manages server SSH credentials, database backup/restore jobs, Jenkins-driven deployments, and project/service inventory.
+
+Branding (app name, company name, allowed email domain) is configurable via env vars — see [Environment](#environment). Defaults match the original the company (the company) deployment.
 
 ## Stack
 
@@ -42,9 +44,15 @@ Required:
 
 Optional:
 
-- `RESEND_API_KEY`, `EMAIL_FROM` — email features disabled when unset
+- `RESEND_API_KEY`, `EMAIL_FROM` — email features disabled when unset. If `EMAIL_FROM` is omitted it falls back to `"<APP_NAME> <no-reply@<EMAIL_DOMAIN>>"`.
 - `INNGEST_DEV` — URL of the local Inngest dev server
 - `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — required in production
+
+Whitelabel branding (all optional, with sensible defaults in `lib/branding.ts`):
+
+- `NEXT_PUBLIC_APP_NAME` — displayed app name (default: `Admin Panel`)
+- `NEXT_PUBLIC_COMPANY_NAME` — footer copyright (default: `the company`)
+- `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — email domain accepted for sign-up/invite (default: `example.com`)
 
 ## Scripts
 

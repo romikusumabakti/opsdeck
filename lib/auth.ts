@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { v7 as uuidv7 } from "uuid";
+import { APP_NAME } from "./branding";
 import { db } from "./db";
 import { accounts, sessions, users, verifications } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
@@ -11,15 +12,10 @@ import { ROLE_ADMIN, ROLE_MEMBER } from "./roles";
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
 export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
-
-export const ALLOWED_EMAIL_DOMAIN = "example.com";
-
-export function isAllowedEmail(email: string): boolean {
-  return email.toLowerCase().trim().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
-}
+export { ALLOWED_EMAIL_DOMAIN, isAllowedEmail } from "./branding";
 
 export const auth = betterAuth({
-  appName: "Admin Panel",
+  appName: APP_NAME,
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
