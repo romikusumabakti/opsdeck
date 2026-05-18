@@ -213,11 +213,22 @@
       "title": "{target} logs",
       "linesLabel": "Tail",
       "lines": "lines",
-      "refresh": "Refresh",
+      "filterPlaceholder": "Filter…",
+      "pause": "Pause",
+      "resume": "Resume",
+      "reconnect": "Reconnect",
       "copy": "Copy logs",
-      "outputLabel": "Output",
-      "loading": "Fetching logs…",
-      "empty": "No log output."
+      "download": "Download",
+      "live": "Live",
+      "connecting": "Connecting…",
+      "paused": "Paused",
+      "errored": "Error",
+      "disconnected": "Disconnected",
+      "jumpToLatest": "Jump to latest ({count} new)",
+      "noMatches": "No lines match filter.",
+      "connectionError": "Lost connection to log stream.",
+      "loading": "Streaming logs…",
+      "empty": "No log output yet."
     }
   },
   "backupDb": {
