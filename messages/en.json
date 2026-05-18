@@ -411,7 +411,11 @@
     "title": "Create new project",
     "description": "Register a new project along with its database, backend, and frontend server configuration.",
     "formTitle": "Project configuration",
-    "formDescription": "Pick a server for each role (database, backend, frontend) and provide service details."
+    "formDescription": "Pick a server for each role (database, backend, frontend) and provide service details.",
+    "cloneTitle": "Duplicate project",
+    "cloneDescription": "Create a new project pre-filled with the configuration of {name}.",
+    "cloneFormTitle": "Project configuration",
+    "cloneFormDescription": "Review and adjust the copied values. Passwords and API keys are not copied — re-enter them if needed."
   },
   "projectForm": {
     "info": "Project info",
@@ -444,13 +448,17 @@
     "submitting": "Saving…",
     "submitFailed": "Failed to save project",
     "createdSuccess": "Project created",
-    "savedSuccess": "Project saved"
+    "savedSuccess": "Project saved",
+    "nameCopySuffix": "{name} (copy)"
   },
   "projectSettings": {
     "title": "Project settings",
     "subtitle": "Edit the project configuration or remove the project entirely.",
     "editTitle": "Project details",
     "editDescription": "Update the project's database, backend, and frontend server configuration.",
+    "duplicateTitle": "Duplicate project",
+    "duplicateDescription": "Create a new project pre-filled with this project's configuration. Passwords and API keys are not copied.",
+    "duplicateButton": "Duplicate project",
     "dangerZoneTitle": "Danger zone",
     "dangerZoneDescription": "Deleting a project also removes its task history. This cannot be undone.",
     "deleteButton": "Delete project",

@@ -1,5 +1,6 @@
-import { FolderPlus } from "lucide-react";
+import { Copy, FolderPlus } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getProjectById } from "@/actions/projects";
 import { getServers } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
 import { ProjectForm } from "@/components/project-form";
@@ -14,30 +15,55 @@ import { requireAdmin } from "@/lib/auth-session";
 
 export default async function NewProjectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
-  const { locale } = await params;
+  const [{ locale }, { from }] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
 
   await requireAdmin();
 
   const t = await getTranslations("newProject");
-  const servers = await getServers();
+  const [servers, cloneFrom] = await Promise.all([
+    getServers(),
+    from ? getProjectById(from) : Promise.resolve(undefined),
+  ]);
+
+  const isCloning = Boolean(cloneFrom);
 
   return (
     <>
-      <PageHeader title={t("title")} subtitle={t("description")} />
+      <PageHeader
+        title={isCloning ? t("cloneTitle") : t("title")}
+        subtitle={
+          isCloning && cloneFrom
+            ? t("cloneDescription", { name: cloneFrom.name })
+            : t("description")
+        }
+      />
       <Card className="max-w-2xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <FolderPlus className="size-5 text-muted-foreground" />
-            <CardTitle className="text-base">{t("formTitle")}</CardTitle>
+            {isCloning ? (
+              <Copy className="size-5 text-muted-foreground" />
+            ) : (
+              <FolderPlus className="size-5 text-muted-foreground" />
+            )}
+            <CardTitle className="text-base">
+              {isCloning ? t("cloneFormTitle") : t("formTitle")}
+            </CardTitle>
           </div>
-          <CardDescription>{t("formDescription")}</CardDescription>
+          <CardDescription>
+            {isCloning ? t("cloneFormDescription") : t("formDescription")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProjectForm mode={{ type: "create" }} servers={servers} />
+          <ProjectForm
+            mode={{ type: "create", cloneFrom: cloneFrom ?? undefined }}
+            servers={servers}
+          />
         </CardContent>
       </Card>
     </>
