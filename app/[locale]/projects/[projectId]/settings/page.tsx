@@ -1,8 +1,10 @@
+import { Copy } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById } from "@/actions/projects";
 import { getServers } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
 import { ProjectForm } from "@/components/project-form";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth-session";
 import { DeleteProjectCard } from "./delete-project-card";
 
@@ -47,6 +50,21 @@ export default async function ProjectSettingsPage({
           </CardHeader>
           <CardContent>
             <ProjectForm mode={{ type: "edit", project }} servers={servers} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("duplicateTitle")}</CardTitle>
+            <CardDescription>{t("duplicateDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href={`/projects/new?from=${project.id}`}>
+                <Copy className="size-4" />
+                {t("duplicateButton")}
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 

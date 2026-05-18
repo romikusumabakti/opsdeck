@@ -30,7 +30,9 @@ const DB_TYPES = ["postgres", "mssql"] as const;
 
 type ServerRole = "db" | "backend" | "frontend";
 
-type Mode = { type: "create" } | { type: "edit"; project: Project };
+type Mode =
+  | { type: "create"; cloneFrom?: Project }
+  | { type: "edit"; project: Project };
 
 export function ProjectForm({
   mode,
@@ -95,46 +97,57 @@ export function ProjectForm({
 
   type FormValues = z.infer<typeof schema>;
 
+  const source =
+    mode.type === "edit"
+      ? mode.project
+      : mode.type === "create" && mode.cloneFrom
+        ? mode.cloneFrom
+        : null;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues:
-      mode.type === "edit"
-        ? {
-            name: mode.project.name,
-            dbServerId: mode.project.dbServerId,
-            dbServiceType: mode.project.dbServiceType,
-            dbServiceName: mode.project.dbServiceName,
-            dbType: mode.project.dbType,
-            dbName: mode.project.dbName,
-            dbPassword: "",
-            dbBackupPath: mode.project.dbBackupPath,
-            backendServerId: mode.project.backendServerId,
-            backendServiceType: mode.project.backendServiceType,
-            backendServiceName: mode.project.backendServiceName,
-            backendMockTimeApiUrl: mode.project.backendMockTimeApiUrl ?? "",
-            backendMockTimeApiKey: "",
-            frontendServerId: mode.project.frontendServerId,
-            frontendServiceType: mode.project.frontendServiceType,
-            frontendServiceName: mode.project.frontendServiceName,
-          }
-        : {
-            name: "",
-            dbServerId: initialServers[0]?.id ?? "",
-            dbServiceType: "docker",
-            dbServiceName: "",
-            dbType: "postgres",
-            dbName: "",
-            dbPassword: "",
-            dbBackupPath: "",
-            backendServerId: initialServers[0]?.id ?? "",
-            backendServiceType: "docker",
-            backendServiceName: "",
-            backendMockTimeApiUrl: "",
-            backendMockTimeApiKey: "",
-            frontendServerId: initialServers[0]?.id ?? "",
-            frontendServiceType: "docker",
-            frontendServiceName: "",
-          },
+    defaultValues: source
+      ? {
+          // On clone, suffix the source name to make it obvious the new project
+          // is a copy and to avoid duplicate-name confusion in the picker.
+          name:
+            mode.type === "create"
+              ? t("nameCopySuffix", { name: source.name })
+              : source.name,
+          dbServerId: source.dbServerId,
+          dbServiceType: source.dbServiceType,
+          dbServiceName: source.dbServiceName,
+          dbType: source.dbType,
+          dbName: source.dbName,
+          dbPassword: "",
+          dbBackupPath: source.dbBackupPath,
+          backendServerId: source.backendServerId,
+          backendServiceType: source.backendServiceType,
+          backendServiceName: source.backendServiceName,
+          backendMockTimeApiUrl: source.backendMockTimeApiUrl ?? "",
+          backendMockTimeApiKey: "",
+          frontendServerId: source.frontendServerId,
+          frontendServiceType: source.frontendServiceType,
+          frontendServiceName: source.frontendServiceName,
+        }
+      : {
+          name: "",
+          dbServerId: initialServers[0]?.id ?? "",
+          dbServiceType: "docker",
+          dbServiceName: "",
+          dbType: "postgres",
+          dbName: "",
+          dbPassword: "",
+          dbBackupPath: "",
+          backendServerId: initialServers[0]?.id ?? "",
+          backendServiceType: "docker",
+          backendServiceName: "",
+          backendMockTimeApiUrl: "",
+          backendMockTimeApiKey: "",
+          frontendServerId: initialServers[0]?.id ?? "",
+          frontendServiceType: "docker",
+          frontendServiceName: "",
+        },
   });
 
   function onServerCreated(server: Server) {

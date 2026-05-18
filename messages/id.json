@@ -411,7 +411,11 @@
     "title": "Buat proyek baru",
     "description": "Daftarkan proyek baru beserta konfigurasi server database, backend, dan frontend.",
     "formTitle": "Konfigurasi proyek",
-    "formDescription": "Pilih server untuk setiap role (database, backend, frontend) dan isi detail service."
+    "formDescription": "Pilih server untuk setiap role (database, backend, frontend) dan isi detail service.",
+    "cloneTitle": "Duplikasi proyek",
+    "cloneDescription": "Buat proyek baru dengan konfigurasi yang disalin dari {name}.",
+    "cloneFormTitle": "Konfigurasi proyek",
+    "cloneFormDescription": "Periksa dan sesuaikan nilai yang disalin. Password dan API key tidak ikut disalin — isi ulang jika diperlukan."
   },
   "projectForm": {
     "info": "Informasi proyek",
@@ -444,13 +448,17 @@
     "submitting": "Menyimpan…",
     "submitFailed": "Gagal menyimpan proyek",
     "createdSuccess": "Proyek berhasil dibuat",
-    "savedSuccess": "Proyek berhasil disimpan"
+    "savedSuccess": "Proyek berhasil disimpan",
+    "nameCopySuffix": "{name} (salinan)"
   },
   "projectSettings": {
     "title": "Pengaturan proyek",
     "subtitle": "Ubah konfigurasi proyek atau hapus proyek seluruhnya.",
     "editTitle": "Detail proyek",
     "editDescription": "Perbarui konfigurasi server database, backend, dan frontend untuk proyek ini.",
+    "duplicateTitle": "Duplikasi proyek",
+    "duplicateDescription": "Buat proyek baru dengan konfigurasi proyek ini sebagai isian awal. Password dan API key tidak ikut disalin.",
+    "duplicateButton": "Duplikasi proyek",
     "dangerZoneTitle": "Zona berbahaya",
     "dangerZoneDescription": "Menghapus proyek juga akan menghapus riwayat task-nya. Tindakan ini tidak bisa dibatalkan.",
     "deleteButton": "Hapus proyek",
