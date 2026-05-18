@@ -176,29 +176,33 @@ export function buildDbShellCommand(
   return `bash -c ${shq(inner)}`;
 }
 
-// Docker logs writes to stderr by default, and journalctl may exit non-zero on
-// empty units — both reasons we wrap in `sh -c` with `2>&1` and `|| true` so the
-// remote command always exits 0 and we get all output on stdout.
-export function buildLogsCommand(
+// Builds a follow-mode logs pipeline. Emits an initial tail of `lines` then
+// streams new entries as they arrive (`-f` / `--follow`). The command runs
+// indefinitely and only terminates when the SSH channel closes (the
+// streaming endpoint kills the channel on client disconnect, which sends
+// SIGHUP to the remote process group).
+//
+// Docker writes to stderr by default and journalctl can fail on empty units,
+// so we redirect `2>&1` to fold both streams onto stdout. The `|| true` of
+// the non-follow variant is intentionally dropped — in follow mode the
+// command should keep running, not exit cleanly on error.
+export function buildFollowLogsCommand(
   serviceType: ServiceType,
   serviceName: string,
   lines: number,
   sudoPassword: string
 ): string {
   if (serviceType === "docker") {
-    const inner = `docker logs --tail ${lines} --timestamps ${shq(serviceName)} 2>&1 || true`;
+    const inner = `docker logs --tail ${lines} --timestamps --follow ${shq(serviceName)} 2>&1`;
     return `sh -c ${shq(inner)}`;
   }
   if (serviceType === "kubernetes") {
-    // `deploy/<name>` selects one of the deployment's pods. `--timestamps`
-    // prefixes each line with an RFC3339 timestamp so the viewer can correlate
-    // with other sources.
-    const inner = `kubectl logs deploy/${shq(serviceName)} --tail ${lines} --timestamps 2>&1 || true`;
+    const inner = `kubectl logs deploy/${shq(serviceName)} --tail=${lines} --timestamps --follow 2>&1`;
     return `sh -c ${shq(inner)}`;
   }
-  // `--no-pager` avoids less/more pagination over SSH. `--output=short-iso`
-  // gives a compact UTC-style timestamp that's easy to read in a log viewer.
-  const journal = `journalctl -u ${shq(serviceName)} -n ${lines} --no-pager --output=short-iso 2>&1 || true`;
+  // `-f` follows the unit. `-n` seeds the initial tail. journalctl reads no
+  // stdin so it doesn't conflict with sudo -S consuming the password.
+  const journal = `journalctl -u ${shq(serviceName)} -n ${lines} -f --no-pager --output=short-iso 2>&1`;
   const inner = `printf '%s\\n' ${shq(sudoPassword)} | sudo -S ${journal}`;
   return `sh -c ${shq(inner)}`;
 }
