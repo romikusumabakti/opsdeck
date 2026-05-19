@@ -48,17 +48,15 @@ export function RestoreDatabase({
   function onRestore() {
     if (!backup) return;
     void (async () => {
-      const ok = await dialog.confirmTyping({
+      const ok = await dialog.confirm({
         title: t("confirmTitle"),
         description: t("confirmDescription", {
           filename: backup.name,
           dbName: project.dbName,
         }),
-        phrase: project.dbName,
-        phraseLabel: tCommon("confirmTypingLabel"),
-        placeholder: tCommon("confirmTypingPlaceholder"),
         confirmText: t("restore"),
         cancelText: tCommon("cancel"),
+        destructive: true,
       });
       if (!ok) return;
       startTransition(async () => {
