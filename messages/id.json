@@ -81,7 +81,9 @@
     "current": "saat ini",
     "locale": {
       "en": "English",
-      "id": "Bahasa Indonesia"
+      "id": "Bahasa Indonesia",
+      "zh": "Bahasa Mandarin",
+      "ar": "Bahasa Arab"
     }
   },
   "nav": {

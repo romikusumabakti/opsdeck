@@ -81,7 +81,9 @@
     "current": "current",
     "locale": {
       "en": "English",
-      "id": "Bahasa Indonesia"
+      "id": "Bahasa Indonesia",
+      "zh": "Chinese (Simplified)",
+      "ar": "Arabic"
     }
   },
   "nav": {
