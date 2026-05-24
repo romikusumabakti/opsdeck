@@ -144,6 +144,9 @@
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
+    "dbType": "Tipe DB",
+    "dbName": "Nama DB",
+    "server": "Server",
     "stack": {
       "title": "Stack",
       "manage": "Kelola"
