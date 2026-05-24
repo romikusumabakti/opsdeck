@@ -144,6 +144,9 @@
     "database": "数据库",
     "backend": "后端",
     "frontend": "前端",
+    "dbType": "数据库类型",
+    "dbName": "数据库名称",
+    "server": "服务器",
     "stack": {
       "title": "技术栈",
       "manage": "管理"

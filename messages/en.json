@@ -144,6 +144,9 @@
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
+    "dbType": "DB Type",
+    "dbName": "DB Name",
+    "server": "Server",
     "stack": {
       "title": "Stack",
       "manage": "Manage"
