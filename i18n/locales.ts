@@ -9,3 +9,9 @@ export const localeLabels: Record<Locale, string> = {
   zh: "中文",
   ar: "العربية",
 };
+
+export const rtlLocales: ReadonlySet<Locale> = new Set(["ar"]);
+
+export function isRtlLocale(locale: Locale): boolean {
+  return rtlLocales.has(locale);
+}

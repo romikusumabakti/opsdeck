@@ -137,3 +137,44 @@
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
+
+/* RTL overrides: flip hardcoded directional classes that Tailwind doesn't
+   automatically reverse when dir="rtl" is set on <html>. */
+[dir="rtl"] [data-slot="sidebar-group-action"] {
+  right: auto;
+  left: 0.75rem;
+}
+
+[dir="rtl"] [data-slot="menu-action"] {
+  right: auto;
+  left: 0.25rem;
+}
+
+[dir="rtl"] [data-slot="menu-badge"] {
+  right: auto;
+  left: 0.25rem;
+}
+
+[dir="rtl"] [data-slot="sidebar-sub-content"] {
+  border-left: none;
+  border-right: 1px solid var(--sidebar-border);
+  padding-left: 0;
+  padding-right: 0.625rem;
+  margin-left: 0;
+  margin-right: 0.875rem;
+}
+
+[dir="rtl"] [data-slot="sidebar-rail"] {
+  right: auto;
+  left: calc(var(--sidebar-width) * -1 + 1rem);
+}
+
+[dir="rtl"] [data-slot="sidebar-rail"]:after {
+  left: 50%;
+  right: auto;
+}
+
+[dir="rtl"] [data-slot="sidebar-inset"] {
+  margin-right: 0;
+  margin-left: 0;
+}
