@@ -1,5 +1,5 @@
 import { formatDistanceToNow, type Locale } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   CheckCircle2,
   ChevronRight,
@@ -33,7 +33,7 @@ export default async function Home() {
 
   const t = await getTranslations("home");
   const tDash = await getTranslations("dashboard");
-  const dateFnsLocale = locale === "id" ? idLocale : undefined;
+  const dateFnsLocale = getDateFnsLocale(locale);
 
   return (
     <>

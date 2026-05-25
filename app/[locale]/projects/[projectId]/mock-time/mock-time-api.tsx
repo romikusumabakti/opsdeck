@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   Clock,
   FastForward,
@@ -59,7 +59,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
   const locale = useLocale();
-  const dateFnsLocale = locale === "id" ? idLocale : undefined;
+  const dateFnsLocale = getDateFnsLocale(locale);
   const dialog = useDialog();
 
   const [date, setDate] = React.useState<Date | undefined>(() => new Date());
