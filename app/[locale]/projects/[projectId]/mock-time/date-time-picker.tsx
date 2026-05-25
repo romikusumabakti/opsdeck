@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { ChevronDownIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -68,7 +68,7 @@ export function DateTimePicker({
 }) {
   const t = useTranslations("mockTime");
   const locale = useLocale();
-  const dateFnsLocale = locale === "id" ? idLocale : undefined;
+  const dateFnsLocale = getDateFnsLocale(locale);
   const [open, setOpen] = React.useState(false);
 
   return (

@@ -1,5 +1,5 @@
 import { formatDistanceToNow, type Locale } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { Activity, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -16,7 +16,7 @@ export async function RecentActivity({ projectId }: { projectId: string }) {
   const tasks = (await getProjectTasks(projectId)).slice(0, RECENT_LIMIT);
   const t = await getTranslations("dashboard.recentActivity");
   const locale = await getLocale();
-  const dateFnsLocale = locale === "id" ? idLocale : undefined;
+  const dateFnsLocale = getDateFnsLocale(locale);
 
   return (
     <Card>
