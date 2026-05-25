@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_Arabic } from "next/font/google";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { routing } from "@/i18n/routing";
+import { isRtlLocale } from "@/i18n/locales";
 import { getServerSession, isAdmin } from "@/lib/auth-session";
 import "../globals.css";
 
@@ -37,6 +38,12 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const notoSansArabic = Noto_Sans_Arabic({
+  variable: "--font-noto-sans-arabic",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export function generateStaticParams() {
@@ -68,6 +75,7 @@ export default async function LocaleLayout({
     notFound();
   }
   setRequestLocale(locale);
+  const rtl = isRtlLocale(locale as Parameters<typeof isRtlLocale>[0]);
 
   const session = await getServerSession();
   const projects = session ? await getProjects() : [];
@@ -81,9 +89,10 @@ export default async function LocaleLayout({
   const sidebarDefaultOpen = sidebarStateCookie !== "false";
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} dir={rtl ? "rtl" : "ltr"} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${notoSansArabic.variable} antialiased`}
+        style={rtl ? { fontFamily: "var(--font-noto-sans-arabic), sans-serif" } : undefined}
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider
@@ -104,6 +113,7 @@ export default async function LocaleLayout({
                   <AppSidebar
                     projects={projects}
                     isAdmin={admin}
+                    side={rtl ? "right" : "left"}
                     user={{
                       id: session.user.id,
                       name: session.user.name,
@@ -113,11 +123,11 @@ export default async function LocaleLayout({
                   />
                   <SidebarInset className="min-w-0">
                     <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                      <SidebarTrigger className="-ml-1" />
+                      <SidebarTrigger className="-ms-1" />
                       <HeaderBreadcrumb projects={projects} isAdmin={admin} />
-                      <div className="ml-auto flex items-center gap-2">
+                      <div className="ms-auto flex items-center gap-2">
                         <ActiveTasksIndicator />
-                        <div className="hidden md:flex items-center gap-2 pr-1">
+                        <div className="hidden md:flex items-center gap-2 pe-1">
                           <ServerTime />
                         </div>
                         <CommandPalette projects={projects} isAdmin={admin} />
