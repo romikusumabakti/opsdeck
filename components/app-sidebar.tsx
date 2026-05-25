@@ -63,10 +63,12 @@ export function AppSidebar({
   projects,
   isAdmin,
   user,
+  side = "left",
 }: {
   projects: Project[];
   isAdmin: boolean;
   user: AppSidebarUser;
+  side?: "left" | "right";
 }) {
   const tApp = useTranslations("app");
   const tNav = useTranslations("nav");
@@ -79,7 +81,7 @@ export function AppSidebar({
     : null;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" side={side}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

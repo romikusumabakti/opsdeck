@@ -258,7 +258,7 @@ function ProjectSwitcher({
                     <span className="truncate">{project.name}</span>
                     <Check
                       className={cn(
-                        "ml-auto size-4 shrink-0",
+                        "ms-auto size-4 shrink-0",
                         activeProject.id === project.id
                           ? "opacity-100"
                           : "opacity-0"
