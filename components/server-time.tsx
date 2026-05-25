@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 
 const TIME_ZONE = "Asia/Jakarta";
+const UTC_OFFSET = "+07:00";
 
-const timeFormatter = new Intl.DateTimeFormat("id-ID", {
+const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -12,11 +13,10 @@ const timeFormatter = new Intl.DateTimeFormat("id-ID", {
   timeZone: TIME_ZONE,
 });
 
-const dateFormatter = new Intl.DateTimeFormat("id-ID", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
+const dateFormatter = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
   timeZone: TIME_ZONE,
 });
 
@@ -31,18 +31,19 @@ export function ServerTime() {
 
   if (!now) {
     return (
-      <span className="text-sm tabular-nums text-muted-foreground">
-        --:--:--
+      <span className="font-mono text-xs tabular-nums text-muted-foreground/60 bg-muted/40 border border-border/50 rounded px-2 py-0.5">
+        --:--:-- <span className="text-muted-foreground/40">{UTC_OFFSET}</span>
       </span>
     );
   }
 
   return (
     <span
-      className="text-sm tabular-nums text-muted-foreground"
-      title={`${dateFormatter.format(now)} (${TIME_ZONE})`}
+      className="font-mono text-xs tabular-nums text-muted-foreground bg-muted/40 border border-border/50 rounded px-2 py-0.5"
+      title={`${dateFormatter.format(now)}T${timeFormatter.format(now)}${UTC_OFFSET} (${TIME_ZONE})`}
     >
-      {timeFormatter.format(now)} WIB
+      {timeFormatter.format(now)}{" "}
+      <span className="text-muted-foreground/50">{UTC_OFFSET}</span>
     </span>
   );
 }
