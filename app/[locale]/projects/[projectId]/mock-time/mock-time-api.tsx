@@ -141,11 +141,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     setPendingAction("travel");
     try {
       const target = combined.toISOString();
-      const result = await travelClock(
-        project,
-        target,
-        t("auditDescription.travel", { target })
-      );
+      const result = await travelClock(project, target);
       handleResult(result, {
         title: t("travel.successTitle"),
         description: t("travel.successDescription", { dateTime: displayLabel }),
@@ -166,11 +162,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     setPendingAction("freezeAt");
     try {
       const at = combined.toISOString();
-      const result = await freezeClock(
-        project,
-        at,
-        t("auditDescription.freezeAt", { at })
-      );
+      const result = await freezeClock(project, at);
       handleResult(result, {
         title: t("freeze.successTitle"),
         description: t("freeze.successDescriptionAt", {
@@ -192,11 +184,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     if (!ok) return;
     setPendingAction("freezeNow");
     try {
-      const result = await freezeClock(
-        project,
-        null,
-        t("auditDescription.freezeNow")
-      );
+      const result = await freezeClock(project, null);
       handleResult(result, {
         title: t("freeze.successTitle"),
         description: t("freeze.successDescriptionNow"),
@@ -217,11 +205,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     setPendingAction("advance");
     try {
       const duration = buildDuration(amount, advanceUnit, advanceDirection);
-      const result = await advanceClock(
-        project,
-        duration,
-        t("auditDescription.advance", { duration })
-      );
+      const result = await advanceClock(project, duration);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
@@ -248,7 +232,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     if (!ok) return;
     setPendingAction("reset");
     try {
-      const result = await resetClock(project, t("auditDescription.reset"));
+      const result = await resetClock(project);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
