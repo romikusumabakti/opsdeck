@@ -1,5 +1,5 @@
 import { formatDistanceToNow, type Locale } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -27,7 +27,7 @@ export async function DashboardKpis({ projectId }: { projectId: string }) {
     getLocale(),
     getFormatter(),
   ]);
-  const dateFnsLocale = locale === "id" ? idLocale : undefined;
+  const dateFnsLocale = getDateFnsLocale(locale);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
