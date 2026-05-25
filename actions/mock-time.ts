@@ -242,13 +242,12 @@ export async function getClockState(
 
 export async function travelClock(
   project: ProjectWithServers,
-  target: string,
-  auditDescription: string
+  target: string
 ): Promise<ApiResult<ClockState>> {
   const result = await callMutating(
     project,
     { method: "POST", path: "/travel", body: { target } },
-    auditDescription,
+    `Mock time: travel to ${target}`,
     true
   );
   if (!result.success) return result;
@@ -257,14 +256,16 @@ export async function travelClock(
 
 export async function freezeClock(
   project: ProjectWithServers,
-  at: string | null,
-  auditDescription: string
+  at: string | null
 ): Promise<ApiResult<ClockState>> {
   const body = at ? { at } : undefined;
+  const description = at
+    ? `Mock time: freeze at ${at}`
+    : "Mock time: freeze at current time";
   const result = await callMutating(
     project,
     { method: "POST", path: "/freeze", body },
-    auditDescription,
+    description,
     true
   );
   if (!result.success) return result;
@@ -273,13 +274,12 @@ export async function freezeClock(
 
 export async function advanceClock(
   project: ProjectWithServers,
-  duration: string,
-  auditDescription: string
+  duration: string
 ): Promise<ApiResult<ClockState>> {
   const result = await callMutating(
     project,
     { method: "POST", path: "/advance", body: { duration } },
-    auditDescription,
+    `Mock time: advance by ${duration}`,
     true
   );
   if (!result.success) return result;
@@ -287,14 +287,13 @@ export async function advanceClock(
 }
 
 export async function resetClock(
-  project: ProjectWithServers,
-  auditDescription: string
+  project: ProjectWithServers
 ): Promise<ApiResult<null>> {
   // DELETE /clock returns 204 No Content — don't try to parse a body.
   const result = await callMutating(
     project,
     { method: "DELETE" },
-    auditDescription,
+    "Mock time: reset to real time",
     false
   );
   if (!result.success) return result;
