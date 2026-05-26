@@ -46,7 +46,7 @@
     "showingRange": "عرض {from}-{to} من {total}",
     "selectAll": "تحديد جميع الصفوف في هذه الصفحة",
     "selectRow": "تحديد الصف",
-    "selectedCount": "{count, plural, zero {لا صفوف محددة} one {صف # محدد} two {صفان محددان} few {# صفوف محددة} many {# صفاً محدداً} other {# صف محدد}}",
+    "selectedCount": "{count, plural, zero {لا صفوف محددة} one {# صف محدد} two {صفان محددان} few {# صفوف محددة} many {# صفاً محدداً} other {# صفاً محدداً}}",
     "clearSelection": "مسح"
   },
   "breadcrumbs": {
@@ -108,9 +108,9 @@
     "skipToContent": "انتقل إلى المحتوى الرئيسي"
   },
   "activeTasks": {
-    "trigger": "{count, plural, zero {لا مهام قيد التشغيل} one {# مهمة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمة قيد التشغيل} other {# مهمة قيد التشغيل}}",
+    "trigger": "{count, plural, zero {لا مهام قيد التشغيل} one {# مهمة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمةً قيد التشغيل} other {# مهمةً قيد التشغيل}}",
     "title": "المهام الجارية",
-    "subtitle": "{count, plural, zero {لا توجد مهام قيد التشغيل} one {# مهمة تعمل حالياً} two {مهمتان تعملان حالياً} few {# مهام تعمل حالياً} many {# مهمة تعمل حالياً} other {# مهمة تعمل حالياً}}",
+    "subtitle": "{count, plural, zero {لا توجد مهام قيد التشغيل} one {# مهمة تعمل حالياً} two {مهمتان تعملان حالياً} few {# مهام تعمل حالياً} many {# مهمةً تعمل حالياً} other {# مهمةً تعمل حالياً}}",
     "notifyTitleSuccess": "اكتملت المهمة",
     "notifyTitleFailed": "فشلت المهمة"
   },
@@ -174,7 +174,7 @@
       "lastMock": "آخر محاكاة",
       "activity7d": "النشاط (7 أيام)",
       "runs": "تشغيل",
-      "successRate": "{pct}% نجاح",
+      "successRate": "{pct}% نجاحاً",
       "noCompleted": "لا توجد عمليات مكتملة بعد",
       "never": "أبداً",
       "deltaUp": "أعلى مقارنة بالـ 7 أيام الماضية",
@@ -229,7 +229,7 @@
       "paused": "متوقف مؤقتاً",
       "errored": "خطأ",
       "disconnected": "غير متصل",
-      "jumpToLatest": "الانتقال إلى الأحدث ({count} جديد)",
+      "jumpToLatest": "الانتقال إلى الأحدث ({count} جديدة)",
       "noMatches": "لا توجد سطور تطابق المرشح.",
       "connectionError": "فُقد الاتصال بتدفق السجل.",
       "loading": "جارٍ بث السجلات…",
@@ -302,7 +302,7 @@
     "legacyWarning": "هذا المشروع لا يحتوي على واجهة برمجة لمحاكاة الوقت، لذا سيغير النهج القديم ساعة الخادم ويعيد تشغيل الخلفية. ستتأثر أي خدمات أخرى تعمل على هذا الخادم أيضاً.",
     "clockState": {
       "title": "حالة الساعة",
-      "description": "الحالة الحالية لساعة الخلفية.",
+      "description": "الوضع الراهن لساعة الخلفية.",
       "now": "الآن",
       "mocked": "محاكَى",
       "frozen": "مجمّد",
@@ -536,9 +536,9 @@
     "deleteFailed": "فشل حذف الخادم",
     "deletedSuccess": "تم حذف الخادم",
     "bulkDelete": "حذف المحدد",
-    "bulkDeleteTitle": "حذف {count, plural, zero {لا خوادم} one {خادم #} two {خادمَين #} few {# خوادم} many {# خادماً} other {# خادم}}؟",
+    "bulkDeleteTitle": "حذف {count, plural, zero {لا خوادم} one {# خادم} two {# خادمَين} few {# خوادم} many {# خادماً} other {# خادم}}؟",
     "bulkDeleteDescription": "سيؤدي هذا إلى حذف الخوادم المحددة بشكل دائم. الخوادم المستخدمة بواسطة مشروع سيتم تخطيها.",
-    "bulkDeletedSuccess": "تم حذف {count, plural, zero {لا خوادم} one {خادم #} two {خادمَين #} few {# خوادم} many {# خادماً} other {# خادم}}",
+    "bulkDeletedSuccess": "تم حذف {count, plural, zero {لا خوادم} one {# خادم} two {# خادمَين} few {# خوادم} many {# خادماً} other {# خادم}}",
     "bulkDeletedPartial": "{deleted} محذوف · {failed} متخطَّى (قيد الاستخدام)",
     "searchPlaceholder": "بحث بالاسم…",
     "colName": "الاسم",
