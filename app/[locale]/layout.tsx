@@ -27,6 +27,7 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { routing } from "@/i18n/routing";
 import { isRtlLocale } from "@/i18n/locales";
+import { APP_TIMEZONE } from "@/lib/timezone";
 import { getServerSession, isAdmin } from "@/lib/auth-session";
 import "../globals.css";
 
@@ -94,7 +95,7 @@ export default async function LocaleLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${notoSansArabic.variable} antialiased`}
         style={rtl ? { fontFamily: "var(--font-noto-sans-arabic), sans-serif" } : undefined}
       >
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        <NextIntlClientProvider locale={locale} messages={messages} timeZone={APP_TIMEZONE}>
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
@@ -128,7 +129,7 @@ export default async function LocaleLayout({
                       <div className="ms-auto flex items-center gap-2">
                         <ActiveTasksIndicator />
                         <div className="hidden md:flex items-center gap-2 pe-1">
-                          <ServerTime />
+                          <ServerTime timeZone={APP_TIMEZONE} />
                         </div>
                         <CommandPalette projects={projects} isAdmin={admin} />
                       </div>
