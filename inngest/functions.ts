@@ -285,9 +285,16 @@ export const mockProjectTimeLegacy = inngest.createFunction(
         "Disabling NTP on backend server",
         async () => {
           // Stops the time daemon from reverting our manual override mid-test.
+          // `timedatectl set-ntp false` errors with "NTP not supported" when no
+          // NTP unit is registered (e.g. chronyd disabled, no timesyncd) — that
+          // just means there is nothing to revert our clock, so swallow it. Also
+          // stop the daemons directly to cover a running-but-unregistered one.
           await executeRemoteCommand(
             credentials,
-            sudo("timedatectl set-ntp false")
+            sudo(
+              "timedatectl set-ntp false 2>/dev/null; " +
+                "systemctl stop chronyd systemd-timesyncd 2>/dev/null; true"
+            )
           );
         }
       );
@@ -373,9 +380,15 @@ export const mockProjectTimeResetLegacy = inngest.createFunction(
         "enable-ntp",
         "Re-enabling NTP on backend server",
         async () => {
+          // Mirror disable-ntp: `set-ntp true` fails with "NTP not supported"
+          // on hosts with no registered NTP unit. Start chronyd directly there
+          // so the clock can resync; keep the step green either way.
           await executeRemoteCommand(
             credentials,
-            sudo("timedatectl set-ntp true")
+            sudo(
+              "timedatectl set-ntp true 2>/dev/null; " +
+                "systemctl start chronyd systemd-timesyncd 2>/dev/null; true"
+            )
           );
         }
       );
