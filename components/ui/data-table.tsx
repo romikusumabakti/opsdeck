@@ -36,7 +36,6 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -124,8 +123,11 @@ export function DataTable<TData, TValue>({
   emptyState,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
-  const isMobile = useIsMobile();
-  const cardMode = !!renderCard && isMobile;
+  // Card layout is chosen with CSS (md: breakpoint), not a JS width hook, so the
+  // correct layout renders on the first paint — no hydration flash or layout
+  // shift while a resize listener catches up. Both layouts share the same row
+  // model; only one is visible at any breakpoint.
+  const hasCardLayout = !!renderCard;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -267,6 +269,38 @@ export function DataTable<TData, TValue>({
     ? ((table.getColumn(filterColumn)?.getFilterValue() as string) ?? "")
     : "";
 
+  const hasRows = table.getRowModel().rows.length > 0;
+  const isFiltered = !!filterColumn && filterValue.trim().length > 0;
+
+  // Two distinct empty states. A filter that excludes every row is a dead end
+  // the user can recover from — offer a clear-filter affordance and echo the
+  // query. A genuinely empty data set is a different message (the caller's
+  // rich emptyState, e.g. a "create your first X" call to action).
+  const noDataContent = emptyState ?? (
+    <div className="flex h-24 items-center justify-center text-center text-muted-foreground">
+      {emptyMessage ?? t("noResults")}
+    </div>
+  );
+  const emptyContent = isFiltered ? (
+    <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+      <p className="text-sm text-muted-foreground">
+        {t("noMatch", { query: filterValue })}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => table.getColumn(filterColumn)?.setFilterValue("")}
+      >
+        {t("clearFilter")}
+      </Button>
+    </div>
+  ) : (
+    noDataContent
+  );
+  const hasHideableColumns = table
+    .getAllColumns()
+    .some((c) => c.getCanHide());
+
   const filteredCount = table.getFilteredRowModel().rows.length;
   const fromIdx =
     filteredCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
@@ -291,8 +325,7 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       )}
-      {(filterColumn ||
-        (!cardMode && table.getAllColumns().some((c) => c.getCanHide()))) && (
+      {(filterColumn || hasHideableColumns) && (
         <div className="flex items-center gap-2">
           {filterColumn && (
             <Input
@@ -304,39 +337,45 @@ export function DataTable<TData, TValue>({
               className="max-w-sm"
             />
           )}
-          {!cardMode && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="ms-auto">
-                <Settings2 className="size-4" />
-                {t("columns")}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {table
-                .getAllColumns()
-                .filter((column) => column.getCanHide())
-                .map((column) => (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {hasHideableColumns && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                {/* Column visibility only applies to the table layout; on the
+                    card layout (narrow screens) there are no columns to toggle,
+                    so the control is hidden there via CSS. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn("ms-auto", hasCardLayout && "hidden md:flex")}
+                >
+                  <Settings2 className="size-4" />
+                  {t("columns")}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {table
+                  .getAllColumns()
+                  .filter((column) => column.getCanHide())
+                  .map((column) => (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    >
+                      {column.columnDef.meta?.label ?? column.id}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       )}
-      {cardMode ? (
-        table.getRowModel().rows.length ? (
-          <div className="flex flex-col gap-3">
-            {table.getRowModel().rows.map((row) => (
+      {hasCardLayout && (
+        <div className="flex flex-col gap-3 md:hidden">
+          {hasRows ? (
+            table.getRowModel().rows.map((row) => (
               <div
                 key={row.id}
                 data-state={row.getIsSelected() ? "selected" : undefined}
@@ -355,17 +394,13 @@ export function DataTable<TData, TValue>({
                 )}
                 {renderCard?.(row.original)}
               </div>
-            ))}
-          </div>
-        ) : emptyState ? (
-          <div className="rounded-md border">{emptyState}</div>
-        ) : (
-          <div className="flex h-24 items-center justify-center rounded-md border text-center text-muted-foreground">
-            {emptyMessage ?? t("noResults")}
-          </div>
-        )
-      ) : (
-      <div className="rounded-md border">
+            ))
+          ) : (
+            <div className="rounded-md border">{emptyContent}</div>
+          )}
+        </div>
+      )}
+      <div className={cn("rounded-md border", hasCardLayout && "hidden md:block")}>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -396,7 +431,7 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {hasRows ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -417,22 +452,14 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columnsWithSelect.length}
-                  className={
-                    emptyState
-                      ? "p-0"
-                      : "h-24 text-center text-muted-foreground"
-                  }
-                >
-                  {emptyState ?? emptyMessage ?? t("noResults")}
+                <TableCell colSpan={columnsWithSelect.length} className="p-0">
+                  {emptyContent}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      )}
       {showFooter && (
         <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
           <div className="text-sm text-muted-foreground">
@@ -528,6 +555,12 @@ declare module "@tanstack/react-table" {
   interface ColumnMeta<TData extends unknown, TValue> {
     headClassName?: string;
     cellClassName?: string;
+    /**
+     * Localized label for the column-visibility menu. Falls back to the raw
+     * `column.id` when unset — always set it on hideable columns so the menu
+     * stays translated instead of leaking internal ids.
+     */
+    label?: string;
   }
 }
 
