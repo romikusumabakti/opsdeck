@@ -749,5 +749,11 @@
     "hostAndUsernameRequired": "主机和用户名为必填项",
     "passwordRequiredForTest": "请输入密码以测试连接",
     "errorGeneric": "出现错误"
+  },
+  "unsavedChanges": {
+    "title": "放弃未保存的更改？",
+    "description": "您有未保存的更改，离开此页面将会丢失。",
+    "leave": "离开",
+    "stay": "留下"
   }
 }

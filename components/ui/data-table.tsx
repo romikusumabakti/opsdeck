@@ -32,6 +32,7 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -87,6 +88,14 @@ type DataTableProps<TData, TValue> = {
    * same params.
    */
   urlKey?: string;
+  /**
+   * When set, rows render as stacked cards on narrow screens (<768px) instead
+   * of a horizontally-scrolling table. Receives the row data; the selection
+   * checkbox (when `bulkActions` is set) is rendered by the table itself, so
+   * the card only needs the row's own content. Falls back to the table layout
+   * on wider screens.
+   */
+  renderCard?: (row: TData) => React.ReactNode;
 };
 
 export function DataTable<TData, TValue>({
@@ -100,8 +109,11 @@ export function DataTable<TData, TValue>({
   bulkActions,
   canSelectRow,
   urlKey,
+  renderCard,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
+  const isMobile = useIsMobile();
+  const cardMode = !!renderCard && isMobile;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -267,7 +279,8 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       )}
-      {(filterColumn || table.getAllColumns().some((c) => c.getCanHide())) && (
+      {(filterColumn ||
+        (!cardMode && table.getAllColumns().some((c) => c.getCanHide()))) && (
         <div className="flex items-center gap-2">
           {filterColumn && (
             <Input
@@ -279,6 +292,7 @@ export function DataTable<TData, TValue>({
               className="max-w-sm"
             />
           )}
+          {!cardMode && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="ms-auto">
@@ -304,8 +318,39 @@ export function DataTable<TData, TValue>({
                 ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       )}
+      {cardMode ? (
+        table.getRowModel().rows.length ? (
+          <div className="flex flex-col gap-3">
+            {table.getRowModel().rows.map((row) => (
+              <div
+                key={row.id}
+                data-state={row.getIsSelected() ? "selected" : undefined}
+                className="rounded-lg border bg-card p-4 data-[state=selected]:border-primary data-[state=selected]:ring-1 data-[state=selected]:ring-primary"
+              >
+                {bulkActions && row.getCanSelect() && (
+                  <div className="mb-3 flex items-center">
+                    <Checkbox
+                      checked={row.getIsSelected()}
+                      onCheckedChange={(value) =>
+                        row.toggleSelected(value === true)
+                      }
+                      aria-label={t("selectRow")}
+                    />
+                  </div>
+                )}
+                {renderCard?.(row.original)}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-24 items-center justify-center rounded-md border text-center text-muted-foreground">
+            {emptyMessage ?? t("noResults")}
+          </div>
+        )
+      ) : (
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -360,6 +405,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
+      )}
       {showFooter && (
         <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
           <div className="text-sm text-muted-foreground">
