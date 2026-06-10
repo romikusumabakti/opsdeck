@@ -2,6 +2,7 @@
 
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
+import { CircleAlert } from "lucide-react";
 import * as React from "react";
 import {
   Controller,
@@ -149,9 +150,13 @@ function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="form-message"
       id={formMessageId}
-      className={cn("text-destructive text-sm", className)}
+      className={cn(
+        "text-destructive text-sm flex items-center gap-1.5",
+        className
+      )}
       {...props}
     >
+      {error && <CircleAlert className="size-3.5 shrink-0" aria-hidden="true" />}
       {body}
     </p>
   );

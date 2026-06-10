@@ -360,6 +360,15 @@ export function DataTable<TData, TValue>({
                   <TableHead
                     key={header.id}
                     className={header.column.columnDef.meta?.headClassName}
+                    aria-sort={
+                      header.column.getCanSort()
+                        ? header.column.getIsSorted() === "asc"
+                          ? "ascending"
+                          : header.column.getIsSorted() === "desc"
+                            ? "descending"
+                            : "none"
+                        : undefined
+                    }
                   >
                     {header.isPlaceholder
                       ? null
