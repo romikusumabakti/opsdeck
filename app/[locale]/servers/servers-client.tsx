@@ -161,43 +161,46 @@ export function ServersClient({ servers }: { servers: Server[] }) {
           headClassName: "w-12",
           cellClassName: "w-12",
         },
-        cell: ({ row }) => {
-          const server = row.original;
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={tCommon("openMenu")}
-                  disabled={isPending}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
-                <DropdownMenuItem
-                  onClick={() => router.push(`/servers/${server.id}`)}
-                >
-                  <Pencil className="size-4" />
-                  {tCommon("edit")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => onDelete(server)}
-                >
-                  <Trash2 className="size-4" />
-                  {tCommon("delete")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        },
+        cell: ({ row }) => (
+          <ServerActions
+            disabled={isPending}
+            menuLabel={tCommon("actions")}
+            triggerLabel={tCommon("openMenu")}
+            editLabel={tCommon("edit")}
+            deleteLabel={tCommon("delete")}
+            onEdit={() => router.push(`/servers/${row.original.id}`)}
+            onDelete={() => onDelete(row.original)}
+          />
+        ),
       },
     ],
     [t, tCommon, isPending, router, onDelete]
+  );
+
+  const renderCard = React.useCallback(
+    (server: Server) => (
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="font-medium truncate">{server.name}</span>
+          <span className="font-mono text-xs text-muted-foreground truncate">
+            {server.host}
+          </span>
+          <span className="font-mono text-xs text-muted-foreground truncate">
+            {server.username}
+          </span>
+        </div>
+        <ServerActions
+          disabled={isPending}
+          menuLabel={tCommon("actions")}
+          triggerLabel={tCommon("openMenu")}
+          editLabel={tCommon("edit")}
+          deleteLabel={tCommon("delete")}
+          onEdit={() => router.push(`/servers/${server.id}`)}
+          onDelete={() => onDelete(server)}
+        />
+      </div>
+    ),
+    [tCommon, isPending, router, onDelete]
   );
 
   if (optimisticServers.length === 0) {
@@ -228,6 +231,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
       urlKey="srv"
+      renderCard={renderCard}
       bulkActions={(ids, clearSelection) => (
         <Button
           variant="destructive"
@@ -240,5 +244,50 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         </Button>
       )}
     />
+  );
+}
+
+function ServerActions({
+  disabled,
+  menuLabel,
+  triggerLabel,
+  editLabel,
+  deleteLabel,
+  onEdit,
+  onDelete,
+}: {
+  disabled: boolean;
+  menuLabel: string;
+  triggerLabel: string;
+  editLabel: string;
+  deleteLabel: string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={triggerLabel}
+          disabled={disabled}
+        >
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
+        <DropdownMenuItem onClick={onEdit}>
+          <Pencil className="size-4" />
+          {editLabel}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+          <Trash2 className="size-4" />
+          {deleteLabel}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

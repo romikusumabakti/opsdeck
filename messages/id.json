@@ -749,5 +749,11 @@
     "hostAndUsernameRequired": "Host dan username wajib diisi",
     "passwordRequiredForTest": "Masukkan password untuk tes koneksi",
     "errorGeneric": "Terjadi kesalahan"
+  },
+  "unsavedChanges": {
+    "title": "Buang perubahan yang belum disimpan?",
+    "description": "Ada perubahan yang belum disimpan dan akan hilang jika Anda meninggalkan halaman ini.",
+    "leave": "Tinggalkan",
+    "stay": "Tetap di sini"
   }
 }
