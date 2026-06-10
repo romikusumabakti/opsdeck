@@ -32,15 +32,7 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
   const [compress, setCompress] = React.useState(true);
   const [submitting, startTransition] = React.useTransition();
 
-  async function onClick() {
-    const ok = await dialog.confirm({
-      title: t("confirmTitle"),
-      description: t("confirmDescription", { dbName: project.dbName }),
-      confirmText: t("confirmButton"),
-      cancelText: tCommon("cancel"),
-    });
-    if (!ok) return;
-
+  const runBackup = React.useCallback(() => {
     startTransition(async () => {
       try {
         const { taskId } = await createDatabaseBackup({ ...project, compress });
@@ -54,6 +46,17 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
         );
       }
     });
+  }, [project, compress, t, tCommon]);
+
+  async function onClick() {
+    const ok = await dialog.confirm({
+      title: t("confirmTitle"),
+      description: t("confirmDescription", { dbName: project.dbName }),
+      confirmText: t("confirmButton"),
+      cancelText: tCommon("cancel"),
+    });
+    if (!ok) return;
+    runBackup();
   }
 
   function onTaskSuccess(snapshot: { output: string }) {
@@ -126,6 +129,7 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
           <code className="font-mono text-xs">{project.dbName}</code>
         }
         onSuccess={onTaskSuccess}
+        onRetry={runBackup}
         footer={
           lastFilename && activeTaskId ? (
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">

@@ -42,9 +42,6 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
 }
 
 :root {
@@ -124,6 +121,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Indeterminate progress bar: a segment sweeps across the track while a task
+   runs and its real completion percentage is unknown. Honest signal of
+   activity without faking a percentage. Reduced-motion users get a static
+   full-width pulse instead (see motion-reduce utilities at the call site). */
+@keyframes indeterminate-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
   }
 }
 
