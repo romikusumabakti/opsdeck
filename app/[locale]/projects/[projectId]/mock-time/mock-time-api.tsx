@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   Clock,
   FastForward,
@@ -33,7 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 import { DateTimePicker } from "./date-time-picker";
 
 type AdvanceUnit = "minutes" | "hours" | "days";
@@ -55,7 +55,7 @@ function buildDuration(
   }
 }
 
-export function MockTimeApi({ project }: { project: ProjectWithServers }) {
+export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -95,7 +95,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
       if (!silent) setPendingAction("refresh");
       setClockLoading(true);
       setClockError(null);
-      const result = await getClockState(project);
+      const result = await getClockState(project.id);
       setClockLoading(false);
       if (!silent) setPendingAction(null);
       if (!result.success) {
@@ -141,7 +141,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     setPendingAction("travel");
     try {
       const target = combined.toISOString();
-      const result = await travelClock(project, target);
+      const result = await travelClock(project.id, target);
       handleResult(result, {
         title: t("travel.successTitle"),
         description: t("travel.successDescription", { dateTime: displayLabel }),
@@ -162,7 +162,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     setPendingAction("freezeAt");
     try {
       const at = combined.toISOString();
-      const result = await freezeClock(project, at);
+      const result = await freezeClock(project.id, at);
       handleResult(result, {
         title: t("freeze.successTitle"),
         description: t("freeze.successDescriptionAt", {
@@ -184,7 +184,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     if (!ok) return;
     setPendingAction("freezeNow");
     try {
-      const result = await freezeClock(project, null);
+      const result = await freezeClock(project.id, null);
       handleResult(result, {
         title: t("freeze.successTitle"),
         description: t("freeze.successDescriptionNow"),
@@ -205,7 +205,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     setPendingAction("advance");
     try {
       const duration = buildDuration(amount, advanceUnit, advanceDirection);
-      const result = await advanceClock(project, duration);
+      const result = await advanceClock(project.id, duration);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
@@ -232,7 +232,7 @@ export function MockTimeApi({ project }: { project: ProjectWithServers }) {
     if (!ok) return;
     setPendingAction("reset");
     try {
-      const result = await resetClock(project);
+      const result = await resetClock(project.id);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;

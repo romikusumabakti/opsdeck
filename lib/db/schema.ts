@@ -1,6 +1,7 @@
 import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
 import {
   boolean,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -30,50 +31,60 @@ export const servers = pgTable("servers", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const projects = pgTable("projects", {
-  id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  name: text("name").notNull(),
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    name: text("name").notNull(),
 
-  // --- Database ---
-  dbServerId: uuid("db_server_id")
-    .notNull()
-    .references(() => servers.id, { onDelete: "restrict" }),
-  dbServiceType: serviceTypeEnum("db_service_type").notNull(),
-  dbServiceName: text("db_service_name").notNull(),
-  dbType: databaseTypeEnum("db_type").notNull(),
-  dbName: text("db_name").notNull(),
-  // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
-  // relies on trusted local auth (`-U postgres`) inside the container.
-  dbPassword: text("db_password"),
-  // Where backup files live. Interpretation depends on dbServiceType:
-  // docker/kubernetes — path inside the container/pod (bind-mount and PVC
-  // configuration are the operator's concern); systemd — path on the host
-  // filesystem, which must be writable by the DB's OS user (postgres/mssql).
-  dbBackupPath: text("db_backup_path").notNull(),
+    // --- Database ---
+    dbServerId: uuid("db_server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    dbServiceType: serviceTypeEnum("db_service_type").notNull(),
+    dbServiceName: text("db_service_name").notNull(),
+    dbType: databaseTypeEnum("db_type").notNull(),
+    dbName: text("db_name").notNull(),
+    // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
+    // relies on trusted local auth (`-U postgres`) inside the container.
+    dbPassword: text("db_password"),
+    // Where backup files live. Interpretation depends on dbServiceType:
+    // docker/kubernetes — path inside the container/pod (bind-mount and PVC
+    // configuration are the operator's concern); systemd — path on the host
+    // filesystem, which must be writable by the DB's OS user (postgres/mssql).
+    dbBackupPath: text("db_backup_path").notNull(),
 
-  // --- Backend ---
-  backendServerId: uuid("backend_server_id")
-    .notNull()
-    .references(() => servers.id, { onDelete: "restrict" }),
-  backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
-  backendServiceName: text("backend_service_name").notNull(),
-  // URL of the project's clock resource (e.g. `https://api.example.com/v1/clock`).
-  // When set, the time-mocking feature talks to this REST API
-  // (GET/DELETE the URL itself, POST to `/travel`, `/freeze`, `/advance`)
-  // per docs/time-mocking-api.md. When unset, falls back to the legacy
-  // `date -s` + service restart approach.
-  backendMockTimeApiUrl: text("backend_mock_time_api_url"),
-  // Optional API key sent as the `X-Api-Key` header on every mock-time API
-  // request. Leave null when the endpoint is unauthenticated.
-  backendMockTimeApiKey: text("backend_mock_time_api_key"),
+    // --- Backend ---
+    backendServerId: uuid("backend_server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
+    backendServiceName: text("backend_service_name").notNull(),
+    // URL of the project's clock resource (e.g. `https://api.example.com/v1/clock`).
+    // When set, the time-mocking feature talks to this REST API
+    // (GET/DELETE the URL itself, POST to `/travel`, `/freeze`, `/advance`)
+    // per docs/time-mocking-api.md. When unset, falls back to the legacy
+    // `date -s` + service restart approach.
+    backendMockTimeApiUrl: text("backend_mock_time_api_url"),
+    // Optional API key sent as the `X-Api-Key` header on every mock-time API
+    // request. Leave null when the endpoint is unauthenticated.
+    backendMockTimeApiKey: text("backend_mock_time_api_key"),
 
-  // --- Frontend ---
-  frontendServerId: uuid("frontend_server_id")
-    .notNull()
-    .references(() => servers.id, { onDelete: "restrict" }),
-  frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
-  frontendServiceName: text("frontend_service_name").notNull(),
-});
+    // --- Frontend ---
+    frontendServerId: uuid("frontend_server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
+    frontendServiceName: text("frontend_service_name").notNull(),
+  },
+  (t) => [
+    // FK columns are filtered/joined on every server-usage lookup and the
+    // onDelete:restrict checks; index them so those don't seq-scan `projects`.
+    index("projects_db_server_idx").on(t.dbServerId),
+    index("projects_backend_server_idx").on(t.backendServerId),
+    index("projects_frontend_server_idx").on(t.frontendServerId),
+  ]
+);
 
 export const taskStatusEnum = pgEnum("task_status", [
   "started",
@@ -81,24 +92,36 @@ export const taskStatusEnum = pgEnum("task_status", [
   "failed",
 ]);
 
-export const tasks = pgTable("tasks", {
-  id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  projectId: uuid("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  // Nullable + set null on user delete: preserve audit history even after the
-  // initiating user is removed. UI shows "Unknown" when null.
-  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-  description: text("description").notNull(),
-  status: taskStatusEnum("status").notNull().default("started"),
-  // Streaming log appended by Inngest steps via appendTaskOutput. Lines are
-  // separated by `\n`; the SSE endpoint emits the full snapshot on each tick.
-  output: text("output").notNull().default(""),
-  errorMessage: text("error_message"),
-  runAt: timestamp("run_at").notNull(),
-  // Null while still running. Set once status transitions to success/failed.
-  completedAt: timestamp("completed_at"),
-});
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Nullable + set null on user delete: preserve audit history even after the
+    // initiating user is removed. UI shows "Unknown" when null.
+    userId: uuid("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull(),
+    status: taskStatusEnum("status").notNull().default("started"),
+    // Streaming log appended by Inngest steps via appendTaskOutput. Lines are
+    // separated by `\n`; the SSE endpoint emits the full snapshot on each tick.
+    output: text("output").notNull().default(""),
+    errorMessage: text("error_message"),
+    runAt: timestamp("run_at").notNull(),
+    // Null while still running. Set once status transitions to success/failed.
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => [
+    // Every task query filters by projectId and orders by runAt desc
+    // (getProjectTasks, getProjectKpis, findLatestByKind, DISTINCT ON).
+    index("tasks_project_run_idx").on(t.projectId, t.runAt.desc()),
+    // getRunningTasks filters status='started'.
+    index("tasks_status_idx").on(t.status),
+  ]
+);
 
 // =========================
 // Auth (better-auth) tables
@@ -121,42 +144,56 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const sessions = pgTable("sessions", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
-  expiresAt: timestamp("expires_at").notNull(),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  // Set by the admin plugin during impersonation; null on normal sessions.
-  impersonatedBy: uuid("impersonated_by").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    // Set by the admin plugin during impersonation; null on normal sessions.
+    impersonatedBy: uuid("impersonated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // better-auth resolves the session by userId on every authenticated request.
+    index("sessions_user_idx").on(t.userId),
+  ]
+);
 
-export const accounts = pgTable("accounts", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  // accountId/providerId are external identifiers (provider's user id, OAuth
-  // provider name) — keep as text since they're not always UUID-shaped.
-  accountId: text("account_id").notNull(),
-  providerId: text("provider_id").notNull(),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at"),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
-  scope: text("scope"),
-  idToken: text("id_token"),
-  password: text("password"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // accountId/providerId are external identifiers (provider's user id, OAuth
+    // provider name) — keep as text since they're not always UUID-shaped.
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    idToken: text("id_token"),
+    password: text("password"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // better-auth looks up the credential account by userId on sign-in / linking.
+    index("accounts_user_idx").on(t.userId),
+  ]
+);
 
 export const verifications = pgTable("verifications", {
   id: uuid("id").primaryKey(),
@@ -171,22 +208,29 @@ export const verifications = pgTable("verifications", {
 // Custom: invitations
 // =========================
 
-export const invitations = pgTable("invitations", {
-  id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  email: text("email").notNull(),
-  name: text("name").notNull(),
-  // The role assigned to the user upon accepting the invitation. Validated
-  // against ROLE_ADMIN/ROLE_MEMBER in actions/users.ts.
-  role: text("role").notNull().default("member"),
-  // token is a separate random secret used in the invite URL — keep as text.
-  token: text("token").notNull().unique(),
-  invitedById: uuid("invited_by_id").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  expiresAt: timestamp("expires_at").notNull(),
-  acceptedAt: timestamp("accepted_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    // The role assigned to the user upon accepting the invitation. Validated
+    // against ROLE_ADMIN/ROLE_MEMBER in actions/users.ts.
+    role: text("role").notNull().default("member"),
+    // token is a separate random secret used in the invite URL — keep as text.
+    token: text("token").notNull().unique(),
+    invitedById: uuid("invited_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at").notNull(),
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // inviteUser looks up existing invites by email before issuing a new one.
+    index("invitations_email_idx").on(t.email),
+  ]
+);
 
 export type Server = InferSelectModel<typeof servers>;
 export type NewServer = InferInsertModel<typeof servers>;
@@ -198,6 +242,26 @@ export type ProjectWithServers = Project & {
   dbServer: Server;
   backendServer: Server;
   frontendServer: Server;
+};
+
+// Credential-free projections handed to the client. SSH passwords, the mssql
+// `sa` password, and the mock-time API key must never cross the server/client
+// boundary (RSC payloads are visible in the browser). Server code loads the
+// full `ProjectWithServers` via lib/projects#loadProjectWithServers; anything
+// passed to a client component must be sanitized to these shapes first.
+export type SafeServer = Omit<Server, "password">;
+
+export type SafeProjectWithServers = Omit<
+  Project,
+  "dbPassword" | "backendMockTimeApiKey"
+> & {
+  dbServer: SafeServer;
+  backendServer: SafeServer;
+  frontendServer: SafeServer;
+  // Presence flags let edit forms show a "leave blank to keep" affordance and
+  // validate mssql password requirements without ever receiving the secret.
+  hasDbPassword: boolean;
+  hasMockTimeApiKey: boolean;
 };
 
 export type Task = InferSelectModel<typeof tasks>;

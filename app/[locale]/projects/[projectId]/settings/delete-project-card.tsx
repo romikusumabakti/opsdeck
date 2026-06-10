@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
 
-export function DeleteProjectCard({ project }: { project: Project }) {
+export function DeleteProjectCard({
+  project,
+}: {
+  project: Pick<Project, "id" | "name">;
+}) {
   const t = useTranslations("projectSettings");
   const tCommon = useTranslations("common");
   const dialog = useDialog();

@@ -1,5 +1,4 @@
 import { formatDistanceToNow, type Locale } from "date-fns";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -17,6 +16,7 @@ import { getProjectKpis, type KpiEntry } from "@/actions/tasks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Task } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 

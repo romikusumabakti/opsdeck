@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { ChevronDownIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -14,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
