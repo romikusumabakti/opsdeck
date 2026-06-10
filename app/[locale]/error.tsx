@@ -27,6 +27,16 @@ export default function LocaleError({
         </div>
         <h1 className="text-xl font-semibold">{t("errorTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("errorDescription")}</p>
+        {error.message && (
+          <div className="w-full rounded-md border bg-muted/40 px-3 py-2 text-start">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("errorDetails")}
+            </span>
+            <p className="mt-0.5 font-mono text-xs text-foreground/80 break-words">
+              {error.message}
+            </p>
+          </div>
+        )}
         {error.digest && (
           <code className="font-mono text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
             {error.digest}

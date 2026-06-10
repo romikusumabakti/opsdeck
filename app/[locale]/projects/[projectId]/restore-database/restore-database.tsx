@@ -45,6 +45,27 @@ export function RestoreDatabase({
 
   const backup = backups.find((b) => b.name === value);
 
+  const runRestore = React.useCallback(() => {
+    if (!backup) return;
+    startTransition(async () => {
+      try {
+        const { taskId } = await restoreDatabaseBackup({
+          ...project,
+          filename: backup.name,
+          restartBackend,
+        });
+        setActiveTaskId(taskId);
+        toast.success(t("successTitle"), {
+          description: t("successDescription", { dbName: project.dbName }),
+        });
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : tCommon("errorGeneric")
+        );
+      }
+    });
+  }, [backup, project, restartBackend, t, tCommon]);
+
   function onRestore() {
     if (!backup) return;
     void (async () => {
@@ -59,23 +80,7 @@ export function RestoreDatabase({
         destructive: true,
       });
       if (!ok) return;
-      startTransition(async () => {
-        try {
-          const { taskId } = await restoreDatabaseBackup({
-            ...project,
-            filename: backup.name,
-            restartBackend,
-          });
-          setActiveTaskId(taskId);
-          toast.success(t("successTitle"), {
-            description: t("successDescription", { dbName: project.dbName }),
-          });
-        } catch (err) {
-          toast.error(
-            err instanceof Error ? err.message : tCommon("errorGeneric")
-          );
-        }
-      });
+      runRestore();
     })();
   }
 
@@ -191,6 +196,7 @@ export function RestoreDatabase({
           if (!open) setActiveTaskId(null);
         }}
         title={t("title")}
+        onRetry={runRestore}
         description={
           <>
             <code className="font-mono text-xs">{project.dbName}</code>

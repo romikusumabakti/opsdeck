@@ -31,7 +31,8 @@
     "errorTitle": "Something went wrong",
     "errorDescription": "An unexpected error occurred. You can try again or head back home.",
     "notFoundTitle": "Page not found",
-    "notFoundDescription": "The page you’re looking for doesn’t exist or has been moved."
+    "notFoundDescription": "The page you’re looking for doesn’t exist or has been moved.",
+    "errorDetails": "Details"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -413,7 +414,10 @@
     "waitingForOutput": "Waiting for output…",
     "notFound": "Task not found.",
     "connectionError": "Lost connection. Reload the page to resume streaming.",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "retry": "Retry",
+    "reconnecting": "Reconnecting…",
+    "currentStep": "Current step"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

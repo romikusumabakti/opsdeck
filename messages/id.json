@@ -31,7 +31,8 @@
     "errorTitle": "Terjadi kesalahan",
     "errorDescription": "Terjadi kesalahan tak terduga. Anda dapat mencoba lagi atau kembali ke beranda.",
     "notFoundTitle": "Halaman tidak ditemukan",
-    "notFoundDescription": "Halaman yang Anda cari tidak ada atau telah dipindahkan."
+    "notFoundDescription": "Halaman yang Anda cari tidak ada atau telah dipindahkan.",
+    "errorDetails": "Detail"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -413,7 +414,10 @@
     "waitingForOutput": "Menunggu output…",
     "notFound": "Task tidak ditemukan.",
     "connectionError": "Koneksi terputus. Muat ulang halaman untuk melanjutkan streaming.",
-    "dismiss": "Tutup"
+    "dismiss": "Tutup",
+    "retry": "Coba lagi",
+    "reconnecting": "Menghubungkan kembali…",
+    "currentStep": "Langkah saat ini"
   },
   "shortcuts": {
     "title": "Pintasan keyboard",

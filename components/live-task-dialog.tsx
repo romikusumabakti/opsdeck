@@ -17,6 +17,8 @@ type Props = {
   description?: React.ReactNode;
   // Forwarded to LiveTaskPanel — fires when the task succeeds.
   onSuccess?: React.ComponentProps<typeof LiveTaskPanel>["onSuccess"];
+  // Forwarded to LiveTaskPanel — re-triggers the operation on failure.
+  onRetry?: () => void;
   // Optional content rendered below the live panel (e.g. copy filename).
   footer?: React.ReactNode;
 };
@@ -31,6 +33,7 @@ export function LiveTaskDialog({
   title,
   description,
   onSuccess,
+  onRetry,
   footer,
 }: Props) {
   return (
@@ -47,7 +50,12 @@ export function LiveTaskDialog({
           )}
         </DialogHeader>
         {taskId && (
-          <LiveTaskPanel key={taskId} taskId={taskId} onSuccess={onSuccess} />
+          <LiveTaskPanel
+            key={taskId}
+            taskId={taskId}
+            onSuccess={onSuccess}
+            onRetry={onRetry}
+          />
         )}
         {footer}
       </DialogContent>
