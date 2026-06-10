@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CircleAlert,
   Loader2,
+  RotateCcw,
   Terminal,
   X,
 } from "lucide-react";
@@ -34,7 +35,22 @@ type Props = {
   // Fires once when the task transitions into success — handy for parents
   // that want to surface a result (e.g. copy generated filename to clipboard).
   onSuccess?: (snapshot: TaskSnapshot) => void;
+  // When set, a Retry button is shown on failure. The parent re-triggers the
+  // original operation (it owns the action + its params, not this panel).
+  onRetry?: () => void;
 };
+
+// Last non-empty output line, stripped of its `[timestamp]` prefix — used as a
+// human-readable "current step" while the task runs.
+function lastStep(output: string | undefined): string | null {
+  if (!output) return null;
+  const lines = output.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (line) return line.replace(/^\[[^\]]*\]\s*/, "");
+  }
+  return null;
+}
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -45,10 +61,16 @@ function formatDuration(ms: number): string {
   return `${m}m ${rs}s`;
 }
 
-export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
+export function LiveTaskPanel({
+  taskId,
+  onDismiss,
+  onSuccess,
+  onRetry,
+}: Props) {
   const t = useTranslations("liveTask");
   const [snapshot, setSnapshot] = React.useState<TaskSnapshot | null>(null);
   const [streamError, setStreamError] = React.useState<string | null>(null);
+  const [reconnecting, setReconnecting] = React.useState(false);
   const [logsOpen, setLogsOpen] = React.useState(true);
   const logRef = React.useRef<HTMLPreElement>(null);
   const userScrolledRef = React.useRef(false);
@@ -82,12 +104,15 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
   React.useEffect(() => {
     setSnapshot(null);
     setStreamError(null);
+    setReconnecting(false);
     successFiredRef.current = false;
     const es = new EventSource(`/api/tasks/${taskId}/stream`);
 
     es.addEventListener("snapshot", (ev) => {
       try {
         const data = JSON.parse((ev as MessageEvent).data) as TaskSnapshot;
+        // A frame arrived — any prior transient reconnect has resolved.
+        setReconnecting(false);
         setSnapshot(data);
         if (
           data.status === "success" &&
@@ -115,8 +140,12 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
     });
 
     es.onerror = () => {
-      // EventSource auto-reconnects on transient errors. We only surface a
-      // hard error if no snapshot has arrived within 5s.
+      // EventSource auto-reconnects on transient errors. Surface a soft
+      // "reconnecting" hint while a still-running task drops its connection,
+      // and only a hard error if no snapshot ever arrives within 5s.
+      if (snapshotRef.current?.status === "started") {
+        setReconnecting(true);
+      }
       setTimeout(() => {
         if (!snapshotRef.current) setStreamError(t("connectionError"));
       }, 5000);
@@ -150,6 +179,7 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
     ? (snapshot.completedAt ? new Date(snapshot.completedAt).getTime() : now) -
       new Date(snapshot.runAt).getTime()
     : 0;
+  const step = status === "started" ? lastStep(snapshot?.output) : null;
 
   return (
     <div
@@ -167,11 +197,20 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
           <span className="text-sm font-medium truncate">
             {snapshot?.description ?? t("starting")}
           </span>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {t("elapsed", { duration: formatDuration(elapsed) })}
+          <span className="text-xs text-muted-foreground truncate">
+            <span className="tabular-nums">
+              {t("elapsed", { duration: formatDuration(elapsed) })}
+            </span>
+            {step ? ` · ${step}` : ""}
           </span>
         </div>
         <StatusBadge status={status} t={t} />
+        {onRetry && status === "failed" && (
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            <RotateCcw className="size-3.5" />
+            {t("retry")}
+          </Button>
+        )}
         {onDismiss && status !== "started" && (
           <Button
             variant="ghost"
@@ -183,6 +222,23 @@ export function LiveTaskPanel({ taskId, onDismiss, onSuccess }: Props) {
           </Button>
         )}
       </div>
+
+      {status === "started" && (
+        <div
+          className="h-0.5 w-full overflow-hidden bg-primary/15"
+          role="progressbar"
+          aria-label={snapshot?.description ?? t("starting")}
+        >
+          <div className="h-full w-1/3 bg-primary motion-safe:animate-[indeterminate-progress_1.3s_ease-in-out_infinite] motion-reduce:w-full motion-reduce:animate-pulse" />
+        </div>
+      )}
+
+      {reconnecting && status === "started" && (
+        <div className="px-4 py-2 text-xs text-muted-foreground border-b flex items-center gap-2">
+          <Loader2 className="size-3 animate-spin shrink-0" />
+          {t("reconnecting")}
+        </div>
+      )}
 
       {streamError && (
         <div className="px-4 py-3 text-sm text-destructive border-b flex items-center gap-2">

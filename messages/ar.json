@@ -31,7 +31,8 @@
     "errorTitle": "حدث خطأ ما",
     "errorDescription": "حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى أو العودة إلى الرئيسية.",
     "notFoundTitle": "الصفحة غير موجودة",
-    "notFoundDescription": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها."
+    "notFoundDescription": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
+    "errorDetails": "التفاصيل"
   },
   "dataTable": {
     "searchPlaceholder": "بحث…",
@@ -413,7 +414,10 @@
     "waitingForOutput": "في انتظار الإخراج…",
     "notFound": "لم يتم العثور على المهمة.",
     "connectionError": "فُقد الاتصال. أعد تحميل الصفحة لاستئناف البث.",
-    "dismiss": "إغلاق"
+    "dismiss": "إغلاق",
+    "retry": "إعادة المحاولة",
+    "reconnecting": "جارٍ إعادة الاتصال…",
+    "currentStep": "الخطوة الحالية"
   },
   "shortcuts": {
     "title": "اختصارات لوحة المفاتيح",

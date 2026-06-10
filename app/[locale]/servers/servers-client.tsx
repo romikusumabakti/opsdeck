@@ -2,7 +2,6 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-  ArrowUpDown,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -16,7 +15,7 @@ import { toast } from "sonner";
 import { bulkDeleteServers, deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,16 +97,20 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         if (result.failed.length === 0) {
           toast.success(t("bulkDeletedSuccess", { count: result.deleted }));
         } else {
+          const failedNames = result.failed
+            .map((f) => servers.find((s) => s.id === f.id)?.name ?? f.id)
+            .join(", ");
           toast.warning(
             t("bulkDeletedPartial", {
               deleted: result.deleted,
               failed: result.failed.length,
-            })
+            }),
+            { description: failedNames }
           );
         }
       });
     },
-    [dialog, t, tCommon, removeOptimistic]
+    [dialog, t, tCommon, removeOptimistic, servers]
   );
 
   const columns = React.useMemo<ColumnDef<Server>[]>(
@@ -115,15 +118,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       {
         accessorKey: "name",
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            {t("colName")}
-            <ArrowUpDown className="size-3.5" />
-          </Button>
+          <DataTableColumnHeader column={column} title={t("colName")} />
         ),
         cell: ({ row }) => (
           <span className="font-medium">{row.getValue("name")}</span>
@@ -132,15 +127,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       {
         accessorKey: "host",
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            {t("colHost")}
-            <ArrowUpDown className="size-3.5" />
-          </Button>
+          <DataTableColumnHeader column={column} title={t("colHost")} />
         ),
         cell: ({ row }) => (
           <span className="font-mono text-xs">{row.getValue("host")}</span>

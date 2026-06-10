@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-  ArrowUpDown,
   Mail,
   MoreHorizontal,
   Pencil,
@@ -39,7 +38,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -346,16 +345,20 @@ export function UsersClient({
         if (result.failed.length === 0) {
           toast.success(t("bulkDeletedSuccess", { count: result.deleted }));
         } else {
+          const failedNames = result.failed
+            .map((f) => users.find((u) => u.id === f.id)?.name ?? f.id)
+            .join(", ");
           toast.warning(
             t("bulkDeletedPartial", {
               deleted: result.deleted,
               failed: result.failed.length,
-            })
+            }),
+            { description: failedNames }
           );
         }
       });
     },
-    [dialog, t, tCommon, currentUserId, applyOptimisticUsers]
+    [dialog, t, tCommon, currentUserId, applyOptimisticUsers, users]
   );
 
   const onBulkRevoke = React.useCallback(
@@ -475,15 +478,7 @@ export function UsersClient({
       {
         accessorKey: "name",
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            {t("colUser")}
-            <ArrowUpDown className="size-3.5" />
-          </Button>
+          <DataTableColumnHeader column={column} title={t("colUser")} />
         ),
         cell: ({ row }) => renderUserIdentity(row.original),
       },
@@ -501,15 +496,7 @@ export function UsersClient({
       {
         accessorKey: "name",
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            {t("colInvitee")}
-            <ArrowUpDown className="size-3.5" />
-          </Button>
+          <DataTableColumnHeader column={column} title={t("colInvitee")} />
         ),
         cell: ({ row }) => {
           const inv = row.original;

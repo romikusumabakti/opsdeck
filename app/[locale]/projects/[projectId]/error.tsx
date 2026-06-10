@@ -30,6 +30,16 @@ export default function ProjectError({
           <p className="text-sm text-muted-foreground mt-0.5">
             {t("errorDescription")}
           </p>
+          {error.message && (
+            <div className="mt-2 rounded-md border bg-muted/40 px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("errorDetails")}
+              </span>
+              <p className="mt-0.5 font-mono text-xs text-foreground/80 break-words">
+                {error.message}
+              </p>
+            </div>
+          )}
           {error.digest && (
             <code className="font-mono text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mt-2 inline-block">
               {error.digest}

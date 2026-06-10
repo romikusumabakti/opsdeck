@@ -15,13 +15,17 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronsUpDown,
   Settings2,
 } from "lucide-react";
+import type { Column } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import {
   usePathname,
@@ -33,6 +37,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -96,6 +101,12 @@ type DataTableProps<TData, TValue> = {
    * on wider screens.
    */
   renderCard?: (row: TData) => React.ReactNode;
+  /**
+   * Rich empty state (icon + message + optional action) shown when there are
+   * no rows — including when a filter excludes everything. Falls back to the
+   * plain `emptyMessage` text when not provided.
+   */
+  emptyState?: React.ReactNode;
 };
 
 export function DataTable<TData, TValue>({
@@ -110,6 +121,7 @@ export function DataTable<TData, TValue>({
   canSelectRow,
   urlKey,
   renderCard,
+  emptyState,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
   const isMobile = useIsMobile();
@@ -345,6 +357,8 @@ export function DataTable<TData, TValue>({
               </div>
             ))}
           </div>
+        ) : emptyState ? (
+          <div className="rounded-md border">{emptyState}</div>
         ) : (
           <div className="flex h-24 items-center justify-center rounded-md border text-center text-muted-foreground">
             {emptyMessage ?? t("noResults")}
@@ -405,9 +419,13 @@ export function DataTable<TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columnsWithSelect.length}
-                  className="h-24 text-center text-muted-foreground"
+                  className={
+                    emptyState
+                      ? "p-0"
+                      : "h-24 text-center text-muted-foreground"
+                  }
                 >
-                  {emptyMessage ?? t("noResults")}
+                  {emptyState ?? emptyMessage ?? t("noResults")}
                 </TableCell>
               </TableRow>
             )}
@@ -511,6 +529,39 @@ declare module "@tanstack/react-table" {
     headClassName?: string;
     cellClassName?: string;
   }
+}
+
+/**
+ * Sortable column header button. Unlike a static sort icon, the trailing glyph
+ * reflects the live sort state — ascending, descending, or unsorted — so the
+ * direction is visible, not just announced via `aria-sort`. Use in a column's
+ * `header` render: `header: ({ column }) => <DataTableColumnHeader column={column} title={t("colName")} />`.
+ */
+export function DataTableColumnHeader<TData, TValue>({
+  column,
+  title,
+}: {
+  column: Column<TData, TValue>;
+  title: string;
+}) {
+  if (!column.getCanSort()) {
+    return <span>{title}</span>;
+  }
+  const sorted = column.getIsSorted();
+  const Icon =
+    sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ChevronsUpDown;
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="-ms-3 h-8 data-[sorted=true]:text-foreground"
+      data-sorted={sorted !== false}
+      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+    >
+      {title}
+      <Icon className={cn("size-3.5", sorted === false && "opacity-50")} />
+    </Button>
+  );
 }
 
 function readSortingFromParams(

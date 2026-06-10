@@ -31,7 +31,8 @@
     "errorTitle": "出现错误",
     "errorDescription": "发生意外错误。您可以重试或返回首页。",
     "notFoundTitle": "页面未找到",
-    "notFoundDescription": "您查找的页面不存在或已被移动。"
+    "notFoundDescription": "您查找的页面不存在或已被移动。",
+    "errorDetails": "详情"
   },
   "dataTable": {
     "searchPlaceholder": "搜索…",
@@ -413,7 +414,10 @@
     "waitingForOutput": "等待输出…",
     "notFound": "未找到任务。",
     "connectionError": "连接丢失。请重新加载页面以恢复流式传输。",
-    "dismiss": "关闭"
+    "dismiss": "关闭",
+    "retry": "重试",
+    "reconnecting": "正在重新连接…",
+    "currentStep": "当前步骤"
   },
   "shortcuts": {
     "title": "键盘快捷键",
