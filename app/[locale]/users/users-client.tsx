@@ -382,6 +382,94 @@ export function UsersClient({
     [dialog, t, tCommon, applyOptimistic]
   );
 
+  const renderUserActions = React.useCallback(
+    (user: UserRow) => {
+      const isSelf = user.id === currentUserId;
+      const isAdmin = user.role === ROLE_ADMIN;
+      const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={tCommon("openMenu")}
+              disabled={isPending}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onRename(user)}>
+              <Pencil className="size-4" />
+              {t("renameAction")}
+            </DropdownMenuItem>
+            {!isSelf && (
+              <DropdownMenuItem onClick={() => onChangeRole(user, nextRole)}>
+                {isAdmin ? (
+                  <UserCog className="size-4" />
+                ) : (
+                  <ShieldCheck className="size-4" />
+                )}
+                {t(`roleChangeTo.${nextRole}`)}
+              </DropdownMenuItem>
+            )}
+            {!isSelf && <DropdownMenuSeparator />}
+            {!isSelf && (
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => onDelete(user)}
+              >
+                <Trash2 className="size-4" />
+                {tCommon("delete")}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+    [currentUserId, t, tCommon, isPending, onDelete, onChangeRole, onRename]
+  );
+
+  const renderUserIdentity = React.useCallback(
+    (user: UserRow) => {
+      const isYou = user.id === currentUserId;
+      return (
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
+            {getInitials(user.name || user.email)}
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-medium truncate">{user.name}</span>
+              {isYou && (
+                <Badge variant="secondary" className="text-xs">
+                  {tCommon("you")}
+                </Badge>
+              )}
+              <RoleBadge role={user.role} t={t} />
+            </div>
+            <div className="text-sm text-muted-foreground truncate">
+              {user.email}
+            </div>
+          </div>
+        </div>
+      );
+    },
+    [currentUserId, t, tCommon]
+  );
+
+  const renderUserCard = React.useCallback(
+    (user: UserRow) => (
+      <div className="flex items-start justify-between gap-3">
+        {renderUserIdentity(user)}
+        {renderUserActions(user)}
+      </div>
+    ),
+    [renderUserIdentity, renderUserActions]
+  );
+
   const userColumns = React.useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
@@ -397,87 +485,15 @@ export function UsersClient({
             <ArrowUpDown className="size-3.5" />
           </Button>
         ),
-        cell: ({ row }) => {
-          const user = row.original;
-          const isYou = user.id === currentUserId;
-          return (
-            <div className="flex items-center gap-3">
-              <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
-                {getInitials(user.name || user.email)}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium truncate">{user.name}</span>
-                  {isYou && (
-                    <Badge variant="secondary" className="text-xs">
-                      {tCommon("you")}
-                    </Badge>
-                  )}
-                  <RoleBadge role={user.role} t={t} />
-                </div>
-                <div className="text-sm text-muted-foreground truncate">
-                  {user.email}
-                </div>
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }) => renderUserIdentity(row.original),
       },
       {
         id: "actions",
         meta: { headClassName: "w-12", cellClassName: "w-12" },
-        cell: ({ row }) => {
-          const user = row.original;
-          const isSelf = user.id === currentUserId;
-          const isAdmin = user.role === ROLE_ADMIN;
-          const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={tCommon("openMenu")}
-                  disabled={isPending}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => onRename(user)}>
-                  <Pencil className="size-4" />
-                  {t("renameAction")}
-                </DropdownMenuItem>
-                {!isSelf && (
-                  <DropdownMenuItem
-                    onClick={() => onChangeRole(user, nextRole)}
-                  >
-                    {isAdmin ? (
-                      <UserCog className="size-4" />
-                    ) : (
-                      <ShieldCheck className="size-4" />
-                    )}
-                    {t(`roleChangeTo.${nextRole}`)}
-                  </DropdownMenuItem>
-                )}
-                {!isSelf && <DropdownMenuSeparator />}
-                {!isSelf && (
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => onDelete(user)}
-                  >
-                    <Trash2 className="size-4" />
-                    {tCommon("delete")}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        },
+        cell: ({ row }) => renderUserActions(row.original),
       },
     ],
-    [currentUserId, t, tCommon, isPending, onDelete, onChangeRole, onRename]
+    [t, renderUserIdentity, renderUserActions]
   );
 
   const invitationColumns = React.useMemo<ColumnDef<InvitationRow>[]>(
@@ -712,6 +728,7 @@ export function UsersClient({
             getRowId={(row) => row.id}
             canSelectRow={(row) => row.id !== currentUserId}
             urlKey="usr"
+            renderCard={renderUserCard}
             bulkActions={(ids, clearSelection) => (
               <Button
                 variant="destructive"

@@ -749,5 +749,11 @@
     "hostAndUsernameRequired": "المضيف واسم المستخدم مطلوبان",
     "passwordRequiredForTest": "أدخل كلمة المرور لاختبار الاتصال",
     "errorGeneric": "حدث خطأ ما"
+  },
+  "unsavedChanges": {
+    "title": "تجاهل التغييرات غير المحفوظة؟",
+    "description": "لديك تغييرات غير محفوظة ستفقد إذا غادرت هذه الصفحة.",
+    "leave": "مغادرة",
+    "stay": "البقاء"
   }
 }

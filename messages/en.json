@@ -749,5 +749,11 @@
     "hostAndUsernameRequired": "Host and username are required",
     "passwordRequiredForTest": "Enter the password to test the connection",
     "errorGeneric": "Something went wrong"
+  },
+  "unsavedChanges": {
+    "title": "Discard unsaved changes?",
+    "description": "You have unsaved changes that will be lost if you leave this page.",
+    "leave": "Leave",
+    "stay": "Stay"
   }
 }
