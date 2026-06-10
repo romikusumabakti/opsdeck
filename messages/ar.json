@@ -38,6 +38,8 @@
     "searchPlaceholder": "بحث…",
     "columns": "الأعمدة",
     "noResults": "لا توجد نتائج.",
+    "noMatch": "لا توجد نتائج لـ ”{query}“.",
+    "clearFilter": "مسح عامل التصفية",
     "previous": "السابق",
     "next": "التالي",
     "first": "الصفحة الأولى",

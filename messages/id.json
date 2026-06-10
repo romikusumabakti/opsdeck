@@ -38,6 +38,8 @@
     "searchPlaceholder": "Cari…",
     "columns": "Kolom",
     "noResults": "Tidak ada hasil.",
+    "noMatch": "Tidak ada hasil untuk “{query}”.",
+    "clearFilter": "Bersihkan filter",
     "previous": "Sebelumnya",
     "next": "Berikutnya",
     "first": "Halaman pertama",

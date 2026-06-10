@@ -117,6 +117,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
     () => [
       {
         accessorKey: "name",
+        meta: { label: t("colName") },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t("colName")} />
         ),
@@ -126,6 +127,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       },
       {
         accessorKey: "host",
+        meta: { label: t("colHost") },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t("colHost")} />
         ),
@@ -135,6 +137,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       },
       {
         accessorKey: "username",
+        meta: { label: t("colUsername") },
         header: t("colUsername"),
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
@@ -144,6 +147,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       },
       {
         id: "actions",
+        enableHiding: false,
         meta: {
           headClassName: "w-12",
           cellClassName: "w-12",
