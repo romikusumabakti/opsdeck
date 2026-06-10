@@ -4,8 +4,14 @@ import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type ProjectWithServers, tasks } from "@/lib/db/schema";
+import { loadProjectWithServers } from "@/lib/projects";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
+import {
+  isoDateTimeSchema,
+  isoDurationSchema,
+  projectIdSchema,
+} from "@/lib/validation";
 
 export type ClockState = {
   now: string;
@@ -25,6 +31,24 @@ export type ApiResult<T = ClockState> =
 // new time (e.g. restarting workers). The previous 5s timed out under normal
 // load even when the underlying request would have succeeded.
 const API_TIMEOUT_MS = 30_000;
+
+// Validate + auth + load the project for a mock-time action in one place. The
+// API URL/key come from the loaded (trusted) DB record, never the client — so
+// the server-side `fetch` below can't be redirected to an attacker URL (SSRF).
+async function requireProject(
+  projectId: string
+): Promise<
+  | { ok: true; project: ProjectWithServers; userId: string }
+  | { ok: false; error: string }
+> {
+  const session = await requireSession();
+  if (!projectIdSchema.safeParse(projectId).success) {
+    return { ok: false, error: "Invalid project id" };
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) return { ok: false, error: "Project not found" };
+  return { ok: true, project, userId: session.user.id };
+}
 
 // Node's fetch retries every resolved address (Happy Eyeballs). When all fail
 // it surfaces an AggregateError under `cause` whose `errors[]` each carry the
@@ -135,11 +159,11 @@ async function recordAudit(
 
 async function callMutating(
   project: ProjectWithServers,
+  userId: string,
   req: ClockRequest,
   auditDescription: string,
   parseBody: boolean
 ): Promise<ApiResult<ClockState | null>> {
-  const session = await requireSession();
   const runAt = new Date();
   let response: Response;
   try {
@@ -148,7 +172,7 @@ async function callMutating(
     const error = describeFetchError(err);
     await recordAudit(
       project,
-      session.user.id,
+      userId,
       runAt,
       auditDescription,
       "failed",
@@ -160,7 +184,7 @@ async function callMutating(
     const error = await describeHttpError(response);
     await recordAudit(
       project,
-      session.user.id,
+      userId,
       runAt,
       auditDescription,
       "failed",
@@ -177,7 +201,7 @@ async function callMutating(
         const error = "Unexpected response shape from clock API";
         await recordAudit(
           project,
-          session.user.id,
+          userId,
           runAt,
           auditDescription,
           "failed",
@@ -190,7 +214,7 @@ async function callMutating(
       const error = `Invalid JSON from clock API: ${describeFetchError(err)}`;
       await recordAudit(
         project,
-        session.user.id,
+        userId,
         runAt,
         auditDescription,
         "failed",
@@ -200,23 +224,18 @@ async function callMutating(
     }
   }
 
-  await recordAudit(
-    project,
-    session.user.id,
-    runAt,
-    auditDescription,
-    "success"
-  );
+  await recordAudit(project, userId, runAt, auditDescription, "success");
   return { success: true, data };
 }
 
 export async function getClockState(
-  project: ProjectWithServers
+  projectId: string
 ): Promise<ApiResult<ClockState>> {
-  await requireSession();
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, error: ctx.error };
   let response: Response;
   try {
-    response = await clockFetch(project, { method: "GET" });
+    response = await clockFetch(ctx.project, { method: "GET" });
   } catch (err) {
     return { success: false, error: describeFetchError(err) };
   }
@@ -241,11 +260,17 @@ export async function getClockState(
 }
 
 export async function travelClock(
-  project: ProjectWithServers,
+  projectId: string,
   target: string
 ): Promise<ApiResult<ClockState>> {
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, error: ctx.error };
+  if (!isoDateTimeSchema.safeParse(target).success) {
+    return { success: false, error: "Invalid target timestamp" };
+  }
   const result = await callMutating(
-    project,
+    ctx.project,
+    ctx.userId,
     { method: "POST", path: "/travel", body: { target } },
     `Mock time: travel to ${target}`,
     true
@@ -255,15 +280,21 @@ export async function travelClock(
 }
 
 export async function freezeClock(
-  project: ProjectWithServers,
+  projectId: string,
   at: string | null
 ): Promise<ApiResult<ClockState>> {
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, error: ctx.error };
+  if (at !== null && !isoDateTimeSchema.safeParse(at).success) {
+    return { success: false, error: "Invalid freeze timestamp" };
+  }
   const body = at ? { at } : undefined;
   const description = at
     ? `Mock time: freeze at ${at}`
     : "Mock time: freeze at current time";
   const result = await callMutating(
-    project,
+    ctx.project,
+    ctx.userId,
     { method: "POST", path: "/freeze", body },
     description,
     true
@@ -273,11 +304,17 @@ export async function freezeClock(
 }
 
 export async function advanceClock(
-  project: ProjectWithServers,
+  projectId: string,
   duration: string
 ): Promise<ApiResult<ClockState>> {
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, error: ctx.error };
+  if (!isoDurationSchema.safeParse(duration).success) {
+    return { success: false, error: "Invalid duration" };
+  }
   const result = await callMutating(
-    project,
+    ctx.project,
+    ctx.userId,
     { method: "POST", path: "/advance", body: { duration } },
     `Mock time: advance by ${duration}`,
     true
@@ -286,12 +323,13 @@ export async function advanceClock(
   return { success: true, data: result.data as ClockState };
 }
 
-export async function resetClock(
-  project: ProjectWithServers
-): Promise<ApiResult<null>> {
+export async function resetClock(projectId: string): Promise<ApiResult<null>> {
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, error: ctx.error };
   // DELETE /clock returns 204 No Content — don't try to parse a body.
   const result = await callMutating(
-    project,
+    ctx.project,
+    ctx.userId,
     { method: "DELETE" },
     "Mock time: reset to real time",
     false
@@ -301,19 +339,23 @@ export async function resetClock(
 }
 
 export async function mockProjectTimeLegacy(
-  project: ProjectWithServers,
+  projectId: string,
   mockedAt: string
 ): Promise<LegacyResult> {
-  const session = await requireSession();
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
+  if (!isoDateTimeSchema.safeParse(mockedAt).success) {
+    return { success: false, mode: "legacy", error: "Invalid timestamp" };
+  }
   try {
     const taskId = await createTask({
-      projectId: project.id,
-      userId: session.user.id,
+      projectId: ctx.project.id,
+      userId: ctx.userId,
       description: `Mock time to ${mockedAt} (legacy)`,
     });
     await inngest.send({
       name: "project/mock-time.legacy",
-      data: { project, mockedAt, taskId },
+      data: { projectId: ctx.project.id, mockedAt, taskId },
     });
     return { success: true, mode: "legacy", taskId };
   } catch (error) {
@@ -355,12 +397,13 @@ function parseIsoDurationMs(duration: string): number | null {
 const LEGACY_MOCK_DRIFT_THRESHOLD_MS = 5 * 60 * 1000;
 
 export async function getClockStateLegacy(
-  project: ProjectWithServers
+  projectId: string
 ): Promise<ApiResult<ClockState>> {
-  await requireSession();
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, error: ctx.error };
   try {
     const stdout = await executeRemoteCommand(
-      legacyCredentials(project),
+      legacyCredentials(ctx.project),
       "date -u +%Y-%m-%dT%H:%M:%SZ"
     );
     const now = stdout.trim();
@@ -386,10 +429,11 @@ export async function getClockStateLegacy(
 }
 
 export async function advanceClockLegacy(
-  project: ProjectWithServers,
+  projectId: string,
   duration: string
 ): Promise<LegacyResult> {
-  const session = await requireSession();
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   const offsetMs = parseIsoDurationMs(duration);
   if (offsetMs === null) {
     return {
@@ -404,7 +448,7 @@ export async function advanceClockLegacy(
   let baseMs: number;
   try {
     const stdout = await executeRemoteCommand(
-      legacyCredentials(project),
+      legacyCredentials(ctx.project),
       "date -u +%Y-%m-%dT%H:%M:%SZ"
     );
     const parsed = new Date(stdout.trim()).getTime();
@@ -415,13 +459,13 @@ export async function advanceClockLegacy(
   const targetIso = new Date(baseMs + offsetMs).toISOString();
   try {
     const taskId = await createTask({
-      projectId: project.id,
-      userId: session.user.id,
+      projectId: ctx.project.id,
+      userId: ctx.userId,
       description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
     });
     await inngest.send({
       name: "project/mock-time.legacy",
-      data: { project, mockedAt: targetIso, taskId },
+      data: { projectId: ctx.project.id, mockedAt: targetIso, taskId },
     });
     return { success: true, mode: "legacy", taskId };
   } catch (err) {
@@ -430,18 +474,19 @@ export async function advanceClockLegacy(
 }
 
 export async function resetClockLegacy(
-  project: ProjectWithServers
+  projectId: string
 ): Promise<LegacyResult> {
-  const session = await requireSession();
+  const ctx = await requireProject(projectId);
+  if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   try {
     const taskId = await createTask({
-      projectId: project.id,
-      userId: session.user.id,
+      projectId: ctx.project.id,
+      userId: ctx.userId,
       description: "Reset clock to real time (legacy)",
     });
     await inngest.send({
       name: "project/mock-time.reset-legacy",
-      data: { project, taskId },
+      data: { projectId: ctx.project.id, taskId },
     });
     return { success: true, mode: "legacy", taskId };
   } catch (err) {

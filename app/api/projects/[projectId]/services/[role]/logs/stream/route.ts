@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getProjectById } from "@/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
+import { loadProjectWithServers } from "@/lib/projects";
 import {
   buildFollowLogsCommand,
   getServiceConfig,
@@ -29,8 +29,8 @@ const VALID_ROLES: ReadonlyArray<ServiceRole> = ["db", "backend", "frontend"];
 
 function parseLines(raw: string | null): LogLines {
   const n = Number(raw);
-  if (LOG_LINE_OPTIONS.includes(n as never)) return n as LogLines;
-  return 200;
+  const match = LOG_LINE_OPTIONS.find((opt) => opt === n);
+  return match ?? 200;
 }
 
 export async function GET(
@@ -45,7 +45,9 @@ export async function GET(
     return new NextResponse("Invalid role", { status: 400 });
   }
 
-  const project = await getProjectById(projectId);
+  // Load the full project (with credentials) server-side — the SSH password is
+  // needed to open the log stream and must never come from the client.
+  const project = await loadProjectWithServers(projectId);
   if (!project) return new NextResponse("Not found", { status: 404 });
 
   const lines = parseLines(req.nextUrl.searchParams.get("lines"));

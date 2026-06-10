@@ -1,4 +1,5 @@
 import type { ProjectWithServers } from "@/lib/db/schema";
+import { loadProjectWithServers } from "@/lib/projects";
 import {
   buildControlCommand,
   buildDbShellCommand,
@@ -98,11 +99,13 @@ function buildSqlcmdCommand(
 export const createDatabaseBackup = inngest.createFunction(
   { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
   async ({ event, step }) => {
-    const { taskId, compress, ...project } =
-      event.data as ProjectWithServers & {
-        taskId: string;
-        compress?: boolean;
-      };
+    const { taskId, compress, projectId } = event.data as {
+      projectId: string;
+      taskId: string;
+      compress?: boolean;
+    };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
     const useCompression = compress ?? true;
 
     const credentials = {
@@ -246,13 +249,19 @@ export const mockProjectTimeLegacy = inngest.createFunction(
   {
     id: "mock-project-time-legacy",
     triggers: { event: "project/mock-time.legacy" },
+    // Destructive (sets system clock, disables NTP); a blind retry of a
+    // partially-applied run would re-disable NTP / re-skew the clock. The
+    // function records its own failure and recovery hint instead.
+    retries: 0,
   },
   async ({ event, step }) => {
-    const { project, mockedAt, taskId } = event.data as {
-      project: ProjectWithServers;
+    const { projectId, mockedAt, taskId } = event.data as {
+      projectId: string;
       mockedAt: string;
       taskId: string;
     };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
 
     const credentials = {
       host: project.backendServer.host,
@@ -357,12 +366,15 @@ export const mockProjectTimeResetLegacy = inngest.createFunction(
   {
     id: "mock-project-time-reset-legacy",
     triggers: { event: "project/mock-time.reset-legacy" },
+    retries: 0,
   },
   async ({ event, step }) => {
-    const { project, taskId } = event.data as {
-      project: ProjectWithServers;
+    const { projectId, taskId } = event.data as {
+      projectId: string;
       taskId: string;
     };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
 
     const credentials = {
       host: project.backendServer.host,
@@ -445,14 +457,22 @@ export const mockProjectTimeResetLegacy = inngest.createFunction(
 );
 
 export const restoreDatabaseBackup = inngest.createFunction(
-  { id: "restore-db-backup", triggers: { event: "db/restore.requested" } },
+  {
+    id: "restore-db-backup",
+    triggers: { event: "db/restore.requested" },
+    // Destructive (drops + recreates the database); never auto-retry a
+    // partial restore.
+    retries: 0,
+  },
   async ({ event, step }) => {
-    const data = event.data as ProjectWithServers & {
+    const { projectId, filename, taskId, restartBackend } = event.data as {
+      projectId: string;
       filename: string;
       taskId: string;
       restartBackend?: boolean;
     };
-    const { filename, taskId, restartBackend } = data;
+    const data = await loadProjectWithServers(projectId);
+    if (!data) throw new Error(`Project ${projectId} not found`);
     const credentials = {
       host: data.dbServer.host,
       username: data.dbServer.username,
@@ -582,12 +602,14 @@ async function runPostgresRestore(
 export const controlService = inngest.createFunction(
   { id: "control-service", triggers: { event: "service/control.requested" } },
   async ({ event, step }) => {
-    const { project, role, action, taskId } = event.data as {
-      project: ProjectWithServers;
+    const { projectId, role, action, taskId } = event.data as {
+      projectId: string;
       role: ServiceRole;
       action: ServiceAction;
       taskId: string;
     };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
     const cfg = getServiceConfig(project, role);
     const credentials = {
       host: cfg.server.host,

@@ -13,7 +13,7 @@ import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 import type { ServiceRole, ServiceType } from "@/lib/services";
 
 type RoleMeta = {
@@ -28,7 +28,7 @@ type RoleMeta = {
 
 type StatusMap = Partial<Record<ServiceRole, ServiceStatusResult>>;
 
-export function ProjectStack({ project }: { project: ProjectWithServers }) {
+export function ProjectStack({ project }: { project: SafeProjectWithServers }) {
   const t = useTranslations("dashboard.stack");
   const tDash = useTranslations("dashboard");
   const tCommon = useTranslations("common");
@@ -38,7 +38,7 @@ export function ProjectStack({ project }: { project: ProjectWithServers }) {
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getAllServiceStatuses(project)
+    getAllServiceStatuses(project.id)
       .then((results) => {
         if (cancelled) return;
         const next: StatusMap = {};

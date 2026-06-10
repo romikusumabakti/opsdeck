@@ -28,7 +28,7 @@ export default async function Page({
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const result = await getBackupList(project);
+  const result = await getBackupList(project.id);
   const backups = result.success ? result.data : [];
   const listError = result.success ? null : result.error;
 

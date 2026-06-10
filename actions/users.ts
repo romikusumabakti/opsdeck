@@ -91,12 +91,20 @@ export async function createInitialUser(input: {
     role: ROLE_ADMIN,
   });
 
-  await ctx.internalAdapter.linkAccount({
-    userId: created.id,
-    accountId: created.id,
-    providerId: "credential",
-    password: hash,
-  });
+  // better-auth's createUser + linkAccount don't share a transaction. If the
+  // credential link fails, roll the user back so we don't leave an account that
+  // can never sign in (and that would block re-running setup).
+  try {
+    await ctx.internalAdapter.linkAccount({
+      userId: created.id,
+      accountId: created.id,
+      providerId: "credential",
+      password: hash,
+    });
+  } catch (err) {
+    await ctx.internalAdapter.deleteUser(created.id).catch(() => {});
+    throw err;
+  }
 
   revalidatePath("/", "layout");
   return { success: true, message: t("accountCreated") };
@@ -166,18 +174,21 @@ export async function inviteUser(input: {
     Date.now() + INVITE_EXPIRES_HOURS * 60 * 60 * 1000
   );
 
-  await db
-    .delete(invitations)
-    .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt)));
-
-  await db.insert(invitations).values({
-    // id defaults to uuidv7() in DB
-    email,
-    name,
-    role,
-    token,
-    invitedById: session.user.id,
-    expiresAt,
+  // Replace any pending invite for this email atomically so a failure between
+  // the delete and insert can't leave the user with no usable invitation.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(invitations)
+      .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt)));
+    await tx.insert(invitations).values({
+      // id defaults to uuidv7() in DB
+      email,
+      name,
+      role,
+      token,
+      invitedById: session.user.id,
+      expiresAt,
+    });
   });
 
   const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -485,12 +496,20 @@ export async function acceptInvitation(input: {
     role,
   });
 
-  await ctx.internalAdapter.linkAccount({
-    userId: created.id,
-    accountId: created.id,
-    providerId: "credential",
-    password: hash,
-  });
+  // createUser + linkAccount aren't transactional in better-auth; if the
+  // credential link fails, roll the user back so the invite can be retried
+  // instead of being stuck on a half-created, unusable account.
+  try {
+    await ctx.internalAdapter.linkAccount({
+      userId: created.id,
+      accountId: created.id,
+      providerId: "credential",
+      password: hash,
+    });
+  } catch (err) {
+    await ctx.internalAdapter.deleteUser(created.id).catch(() => {});
+    throw err;
+  }
 
   await db
     .update(invitations)

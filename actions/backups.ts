@@ -2,20 +2,29 @@
 
 import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import { loadProjectWithServers } from "@/lib/projects";
 import { buildDbShellCommand } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
 import type { Backup } from "@/lib/types";
+import { backupFilenameSchema, projectIdSchema } from "@/lib/validation";
 
 type BackupListResult =
   | { success: true; data: Backup[] }
   | { success: false; error: string };
 
 export async function getBackupList(
-  project: ProjectWithServers
+  projectId: string
 ): Promise<BackupListResult> {
+  await requireSession();
+  if (!projectIdSchema.safeParse(projectId).success) {
+    return { success: false, error: "Invalid project id" };
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) {
+    return { success: false, error: "Project not found" };
+  }
   try {
     // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
     // postgres (compressed or not) and `.bak` for mssql. Anything else in the
@@ -57,15 +66,24 @@ export async function getBackupList(
 
     return { success: true, data: backups };
   } catch (error) {
-    return { success: false, error: `Failed to fetch backups: ${error}` };
+    // Don't surface raw SSH stderr (paths, hostnames) to the client.
+    console.error(`Failed to fetch backups for project ${projectId}:`, error);
+    return { success: false, error: "Failed to fetch backups" };
   }
 }
 
 export async function createDatabaseBackup(
-  project: ProjectWithServers & { compress?: boolean }
+  projectId: string,
+  options: { compress?: boolean } = {}
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
-  const compress = project.compress ?? true;
+  if (!projectIdSchema.safeParse(projectId).success) {
+    throw new Error("Invalid project id");
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) throw new Error("Project not found");
+
+  const compress = options.compress ?? true;
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
@@ -73,30 +91,46 @@ export async function createDatabaseBackup(
       ? `Backup database (${project.dbName})`
       : `Backup database (${project.dbName}, uncompressed)`,
   });
+  // Send only the projectId — Inngest re-loads credentials server-side so they
+  // never live in the event payload / run history.
   await inngest.send({
     name: "db/backup.requested",
-    data: { ...project, compress, taskId },
+    data: { projectId: project.id, compress, taskId },
   });
   return { taskId };
 }
 
 export async function restoreDatabaseBackup(
-  project: ProjectWithServers & {
-    filename: string;
-    restartBackend?: boolean;
-  }
+  projectId: string,
+  options: { filename: string; restartBackend?: boolean }
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
+  if (!projectIdSchema.safeParse(projectId).success) {
+    throw new Error("Invalid project id");
+  }
+  const parsedFilename = backupFilenameSchema.safeParse(options.filename);
+  if (!parsedFilename.success) {
+    throw new Error("Invalid backup filename");
+  }
+  const filename = parsedFilename.data;
+  const project = await loadProjectWithServers(projectId);
+  if (!project) throw new Error("Project not found");
+
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
-    description: project.restartBackend
-      ? `Restore database from ${project.filename} (+ restart backend)`
-      : `Restore database from ${project.filename}`,
+    description: options.restartBackend
+      ? `Restore database from ${filename} (+ restart backend)`
+      : `Restore database from ${filename}`,
   });
   await inngest.send({
     name: "db/restore.requested",
-    data: { ...project, taskId },
+    data: {
+      projectId: project.id,
+      filename,
+      restartBackend: options.restartBackend ?? false,
+      taskId,
+    },
   });
   return { taskId };
 }

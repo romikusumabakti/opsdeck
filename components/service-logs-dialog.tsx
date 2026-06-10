@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 import {
   detectLogLevel,
   type LogLevel,
@@ -44,7 +44,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type Props = {
-  project: ProjectWithServers;
+  project: SafeProjectWithServers;
   role: ServiceRole | null;
   serviceName: string;
   serverName: string;

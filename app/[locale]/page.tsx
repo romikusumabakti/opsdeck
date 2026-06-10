@@ -1,5 +1,4 @@
 import { formatDistanceToNow, type Locale } from "date-fns";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import {
   CheckCircle2,
   ChevronRight,
@@ -17,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 export default async function Home() {
   const [projects, session, lastActivity, locale] = await Promise.all([

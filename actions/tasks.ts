@@ -1,6 +1,7 @@
 "use server";
 
-import { and, desc, eq, gte, like, sql } from "drizzle-orm";
+import { and, desc, eq, gte, like } from "drizzle-orm";
+import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type Task, tasks } from "@/lib/db/schema";
 
@@ -33,6 +34,7 @@ export type ProjectActivity = {
 export async function getProjectsLastActivity(): Promise<
   Record<string, ProjectActivity>
 > {
+  await requireSession();
   try {
     const rows = await db
       .selectDistinctOn([tasks.projectId], {
@@ -54,6 +56,7 @@ export async function getProjectsLastActivity(): Promise<
 }
 
 export async function getRunningTasks(): Promise<RunningTask[]> {
+  await requireSession();
   try {
     const rows = await db.query.tasks.findMany({
       where: { status: "started" },
@@ -81,6 +84,7 @@ export async function getRunningTasks(): Promise<RunningTask[]> {
 export async function getProjectTasks(
   projectId: string
 ): Promise<TaskWithUser[]> {
+  await requireSession();
   try {
     const rows = await db.query.tasks.findMany({
       where: { projectId },
@@ -113,6 +117,7 @@ export type TaskSnapshot = Pick<
 export async function getTaskSnapshot(
   taskId: string
 ): Promise<TaskSnapshot | null> {
+  await requireSession();
   const row = await db.query.tasks.findFirst({
     where: { id: taskId },
     columns: {
@@ -175,7 +180,7 @@ async function findLatestByKind(
         like(tasks.description, `${KPI_PREFIX[kind]}%`)
       )
     )
-    .orderBy(sql`${tasks.runAt} DESC`)
+    .orderBy(desc(tasks.runAt))
     .limit(1);
   return row ?? null;
 }
@@ -183,6 +188,7 @@ async function findLatestByKind(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
+  await requireSession();
   // Pull 14 days so we can compute both the current 7d window (for the
   // existing total/success metrics + sparkline) and the prior 7d window
   // (for the delta indicator) in a single round-trip.
