@@ -35,7 +35,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 import type { ServiceAction, ServiceRole, ServiceType } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +50,11 @@ type RoleMeta = {
 
 type StatusMap = Partial<Record<ServiceRole, ServiceStatusResult>>;
 
-export function ServicesClient({ project }: { project: ProjectWithServers }) {
+export function ServicesClient({
+  project,
+}: {
+  project: SafeProjectWithServers;
+}) {
   const t = useTranslations("services");
   const tCommon = useTranslations("common");
   const [statuses, setStatuses] = React.useState<StatusMap>({});
@@ -86,7 +90,7 @@ export function ServicesClient({ project }: { project: ProjectWithServers }) {
   const refresh = React.useCallback(async () => {
     setLoading(true);
     try {
-      const results = await getAllServiceStatuses(project);
+      const results = await getAllServiceStatuses(project.id);
       const next: StatusMap = {};
       for (const r of results) next[r.role] = r;
       setStatuses(next);
@@ -140,7 +144,7 @@ function ServiceCard({
   loading,
   onRefresh,
 }: {
-  project: ProjectWithServers;
+  project: SafeProjectWithServers;
   meta: RoleMeta;
   status: ServiceStatusResult | null;
   loading: boolean;
@@ -179,7 +183,7 @@ function ServiceCard({
     setPendingAction(action);
     try {
       const { taskId: newTaskId } = await controlService(
-        project,
+        project.id,
         meta.role,
         action
       );

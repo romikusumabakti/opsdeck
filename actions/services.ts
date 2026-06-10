@@ -3,6 +3,7 @@
 import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
+import { loadProjectWithServers } from "@/lib/projects";
 import {
   buildStatusCommand,
   getServiceConfig,
@@ -13,6 +14,11 @@ import {
 } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
+import {
+  projectIdSchema,
+  serviceActionSchema,
+  serviceRoleSchema,
+} from "@/lib/validation";
 
 export type ServiceStatusResult = {
   role: ServiceRole;
@@ -21,7 +27,8 @@ export type ServiceStatusResult = {
   error?: string;
 };
 
-export async function getServiceStatus(
+// Internal: probe one service against an already-loaded (trusted) project.
+async function probeServiceStatus(
   project: ProjectWithServers,
   role: ServiceRole
 ): Promise<ServiceStatusResult> {
@@ -41,42 +48,82 @@ export async function getServiceStatus(
       raw: output.trim(),
     };
   } catch (error) {
+    console.error(`Service status probe failed (${role}):`, error);
     return {
       role,
       state: "unknown",
       raw: "",
-      error: error instanceof Error ? error.message : String(error),
+      error: "Status check failed",
     };
   }
+}
+
+export async function getServiceStatus(
+  projectId: string,
+  role: ServiceRole
+): Promise<ServiceStatusResult> {
+  await requireSession();
+  const parsedRole = serviceRoleSchema.safeParse(role);
+  if (!projectIdSchema.safeParse(projectId).success || !parsedRole.success) {
+    return { role, state: "unknown", raw: "", error: "Invalid request" };
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) {
+    return { role, state: "unknown", raw: "", error: "Project not found" };
+  }
+  return probeServiceStatus(project, parsedRole.data);
 }
 
 // Probe all three services in parallel — each runs against its own server's
 // SSH credentials, so there's no cross-server interference.
 export async function getAllServiceStatuses(
-  project: ProjectWithServers
+  projectId: string
 ): Promise<ServiceStatusResult[]> {
+  await requireSession();
+  if (!projectIdSchema.safeParse(projectId).success) {
+    return [];
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) return [];
   return Promise.all([
-    getServiceStatus(project, "db"),
-    getServiceStatus(project, "backend"),
-    getServiceStatus(project, "frontend"),
+    probeServiceStatus(project, "db"),
+    probeServiceStatus(project, "backend"),
+    probeServiceStatus(project, "frontend"),
   ]);
 }
 
 export async function controlService(
-  project: ProjectWithServers,
+  projectId: string,
   role: ServiceRole,
   action: ServiceAction
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
-  const cfg = getServiceConfig(project, role);
+  const parsedRole = serviceRoleSchema.safeParse(role);
+  const parsedAction = serviceActionSchema.safeParse(action);
+  if (
+    !projectIdSchema.safeParse(projectId).success ||
+    !parsedRole.success ||
+    !parsedAction.success
+  ) {
+    throw new Error("Invalid request");
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) throw new Error("Project not found");
+
+  const cfg = getServiceConfig(project, parsedRole.data);
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
-    description: `${actionLabel(action)} ${role} service (${cfg.serviceName})`,
+    description: `${actionLabel(parsedAction.data)} ${parsedRole.data} service (${cfg.serviceName})`,
   });
   await inngest.send({
     name: "service/control.requested",
-    data: { project, role, action, taskId },
+    data: {
+      projectId: project.id,
+      role: parsedRole.data,
+      action: parsedAction.data,
+      taskId,
+    },
   });
   return { taskId };
 }

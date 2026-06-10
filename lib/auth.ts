@@ -11,8 +11,15 @@ import { ROLE_ADMIN, ROLE_MEMBER } from "./roles";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
-export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
+// Fail fast in production rather than letting better-auth fall back to an
+// ephemeral/insecure secret — that would silently invalidate every session on
+// restart and weaken token signing.
+if (process.env.NODE_ENV === "production" && !process.env.BETTER_AUTH_SECRET) {
+  throw new Error("BETTER_AUTH_SECRET must be set in production");
+}
+
 export { ALLOWED_EMAIL_DOMAIN, isAllowedEmail } from "./branding";
+export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
 
 export const auth = betterAuth({
   appName: APP_NAME,

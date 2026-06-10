@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { Clock, FastForward, RefreshCw, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -27,7 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 import { DateTimePicker } from "./date-time-picker";
 
 type AdvanceUnit = "minutes" | "hours" | "days";
@@ -49,7 +49,11 @@ function buildDuration(
   }
 }
 
-export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
+export function MockTimeLegacy({
+  project,
+}: {
+  project: SafeProjectWithServers;
+}) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -92,7 +96,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
       if (!silent) setPendingAction("refresh");
       setClockLoading(true);
       setClockError(null);
-      const result = await getClockStateLegacy(project);
+      const result = await getClockStateLegacy(project.id);
       setClockLoading(false);
       if (!silent) setPendingAction(null);
       if (!result.success) {
@@ -120,7 +124,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
     setPendingAction("travel");
     try {
       const result = await mockProjectTimeLegacy(
-        project,
+        project.id,
         combined.toISOString()
       );
       if (!result.success) {
@@ -157,7 +161,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
     if (!ok) return;
     setPendingAction("advance");
     try {
-      const result = await advanceClockLegacy(project, duration);
+      const result = await advanceClockLegacy(project.id, duration);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
@@ -182,7 +186,7 @@ export function MockTimeLegacy({ project }: { project: ProjectWithServers }) {
     if (!ok) return;
     setPendingAction("reset");
     try {
-      const result = await resetClockLegacy(project);
+      const result = await resetClockLegacy(project.id);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;

@@ -11,7 +11,7 @@ import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 
 // Matches the marker emitted by inngest/functions.ts after a successful dump.
 // Kept here as a single source of truth for the parser — if the marker text
@@ -23,7 +23,11 @@ function extractFilename(output: string): string | null {
   return match ? match[1] : null;
 }
 
-export function BackupDatabase({ project }: { project: ProjectWithServers }) {
+export function BackupDatabase({
+  project,
+}: {
+  project: SafeProjectWithServers;
+}) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
@@ -35,7 +39,7 @@ export function BackupDatabase({ project }: { project: ProjectWithServers }) {
   const runBackup = React.useCallback(() => {
     startTransition(async () => {
       try {
-        const { taskId } = await createDatabaseBackup({ ...project, compress });
+        const { taskId } = await createDatabaseBackup(project.id, { compress });
         setActiveTaskId(taskId);
         toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: project.dbName }),

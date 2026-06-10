@@ -2,14 +2,16 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
+import { type Project, projects } from "@/lib/db/schema";
+import { loadSafeProject } from "@/lib/projects";
 import {
-  type NewProject,
-  type Project,
-  type ProjectWithServers,
-  projects,
-} from "@/lib/db/schema";
+  projectIdSchema,
+  projectInputSchema,
+  projectUpdateSchema,
+} from "@/lib/validation";
 
 type ActionResponse = {
   success: boolean;
@@ -22,6 +24,7 @@ type ActionResponse = {
  * picker, sidebar, etc. where only id+name matters).
  */
 export async function getProjects(): Promise<Project[]> {
+  await requireSession();
   try {
     return await db.select().from(projects).orderBy(projects.id);
   } catch (error) {
@@ -32,20 +35,16 @@ export async function getProjects(): Promise<Project[]> {
 
 /**
  * GET: Fetch a single project by ID with its three server relations loaded.
+ * Returns a CREDENTIAL-FREE projection — SSH/DB passwords and the mock-time API
+ * key are stripped before the data crosses to the client. Actions that need the
+ * real credentials re-load them server-side via lib/projects.
  */
 export async function getProjectById(
   id: string
-): Promise<ProjectWithServers | undefined> {
+): Promise<SafeProjectWithServers | undefined> {
+  await requireSession();
   try {
-    const project = await db.query.projects.findFirst({
-      where: { id },
-      with: {
-        dbServer: true,
-        backendServer: true,
-        frontendServer: true,
-      },
-    });
-    return project as ProjectWithServers | undefined;
+    return (await loadSafeProject(id)) ?? undefined;
   } catch (error) {
     console.error(`Failed to fetch project ${id}:`, error);
     return undefined;
@@ -56,12 +55,16 @@ export async function getProjectById(
  * CREATE: Add a new project. Server FKs (dbServerId, backendServerId,
  * frontendServerId) must already exist — create them via createServer first.
  */
-export async function createProject(data: NewProject): Promise<ActionResponse> {
+export async function createProject(data: unknown): Promise<ActionResponse> {
   await requireAdmin();
+  const parsed = projectInputSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, message: "Invalid project data" };
+  }
   try {
     const [insertedProject] = await db
       .insert(projects)
-      .values(data)
+      .values(parsed.data)
       .returning();
 
     revalidatePath("/projects");
@@ -80,13 +83,20 @@ export async function createProject(data: NewProject): Promise<ActionResponse> {
 
 export async function updateProject(
   id: string,
-  data: Partial<NewProject>
+  data: unknown
 ): Promise<ActionResponse> {
   await requireAdmin();
+  if (!projectIdSchema.safeParse(id).success) {
+    return { success: false, message: "Invalid project id" };
+  }
+  const parsed = projectUpdateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, message: "Invalid project data" };
+  }
   try {
     const [updatedProject] = await db
       .update(projects)
-      .set(data)
+      .set(parsed.data)
       .where(eq(projects.id, id))
       .returning();
 

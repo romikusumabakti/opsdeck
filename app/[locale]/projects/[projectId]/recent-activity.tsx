@@ -1,5 +1,4 @@
 import { formatDistanceToNow, type Locale } from "date-fns";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { Activity, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -7,6 +6,7 @@ import { getProjectTasks, type TaskWithUser } from "@/actions/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 const RECENT_LIMIT = 5;
 

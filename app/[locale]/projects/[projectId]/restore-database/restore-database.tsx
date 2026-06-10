@@ -23,7 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import type { SafeProjectWithServers } from "@/lib/db/schema";
 import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,7 @@ export function RestoreDatabase({
   project,
   backups,
 }: {
-  project: ProjectWithServers;
+  project: SafeProjectWithServers;
   backups: Backup[];
 }) {
   const t = useTranslations("restoreDb");
@@ -49,8 +49,7 @@ export function RestoreDatabase({
     if (!backup) return;
     startTransition(async () => {
       try {
-        const { taskId } = await restoreDatabaseBackup({
-          ...project,
+        const { taskId } = await restoreDatabaseBackup(project.id, {
           filename: backup.name,
           restartBackend,
         });

@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
-import type { Project, Server } from "@/lib/db/schema";
+import type { SafeProjectWithServers, Server } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
@@ -31,8 +31,8 @@ const DB_TYPES = ["postgres", "mssql"] as const;
 type ServerRole = "db" | "backend" | "frontend";
 
 type Mode =
-  | { type: "create"; cloneFrom?: Project }
-  | { type: "edit"; project: Project };
+  | { type: "create"; cloneFrom?: SafeProjectWithServers }
+  | { type: "edit"; project: SafeProjectWithServers };
 
 export function ProjectForm({
   mode,
@@ -84,8 +84,7 @@ export function ProjectForm({
       // stored password to fall back to (handled at submit time too, but
       // surface the error inline where possible).
       if (data.dbType !== "mssql") return;
-      const hasStored =
-        mode.type === "edit" && Boolean(mode.project.dbPassword);
+      const hasStored = mode.type === "edit" && mode.project.hasDbPassword;
       if (!data.dbPassword && !hasStored) {
         ctx.addIssue({
           code: "custom",
@@ -419,8 +418,7 @@ export function ProjectForm({
                     <PasswordInput
                       autoComplete="new-password"
                       placeholder={
-                        mode.type === "edit" &&
-                        mode.project.backendMockTimeApiKey
+                        mode.type === "edit" && mode.project.hasMockTimeApiKey
                           ? t("mockTimeApiKeyEditPlaceholder")
                           : ""
                       }
