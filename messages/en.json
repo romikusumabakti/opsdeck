@@ -38,6 +38,8 @@
     "searchPlaceholder": "Search…",
     "columns": "Columns",
     "noResults": "No results.",
+    "noMatch": "No results for “{query}”.",
+    "clearFilter": "Clear filter",
     "previous": "Previous",
     "next": "Next",
     "first": "First page",

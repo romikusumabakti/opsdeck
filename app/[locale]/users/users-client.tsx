@@ -477,6 +477,7 @@ export function UsersClient({
     () => [
       {
         accessorKey: "name",
+        meta: { label: t("colUser") },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t("colUser")} />
         ),
@@ -484,6 +485,7 @@ export function UsersClient({
       },
       {
         id: "actions",
+        enableHiding: false,
         meta: { headClassName: "w-12", cellClassName: "w-12" },
         cell: ({ row }) => renderUserActions(row.original),
       },
@@ -495,6 +497,7 @@ export function UsersClient({
     () => [
       {
         accessorKey: "name",
+        meta: { label: t("colInvitee") },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t("colInvitee")} />
         ),
@@ -520,6 +523,7 @@ export function UsersClient({
       },
       {
         accessorKey: "expiresAt",
+        meta: { label: t("colExpires") },
         header: t("colExpires"),
         cell: ({ row }) => {
           const expiresAt = new Date(row.getValue("expiresAt") as Date);
@@ -543,6 +547,7 @@ export function UsersClient({
       },
       {
         id: "actions",
+        enableHiding: false,
         meta: { headClassName: "w-12", cellClassName: "w-12" },
         cell: ({ row }) => {
           const inv = row.original;

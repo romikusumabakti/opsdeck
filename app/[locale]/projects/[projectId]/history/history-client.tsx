@@ -45,10 +45,11 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
         accessorKey: "status",
         header: t("colStatus"),
         cell: ({ row }) => <StatusBadge status={row.original.status} t={t} />,
-        meta: { headClassName: "w-32" },
+        meta: { headClassName: "w-32", label: t("colStatus") },
       },
       {
         accessorKey: "description",
+        meta: { label: t("colDescription") },
         header: t("colDescription"),
         cell: ({ row }) => (
           <span className="font-medium">{row.getValue("description")}</span>
@@ -57,6 +58,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
       {
         id: "user",
         accessorFn: (row) => row.user?.name ?? "",
+        meta: { label: t("colUser") },
         header: t("colUser"),
         cell: ({ row }) => {
           const user = row.original.user;
@@ -73,6 +75,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
       },
       {
         accessorKey: "runAt",
+        meta: { label: t("colRunAt") },
         header: ({ column }) => (
           <Button
             variant="ghost"
@@ -95,6 +98,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
       },
       {
         id: "duration",
+        meta: { label: t("colDuration") },
         header: t("colDuration"),
         cell: ({ row }) => {
           const task = row.original;
