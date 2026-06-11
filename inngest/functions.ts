@@ -97,7 +97,14 @@ function buildSqlcmdCommand(
 }
 
 export const createDatabaseBackup = inngest.createFunction(
-  { id: "create-db-backup", triggers: { event: "db/backup.requested" } },
+  {
+    id: "create-db-backup",
+    triggers: { event: "db/backup.requested" },
+    // No auto-retry: the per-attempt catch marks the task `failed` immediately,
+    // so retrying would leave a failed task row while the work re-runs.
+    // Operators re-trigger from the UI. Matches the other side-effecting funcs.
+    retries: 0,
+  },
   async ({ event, step }) => {
     const { taskId, compress, projectId } = event.data as {
       projectId: string;
@@ -600,7 +607,14 @@ async function runPostgresRestore(
 }
 
 export const controlService = inngest.createFunction(
-  { id: "control-service", triggers: { event: "service/control.requested" } },
+  {
+    id: "control-service",
+    triggers: { event: "service/control.requested" },
+    // No auto-retry: start/stop/restart is side-effecting and the per-attempt
+    // catch already marks the task `failed`. Retrying could e.g. restart a
+    // service repeatedly on a transient SSH error.
+    retries: 0,
+  },
   async ({ event, step }) => {
     const { projectId, role, action, taskId } = event.data as {
       projectId: string;
