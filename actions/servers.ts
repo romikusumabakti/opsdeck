@@ -13,6 +13,7 @@ import {
   servers,
 } from "@/lib/db/schema";
 import { testSshConnection } from "@/lib/ssh";
+import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
 
 export type ServerUsage = {
   project: Pick<Project, "id" | "name">;
@@ -74,8 +75,12 @@ export async function getServerById(id: string): Promise<Server | undefined> {
 export async function createServer(data: NewServer): Promise<CreateResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
+  const parsed = serverInputSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, message: t("invalidInput") };
+  }
   try {
-    const [created] = await db.insert(servers).values(data).returning();
+    const [created] = await db.insert(servers).values(parsed.data).returning();
     revalidatePath("/servers");
     revalidatePath("/projects/new");
     return { success: true, data: created, message: t("serverCreated") };
@@ -91,10 +96,14 @@ export async function updateServer(
 ): Promise<SimpleResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
+  const parsed = serverUpdateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, message: t("invalidInput") };
+  }
   try {
     const [updated] = await db
       .update(servers)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...parsed.data, updatedAt: new Date() })
       .where(eq(servers.id, id))
       .returning();
     if (!updated) {

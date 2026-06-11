@@ -55,6 +55,21 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
+  // Throttle client-initiated auth requests to blunt brute-force and token
+  // enumeration. Server-side `auth.api` calls are exempt. Storage is in-memory
+  // (the app runs as a single standalone instance); switch to the database
+  // adapter if scaled horizontally so counters are shared across replicas.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/forget-password": { window: 60, max: 3 },
+      "/request-password-reset": { window: 60, max: 3 },
+      "/reset-password": { window: 60, max: 5 },
+    },
+  },
   // Generate UUIDv7 for user/session/account/verification IDs so they are
   // time-ordered and friendly to B-tree indexes (matches our own tables).
   advanced: {

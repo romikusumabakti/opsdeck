@@ -1,0 +1,23 @@
+# VCS
+.git
+.gitignore
+
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+.next
+out
+build
+
+# Secrets & local env — must never enter the image
+.env
+.env.*
+!.env.example
+
+# Tooling / caches not needed at build time
+.claude
+.code-review-graph
+.github
+docs
+tests
+*.tsbuildinfo
+README.md
