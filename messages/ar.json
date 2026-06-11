@@ -754,6 +754,7 @@
     "serverInUse": "لا يمكن حذف الخادم لأنه قيد الاستخدام بواسطة مشروع",
     "hostAndUsernameRequired": "المضيف واسم المستخدم مطلوبان",
     "passwordRequiredForTest": "أدخل كلمة المرور لاختبار الاتصال",
+    "invalidInput": "إدخال غير صالح",
     "errorGeneric": "حدث خطأ ما"
   },
   "unsavedChanges": {

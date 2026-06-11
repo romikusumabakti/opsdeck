@@ -58,22 +58,6 @@ async function probeServiceStatus(
   }
 }
 
-export async function getServiceStatus(
-  projectId: string,
-  role: ServiceRole
-): Promise<ServiceStatusResult> {
-  await requireSession();
-  const parsedRole = serviceRoleSchema.safeParse(role);
-  if (!projectIdSchema.safeParse(projectId).success || !parsedRole.success) {
-    return { role, state: "unknown", raw: "", error: "Invalid request" };
-  }
-  const project = await loadProjectWithServers(projectId);
-  if (!project) {
-    return { role, state: "unknown", raw: "", error: "Project not found" };
-  }
-  return probeServiceStatus(project, parsedRole.data);
-}
-
 // Probe all three services in parallel — each runs against its own server's
 // SSH credentials, so there's no cross-server interference.
 export async function getAllServiceStatuses(
