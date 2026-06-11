@@ -52,7 +52,19 @@ export async function GET(
             break;
           }
 
-          const task = await getTaskSnapshot(id);
+          let task: Awaited<ReturnType<typeof getTaskSnapshot>>;
+          try {
+            task = await getTaskSnapshot(id);
+          } catch (err) {
+            // Surface transient DB errors as an `error` event and stop. Without
+            // this the throw escapes, the stream closes with no signal, and the
+            // browser's EventSource silently reconnects into the same failure
+            // (tight reconnect loop). Message is generic to avoid leaking DB
+            // internals; the real error is logged server-side.
+            console.error("task stream snapshot failed:", err);
+            send("error", { message: "snapshot failed" });
+            break;
+          }
           if (!task) {
             send("not-found", { id });
             break;
