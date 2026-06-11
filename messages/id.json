@@ -754,6 +754,7 @@
     "serverInUse": "Server tidak bisa dihapus karena masih dipakai oleh proyek",
     "hostAndUsernameRequired": "Host dan username wajib diisi",
     "passwordRequiredForTest": "Masukkan password untuk tes koneksi",
+    "invalidInput": "Input tidak valid",
     "errorGeneric": "Terjadi kesalahan"
   },
   "unsavedChanges": {
