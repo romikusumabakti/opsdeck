@@ -754,6 +754,7 @@
     "serverInUse": "服务器正在被项目使用，无法删除",
     "hostAndUsernameRequired": "主机和用户名为必填项",
     "passwordRequiredForTest": "请输入密码以测试连接",
+    "invalidInput": "输入无效",
     "errorGeneric": "出现错误"
   },
   "unsavedChanges": {
