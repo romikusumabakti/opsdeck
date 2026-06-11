@@ -48,7 +48,17 @@ export async function GET(req: NextRequest) {
             break;
           }
 
-          const tasks = await getRunningTasks();
+          let tasks: Awaited<ReturnType<typeof getRunningTasks>>;
+          try {
+            tasks = await getRunningTasks();
+          } catch (err) {
+            // Surface transient DB errors and stop, so the client backs off
+            // instead of EventSource reconnecting straight into the same
+            // failure. Generic message; real error logged server-side.
+            console.error("running-tasks stream failed:", err);
+            send("error", { message: "snapshot failed" });
+            break;
+          }
           const serialized = JSON.stringify(tasks);
           if (serialized !== lastSerialized) {
             if (!send("snapshot", tasks)) break;
