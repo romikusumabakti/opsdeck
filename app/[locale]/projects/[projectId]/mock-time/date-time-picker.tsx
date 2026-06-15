@@ -71,6 +71,16 @@ export function DateTimePicker({
   const dateFnsLocale = getDateFnsLocale(locale);
   const [open, setOpen] = React.useState(false);
 
+  // react-day-picker's dropdown layout defaults its year range to end at the
+  // current year, so future years are unselectable. Mock-time travel needs the
+  // future, so widen the bounds explicitly.
+  const currentYear = new Date().getFullYear();
+  const startMonth = React.useMemo(() => new Date(2000, 0), []);
+  const endMonth = React.useMemo(
+    () => new Date(currentYear + 10, 11),
+    [currentYear]
+  );
+
   return (
     <FieldGroup className="flex-1 flex-row items-end gap-2">
       <Field className="flex-1">
@@ -94,6 +104,8 @@ export function DateTimePicker({
               selected={date}
               captionLayout="dropdown"
               defaultMonth={date}
+              startMonth={startMonth}
+              endMonth={endMonth}
               locale={dateFnsLocale}
               onSelect={(d) => {
                 onDateChange(d);
