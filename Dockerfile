@@ -47,6 +47,11 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 
+# The mock-time page reads docs/time-mocking-api.md at runtime via a dynamic
+# path. Next's file tracer (Turbopack) doesn't reliably bundle it into the
+# standalone output, so copy it explicitly.
+COPY --from=builder /app/docs ./docs
+
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
