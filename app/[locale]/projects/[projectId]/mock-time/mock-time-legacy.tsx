@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
 import { DateTimePicker } from "./date-time-picker";
+import { LiveClock } from "./live-clock";
 
 type AdvanceUnit = "minutes" | "hours" | "days";
 type AdvanceDirection = "forward" | "backward";
@@ -204,27 +205,6 @@ export function MockTimeLegacy({
   const anyPending = pendingAction !== null;
   const isMocked = clock?.mocked === true;
 
-  // Anchor on the server's mocked `now` rather than `new Date()`; the project
-  // clock may be time-traveled.
-  const [displayedNow, setDisplayedNow] = React.useState<Date | null>(null);
-  React.useEffect(() => {
-    if (!clock) {
-      setDisplayedNow(null);
-      return;
-    }
-    const serverMs = new Date(clock.now).getTime();
-    const localMs = Date.now();
-    setDisplayedNow(new Date(serverMs));
-    const id = setInterval(() => {
-      setDisplayedNow(new Date(serverMs + (Date.now() - localMs)));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [clock]);
-
-  const nowLabel = displayedNow
-    ? format(displayedNow, "PPP HH:mm:ss", { locale: dateFnsLocale })
-    : null;
-
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3 rounded-md border bg-card p-4">
@@ -259,7 +239,9 @@ export function MockTimeLegacy({
         ) : clock ? (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">{t("clockState.now")}</dt>
-            <dd className="tabular-nums">{nowLabel}</dd>
+            <dd className="tabular-nums">
+              <LiveClock now={clock.now} dateFnsLocale={dateFnsLocale} />
+            </dd>
             <dt className="text-muted-foreground">{t("clockState.mocked")}</dt>
             <dd>
               <Badge variant={isMocked ? "default" : "secondary"}>
