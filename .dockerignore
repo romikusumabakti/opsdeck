@@ -17,7 +17,8 @@ build
 .claude
 .code-review-graph
 .github
-docs
+# NOTE: do not ignore `docs` — the mock-time page reads docs/time-mocking-api.md
+# at runtime, and the Dockerfile copies it into the image.
 tests
 *.tsbuildinfo
 README.md
