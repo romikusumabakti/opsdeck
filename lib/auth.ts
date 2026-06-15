@@ -13,8 +13,14 @@ const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
 // Fail fast in production rather than letting better-auth fall back to an
 // ephemeral/insecure secret — that would silently invalidate every session on
-// restart and weaken token signing.
-if (process.env.NODE_ENV === "production" && !process.env.BETTER_AUTH_SECRET) {
+// restart and weaken token signing. Skip during `next build`: page-data
+// collection evaluates this module with NODE_ENV=production but no runtime env,
+// and the secret is only needed when actually serving requests.
+if (
+  process.env.NEXT_PHASE !== "phase-production-build" &&
+  process.env.NODE_ENV === "production" &&
+  !process.env.BETTER_AUTH_SECRET
+) {
   throw new Error("BETTER_AUTH_SECRET must be set in production");
 }
 
