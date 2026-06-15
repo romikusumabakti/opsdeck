@@ -16,9 +16,19 @@ import {
 import { ApiDocsSheet } from "./api-docs-sheet";
 import { MockTime } from "./mock-time";
 
-const getApiDocs = cache(async () =>
-  readFile(path.join(process.cwd(), "docs", "time-mocking-api.md"), "utf-8")
-);
+const getApiDocs = cache(async () => {
+  try {
+    return await readFile(
+      path.join(process.cwd(), "docs", "time-mocking-api.md"),
+      "utf-8"
+    );
+  } catch (error) {
+    // The docs file ships via Next file tracing; if it's missing from the
+    // deployed image, degrade gracefully rather than crashing the whole page.
+    console.error("Failed to read time-mocking-api.md:", error);
+    return "";
+  }
+});
 
 export default async function Page({
   params,
