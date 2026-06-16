@@ -236,7 +236,10 @@
       "noMatches": "No lines match filter.",
       "connectionError": "Lost connection to log stream.",
       "loading": "Streaming logs…",
-      "empty": "No log output yet."
+      "empty": "No log output yet.",
+      "formatToggle": "Toggle log format",
+      "viewPretty": "Structured view (JSON/Loki parsed)",
+      "viewRaw": "Raw view"
     }
   },
   "backupDb": {

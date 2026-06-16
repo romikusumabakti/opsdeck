@@ -2,6 +2,7 @@
 
 import {
   ArrowDown,
+  Braces,
   CircleAlert,
   Download,
   FileText,
@@ -32,9 +33,10 @@ import {
 } from "@/components/ui/select";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
 import {
-  detectLogLevel,
+  LogContent,
   type LogLevel,
-  renderAnsiLine,
+  type ParsedLog,
+  parseLogLine,
 } from "@/lib/log-render";
 import {
   LOG_LINE_OPTIONS,
@@ -56,6 +58,7 @@ type LogEntry = {
   id: number;
   text: string;
   level: LogLevel;
+  parsed: ParsedLog;
 };
 
 type StreamState = "idle" | "connecting" | "live" | "paused" | "error";
@@ -83,6 +86,7 @@ export function ServiceLogsDialog({
   const [streamState, setStreamState] = React.useState<StreamState>("idle");
   const [streamError, setStreamError] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState("");
+  const [pretty, setPretty] = React.useState(true);
   const [atBottom, setAtBottom] = React.useState(true);
   const [pendingNewCount, setPendingNewCount] = React.useState(0);
 
@@ -138,11 +142,15 @@ export function ServiceLogsDialog({
         }
         if (incoming.length === 0) return;
 
-        const next: LogEntry[] = incoming.map((text) => ({
-          id: ++idRef.current,
-          text,
-          level: detectLogLevel(text),
-        }));
+        const next: LogEntry[] = incoming.map((text) => {
+          const parsed = parseLogLine(text);
+          return {
+            id: ++idRef.current,
+            text,
+            level: parsed.level,
+            parsed,
+          };
+        });
 
         setEntries((prev) => {
           const merged =
@@ -352,6 +360,18 @@ export function ServiceLogsDialog({
 
           <Button
             type="button"
+            variant={pretty ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPretty((p) => !p)}
+            aria-pressed={pretty}
+            aria-label={t("logs.formatToggle")}
+            title={pretty ? t("logs.viewPretty") : t("logs.viewRaw")}
+          >
+            <Braces className="size-4" />
+          </Button>
+
+          <Button
+            type="button"
             variant="outline"
             size="sm"
             onClick={togglePause}
@@ -442,7 +462,7 @@ export function ServiceLogsDialog({
                       "bg-amber-500/5 border-l-amber-500/60"
                   )}
                 >
-                  {renderAnsiLine(entry.text)}
+                  <LogContent parsed={entry.parsed} pretty={pretty} />
                 </div>
               ))
             )}
