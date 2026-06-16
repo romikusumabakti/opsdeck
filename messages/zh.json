@@ -236,7 +236,10 @@
       "noMatches": "没有匹配过滤器的行。",
       "connectionError": "与日志流的连接已丢失。",
       "loading": "正在流式传输日志…",
-      "empty": "暂无日志输出。"
+      "empty": "暂无日志输出。",
+      "formatToggle": "切换日志格式",
+      "viewPretty": "结构化视图（解析 JSON/Loki）",
+      "viewRaw": "原始视图"
     }
   },
   "backupDb": {
