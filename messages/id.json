@@ -236,7 +236,10 @@
       "noMatches": "Tidak ada baris yang cocok.",
       "connectionError": "Koneksi ke stream log terputus.",
       "loading": "Streaming log…",
-      "empty": "Belum ada output log."
+      "empty": "Belum ada output log.",
+      "formatToggle": "Ubah format log",
+      "viewPretty": "Tampilan terstruktur (JSON/Loki terurai)",
+      "viewRaw": "Tampilan mentah"
     }
   },
   "backupDb": {
