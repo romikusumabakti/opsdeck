@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildControlCommand,
   buildDbShellCommand,
+  buildSqlcmdCommand,
   buildStatusCommand,
   parseServiceState,
 } from "@/lib/services";
@@ -162,5 +163,37 @@ describe("buildDbShellCommand", () => {
         runAsUser: "postgres",
       })
     ).toThrow(/sudoPassword is required/);
+  });
+});
+
+describe("buildSqlcmdCommand", () => {
+  // The inner pipeline is shq-wrapped again by buildDbShellCommand, so the
+  // single quotes get re-escaped — assert on quote-free tokens that survive.
+  it("pipes the query into a probed sqlcmd invocation", () => {
+    const cmd = buildSqlcmdCommand("SELECT 1", "pw", "docker", "sql");
+    expect(cmd).toContain("SELECT 1");
+    // tool path probed before PATH fallback
+    expect(cmd).toContain("/opt/mssql-tools18/bin/sqlcmd");
+    expect(cmd).toContain("/opt/mssql-tools/bin/sqlcmd");
+    expect(cmd).toContain("exec sqlcmd");
+    // wrapped in the service exec environment
+    expect(cmd.startsWith("docker exec 'sql' bash -c ")).toBe(true);
+  });
+
+  it("forwards the password to sqlcmd's -P flag", () => {
+    const cmd = buildSqlcmdCommand("SELECT 1", "p@ssword", "systemd", "sql");
+    expect(cmd).toContain("p@ssword");
+  });
+
+  it("appends extraArgs to the sqlcmd argument list", () => {
+    const base = buildSqlcmdCommand("SELECT 1", "pw", "docker", "sql");
+    const withArgs = buildSqlcmdCommand("SELECT 1", "pw", "docker", "sql", [
+      "-h",
+      "-1",
+      "-W",
+    ]);
+    expect(base).not.toContain("-W");
+    expect(withArgs).toContain("-h");
+    expect(withArgs).toContain("-W");
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backupFilenameSchema,
+  databaseNameSchema,
   isoDurationSchema,
   projectIdSchema,
 } from "@/lib/validation";
@@ -12,6 +13,38 @@ describe("backupFilenameSchema", () => {
 
   it.each(["../etc/passwd", "a/b.sql", "foo.txt"])("rejects %s", (name) => {
     expect(backupFilenameSchema.safeParse(name).success).toBe(false);
+  });
+});
+
+describe("databaseNameSchema", () => {
+  it.each([
+    "mydb",
+    "my_db",
+    "db1",
+    "_internal",
+    "app-prod",
+    " a_b ",
+  ])("accepts %s", (name) => {
+    expect(databaseNameSchema.safeParse(name).success).toBe(true);
+  });
+
+  it.each([
+    "",
+    "-leading-hyphen",
+    "has space",
+    "a/b",
+    "../etc",
+    "drop;table",
+    'quote"d',
+    "back`tick",
+  ])("rejects %s", (name) => {
+    expect(databaseNameSchema.safeParse(name).success).toBe(false);
+  });
+
+  it("trims surrounding whitespace", () => {
+    const parsed = databaseNameSchema.safeParse("  mydb  ");
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data).toBe("mydb");
   });
 });
 

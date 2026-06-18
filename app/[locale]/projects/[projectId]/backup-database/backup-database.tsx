@@ -5,7 +5,9 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
+import type { DatabaseEntry } from "@/actions/databases";
 import { CopyButton } from "@/components/copy-button";
+import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
@@ -25,8 +27,10 @@ function extractFilename(output: string): string | null {
 
 export function BackupDatabase({
   project,
+  databases,
 }: {
   project: SafeProjectWithServers;
+  databases: DatabaseEntry[];
 }) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
@@ -34,15 +38,19 @@ export function BackupDatabase({
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
+  const [database, setDatabase] = React.useState(project.dbName);
   const [submitting, startTransition] = React.useTransition();
 
   const runBackup = React.useCallback(() => {
     startTransition(async () => {
       try {
-        const { taskId } = await createDatabaseBackup(project.id, { compress });
+        const { taskId } = await createDatabaseBackup(project.id, {
+          compress,
+          database,
+        });
         setActiveTaskId(taskId);
         toast.success(t("successTitle"), {
-          description: t("successDescription", { dbName: project.dbName }),
+          description: t("successDescription", { dbName: database }),
         });
       } catch (err) {
         toast.error(
@@ -50,12 +58,12 @@ export function BackupDatabase({
         );
       }
     });
-  }, [project, compress, t, tCommon]);
+  }, [project, compress, database, t, tCommon]);
 
   async function onClick() {
     const ok = await dialog.confirm({
       title: t("confirmTitle"),
-      description: t("confirmDescription", { dbName: project.dbName }),
+      description: t("confirmDescription", { dbName: database }),
       confirmText: t("confirmButton"),
       cancelText: tCommon("cancel"),
     });
@@ -85,6 +93,21 @@ export function BackupDatabase({
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="backup-database-picker">{t("databaseLabel")}</Label>
+        <DatabasePicker
+          id="backup-database-picker"
+          databases={databases}
+          value={database}
+          onChange={setDatabase}
+          disabled={submitting}
+          defaultSuffix={t("defaultSuffix")}
+          placeholder={t("selectDatabase")}
+          searchPlaceholder={t("searchDatabase")}
+          emptyText={t("noDatabase")}
+        />
+        <p className="text-xs text-muted-foreground">{t("databaseHint")}</p>
+      </div>
       <div className="flex items-start gap-2">
         <Checkbox
           id="backup-compress"
@@ -129,9 +152,7 @@ export function BackupDatabase({
           if (!open) setActiveTaskId(null);
         }}
         title={t("title")}
-        description={
-          <code className="font-mono text-xs">{project.dbName}</code>
-        }
+        description={<code className="font-mono text-xs">{database}</code>}
         onSuccess={onTaskSuccess}
         onRetry={runBackup}
         footer={

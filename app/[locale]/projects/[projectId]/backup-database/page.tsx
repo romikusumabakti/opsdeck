@@ -1,5 +1,6 @@
 import { Database, Info } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getDatabaseList } from "@/actions/databases";
 import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,13 @@ export default async function Page({
   if (!project) {
     return <p>{tCommon("projectNotFound")}</p>;
   }
+
+  // Best-effort database enumeration; on failure the picker still offers the
+  // project's configured default database.
+  const dbResult = await getDatabaseList(project.id);
+  const databases = dbResult.success
+    ? dbResult.data
+    : [{ name: project.dbName, isDefault: true }];
 
   return (
     <>
@@ -74,7 +82,7 @@ export default async function Page({
             <Info className="size-4 shrink-0 mt-0.5" />
             <p>{t("infoNote")}</p>
           </div>
-          <BackupDatabase project={project} />
+          <BackupDatabase project={project} databases={databases} />
         </CardContent>
       </Card>
     </>
