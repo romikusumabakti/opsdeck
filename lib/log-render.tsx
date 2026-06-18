@@ -22,14 +22,15 @@ export function detectLogLevel(line: string): LogLevel {
   return null;
 }
 
-// --- Structured (JSON / Loki) log parsing ---------------------------------
+// --- Structured (JSON) log parsing ----------------------------------------
 //
 // Many services emit one JSON object per line (pino, bunyan, zap, logrus,
-// zerolog, slog, …). Grafana Loki's `logcli --output=jsonl` adds an envelope
-// of `{ timestamp, labels, line }` around the original line, and that inner
-// line is itself often JSON. We normalise all of these into a common shape so
-// the viewer can show timestamp / level / message / fields instead of an
-// opaque blob, while leaving plain-text lines untouched.
+// zerolog, slog, …). Log shippers (Fluent Bit, Vector, Promtail, …) often
+// wrap each line in an envelope of `{ timestamp, labels, line }`, where the
+// inner `line` is itself the original — frequently JSON — log line. We
+// normalise all of these into a common shape so the viewer can show
+// timestamp / level / message / fields instead of an opaque blob, while
+// leaving plain-text lines untouched.
 
 export type ParsedLog = {
   // True when the line was successfully parsed as a structured JSON object.
@@ -72,7 +73,7 @@ const TIMESTAMP_KEYS = [
   "eventtime",
   "t",
 ];
-// Loki jsonl envelope label container.
+// Shipper-envelope label container.
 const LABEL_KEYS = ["labels", "stream"];
 
 // Map a numeric level to our buckets. Covers pino/bunyan (10/20/30/40/50/60)
@@ -190,9 +191,9 @@ function extractFromObject(
   let message = msgHit ? stringifyValue(msgHit.value) : "";
   const timestamp = tsHit ? stringifyValue(tsHit.value) : null;
 
-  // Loki jsonl envelope: the meaningful payload lives in `line`, which is
+  // Shipper envelope: the meaningful payload lives in `line`, which is
   // frequently itself a JSON log line. Recurse one level so we surface the
-  // inner level/message and keep the Loki labels as fields.
+  // inner level/message and keep the envelope labels as fields.
   const fields: Array<[string, string]> = [];
   if (msgHit && (msgHit.key === "line" || msgHit.key === "log")) {
     const inner = tryParseObject(message);
@@ -206,7 +207,7 @@ function extractFromObject(
 
   for (const key of Object.keys(obj)) {
     if (consumed.has(key)) continue;
-    // Spread Loki/structured label maps into individual chips.
+    // Spread structured label maps into individual chips.
     if (LABEL_KEYS.includes(key.toLowerCase())) {
       const labels = obj[key];
       if (labels && typeof labels === "object" && !Array.isArray(labels)) {

@@ -238,7 +238,7 @@
       "loading": "جارٍ بث السجلات…",
       "empty": "لا يوجد إخراج سجل بعد.",
       "formatToggle": "تبديل تنسيق السجل",
-      "viewPretty": "عرض منظَّم (تحليل JSON/Loki)",
+      "viewPretty": "عرض منظَّم (تحليل JSON)",
       "viewRaw": "عرض خام"
     }
   },
