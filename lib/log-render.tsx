@@ -304,9 +304,53 @@ const LEVEL_BADGE: Record<NonNullable<LogLevel>, string> = {
   debug: "text-muted-foreground",
 };
 
+// OpenTelemetry semantic-convention fields get first-class rendering instead
+// of generic key=value chips. Keys are matched after stripping case and any
+// `.`/`_` separators, so `service.name`, `service_name` and `serviceName` all
+// collapse to the same identity.
+const TRACE_KEYS = new Set(["traceid", "spanid", "correlationid"]);
+
+function normKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Trace/span/correlation ids are long and noisy — show a head fragment with
+// the full value available on hover.
+function shortenId(value: string): string {
+  return value.length > 12 ? `${value.slice(0, 8)}…` : value;
+}
+
+type ClassifiedFields = {
+  serviceName: string | null;
+  serviceVersion: string | null;
+  trace: Array<[string, string]>;
+  rest: Array<[string, string]>;
+};
+
+function classifyFields(fields: Array<[string, string]>): ClassifiedFields {
+  let serviceName: string | null = null;
+  let serviceVersion: string | null = null;
+  const trace: Array<[string, string]> = [];
+  const rest: Array<[string, string]> = [];
+  for (const [key, value] of fields) {
+    const n = normKey(key);
+    if (n === "servicename") serviceName = value;
+    else if (n === "serviceversion") serviceVersion = value;
+    else if (TRACE_KEYS.has(n)) trace.push([key, value]);
+    else rest.push([key, value]);
+  }
+  // A bare version with no name isn't a service identity — keep it generic.
+  if (serviceVersion && !serviceName) {
+    rest.unshift(["service.version", serviceVersion]);
+    serviceVersion = null;
+  }
+  return { serviceName, serviceVersion, trace, rest };
+}
+
 // Render the body of a single log row. In `pretty` mode a structured line is
-// laid out as timestamp · level · message · key=value chips; otherwise the
-// raw line is shown verbatim (with ANSI colors).
+// laid out as timestamp · level · service · message · trace · key=value chips
+// (OpenTelemetry semantic-convention fields first); otherwise the raw line is
+// shown verbatim (with ANSI colors).
 export function LogContent({
   parsed,
   pretty,
@@ -317,6 +361,9 @@ export function LogContent({
   if (!pretty || !parsed.structured) {
     return <>{renderAnsiLine(parsed.raw)}</>;
   }
+  const { serviceName, serviceVersion, trace, rest } = classifyFields(
+    parsed.fields
+  );
   return (
     <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
       {parsed.timestamp && (
@@ -334,12 +381,29 @@ export function LogContent({
           {parsed.level}
         </span>
       )}
+      {serviceName && (
+        <span className="shrink-0 rounded bg-muted px-1.5 font-medium text-foreground/80">
+          {serviceName}
+          {serviceVersion && (
+            <span className="text-muted-foreground/70"> v{serviceVersion}</span>
+          )}
+        </span>
+      )}
       {parsed.message && (
         <span className="text-foreground">
           {renderAnsiLine(parsed.message)}
         </span>
       )}
-      {parsed.fields.map(([key, value]) => (
+      {trace.map(([key, value]) => (
+        <span
+          key={key}
+          className="text-muted-foreground/60"
+          title={`${key}=${value}`}
+        >
+          {key}={shortenId(value)}
+        </span>
+      ))}
+      {rest.map(([key, value]) => (
         <span key={key} className="text-muted-foreground">
           <span className="text-muted-foreground/60">{key}=</span>
           {value}
