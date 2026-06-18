@@ -238,7 +238,7 @@
       "loading": "正在流式传输日志…",
       "empty": "暂无日志输出。",
       "formatToggle": "切换日志格式",
-      "viewPretty": "结构化视图（解析 JSON/Loki）",
+      "viewPretty": "结构化视图（解析 JSON）",
       "viewRaw": "原始视图"
     }
   },
