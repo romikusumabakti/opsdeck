@@ -21,6 +21,23 @@ export const backupFilenameSchema = z
   )
   .refine((f) => !f.includes(".."), "Filename must not contain '..'");
 
+// Database names are interpolated into SQL identifiers (pg "..." / mssql [...])
+// and into shell pipelines (shq-quoted). Both layers escape, but the picker
+// also lets the client send an arbitrary `database` for backup/restore/create/
+// drop, so constrain it to a conservative identifier — a tampered client can't
+// then smuggle control chars, path separators, or shell/SQL metacharacters.
+// The project's own configured dbName bypasses this (it's trusted config); only
+// a *different*, client-supplied target is validated here.
+export const databaseNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(
+    /^[A-Za-z0-9_][A-Za-z0-9_$-]*$/,
+    "Database name must start with a letter, digit, or underscore and contain only letters, digits, underscore, dollar, or hyphen"
+  );
+
 // ISO 8601 duration subset the mock-time UI emits: optional `-`, P[n]D, then
 // optional T[n]H[n]M[n]S, with at least one component. Mirrors the parser in
 // actions/mock-time.ts.
