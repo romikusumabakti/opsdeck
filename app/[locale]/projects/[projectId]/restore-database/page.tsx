@@ -1,6 +1,7 @@
 import { AlertTriangle, DatabaseBackup } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getBackupList } from "@/actions/backups";
+import { getDatabaseList } from "@/actions/databases";
 import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -32,6 +33,11 @@ export default async function Page({
   const backups = result.success ? result.data : [];
   const listError = result.success ? null : result.error;
 
+  const dbResult = await getDatabaseList(project.id);
+  const databases = dbResult.success
+    ? dbResult.data
+    : [{ name: project.dbName, isDefault: true }];
+
   return (
     <>
       <PageHeader
@@ -61,7 +67,11 @@ export default async function Page({
             />
           ) : (
             <>
-              <RestoreDatabase project={project} backups={backups} />
+              <RestoreDatabase
+                project={project}
+                backups={backups}
+                databases={databases}
+              />
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 <AlertTriangle className="size-4 shrink-0 mt-0.5" />
                 <p>{t("dangerNote")}</p>

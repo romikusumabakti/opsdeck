@@ -176,6 +176,45 @@ export function buildDbShellCommand(
   return `bash -c ${shq(inner)}`;
 }
 
+// Pipe a T-SQL query into a sqlcmd invocation, branching on the service type so
+// the same call works for docker, kubernetes, and systemd. sqlcmd isn't on
+// $PATH in Microsoft's mssql images (and isn't always on $PATH on host installs
+// either) — it lives at /opt/mssql-tools18/bin (newer) or /opt/mssql-tools/bin
+// (older). Probe both before falling back to PATH lookup so we don't have to
+// know which SQL Server version each project is on. The `printf | sqlcmd`
+// pipeline is built into the inner so it runs in the same shell context as
+// sqlcmd — that keeps stdin handling local and avoids competing with `sudo -S`
+// on systemd. sqlcmd authenticates over TCP to localhost:1433 with -U/-P, so no
+// `runAsUser` is needed for systemd. `extraArgs` appends extra sqlcmd flags
+// (e.g. `-h -1 -W` for header-less list output).
+export function buildSqlcmdCommand(
+  query: string,
+  password: string,
+  serviceType: ServiceType,
+  serviceName: string,
+  extraArgs: string[] = []
+): string {
+  const args = [
+    "-S",
+    "localhost",
+    "-U",
+    "sa",
+    "-P",
+    password,
+    "-C",
+    "-b",
+    "-r0",
+    ...extraArgs,
+  ]
+    .map(shq)
+    .join(" ");
+  const sqlcmdInvoke =
+    "for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do " +
+    `[ -x "$p" ] && exec "$p" ${args}; done; exec sqlcmd ${args}`;
+  const inner = `printf '%s\\n' ${shq(query)} | sh -c ${shq(sqlcmdInvoke)}`;
+  return buildDbShellCommand(serviceType, serviceName, inner);
+}
+
 // Builds a follow-mode logs pipeline. Emits an initial tail of `lines` then
 // streams new entries as they arrive (`-f` / `--follow`). The command runs
 // indefinitely and only terminates when the SSH channel closes (the
