@@ -238,7 +238,7 @@
       "loading": "Streaming logs…",
       "empty": "No log output yet.",
       "formatToggle": "Toggle log format",
-      "viewPretty": "Structured view (JSON/Loki parsed)",
+      "viewPretty": "Structured view (JSON parsed)",
       "viewRaw": "Raw view"
     }
   },
