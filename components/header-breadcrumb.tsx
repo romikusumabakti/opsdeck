@@ -77,6 +77,8 @@ function getProjectSubKey(slug: string | undefined): string | null {
   switch (slug) {
     case "services":
       return "breadcrumbs.services";
+    case "databases":
+      return "breadcrumbs.databases";
     case "backup-database":
       return "breadcrumbs.backupDatabase";
     case "restore-database":

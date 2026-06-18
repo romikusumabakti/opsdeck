@@ -8,11 +8,31 @@ import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
 import type { Backup } from "@/lib/types";
-import { backupFilenameSchema, projectIdSchema } from "@/lib/validation";
+import {
+  backupFilenameSchema,
+  databaseNameSchema,
+  projectIdSchema,
+} from "@/lib/validation";
 
 type BackupListResult =
   | { success: true; data: Backup[] }
   | { success: false; error: string };
+
+// Resolve the operation's target database. An omitted target (or one equal to
+// the project's configured database) means the trusted "default database" and
+// bypasses validation. Any other, client-supplied database is validated against
+// databaseNameSchema before it reaches a shell/SQL command.
+function resolveTargetDatabase(
+  project: { dbName: string },
+  provided: string | undefined
+): string {
+  if (!provided || provided === project.dbName) return project.dbName;
+  const parsed = databaseNameSchema.safeParse(provided);
+  if (!parsed.success) {
+    throw new Error("Invalid database name");
+  }
+  return parsed.data;
+}
 
 export async function getBackupList(
   projectId: string
@@ -74,7 +94,7 @@ export async function getBackupList(
 
 export async function createDatabaseBackup(
   projectId: string,
-  options: { compress?: boolean } = {}
+  options: { compress?: boolean; database?: string } = {}
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
@@ -82,27 +102,28 @@ export async function createDatabaseBackup(
   }
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error("Project not found");
+  const database = resolveTargetDatabase(project, options.database);
 
   const compress = options.compress ?? true;
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
     description: compress
-      ? `Backup database (${project.dbName})`
-      : `Backup database (${project.dbName}, uncompressed)`,
+      ? `Backup database (${database})`
+      : `Backup database (${database}, uncompressed)`,
   });
-  // Send only the projectId — Inngest re-loads credentials server-side so they
-  // never live in the event payload / run history.
+  // Send only the projectId + database — Inngest re-loads credentials
+  // server-side so they never live in the event payload / run history.
   await inngest.send({
     name: "db/backup.requested",
-    data: { projectId: project.id, compress, taskId },
+    data: { projectId: project.id, compress, database, taskId },
   });
   return { taskId };
 }
 
 export async function restoreDatabaseBackup(
   projectId: string,
-  options: { filename: string; restartBackend?: boolean }
+  options: { filename: string; restartBackend?: boolean; database?: string }
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
@@ -115,19 +136,24 @@ export async function restoreDatabaseBackup(
   const filename = parsedFilename.data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error("Project not found");
+  const database = resolveTargetDatabase(project, options.database);
 
+  const isDefault = database === project.dbName;
   const taskId = await createTask({
     projectId: project.id,
     userId: session.user.id,
     description: options.restartBackend
-      ? `Restore database from ${filename} (+ restart backend)`
-      : `Restore database from ${filename}`,
+      ? `Restore ${database} from ${filename} (+ restart backend)`
+      : `Restore ${database} from ${filename}`,
   });
   await inngest.send({
     name: "db/restore.requested",
     data: {
       projectId: project.id,
       filename,
+      // Only forward a non-default target so the worker keeps using its trusted
+      // project.dbName when restoring the default database.
+      database: isDefault ? undefined : database,
       restartBackend: options.restartBackend ?? false,
       taskId,
     },

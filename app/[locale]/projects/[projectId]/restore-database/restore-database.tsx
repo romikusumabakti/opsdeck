@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { restoreDatabaseBackup } from "@/actions/backups";
+import type { DatabaseEntry } from "@/actions/databases";
+import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Button } from "@/components/ui/button";
@@ -30,15 +32,18 @@ import { cn } from "@/lib/utils";
 export function RestoreDatabase({
   project,
   backups,
+  databases,
 }: {
   project: SafeProjectWithServers;
   backups: Backup[];
+  databases: DatabaseEntry[];
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
+  const [database, setDatabase] = React.useState(project.dbName);
   const [restartBackend, setRestartBackend] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [submitting, startTransition] = React.useTransition();
@@ -52,10 +57,11 @@ export function RestoreDatabase({
         const { taskId } = await restoreDatabaseBackup(project.id, {
           filename: backup.name,
           restartBackend,
+          database,
         });
         setActiveTaskId(taskId);
         toast.success(t("successTitle"), {
-          description: t("successDescription", { dbName: project.dbName }),
+          description: t("successDescription", { dbName: database }),
         });
       } catch (err) {
         toast.error(
@@ -63,7 +69,7 @@ export function RestoreDatabase({
         );
       }
     });
-  }, [backup, project, restartBackend, t, tCommon]);
+  }, [backup, project, restartBackend, database, t, tCommon]);
 
   function onRestore() {
     if (!backup) return;
@@ -72,7 +78,7 @@ export function RestoreDatabase({
         title: t("confirmTitle"),
         description: t("confirmDescription", {
           filename: backup.name,
-          dbName: project.dbName,
+          dbName: database,
         }),
         confirmText: t("restore"),
         cancelText: tCommon("cancel"),
@@ -85,7 +91,24 @@ export function RestoreDatabase({
 
   return (
     <div className="flex flex-col gap-3">
-      <Label htmlFor="restore-backup-picker">{t("selectBackupLabel")}</Label>
+      <Label htmlFor="restore-database-picker">
+        {t("targetDatabaseLabel")}
+      </Label>
+      <DatabasePicker
+        id="restore-database-picker"
+        databases={databases}
+        value={database}
+        onChange={setDatabase}
+        disabled={submitting}
+        defaultSuffix={t("defaultSuffix")}
+        placeholder={t("selectDatabase")}
+        searchPlaceholder={t("searchDatabase")}
+        emptyText={t("noDatabase")}
+      />
+      <p className="text-xs text-muted-foreground">{t("targetDatabaseHint")}</p>
+      <Label htmlFor="restore-backup-picker" className="mt-1">
+        {t("selectBackupLabel")}
+      </Label>
       <div className="flex flex-col sm:flex-row gap-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -198,7 +221,7 @@ export function RestoreDatabase({
         onRetry={runRestore}
         description={
           <>
-            <code className="font-mono text-xs">{project.dbName}</code>
+            <code className="font-mono text-xs">{database}</code>
             {backup && (
               <>
                 <span>·</span>

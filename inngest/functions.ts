@@ -3,10 +3,10 @@ import { loadProjectWithServers } from "@/lib/projects";
 import {
   buildControlCommand,
   buildDbShellCommand,
+  buildSqlcmdCommand,
   getServiceConfig,
   type ServiceAction,
   type ServiceRole,
-  type ServiceType,
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -60,42 +60,6 @@ function pgQuoteId(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-// Pipe the SQL query into a sqlcmd invocation, branching on the service type
-// so the same call works for docker, kubernetes, and systemd. sqlcmd isn't on
-// $PATH in Microsoft's mssql images (and isn't always on $PATH on host
-// installs either) — it lives at /opt/mssql-tools18/bin (newer) or
-// /opt/mssql-tools/bin (older). Probe both before falling back to PATH
-// lookup so we don't have to know which SQL Server version each project is
-// on. The `printf | sqlcmd` pipeline is built into the inner so it runs in
-// the same shell context as sqlcmd — that keeps stdin handling local and
-// avoids competing with `sudo -S` on systemd. sqlcmd authenticates over TCP
-// to localhost:1433 with -U/-P, so no `runAsUser` is needed for systemd.
-function buildSqlcmdCommand(
-  query: string,
-  password: string,
-  serviceType: ServiceType,
-  serviceName: string
-): string {
-  const args = [
-    "-S",
-    "localhost",
-    "-U",
-    "sa",
-    "-P",
-    password,
-    "-C",
-    "-b",
-    "-r0",
-  ]
-    .map(shq)
-    .join(" ");
-  const sqlcmdInvoke =
-    "for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do " +
-    `[ -x "$p" ] && exec "$p" ${args}; done; exec sqlcmd ${args}`;
-  const inner = `printf '%s\\n' ${shq(query)} | sh -c ${shq(sqlcmdInvoke)}`;
-  return buildDbShellCommand(serviceType, serviceName, inner);
-}
-
 export const createDatabaseBackup = inngest.createFunction(
   {
     id: "create-db-backup",
@@ -106,14 +70,19 @@ export const createDatabaseBackup = inngest.createFunction(
     retries: 0,
   },
   async ({ event, step }) => {
-    const { taskId, compress, projectId } = event.data as {
+    const { taskId, compress, projectId, database } = event.data as {
       projectId: string;
       taskId: string;
       compress?: boolean;
+      database?: string;
     };
     const project = await loadProjectWithServers(projectId);
     if (!project) throw new Error(`Project ${projectId} not found`);
     const useCompression = compress ?? true;
+    // Fall back to the project's configured database when no explicit target is
+    // sent (backups of the "default database"). The action layer has already
+    // validated any non-default `database` against databaseNameSchema.
+    const dbName = database ?? project.dbName;
 
     const credentials = {
       host: project.dbServer.host,
@@ -149,12 +118,13 @@ export const createDatabaseBackup = inngest.createFunction(
         taskId,
         step,
         "run-backup",
-        `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${project.dbName}${useCompression ? "" : " (uncompressed)"}`,
+        `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
         async () => {
           const ts = new Date().toISOString().replace(/[:.]/g, "-");
           if (project.dbType === "mssql") {
             return await runMssqlBackup(
               project,
+              dbName,
               ts,
               credentials,
               useCompression
@@ -162,6 +132,7 @@ export const createDatabaseBackup = inngest.createFunction(
           }
           return await runPostgresBackup(
             project,
+            dbName,
             ts,
             credentials,
             useCompression
@@ -185,20 +156,19 @@ export const createDatabaseBackup = inngest.createFunction(
 
 async function runPostgresBackup(
   project: ProjectWithServers,
+  database: string,
   ts: string,
   credentials: { host: string; username: string; password: string },
   compress: boolean
 ): Promise<string> {
-  const fname = compress
-    ? `${project.dbName}_${ts}.sql.gz`
-    : `${project.dbName}_${ts}.sql`;
+  const fname = compress ? `${database}_${ts}.sql.gz` : `${database}_${ts}.sql`;
   const target = `${project.dbBackupPath}/${fname}`;
   // `--clean --if-exists` emits idempotent DROP IF EXISTS for every object
   // before the CREATE statements, so the dump can be restored into a database
   // that already has the schema (otherwise CREATE TABLE errors out on
   // re-restore). When piping through gzip, `set -o pipefail` so pg_dump
   // failures bubble up instead of getting masked by gzip's exit 0.
-  const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(project.dbName)}`;
+  const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(database)}`;
   const inner = compress
     ? `set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`
     : `${dumpCmd} > ${shq(target)}`;
@@ -217,6 +187,7 @@ async function runPostgresBackup(
 
 async function runMssqlBackup(
   project: ProjectWithServers,
+  database: string,
   ts: string,
   credentials: { host: string; username: string; password: string },
   compress: boolean
@@ -226,7 +197,7 @@ async function runMssqlBackup(
       "Project dbPassword is required for MSSQL backups (sqlcmd needs it)"
     );
   }
-  const fname = `${project.dbName}_${ts}.bak`;
+  const fname = `${database}_${ts}.bak`;
   const target = `${project.dbBackupPath}/${fname}`;
   // MSSQL .bak format is the same regardless of compression — the COMPRESSION
   // option just toggles internal block-level compression. NO_COMPRESSION is
@@ -234,7 +205,7 @@ async function runMssqlBackup(
   // is clearer in the audit log).
   const compressionClause = compress ? "COMPRESSION" : "NO_COMPRESSION";
   const query =
-    `BACKUP DATABASE [${sqlBracketId(project.dbName)}] ` +
+    `BACKUP DATABASE [${sqlBracketId(database)}] ` +
     `TO DISK = N'${sqlQuoteString(target)}' ` +
     `WITH FORMAT, INIT, ${compressionClause}, STATS = 5`;
   // Pipe the SQL into sqlcmd via stdin so the query (which contains quotes and
@@ -472,14 +443,19 @@ export const restoreDatabaseBackup = inngest.createFunction(
     retries: 0,
   },
   async ({ event, step }) => {
-    const { projectId, filename, taskId, restartBackend } = event.data as {
-      projectId: string;
-      filename: string;
-      taskId: string;
-      restartBackend?: boolean;
-    };
+    const { projectId, filename, taskId, restartBackend, database } =
+      event.data as {
+        projectId: string;
+        filename: string;
+        taskId: string;
+        restartBackend?: boolean;
+        database?: string;
+      };
     const data = await loadProjectWithServers(projectId);
     if (!data) throw new Error(`Project ${projectId} not found`);
+    // Restore target — the configured database unless the picker sent another
+    // one (already validated by the action layer).
+    const dbName = database ?? data.dbName;
     const credentials = {
       host: data.dbServer.host,
       username: data.dbServer.username,
@@ -494,9 +470,9 @@ export const restoreDatabaseBackup = inngest.createFunction(
           taskId,
           step,
           "perform-restore",
-          `Restoring ${data.dbName} from ${filename}`,
+          `Restoring ${dbName} from ${filename}`,
           async () => {
-            await runMssqlRestore(data, filename, credentials);
+            await runMssqlRestore(data, dbName, filename, credentials);
           }
         );
       } else {
@@ -504,9 +480,9 @@ export const restoreDatabaseBackup = inngest.createFunction(
           taskId,
           step,
           "recreate-database",
-          `Dropping and recreating ${data.dbName}`,
+          `Dropping and recreating ${dbName}`,
           async () => {
-            await runPostgresRecreateDatabase(data, credentials);
+            await runPostgresRecreateDatabase(data, dbName, credentials);
           }
         );
         await tracked(
@@ -515,7 +491,7 @@ export const restoreDatabaseBackup = inngest.createFunction(
           "perform-restore",
           `Restoring from ${filename}`,
           async () => {
-            await runPostgresRestore(data, filename, credentials);
+            await runPostgresRestore(data, dbName, filename, credentials);
           }
         );
       }
@@ -562,13 +538,14 @@ export const restoreDatabaseBackup = inngest.createFunction(
 
 async function runPostgresRecreateDatabase(
   data: ProjectWithServers,
+  database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
   // doesn't fail with "database is being accessed by other users". Then
   // recreate so the dump pipes into a clean DB — this lets us handle dumps
   // produced both with and without `--clean --if-exists`.
-  const dbId = pgQuoteId(data.dbName);
+  const dbId = pgQuoteId(database);
   const query = `DROP DATABASE IF EXISTS ${dbId} WITH (FORCE); CREATE DATABASE ${dbId};`;
   // Pipe the query inside the inner shell so the pipeline doesn't compete
   // with sudo -S's stdin on systemd; `runAsUser: "postgres"` is a no-op for
@@ -585,6 +562,7 @@ async function runPostgresRecreateDatabase(
 
 async function runPostgresRestore(
   data: ProjectWithServers,
+  database: string,
   filename: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -593,7 +571,7 @@ async function runPostgresRestore(
   // of silently continuing through a half-broken restore. Branch on the file
   // suffix so we can restore both gzipped (`.sql.gz`) and plain (`.sql`)
   // dumps produced by createDatabaseBackup.
-  const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(data.dbName)}`;
+  const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(database)}`;
   const inner = filename.endsWith(".gz")
     ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
     : `${psqlCmd} < ${shq(source)}`;
@@ -671,6 +649,7 @@ export const controlService = inngest.createFunction(
 
 async function runMssqlRestore(
   data: ProjectWithServers,
+  database: string,
   filename: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -680,7 +659,7 @@ async function runMssqlRestore(
     );
   }
   const source = `${data.dbBackupPath}/${filename}`;
-  const dbId = sqlBracketId(data.dbName);
+  const dbId = sqlBracketId(database);
   // Kill connections by flipping to SINGLE_USER, then restore. TRY/CATCH so
   // a failed restore still flips back to MULTI_USER instead of leaving the DB
   // wedged. THROW re-raises the original error to non-zero exit sqlcmd.
@@ -700,6 +679,201 @@ async function runMssqlRestore(
     data.dbPassword,
     data.dbServiceType,
     data.dbServiceName
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+export const createDatabaseFn = inngest.createFunction(
+  {
+    id: "create-database",
+    triggers: { event: "db/database.create.requested" },
+    // No auto-retry: a retried CREATE DATABASE would fail on "already exists"
+    // and leave a failed task row while the DB is actually present. The
+    // per-attempt catch marks the task failed; operators re-trigger from the UI.
+    retries: 0,
+  },
+  async ({ event, step }) => {
+    const { projectId, database, taskId } = event.data as {
+      projectId: string;
+      database: string;
+      taskId: string;
+    };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
+    const credentials = {
+      host: project.dbServer.host,
+      username: project.dbServer.username,
+      password: project.dbServer.password,
+    };
+
+    try {
+      if (!database) throw new Error("Database name is required");
+
+      await tracked(
+        taskId,
+        step,
+        "create-database",
+        `Creating database ${database}`,
+        async () => {
+          if (project.dbType === "mssql") {
+            await runMssqlCreateDatabase(project, database, credentials);
+          } else {
+            await runPostgresCreateDatabase(project, database, credentials);
+          }
+        }
+      );
+
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, `✓ Database created: ${database}`);
+        await completeTask(taskId);
+      });
+
+      return { success: true, database };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
+  }
+);
+
+async function runPostgresCreateDatabase(
+  project: ProjectWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const query = `CREATE DATABASE ${pgQuoteId(database)};`;
+  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const cmd = buildDbShellCommand(
+    project.dbServiceType,
+    project.dbServiceName,
+    inner,
+    { runAsUser: "postgres", sudoPassword: credentials.password }
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMssqlCreateDatabase(
+  project: ProjectWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  if (!project.dbPassword) {
+    throw new Error(
+      "Project dbPassword is required for MSSQL database creation (sqlcmd needs it)"
+    );
+  }
+  const query = `CREATE DATABASE [${sqlBracketId(database)}];`;
+  const cmd = buildSqlcmdCommand(
+    query,
+    project.dbPassword,
+    project.dbServiceType,
+    project.dbServiceName
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+export const dropDatabaseFn = inngest.createFunction(
+  {
+    id: "drop-database",
+    triggers: { event: "db/database.drop.requested" },
+    // Destructive (irreversibly drops the database); never auto-retry.
+    retries: 0,
+  },
+  async ({ event, step }) => {
+    const { projectId, database, taskId } = event.data as {
+      projectId: string;
+      database: string;
+      taskId: string;
+    };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
+    const credentials = {
+      host: project.dbServer.host,
+      username: project.dbServer.username,
+      password: project.dbServer.password,
+    };
+
+    try {
+      if (!database) throw new Error("Database name is required");
+      // Defence in depth: the action layer already blocks dropping the project's
+      // configured database, but re-check here so a hand-crafted event can't
+      // wipe the default DB out from under the panel.
+      if (database === project.dbName) {
+        throw new Error("Refusing to drop the project's configured database");
+      }
+
+      await tracked(
+        taskId,
+        step,
+        "drop-database",
+        `Dropping database ${database}`,
+        async () => {
+          if (project.dbType === "mssql") {
+            await runMssqlDropDatabase(project, database, credentials);
+          } else {
+            await runPostgresDropDatabase(project, database, credentials);
+          }
+        }
+      );
+
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, `✓ Database dropped: ${database}`);
+        await completeTask(taskId);
+      });
+
+      return { success: true, database };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
+  }
+);
+
+async function runPostgresDropDatabase(
+  project: ProjectWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
+  // doesn't fail with "database is being accessed by other users".
+  const query = `DROP DATABASE IF EXISTS ${pgQuoteId(database)} WITH (FORCE);`;
+  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const cmd = buildDbShellCommand(
+    project.dbServiceType,
+    project.dbServiceName,
+    inner,
+    { runAsUser: "postgres", sudoPassword: credentials.password }
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMssqlDropDatabase(
+  project: ProjectWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  if (!project.dbPassword) {
+    throw new Error(
+      "Project dbPassword is required for MSSQL database drop (sqlcmd needs it)"
+    );
+  }
+  const dbId = sqlBracketId(database);
+  // Flip to SINGLE_USER WITH ROLLBACK IMMEDIATE to kill active connections,
+  // then drop. Guard the ALTER with an existence check so dropping a missing
+  // DB is a no-op rather than a hard error.
+  const query =
+    `IF DB_ID(N'${sqlQuoteString(database)}') IS NOT NULL\n` +
+    `BEGIN\n` +
+    `  ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
+    `  DROP DATABASE [${dbId}];\n` +
+    `END;`;
+  const cmd = buildSqlcmdCommand(
+    query,
+    project.dbPassword,
+    project.dbServiceType,
+    project.dbServiceName
   );
   await executeRemoteCommand(credentials, cmd);
 }
