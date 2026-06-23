@@ -251,7 +251,11 @@
       "empty": "لا يوجد إخراج سجل بعد.",
       "formatToggle": "تبديل تنسيق السجل",
       "viewPretty": "عرض منظَّم (تحليل JSON)",
-      "viewRaw": "عرض خام"
+      "viewRaw": "عرض خام",
+      "levelLabel": "المستوى",
+      "levelAll": "كل المستويات",
+      "pageSubtitle": "{serviceName} · {serverName}",
+      "backToServices": "العودة إلى الخدمات"
     }
   },
   "backupDb": {

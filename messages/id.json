@@ -251,7 +251,11 @@
       "empty": "Belum ada output log.",
       "formatToggle": "Ubah format log",
       "viewPretty": "Tampilan terstruktur (JSON terurai)",
-      "viewRaw": "Tampilan mentah"
+      "viewRaw": "Tampilan mentah",
+      "levelLabel": "Level",
+      "levelAll": "Semua level",
+      "pageSubtitle": "{serviceName} · {serverName}",
+      "backToServices": "Kembali ke layanan"
     }
   },
   "backupDb": {

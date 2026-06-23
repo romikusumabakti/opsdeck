@@ -5,7 +5,6 @@ import {
   Braces,
   CircleAlert,
   Download,
-  FileText,
   Filter,
   Pause,
   Play,
@@ -16,13 +15,6 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -45,13 +37,24 @@ import {
 } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
-type Props = {
-  project: SafeProjectWithServers;
-  role: ServiceRole | null;
-  serviceName: string;
-  serverName: string;
-  title: string;
-  onOpenChange: (open: boolean) => void;
+export type LevelFilter = "all" | NonNullable<LogLevel>;
+
+const LEVEL_FILTER_OPTIONS: LevelFilter[] = [
+  "all",
+  "error",
+  "warn",
+  "info",
+  "debug",
+];
+
+// Serializable view state — mirrored into the URL by the full-page viewer so
+// a filtered view is shareable / bookmarkable / reload-safe. The dialog leaves
+// `onStateChange` unset and keeps this purely ephemeral.
+export type LogViewerState = {
+  tail: LogLines;
+  q: string;
+  level: LevelFilter;
+  view: "pretty" | "raw";
 };
 
 type LogEntry = {
@@ -71,22 +74,45 @@ const MAX_ENTRIES = 5000;
 // count as "at bottom" for sticky-tail purposes. Accounts for sub-pixel
 // rounding when zoom isn't 100%.
 const BOTTOM_THRESHOLD_PX = 16;
+// Debounce URL writes so per-keystroke filter changes don't spam history.
+const STATE_SYNC_DEBOUNCE_MS = 350;
 
-export function ServiceLogsDialog({
+type Props = {
+  project: SafeProjectWithServers;
+  role: ServiceRole;
+  serviceName: string;
+  // Seed view state (defaults: tail=200, q="", level="all", view="pretty").
+  initial?: Partial<LogViewerState>;
+  // Called (debounced) whenever view state changes — used to sync to the URL.
+  onStateChange?: (state: LogViewerState) => void;
+  // Show the severity dropdown. Off by default to keep the toolbar lean.
+  showLevelFilter?: boolean;
+  // Sizing/layout applied to the root — parents own height (page flex-1, …).
+  // The viewer fills whatever box it's given.
+  className?: string;
+};
+
+export function LogViewer({
   project,
   role,
   serviceName,
-  serverName,
-  title,
-  onOpenChange,
+  initial,
+  onStateChange,
+  showLevelFilter = false,
+  className,
 }: Props) {
   const t = useTranslations("services");
-  const [initialLines, setInitialLines] = React.useState<LogLines>(200);
+  const [initialLines, setInitialLines] = React.useState<LogLines>(
+    initial?.tail ?? 200
+  );
   const [entries, setEntries] = React.useState<LogEntry[]>([]);
   const [streamState, setStreamState] = React.useState<StreamState>("idle");
   const [streamError, setStreamError] = React.useState<string | null>(null);
-  const [filter, setFilter] = React.useState("");
-  const [pretty, setPretty] = React.useState(true);
+  const [filter, setFilter] = React.useState(initial?.q ?? "");
+  const [level, setLevel] = React.useState<LevelFilter>(
+    initial?.level ?? "all"
+  );
+  const [pretty, setPretty] = React.useState(initial?.view !== "raw");
   const [atBottom, setAtBottom] = React.useState(true);
   const [pendingNewCount, setPendingNewCount] = React.useState(0);
 
@@ -110,7 +136,6 @@ export function ServiceLogsDialog({
 
   const connect = React.useCallback(
     (linesToTail: LogLines) => {
-      if (!role) return;
       closeStream();
       setEntries([]);
       idRef.current = 0;
@@ -211,25 +236,41 @@ export function ServiceLogsDialog({
     [project.id, role, t, closeStream]
   );
 
-  // Auto-connect on open, tear down on close. The `role` prop being null means
-  // dialog is closed — clear state so reopening for a different service does
-  // not flash stale output.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: see comment above
+  // Connect on mount, tear down on unmount. Parents that need a fresh stream
+  // for a different service (the dialog) remount via a `key` on the role, so a
+  // plain mount effect is enough — no role-change branch to handle here.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: connect once on mount with the seeded tail
   React.useEffect(() => {
-    if (role) {
-      connect(initialLines);
-    } else {
-      closeStream();
-      setEntries([]);
-      setStreamError(null);
-      setStreamState("idle");
-      setFilter("");
-      setPendingNewCount(0);
-    }
+    connect(initialLines);
     return () => {
       closeStream();
     };
-  }, [role]);
+  }, []);
+
+  // Mirror serializable view state outward (URL sync), debounced so typing in
+  // the filter doesn't write a history entry per keystroke. Skip the first run
+  // so mounting with seed state doesn't immediately rewrite the URL.
+  const onStateChangeRef = React.useRef(onStateChange);
+  React.useEffect(() => {
+    onStateChangeRef.current = onStateChange;
+  });
+  const firstSync = React.useRef(true);
+  React.useEffect(() => {
+    if (!onStateChangeRef.current) return;
+    if (firstSync.current) {
+      firstSync.current = false;
+      return;
+    }
+    const id = setTimeout(() => {
+      onStateChangeRef.current?.({
+        tail: initialLines,
+        q: filter,
+        level,
+        view: pretty ? "pretty" : "raw",
+      });
+    }, STATE_SYNC_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [initialLines, filter, level, pretty]);
 
   // Sticky-tail: keep the view pinned to the bottom unless the user scrolled
   // away. The effect intentionally depends on `entries` (not anything read
@@ -295,10 +336,14 @@ export function ServiceLogsDialog({
   }
 
   const filtered = React.useMemo(() => {
-    if (!filter) return entries;
     const q = filter.toLowerCase();
-    return entries.filter((e) => e.text.toLowerCase().includes(q));
-  }, [entries, filter]);
+    if (!q && level === "all") return entries;
+    return entries.filter((e) => {
+      if (level !== "all" && e.level !== level) return false;
+      if (q && !e.text.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [entries, filter, level]);
 
   const copyText = React.useMemo(
     () => entries.map((e) => e.text).join("\n"),
@@ -307,181 +352,189 @@ export function ServiceLogsDialog({
 
   const isConnecting = streamState === "connecting";
   const isPaused = streamState === "paused";
+  const isFiltering = Boolean(filter) || level !== "all";
 
   return (
-    <Dialog open={role !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl grid-rows-[auto_auto_minmax(0,1fr)] max-h-[calc(100vh-2rem)]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="size-5 text-muted-foreground" />
-            {title}
-          </DialogTitle>
-          <DialogDescription asChild>
-            <div className="flex items-center gap-1 flex-wrap">
-              <code className="font-mono text-xs">{serviceName}</code>
-              <span>· {serverName}</span>
-            </div>
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {t("logs.linesLabel")}
-            </span>
-            <Select
-              value={String(initialLines)}
-              onValueChange={onLinesChange}
-              disabled={isConnecting}
-            >
-              <SelectTrigger size="sm" className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LOG_LINE_OPTIONS.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="relative">
-            <Filter className="size-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              type="search"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder={t("logs.filterPlaceholder")}
-              className="h-8 pl-7 w-48 text-xs"
-            />
-          </div>
-
-          <Button
-            type="button"
-            variant={pretty ? "default" : "outline"}
-            size="sm"
-            onClick={() => setPretty((p) => !p)}
-            aria-pressed={pretty}
-            aria-label={t("logs.formatToggle")}
-            title={pretty ? t("logs.viewPretty") : t("logs.viewRaw")}
-          >
-            <Braces className="size-4" />
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={togglePause}
+    <div className={cn("flex flex-col min-h-0 gap-3", className)}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {t("logs.linesLabel")}
+          </span>
+          <Select
+            value={String(initialLines)}
+            onValueChange={onLinesChange}
             disabled={isConnecting}
-            className="ml-auto"
           >
-            {isPaused || streamState === "idle" || streamState === "error" ? (
-              <>
-                <Play className="size-4" />
-                {t("logs.resume")}
-              </>
-            ) : (
-              <>
-                <Pause className="size-4" />
-                {t("logs.pause")}
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => connect(initialLines)}
-            disabled={isConnecting}
-            aria-label={t("logs.reconnect")}
-          >
-            <RefreshCw
-              className={cn("size-4", isConnecting && "animate-spin")}
-            />
-          </Button>
-          {entries.length > 0 && (
-            <CopyButton value={copyText} label={t("logs.copy")} />
-          )}
-          {entries.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onDownload}
-              aria-label={t("logs.download")}
-            >
-              <Download className="size-4" />
-            </Button>
-          )}
+            <SelectTrigger size="sm" className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LOG_LINE_OPTIONS.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="rounded-md border bg-card overflow-hidden flex flex-col min-h-0 relative">
-          <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30 text-xs text-muted-foreground shrink-0">
-            <Terminal className="size-3.5" />
-            <StreamBadge state={streamState} t={t} />
-            <span className="ml-auto tabular-nums">
-              {filter ? `${filtered.length}/${entries.length}` : entries.length}{" "}
-              {t("logs.lines")}
-            </span>
-          </div>
-
-          {streamError && (
-            <div className="px-4 py-3 text-sm text-destructive flex items-start gap-2 border-b">
-              <CircleAlert className="size-4 shrink-0 mt-0.5" />
-              <code className="font-mono text-xs break-all">{streamError}</code>
-            </div>
-          )}
-
-          <div
-            ref={logRef}
-            onScroll={onScroll}
-            className="font-mono text-xs leading-relaxed bg-background flex-1 min-h-0 overflow-auto"
+        {showLevelFilter && (
+          <Select
+            value={level}
+            onValueChange={(v) => setLevel(v as LevelFilter)}
           >
-            {filtered.length === 0 ? (
-              <div className="px-4 py-3">
-                <span className="text-muted-foreground italic">
-                  {isConnecting
-                    ? t("logs.loading")
-                    : filter
-                      ? t("logs.noMatches")
-                      : t("logs.empty")}
-                </span>
+            <SelectTrigger
+              size="sm"
+              className="w-32"
+              aria-label={t("logs.levelLabel")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LEVEL_FILTER_OPTIONS.map((opt) => (
+                <SelectItem key={opt} value={opt}>
+                  {opt === "all" ? t("logs.levelAll") : opt.toUpperCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <div className="relative">
+          <Filter className="size-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t("logs.filterPlaceholder")}
+            className="h-8 pl-7 w-48 text-xs"
+          />
+        </div>
+
+        <Button
+          type="button"
+          variant={pretty ? "default" : "outline"}
+          size="sm"
+          onClick={() => setPretty((p) => !p)}
+          aria-pressed={pretty}
+          aria-label={t("logs.formatToggle")}
+          title={pretty ? t("logs.viewPretty") : t("logs.viewRaw")}
+        >
+          <Braces className="size-4" />
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={togglePause}
+          disabled={isConnecting}
+          className="ml-auto"
+        >
+          {isPaused || streamState === "idle" || streamState === "error" ? (
+            <>
+              <Play className="size-4" />
+              {t("logs.resume")}
+            </>
+          ) : (
+            <>
+              <Pause className="size-4" />
+              {t("logs.pause")}
+            </>
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => connect(initialLines)}
+          disabled={isConnecting}
+          aria-label={t("logs.reconnect")}
+        >
+          <RefreshCw className={cn("size-4", isConnecting && "animate-spin")} />
+        </Button>
+        {entries.length > 0 && (
+          <CopyButton value={copyText} label={t("logs.copy")} />
+        )}
+        {entries.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDownload}
+            aria-label={t("logs.download")}
+          >
+            <Download className="size-4" />
+          </Button>
+        )}
+      </div>
+
+      <div className="rounded-md border bg-card overflow-hidden flex flex-col min-h-0 flex-1 relative">
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30 text-xs text-muted-foreground shrink-0">
+          <Terminal className="size-3.5" />
+          <StreamBadge state={streamState} t={t} />
+          <span className="ml-auto tabular-nums">
+            {isFiltering
+              ? `${filtered.length}/${entries.length}`
+              : entries.length}{" "}
+            {t("logs.lines")}
+          </span>
+        </div>
+
+        {streamError && (
+          <div className="px-4 py-3 text-sm text-destructive flex items-start gap-2 border-b">
+            <CircleAlert className="size-4 shrink-0 mt-0.5" />
+            <code className="font-mono text-xs break-all">{streamError}</code>
+          </div>
+        )}
+
+        <div
+          ref={logRef}
+          onScroll={onScroll}
+          className="font-mono text-xs leading-relaxed bg-background flex-1 min-h-0 overflow-auto"
+        >
+          {filtered.length === 0 ? (
+            <div className="px-4 py-3">
+              <span className="text-muted-foreground italic">
+                {isConnecting
+                  ? t("logs.loading")
+                  : isFiltering
+                    ? t("logs.noMatches")
+                    : t("logs.empty")}
+              </span>
+            </div>
+          ) : (
+            filtered.map((entry) => (
+              <div
+                key={entry.id}
+                className={cn(
+                  "px-4 py-0.5 whitespace-pre-wrap break-all border-l-2 border-transparent",
+                  entry.level === "error" &&
+                    "bg-destructive/5 border-l-destructive/60",
+                  entry.level === "warn" &&
+                    "bg-amber-500/5 border-l-amber-500/60"
+                )}
+              >
+                <LogContent parsed={entry.parsed} pretty={pretty} />
               </div>
-            ) : (
-              filtered.map((entry) => (
-                <div
-                  key={entry.id}
-                  className={cn(
-                    "px-4 py-0.5 whitespace-pre-wrap break-all border-l-2 border-transparent",
-                    entry.level === "error" &&
-                      "bg-destructive/5 border-l-destructive/60",
-                    entry.level === "warn" &&
-                      "bg-amber-500/5 border-l-amber-500/60"
-                  )}
-                >
-                  <LogContent parsed={entry.parsed} pretty={pretty} />
-                </div>
-              ))
-            )}
-          </div>
-
-          {!atBottom && pendingNewCount > 0 && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={jumpToLatest}
-              className="absolute bottom-3 left-1/2 -translate-x-1/2 shadow-md"
-            >
-              <ArrowDown className="size-4" />
-              {t("logs.jumpToLatest", { count: pendingNewCount })}
-            </Button>
+            ))
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {!atBottom && pendingNewCount > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={jumpToLatest}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 shadow-md"
+          >
+            <ArrowDown className="size-4" />
+            {t("logs.jumpToLatest", { count: pendingNewCount })}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
