@@ -536,7 +536,9 @@
     "deleteTitle": "Hapus proyek",
     "deleteDescription": "Hapus proyek {name}? Tindakan ini tidak bisa dibatalkan.",
     "deleteFailed": "Gagal menghapus proyek",
-    "deletedSuccess": "Proyek {name} dihapus"
+    "deletedSuccess": "Proyek {name} dihapus",
+    "tabConfig": "Konfigurasi",
+    "tabDanger": "Zona berbahaya"
   },
   "userMenu": {
     "users": "Manajemen pengguna",
