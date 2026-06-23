@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth-session";
 import { DeleteProjectCard } from "./delete-project-card";
@@ -42,44 +43,53 @@ export default async function ProjectSettingsPage({
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      <div className="flex flex-col gap-6 max-w-2xl w-full">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("editTitle")}</CardTitle>
-            <CardDescription>{t("editDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProjectForm mode={{ type: "edit", project }} servers={servers} />
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="config" className="max-w-2xl w-full">
+        <TabsList>
+          <TabsTrigger value="config">{t("tabConfig")}</TabsTrigger>
+          <TabsTrigger value="danger">{t("tabDanger")}</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("duplicateTitle")}</CardTitle>
-            <CardDescription>{t("duplicateDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline">
-              <Link href={`/projects/new?from=${project.id}`}>
-                <Copy className="size-4" />
-                {t("duplicateButton")}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <TabsContent value="config" className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("editTitle")}</CardTitle>
+              <CardDescription>{t("editDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProjectForm mode={{ type: "edit", project }} servers={servers} />
+            </CardContent>
+          </Card>
 
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">
-              {t("dangerZoneTitle")}
-            </CardTitle>
-            <CardDescription>{t("dangerZoneDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DeleteProjectCard project={project} />
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("duplicateTitle")}</CardTitle>
+              <CardDescription>{t("duplicateDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link href={`/projects/new?from=${project.id}`}>
+                  <Copy className="size-4" />
+                  {t("duplicateButton")}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="danger">
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-destructive">
+                {t("dangerZoneTitle")}
+              </CardTitle>
+              <CardDescription>{t("dangerZoneDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DeleteProjectCard project={project} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </>
   );
 }

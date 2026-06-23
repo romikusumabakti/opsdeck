@@ -84,6 +84,7 @@ export default async function EditServerPage({
                     <Link
                       href={`/projects/${u.project.id}`}
                       className="font-medium truncate hover:underline"
+                      title={u.project.name}
                     >
                       {u.project.name}
                     </Link>

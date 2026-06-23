@@ -536,7 +536,9 @@
     "deleteTitle": "حذف المشروع",
     "deleteDescription": "حذف المشروع {name}؟ لا يمكن التراجع عن هذا الإجراء.",
     "deleteFailed": "فشل حذف المشروع",
-    "deletedSuccess": "تم حذف المشروع {name}"
+    "deletedSuccess": "تم حذف المشروع {name}",
+    "tabConfig": "التهيئة",
+    "tabDanger": "منطقة الخطر"
   },
   "userMenu": {
     "users": "إدارة المستخدمين",
