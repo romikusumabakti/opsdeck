@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
 import { DateTimePicker } from "./date-time-picker";
@@ -254,110 +255,121 @@ export function MockTimeLegacy({
 
       <Separator />
 
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("travel.title")}</h3>
+      <Tabs defaultValue="travel" className="gap-3">
+        <TabsList className="w-full">
+          <TabsTrigger value="travel">
+            <Clock className="size-4" />
+            {t("travel.title")}
+          </TabsTrigger>
+          <TabsTrigger value="advance">
+            <FastForward className="size-4" />
+            {t("advance.title")}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="travel" className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
             {t("travel.description")}
           </p>
-        </header>
-        <div className="flex flex-row items-end gap-2 flex-wrap">
-          <DateTimePicker
-            date={date}
-            hour={hour}
-            minute={minute}
-            onDateChange={setDate}
-            onTimeChange={(h, m) => {
-              setHour(h);
-              setMinute(m);
-            }}
-            idPrefix="mock-time-legacy"
-          />
-          <Button onClick={onTravel} disabled={anyPending}>
-            <Clock className="size-4" />
-            {pendingAction === "travel"
-              ? t("travel.submitting")
-              : t("travel.submit")}
-          </Button>
-        </div>
-      </section>
+          <div className="flex flex-row items-end gap-2 flex-wrap">
+            <DateTimePicker
+              date={date}
+              hour={hour}
+              minute={minute}
+              onDateChange={setDate}
+              onTimeChange={(h, m) => {
+                setHour(h);
+                setMinute(m);
+              }}
+              idPrefix="mock-time-legacy"
+            />
+            <Button onClick={onTravel} disabled={anyPending}>
+              <Clock className="size-4" />
+              {pendingAction === "travel"
+                ? t("travel.submitting")
+                : t("travel.submit")}
+            </Button>
+          </div>
+        </TabsContent>
 
-      <Separator />
-
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("advance.title")}</h3>
+        <TabsContent value="advance" className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
             {t("advance.descriptionLegacy")}
           </p>
-        </header>
-        <FieldGroup className="flex-row items-end gap-2 flex-wrap">
-          <Field className="flex-1">
-            <FieldLabel htmlFor="legacy-advance-amount">
-              {t("advance.amountLabel")}
-            </FieldLabel>
-            <Input
-              id="legacy-advance-amount"
-              type="number"
-              min={1}
-              step={1}
-              value={advanceAmount}
-              onChange={(e) => setAdvanceAmount(e.target.value)}
-              disabled={anyPending}
-              className="tabular-nums"
-            />
-          </Field>
-          <Field className="flex-1">
-            <FieldLabel htmlFor="legacy-advance-unit">
-              {t("advance.unitLabel")}
-            </FieldLabel>
-            <Select
-              value={advanceUnit}
-              onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
-              disabled={anyPending}
-            >
-              <SelectTrigger id="legacy-advance-unit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="minutes">
-                  {t("advance.units.minutes")}
-                </SelectItem>
-                <SelectItem value="hours">
-                  {t("advance.units.hours")}
-                </SelectItem>
-                <SelectItem value="days">{t("advance.units.days")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="flex-1">
-            <FieldLabel htmlFor="legacy-advance-direction">
-              {t("advance.directionLabel")}
-            </FieldLabel>
-            <Select
-              value={advanceDirection}
-              onValueChange={(v) => setAdvanceDirection(v as AdvanceDirection)}
-              disabled={anyPending}
-            >
-              <SelectTrigger id="legacy-advance-direction">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="forward">{t("advance.forward")}</SelectItem>
-                <SelectItem value="backward">
-                  {t("advance.backward")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Button onClick={onAdvance} disabled={anyPending}>
-            <FastForward className="size-4" />
-            {pendingAction === "advance"
-              ? t("advance.submitting")
-              : t("advance.submit")}
-          </Button>
-        </FieldGroup>
-      </section>
+          <FieldGroup className="flex-row items-end gap-2 flex-wrap">
+            <Field className="flex-1">
+              <FieldLabel htmlFor="legacy-advance-amount">
+                {t("advance.amountLabel")}
+              </FieldLabel>
+              <Input
+                id="legacy-advance-amount"
+                type="number"
+                min={1}
+                step={1}
+                value={advanceAmount}
+                onChange={(e) => setAdvanceAmount(e.target.value)}
+                disabled={anyPending}
+                className="tabular-nums"
+              />
+            </Field>
+            <Field className="flex-1">
+              <FieldLabel htmlFor="legacy-advance-unit">
+                {t("advance.unitLabel")}
+              </FieldLabel>
+              <Select
+                value={advanceUnit}
+                onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
+                disabled={anyPending}
+              >
+                <SelectTrigger id="legacy-advance-unit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="minutes">
+                    {t("advance.units.minutes")}
+                  </SelectItem>
+                  <SelectItem value="hours">
+                    {t("advance.units.hours")}
+                  </SelectItem>
+                  <SelectItem value="days">
+                    {t("advance.units.days")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field className="flex-1">
+              <FieldLabel htmlFor="legacy-advance-direction">
+                {t("advance.directionLabel")}
+              </FieldLabel>
+              <Select
+                value={advanceDirection}
+                onValueChange={(v) =>
+                  setAdvanceDirection(v as AdvanceDirection)
+                }
+                disabled={anyPending}
+              >
+                <SelectTrigger id="legacy-advance-direction">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="forward">
+                    {t("advance.forward")}
+                  </SelectItem>
+                  <SelectItem value="backward">
+                    {t("advance.backward")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Button onClick={onAdvance} disabled={anyPending}>
+              <FastForward className="size-4" />
+              {pendingAction === "advance"
+                ? t("advance.submitting")
+                : t("advance.submit")}
+            </Button>
+          </FieldGroup>
+        </TabsContent>
+      </Tabs>
 
       <Separator />
 

@@ -63,27 +63,17 @@ export default async function Page({
           <div className="flex items-center gap-2">
             <Clock className="size-5 text-muted-foreground" />
             <CardTitle className="text-base">{t("formTitle")}</CardTitle>
+            <Badge
+              variant={hasApi ? "default" : "secondary"}
+              className="ml-auto gap-1"
+            >
+              <ServerCog className="size-3" />
+              {hasApi ? t("modeApi") : t("modeLegacy")}
+            </Badge>
           </div>
           <CardDescription>{t("formDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-sm">
-            <ServerCog className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground">{t("modeLabel")}</span>
-              <Badge variant={hasApi ? "default" : "secondary"}>
-                {hasApi ? t("modeApi") : t("modeLegacy")}
-              </Badge>
-              <span className="text-xs text-muted-foreground mt-1">
-                {hasApi
-                  ? t("modeApiHint", {
-                      url: project.backendMockTimeApiUrl ?? "",
-                    })
-                  : t("modeLegacyHint", { name: project.backendServiceName })}
-              </span>
-            </div>
-          </div>
-
           {!hasApi && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <Info className="size-4 shrink-0 mt-0.5" />
