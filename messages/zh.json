@@ -251,7 +251,11 @@
       "empty": "暂无日志输出。",
       "formatToggle": "切换日志格式",
       "viewPretty": "结构化视图（解析 JSON）",
-      "viewRaw": "原始视图"
+      "viewRaw": "原始视图",
+      "levelLabel": "级别",
+      "levelAll": "所有级别",
+      "pageSubtitle": "{serviceName} · {serverName}",
+      "backToServices": "返回服务"
     }
   },
   "backupDb": {

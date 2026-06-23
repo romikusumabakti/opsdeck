@@ -24,7 +24,6 @@ import {
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { PageHeader } from "@/components/page-header";
-import { ServiceLogsDialog } from "@/components/service-logs-dialog";
 import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +34,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
 import type { ServiceAction, ServiceRole, ServiceType } from "@/lib/services";
 import { cn } from "@/lib/utils";
@@ -164,7 +164,6 @@ function ServiceCard({
     taskId: string;
     action: ServiceAction;
   } | null>(null);
-  const [logsOpen, setLogsOpen] = React.useState(false);
 
   async function onAction(action: ServiceAction) {
     const titleLabel = tDash(meta.titleKey);
@@ -277,17 +276,28 @@ function ServiceCard({
             )}
             {t("actions.restart")}
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setLogsOpen(true)}
-            disabled={state === "not-found"}
-            aria-label={t("actions.viewLogs")}
-            className="col-span-2"
-          >
-            <FileText className="size-4" />
-            {t("actions.viewLogs")}
-          </Button>
+          {state === "not-found" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled
+              aria-label={t("actions.viewLogs")}
+              className="col-span-2"
+            >
+              <FileText className="size-4" />
+              {t("actions.viewLogs")}
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="ghost" className="col-span-2">
+              <Link
+                href={`/projects/${project.id}/services/${meta.role}/logs`}
+                aria-label={t("actions.viewLogs")}
+              >
+                <FileText className="size-4" />
+                {t("actions.viewLogs")}
+              </Link>
+            </Button>
+          )}
         </div>
 
         {status?.error && (
@@ -312,15 +322,6 @@ function ServiceCard({
             <span>· {meta.serverName}</span>
           </>
         }
-      />
-
-      <ServiceLogsDialog
-        project={project}
-        role={logsOpen ? meta.role : null}
-        serviceName={meta.serviceName}
-        serverName={meta.serverName}
-        title={t("logs.title", { target: tDash(meta.titleKey) })}
-        onOpenChange={(open) => setLogsOpen(open)}
       />
     </Card>
   );
