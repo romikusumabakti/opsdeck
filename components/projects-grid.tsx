@@ -106,7 +106,7 @@ export function ProjectsGrid({
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
           {visible.map((project) => {
             const activity = lastActivity[project.id] ?? null;
             return (
@@ -115,8 +115,8 @@ export function ProjectsGrid({
                 href={`/projects/${project.id}`}
                 className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
               >
-                <Card className="h-full hover:border-primary/50 hover:shadow-sm transition-all">
-                  <CardContent className="p-5 flex flex-col gap-3">
+                <Card className="h-full py-0 hover:border-primary/50 hover:shadow-sm transition-all">
+                  <CardContent className="p-4 flex flex-col gap-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="size-9 rounded-md bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">

@@ -89,7 +89,7 @@ function KpiCard({
   emptyText: string;
 }) {
   return (
-    <Card>
+    <Card className="py-0">
       <CardContent className="flex flex-col gap-2 p-4">
         <span className="text-xs uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1.5">
           <Icon className="size-3" />
@@ -164,7 +164,7 @@ function ActivityKpiCard({
         : 0
       : Math.round((diff / prevTotal) * 100);
   return (
-    <Card>
+    <Card className="py-0">
       <CardContent className="flex flex-col gap-2 p-4">
         <span className="text-xs uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1.5">
           <TrendingUp className="size-3" />
@@ -278,7 +278,7 @@ export function DashboardKpisSkeleton() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {Array.from({ length: 4 }, (_, i) => (
-        <Card key={i}>
+        <Card key={i} className="py-0">
           <CardContent className="flex flex-col gap-2 p-4">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-5 w-32" />
