@@ -32,7 +32,8 @@
     "errorDescription": "حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى أو العودة إلى الرئيسية.",
     "notFoundTitle": "الصفحة غير موجودة",
     "notFoundDescription": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
-    "errorDetails": "التفاصيل"
+    "errorDetails": "التفاصيل",
+    "capsLockOn": "مفتاح Caps Lock مُفعَّل"
   },
   "dataTable": {
     "searchPlaceholder": "بحث…",
@@ -810,5 +811,12 @@
     "description": "لديك تغييرات غير محفوظة ستفقد إذا غادرت هذه الصفحة.",
     "leave": "مغادرة",
     "stay": "البقاء"
+  },
+  "passwordStrength": {
+    "label": "قوة كلمة المرور",
+    "weak": "ضعيفة",
+    "fair": "مقبولة",
+    "good": "جيدة",
+    "strong": "قوية"
   }
 }

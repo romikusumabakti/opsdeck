@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordStrength } from "@/components/ui/password-strength";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -86,6 +87,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
                   }}
                 />
               </FormControl>
+              <PasswordStrength value={field.value} />
               <FormMessage />
             </FormItem>
           )}

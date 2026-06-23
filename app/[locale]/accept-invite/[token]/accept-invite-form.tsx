@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordStrength } from "@/components/ui/password-strength";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -97,6 +98,7 @@ export function AcceptInviteForm({
               <FormControl>
                 <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>
+              <PasswordStrength value={field.value} />
               <FormMessage />
             </FormItem>
           )}
