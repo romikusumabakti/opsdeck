@@ -215,7 +215,7 @@ export function ProjectForm({
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-8"
+          className="flex flex-col gap-6"
         >
           <Section title={t("info")}>
             <FormField

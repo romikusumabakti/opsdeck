@@ -264,7 +264,7 @@ function ServiceCard({
           </Button>
           <Button
             size="sm"
-            variant="default"
+            variant="outline"
             onClick={() => onAction("restart")}
             disabled={busy || state === "not-found"}
             aria-label={t("actions.restart")}
