@@ -1,4 +1,4 @@
-import { Database, Info } from "lucide-react";
+import { Database } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getDatabaseList } from "@/actions/databases";
 import { getProjectById } from "@/actions/projects";
@@ -78,11 +78,8 @@ export default async function Page({
               <dd className="truncate">{project.dbServer.name}</dd>
             </div>
           </dl>
-          <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-            <Info className="size-4 shrink-0 mt-0.5" />
-            <p>{t("infoNote")}</p>
-          </div>
           <BackupDatabase project={project} databases={databases} />
+          <p className="text-xs text-muted-foreground">{t("infoNote")}</p>
         </CardContent>
       </Card>
     </>
