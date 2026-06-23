@@ -141,7 +141,14 @@
     "title": "Projects",
     "subtitle": "Pick a project to manage backups, restores, and history.",
     "create": "New project",
-    "neverActive": "No activity yet"
+    "neverActive": "No activity yet",
+    "searchPlaceholder": "Search projects...",
+    "sortLabel": "Sort",
+    "sortRecent": "Most recent activity",
+    "sortNameAsc": "Name (A–Z)",
+    "sortNameDesc": "Name (Z–A)",
+    "noMatch": "No projects match \"{query}\".",
+    "clearSearch": "Clear search"
   },
   "dashboard": {
     "title": "Dashboard",
