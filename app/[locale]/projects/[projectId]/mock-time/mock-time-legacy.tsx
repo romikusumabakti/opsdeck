@@ -273,11 +273,7 @@ export function MockTimeLegacy({
             }}
             idPrefix="mock-time-legacy"
           />
-          <Button
-            onClick={onTravel}
-            disabled={anyPending}
-            variant="destructive"
-          >
+          <Button onClick={onTravel} disabled={anyPending}>
             <Clock className="size-4" />
             {pendingAction === "travel"
               ? t("travel.submitting")
@@ -354,11 +350,7 @@ export function MockTimeLegacy({
               </SelectContent>
             </Select>
           </Field>
-          <Button
-            onClick={onAdvance}
-            disabled={anyPending}
-            variant="destructive"
-          >
+          <Button onClick={onAdvance} disabled={anyPending}>
             <FastForward className="size-4" />
             {pendingAction === "advance"
               ? t("advance.submitting")
@@ -377,7 +369,7 @@ export function MockTimeLegacy({
           </p>
         </header>
         <div>
-          <Button onClick={onReset} disabled={anyPending} variant="outline">
+          <Button onClick={onReset} disabled={anyPending} variant="destructive">
             <RotateCcw className="size-4" />
             {pendingAction === "reset"
               ? t("reset.submitting")

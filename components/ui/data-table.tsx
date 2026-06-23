@@ -101,6 +101,15 @@ type DataTableProps<TData, TValue> = {
    */
   renderCard?: (row: TData) => React.ReactNode;
   /**
+   * When set, clicking a row (table or card layout) invokes this callback —
+   * a convenience shortcut to the row's primary action (e.g. open detail).
+   * Clicks landing on an interactive descendant (button, link, input,
+   * checkbox, menu) are ignored so kebab menus and selection checkboxes keep
+   * working. The row still exposes its full action set via those controls, so
+   * this is an enhancement, not the only path.
+   */
+  onRowClick?: (row: TData) => void;
+  /**
    * Rich empty state (icon + message + optional action) shown when there are
    * no rows — including when a filter excludes everything. Falls back to the
    * plain `emptyMessage` text when not provided.
@@ -120,6 +129,7 @@ export function DataTable<TData, TValue>({
   canSelectRow,
   urlKey,
   renderCard,
+  onRowClick,
   emptyState,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
@@ -265,6 +275,24 @@ export function DataTable<TData, TValue>({
   );
   const clearSelection = React.useCallback(() => setRowSelection({}), []);
 
+  // Row-click shortcut. Ignore clicks that land on an interactive descendant
+  // (kebab menu, selection checkbox, links) so those keep their own behavior;
+  // only a click on the row's "empty" surface triggers navigation.
+  const handleRowClick = React.useCallback(
+    (original: TData) => (e: React.MouseEvent) => {
+      if (!onRowClick) return;
+      if (
+        (e.target as HTMLElement).closest(
+          'button, a, input, label, [role="checkbox"], [role="menu"], [role="menuitem"]'
+        )
+      ) {
+        return;
+      }
+      onRowClick(original);
+    },
+    [onRowClick]
+  );
+
   const filterValue = filterColumn
     ? ((table.getColumn(filterColumn)?.getFilterValue() as string) ?? "")
     : "";
@@ -379,7 +407,11 @@ export function DataTable<TData, TValue>({
               <div
                 key={row.id}
                 data-state={row.getIsSelected() ? "selected" : undefined}
-                className="rounded-lg border bg-card p-4 data-[state=selected]:border-primary data-[state=selected]:ring-1 data-[state=selected]:ring-primary"
+                onClick={onRowClick ? handleRowClick(row.original) : undefined}
+                className={cn(
+                  "rounded-lg border bg-card p-4 data-[state=selected]:border-primary data-[state=selected]:ring-1 data-[state=selected]:ring-primary",
+                  onRowClick && "cursor-pointer hover:border-primary/50"
+                )}
               >
                 {bulkActions && row.getCanSelect() && (
                   <div className="mb-3 flex items-center">
@@ -436,6 +468,8 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  onClick={onRowClick ? handleRowClick(row.original) : undefined}
+                  className={cn(onRowClick && "cursor-pointer")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

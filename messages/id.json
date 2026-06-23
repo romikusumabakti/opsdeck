@@ -141,7 +141,14 @@
     "title": "Proyek",
     "subtitle": "Pilih proyek untuk mengelola backup, restore, dan riwayat.",
     "create": "Proyek baru",
-    "neverActive": "Belum ada aktivitas"
+    "neverActive": "Belum ada aktivitas",
+    "searchPlaceholder": "Cari proyek...",
+    "sortLabel": "Urutkan",
+    "sortRecent": "Aktivitas terbaru",
+    "sortNameAsc": "Nama (A–Z)",
+    "sortNameDesc": "Nama (Z–A)",
+    "noMatch": "Tidak ada proyek yang cocok dengan \"{query}\".",
+    "clearSearch": "Hapus pencarian"
   },
   "dashboard": {
     "title": "Dasbor",

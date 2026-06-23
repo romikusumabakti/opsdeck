@@ -49,11 +49,16 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
       },
       {
         accessorKey: "description",
-        meta: { label: t("colDescription") },
+        meta: { label: t("colDescription"), cellClassName: "max-w-[28rem]" },
         header: t("colDescription"),
-        cell: ({ row }) => (
-          <span className="font-medium">{row.getValue("description")}</span>
-        ),
+        cell: ({ row }) => {
+          const description = row.getValue("description") as string;
+          return (
+            <span className="font-medium block truncate" title={description}>
+              {description}
+            </span>
+          );
+        },
       },
       {
         id: "user",
