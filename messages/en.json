@@ -251,7 +251,11 @@
       "empty": "No log output yet.",
       "formatToggle": "Toggle log format",
       "viewPretty": "Structured view (JSON parsed)",
-      "viewRaw": "Raw view"
+      "viewRaw": "Raw view",
+      "levelLabel": "Level",
+      "levelAll": "All levels",
+      "pageSubtitle": "{serviceName} · {serverName}",
+      "backToServices": "Back to services"
     }
   },
   "backupDb": {
