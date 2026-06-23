@@ -32,7 +32,8 @@
     "errorDescription": "An unexpected error occurred. You can try again or head back home.",
     "notFoundTitle": "Page not found",
     "notFoundDescription": "The page you’re looking for doesn’t exist or has been moved.",
-    "errorDetails": "Details"
+    "errorDetails": "Details",
+    "capsLockOn": "Caps Lock is on"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -810,5 +811,12 @@
     "description": "You have unsaved changes that will be lost if you leave this page.",
     "leave": "Leave",
     "stay": "Stay"
+  },
+  "passwordStrength": {
+    "label": "Password strength",
+    "weak": "Weak",
+    "fair": "Fair",
+    "good": "Good",
+    "strong": "Strong"
   }
 }

@@ -28,6 +28,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { useModKey } from "@/hooks/use-is-mac";
 import { useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
@@ -48,6 +49,7 @@ export function CommandPalette({
   const tUserMenu = useTranslations("userMenu");
   const tTheme = useTranslations("themeSwitcher");
   const tHeader = useTranslations("header");
+  const modKey = useModKey();
   const { setTheme } = useTheme();
 
   useEffect(() => {
@@ -105,7 +107,7 @@ export function CommandPalette({
           </span>
         </span>
         <kbd className="hidden md:inline-flex pointer-events-none h-5 select-none items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-[10px] font-medium shrink-0">
-          <span className="text-xs">⌘</span>K
+          <span className={modKey === "⌘" ? "text-xs" : ""}>{modKey}</span>K
         </kbd>
       </Button>
 
