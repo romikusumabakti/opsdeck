@@ -54,16 +54,24 @@ export function NotificationsToggle() {
           </div>
         </div>
       )}
-      <Button
-        type="button"
-        variant={enabled ? "outline" : "default"}
-        onClick={onToggle}
-        disabled={blocked}
-        className="self-start"
-      >
-        {enabled ? <BellOff className="size-4" /> : <Bell className="size-4" />}
-        {enabled ? t("disable") : t("enable")}
-      </Button>
+      {/* When blocked, the OS/browser owns the decision — a disabled "Enable"
+          button is dead UI. Hide it; the banner already tells the user what to
+          do. Only show the toggle when an action is actually possible. */}
+      {!blocked && (
+        <Button
+          type="button"
+          variant={enabled ? "outline" : "default"}
+          onClick={onToggle}
+          className="self-start"
+        >
+          {enabled ? (
+            <BellOff className="size-4" />
+          ) : (
+            <Bell className="size-4" />
+          )}
+          {enabled ? t("disable") : t("enable")}
+        </Button>
+      )}
     </div>
   );
 }
