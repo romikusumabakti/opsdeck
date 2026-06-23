@@ -141,7 +141,14 @@
     "title": "المشاريع",
     "subtitle": "اختر مشروعاً لإدارة النسخ الاحتياطية والاستعادة والسجل.",
     "create": "مشروع جديد",
-    "neverActive": "لا يوجد نشاط بعد"
+    "neverActive": "لا يوجد نشاط بعد",
+    "searchPlaceholder": "ابحث في المشاريع...",
+    "sortLabel": "ترتيب",
+    "sortRecent": "أحدث نشاط",
+    "sortNameAsc": "الاسم (أ–ي)",
+    "sortNameDesc": "الاسم (ي–أ)",
+    "noMatch": "لا توجد مشاريع تطابق \"{query}\".",
+    "clearSearch": "مسح البحث"
   },
   "dashboard": {
     "title": "لوحة التحكم",
