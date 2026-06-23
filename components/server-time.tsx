@@ -1,5 +1,6 @@
 "use client";
 
+import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 
 function getUtcOffset(date: Date, timeZone: string): string {
@@ -37,7 +38,8 @@ export function ServerTime({ timeZone }: { timeZone: string }) {
 
   if (!now) {
     return (
-      <span className="font-mono text-xs tabular-nums text-muted-foreground/60 bg-muted/40 border border-border/50 rounded px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground/60 bg-muted/40 border border-border/50 rounded px-2 py-0.5">
+        <Clock className="size-3 shrink-0" aria-hidden="true" />
         --:--:--
       </span>
     );
@@ -47,9 +49,10 @@ export function ServerTime({ timeZone }: { timeZone: string }) {
 
   return (
     <span
-      className="font-mono text-xs tabular-nums text-muted-foreground bg-muted/40 border border-border/50 rounded px-2 py-0.5"
+      className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground bg-muted/40 border border-border/50 rounded px-2 py-0.5"
       title={`${dateFormatter.format(now)}T${timeFormatter.format(now)}${offset} (${timeZone})`}
     >
+      <Clock className="size-3 shrink-0" aria-hidden="true" />
       {timeFormatter.format(now)}{" "}
       <span className="text-muted-foreground/50">{offset}</span>
     </span>

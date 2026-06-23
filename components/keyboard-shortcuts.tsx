@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useModKey } from "@/hooks/use-is-mac";
 
 type Shortcut = { keys: string[]; label: string };
 
@@ -23,6 +24,7 @@ function Kbd({ value }: { value: string }) {
 export function KeyboardShortcuts() {
   const [open, setOpen] = useState(false);
   const t = useTranslations("shortcuts");
+  const modKey = useModKey();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,7 +50,7 @@ export function KeyboardShortcuts() {
     {
       title: t("groupGeneral"),
       shortcuts: [
-        { keys: ["⌘", "K"], label: t("openCommandPalette") },
+        { keys: [modKey, "K"], label: t("openCommandPalette") },
         { keys: ["?"], label: t("openShortcuts") },
         { keys: ["Esc"], label: t("closeDialog") },
       ],
