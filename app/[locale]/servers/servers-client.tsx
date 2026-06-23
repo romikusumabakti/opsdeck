@@ -223,6 +223,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       getRowId={(row) => row.id}
       urlKey="srv"
       renderCard={renderCard}
+      onRowClick={(row) => router.push(`/servers/${row.id}`)}
       bulkActions={(ids, clearSelection) => (
         <Button
           variant="destructive"
