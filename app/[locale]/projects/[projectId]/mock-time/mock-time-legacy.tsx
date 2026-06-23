@@ -208,187 +208,195 @@ export function MockTimeLegacy({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3 rounded-md border bg-card p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Clock className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">{t("clockState.title")}</h3>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refreshClock(false)}
-            disabled={anyPending}
-            aria-label={t("clockState.refresh")}
-          >
-            <RefreshCw
-              className={`size-4 ${
-                pendingAction === "refresh" ? "animate-spin" : ""
-              }`}
-            />
-            {t("clockState.refresh")}
-          </Button>
-        </div>
-        {clockLoading && !clock ? (
-          <p className="text-sm text-muted-foreground">
-            {t("clockState.loading")}
-          </p>
-        ) : clockError ? (
-          <p className="text-sm text-destructive">
-            {t("clockState.loadError")}: {clockError}
-          </p>
-        ) : clock ? (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">{t("clockState.now")}</dt>
-            <dd className="tabular-nums">
-              <LiveClock now={clock.now} dateFnsLocale={dateFnsLocale} />
-            </dd>
-            <dt className="text-muted-foreground">{t("clockState.mocked")}</dt>
-            <dd>
-              <Badge variant={isMocked ? "default" : "secondary"}>
-                {isMocked ? t("clockState.yes") : t("clockState.real")}
-              </Badge>
-            </dd>
-          </dl>
-        ) : null}
-      </section>
-
-      <Separator />
-
-      <Tabs defaultValue="travel" className="gap-3">
-        <TabsList className="w-full">
-          <TabsTrigger value="travel">
-            <Clock className="size-4" />
-            {t("travel.title")}
-          </TabsTrigger>
-          <TabsTrigger value="advance">
-            <FastForward className="size-4" />
-            {t("advance.title")}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="travel" className="flex flex-col gap-3">
-          <p className="text-xs text-muted-foreground">
-            {t("travel.description")}
-          </p>
-          <div className="flex flex-row items-end gap-2 flex-wrap">
-            <DateTimePicker
-              date={date}
-              hour={hour}
-              minute={minute}
-              onDateChange={setDate}
-              onTimeChange={(h, m) => {
-                setHour(h);
-                setMinute(m);
-              }}
-              idPrefix="mock-time-legacy"
-            />
-            <Button onClick={onTravel} disabled={anyPending}>
-              <Clock className="size-4" />
-              {pendingAction === "travel"
-                ? t("travel.submitting")
-                : t("travel.submit")}
-            </Button>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="advance" className="flex flex-col gap-3">
-          <p className="text-xs text-muted-foreground">
-            {t("advance.descriptionLegacy")}
-          </p>
-          <FieldGroup className="flex-row items-end gap-2 flex-wrap">
-            <Field className="flex-1">
-              <FieldLabel htmlFor="legacy-advance-amount">
-                {t("advance.amountLabel")}
-              </FieldLabel>
-              <Input
-                id="legacy-advance-amount"
-                type="number"
-                min={1}
-                step={1}
-                value={advanceAmount}
-                onChange={(e) => setAdvanceAmount(e.target.value)}
-                disabled={anyPending}
-                className="tabular-nums"
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr] lg:items-start">
+        <section className="flex flex-col gap-3 rounded-md border bg-card p-4 lg:sticky lg:top-20">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium">{t("clockState.title")}</h3>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refreshClock(false)}
+              disabled={anyPending}
+              aria-label={t("clockState.refresh")}
+            >
+              <RefreshCw
+                className={`size-4 ${
+                  pendingAction === "refresh" ? "animate-spin" : ""
+                }`}
               />
-            </Field>
-            <Field className="flex-1">
-              <FieldLabel htmlFor="legacy-advance-unit">
-                {t("advance.unitLabel")}
-              </FieldLabel>
-              <Select
-                value={advanceUnit}
-                onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
-                disabled={anyPending}
-              >
-                <SelectTrigger id="legacy-advance-unit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="minutes">
-                    {t("advance.units.minutes")}
-                  </SelectItem>
-                  <SelectItem value="hours">
-                    {t("advance.units.hours")}
-                  </SelectItem>
-                  <SelectItem value="days">
-                    {t("advance.units.days")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field className="flex-1">
-              <FieldLabel htmlFor="legacy-advance-direction">
-                {t("advance.directionLabel")}
-              </FieldLabel>
-              <Select
-                value={advanceDirection}
-                onValueChange={(v) =>
-                  setAdvanceDirection(v as AdvanceDirection)
-                }
-                disabled={anyPending}
-              >
-                <SelectTrigger id="legacy-advance-direction">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="forward">
-                    {t("advance.forward")}
-                  </SelectItem>
-                  <SelectItem value="backward">
-                    {t("advance.backward")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Button onClick={onAdvance} disabled={anyPending}>
-              <FastForward className="size-4" />
-              {pendingAction === "advance"
-                ? t("advance.submitting")
-                : t("advance.submit")}
+              {t("clockState.refresh")}
             </Button>
-          </FieldGroup>
-        </TabsContent>
-      </Tabs>
+          </div>
+          {clockLoading && !clock ? (
+            <p className="text-sm text-muted-foreground">
+              {t("clockState.loading")}
+            </p>
+          ) : clockError ? (
+            <p className="text-sm text-destructive">
+              {t("clockState.loadError")}: {clockError}
+            </p>
+          ) : clock ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">{t("clockState.now")}</dt>
+              <dd className="tabular-nums">
+                <LiveClock now={clock.now} dateFnsLocale={dateFnsLocale} />
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("clockState.mocked")}
+              </dt>
+              <dd>
+                <Badge variant={isMocked ? "default" : "secondary"}>
+                  {isMocked ? t("clockState.yes") : t("clockState.real")}
+                </Badge>
+              </dd>
+            </dl>
+          ) : null}
+        </section>
 
-      <Separator />
+        <div className="flex flex-col gap-6">
+          <Tabs defaultValue="travel" className="gap-3">
+            <TabsList className="w-full">
+              <TabsTrigger value="travel">
+                <Clock className="size-4" />
+                {t("travel.title")}
+              </TabsTrigger>
+              <TabsTrigger value="advance">
+                <FastForward className="size-4" />
+                {t("advance.title")}
+              </TabsTrigger>
+            </TabsList>
 
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("reset.title")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("reset.descriptionLegacy")}
-          </p>
-        </header>
-        <div>
-          <Button onClick={onReset} disabled={anyPending} variant="destructive">
-            <RotateCcw className="size-4" />
-            {pendingAction === "reset"
-              ? t("reset.submitting")
-              : t("reset.submit")}
-          </Button>
+            <TabsContent value="travel" className="flex flex-col gap-3">
+              <p className="text-xs text-muted-foreground">
+                {t("travel.description")}
+              </p>
+              <div className="flex flex-row items-end gap-2 flex-wrap">
+                <DateTimePicker
+                  date={date}
+                  hour={hour}
+                  minute={minute}
+                  onDateChange={setDate}
+                  onTimeChange={(h, m) => {
+                    setHour(h);
+                    setMinute(m);
+                  }}
+                  idPrefix="mock-time-legacy"
+                />
+                <Button onClick={onTravel} disabled={anyPending}>
+                  <Clock className="size-4" />
+                  {pendingAction === "travel"
+                    ? t("travel.submitting")
+                    : t("travel.submit")}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="advance" className="flex flex-col gap-3">
+              <p className="text-xs text-muted-foreground">
+                {t("advance.descriptionLegacy")}
+              </p>
+              <FieldGroup className="flex-row items-end gap-2 flex-wrap">
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="legacy-advance-amount">
+                    {t("advance.amountLabel")}
+                  </FieldLabel>
+                  <Input
+                    id="legacy-advance-amount"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={advanceAmount}
+                    onChange={(e) => setAdvanceAmount(e.target.value)}
+                    disabled={anyPending}
+                    className="tabular-nums"
+                  />
+                </Field>
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="legacy-advance-unit">
+                    {t("advance.unitLabel")}
+                  </FieldLabel>
+                  <Select
+                    value={advanceUnit}
+                    onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
+                    disabled={anyPending}
+                  >
+                    <SelectTrigger id="legacy-advance-unit">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">
+                        {t("advance.units.minutes")}
+                      </SelectItem>
+                      <SelectItem value="hours">
+                        {t("advance.units.hours")}
+                      </SelectItem>
+                      <SelectItem value="days">
+                        {t("advance.units.days")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="legacy-advance-direction">
+                    {t("advance.directionLabel")}
+                  </FieldLabel>
+                  <Select
+                    value={advanceDirection}
+                    onValueChange={(v) =>
+                      setAdvanceDirection(v as AdvanceDirection)
+                    }
+                    disabled={anyPending}
+                  >
+                    <SelectTrigger id="legacy-advance-direction">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="forward">
+                        {t("advance.forward")}
+                      </SelectItem>
+                      <SelectItem value="backward">
+                        {t("advance.backward")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Button onClick={onAdvance} disabled={anyPending}>
+                  <FastForward className="size-4" />
+                  {pendingAction === "advance"
+                    ? t("advance.submitting")
+                    : t("advance.submit")}
+                </Button>
+              </FieldGroup>
+            </TabsContent>
+          </Tabs>
+
+          <Separator />
+
+          <section className="flex flex-col gap-3">
+            <header className="flex flex-col gap-1">
+              <h3 className="text-sm font-medium">{t("reset.title")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("reset.descriptionLegacy")}
+              </p>
+            </header>
+            <div>
+              <Button
+                onClick={onReset}
+                disabled={anyPending}
+                variant="destructive"
+              >
+                <RotateCcw className="size-4" />
+                {pendingAction === "reset"
+                  ? t("reset.submitting")
+                  : t("reset.submit")}
+              </Button>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
 
       <LiveTaskDialog
         taskId={activeTaskId}
