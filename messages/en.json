@@ -61,6 +61,7 @@
     "changePassword": "Change password",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "backupRestore": "Backup & restore",
     "mockTime": "Mock time",
     "services": "Services",
     "databases": "Databases",
@@ -97,6 +98,7 @@
     "databases": "Databases",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "backupRestore": "Backup & restore",
     "mockTime": "Mock time",
     "history": "History",
     "settings": "Settings",
@@ -305,6 +307,10 @@
     "searchDatabase": "Search database…",
     "noDatabase": "No database found."
   },
+  "backupRestore": {
+    "title": "Backup & restore",
+    "subtitle": "Back up or restore {dbName}."
+  },
   "databases": {
     "title": "Databases",
     "subtitle": "Create and remove databases on the project's database server.",
@@ -351,7 +357,7 @@
     "successTitle": "Mocked time applied",
     "successDescriptionLegacy": "Server clock change to {dateTime} has been queued.",
     "failureTitle": "Failed to mock time",
-    "legacyWarning": "This project has no time-mocking API configured, so the legacy approach will change the server clock and restart the backend. Anything else running on that server will also see the new time.",
+    "legacyWarning": "No time-mocking API configured — legacy mode changes the server clock and restarts the backend, so everything else on that server sees the new time too.",
     "clockState": {
       "title": "Clock state",
       "description": "Current state of the backend clock.",

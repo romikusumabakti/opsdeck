@@ -3,7 +3,6 @@
 import {
   Aperture,
   Clock,
-  Database,
   DatabaseBackup,
   DatabaseZap,
   FolderKanban,
@@ -43,14 +42,8 @@ const projectItems = [
     adminOnly: false,
   },
   {
-    key: "backupDatabase",
-    url: "/backup-database",
-    icon: Database,
-    adminOnly: false,
-  },
-  {
-    key: "restoreDatabase",
-    url: "/restore-database",
+    key: "backupRestore",
+    url: "/backup-restore",
     icon: DatabaseBackup,
     adminOnly: false,
   },

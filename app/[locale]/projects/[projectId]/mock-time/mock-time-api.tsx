@@ -254,220 +254,240 @@ export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3 rounded-md border bg-card p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Clock className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">{t("clockState.title")}</h3>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refreshClock(false)}
-            disabled={anyPending}
-            aria-label={t("clockState.refresh")}
-          >
-            <RefreshCw
-              className={`size-4 ${
-                pendingAction === "refresh" ? "animate-spin" : ""
-              }`}
-            />
-            {t("clockState.refresh")}
-          </Button>
-        </div>
-        {clockLoading && !clock ? (
-          <p className="text-sm text-muted-foreground">
-            {t("clockState.loading")}
-          </p>
-        ) : clockError ? (
-          <p className="text-sm text-destructive">
-            {t("clockState.loadError")}: {clockError}
-          </p>
-        ) : clock ? (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">{t("clockState.now")}</dt>
-            <dd className="tabular-nums">
-              <LiveClock
-                now={clock.now}
-                frozen={clock.frozen}
-                dateFnsLocale={dateFnsLocale}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr] lg:items-start">
+        <section className="flex flex-col gap-3 rounded-md border bg-card p-4 lg:sticky lg:top-20">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium">{t("clockState.title")}</h3>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refreshClock(false)}
+              disabled={anyPending}
+              aria-label={t("clockState.refresh")}
+            >
+              <RefreshCw
+                className={`size-4 ${
+                  pendingAction === "refresh" ? "animate-spin" : ""
+                }`}
               />
-            </dd>
-            <dt className="text-muted-foreground">{t("clockState.mocked")}</dt>
-            <dd>
-              <Badge variant={isMocked ? "default" : "secondary"}>
-                {isMocked ? t("clockState.yes") : t("clockState.real")}
-              </Badge>
-            </dd>
-            <dt className="text-muted-foreground">{t("clockState.frozen")}</dt>
-            <dd>
-              <Badge variant={isFrozen ? "default" : "secondary"}>
-                {isFrozen ? t("clockState.yes") : t("clockState.running")}
-              </Badge>
-            </dd>
-          </dl>
-        ) : null}
-      </section>
+              {t("clockState.refresh")}
+            </Button>
+          </div>
+          {clockLoading && !clock ? (
+            <p className="text-sm text-muted-foreground">
+              {t("clockState.loading")}
+            </p>
+          ) : clockError ? (
+            <p className="text-sm text-destructive">
+              {t("clockState.loadError")}: {clockError}
+            </p>
+          ) : clock ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">{t("clockState.now")}</dt>
+              <dd className="tabular-nums">
+                <LiveClock
+                  now={clock.now}
+                  frozen={clock.frozen}
+                  dateFnsLocale={dateFnsLocale}
+                />
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("clockState.mocked")}
+              </dt>
+              <dd>
+                <Badge variant={isMocked ? "default" : "secondary"}>
+                  {isMocked ? t("clockState.yes") : t("clockState.real")}
+                </Badge>
+              </dd>
+              <dt className="text-muted-foreground">
+                {t("clockState.frozen")}
+              </dt>
+              <dd>
+                <Badge variant={isFrozen ? "default" : "secondary"}>
+                  {isFrozen ? t("clockState.yes") : t("clockState.running")}
+                </Badge>
+              </dd>
+            </dl>
+          ) : null}
+        </section>
 
-      <Separator />
+        <div className="flex flex-col gap-6">
+          <section className="flex flex-col gap-3">
+            <header className="flex flex-col gap-1">
+              <h3 className="text-sm font-medium">{t("travel.title")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("travel.description")}
+              </p>
+            </header>
+            <div className="flex flex-row items-end gap-2 flex-wrap">
+              <DateTimePicker
+                date={date}
+                hour={hour}
+                minute={minute}
+                onDateChange={setDate}
+                onTimeChange={(h, m) => {
+                  setHour(h);
+                  setMinute(m);
+                }}
+                idPrefix="mock-time-api"
+              />
+              <Button onClick={onTravel} disabled={anyPending}>
+                <Clock className="size-4" />
+                {pendingAction === "travel"
+                  ? t("travel.submitting")
+                  : t("travel.submit")}
+              </Button>
+            </div>
+          </section>
 
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("travel.title")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("travel.description")}
-          </p>
-        </header>
-        <div className="flex flex-row items-end gap-2 flex-wrap">
-          <DateTimePicker
-            date={date}
-            hour={hour}
-            minute={minute}
-            onDateChange={setDate}
-            onTimeChange={(h, m) => {
-              setHour(h);
-              setMinute(m);
-            }}
-            idPrefix="mock-time-api"
-          />
-          <Button onClick={onTravel} disabled={anyPending}>
-            <Clock className="size-4" />
-            {pendingAction === "travel"
-              ? t("travel.submitting")
-              : t("travel.submit")}
-          </Button>
+          <Separator />
+
+          <section className="flex flex-col gap-3">
+            <header className="flex flex-col gap-1">
+              <h3 className="text-sm font-medium">{t("freeze.title")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("freeze.description")}
+              </p>
+            </header>
+            <div className="flex flex-row gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={onFreezeAt}
+                disabled={anyPending}
+              >
+                <Snowflake className="size-4" />
+                {pendingAction === "freezeAt"
+                  ? t("freeze.submitting")
+                  : t("freeze.submitAt")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onFreezeNow}
+                disabled={anyPending}
+              >
+                <Snowflake className="size-4" />
+                {pendingAction === "freezeNow"
+                  ? t("freeze.submitting")
+                  : t("freeze.submitNow")}
+              </Button>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="flex flex-col gap-3">
+            <header className="flex flex-col gap-1">
+              <h3 className="text-sm font-medium">{t("advance.title")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("advance.description")}
+              </p>
+            </header>
+            {!isFrozen && clock ? (
+              <p className="text-xs text-muted-foreground italic">
+                {t("advance.notFrozen")}
+              </p>
+            ) : null}
+            <FieldGroup className="flex-row items-end gap-2 flex-wrap">
+              <Field className="flex-1">
+                <FieldLabel htmlFor="advance-amount">
+                  {t("advance.amountLabel")}
+                </FieldLabel>
+                <Input
+                  id="advance-amount"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={advanceAmount}
+                  onChange={(e) => setAdvanceAmount(e.target.value)}
+                  disabled={!isFrozen || anyPending}
+                  className="tabular-nums"
+                />
+              </Field>
+              <Field className="flex-1">
+                <FieldLabel htmlFor="advance-unit">
+                  {t("advance.unitLabel")}
+                </FieldLabel>
+                <Select
+                  value={advanceUnit}
+                  onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
+                  disabled={!isFrozen || anyPending}
+                >
+                  <SelectTrigger id="advance-unit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minutes">
+                      {t("advance.units.minutes")}
+                    </SelectItem>
+                    <SelectItem value="hours">
+                      {t("advance.units.hours")}
+                    </SelectItem>
+                    <SelectItem value="days">
+                      {t("advance.units.days")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field className="flex-1">
+                <FieldLabel htmlFor="advance-direction">
+                  {t("advance.directionLabel")}
+                </FieldLabel>
+                <Select
+                  value={advanceDirection}
+                  onValueChange={(v) =>
+                    setAdvanceDirection(v as AdvanceDirection)
+                  }
+                  disabled={!isFrozen || anyPending}
+                >
+                  <SelectTrigger id="advance-direction">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="forward">
+                      {t("advance.forward")}
+                    </SelectItem>
+                    <SelectItem value="backward">
+                      {t("advance.backward")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Button onClick={onAdvance} disabled={!isFrozen || anyPending}>
+                <FastForward className="size-4" />
+                {pendingAction === "advance"
+                  ? t("advance.submitting")
+                  : t("advance.submit")}
+              </Button>
+            </FieldGroup>
+          </section>
+
+          <Separator />
+
+          <section className="flex flex-col gap-3">
+            <header className="flex flex-col gap-1">
+              <h3 className="text-sm font-medium">{t("reset.title")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("reset.description")}
+              </p>
+            </header>
+            <div>
+              <Button
+                variant="destructive"
+                onClick={onReset}
+                disabled={anyPending || (!isMocked && !isFrozen)}
+              >
+                <RotateCcw className="size-4" />
+                {pendingAction === "reset"
+                  ? t("reset.submitting")
+                  : t("reset.submit")}
+              </Button>
+            </div>
+          </section>
         </div>
-      </section>
-
-      <Separator />
-
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("freeze.title")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("freeze.description")}
-          </p>
-        </header>
-        <div className="flex flex-row gap-2 flex-wrap">
-          <Button variant="outline" onClick={onFreezeAt} disabled={anyPending}>
-            <Snowflake className="size-4" />
-            {pendingAction === "freezeAt"
-              ? t("freeze.submitting")
-              : t("freeze.submitAt")}
-          </Button>
-          <Button variant="outline" onClick={onFreezeNow} disabled={anyPending}>
-            <Snowflake className="size-4" />
-            {pendingAction === "freezeNow"
-              ? t("freeze.submitting")
-              : t("freeze.submitNow")}
-          </Button>
-        </div>
-      </section>
-
-      <Separator />
-
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("advance.title")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("advance.description")}
-          </p>
-        </header>
-        {!isFrozen && clock ? (
-          <p className="text-xs text-muted-foreground italic">
-            {t("advance.notFrozen")}
-          </p>
-        ) : null}
-        <FieldGroup className="flex-row items-end gap-2 flex-wrap">
-          <Field className="flex-1">
-            <FieldLabel htmlFor="advance-amount">
-              {t("advance.amountLabel")}
-            </FieldLabel>
-            <Input
-              id="advance-amount"
-              type="number"
-              min={1}
-              step={1}
-              value={advanceAmount}
-              onChange={(e) => setAdvanceAmount(e.target.value)}
-              disabled={!isFrozen || anyPending}
-              className="tabular-nums"
-            />
-          </Field>
-          <Field className="flex-1">
-            <FieldLabel htmlFor="advance-unit">
-              {t("advance.unitLabel")}
-            </FieldLabel>
-            <Select
-              value={advanceUnit}
-              onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
-              disabled={!isFrozen || anyPending}
-            >
-              <SelectTrigger id="advance-unit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="minutes">
-                  {t("advance.units.minutes")}
-                </SelectItem>
-                <SelectItem value="hours">
-                  {t("advance.units.hours")}
-                </SelectItem>
-                <SelectItem value="days">{t("advance.units.days")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="flex-1">
-            <FieldLabel htmlFor="advance-direction">
-              {t("advance.directionLabel")}
-            </FieldLabel>
-            <Select
-              value={advanceDirection}
-              onValueChange={(v) => setAdvanceDirection(v as AdvanceDirection)}
-              disabled={!isFrozen || anyPending}
-            >
-              <SelectTrigger id="advance-direction">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="forward">{t("advance.forward")}</SelectItem>
-                <SelectItem value="backward">
-                  {t("advance.backward")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Button onClick={onAdvance} disabled={!isFrozen || anyPending}>
-            <FastForward className="size-4" />
-            {pendingAction === "advance"
-              ? t("advance.submitting")
-              : t("advance.submit")}
-          </Button>
-        </FieldGroup>
-      </section>
-
-      <Separator />
-
-      <section className="flex flex-col gap-3">
-        <header className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium">{t("reset.title")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("reset.description")}
-          </p>
-        </header>
-        <div>
-          <Button
-            variant="destructive"
-            onClick={onReset}
-            disabled={anyPending || (!isMocked && !isFrozen)}
-          >
-            <RotateCcw className="size-4" />
-            {pendingAction === "reset"
-              ? t("reset.submitting")
-              : t("reset.submit")}
-          </Button>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -61,6 +61,7 @@
     "changePassword": "Ubah password",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "backupRestore": "Backup & restore",
     "mockTime": "Mock waktu",
     "services": "Service",
     "databases": "Database",
@@ -97,6 +98,7 @@
     "databases": "Database",
     "backupDatabase": "Backup database",
     "restoreDatabase": "Restore database",
+    "backupRestore": "Backup & restore",
     "mockTime": "Mock waktu",
     "history": "Riwayat",
     "settings": "Pengaturan",
@@ -305,6 +307,10 @@
     "searchDatabase": "Cari database…",
     "noDatabase": "Database tidak ditemukan."
   },
+  "backupRestore": {
+    "title": "Backup & restore",
+    "subtitle": "Backup atau restore {dbName}."
+  },
   "databases": {
     "title": "Database",
     "subtitle": "Buat dan hapus database di server database proyek.",
@@ -351,7 +357,7 @@
     "successTitle": "Mock waktu diterapkan",
     "successDescriptionLegacy": "Perubahan jam server menjadi {dateTime} sudah di-queue.",
     "failureTitle": "Gagal mock waktu",
-    "legacyWarning": "Proyek ini belum punya API mock-time, jadi pendekatan legacy akan mengubah jam server dan me-restart backend. Aplikasi lain di server yang sama juga akan ikut terpengaruh.",
+    "legacyWarning": "Tidak ada API mock waktu — mode legacy mengubah jam server dan me-restart backend, jadi semua hal lain di server itu ikut melihat waktu baru.",
     "clockState": {
       "title": "Status clock",
       "description": "Status terkini dari clock backend.",

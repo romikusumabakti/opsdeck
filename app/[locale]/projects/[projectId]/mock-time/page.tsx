@@ -58,7 +58,7 @@ export default async function Page({
         action={<ApiDocsSheet content={apiDocs} />}
       />
 
-      <Card className="max-w-2xl w-full">
+      <Card className="max-w-4xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Clock className="size-5 text-muted-foreground" />

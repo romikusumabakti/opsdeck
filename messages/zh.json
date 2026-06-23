@@ -61,6 +61,7 @@
     "changePassword": "修改密码",
     "backupDatabase": "备份数据库",
     "restoreDatabase": "还原数据库",
+    "backupRestore": "备份与还原",
     "mockTime": "模拟时间",
     "services": "服务",
     "databases": "数据库",
@@ -97,6 +98,7 @@
     "databases": "数据库",
     "backupDatabase": "备份数据库",
     "restoreDatabase": "还原数据库",
+    "backupRestore": "备份与还原",
     "mockTime": "模拟时间",
     "history": "历史记录",
     "settings": "设置",
@@ -305,6 +307,10 @@
     "searchDatabase": "搜索数据库…",
     "noDatabase": "未找到数据库。"
   },
+  "backupRestore": {
+    "title": "备份与还原",
+    "subtitle": "备份或还原 {dbName}。"
+  },
   "databases": {
     "title": "数据库",
     "subtitle": "在项目的数据库服务器上创建和删除数据库。",
@@ -351,7 +357,7 @@
     "successTitle": "模拟时间已应用",
     "successDescriptionLegacy": "服务器时钟更改为 {dateTime} 已加入队列。",
     "failureTitle": "模拟时间失败",
-    "legacyWarning": "此项目未配置时间模拟 API，因此传统方式将更改服务器时钟并重启后端。该服务器上运行的其他服务也将看到新时间。",
+    "legacyWarning": "未配置时间模拟 API — 旧版模式会更改服务器时钟并重启后端，该服务器上的其他程序也会看到新时间。",
     "clockState": {
       "title": "时钟状态",
       "description": "后端时钟的当前状态。",
