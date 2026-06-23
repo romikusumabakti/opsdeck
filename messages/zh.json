@@ -536,7 +536,9 @@
     "deleteTitle": "删除项目",
     "deleteDescription": "删除项目 {name}？此操作无法撤销。",
     "deleteFailed": "删除项目失败",
-    "deletedSuccess": "项目 {name} 已删除"
+    "deletedSuccess": "项目 {name} 已删除",
+    "tabConfig": "配置",
+    "tabDanger": "危险区域"
   },
   "userMenu": {
     "users": "用户管理",

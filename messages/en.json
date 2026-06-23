@@ -536,7 +536,9 @@
     "deleteTitle": "Delete project",
     "deleteDescription": "Delete project {name}? This action cannot be undone.",
     "deleteFailed": "Failed to delete project",
-    "deletedSuccess": "Project {name} deleted"
+    "deletedSuccess": "Project {name} deleted",
+    "tabConfig": "Configuration",
+    "tabDanger": "Danger zone"
   },
   "userMenu": {
     "users": "User management",

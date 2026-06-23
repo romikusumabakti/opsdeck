@@ -191,11 +191,18 @@ function ActivityKpiCard({
               />
             )}
           </div>
-          <Sparkline
-            data={daily}
-            className="text-primary shrink-0"
-            ariaLabel={sparklineLabel}
-          />
+          {total > 0 ? (
+            <Sparkline
+              data={daily}
+              className="text-primary shrink-0"
+              ariaLabel={sparklineLabel}
+            />
+          ) : (
+            <div
+              className="h-7 w-24 shrink-0 border-b border-dashed border-muted-foreground/30"
+              aria-hidden="true"
+            />
+          )}
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">
           {successRate7d === null
