@@ -69,6 +69,20 @@ function getStaticSegments(pathname: string): StaticSegment[] {
   return [];
 }
 
+// Sections that exist identically under every project. When the user
+// switches projects from one of these, we keep them on the same section in
+// the target project (e.g. /projects/A/services → /projects/B/services)
+// because the intent is "show me area X for another project". Flow/action
+// routes (backup-database, restore-database, mock-time) are deliberately
+// excluded: they're tied to the source project's context and often mid-
+// operation, so we drop those switches back to the target dashboard.
+const PARALLEL_SECTIONS = new Set([
+  "services",
+  "databases",
+  "history",
+  "settings",
+]);
+
 // Map the project sub-route slug onto an i18n key in the `breadcrumbs`
 // namespace. Returning null means we render only the project switcher (the
 // project dashboard itself — no extra crumb needed since the project name
@@ -181,6 +195,11 @@ export function HeaderBreadcrumb({
             projects={projects}
             activeProject={activeProject}
             isAdmin={isAdmin}
+            activeSection={
+              projectSubSlug && PARALLEL_SECTIONS.has(projectSubSlug)
+                ? projectSubSlug
+                : undefined
+            }
           />
         ) : null}
         {trailing.map((seg, i) => {
@@ -205,10 +224,12 @@ function ProjectSwitcher({
   projects,
   activeProject,
   isAdmin,
+  activeSection,
 }: {
   projects: Project[];
   activeProject: Project;
   isAdmin: boolean;
+  activeSection?: string;
 }) {
   // View Transitions API gives the project switch a perceptible crossfade so
   // it doesn't look like an instant context wipe; helps locate which content
@@ -252,7 +273,13 @@ function ProjectSwitcher({
                   <CommandItem
                     key={project.id}
                     value={project.name}
-                    onSelect={() => go(`/projects/${project.id}`)}
+                    onSelect={() =>
+                      go(
+                        activeSection
+                          ? `/projects/${project.id}/${activeSection}`
+                          : `/projects/${project.id}`
+                      )
+                    }
                   >
                     <span className="size-5 rounded bg-primary/10 text-primary flex items-center justify-center text-[10px] font-semibold shrink-0">
                       {project.name.charAt(0).toUpperCase()}
