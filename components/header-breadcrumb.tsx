@@ -25,6 +25,11 @@ import type { Project } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/([^/?#]+))?/i;
+// Logs live one level below services (/services/<role>/logs) — the single-slug
+// project regex can't see that depth, so match it explicitly to render a
+// Services › Logs trail instead of stopping at Services.
+const LOGS_PATH_REGEX =
+  /^\/projects\/[0-9a-f-]{20,}\/services\/(?:db|backend|frontend)\/logs/i;
 
 type StaticSegment = {
   kind: "static";
@@ -171,9 +176,21 @@ export function HeaderBreadcrumb({
   // Build the trailing segment list (after the optional project switcher).
   let trailing: StaticSegment[] = [];
   if (activeProject) {
-    const subKey = getProjectSubKey(projectSubSlug);
-    if (subKey) {
-      trailing = [{ kind: "static", labelKey: subKey }];
+    if (LOGS_PATH_REGEX.test(pathname)) {
+      // Services is a real landing page, so make it a link; Logs is current.
+      trailing = [
+        {
+          kind: "static",
+          href: `/projects/${activeProjectId}/services`,
+          labelKey: "breadcrumbs.services",
+        },
+        { kind: "static", labelKey: "breadcrumbs.logs" },
+      ];
+    } else {
+      const subKey = getProjectSubKey(projectSubSlug);
+      if (subKey) {
+        trailing = [{ kind: "static", labelKey: subKey }];
+      }
     }
   } else {
     trailing = getStaticSegments(pathname);
