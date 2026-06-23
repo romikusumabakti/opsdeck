@@ -140,7 +140,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         meta: { label: t("colUsername") },
         header: t("colUsername"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {row.getValue("username")}
           </span>
         ),

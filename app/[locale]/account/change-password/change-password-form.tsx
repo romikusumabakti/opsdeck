@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordStrength } from "@/components/ui/password-strength";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { authClient } from "@/lib/auth-client";
 
@@ -97,6 +98,7 @@ export function ChangePasswordForm() {
               <FormControl>
                 <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>
+              <PasswordStrength value={field.value} />
               <FormMessage />
             </FormItem>
           )}

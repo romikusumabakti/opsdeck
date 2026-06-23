@@ -32,7 +32,8 @@
     "errorDescription": "发生意外错误。您可以重试或返回首页。",
     "notFoundTitle": "页面未找到",
     "notFoundDescription": "您查找的页面不存在或已被移动。",
-    "errorDetails": "详情"
+    "errorDetails": "详情",
+    "capsLockOn": "大写锁定已开启"
   },
   "dataTable": {
     "searchPlaceholder": "搜索…",
@@ -810,5 +811,12 @@
     "description": "您有未保存的更改，离开此页面将会丢失。",
     "leave": "离开",
     "stay": "留下"
+  },
+  "passwordStrength": {
+    "label": "密码强度",
+    "weak": "弱",
+    "fair": "一般",
+    "good": "良好",
+    "strong": "强"
   }
 }

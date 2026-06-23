@@ -32,7 +32,8 @@
     "errorDescription": "Terjadi kesalahan tak terduga. Anda dapat mencoba lagi atau kembali ke beranda.",
     "notFoundTitle": "Halaman tidak ditemukan",
     "notFoundDescription": "Halaman yang Anda cari tidak ada atau telah dipindahkan.",
-    "errorDetails": "Detail"
+    "errorDetails": "Detail",
+    "capsLockOn": "Caps Lock aktif"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -810,5 +811,12 @@
     "description": "Ada perubahan yang belum disimpan dan akan hilang jika Anda meninggalkan halaman ini.",
     "leave": "Tinggalkan",
     "stay": "Tetap di sini"
+  },
+  "passwordStrength": {
+    "label": "Kekuatan kata sandi",
+    "weak": "Lemah",
+    "fair": "Cukup",
+    "good": "Bagus",
+    "strong": "Kuat"
   }
 }
