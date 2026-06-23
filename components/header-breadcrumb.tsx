@@ -73,7 +73,7 @@ function getStaticSegments(pathname: string): StaticSegment[] {
 // switches projects from one of these, we keep them on the same section in
 // the target project (e.g. /projects/A/services → /projects/B/services)
 // because the intent is "show me area X for another project". Flow/action
-// routes (backup-database, restore-database, mock-time) are deliberately
+// routes (backup-restore, mock-time) are deliberately
 // excluded: they're tied to the source project's context and often mid-
 // operation, so we drop those switches back to the target dashboard.
 const PARALLEL_SECTIONS = new Set([
@@ -93,10 +93,8 @@ function getProjectSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.services";
     case "databases":
       return "breadcrumbs.databases";
-    case "backup-database":
-      return "breadcrumbs.backupDatabase";
-    case "restore-database":
-      return "breadcrumbs.restoreDatabase";
+    case "backup-restore":
+      return "breadcrumbs.backupRestore";
     case "mock-time":
       return "breadcrumbs.mockTime";
     case "history":
