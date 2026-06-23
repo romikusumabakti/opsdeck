@@ -97,8 +97,13 @@ export default async function Page({
         : "pretty",
   };
 
+  // Lock this page to the viewport so the log box scrolls internally instead
+  // of scrolling the whole page. The surrounding <main> grows with its content
+  // (body-scroll model), so the cap has to be explicit: subtract the sticky
+  // header (h-14 = 3.5rem) and main's vertical padding (py-6 = 3rem). Inside,
+  // the header is auto-height and the viewer takes the rest via flex-1.
   return (
-    <>
+    <div className="flex h-[calc(100svh-6.5rem)] min-h-0 flex-col gap-6">
       <PageHeader
         title={t("logs.title", { target })}
         subtitle={t("logs.pageSubtitle", { serviceName, serverName })}
@@ -117,6 +122,6 @@ export default async function Page({
         serviceName={serviceName}
         initial={initial}
       />
-    </>
+    </div>
   );
 }
