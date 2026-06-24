@@ -653,6 +653,81 @@ export const controlService = inngest.createFunction(
   }
 );
 
+// A logical file inside a SQL Server `.bak`, as reported by RESTORE
+// FILELISTONLY. `type`: D = data, L = log, S = FILESTREAM, F = full-text.
+type MssqlBackupFile = { logical: string; physical: string; type: string };
+
+// POSIX dirname for the physical paths SQL Server reports (always `/`-style
+// inside the Linux container). Keeps a file in the same directory it was
+// backed up from when we relocate it.
+function posixDirname(p: string): string {
+  const i = p.lastIndexOf("/");
+  return i <= 0 ? "/" : p.slice(0, i);
+}
+
+// Read the logical file layout of a backup so we can build WITH MOVE clauses.
+// Output is forced parseable: `-h -1` drops headers, `-W` trims padding, and
+// `-s ~` separates columns with a char that won't appear in a path/logical
+// name. We only keep rows whose 3rd column is a known file type, which also
+// filters sqlcmd's trailing "(N rows affected)" line.
+async function getMssqlBackupFileList(
+  data: ProjectWithServers,
+  source: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<MssqlBackupFile[]> {
+  const query = `RESTORE FILELISTONLY FROM DISK = N'${sqlQuoteString(source)}';`;
+  const cmd = buildSqlcmdCommand(
+    query,
+    data.dbPassword!,
+    data.dbServiceType,
+    data.dbServiceName,
+    ["-h", "-1", "-W", "-s", "~"]
+  );
+  const out = await executeRemoteCommand(credentials, cmd);
+  const files: MssqlBackupFile[] = [];
+  for (const line of out.split("\n")) {
+    const parts = line.split("~");
+    if (parts.length < 3) continue;
+    const type = parts[2]?.trim().toUpperCase();
+    if (type !== "D" && type !== "L" && type !== "S" && type !== "F") continue;
+    files.push({ logical: parts[0].trim(), physical: parts[1].trim(), type });
+  }
+  if (files.length === 0) {
+    throw new Error(`Could not read file list from backup: ${source}`);
+  }
+  return files;
+}
+
+// Map each logical file in the backup to a fresh physical path named after the
+// TARGET database. Without this, restoring one DB's backup into a differently
+// named DB (e.g. car2's .bak into car3) fails with Msg 1834/3156 because the
+// backup's stored paths point at the source DB's live, in-use files. First
+// data file → .mdf, extra data files → .ndf, logs → .ldf, all kept in their
+// original directory.
+function buildMssqlMoveClauses(
+  files: MssqlBackupFile[],
+  database: string
+): string[] {
+  let dataIdx = 0;
+  let logIdx = 0;
+  return files.map((f) => {
+    const dir = posixDirname(f.physical);
+    let name: string;
+    if (f.type === "L") {
+      name = `${database}_log${logIdx ? `_${logIdx}` : ""}.ldf`;
+      logIdx++;
+    } else if (dataIdx === 0) {
+      name = `${database}.mdf`;
+      dataIdx++;
+    } else {
+      name = `${database}_${dataIdx}.ndf`;
+      dataIdx++;
+    }
+    const newPath = `${dir}/${name}`;
+    return `  MOVE N'${sqlQuoteString(f.logical)}' TO N'${sqlQuoteString(newPath)}'`;
+  });
+}
+
 async function runMssqlRestore(
   data: ProjectWithServers,
   database: string,
@@ -666,20 +741,36 @@ async function runMssqlRestore(
   }
   const source = `${data.dbBackupPath}/${filename}`;
   const dbId = sqlBracketId(database);
-  // Kill connections by flipping to SINGLE_USER, then restore. TRY/CATCH so
-  // a failed restore still flips back to MULTI_USER instead of leaving the DB
-  // wedged. THROW re-raises the original error to non-zero exit sqlcmd.
+  const dbLit = sqlQuoteString(database);
+
+  // Relocate the backup's logical files onto the target DB's own paths so a
+  // cross-database restore (backup of DB A into DB B) doesn't collide with the
+  // source DB's in-use files.
+  const files = await getMssqlBackupFileList(data, source, credentials);
+  const moves = buildMssqlMoveClauses(files, database);
+  const restoreOptions = ["REPLACE", ...moves].join(",\n  ");
+
+  // Kill connections by flipping to SINGLE_USER, then restore. TRY/CATCH so a
+  // failed restore still flips back to MULTI_USER instead of leaving the DB
+  // wedged. The DB_ID guard handles a target that doesn't exist yet (fresh
+  // restore). THROW surfaces the real SQL error number + message to sqlcmd's
+  // non-zero exit instead of the generic "terminating abnormally".
   const query =
-    `ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
+    `IF DB_ID(N'${dbLit}') IS NOT NULL\n` +
+    `  ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
     `BEGIN TRY\n` +
-    `  RESTORE DATABASE [${dbId}] FROM DISK = N'${sqlQuoteString(source)}' WITH REPLACE;\n` +
+    `  RESTORE DATABASE [${dbId}] FROM DISK = N'${sqlQuoteString(source)}' WITH\n  ${restoreOptions};\n` +
     `END TRY\n` +
     `BEGIN CATCH\n` +
     `  DECLARE @err NVARCHAR(MAX) = ERROR_MESSAGE();\n` +
-    `  ALTER DATABASE [${dbId}] SET MULTI_USER;\n` +
-    `  THROW 50000, @err, 1;\n` +
+    `  DECLARE @num INT = ERROR_NUMBER();\n` +
+    `  IF DB_ID(N'${dbLit}') IS NOT NULL\n` +
+    `    ALTER DATABASE [${dbId}] SET MULTI_USER;\n` +
+    `  DECLARE @msg NVARCHAR(2048) = CONCAT('Restore failed (Msg ', @num, '): ', @err);\n` +
+    `  THROW 50000, @msg, 1;\n` +
     `END CATCH;\n` +
-    `ALTER DATABASE [${dbId}] SET MULTI_USER;`;
+    `IF DB_ID(N'${dbLit}') IS NOT NULL\n` +
+    `  ALTER DATABASE [${dbId}] SET MULTI_USER;`;
   const cmd = buildSqlcmdCommand(
     query,
     data.dbPassword,
