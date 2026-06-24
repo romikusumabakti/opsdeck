@@ -887,6 +887,7 @@
     "searchTitle": "Search knowledge base",
     "searchResults": "Documents",
     "searchNoResults": "No matching documents",
-    "linkDocument": "Link to document"
+    "linkDocument": "Link to document",
+    "onThisPage": "On this page"
   }
 }
