@@ -338,7 +338,15 @@
     "dropConfirmTitle": "Drop database",
     "dropConfirmDescription": "Permanently drop database {dbName}? This cannot be undone.",
     "dropQueuedTitle": "Drop queued",
-    "dropQueuedDescription": "Drop of database {dbName} has been queued."
+    "dropQueuedDescription": "Drop of database {dbName} has been queued.",
+    "rename": "Rename",
+    "renameTitle": "Rename database",
+    "renameDescription": "Enter a new name for database {dbName}.",
+    "renamePlaceholder": "new_database_name",
+    "cannotRenameDefault": "The project's configured database cannot be renamed.",
+    "renameTaskTitle": "Rename database",
+    "renameQueuedTitle": "Rename queued",
+    "renameQueuedDescription": "Rename of database {from} to {to} has been queued."
   },
   "mockTime": {
     "title": "Mock time",
