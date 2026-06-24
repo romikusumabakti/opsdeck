@@ -887,6 +887,7 @@
     "searchTitle": "البحث في قاعدة المعرفة",
     "searchResults": "المستندات",
     "searchNoResults": "لا توجد مستندات مطابقة",
-    "linkDocument": "ربط بمستند"
+    "linkDocument": "ربط بمستند",
+    "onThisPage": "في هذه الصفحة"
   }
 }
