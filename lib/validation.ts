@@ -89,3 +89,64 @@ export const serverUpdateSchema = serverInputSchema.partial();
 
 export type ServerInput = z.infer<typeof serverInputSchema>;
 export type ProjectInput = z.infer<typeof projectInputSchema>;
+
+// =========================
+// Team Knowledge Base
+// =========================
+
+export const knowledgeIdSchema = z.uuid();
+
+// Slugs are interpolated into URLs and queried with `eq`. Constrain to a
+// lowercase kebab token so they stay URL-safe and collision checks are stable.
+export const knowledgeSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Slug must be lowercase letters, digits, and single hyphens"
+  );
+
+export const collectionInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  icon: z.string().trim().max(60).nullish(),
+  description: z.string().trim().max(500).nullish(),
+});
+export const collectionUpdateSchema = collectionInputSchema.partial();
+
+export const documentInputSchema = z.object({
+  collectionId: z.uuid(),
+  parentId: z.uuid().nullish(),
+  title: z.string().trim().min(1).max(255),
+  // Markdown body. Generous ceiling — these are wiki pages, not blobs.
+  content: z.string().max(500_000).default(""),
+  projectId: z.uuid().nullish(),
+});
+
+export const documentUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(255),
+    content: z.string().max(500_000),
+    parentId: z.uuid().nullish(),
+    collectionId: z.uuid(),
+    projectId: z.uuid().nullish(),
+    // null = unpublish (back to draft), Date = publish.
+    publishedAt: z.union([z.iso.datetime({ offset: true }), z.null()]),
+  })
+  .partial();
+
+// Reorder/move payload for drag-and-drop in the tree.
+export const documentMoveSchema = z.object({
+  documentId: z.uuid(),
+  parentId: z.uuid().nullish(),
+  position: z.number().int().min(0).max(1_000_000),
+});
+
+// Search box input. websearch_to_tsquery tolerates arbitrary text, but bound
+// the length so a pathological query can't pin the planner.
+export const knowledgeSearchSchema = z.string().trim().min(1).max(200);
+
+export type CollectionInput = z.infer<typeof collectionInputSchema>;
+export type DocumentInput = z.infer<typeof documentInputSchema>;
+export type DocumentUpdate = z.infer<typeof documentUpdateSchema>;
