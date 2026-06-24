@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,9 @@ export function MarkdownContent({
     <article className={cn("max-w-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        // rehype-slug stamps stable ids on headings so the on-page table of
+        // contents can anchor-link and scroll-spy them.
+        rehypePlugins={[rehypeSlug]}
         components={{
           h1: (props) => (
             <h1

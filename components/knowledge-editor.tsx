@@ -2,6 +2,7 @@
 
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TableKit } from "@tiptap/extension-table";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
@@ -15,6 +16,7 @@ import {
   List,
   ListOrdered,
   Quote,
+  Table as TableIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Markdown } from "tiptap-markdown";
@@ -90,6 +92,9 @@ export function KnowledgeEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit,
+      // StarterKit ships no table node — without this a pasted GFM table
+      // collapses to a run-on paragraph and the structure is lost on save.
+      TableKit.configure({ table: { resizable: true } }),
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Markdown.configure({ transformPastedText: true, linkify: true }),
@@ -109,7 +114,10 @@ export function KnowledgeEditor({
           "[&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
           "[&_pre]:bg-muted/50 [&_pre]:border [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:my-3",
           "[&_code]:font-mono [&_code]:text-sm",
-          "[&_a]:text-primary [&_a]:underline"
+          "[&_a]:text-primary [&_a]:underline",
+          "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm",
+          "[&_th]:border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",
+          "[&_td]:border [&_td]:px-3 [&_td]:py-1.5"
         ),
       },
     },
@@ -221,6 +229,19 @@ export function KnowledgeEditor({
           label="Quote"
         >
           <Quote className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          active={editor.isActive("table")}
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run()
+          }
+          label="Insert table"
+        >
+          <TableIcon className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("link")}
