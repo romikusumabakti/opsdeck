@@ -46,6 +46,46 @@ export const relations = defineRelations(schema, (r) => ({
     accounts: r.many.accounts(),
     invitations: r.many.invitations(),
   },
+  knowledgeCollections: {
+    documents: r.many.knowledgeDocuments(),
+    createdBy: r.one.users({
+      from: r.knowledgeCollections.createdById,
+      to: r.users.id,
+    }),
+  },
+  knowledgeDocuments: {
+    collection: r.one.knowledgeCollections({
+      from: r.knowledgeDocuments.collectionId,
+      to: r.knowledgeCollections.id,
+    }),
+    parent: r.one.knowledgeDocuments({
+      from: r.knowledgeDocuments.parentId,
+      to: r.knowledgeDocuments.id,
+    }),
+    project: r.one.projects({
+      from: r.knowledgeDocuments.projectId,
+      to: r.projects.id,
+    }),
+    createdBy: r.one.users({
+      from: r.knowledgeDocuments.createdById,
+      to: r.users.id,
+    }),
+    updatedBy: r.one.users({
+      from: r.knowledgeDocuments.updatedById,
+      to: r.users.id,
+    }),
+    revisions: r.many.knowledgeRevisions(),
+  },
+  knowledgeRevisions: {
+    document: r.one.knowledgeDocuments({
+      from: r.knowledgeRevisions.documentId,
+      to: r.knowledgeDocuments.id,
+    }),
+    editedBy: r.one.users({
+      from: r.knowledgeRevisions.editedById,
+      to: r.users.id,
+    }),
+  },
   sessions: {
     user: r.one.users({
       from: r.sessions.userId,
