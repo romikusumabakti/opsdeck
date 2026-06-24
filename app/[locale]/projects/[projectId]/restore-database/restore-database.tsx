@@ -49,6 +49,18 @@ export function RestoreDatabase({
   const [submitting, startTransition] = React.useTransition();
 
   const backup = backups.find((b) => b.name === value);
+  const isDefaultDatabase =
+    databases.find((d) => d.name === database)?.isDefault ?? false;
+
+  // Restarting the backend only makes sense when restoring the default
+  // database (the one the backend is wired to). Drop a stale checked state
+  // when the operator switches to a non-default target.
+  function onDatabaseChange(next: string) {
+    setDatabase(next);
+    const nextIsDefault =
+      databases.find((d) => d.name === next)?.isDefault ?? false;
+    if (!nextIsDefault) setRestartBackend(false);
+  }
 
   const runRestore = React.useCallback(() => {
     if (!backup) return;
@@ -98,7 +110,7 @@ export function RestoreDatabase({
         id="restore-database-picker"
         databases={databases}
         value={database}
-        onChange={setDatabase}
+        onChange={onDatabaseChange}
         disabled={submitting}
         defaultSuffix={t("defaultSuffix")}
         placeholder={t("selectDatabase")}
@@ -190,28 +202,30 @@ export function RestoreDatabase({
             </p>
           );
         })()}
-      <div className="flex items-start gap-2 mt-1">
-        <Checkbox
-          id="restore-restart-backend"
-          checked={restartBackend}
-          onCheckedChange={(checked) => setRestartBackend(checked === true)}
-          disabled={submitting}
-          className="mt-0.5"
-        />
-        <Label
-          htmlFor="restore-restart-backend"
-          className="text-sm font-normal cursor-pointer"
-        >
-          <span className="flex flex-col gap-0.5">
-            <span>{t("restartBackendLabel")}</span>
-            <span className="text-xs text-muted-foreground">
-              {t("restartBackendHint", {
-                backendName: project.backendServiceName,
-              })}
+      {isDefaultDatabase && (
+        <div className="flex items-start gap-2 mt-1">
+          <Checkbox
+            id="restore-restart-backend"
+            checked={restartBackend}
+            onCheckedChange={(checked) => setRestartBackend(checked === true)}
+            disabled={submitting}
+            className="mt-0.5"
+          />
+          <Label
+            htmlFor="restore-restart-backend"
+            className="text-sm font-normal cursor-pointer"
+          >
+            <span className="flex flex-col gap-0.5">
+              <span>{t("restartBackendLabel")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("restartBackendHint", {
+                  backendName: project.backendServiceName,
+                })}
+              </span>
             </span>
-          </span>
-        </Label>
-      </div>
+          </Label>
+        </div>
+      )}
       <LiveTaskDialog
         taskId={activeTaskId}
         onOpenChange={(open) => {
