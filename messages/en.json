@@ -882,6 +882,11 @@
     "noRevisions": "No revisions yet.",
     "historyOf": "History of {title}",
     "historyHint": "Every save creates a restorable revision.",
-    "backToDocument": "Back to document"
+    "backToDocument": "Back to document",
+    "searchPlaceholder": "Search documents…",
+    "searchTitle": "Search knowledge base",
+    "searchResults": "Documents",
+    "searchNoResults": "No matching documents",
+    "linkDocument": "Link to document"
   }
 }

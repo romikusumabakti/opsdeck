@@ -7,6 +7,7 @@ import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
   Code,
+  FileText,
   Heading2,
   Heading3,
   Italic,
@@ -15,10 +16,20 @@ import {
   ListOrdered,
   Quote,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Markdown } from "tiptap-markdown";
 import { Button } from "@/components/ui/button";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+
+export type LinkableDoc = { title: string; slug: string };
 
 // tiptap-markdown adds `markdown` to editor.storage at runtime but ships no v3
 // type augmentation; read it through this narrow accessor instead of `any`.
@@ -66,8 +77,12 @@ export function KnowledgeEditor({
   value,
   onChange,
   placeholder,
+  linkableDocs = [],
+  linkLabels,
 }: {
   value: string;
+  linkableDocs?: LinkableDoc[];
+  linkLabels?: { title: string; search: string; empty: string };
   onChange: (markdown: string) => void;
   placeholder?: string;
 }) {
@@ -103,6 +118,8 @@ export function KnowledgeEditor({
     },
   });
 
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   // Sync external value resets (e.g. revision restore in the same view) without
   // clobbering the cursor during normal typing.
   useEffect(() => {
@@ -124,6 +141,22 @@ export function KnowledgeEditor({
       return;
     }
     editor.chain().focus().setLink({ href: url }).run();
+  };
+
+  // Insert an internal document link as a text node carrying a link mark. The
+  // markdown serializer emits `[title](/knowledge/slug)`, which the backlink
+  // extractor recognizes — so picking a doc here creates a real backlink edge.
+  const insertDocLink = (doc: LinkableDoc) => {
+    setPickerOpen(false);
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "text",
+        text: doc.title,
+        marks: [{ type: "link", attrs: { href: `/knowledge/${doc.slug}` } }],
+      })
+      .run();
   };
 
   return (
@@ -196,8 +229,40 @@ export function KnowledgeEditor({
         >
           <Link2 className="size-4" />
         </ToolbarButton>
+        {linkableDocs.length > 0 && (
+          <ToolbarButton
+            onClick={() => setPickerOpen(true)}
+            label={linkLabels?.title ?? "Link to document"}
+          >
+            <FileText className="size-4" />
+          </ToolbarButton>
+        )}
       </div>
       <EditorContent editor={editor} />
+
+      <CommandDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title={linkLabels?.title ?? "Link to document"}
+        description={linkLabels?.title ?? "Link to document"}
+      >
+        <CommandInput placeholder={linkLabels?.search ?? "Search documents…"} />
+        <CommandList>
+          <CommandEmpty>{linkLabels?.empty ?? "No documents"}</CommandEmpty>
+          <CommandGroup>
+            {linkableDocs.map((doc) => (
+              <CommandItem
+                key={doc.slug}
+                value={`${doc.title} ${doc.slug}`}
+                onSelect={() => insertDocLink(doc)}
+              >
+                <FileText className="text-muted-foreground" />
+                <span className="truncate">{doc.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </div>
   );
 }

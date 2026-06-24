@@ -882,6 +882,11 @@
     "noRevisions": "Belum ada revisi.",
     "historyOf": "Riwayat {title}",
     "historyHint": "Setiap penyimpanan membuat revisi yang dapat dipulihkan.",
-    "backToDocument": "Kembali ke dokumen"
+    "backToDocument": "Kembali ke dokumen",
+    "searchPlaceholder": "Cari dokumen…",
+    "searchTitle": "Cari basis pengetahuan",
+    "searchResults": "Dokumen",
+    "searchNoResults": "Tidak ada dokumen yang cocok",
+    "linkDocument": "Tautkan ke dokumen"
   }
 }
