@@ -6,6 +6,7 @@ import {
   dropDatabaseFn,
   mockProjectTimeLegacy,
   mockProjectTimeResetLegacy,
+  renameDatabaseFn,
   restoreDatabaseBackup,
 } from "@/inngest/functions";
 import { inngest } from "../../../inngest/client";
@@ -17,6 +18,7 @@ export const { GET, POST, PUT } = serve({
     restoreDatabaseBackup,
     createDatabaseFn,
     dropDatabaseFn,
+    renameDatabaseFn,
     mockProjectTimeLegacy,
     mockProjectTimeResetLegacy,
     controlService,

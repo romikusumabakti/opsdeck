@@ -60,6 +60,12 @@ function pgQuoteId(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+// Escape a value used inside a Postgres 'single-quoted' string literal (e.g. a
+// datname compared in WHERE). A single quote is doubled.
+function pgQuoteLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 export const createDatabaseBackup = inngest.createFunction(
   {
     id: "create-db-backup",
@@ -869,6 +875,117 @@ async function runMssqlDropDatabase(
     `  ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
     `  DROP DATABASE [${dbId}];\n` +
     `END;`;
+  const cmd = buildSqlcmdCommand(
+    query,
+    project.dbPassword,
+    project.dbServiceType,
+    project.dbServiceName
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+export const renameDatabaseFn = inngest.createFunction(
+  {
+    id: "rename-database",
+    triggers: { event: "db/database.rename.requested" },
+    // Not idempotent: a retried rename would fail because the source no longer
+    // exists. The per-attempt catch marks the task failed; operators re-trigger.
+    retries: 0,
+  },
+  async ({ event, step }) => {
+    const { projectId, from, to, taskId } = event.data as {
+      projectId: string;
+      from: string;
+      to: string;
+      taskId: string;
+    };
+    const project = await loadProjectWithServers(projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
+    const credentials = {
+      host: project.dbServer.host,
+      username: project.dbServer.username,
+      password: project.dbServer.password,
+    };
+
+    try {
+      if (!from || !to) throw new Error("Source and target names are required");
+      if (from === to) throw new Error("New name must differ from the old name");
+      // Defence in depth: the action layer already blocks renaming the project's
+      // configured database, but re-check here so a hand-crafted event can't
+      // orphan the default DB out from under the panel.
+      if (from === project.dbName) {
+        throw new Error("Refusing to rename the project's configured database");
+      }
+
+      await tracked(
+        taskId,
+        step,
+        "rename-database",
+        `Renaming database ${from} → ${to}`,
+        async () => {
+          if (project.dbType === "mssql") {
+            await runMssqlRenameDatabase(project, from, to, credentials);
+          } else {
+            await runPostgresRenameDatabase(project, from, to, credentials);
+          }
+        }
+      );
+
+      await step.run("finish", async () => {
+        await appendTaskOutput(taskId, `✓ Database renamed: ${from} → ${to}`);
+        await completeTask(taskId);
+      });
+
+      return { success: true, from, to };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await step.run("record-failure", () => failTask(taskId, message));
+      throw err;
+    }
+  }
+);
+
+async function runPostgresRenameDatabase(
+  project: ProjectWithServers,
+  from: string,
+  to: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  // Terminate active connections first — ALTER DATABASE ... RENAME fails while
+  // other sessions hold the source DB open.
+  const terminate =
+    `SELECT pg_terminate_backend(pid) FROM pg_stat_activity ` +
+    `WHERE datname = ${pgQuoteLiteral(from)} AND pid <> pg_backend_pid();`;
+  const rename = `ALTER DATABASE ${pgQuoteId(from)} RENAME TO ${pgQuoteId(to)};`;
+  const query = `${terminate}\n${rename}`;
+  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const cmd = buildDbShellCommand(
+    project.dbServiceType,
+    project.dbServiceName,
+    inner,
+    { runAsUser: "postgres", sudoPassword: credentials.password }
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMssqlRenameDatabase(
+  project: ProjectWithServers,
+  from: string,
+  to: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  if (!project.dbPassword) {
+    throw new Error(
+      "Project dbPassword is required for MSSQL database rename (sqlcmd needs it)"
+    );
+  }
+  const fromId = sqlBracketId(from);
+  // Flip to SINGLE_USER WITH ROLLBACK IMMEDIATE to kill active connections so
+  // MODIFY NAME doesn't fail, rename, then return to MULTI_USER.
+  const query =
+    `ALTER DATABASE [${fromId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
+    `ALTER DATABASE [${fromId}] MODIFY NAME = [${sqlBracketId(to)}];\n` +
+    `ALTER DATABASE [${sqlBracketId(to)}] SET MULTI_USER;`;
   const cmd = buildSqlcmdCommand(
     query,
     project.dbPassword,

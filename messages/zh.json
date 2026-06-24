@@ -338,7 +338,15 @@
     "dropConfirmTitle": "删除数据库",
     "dropConfirmDescription": "永久删除数据库 {dbName}？此操作无法撤销。",
     "dropQueuedTitle": "删除已加入队列",
-    "dropQueuedDescription": "数据库 {dbName} 的删除已加入队列。"
+    "dropQueuedDescription": "数据库 {dbName} 的删除已加入队列。",
+    "rename": "重命名",
+    "renameTitle": "重命名数据库",
+    "renameDescription": "为数据库 {dbName} 输入新名称。",
+    "renamePlaceholder": "新数据库名称",
+    "cannotRenameDefault": "无法重命名项目配置的数据库。",
+    "renameTaskTitle": "重命名数据库",
+    "renameQueuedTitle": "重命名已加入队列",
+    "renameQueuedDescription": "数据库 {from} 重命名为 {to} 已加入队列。"
   },
   "mockTime": {
     "title": "模拟时间",
