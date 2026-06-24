@@ -185,6 +185,23 @@ export function KnowledgeTree({
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  // Collections collapse independently; empty ones start collapsed so they
+  // don't clutter the tree with repeated "no documents" rows.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const initial = buildTree(nodes);
+    return new Set(
+      collections
+        .filter((c) => (initial.get(c.id)?.length ?? 0) === 0)
+        .map((c) => c.id)
+    );
+  });
+  const toggleCollapsed = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   // Self + descendants of the dragged node — invalid drop destinations.
   const forbidden = useMemo(
     () => (draggingId ? subtreeIds(nodes, draggingId) : new Set<string>()),
@@ -262,6 +279,7 @@ export function KnowledgeTree({
       {collections.map((collection) => {
         const items = roots.get(collection.id) ?? [];
         const isCollectionDropTarget = dropTargetId === `c:${collection.id}`;
+        const isOpen = !collapsed.has(collection.id);
         return (
           <div key={collection.id}>
             {/* biome-ignore lint/a11y/noStaticElementInteractions: collection header is a drop target for moving a doc to the collection root */}
@@ -279,30 +297,49 @@ export function KnowledgeTree({
                 }
               }}
               className={cn(
-                "mb-1 flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground",
+                "group/col mb-1 flex items-center gap-1 rounded-md pr-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:bg-accent/60",
                 isCollectionDropTarget && "ring-2 ring-primary ring-inset"
               )}
             >
-              <Folder className="size-3.5" />
-              <span className="truncate">{collection.name}</span>
+              <button
+                type="button"
+                onClick={() => toggleCollapsed(collection.id)}
+                className="flex flex-1 items-center gap-1.5 py-1 pl-1 text-left"
+                aria-expanded={isOpen}
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-3 shrink-0 transition-transform",
+                    isOpen && "rotate-90"
+                  )}
+                />
+                <Folder className="size-3.5 shrink-0" />
+                <span className="truncate">{collection.name}</span>
+                {items.length > 0 && (
+                  <span className="text-muted-foreground/50 normal-case">
+                    {items.length}
+                  </span>
+                )}
+              </button>
             </div>
-            {items.length > 0 ? (
-              <ul>
-                {items.map((item) => (
-                  <DocNode
-                    key={item.id}
-                    node={item}
-                    depth={0}
-                    activeSlug={activeSlug}
-                    ctx={ctx}
-                  />
-                ))}
-              </ul>
-            ) : (
-              <p className="px-2 py-1 text-xs text-muted-foreground/70">
-                {t("emptyCollection")}
-              </p>
-            )}
+            {isOpen &&
+              (items.length > 0 ? (
+                <ul>
+                  {items.map((item) => (
+                    <DocNode
+                      key={item.id}
+                      node={item}
+                      depth={0}
+                      activeSlug={activeSlug}
+                      ctx={ctx}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="px-2 pb-1 pl-7 text-xs text-muted-foreground/60 normal-case">
+                  {t("emptyCollection")}
+                </p>
+              ))}
           </div>
         );
       })}
