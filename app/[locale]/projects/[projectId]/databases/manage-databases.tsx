@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Plus, Trash2 } from "lucide-react";
+import { Database, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import {
   createDatabase,
   type DatabaseEntry,
   dropDatabase,
+  renameDatabase,
 } from "@/actions/databases";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
@@ -57,6 +58,42 @@ export function ManageDatabases({
         );
       }
     });
+  }
+
+  function onRename(name: string) {
+    void (async () => {
+      const next = await dialog.prompt({
+        title: t("renameTitle"),
+        description: t("renameDescription", { dbName: name }),
+        confirmText: t("rename"),
+        cancelText: tCommon("cancel"),
+        defaultValue: name,
+        placeholder: t("renamePlaceholder"),
+      });
+      const target = next?.trim();
+      if (!target || target === name) return;
+      startTransition(async () => {
+        try {
+          const { taskId } = await renameDatabase(project.id, {
+            from: name,
+            to: target,
+          });
+          setTaskTitle(t("renameTaskTitle"));
+          setTaskTarget(`${name} → ${target}`);
+          setActiveTaskId(taskId);
+          toast.success(t("renameQueuedTitle"), {
+            description: t("renameQueuedDescription", {
+              from: name,
+              to: target,
+            }),
+          });
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : tCommon("errorGeneric")
+          );
+        }
+      });
+    })();
   }
 
   function onDrop(name: string) {
@@ -133,6 +170,17 @@ export function ManageDatabases({
                   {t("defaultBadge")}
                 </Badge>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                disabled={d.isDefault || submitting}
+                onClick={() => onRename(d.name)}
+                title={d.isDefault ? t("cannotRenameDefault") : t("renameTitle")}
+                aria-label={t("renameTitle")}
+              >
+                <Pencil className="size-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
