@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -272,22 +272,56 @@ export async function moveDocument(
   if (!parsed.success) {
     return { success: false, message: "Invalid move data" };
   }
-  const { documentId, parentId, position } = parsed.data;
+  const { documentId, collectionId, parentId, position } = parsed.data;
   try {
     // Guard against cycles: a document cannot become its own ancestor.
     if (parentId && (await isDescendant(parentId, documentId))) {
       return { success: false, message: "Cannot nest a document under itself" };
     }
-    await db
-      .update(knowledgeDocuments)
-      .set({ parentId: parentId ?? null, position, updatedAt: new Date() })
-      .where(eq(knowledgeDocuments.id, documentId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(knowledgeDocuments)
+        .set({
+          parentId: parentId ?? null,
+          position,
+          collectionId,
+          updatedAt: new Date(),
+        })
+        .where(eq(knowledgeDocuments.id, documentId));
+
+      // The moved node may carry a subtree. Re-home every descendant into the
+      // same destination collection so root grouping stays consistent.
+      const descendants = await collectDescendants(tx, documentId);
+      if (descendants.length > 0) {
+        await tx
+          .update(knowledgeDocuments)
+          .set({ collectionId })
+          .where(inArray(knowledgeDocuments.id, descendants));
+      }
+    });
     revalidatePath(KNOWLEDGE_PATH);
     return { success: true };
   } catch (error) {
     console.error(`Failed to move document ${documentId}:`, error);
     return { success: false, message: "Failed to move document" };
   }
+}
+
+// Breadth-first collect of every descendant id under `rootId` (exclusive).
+// Bounded by a node cap so a corrupt cycle can't loop forever.
+async function collectDescendants(tx: Tx, rootId: string): Promise<string[]> {
+  const out: string[] = [];
+  let frontier = [rootId];
+  for (let i = 0; i < 10_000 && frontier.length > 0; ) {
+    const children = await tx
+      .select({ id: knowledgeDocuments.id })
+      .from(knowledgeDocuments)
+      .where(inArray(knowledgeDocuments.parentId, frontier));
+    frontier = children.map((c) => c.id).filter((id) => !out.includes(id));
+    out.push(...frontier);
+    i += frontier.length;
+  }
+  return out;
 }
 
 // Walk up from `nodeId` to see whether `ancestorId` sits above it — prevents a

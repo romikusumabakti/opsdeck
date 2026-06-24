@@ -9,7 +9,10 @@ import {
   deleteDocument,
   updateDocument,
 } from "@/actions/knowledge";
-import { KnowledgeEditor } from "@/components/knowledge-editor";
+import {
+  KnowledgeEditor,
+  type LinkableDoc,
+} from "@/components/knowledge-editor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,9 +45,11 @@ type Mode =
 export function DocumentForm({
   mode,
   collections,
+  linkableDocs = [],
 }: {
   mode: Mode;
   collections: KnowledgeCollection[];
+  linkableDocs?: LinkableDoc[];
 }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
@@ -147,6 +152,12 @@ export function DocumentForm({
           value={content}
           onChange={setContent}
           placeholder={t("contentPlaceholder")}
+          linkableDocs={linkableDocs}
+          linkLabels={{
+            title: t("linkDocument"),
+            search: t("searchPlaceholder"),
+            empty: t("searchNoResults"),
+          }}
         />
       </div>
 

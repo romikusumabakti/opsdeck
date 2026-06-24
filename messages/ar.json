@@ -882,6 +882,11 @@
     "noRevisions": "لا توجد مراجعات بعد.",
     "historyOf": "سجل {title}",
     "historyHint": "كل عملية حفظ تنشئ مراجعة قابلة للاستعادة.",
-    "backToDocument": "العودة إلى المستند"
+    "backToDocument": "العودة إلى المستند",
+    "searchPlaceholder": "ابحث في المستندات…",
+    "searchTitle": "البحث في قاعدة المعرفة",
+    "searchResults": "المستندات",
+    "searchNoResults": "لا توجد مستندات مطابقة",
+    "linkDocument": "ربط بمستند"
   }
 }

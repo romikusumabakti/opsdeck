@@ -174,6 +174,12 @@ export type SearchHit = {
   rank: number;
 };
 
+// Highlight delimiters for ts_headline. Control chars (not <mark>) so the
+// snippet is never interpreted as HTML — the client splits on these and wraps
+// the spans itself, so a document containing literal "<script>" can't inject.
+export const HL_START = String.fromCharCode(1);
+export const HL_STOP = String.fromCharCode(2);
+
 /**
  * Full-text search over the generated `search_vector`. Uses
  * websearch_to_tsquery (Google-style operators, never throws on bad syntax) and
@@ -190,7 +196,7 @@ export async function searchDocuments(query: string): Promise<SearchHit[]> {
         'simple',
         d.content_text,
         websearch_to_tsquery('simple', ${query}),
-        'MaxFragments=2,MinWords=5,MaxWords=18,StartSel=<mark>,StopSel=</mark>'
+        ${`MaxFragments=2,MinWords=5,MaxWords=18,StartSel=${HL_START},StopSel=${HL_STOP}`}
       ) AS snippet,
       ts_rank(d.search_vector, websearch_to_tsquery('simple', ${query})) AS rank
     FROM knowledge_documents d
