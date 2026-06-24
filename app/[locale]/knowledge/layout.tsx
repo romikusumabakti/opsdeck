@@ -1,6 +1,7 @@
 import { BookOpen, Plus } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { CollectionCreateDialog } from "@/components/collection-create-dialog";
+import { KnowledgeSearch } from "@/components/knowledge-search";
 import { KnowledgeTree } from "@/components/knowledge-tree";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
@@ -41,12 +42,15 @@ export default async function KnowledgeLayout({
             {admin && <CollectionCreateDialog />}
           </div>
           {collections.length > 0 && (
-            <Button asChild size="sm" variant="outline" className="mx-2">
-              <Link href="/knowledge/new">
-                <Plus className="size-4" />
-                {t("newDocument")}
-              </Link>
-            </Button>
+            <>
+              <KnowledgeSearch />
+              <Button asChild size="sm" variant="outline" className="mx-2">
+                <Link href="/knowledge/new">
+                  <Plus className="size-4" />
+                  {t("newDocument")}
+                </Link>
+              </Button>
+            </>
           )}
           <div className="px-1">
             <KnowledgeTree collections={collections} nodes={nodes} />

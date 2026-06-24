@@ -882,6 +882,11 @@
     "noRevisions": "暂无修订记录。",
     "historyOf": "{title} 的历史",
     "historyHint": "每次保存都会创建可恢复的修订版本。",
-    "backToDocument": "返回文档"
+    "backToDocument": "返回文档",
+    "searchPlaceholder": "搜索文档…",
+    "searchTitle": "搜索知识库",
+    "searchResults": "文档",
+    "searchNoResults": "没有匹配的文档",
+    "linkDocument": "链接到文档"
   }
 }

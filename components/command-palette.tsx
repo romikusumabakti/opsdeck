@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BookOpen,
   Folder,
   KeyRound,
   Languages,
@@ -128,6 +129,13 @@ export function CommandPalette({
             >
               <Folder />
               {tNav("dashboard")}
+            </CommandItem>
+            <CommandItem
+              value="knowledge base docs wiki"
+              onSelect={() => run(() => router.push("/knowledge"))}
+            >
+              <BookOpen />
+              {tNav("knowledge")}
             </CommandItem>
             {isAdmin && (
               <>
