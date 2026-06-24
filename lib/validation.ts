@@ -136,9 +136,12 @@ export const documentUpdateSchema = z
   })
   .partial();
 
-// Reorder/move payload for drag-and-drop in the tree.
+// Reorder/move payload for drag-and-drop in the tree. collectionId is the
+// destination collection (a drop can cross collections); the action cascades it
+// to the moved subtree so grouping stays consistent.
 export const documentMoveSchema = z.object({
   documentId: z.uuid(),
+  collectionId: z.uuid(),
   parentId: z.uuid().nullish(),
   position: z.number().int().min(0).max(1_000_000),
 });
