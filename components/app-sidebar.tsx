@@ -2,6 +2,7 @@
 
 import {
   Aperture,
+  BookOpen,
   Clock,
   DatabaseBackup,
   DatabaseZap,
@@ -110,6 +111,18 @@ export function AppSidebar({
                   <Link href="/">
                     <FolderKanban />
                     <span>{tNav("projects")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith("/knowledge")}
+                  tooltip={tNav("knowledge")}
+                >
+                  <Link href="/knowledge">
+                    <BookOpen />
+                    <span>{tNav("knowledge")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

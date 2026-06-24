@@ -1,11 +1,15 @@
 import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
+  integer,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -231,6 +235,172 @@ export const invitations = pgTable(
     index("invitations_email_idx").on(t.email),
   ]
 );
+
+// =========================
+// Team Knowledge Base
+// =========================
+
+// Postgres `tsvector` has no first-class Drizzle column type. This custom type
+// maps it so the generated FTS column and its GIN index live in the schema and
+// migrations rather than hand-written SQL drift.
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
+
+// Top-level grouping for documents (e.g. "Runbooks", "Onboarding"). Managing
+// collections is admin-only; documents inside are member-editable.
+export const knowledgeCollections = pgTable("knowledge_collections", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  name: text("name").notNull(),
+  // lucide-react icon name, rendered in the tree. Null falls back to a default.
+  icon: text("icon"),
+  description: text("description"),
+  // Sibling ordering among collections. Sparse integers leave gaps for reorder.
+  position: integer("position").notNull().default(0),
+  createdById: uuid("created_by_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const knowledgeDocuments = pgTable(
+  "knowledge_documents",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    collectionId: uuid("collection_id")
+      .notNull()
+      .references(() => knowledgeCollections.id, { onDelete: "cascade" }),
+    // Self-reference builds the nesting tree. set null (not cascade) so deleting
+    // a parent re-parents children to the collection root instead of nuking the
+    // whole subtree — the actions layer decides reparent vs cascade explicitly.
+    parentId: uuid("parent_id").references((): any => knowledgeDocuments.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    // URL-friendly identifier, unique within a collection. Routed as
+    // /knowledge/<slug>.
+    slug: text("slug").notNull(),
+    // Markdown source of truth — portable, diffable, vendor-neutral. TipTap is
+    // only the editing surface; persistence is plain markdown.
+    content: text("content").notNull().default(""),
+    // Plain-text projection of `content`, computed in the actions layer. Feeds
+    // the generated search vector; keeps markdown punctuation out of the index.
+    contentText: text("content_text").notNull().default(""),
+    // Generated full-text vector: title weighted 'A', body 'B'. STORED so the
+    // GIN index covers it without a trigger. Recomputed by Postgres on write.
+    searchVector: tsvector("search_vector").generatedAlwaysAs(
+      (): any =>
+        sql`setweight(to_tsvector('simple', coalesce(${knowledgeDocuments.title}, '')), 'A') || setweight(to_tsvector('simple', coalesce(${knowledgeDocuments.contentText}, '')), 'B')`
+    ),
+    // Sibling ordering within the same parent.
+    position: integer("position").notNull().default(0),
+    // Null = draft (author-only visibility); set on publish.
+    publishedAt: timestamp("published_at"),
+    // Optional link to a project so a runbook can surface in project context.
+    // set null: the doc outlives the project (standalone KB is primary).
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedById: uuid("updated_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Tree render reads a collection's docs ordered by (parent, position).
+    index("knowledge_documents_tree_idx").on(
+      t.collectionId,
+      t.parentId,
+      t.position
+    ),
+    // Routing resolves a doc by slug within its collection; also enforces no
+    // duplicate slugs per collection.
+    uniqueIndex("knowledge_documents_collection_slug_idx").on(
+      t.collectionId,
+      t.slug
+    ),
+    // FTS ranking scans the generated vector.
+    index("knowledge_documents_search_idx").using("gin", t.searchVector),
+    // Inbound-link / project-context lookups.
+    index("knowledge_documents_project_idx").on(t.projectId),
+  ]
+);
+
+// Append-only history. Every update snapshots the PRIOR markdown before the
+// write (in a transaction) so any revision can be restored.
+export const knowledgeRevisions = pgTable(
+  "knowledge_revisions",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => knowledgeDocuments.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    editedById: uuid("edited_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // History page lists a document's revisions newest-first.
+    index("knowledge_revisions_document_idx").on(
+      t.documentId,
+      t.createdAt.desc()
+    ),
+  ]
+);
+
+// Backlink graph: an edge per internal /knowledge link found in a doc's body.
+// Rebuilt on every save. PK is the pair so re-saving is an idempotent upsert.
+export const knowledgeLinks = pgTable(
+  "knowledge_links",
+  {
+    fromDocumentId: uuid("from_document_id")
+      .notNull()
+      .references(() => knowledgeDocuments.id, { onDelete: "cascade" }),
+    toDocumentId: uuid("to_document_id")
+      .notNull()
+      .references(() => knowledgeDocuments.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.fromDocumentId, t.toDocumentId] }),
+    // "Referenced by" panel queries inbound edges.
+    index("knowledge_links_to_idx").on(t.toDocumentId),
+  ]
+);
+
+export type KnowledgeCollection = InferSelectModel<typeof knowledgeCollections>;
+export type NewKnowledgeCollection = InferInsertModel<
+  typeof knowledgeCollections
+>;
+
+export type KnowledgeDocument = InferSelectModel<typeof knowledgeDocuments>;
+export type NewKnowledgeDocument = InferInsertModel<typeof knowledgeDocuments>;
+
+export type KnowledgeRevision = InferSelectModel<typeof knowledgeRevisions>;
+export type NewKnowledgeRevision = InferInsertModel<typeof knowledgeRevisions>;
+
+// A document plus its author display names and resolved relations, as shown in
+// the reader. Credential-free already — KB has no secrets.
+export type KnowledgeDocumentWithMeta = KnowledgeDocument & {
+  collection: Pick<KnowledgeCollection, "id" | "name" | "icon">;
+  createdBy: Pick<User, "id" | "name"> | null;
+  updatedBy: Pick<User, "id" | "name"> | null;
+};
+
+// Lightweight node for the navigation tree — no body, no FTS columns.
+export type KnowledgeTreeNode = Pick<
+  KnowledgeDocument,
+  "id" | "collectionId" | "parentId" | "title" | "slug" | "position"
+> & { publishedAt: Date | null };
 
 export type Server = InferSelectModel<typeof servers>;
 export type NewServer = InferInsertModel<typeof servers>;
