@@ -338,7 +338,15 @@
     "dropConfirmTitle": "Hapus database",
     "dropConfirmDescription": "Hapus permanen database {dbName}? Tindakan ini tidak bisa dibatalkan.",
     "dropQueuedTitle": "Penghapusan di-queue",
-    "dropQueuedDescription": "Penghapusan database {dbName} sudah di-queue."
+    "dropQueuedDescription": "Penghapusan database {dbName} sudah di-queue.",
+    "rename": "Ganti nama",
+    "renameTitle": "Ganti nama database",
+    "renameDescription": "Masukkan nama baru untuk database {dbName}.",
+    "renamePlaceholder": "nama_database_baru",
+    "cannotRenameDefault": "Database yang dikonfigurasi proyek tidak dapat diganti namanya.",
+    "renameTaskTitle": "Ganti nama database",
+    "renameQueuedTitle": "Penggantian nama di-queue",
+    "renameQueuedDescription": "Penggantian nama database {from} menjadi {to} sudah di-queue."
   },
   "mockTime": {
     "title": "Mock waktu",

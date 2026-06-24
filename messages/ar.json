@@ -338,7 +338,15 @@
     "dropConfirmTitle": "حذف قاعدة البيانات",
     "dropConfirmDescription": "حذف قاعدة البيانات {dbName} نهائياً؟ لا يمكن التراجع عن هذا.",
     "dropQueuedTitle": "تم وضع الحذف في قائمة الانتظار",
-    "dropQueuedDescription": "تم وضع حذف قاعدة البيانات {dbName} في قائمة الانتظار."
+    "dropQueuedDescription": "تم وضع حذف قاعدة البيانات {dbName} في قائمة الانتظار.",
+    "rename": "إعادة تسمية",
+    "renameTitle": "إعادة تسمية قاعدة البيانات",
+    "renameDescription": "أدخل اسمًا جديدًا لقاعدة البيانات {dbName}.",
+    "renamePlaceholder": "اسم_قاعدة_البيانات_الجديد",
+    "cannotRenameDefault": "لا يمكن إعادة تسمية قاعدة البيانات المُهيأة للمشروع.",
+    "renameTaskTitle": "إعادة تسمية قاعدة البيانات",
+    "renameQueuedTitle": "تم وضع إعادة التسمية في قائمة الانتظار",
+    "renameQueuedDescription": "تم وضع إعادة تسمية قاعدة البيانات {from} إلى {to} في قائمة الانتظار."
   },
   "mockTime": {
     "title": "محاكاة الوقت",

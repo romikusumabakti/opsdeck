@@ -161,3 +161,45 @@ export async function dropDatabase(
   });
   return { taskId };
 }
+
+export async function renameDatabase(
+  projectId: string,
+  options: { from: string; to: string }
+): Promise<{ taskId: string }> {
+  const session = await requireSession();
+  if (!projectIdSchema.safeParse(projectId).success) {
+    throw new Error("Invalid project id");
+  }
+  const parsedFrom = databaseNameSchema.safeParse(options.from);
+  if (!parsedFrom.success) {
+    throw new Error("Invalid database name");
+  }
+  const parsedTo = databaseNameSchema.safeParse(options.to);
+  if (!parsedTo.success) {
+    throw new Error("Invalid new database name");
+  }
+  const from = parsedFrom.data;
+  const to = parsedTo.data;
+  if (from === to) {
+    throw new Error("New name must differ from the current name");
+  }
+  const project = await loadProjectWithServers(projectId);
+  if (!project) throw new Error("Project not found");
+
+  // Guard the project's configured database — renaming it would orphan the
+  // panel's configured dbName. The worker re-checks too.
+  if (from === project.dbName) {
+    throw new Error("Cannot rename the project's configured database");
+  }
+
+  const taskId = await createTask({
+    projectId: project.id,
+    userId: session.user.id,
+    description: `Rename database (${from} → ${to})`,
+  });
+  await inngest.send({
+    name: "db/database.rename.requested",
+    data: { projectId: project.id, from, to, taskId },
+  });
+  return { taskId };
+}
