@@ -38,10 +38,14 @@ services:
       # NEXT_PUBLIC_APP_NAME + NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN.
       RESEND_API_KEY: ${RESEND_API_KEY-}
       EMAIL_FROM: ${EMAIL_FROM-}
-      # Inngest — `INNGEST_DEV=<url>` puts the SDK in dev mode (no signature
-      # verification, matching the `inngest dev` server's insecure mode) and
-      # points it at the sibling container over the compose network.
-      INNGEST_DEV: http://inngest:8288
+      # Inngest — production self-hosted. `INNGEST_DEV=0` forces production
+      # mode (signature verification on); `INNGEST_BASE_URL` points the SDK at
+      # the self-hosted server's event API over the compose network instead of
+      # Inngest Cloud. Keys must match the `inngest` service.
+      INNGEST_DEV: "0"
+      INNGEST_BASE_URL: http://inngest:8288
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?INNGEST_EVENT_KEY is required}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?INNGEST_SIGNING_KEY is required}
     healthcheck:
       # Use Node's built-in fetch — `curl`/`wget` aren't in node:24-alpine.
       test:
@@ -56,25 +60,44 @@ services:
       postgres:
         condition: service_healthy
 
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: dss-panel-valkey
+    restart: always
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   inngest:
     container_name: dss-panel-inngest
     image: inngest/inngest
     restart: unless-stopped
-    # `dev` runs the single-binary in-memory mode (event API + executor + UI on
-    # one port). `-u` registers the panel's /api/inngest endpoint so functions
-    # can be discovered and invoked over the compose network.
-    command: ["inngest", "dev", "-u", "http://app:3000/api/inngest"]
+    # `start` runs production mode: durable queue + state in external Postgres
+    # and Valkey/Redis (not in-memory like `dev`). Apps are registered via sync
+    # (see README), not the dev-only `-u` flag. INNGEST_POSTGRES_URI must point
+    # at a dedicated `inngest` database — create it once; it is separate from
+    # the app's own database.
+    command: ["inngest", "start"]
     environment:
-      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-local}
-      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-local}
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?INNGEST_EVENT_KEY is required}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?INNGEST_SIGNING_KEY is required}
+      INNGEST_POSTGRES_URI: ${INNGEST_POSTGRES_URI:?INNGEST_POSTGRES_URI is required}
+      INNGEST_REDIS_URI: redis://valkey:6379
     ports:
       - "8288:8288"
     volumes:
       - inngest_data:/var/lib/inngest
     depends_on:
-      app:
+      postgres:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
 
 volumes:
   postgres_data:
   inngest_data:
+  valkey_data:
