@@ -1,15 +1,16 @@
-# Public edge for dss-panel. Caddy terminates TLS and reverse-proxies to the
-# app container over the compose network. It forwards X-Forwarded-Host/Proto so
-# Next builds redirects from the public origin (fixes the internal :3000 leak).
+# Public edge for dss-panel. Caddy reverse-proxies to the app container over the
+# compose network. Serves plain HTTP — no TLS.
 #
-# `tls internal` issues a cert from Caddy's own local CA. The domain is private
-# (dss-int.id -> 192.168.x.x), so public ACME (Let's Encrypt) can't validate it.
-# Clients must trust Caddy's root CA, OR replace this with a cert from your
-# internal CA:  tls /path/cert.pem /path/key.pem
-# To serve plain HTTP instead, change the site address to `http://panel.dss-int.id`
-# and drop the tls line (then set BETTER_AUTH_URL back to http://).
-panel.dss-int.id {
-	tls internal
+# WARNING: HTTP only. Login credentials and session cookies travel in plaintext.
+# Acceptable only on a trusted LAN. The domain (dss-int.id) is private and not
+# publicly registered, so a browser-trusted cert isn't obtainable for it; TLS was
+# dropped by choice to avoid per-device CA installs. To re-enable HTTPS, switch to
+# a publicly-owned hostname (e.g. panel.dssconsulting.id) with Let's Encrypt
+# DNS-01, or use `tls internal` and trust Caddy's root CA on every client.
+#
+# The `http://` prefix disables Caddy's automatic HTTPS (no TLS, no 80->443
+# redirect); Caddy listens on :80 only.
+http://panel.dss-int.id {
 	reverse_proxy app:3000 {
 		# Next standalone doesn't trust X-Forwarded-* for nextUrl, so next-intl's
 		# absolute locale redirects leak the internal listen port (:3000) into the

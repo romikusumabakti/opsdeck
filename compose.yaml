@@ -90,11 +90,9 @@ services:
     image: caddy:2-alpine
     container_name: dss-panel-caddy
     restart: always
-    # Public edge: terminates TLS and reverse-proxies to the app. Caddy sets
-    # X-Forwarded-Host/Proto so Next builds redirects from the public origin.
+    # Public edge: reverse-proxies to the app. HTTP only (no TLS) — see Caddyfile.
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
