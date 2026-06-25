@@ -866,6 +866,7 @@
     "collection": "Koleksi",
     "content": "Konten",
     "contentPlaceholder": "Mulai menulis…",
+    "published": "Diterbitkan",
     "publishedHint": "Diterbitkan (terlihat oleh seluruh tim)",
     "deleteConfirmTitle": "Hapus dokumen ini?",
     "deleteConfirmBody": "Ini menghapus dokumen dan riwayatnya secara permanen. Dokumen anak dipindahkan ke akar koleksi.",
