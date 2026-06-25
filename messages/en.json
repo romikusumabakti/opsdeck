@@ -33,7 +33,8 @@
     "notFoundTitle": "Page not found",
     "notFoundDescription": "The page you’re looking for doesn’t exist or has been moved.",
     "errorDetails": "Details",
-    "capsLockOn": "Caps Lock is on"
+    "capsLockOn": "Caps Lock is on",
+    "more": "More"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -888,6 +889,8 @@
     "searchResults": "Documents",
     "searchNoResults": "No matching documents",
     "linkDocument": "Link to document",
-    "onThisPage": "On this page"
+    "onThisPage": "On this page",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied"
   }
 }

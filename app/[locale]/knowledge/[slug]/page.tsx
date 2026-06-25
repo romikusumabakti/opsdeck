@@ -1,17 +1,18 @@
-import { History, Link2, Pencil } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import {
   getFormatter,
   getTranslations,
   setRequestLocale,
 } from "next-intl/server";
+import { DocumentActions } from "@/components/document-actions";
 import { DocumentToc } from "@/components/document-toc";
+import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { MarkdownContent } from "@/components/markdown-content";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { requireSession } from "@/lib/auth-session";
+import { getServerSession, isAdmin, requireSession } from "@/lib/auth-session";
 import { loadBacklinks, loadDocumentBySlug } from "@/lib/knowledge";
 
 export default async function DocumentPage({
@@ -26,35 +27,32 @@ export default async function DocumentPage({
   const doc = await loadDocumentBySlug(slug);
   if (!doc) notFound();
 
-  const [backlinks, t, tCommon, format] = await Promise.all([
+  const [backlinks, session, t, tCommon, format] = await Promise.all([
     loadBacklinks(doc.id),
+    getServerSession(),
     getTranslations("knowledge"),
     getTranslations("common"),
     getFormatter(),
   ]);
+  const canDelete = session ? isAdmin(session) : false;
 
   return (
     <div className="flex justify-center gap-10">
       {/* Constrain the reading column to a comfortable measure (~70ch). */}
-      <article className="flex w-full min-w-0 max-w-[46rem] flex-col gap-6">
+      <article className="flex w-full min-w-0 max-w-[46rem] flex-col gap-4">
+        <KnowledgeBreadcrumb
+          items={[{ label: doc.collection.name }, { label: doc.title }]}
+        />
+
         <PageHeader
           title={doc.title}
           subtitle={t("inCollection", { collection: doc.collection.name })}
           action={
-            <div className="flex items-center gap-2">
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/knowledge/${doc.slug}/history`}>
-                  <History className="size-4" />
-                  {t("history")}
-                </Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href={`/knowledge/${doc.slug}/edit`}>
-                  <Pencil className="size-4" />
-                  {tCommon("edit")}
-                </Link>
-              </Button>
-            </div>
+            <DocumentActions
+              documentId={doc.id}
+              slug={doc.slug}
+              canDelete={canDelete}
+            />
           }
         />
 
