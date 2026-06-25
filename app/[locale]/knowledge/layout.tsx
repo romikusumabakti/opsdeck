@@ -30,7 +30,7 @@ export default async function KnowledgeLayout({
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
       <aside className="lg:w-64 lg:shrink-0">
-        <div className="lg:sticky lg:top-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:sticky lg:top-16 lg:max-h-[calc(100svh-5rem)] lg:overflow-y-auto lg:pb-4">
           <div className="flex items-center justify-between gap-2 px-2">
             <Link
               href="/knowledge"
