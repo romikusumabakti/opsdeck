@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { DocumentForm } from "@/components/document-form";
 import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
-import { PageHeader } from "@/components/page-header";
 import { getServerSession, isAdmin, requireSession } from "@/lib/auth-session";
 import {
   loadCollections,
@@ -34,19 +33,18 @@ export default async function EditDocumentPage({
     .map((n) => ({ title: n.title, slug: n.slug }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <KnowledgeBreadcrumb
-        items={[
-          { label: doc.title, href: `/knowledge/${doc.slug}` },
-          { label: t("editDocument") },
-        ]}
-      />
-      <PageHeader title={t("editDocument")} subtitle={doc.title} />
-      <DocumentForm
-        mode={{ type: "edit", document: doc, canDelete }}
-        collections={collections}
-        linkableDocs={linkableDocs}
-      />
-    </div>
+    <DocumentForm
+      mode={{ type: "edit", document: doc, canDelete }}
+      collections={collections}
+      linkableDocs={linkableDocs}
+      toolbarStart={
+        <KnowledgeBreadcrumb
+          items={[
+            { label: doc.title, href: `/knowledge/${doc.slug}` },
+            { label: t("editDocument") },
+          ]}
+        />
+      }
+    />
   );
 }
