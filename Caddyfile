@@ -10,5 +10,10 @@
 # and drop the tls line (then set BETTER_AUTH_URL back to http://).
 panel.dss-int.id {
 	tls internal
-	reverse_proxy app:3000
+	reverse_proxy app:3000 {
+		# Next standalone doesn't trust X-Forwarded-* for nextUrl, so next-intl's
+		# absolute locale redirects leak the internal listen port (:3000) into the
+		# Location header. Strip it on the way back out.
+		header_down Location ":3000/" "/"
+	}
 }
