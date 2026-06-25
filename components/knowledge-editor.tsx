@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
@@ -11,6 +12,7 @@ import {
   FileText,
   Heading2,
   Heading3,
+  ImagePlus,
   Italic,
   Link2,
   List,
@@ -18,7 +20,8 @@ import {
   Quote,
   Table as TableIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Markdown } from "tiptap-markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,8 +33,11 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
 
 export type LinkableDoc = { title: string; slug: string };
+
+export type UploadLabels = { button: string; tooLarge: string; failed: string };
 
 // tiptap-markdown adds `markdown` to editor.storage at runtime but ships no v3
 // type augmentation; read it through this narrow accessor instead of `any`.
@@ -39,6 +45,12 @@ function getMarkdownSource(editor: Editor): string {
   return (
     editor.storage as unknown as { markdown: { getMarkdown: () => string } }
   ).markdown.getMarkdown();
+}
+
+// Image files out of a clipboard/drag FileList. The server re-validates by
+// sniffing bytes — this is only a fast client-side filter.
+function imageFiles(list: FileList | null | undefined): File[] {
+  return Array.from(list ?? []).filter((f) => f.type.startsWith("image/"));
 }
 
 // Toolbar control: a ghost icon button that flips to `secondary` when its mark
@@ -81,13 +93,20 @@ export function KnowledgeEditor({
   placeholder,
   linkableDocs = [],
   linkLabels,
+  uploadLabels,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
   linkLabels?: { title: string; search: string; empty: string };
+  uploadLabels?: UploadLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
 }) {
+  // Paste/drop handlers live inside the editor config (set once on mount) but
+  // need the latest upload closure — route through a ref reassigned each render.
+  const uploadRef = useRef<(file: File) => void>(() => {});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -95,6 +114,10 @@ export function KnowledgeEditor({
       // StarterKit ships no table node — without this a pasted GFM table
       // collapses to a run-on paragraph and the structure is lost on save.
       TableKit.configure({ table: { resizable: true } }),
+      // Inline images. Markdown serializes these as ![alt](src); src points at
+      // /api/knowledge/asset/<id> (a stable, auth-gated route), never a blob/
+      // base64, so the body stays small and portable.
+      Image.configure({ inline: false }),
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Markdown.configure({ transformPastedText: true, linkify: true }),
@@ -115,10 +138,26 @@ export function KnowledgeEditor({
           "[&_pre]:bg-muted/50 [&_pre]:border [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm [&_pre]:my-3",
           "[&_code]:font-mono [&_code]:text-sm",
           "[&_a]:text-primary [&_a]:underline",
+          "[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border",
           "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm",
           "[&_th]:border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",
           "[&_td]:border [&_td]:px-3 [&_td]:py-1.5"
         ),
+      },
+      // Upload images pasted from the clipboard or dropped into the editor.
+      handlePaste: (_view, event) => {
+        const files = imageFiles(event.clipboardData?.files);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        for (const f of files) uploadRef.current(f);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const files = imageFiles((event as DragEvent).dataTransfer?.files);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        for (const f of files) uploadRef.current(f);
+        return true;
       },
     },
     onUpdate: ({ editor: e }) => {
@@ -127,6 +166,28 @@ export function KnowledgeEditor({
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Reassigned every render so it always closes over the current editor.
+  uploadRef.current = async (file: File) => {
+    if (!editor) return;
+    if (file.size > KNOWLEDGE_IMAGE_MAX_BYTES) {
+      if (uploadLabels) toast.error(uploadLabels.tooLarge);
+      return;
+    }
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch("/api/knowledge/asset", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const { url } = (await res.json()) as { url: string };
+      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+    } catch {
+      if (uploadLabels) toast.error(uploadLabels.failed);
+    }
+  };
 
   // Sync external value resets (e.g. revision restore in the same view) without
   // clobbering the cursor during normal typing.
@@ -250,6 +311,23 @@ export function KnowledgeEditor({
         >
           <Link2 className="size-4" />
         </ToolbarButton>
+        <ToolbarButton
+          onClick={() => fileInputRef.current?.click()}
+          label={uploadLabels?.button ?? "Insert image"}
+        >
+          <ImagePlus className="size-4" />
+        </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            for (const f of imageFiles(e.target.files)) uploadRef.current(f);
+            e.target.value = "";
+          }}
+        />
         {linkableDocs.length > 0 && (
           <ToolbarButton
             onClick={() => setPickerOpen(true)}

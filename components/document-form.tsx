@@ -213,49 +213,53 @@ export function DocumentForm({
 
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-4 pt-2 pb-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1 flex flex-col gap-1.5">
-          <Label htmlFor="doc-title">{t("titleLabel")}</Label>
-          <Input
-            id="doc-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t("titlePlaceholder")}
-            className="text-base font-medium"
-          />
-        </div>
-        <div className="flex shrink-0 flex-col gap-1.5">
-          <Label htmlFor="doc-collection">{t("collection")}</Label>
-          <Select value={collectionId} onValueChange={setCollectionId}>
-            <SelectTrigger id="doc-collection">
-              <SelectValue placeholder={t("collection")} />
-            </SelectTrigger>
-            <SelectContent>
-              {collections.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1 flex flex-col gap-1.5">
+              <Label htmlFor="doc-title">{t("titleLabel")}</Label>
+              <Input
+                id="doc-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("titlePlaceholder")}
+                className="text-base font-medium"
+              />
+            </div>
+            <div className="flex shrink-0 flex-col gap-1.5">
+              <Label htmlFor="doc-collection">{t("collection")}</Label>
+              <Select value={collectionId} onValueChange={setCollectionId}>
+                <SelectTrigger id="doc-collection">
+                  <SelectValue placeholder={t("collection")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {collections.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label>{t("content")}</Label>
-        <KnowledgeEditor
-          value={content}
-          onChange={setContent}
-          placeholder={t("contentPlaceholder")}
-          linkableDocs={linkableDocs}
-          linkLabels={{
-            title: t("linkDocument"),
-            search: t("searchPlaceholder"),
-            empty: t("searchNoResults"),
-          }}
-        />
-      </div>
-
+          <div className="flex flex-col gap-1.5">
+            <Label>{t("content")}</Label>
+            <KnowledgeEditor
+              value={content}
+              onChange={setContent}
+              placeholder={t("contentPlaceholder")}
+              linkableDocs={linkableDocs}
+              linkLabels={{
+                title: t("linkDocument"),
+                search: t("searchPlaceholder"),
+                empty: t("searchNoResults"),
+              }}
+              uploadLabels={{
+                button: t("insertImage"),
+                tooLarge: t("imageTooLarge"),
+                failed: t("imageUploadFailed"),
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
