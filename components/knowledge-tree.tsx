@@ -1,5 +1,6 @@
 "use client";
 
+import { generateKeyBetween } from "fractional-indexing";
 import { ChevronRight, FileText, Folder } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 type TreeItem = KnowledgeTreeNode & { children: TreeItem[] };
 
-// Assemble the flat (parent, position)-ordered rows into a nesting tree. Orphans
+// Assemble the flat (parent, rank)-ordered rows into a nesting tree. Orphans
 // (parent in another collection or since-deleted) surface at the root so a doc
 // is never hidden by a dangling parentId.
 function buildTree(nodes: KnowledgeTreeNode[]): Map<string, TreeItem[]> {
@@ -54,14 +55,30 @@ function subtreeIds(nodes: KnowledgeTreeNode[], rootId: string): Set<string> {
   return out;
 }
 
+// Where a drop lands relative to the hovered row: re-order as a sibling above
+// (before) / below (after), or nest as a child (inside). Mirrors the VSCode /
+// Notion tree convention — the row's top/bottom edges reorder, its middle nests.
+type Zone = "before" | "after" | "inside";
+type DropAt = { id: string; zone: Zone };
+
+// Map the pointer's vertical position within a row to a drop zone. The middle
+// 40% nests; the outer bands re-order.
+function zoneFromEvent(e: React.DragEvent<HTMLElement>): Zone {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  if (y < rect.height * 0.3) return "before";
+  if (y > rect.height * 0.7) return "after";
+  return "inside";
+}
+
 type DragCtx = {
   draggingId: string | null;
-  dropTargetId: string | null;
+  dropTarget: DropAt | null;
   forbidden: Set<string>;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
-  onDragOverNode: (id: string) => void;
-  onDropOnNode: (targetId: string) => void;
+  onDragOverNode: (id: string, zone: Zone) => void;
+  onDropOnNode: (targetId: string, zone: Zone) => void;
 };
 
 function DocNode({
@@ -80,7 +97,7 @@ function DocNode({
   const [open, setOpen] = useState(true);
 
   const isDragging = ctx.draggingId === node.id;
-  const isDropTarget = ctx.dropTargetId === node.id;
+  const dropZone = ctx.dropTarget?.id === node.id ? ctx.dropTarget.zone : null;
   const isForbidden = ctx.forbidden.has(node.id);
 
   return (
@@ -96,24 +113,30 @@ function DocNode({
         onDragOver={(e) => {
           if (ctx.draggingId && !isForbidden) {
             e.preventDefault();
-            ctx.onDragOverNode(node.id);
+            ctx.onDragOverNode(node.id, zoneFromEvent(e));
           }
         }}
         onDrop={(e) => {
           if (ctx.draggingId && !isForbidden) {
             e.preventDefault();
             e.stopPropagation();
-            ctx.onDropOnNode(node.id);
+            ctx.onDropOnNode(node.id, zoneFromEvent(e));
           }
         }}
         className={cn(
-          "group flex items-center gap-1 rounded-md pr-2 text-sm hover:bg-accent",
+          "group relative flex items-center gap-1 rounded-md pr-2 text-sm hover:bg-accent",
           isActive && "bg-accent font-medium",
           isDragging && "opacity-40",
-          isDropTarget && "ring-2 ring-primary ring-inset"
+          dropZone === "inside" && "ring-2 ring-primary ring-inset"
         )}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
+        {dropZone === "before" && (
+          <span className="pointer-events-none absolute inset-x-1 -top-px h-0.5 rounded-full bg-primary" />
+        )}
+        {dropZone === "after" && (
+          <span className="pointer-events-none absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />
+        )}
         {hasChildren ? (
           <button
             type="button"
@@ -184,7 +207,9 @@ export function KnowledgeTree({
   const roots = useMemo(() => buildTree(nodes), [nodes]);
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropAt | null>(null);
+  // Highlight for the collection header drop target (move to that root).
+  const [dropCollectionId, setDropCollectionId] = useState<string | null>(null);
   // Collections collapse independently; empty ones start collapsed so they
   // don't clutter the tree with repeated "no documents" rows.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -208,18 +233,24 @@ export function KnowledgeTree({
     [nodes, draggingId]
   );
 
+  function clearDrag() {
+    setDraggingId(null);
+    setDropTarget(null);
+    setDropCollectionId(null);
+  }
+
   function commitMove(
     documentId: string,
     collectionId: string,
     parentId: string | null,
-    position: number
+    rank: string
   ) {
     startTransition(async () => {
       const res = await moveDocument({
         documentId,
         collectionId,
         parentId,
-        position,
+        rank,
       });
       if (!res.success) {
         toast.error(res.message ?? tCommon("errorGeneric"));
@@ -229,42 +260,83 @@ export function KnowledgeTree({
     });
   }
 
-  function dropOnNode(targetId: string) {
+  // Rank-ordered siblings under (parentId, collectionId), optionally excluding
+  // the node being dragged so its own rank never skews neighbour lookups.
+  function siblingsOf(
+    parentId: string | null,
+    collectionId: string,
+    excludeId?: string
+  ): KnowledgeTreeNode[] {
+    return nodes
+      .filter(
+        (n) =>
+          (n.parentId ?? null) === parentId &&
+          n.collectionId === collectionId &&
+          n.id !== excludeId
+      )
+      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
+  }
+
+  // Compute the destination (parent, collection, rank) from the drop zone and
+  // commit. The rank is generated strictly between the two neighbours at the
+  // drop site, so no sibling is renumbered.
+  function dropOnNode(targetId: string, zone: Zone) {
     const dragId = draggingId;
-    setDraggingId(null);
-    setDropTargetId(null);
+    clearDrag();
     if (!dragId || dragId === targetId) return;
     const target = nodes.find((n) => n.id === targetId);
     if (!target) return;
-    // Nest the dragged node as the last child of the target.
-    const siblings = nodes.filter((n) => n.parentId === targetId);
-    const position = siblings.reduce((m, n) => Math.max(m, n.position + 1), 0);
-    commitMove(dragId, target.collectionId, targetId, position);
+
+    let parentId: string | null;
+    let prev: string | null;
+    let next: string | null;
+    if (zone === "inside") {
+      parentId = target.id;
+      const kids = siblingsOf(target.id, target.collectionId, dragId);
+      prev = kids.at(-1)?.rank ?? null; // append as the last child
+      next = null;
+    } else {
+      parentId = target.parentId ?? null;
+      const sibs = siblingsOf(parentId, target.collectionId, dragId);
+      const idx = sibs.findIndex((n) => n.id === targetId);
+      if (zone === "before") {
+        prev = sibs[idx - 1]?.rank ?? null;
+        next = target.rank;
+      } else {
+        prev = target.rank;
+        next = sibs[idx + 1]?.rank ?? null;
+      }
+    }
+
+    let rank: string;
+    try {
+      rank = generateKeyBetween(prev, next);
+    } catch {
+      return; // ranks collided (shouldn't happen) — skip rather than corrupt
+    }
+    commitMove(dragId, target.collectionId, parentId, rank);
   }
 
   function dropOnCollection(collectionId: string) {
     const dragId = draggingId;
-    setDraggingId(null);
-    setDropTargetId(null);
+    clearDrag();
     if (!dragId) return;
-    // Move to the collection root, appended after existing top-level docs.
-    const rootDocs = nodes.filter(
-      (n) => n.collectionId === collectionId && n.parentId === null
-    );
-    const position = rootDocs.reduce((m, n) => Math.max(m, n.position + 1), 0);
-    commitMove(dragId, collectionId, null, position);
+    // Append after the collection's existing top-level docs.
+    const roots = siblingsOf(null, collectionId, dragId);
+    const rank = generateKeyBetween(roots.at(-1)?.rank ?? null, null);
+    commitMove(dragId, collectionId, null, rank);
   }
 
   const ctx: DragCtx = {
     draggingId,
-    dropTargetId,
+    dropTarget,
     forbidden,
     onDragStart: setDraggingId,
-    onDragEnd: () => {
-      setDraggingId(null);
-      setDropTargetId(null);
+    onDragEnd: clearDrag,
+    onDragOverNode: (id, zone) => {
+      setDropTarget({ id, zone });
+      setDropCollectionId(null);
     },
-    onDragOverNode: setDropTargetId,
     onDropOnNode: dropOnNode,
   };
 
@@ -278,7 +350,7 @@ export function KnowledgeTree({
     <nav className="flex flex-col gap-4">
       {collections.map((collection) => {
         const items = roots.get(collection.id) ?? [];
-        const isCollectionDropTarget = dropTargetId === `c:${collection.id}`;
+        const isCollectionDropTarget = dropCollectionId === collection.id;
         const isOpen = !collapsed.has(collection.id);
         return (
           <div key={collection.id}>
@@ -287,7 +359,8 @@ export function KnowledgeTree({
               onDragOver={(e) => {
                 if (draggingId) {
                   e.preventDefault();
-                  setDropTargetId(`c:${collection.id}`);
+                  setDropCollectionId(collection.id);
+                  setDropTarget(null);
                 }
               }}
               onDrop={(e) => {

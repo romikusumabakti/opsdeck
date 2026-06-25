@@ -56,6 +56,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "1.0.0-rc.1",
+    "fractional-indexing": "^4.0.0",
     "inngest": "^4.2.6",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",

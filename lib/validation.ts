@@ -143,7 +143,8 @@ export const documentMoveSchema = z.object({
   documentId: z.uuid(),
   collectionId: z.uuid(),
   parentId: z.uuid().nullish(),
-  position: z.number().int().min(0).max(1_000_000),
+  // Fractional-index rank string computed client-side from the drop neighbours.
+  rank: z.string().min(1).max(100),
 });
 
 // Search box input. websearch_to_tsquery tolerates arbitrary text, but bound
