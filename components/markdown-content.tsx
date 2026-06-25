@@ -1,8 +1,26 @@
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+
+// The TipTap editor can't serialize complex tables (merged cells, column
+// widths) to GFM markdown, so it embeds raw `<table>` HTML in the source.
+// rehype-raw parses that HTML; rehype-sanitize then strips anything unsafe.
+// We extend the default (GitHub) schema to keep table structure that GFM
+// markdown alone can't express: colgroup/col and the colSpan/rowSpan attrs.
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "colgroup", "col"],
+  attributes: {
+    ...defaultSchema.attributes,
+    td: [...(defaultSchema.attributes?.td ?? []), "colSpan", "rowSpan"],
+    th: [...(defaultSchema.attributes?.th ?? []), "colSpan", "rowSpan"],
+    col: ["span"],
+  },
+};
 
 /**
  * Read-only renderer for the knowledge base's markdown source. Mirrors the
@@ -22,9 +40,10 @@ export function MarkdownContent({
     <article className={cn("max-w-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        // rehype-slug stamps stable ids on headings so the on-page table of
-        // contents can anchor-link and scroll-spy them.
-        rehypePlugins={[rehypeSlug]}
+        // rehype-raw parses embedded HTML (e.g. TipTap's complex tables);
+        // rehype-sanitize must run right after to neutralize XSS. rehype-slug
+        // then stamps stable heading ids for the on-page table of contents.
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
         components={{
           h1: (props) => (
             <h1
