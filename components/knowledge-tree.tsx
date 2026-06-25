@@ -5,7 +5,7 @@ import { ChevronRight, FileText, Folder } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { moveDocument } from "@/actions/knowledge";
+import { moveCollection, moveDocument } from "@/actions/knowledge";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
@@ -59,7 +59,12 @@ function subtreeIds(nodes: KnowledgeTreeNode[], rootId: string): Set<string> {
 // (before) / below (after), or nest as a child (inside). Mirrors the VSCode /
 // Notion tree convention — the row's top/bottom edges reorder, its middle nests.
 type Zone = "before" | "after" | "inside";
+type Edge = "before" | "after";
 type DropAt = { id: string; zone: Zone };
+
+// What kind of node the drag started on — documents and collections have
+// different valid drop targets, so handlers branch on this.
+type DragKind = "doc" | "collection";
 
 // Map the pointer's vertical position within a row to a drop zone. The middle
 // 40% nests; the outer bands re-order.
@@ -71,11 +76,18 @@ function zoneFromEvent(e: React.DragEvent<HTMLElement>): Zone {
   return "inside";
 }
 
+// Two-zone split for reordering rows that can't be nested into (collections).
+function edgeFromEvent(e: React.DragEvent<HTMLElement>): Edge {
+  const rect = e.currentTarget.getBoundingClientRect();
+  return e.clientY - rect.top < rect.height / 2 ? "before" : "after";
+}
+
 type DragCtx = {
   draggingId: string | null;
+  draggingKind: DragKind | null;
   dropTarget: DropAt | null;
   forbidden: Set<string>;
-  onDragStart: (id: string) => void;
+  onDragStart: (id: string, kind: DragKind) => void;
   onDragEnd: () => void;
   onDragOverNode: (id: string, zone: Zone) => void;
   onDropOnNode: (targetId: string, zone: Zone) => void;
@@ -107,17 +119,17 @@ function DocNode({
         draggable
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
-          ctx.onDragStart(node.id);
+          ctx.onDragStart(node.id, "doc");
         }}
         onDragEnd={ctx.onDragEnd}
         onDragOver={(e) => {
-          if (ctx.draggingId && !isForbidden) {
+          if (ctx.draggingKind === "doc" && !isForbidden) {
             e.preventDefault();
             ctx.onDragOverNode(node.id, zoneFromEvent(e));
           }
         }}
         onDrop={(e) => {
-          if (ctx.draggingId && !isForbidden) {
+          if (ctx.draggingKind === "doc" && !isForbidden) {
             e.preventDefault();
             e.stopPropagation();
             ctx.onDropOnNode(node.id, zoneFromEvent(e));
@@ -189,9 +201,11 @@ function DocNode({
 export function KnowledgeTree({
   collections,
   nodes,
+  isAdmin = false,
 }: {
   collections: KnowledgeCollection[];
   nodes: KnowledgeTreeNode[];
+  isAdmin?: boolean;
 }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
@@ -207,9 +221,15 @@ export function KnowledgeTree({
   const roots = useMemo(() => buildTree(nodes), [nodes]);
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draggingKind, setDraggingKind] = useState<DragKind | null>(null);
   const [dropTarget, setDropTarget] = useState<DropAt | null>(null);
-  // Highlight for the collection header drop target (move to that root).
+  // Highlight for the collection header as a doc-drop target (move to root).
   const [dropCollectionId, setDropCollectionId] = useState<string | null>(null);
+  // Reorder indicator when dragging a collection over another collection header.
+  const [dropCollectionAt, setDropCollectionAt] = useState<{
+    id: string;
+    zone: Edge;
+  } | null>(null);
   // Collections collapse independently; empty ones start collapsed so they
   // don't clutter the tree with repeated "no documents" rows.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -235,8 +255,10 @@ export function KnowledgeTree({
 
   function clearDrag() {
     setDraggingId(null);
+    setDraggingKind(null);
     setDropTarget(null);
     setDropCollectionId(null);
+    setDropCollectionAt(null);
   }
 
   function commitMove(
@@ -327,15 +349,51 @@ export function KnowledgeTree({
     commitMove(dragId, collectionId, null, rank);
   }
 
+  // Reorder a collection among its siblings, ranking it between the drop
+  // neighbours. Collections are already rank-sorted by the loader.
+  function reorderCollection(targetId: string, edge: Edge) {
+    const dragId = draggingId;
+    clearDrag();
+    if (!dragId || dragId === targetId) return;
+    const sibs = collections
+      .filter((c) => c.id !== dragId)
+      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
+    const idx = sibs.findIndex((c) => c.id === targetId);
+    if (idx < 0) return;
+    const prev =
+      edge === "before" ? (sibs[idx - 1]?.rank ?? null) : sibs[idx].rank;
+    const next =
+      edge === "before" ? sibs[idx].rank : (sibs[idx + 1]?.rank ?? null);
+    let rank: string;
+    try {
+      rank = generateKeyBetween(prev, next);
+    } catch {
+      return;
+    }
+    startTransition(async () => {
+      const res = await moveCollection({ collectionId: dragId, rank });
+      if (!res.success) {
+        toast.error(res.message ?? tCommon("errorGeneric"));
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   const ctx: DragCtx = {
     draggingId,
+    draggingKind,
     dropTarget,
     forbidden,
-    onDragStart: setDraggingId,
+    onDragStart: (id, kind) => {
+      setDraggingId(id);
+      setDraggingKind(kind);
+    },
     onDragEnd: clearDrag,
     onDragOverNode: (id, zone) => {
       setDropTarget({ id, zone });
       setDropCollectionId(null);
+      setDropCollectionAt(null);
     },
     onDropOnNode: dropOnNode,
   };
@@ -350,30 +408,60 @@ export function KnowledgeTree({
     <nav className="flex flex-col gap-4">
       {collections.map((collection) => {
         const items = roots.get(collection.id) ?? [];
-        const isCollectionDropTarget = dropCollectionId === collection.id;
+        const isCollectionDropTarget =
+          draggingKind === "doc" && dropCollectionId === collection.id;
+        const collectionDropEdge =
+          draggingKind === "collection" &&
+          dropCollectionAt?.id === collection.id
+            ? dropCollectionAt.zone
+            : null;
         const isOpen = !collapsed.has(collection.id);
         return (
           <div key={collection.id}>
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: collection header is a drop target for moving a doc to the collection root */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: collection header is a drag handle (reorder, admin) and a drop target (doc → collection root) */}
             <div
+              draggable={isAdmin}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                ctx.onDragStart(collection.id, "collection");
+              }}
+              onDragEnd={ctx.onDragEnd}
               onDragOver={(e) => {
-                if (draggingId) {
+                if (draggingKind === "doc") {
                   e.preventDefault();
                   setDropCollectionId(collection.id);
                   setDropTarget(null);
+                } else if (
+                  draggingKind === "collection" &&
+                  draggingId !== collection.id
+                ) {
+                  e.preventDefault();
+                  setDropCollectionAt({
+                    id: collection.id,
+                    zone: edgeFromEvent(e),
+                  });
                 }
               }}
               onDrop={(e) => {
-                if (draggingId) {
+                if (draggingKind === "doc") {
                   e.preventDefault();
                   dropOnCollection(collection.id);
+                } else if (draggingKind === "collection") {
+                  e.preventDefault();
+                  reorderCollection(collection.id, edgeFromEvent(e));
                 }
               }}
               className={cn(
-                "group/col mb-1 flex items-center gap-1 rounded-md pr-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:bg-accent/60",
+                "group/col relative mb-1 flex items-center gap-1 rounded-md pr-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:bg-accent/60",
                 isCollectionDropTarget && "ring-2 ring-primary ring-inset"
               )}
             >
+              {collectionDropEdge === "before" && (
+                <span className="pointer-events-none absolute inset-x-1 -top-px h-0.5 rounded-full bg-primary" />
+              )}
+              {collectionDropEdge === "after" && (
+                <span className="pointer-events-none absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-primary" />
+              )}
               <button
                 type="button"
                 onClick={() => toggleCollapsed(collection.id)}
