@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { KnowledgeHistoryClient } from "@/components/knowledge-history-client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,12 @@ export default async function DocumentHistoryPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <KnowledgeBreadcrumb
+        items={[
+          { label: doc.title, href: `/knowledge/${doc.slug}` },
+          { label: t("history") },
+        ]}
+      />
       <PageHeader
         title={t("historyOf", { title: doc.title })}
         subtitle={t("historyHint")}
