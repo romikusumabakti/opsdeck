@@ -33,7 +33,8 @@
     "notFoundTitle": "الصفحة غير موجودة",
     "notFoundDescription": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
     "errorDetails": "التفاصيل",
-    "capsLockOn": "مفتاح Caps Lock مُفعَّل"
+    "capsLockOn": "مفتاح Caps Lock مُفعَّل",
+    "more": "المزيد"
   },
   "dataTable": {
     "searchPlaceholder": "بحث…",
@@ -888,6 +889,8 @@
     "searchResults": "المستندات",
     "searchNoResults": "لا توجد مستندات مطابقة",
     "linkDocument": "ربط بمستند",
-    "onThisPage": "في هذه الصفحة"
+    "onThisPage": "في هذه الصفحة",
+    "copyLink": "نسخ الرابط",
+    "linkCopied": "تم نسخ الرابط"
   }
 }
