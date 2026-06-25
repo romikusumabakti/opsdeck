@@ -33,7 +33,8 @@
     "notFoundTitle": "Halaman tidak ditemukan",
     "notFoundDescription": "Halaman yang Anda cari tidak ada atau telah dipindahkan.",
     "errorDetails": "Detail",
-    "capsLockOn": "Caps Lock aktif"
+    "capsLockOn": "Caps Lock aktif",
+    "more": "Lainnya"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -888,6 +889,8 @@
     "searchResults": "Dokumen",
     "searchNoResults": "Tidak ada dokumen yang cocok",
     "linkDocument": "Tautkan ke dokumen",
-    "onThisPage": "Di halaman ini"
+    "onThisPage": "Di halaman ini",
+    "copyLink": "Salin tautan",
+    "linkCopied": "Tautan disalin"
   }
 }
