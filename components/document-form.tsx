@@ -130,8 +130,8 @@ export function DocumentForm({
   }
 
   return (
-    <div className="-mx-4 -my-6 flex flex-col sm:-mx-6 lg:-mx-8">
-      <div className="sticky top-14 z-20 flex items-center justify-between gap-4 bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
         <div className="min-w-0 flex-1">{toolbarStart}</div>
         <div className="flex shrink-0 items-center gap-2">
           <Tooltip>
@@ -211,7 +211,7 @@ export function DocumentForm({
         </AlertDialog>
       )}
 
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-4 pt-2 pb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="flex-1 flex flex-col gap-1.5">

@@ -23,6 +23,7 @@ export default async function KnowledgeHome({
   if (collections.length === 0) {
     return (
       <EmptyState
+        className="h-full justify-center"
         icon={BookOpen}
         title={t("emptyTitle")}
         description={t("emptyAdminHint")}
@@ -32,6 +33,7 @@ export default async function KnowledgeHome({
 
   return (
     <EmptyState
+      className="h-full justify-center"
       icon={BookOpen}
       title={t("landingTitle")}
       description={t("landingHint")}
