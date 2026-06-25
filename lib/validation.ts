@@ -150,20 +150,9 @@ export const documentMoveSchema = z.object({
 // the length so a pathological query can't pin the planner.
 export const knowledgeSearchSchema = z.string().trim().min(1).max(200);
 
-// Attachment uploads. Raster only — SVG is excluded deliberately (it is an
-// active XSS vector and can't be safely "sanitized" the way sharp re-encodes a
-// raster). The route sniffs magic bytes; this list is the allowlist it checks
-// the sniff result against, so a spoofed extension/Content-Type can't get past.
-export const KNOWLEDGE_IMAGE_MIME = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-] as const;
-
-// 25 MB ceiling. Generous for screenshots/diagrams, small enough that a single
-// upload can't exhaust the app container's memory while sharp processes it.
+// Attachment upload ceiling. 25 MB is generous for screenshots/diagrams while
+// bounding the request body the upload route buffers in memory. The route also
+// magic-byte sniffs the bytes (raster only — SVG is rejected as an XSS vector).
 export const KNOWLEDGE_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
 
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
