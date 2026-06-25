@@ -40,7 +40,7 @@ export default async function DocumentPage({
     <div className="flex justify-center gap-10">
       {/* Constrain the reading column to a comfortable measure (~70ch). */}
       <article className="flex w-full min-w-0 max-w-[46rem] flex-col gap-4">
-        <div className="sticky top-14 z-10 flex flex-col gap-4 bg-background pt-2 pb-3">
+        <div className="sticky top-14 z-10 flex flex-col gap-4 bg-background pb-3">
           <KnowledgeBreadcrumb
             items={[{ label: doc.collection.name }, { label: doc.title }]}
           />

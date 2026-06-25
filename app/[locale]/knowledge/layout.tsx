@@ -28,9 +28,9 @@ export default async function KnowledgeLayout({
   ]);
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
-      <aside className="lg:w-64 lg:shrink-0">
-        <div className="flex flex-col gap-3 lg:sticky lg:top-16 lg:max-h-[calc(100svh-5rem)] lg:overflow-y-auto lg:pb-4">
+    <div className="-mx-4 -my-6 flex flex-col sm:-mx-6 lg:-mx-8 lg:flex-row">
+      <aside className="flex flex-col border-b lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-e">
+        <div className="flex flex-col gap-3 px-3 py-4 lg:shrink-0">
           <div className="flex items-center justify-between gap-2 px-2">
             <Link
               href="/knowledge"
@@ -52,12 +52,12 @@ export default async function KnowledgeLayout({
               </Button>
             </>
           )}
-          <div className="px-1">
-            <KnowledgeTree collections={collections} nodes={nodes} />
-          </div>
+        </div>
+        <div className="px-2 pb-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <KnowledgeTree collections={collections} nodes={nodes} />
         </div>
       </aside>
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
     </div>
   );
 }
