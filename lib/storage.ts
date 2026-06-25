@@ -1,9 +1,7 @@
 import "server-only";
 
-import type { Readable } from "node:stream";
 import {
   DeleteObjectCommand,
-  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -54,14 +52,6 @@ export async function putObject(
       ContentType: contentType,
     })
   );
-}
-
-/** Fetch an object's body as a Node stream for the read route to pipe out. */
-export async function getObjectStream(key: string): Promise<Readable> {
-  const res = await getClient().send(
-    new GetObjectCommand({ Bucket: bucket(), Key: key })
-  );
-  return res.Body as Readable;
 }
 
 export async function deleteObject(key: string): Promise<void> {
