@@ -1,6 +1,7 @@
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { generateKeyBetween } from "fractional-indexing";
 import { db } from "@/lib/db";
 import {
   type KnowledgeCollection,
@@ -72,13 +73,13 @@ export function extractLinkedSlugs(markdown: string): string[] {
 /** All collections, ordered for the tree sidebar. */
 export async function loadCollections(): Promise<KnowledgeCollection[]> {
   return db.query.knowledgeCollections.findMany({
-    orderBy: { position: "asc", name: "asc" },
+    orderBy: { rank: "asc", name: "asc" },
   });
 }
 
 /**
  * Flat list of tree nodes for a collection (or all collections when omitted) —
- * body-free, ordered by (parent, position) so the client can assemble the
+ * body-free, ordered by (parent, rank) so the client can assemble the
  * nesting cheaply. Drafts are included; the caller hides them for non-authors.
  */
 export async function loadTreeNodes(
@@ -92,10 +93,10 @@ export async function loadTreeNodes(
       parentId: true,
       title: true,
       slug: true,
-      position: true,
+      rank: true,
       publishedAt: true,
     },
-    orderBy: { position: "asc", title: "asc" },
+    orderBy: { rank: "asc", title: "asc" },
   });
   return rows;
 }
@@ -252,36 +253,37 @@ export async function resolveSlugIds(
   return new Map(rows.map((r) => [r.slug, r.id]));
 }
 
-/** Next sibling position for a new document under a parent. */
-export async function nextPosition(
+/**
+ * Fractional-index rank for a new document appended after a parent's last
+ * sibling. Reads only the greatest existing rank in the group (one indexed
+ * row), so creation never touches or renumbers the other siblings.
+ */
+export async function appendDocumentRank(
   collectionId: string,
   parentId: string | null
-): Promise<number> {
+): Promise<string> {
   const [row] = await db
-    .select({
-      max: sql<number>`coalesce(max(${knowledgeDocuments.position}), -1)`,
-    })
+    .select({ rank: knowledgeDocuments.rank })
     .from(knowledgeDocuments)
     .where(
-      parentId
-        ? and(
-            eq(knowledgeDocuments.collectionId, collectionId),
-            eq(knowledgeDocuments.parentId, parentId)
-          )
-        : and(
-            eq(knowledgeDocuments.collectionId, collectionId),
-            sql`${knowledgeDocuments.parentId} IS NULL`
-          )
-    );
-  return (row?.max ?? -1) + 1;
+      and(
+        eq(knowledgeDocuments.collectionId, collectionId),
+        parentId
+          ? eq(knowledgeDocuments.parentId, parentId)
+          : isNull(knowledgeDocuments.parentId)
+      )
+    )
+    .orderBy(desc(knowledgeDocuments.rank))
+    .limit(1);
+  return generateKeyBetween(row?.rank ?? null, null);
 }
 
-/** Next position among top-level collections. */
-export async function nextCollectionPosition(): Promise<number> {
+/** Rank for a new collection appended after the last existing one. */
+export async function appendCollectionRank(): Promise<string> {
   const [row] = await db
-    .select({
-      max: sql<number>`coalesce(max(${knowledgeCollections.position}), -1)`,
-    })
-    .from(knowledgeCollections);
-  return (row?.max ?? -1) + 1;
+    .select({ rank: knowledgeCollections.rank })
+    .from(knowledgeCollections)
+    .orderBy(desc(knowledgeCollections.rank))
+    .limit(1);
+  return generateKeyBetween(row?.rank ?? null, null);
 }
