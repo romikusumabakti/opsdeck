@@ -40,21 +40,23 @@ export default async function DocumentPage({
     <div className="flex justify-center gap-10">
       {/* Constrain the reading column to a comfortable measure (~70ch). */}
       <article className="flex w-full min-w-0 max-w-[46rem] flex-col gap-4">
-        <KnowledgeBreadcrumb
-          items={[{ label: doc.collection.name }, { label: doc.title }]}
-        />
+        <div className="sticky top-14 z-10 flex flex-col gap-4 bg-background pt-2 pb-3">
+          <KnowledgeBreadcrumb
+            items={[{ label: doc.collection.name }, { label: doc.title }]}
+          />
 
-        <PageHeader
-          title={doc.title}
-          subtitle={t("inCollection", { collection: doc.collection.name })}
-          action={
-            <DocumentActions
-              documentId={doc.id}
-              slug={doc.slug}
-              canDelete={canDelete}
-            />
-          }
-        />
+          <PageHeader
+            title={doc.title}
+            subtitle={t("inCollection", { collection: doc.collection.name })}
+            action={
+              <DocumentActions
+                documentId={doc.id}
+                slug={doc.slug}
+                canDelete={canDelete}
+              />
+            }
+          />
+        </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {doc.publishedAt === null && (
@@ -104,7 +106,7 @@ export default async function DocumentPage({
       </article>
 
       <aside className="hidden w-56 shrink-0 xl:block">
-        <div className="sticky top-4">
+        <div className="sticky top-16 max-h-[calc(100svh-5rem)] overflow-y-auto">
           <DocumentToc containerId="doc-body" />
         </div>
       </aside>
