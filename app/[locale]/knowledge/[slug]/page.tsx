@@ -37,9 +37,10 @@ export default async function DocumentPage({
   const canDelete = session ? isAdmin(session) : false;
 
   return (
-    <div className="-mx-4 -my-6 flex flex-col sm:-mx-6 lg:-mx-8">
-      {/* Full-width sticky toolbar — spans edge to edge, unlike the centered reading column below. */}
-      <div className="sticky top-14 z-10 flex items-center justify-between gap-4 bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Static toolbar — the article below is the scroll region, so the
+          toolbar stays put without sticky positioning. */}
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
           <div className="min-w-0 flex-1">
             <KnowledgeBreadcrumb
               items={[{ label: doc.collection.name }, { label: doc.title }]}
@@ -54,7 +55,7 @@ export default async function DocumentPage({
           </div>
       </div>
 
-      <div className="flex justify-center gap-10 px-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-0 flex-1 justify-center gap-10 overflow-y-auto px-4 sm:px-6 lg:px-8">
         {/* Constrain the reading column to a comfortable measure (~70ch). */}
         <article className="flex w-full min-w-0 max-w-[46rem] flex-col">
           <div className="flex flex-col gap-4 pt-2 pb-6">
@@ -112,7 +113,7 @@ export default async function DocumentPage({
         </article>
 
         <aside className="hidden w-56 shrink-0 pt-4 xl:block">
-          <div className="sticky top-16 max-h-[calc(100svh-5rem)] overflow-y-auto">
+          <div className="sticky top-4 max-h-[calc(100svh-8rem)] overflow-y-auto">
             <DocumentToc containerId="doc-body" />
           </div>
         </aside>

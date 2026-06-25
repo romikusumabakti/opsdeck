@@ -188,3 +188,9 @@
   margin-right: 0;
   margin-left: 0;
 }
+
+/* Small breathing room when a TOC anchor jump lands on a heading; the toolbar
+   sits outside the article scroll region, so no offset is needed to clear it. */
+#doc-body :is(h1, h2, h3, h4) {
+  scroll-margin-top: 1rem;
+}
