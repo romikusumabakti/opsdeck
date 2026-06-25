@@ -133,7 +133,7 @@ export default async function LocaleLayout({
                       }}
                     />
                     <SidebarInset className="min-w-0">
-                      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
+                      <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
                         <SidebarTrigger className="-ms-1" />
                         <HeaderBreadcrumb projects={projects} isAdmin={admin} />
                         <div className="ms-auto flex items-center gap-2">
@@ -147,6 +147,7 @@ export default async function LocaleLayout({
                       <main
                         id="main-content"
                         tabIndex={-1}
+                        data-scroll-shadow
                         className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
                       >
                         {children}
