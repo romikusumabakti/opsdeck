@@ -57,7 +57,11 @@ export default async function KnowledgeLayout({
           data-scroll-shadow
           className="px-2 pt-2 pb-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
         >
-          <KnowledgeTree collections={collections} nodes={nodes} />
+          <KnowledgeTree
+            collections={collections}
+            nodes={nodes}
+            isAdmin={admin}
+          />
         </div>
       </aside>
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

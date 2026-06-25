@@ -115,6 +115,12 @@ export const collectionInputSchema = z.object({
 });
 export const collectionUpdateSchema = collectionInputSchema.partial();
 
+export const collectionMoveSchema = z.object({
+  collectionId: z.uuid(),
+  // Fractional-index rank computed client-side from the drop neighbours.
+  rank: z.string().min(1).max(100),
+});
+
 export const documentInputSchema = z.object({
   collectionId: z.uuid(),
   parentId: z.uuid().nullish(),
