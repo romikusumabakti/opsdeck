@@ -377,6 +377,34 @@ export const knowledgeLinks = pgTable(
   ]
 );
 
+// Image/file attachments uploaded from the editor. Bytes live in object storage
+// (Garage); this row is the metadata + the stable id the markdown body links to
+// via /api/knowledge/asset/<id>. No automatic GC yet: rows/objects outlive their
+// document (set null below), so unreferenced uploads accumulate slowly — prune
+// out-of-band if it ever matters for an internal tool this size.
+export const knowledgeAttachments = pgTable(
+  "knowledge_attachments",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    // Null until the host document is first saved — an upload can land before
+    // the doc row exists. set null (not cascade) keeps the asset usable if a
+    // doc is removed but the bytes are still referenced elsewhere.
+    documentId: uuid("document_id").references(() => knowledgeDocuments.id, {
+      onDelete: "set null",
+    }),
+    // Object key in the bucket, e.g. "kb/<uuid>.webp". Server-generated; never
+    // user input, so no path-traversal surface.
+    storageKey: text("storage_key").notNull(),
+    mime: text("mime").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("knowledge_attachments_document_idx").on(t.documentId)]
+);
+
 export type KnowledgeCollection = InferSelectModel<typeof knowledgeCollections>;
 export type NewKnowledgeCollection = InferInsertModel<
   typeof knowledgeCollections
@@ -387,6 +415,11 @@ export type NewKnowledgeDocument = InferInsertModel<typeof knowledgeDocuments>;
 
 export type KnowledgeRevision = InferSelectModel<typeof knowledgeRevisions>;
 export type NewKnowledgeRevision = InferInsertModel<typeof knowledgeRevisions>;
+
+export type KnowledgeAttachment = InferSelectModel<typeof knowledgeAttachments>;
+export type NewKnowledgeAttachment = InferInsertModel<
+  typeof knowledgeAttachments
+>;
 
 // A document plus its author display names and resolved relations, as shown in
 // the reader. Credential-free already — KB has no secrets.

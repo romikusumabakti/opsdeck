@@ -892,6 +892,9 @@
     "linkDocument": "Tautkan ke dokumen",
     "onThisPage": "Di halaman ini",
     "copyLink": "Salin tautan",
-    "linkCopied": "Tautan disalin"
+    "linkCopied": "Tautan disalin",
+    "insertImage": "Sisipkan gambar",
+    "imageTooLarge": "Gambar terlalu besar (maks 25 MB)",
+    "imageUploadFailed": "Gagal mengunggah gambar"
   }
 }

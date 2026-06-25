@@ -43,7 +43,11 @@ export function MarkdownContent({
         // rehype-raw parses embedded HTML (e.g. TipTap's complex tables);
         // rehype-sanitize must run right after to neutralize XSS. rehype-slug
         // then stamps stable heading ids for the on-page table of contents.
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeSanitize, sanitizeSchema],
+          rehypeSlug,
+        ]}
         components={{
           h1: (props) => (
             <h1
@@ -143,6 +147,19 @@ export function MarkdownContent({
           ),
           td: (props) => <td className="border-b px-3 py-2" {...props} />,
           hr: () => <hr className="my-6 border-border" />,
+          img: ({ src, alt, ...props }) => (
+            // Attachments resolve through /api/knowledge/asset/<id> (auth-gated).
+            // Lazy + async so a doc full of screenshots doesn't block first paint.
+            // biome-ignore lint/performance/noImgElement: next/image can't size remote auth-gated assets here
+            <img
+              src={typeof src === "string" ? src : undefined}
+              alt={alt ?? ""}
+              loading="lazy"
+              decoding="async"
+              className="my-4 max-w-full rounded-md border"
+              {...props}
+            />
+          ),
         }}
       >
         {content}

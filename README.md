@@ -15,8 +15,8 @@ all over SSH against your own infrastructure.
   Server, plus backup and restore (including cross-database file relocation).
 - **Services** — control `docker`, `systemd`, and `kubernetes` services.
 - **Knowledge base** — collections of rich-text documents (Tiptap) with
-  full-text search, revisions, internal linking, breadcrumbs, and a
-  scroll-spy table of contents.
+  full-text search, revisions, internal linking, image attachments (Garage
+  object storage), breadcrumbs, and a scroll-spy table of contents.
 - **Auth & teams** — email/password via [better-auth](https://better-auth.com),
   `admin`/`member` roles, invitations, and optional email-domain whitelisting.
 - **Background jobs** — durable operations run through self-hosted
@@ -84,8 +84,9 @@ admin account.
 
 ## Docker
 
-`compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, and a
-self-hosted Inngest server. Set the required secrets in `.env`, then:
+`compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, a
+self-hosted Inngest server, and a Garage object store. Set the required secrets
+in `.env`, then:
 
 ```bash
 docker compose up -d --build
@@ -94,6 +95,30 @@ docker compose up -d --build
 Inngest runs in production mode and needs a dedicated `inngest` database
 (`INNGEST_POSTGRES_URI`), separate from the app's own database. App functions
 are registered via Inngest sync after the stack is up.
+
+### Object storage setup (Garage)
+
+Knowledge-base image attachments are stored in [Garage](https://garagehq.deuxfleurs.fr/)
+(S3-compatible, self-hosted). After the stack is up, provision the layout,
+bucket, and access key **once**:
+
+```bash
+# 1. Assign storage to the single node and apply the layout
+docker compose exec garage /garage layout assign -z dc1 -c 10G $(docker compose exec garage /garage status | awk 'NR==3{print $1}')
+docker compose exec garage /garage layout apply --version 1
+
+# 2. Create the bucket (must match S3_BUCKET)
+docker compose exec garage /garage bucket create knowledge
+
+# 3. Create an access key and grant it read/write on the bucket
+docker compose exec garage /garage key create app-key      # prints Key ID + Secret
+docker compose exec garage /garage bucket allow --read --write knowledge --key app-key
+```
+
+Copy the printed **Key ID** / **Secret** into `S3_ACCESS_KEY` / `S3_SECRET_KEY`
+in `.env`, then restart the app (`docker compose up -d app`). Uploads are
+re-encoded to WebP (EXIF stripped) and served back through the auth-gated
+`/api/knowledge/asset/<id>` route — the bucket stays private.
 
 ## Project layout
 

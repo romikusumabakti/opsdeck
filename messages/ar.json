@@ -892,6 +892,9 @@
     "linkDocument": "ربط بمستند",
     "onThisPage": "في هذه الصفحة",
     "copyLink": "نسخ الرابط",
-    "linkCopied": "تم نسخ الرابط"
+    "linkCopied": "تم نسخ الرابط",
+    "insertImage": "إدراج صورة",
+    "imageTooLarge": "الصورة كبيرة جدًا (الحد الأقصى 25 ميجابايت)",
+    "imageUploadFailed": "فشل رفع الصورة"
   }
 }
