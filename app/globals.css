@@ -194,3 +194,28 @@
 #doc-body :is(h1, h2, h3, h4) {
   scroll-margin-top: 1rem;
 }
+
+/* Scroll-aware header/content seam. Any scroll container marked with
+   data-scroll-shadow grows a top inset shadow once scrolled, signalling there's
+   content above its header — no separator at rest. Pure CSS scroll-driven;
+   falls back to a static top border where scroll timelines are unsupported. */
+@supports (animation-timeline: scroll()) {
+  [data-scroll-shadow] {
+    animation: scroll-shadow linear both;
+    animation-timeline: scroll(self block);
+    animation-range: 0 2rem;
+  }
+  @keyframes scroll-shadow {
+    from {
+      box-shadow: inset 0 7px 5px -6px transparent;
+    }
+    to {
+      box-shadow: inset 0 7px 5px -6px var(--border);
+    }
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  [data-scroll-shadow] {
+    border-top: 1px solid var(--border);
+  }
+}
