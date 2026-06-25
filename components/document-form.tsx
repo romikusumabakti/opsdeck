@@ -1,8 +1,8 @@
 "use client";
 
-import { Loader2, Save, Trash2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   createDocument,
@@ -22,10 +22,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,6 +39,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeDocument } from "@/lib/db/schema";
 
@@ -46,10 +56,12 @@ export function DocumentForm({
   mode,
   collections,
   linkableDocs = [],
+  toolbarStart,
 }: {
   mode: Mode;
   collections: KnowledgeCollection[];
   linkableDocs?: LinkableDoc[];
+  toolbarStart?: ReactNode;
 }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
@@ -68,6 +80,7 @@ export function DocumentForm({
   const [published, setPublished] = useState(
     doc ? doc.publishedAt !== null : true
   );
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const canSubmit = title.trim().length > 0 && collectionId && !isPending;
 
@@ -117,7 +130,89 @@ export function DocumentForm({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="-mx-4 -my-6 flex flex-col sm:-mx-6 lg:-mx-8">
+      <div className="sticky top-14 z-20 flex items-center justify-between gap-4 bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
+        <div className="min-w-0 flex-1">{toolbarStart}</div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <label
+                htmlFor="doc-published"
+                className="flex cursor-pointer items-center gap-2 pe-1 text-sm"
+              >
+                <Switch
+                  id="doc-published"
+                  checked={published}
+                  onCheckedChange={setPublished}
+                />
+                {t("published")}
+              </label>
+            </TooltipTrigger>
+            <TooltipContent>{t("publishedHint")}</TooltipContent>
+          </Tooltip>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            disabled={isPending}
+          >
+            {tCommon("cancel")}
+          </Button>
+          <Button size="sm" onClick={onSubmit} disabled={!canSubmit}>
+            {isPending && <Loader2 className="size-4 animate-spin" />}
+            {tCommon("save")}
+          </Button>
+
+          {mode.type === "edit" && mode.canDelete && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={tCommon("more")}
+                  disabled={isPending}
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setConfirmOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                  {tCommon("delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </div>
+
+      {mode.type === "edit" && mode.canDelete && (
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("deleteConfirmBody")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPending}>
+                {tCommon("cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={onDelete} disabled={isPending}>
+                {tCommon("delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-4 pt-2 pb-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1 flex flex-col gap-1.5">
           <Label htmlFor="doc-title">{t("titleLabel")}</Label>
@@ -129,7 +224,7 @@ export function DocumentForm({
             className="text-base font-medium"
           />
         </div>
-        <div className="flex flex-col gap-1.5 sm:w-56">
+        <div className="flex shrink-0 flex-col gap-1.5">
           <Label htmlFor="doc-collection">{t("collection")}</Label>
           <Select value={collectionId} onValueChange={setCollectionId}>
             <SelectTrigger id="doc-collection">
@@ -161,60 +256,6 @@ export function DocumentForm({
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="doc-published"
-          checked={published}
-          onCheckedChange={(v) => setPublished(v === true)}
-        />
-        <Label htmlFor="doc-published" className="text-sm font-normal">
-          {t("publishedHint")}
-        </Label>
-      </div>
-
-      <div className="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t bg-background pt-4 pb-2">
-        <div>
-          {mode.type === "edit" && mode.canDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" disabled={isPending}>
-                  <Trash2 className="size-4" />
-                  {tCommon("delete")}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("deleteConfirmBody")}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={onDelete}>
-                    {tCommon("delete")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            disabled={isPending}
-          >
-            {tCommon("cancel")}
-          </Button>
-          <Button onClick={onSubmit} disabled={!canSubmit}>
-            {isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            {tCommon("save")}
-          </Button>
         </div>
       </div>
     </div>

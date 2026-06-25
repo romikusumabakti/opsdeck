@@ -866,6 +866,7 @@
     "collection": "المجموعة",
     "content": "المحتوى",
     "contentPlaceholder": "ابدأ الكتابة…",
+    "published": "منشور",
     "publishedHint": "منشور (مرئي لكامل الفريق)",
     "deleteConfirmTitle": "حذف هذا المستند؟",
     "deleteConfirmBody": "يؤدي هذا إلى إزالة المستند وسجله نهائيًا. تنتقل المستندات الفرعية إلى جذر المجموعة.",

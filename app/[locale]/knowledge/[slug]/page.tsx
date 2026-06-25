@@ -37,26 +37,31 @@ export default async function DocumentPage({
   const canDelete = session ? isAdmin(session) : false;
 
   return (
-    <div className="flex justify-center gap-10">
-      {/* Constrain the reading column to a comfortable measure (~70ch). */}
-      <article className="flex w-full min-w-0 max-w-[46rem] flex-col gap-4">
-        <div className="sticky top-14 z-10 flex flex-col gap-4 bg-background pb-3">
-          <KnowledgeBreadcrumb
-            items={[{ label: doc.collection.name }, { label: doc.title }]}
-          />
+    <div className="-mx-4 -my-6 flex flex-col sm:-mx-6 lg:-mx-8">
+      {/* Full-width sticky toolbar — spans edge to edge, unlike the centered reading column below. */}
+      <div className="sticky top-14 z-10 flex items-center justify-between gap-4 bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
+          <div className="min-w-0 flex-1">
+            <KnowledgeBreadcrumb
+              items={[{ label: doc.collection.name }, { label: doc.title }]}
+            />
+          </div>
+          <div className="shrink-0">
+            <DocumentActions
+              documentId={doc.id}
+              slug={doc.slug}
+              canDelete={canDelete}
+            />
+          </div>
+      </div>
 
+      <div className="flex justify-center gap-10 px-4 sm:px-6 lg:px-8">
+        {/* Constrain the reading column to a comfortable measure (~70ch). */}
+        <article className="flex w-full min-w-0 max-w-[46rem] flex-col">
+          <div className="flex flex-col gap-4 pt-2 pb-6">
           <PageHeader
             title={doc.title}
             subtitle={t("inCollection", { collection: doc.collection.name })}
-            action={
-              <DocumentActions
-                documentId={doc.id}
-                slug={doc.slug}
-                canDelete={canDelete}
-              />
-            }
           />
-        </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {doc.publishedAt === null && (
@@ -103,13 +108,15 @@ export default async function DocumentPage({
             </ul>
           </section>
         )}
-      </article>
-
-      <aside className="hidden w-56 shrink-0 xl:block">
-        <div className="sticky top-16 max-h-[calc(100svh-5rem)] overflow-y-auto">
-          <DocumentToc containerId="doc-body" />
         </div>
-      </aside>
+        </article>
+
+        <aside className="hidden w-56 shrink-0 pt-4 xl:block">
+          <div className="sticky top-16 max-h-[calc(100svh-5rem)] overflow-y-auto">
+            <DocumentToc containerId="doc-body" />
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
