@@ -1,16 +1,19 @@
-import { Readable } from "node:stream";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { getObjectStream } from "@/lib/storage";
+import { imgproxyUrl } from "@/lib/imgproxy";
 import { knowledgeIdSchema } from "@/lib/validation";
 
 /**
- * Serve an attachment's bytes. The markdown body links here by stable id (never
- * a presigned URL, which would expire), so the bucket stays private and every
- * read is session-gated. Resolves id -> storage key -> streamed object.
+ * Serve an attachment. The markdown body links here by stable id (never a raw
+ * storage/imgproxy URL), so the bucket and imgproxy both stay private and every
+ * read is session-gated. We resolve id -> storage key, sign an imgproxy URL, and
+ * proxy the transformed result back — the browser only ever talks to the app.
+ *
+ * The browser's Accept header is forwarded so imgproxy can negotiate the best
+ * format it supports (AVIF, then WebP, then the original).
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   await requireSession();
@@ -26,19 +29,24 @@ export async function GET(
   });
   if (!row) return new Response("Not found", { status: 404 });
 
-  let body: Readable;
+  let upstream: Response;
   try {
-    body = await getObjectStream(row.storageKey);
+    upstream = await fetch(imgproxyUrl(row.storageKey), {
+      headers: { Accept: request.headers.get("accept") ?? "image/*" },
+    });
   } catch (error) {
-    console.error(`Failed to read attachment ${id}:`, error);
-    return new Response("Storage error", { status: 502 });
+    console.error(`imgproxy fetch failed for ${id}:`, error);
+    return new Response("Image service error", { status: 502 });
+  }
+  if (!upstream.ok || !upstream.body) {
+    console.error(`imgproxy returned ${upstream.status} for ${id}`);
+    return new Response("Image service error", { status: 502 });
   }
 
-  return new Response(Readable.toWeb(body) as ReadableStream, {
+  return new Response(upstream.body, {
     headers: {
-      "Content-Type": row.mime,
-      // Private cache: it's auth-gated content, but the bytes are immutable
-      // (key is a uuid), so the browser may reuse them within the session.
+      "Content-Type": upstream.headers.get("content-type") ?? row.mime,
+      // Auth-gated but immutable bytes (key is a uuid); reuse within the session.
       "Cache-Control": "private, max-age=31536000, immutable",
       "Content-Disposition": "inline",
     },

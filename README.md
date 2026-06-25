@@ -85,8 +85,8 @@ admin account.
 ## Docker
 
 `compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, a
-self-hosted Inngest server, and a Garage object store. Set the required secrets
-in `.env`, then:
+self-hosted Inngest server, a Garage object store, and an imgproxy image
+server. Set the required secrets in `.env`, then:
 
 ```bash
 docker compose up -d --build
@@ -116,9 +116,18 @@ docker compose exec garage /garage bucket allow --read --write knowledge --key a
 ```
 
 Copy the printed **Key ID** / **Secret** into `S3_ACCESS_KEY` / `S3_SECRET_KEY`
-in `.env`, then restart the app (`docker compose up -d app`). Uploads are
-re-encoded to WebP (EXIF stripped) and served back through the auth-gated
-`/api/knowledge/asset/<id>` route — the bucket stays private.
+in `.env`, then restart the affected services
+(`docker compose up -d app imgproxy`).
+
+Image handling: the app stores the **original** upload in Garage and never
+processes images itself (no native `sharp`/`libvips` in the bundle). Resizing
+and format conversion happen on read in the **imgproxy** container, which pulls
+straight from Garage and negotiates AVIF/WebP from the browser's `Accept`
+header. Both the bucket and imgproxy stay private — every image is served
+through the session-gated `/api/knowledge/asset/<id>` route, which signs a
+short-lived imgproxy URL server-side. Set `IMGPROXY_KEY` / `IMGPROXY_SALT`
+(`openssl rand -hex 32` each) in `.env`; the app and the imgproxy service must
+share the same values.
 
 ## Project layout
 
