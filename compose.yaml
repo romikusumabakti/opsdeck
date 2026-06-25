@@ -49,11 +49,15 @@ services:
       # Object storage (Garage) for knowledge-base attachments. Endpoint is the
       # in-network S3 API; bucket + key are provisioned once via the garage CLI
       # (see README). The app reaches Garage over the compose network only.
+      # ACCESS/SECRET are NOT required at boot: they only exist after Garage is
+      # provisioned (chicken-and-egg — the stack must come up first to run the
+      # garage CLI). Empty default lets the app boot; uploads fail with 502 until
+      # the keys are filled in and the app is restarted. Everything else works.
       S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3900}
       S3_REGION: ${S3_REGION:-garage}
       S3_BUCKET: ${S3_BUCKET:-knowledge}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY-}
     healthcheck:
       # Use Node's built-in fetch — `curl`/`wget` aren't in node:24-alpine.
       test:
