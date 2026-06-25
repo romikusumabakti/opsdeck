@@ -1,79 +1,113 @@
 # OpsDeck
 
-Whitelabel admin panel for managing servers, projects, services, and database lifecycle tasks over SSH.
+A self-hosted operations panel for managing servers, projects, databases, and
+internal knowledge from a single control plane. Built as a whitelabel app
+(`NEXT_PUBLIC_APP_NAME` overrides the "OpsDeck" branding), it lets a small team
+provision databases, run backups, control services, and keep documentation —
+all over SSH against your own infrastructure.
 
-## Stack
+## Features
 
-- Next.js 16 (App Router) on React 19
-- PostgreSQL via Drizzle ORM
-- better-auth (sessions, invitations, password reset)
-- Inngest for background jobs and progress streaming
-- node-ssh for remote operations
-- Tailwind CSS 4, Radix UI, shadcn-style primitives
-- next-intl, Resend (optional), Biome
+- **Servers** — register hosts and run operations over SSH (`node-ssh`).
+- **Projects & tasks** — group infrastructure work; long-running operations are
+  tracked as tasks with live status and streamed logs.
+- **Databases** — create, rename, and drop databases on PostgreSQL and SQL
+  Server, plus backup and restore (including cross-database file relocation).
+- **Services** — control `docker`, `systemd`, and `kubernetes` services.
+- **Knowledge base** — collections of rich-text documents (Tiptap) with
+  full-text search, revisions, internal linking, breadcrumbs, and a
+  scroll-spy table of contents.
+- **Auth & teams** — email/password via [better-auth](https://better-auth.com),
+  `admin`/`member` roles, invitations, and optional email-domain whitelisting.
+- **Background jobs** — durable operations run through self-hosted
+  [Inngest](https://www.inngest.com/) (backups, restores, service control,
+  database lifecycle).
+- **Internationalization** — `en`, `id`, `ar`, `zh` via `next-intl`.
+- **Email** — transactional mail via [Resend](https://resend.com) + React Email
+  (optional; disabled when unconfigured).
 
-Requires Node >= 24. Package manager: pnpm.
+## Tech stack
 
-## Quick start
+| Layer        | Choice                                              |
+| ------------ | --------------------------------------------------- |
+| Framework    | Next.js 16 (App Router) · React 19                  |
+| Language     | TypeScript 6 · Node 24                              |
+| Database     | PostgreSQL 18 · Drizzle ORM (UUIDv7 keys)           |
+| Auth         | better-auth                                         |
+| Jobs / queue | Inngest (self-hosted) · Valkey/Redis                |
+| UI           | Tailwind CSS 4 · Radix UI / shadcn · Tiptap         |
+| Tooling      | pnpm · Biome · Vitest                               |
+
+## Getting started
+
+Requirements: **Node ≥ 24**, **pnpm**, and a **PostgreSQL** instance.
 
 ```bash
 pnpm install
-cp .env.example .env.local
-pnpm db:push
-pnpm dev
+cp .env.example .env   # then fill in the values below
+pnpm db:migrate        # apply schema migrations
+pnpm dev               # http://localhost:3000
 ```
 
-App runs at http://localhost:3000.
+On first run, open the app and complete the `/setup` flow to create the initial
+admin account.
 
-For the full stack (Postgres + Inngest + app) run via Docker:
+### Environment
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
+| Variable                          | Required | Purpose                                          |
+| --------------------------------- | -------- | ------------------------------------------------ |
+| `DATABASE_URL`                    | yes      | App PostgreSQL connection string                 |
+| `BETTER_AUTH_URL`                 | yes      | Public base URL of the app                       |
+| `BETTER_AUTH_SECRET`              | yes      | Auth signing secret                              |
+| `INNGEST_EVENT_KEY`               | yes      | Inngest event key (must match the Inngest server)|
+| `INNGEST_SIGNING_KEY`            | yes      | Inngest signing key                              |
+| `INNGEST_BASE_URL`                | no       | Self-hosted Inngest event API (Docker setup)     |
+| `NEXT_PUBLIC_APP_NAME`            | no       | Whitelabel app name (defaults to `OpsDeck`)      |
+| `NEXT_PUBLIC_COMPANY_NAME`        | no       | Whitelabel company name                          |
+| `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`| no       | Restrict sign-up to one email domain             |
+| `RESEND_API_KEY`                  | no       | Enables transactional email                      |
+| `EMAIL_FROM`                      | no       | From address (derived from branding if unset)    |
 
 ## Scripts
 
-| Command | Purpose |
-|---|---|
-| `pnpm dev` | Next.js dev server |
-| `pnpm build` / `pnpm start` | Production build / serve |
-| `pnpm check` | Biome lint + format (write) |
-| `pnpm db:generate` | Generate Drizzle migrations |
-| `pnpm db:migrate` | Apply migrations |
-| `pnpm db:push` | Push schema directly (dev) |
-| `pnpm db:studio` | Drizzle Studio |
+| Command            | Description                                |
+| ------------------ | ------------------------------------------ |
+| `pnpm dev`         | Start the dev server                       |
+| `pnpm build`       | Production build                           |
+| `pnpm start`       | Run the production build                   |
+| `pnpm lint`        | Lint with Biome                            |
+| `pnpm check`       | Format + lint, write fixes                 |
+| `pnpm test`        | Run the Vitest suite                       |
+| `pnpm db:generate` | Generate a Drizzle migration               |
+| `pnpm db:migrate`  | Apply pending migrations                   |
+| `pnpm db:studio`   | Open Drizzle Studio                        |
 
-## Environment
+## Docker
 
-Copy `.env.example` and fill in. Required keys:
+`compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, and a
+self-hosted Inngest server. Set the required secrets in `.env`, then:
 
-- `DATABASE_URL` — Postgres connection string
-- `BETTER_AUTH_SECRET` — generate with `openssl rand -base64 32`
-- `BETTER_AUTH_URL` — public base URL of the app
-- `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_COMPANY_NAME`, `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — whitelabel branding (baked into the client bundle at build time; set these before `pnpm build`)
-
-Optional:
-
-- `RESEND_API_KEY`, `EMAIL_FROM` — email delivery; email features disable cleanly if unset
-- `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — Inngest dev server config
-
-`isAllowedEmail()` in `lib/branding.ts` gates sign-up/invites to the configured email domain.
-
-## Layout
-
-```
-app/[locale]/   Routes (servers, projects, users, account, auth flows, setup)
-app/api/        Route handlers (auth, inngest, health)
-actions/        Server actions (servers, projects, services, backups, tasks, users)
-components/     UI primitives + feature components
-lib/            auth, db, ssh, branding, email, shared utils
-inngest/        Background job definitions
-i18n/           next-intl setup
-messages/       i18n catalogs
-docs/           Internal docs
+```bash
+docker compose up -d --build
 ```
 
-## Deployment
+Inngest runs in production mode and needs a dedicated `inngest` database
+(`INNGEST_POSTGRES_URI`), separate from the app's own database. App functions
+are registered via Inngest sync after the stack is up.
 
-`Dockerfile` + `compose.yaml` provide a containerised setup (app, Postgres, Inngest dev server). For production, set the `NEXT_PUBLIC_*` branding vars at build time so they end up in the client bundle, and point `INNGEST_DEV` at a hosted Inngest or remove it to use signed prod mode.
+## Project layout
+
+```
+actions/      Server actions (servers, databases, backups, services, tasks, knowledge, …)
+app/          Next.js App Router — [locale] pages + /api routes
+components/    UI components (shadcn / Radix-based)
+inngest/      Background job client + functions
+lib/          Core libs — db, auth, ssh, email, branding, validation
+drizzle/      Migrations + generated artifacts
+messages/     i18n message catalogs (ar/en/id/zh)
+tests/        Vitest tests
+```
+
+## License
+
+Private — all rights reserved.
