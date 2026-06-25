@@ -1,0 +1,14 @@
+# Public edge for opsdeck. Caddy terminates TLS and reverse-proxies to the
+# app container over the compose network. It forwards X-Forwarded-Host/Proto so
+# Next builds redirects from the public origin (fixes the internal :3000 leak).
+#
+# `tls internal` issues a cert from Caddy's own local CA. The domain is private
+# (opsdeck.romikusumabakti.com -> 192.168.x.x), so public ACME (Let's Encrypt) can't validate it.
+# Clients must trust Caddy's root CA, OR replace this with a cert from your
+# internal CA:  tls /path/cert.pem /path/key.pem
+# To serve plain HTTP instead, change the site address to `http://opsdeck.romikusumabakti.com`
+# and drop the tls line (then set BETTER_AUTH_URL back to http://).
+opsdeck.romikusumabakti.com {
+	tls internal
+	reverse_proxy app:3000
+}
