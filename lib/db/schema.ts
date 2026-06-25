@@ -257,8 +257,10 @@ export const knowledgeCollections = pgTable("knowledge_collections", {
   // lucide-react icon name, rendered in the tree. Null falls back to a default.
   icon: text("icon"),
   description: text("description"),
-  // Sibling ordering among collections. Sparse integers leave gaps for reorder.
-  position: integer("position").notNull().default(0),
+  // Sibling ordering among collections via a fractional-index rank string —
+  // inserting between two ranks never renumbers neighbours. The column is
+  // C-collated (see migration) so byte order matches the rank alphabet.
+  rank: text("rank").notNull(),
   createdById: uuid("created_by_id").references(() => users.id, {
     onDelete: "set null",
   }),
@@ -295,8 +297,9 @@ export const knowledgeDocuments = pgTable(
       (): any =>
         sql`setweight(to_tsvector('simple', coalesce(${knowledgeDocuments.title}, '')), 'A') || setweight(to_tsvector('simple', coalesce(${knowledgeDocuments.contentText}, '')), 'B')`
     ),
-    // Sibling ordering within the same parent.
-    position: integer("position").notNull().default(0),
+    // Sibling ordering within the same parent via a fractional-index rank
+    // string (C-collated, see migration) — insert-between never renumbers.
+    rank: text("rank").notNull(),
     // Null = draft (author-only visibility); set on publish.
     publishedAt: timestamp("published_at"),
     // Optional link to a project so a runbook can surface in project context.
@@ -314,11 +317,11 @@ export const knowledgeDocuments = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    // Tree render reads a collection's docs ordered by (parent, position).
+    // Tree render reads a collection's docs ordered by (parent, rank).
     index("knowledge_documents_tree_idx").on(
       t.collectionId,
       t.parentId,
-      t.position
+      t.rank
     ),
     // Routing resolves a doc by slug within its collection; also enforces no
     // duplicate slugs per collection.
@@ -432,7 +435,7 @@ export type KnowledgeDocumentWithMeta = KnowledgeDocument & {
 // Lightweight node for the navigation tree — no body, no FTS columns.
 export type KnowledgeTreeNode = Pick<
   KnowledgeDocument,
-  "id" | "collectionId" | "parentId" | "title" | "slug" | "position"
+  "id" | "collectionId" | "parentId" | "title" | "slug" | "rank"
 > & { publishedAt: Date | null };
 
 export type Server = InferSelectModel<typeof servers>;

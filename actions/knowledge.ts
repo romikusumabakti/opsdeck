@@ -13,13 +13,13 @@ import {
   knowledgeRevisions,
 } from "@/lib/db/schema";
 import {
+  appendCollectionRank,
+  appendDocumentRank,
   type Backlink,
   ensureUniqueSlug,
   extractLinkedSlugs,
   loadBacklinks,
   markdownToPlainText,
-  nextCollectionPosition,
-  nextPosition,
   resolveSlugIds,
   type SearchHit,
   searchDocuments,
@@ -62,7 +62,7 @@ export async function createCollection(
       .insert(knowledgeCollections)
       .values({
         ...parsed.data,
-        position: await nextCollectionPosition(),
+        rank: await appendCollectionRank(),
         createdById: session.user.id,
       })
       .returning();
@@ -159,7 +159,7 @@ export async function createDocument(
   const { collectionId, parentId, title, content, projectId } = parsed.data;
   try {
     const slug = await ensureUniqueSlug(collectionId, slugify(title));
-    const position = await nextPosition(collectionId, parentId ?? null);
+    const rank = await appendDocumentRank(collectionId, parentId ?? null);
     const created = await db.transaction(async (tx) => {
       const [doc] = await tx
         .insert(knowledgeDocuments)
@@ -170,7 +170,7 @@ export async function createDocument(
           slug,
           content,
           contentText: markdownToPlainText(content),
-          position,
+          rank,
           projectId: projectId ?? null,
           createdById: session.user.id,
           updatedById: session.user.id,
@@ -272,7 +272,7 @@ export async function moveDocument(
   if (!parsed.success) {
     return { success: false, message: "Invalid move data" };
   }
-  const { documentId, collectionId, parentId, position } = parsed.data;
+  const { documentId, collectionId, parentId, rank } = parsed.data;
   try {
     // Guard against cycles: a document cannot become its own ancestor.
     if (parentId && (await isDescendant(parentId, documentId))) {
@@ -283,7 +283,7 @@ export async function moveDocument(
         .update(knowledgeDocuments)
         .set({
           parentId: parentId ?? null,
-          position,
+          rank,
           collectionId,
           updatedAt: new Date(),
         })
