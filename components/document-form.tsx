@@ -215,7 +215,7 @@ export function DocumentForm({
         data-scroll-shadow
         className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8"
       >
-        <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-4 pt-2 pb-6">
+        <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-4 pt-6 pb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="flex-1 flex flex-col gap-1.5">
               <Label htmlFor="doc-title">{t("titleLabel")}</Label>
