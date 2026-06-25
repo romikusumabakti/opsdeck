@@ -27,6 +27,7 @@ import {
 } from "@/lib/knowledge";
 import {
   collectionInputSchema,
+  collectionMoveSchema,
   collectionUpdateSchema,
   documentInputSchema,
   documentMoveSchema,
@@ -119,6 +120,31 @@ export async function deleteCollection(
   } catch (error) {
     console.error(`Failed to delete collection ${id}:`, error);
     return { success: false, message: "Failed to delete collection" };
+  }
+}
+
+// Reorder a collection among its siblings. The client computes the new
+// fractional-index rank between the drop neighbours, so this only writes the
+// one row — no neighbour is renumbered.
+export async function moveCollection(
+  data: unknown
+): Promise<ActionResponse<never>> {
+  await requireAdmin();
+  const parsed = collectionMoveSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, message: "Invalid move data" };
+  }
+  const { collectionId, rank } = parsed.data;
+  try {
+    await db
+      .update(knowledgeCollections)
+      .set({ rank, updatedAt: new Date() })
+      .where(eq(knowledgeCollections.id, collectionId));
+    revalidatePath(KNOWLEDGE_PATH);
+    return { success: true };
+  } catch (error) {
+    console.error(`Failed to move collection ${collectionId}:`, error);
+    return { success: false, message: "Failed to move collection" };
   }
 }
 
