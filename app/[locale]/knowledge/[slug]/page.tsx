@@ -61,7 +61,7 @@ export default async function DocumentPage({
       >
         {/* Constrain the reading column to a comfortable measure (~70ch). */}
         <article className="flex w-full min-w-0 max-w-[46rem] flex-col">
-          <div className="flex flex-col gap-4 pt-2 pb-6">
+          <div className="flex flex-col gap-4 pt-6 pb-6">
           <PageHeader
             title={doc.title}
             subtitle={t("inCollection", { collection: doc.collection.name })}
@@ -115,7 +115,7 @@ export default async function DocumentPage({
         </div>
         </article>
 
-        <aside className="hidden w-56 shrink-0 pt-4 xl:block">
+        <aside className="hidden w-56 shrink-0 pt-6 xl:block">
           <div className="sticky top-4 max-h-[calc(100svh-8rem)] overflow-y-auto">
             <DocumentToc containerId="doc-body" />
           </div>
