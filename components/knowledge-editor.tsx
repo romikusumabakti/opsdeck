@@ -169,7 +169,7 @@ export function KnowledgeEditor({
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap items-center gap-1 rounded-t-md border bg-muted/30 p-1">
+      <div className="sticky top-14 z-10 flex flex-wrap items-center gap-1 rounded-t-md border bg-muted/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
         <ToolbarButton
           active={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
