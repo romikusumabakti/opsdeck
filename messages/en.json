@@ -892,6 +892,9 @@
     "linkDocument": "Link to document",
     "onThisPage": "On this page",
     "copyLink": "Copy link",
-    "linkCopied": "Link copied"
+    "linkCopied": "Link copied",
+    "insertImage": "Insert image",
+    "imageTooLarge": "Image is too large (max 25 MB)",
+    "imageUploadFailed": "Failed to upload image"
   }
 }

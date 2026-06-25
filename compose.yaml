@@ -46,6 +46,14 @@ services:
       INNGEST_BASE_URL: http://inngest:8288
       INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?INNGEST_EVENT_KEY is required}
       INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?INNGEST_SIGNING_KEY is required}
+      # Object storage (Garage) for knowledge-base attachments. Endpoint is the
+      # in-network S3 API; bucket + key are provisioned once via the garage CLI
+      # (see README). The app reaches Garage over the compose network only.
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3900}
+      S3_REGION: ${S3_REGION:-garage}
+      S3_BUCKET: ${S3_BUCKET:-knowledge}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
     healthcheck:
       # Use Node's built-in fetch — `curl`/`wget` aren't in node:24-alpine.
       test:
@@ -59,6 +67,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      garage:
+        condition: service_started
+
+  garage:
+    image: dxflrs/garage:v2.3.0
+    container_name: dss-panel-garage
+    restart: always
+    # Secrets via env (not committed garage.toml). Generate once:
+    #   GARAGE_RPC_SECRET=$(openssl rand -hex 32)
+    #   GARAGE_ADMIN_TOKEN=$(openssl rand -base64 32)
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?GARAGE_RPC_SECRET is required}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?GARAGE_ADMIN_TOKEN is required}
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
 
   valkey:
     image: valkey/valkey:8-alpine
@@ -101,3 +126,5 @@ volumes:
   postgres_data:
   inngest_data:
   valkey_data:
+  garage_meta:
+  garage_data:
