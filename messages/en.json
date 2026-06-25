@@ -866,6 +866,7 @@
     "collection": "Collection",
     "content": "Content",
     "contentPlaceholder": "Start writing…",
+    "published": "Published",
     "publishedHint": "Published (visible to the whole team)",
     "deleteConfirmTitle": "Delete this document?",
     "deleteConfirmBody": "This permanently removes the document and its history. Child documents move to the collection root.",

@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { DocumentForm } from "@/components/document-form";
-import { PageHeader } from "@/components/page-header";
+import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { redirect } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth-session";
 import { loadCollections, loadTreeNodes } from "@/lib/knowledge";
@@ -26,13 +26,13 @@ export default async function NewDocumentPage({
   const linkableDocs = nodes.map((n) => ({ title: n.title, slug: n.slug }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("newDocument")} subtitle={t("newDocumentHint")} />
-      <DocumentForm
-        mode={{ type: "create" }}
-        collections={collections}
-        linkableDocs={linkableDocs}
-      />
-    </div>
+    <DocumentForm
+      mode={{ type: "create" }}
+      collections={collections}
+      linkableDocs={linkableDocs}
+      toolbarStart={
+        <KnowledgeBreadcrumb items={[{ label: t("newDocument") }]} />
+      }
+    />
   );
 }
