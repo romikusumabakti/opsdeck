@@ -20,8 +20,12 @@ services:
     build:
       context: .
     container_name: dss-panel-app
-    ports:
-      - "80:3000"
+    # No published port: the app is internal. Caddy (below) is the only public
+    # surface — it terminates TLS and forwards with X-Forwarded-* headers so
+    # Next derives the public host/port (no more internal :3000 leaking into
+    # redirects).
+    expose:
+      - "3000"
     environment:
       # App connection string. Set explicitly in .env so passwords with special
       # characters don't break URL parsing (no string concat from POSTGRES_*).
@@ -81,6 +85,23 @@ services:
         condition: service_started
       imgproxy:
         condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: dss-panel-caddy
+    restart: always
+    # Public edge: terminates TLS and reverse-proxies to the app. Caddy sets
+    # X-Forwarded-Host/Proto so Next builds redirects from the public origin.
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
 
   garage:
     image: dxflrs/garage:v2.3.0
@@ -167,3 +188,5 @@ volumes:
   valkey_data:
   garage_meta:
   garage_data:
+  caddy_data:
+  caddy_config:
