@@ -1,0 +1,21 @@
+# Garage S3 server — single-node config for the knowledge-base attachment store.
+# Secrets (rpc_secret, admin token) come from the environment, not this file, so
+# it is safe to commit. See compose.yaml for GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+
+# Single node: replication factor 1 (no redundancy — back up the data volume).
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage"
+
+[admin]
+api_bind_addr = "[::]:3903"

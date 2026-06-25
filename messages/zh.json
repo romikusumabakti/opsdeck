@@ -892,6 +892,9 @@
     "linkDocument": "链接到文档",
     "onThisPage": "本页内容",
     "copyLink": "复制链接",
-    "linkCopied": "链接已复制"
+    "linkCopied": "链接已复制",
+    "insertImage": "插入图片",
+    "imageTooLarge": "图片过大（上限 25 MB）",
+    "imageUploadFailed": "图片上传失败"
   }
 }
