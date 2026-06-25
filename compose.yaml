@@ -98,7 +98,7 @@ services:
       - garage_data:/var/lib/garage/data
 
   imgproxy:
-    image: imgproxy/imgproxy:v4.0.6
+    image: ghcr.io/imgproxy/imgproxy:v4.0.6
     container_name: dss-panel-imgproxy
     restart: always
     # Internal only — no published port. The app reaches it over the compose
