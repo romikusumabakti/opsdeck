@@ -55,7 +55,7 @@ export default async function KnowledgeLayout({
         </div>
         <div
           data-scroll-shadow
-          className="px-2 pb-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+          className="px-2 pt-2 pb-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
         >
           <KnowledgeTree collections={collections} nodes={nodes} />
         </div>
