@@ -99,8 +99,11 @@ function ToolbarButton({
  * TipTap-based markdown editor. The source of truth is markdown: `value` is a
  * markdown string parsed on mount, and `onChange` emits markdown serialized
  * from the document. ProseMirror is only the editing surface — nothing
- * downstream depends on its JSON, which keeps storage portable and makes a
- * future move to real-time collab (Yjs) a drop-in.
+ * downstream depends on its JSON. Markdown is chosen for portability
+ * (git-diffable, exportable) and because backlinks are extracted from its link
+ * syntax — it is NOT a stepping stone to real-time collab. Yjs collab would
+ * instead need the ProseMirror JSON doc as the shared CRDT type, so this is a
+ * deliberate trade-off away from collab, not toward it.
  */
 export function KnowledgeEditor({
   value,
@@ -124,6 +127,15 @@ export function KnowledgeEditor({
   const uploadRef = useRef<(file: File) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
+
+  // onChange is debounced: serializing the whole doc to markdown on every
+  // keystroke is O(doc) and re-renders the parent form each time. Coalesce to
+  // one serialize per idle window; onBlur flushes immediately so a Save click
+  // (which blurs the editor first) never reads stale content. Routed through a
+  // ref so the latest onChange is always used without re-creating the editor.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -190,7 +202,18 @@ export function KnowledgeEditor({
       },
     },
     onUpdate: ({ editor: e }) => {
-      onChange(e.getMarkdown());
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = undefined;
+        onChangeRef.current(e.getMarkdown());
+      }, 300);
+    },
+    onBlur: ({ editor: e }) => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = undefined;
+        onChangeRef.current(e.getMarkdown());
+      }
     },
   });
 
@@ -219,6 +242,14 @@ export function KnowledgeEditor({
       if (uploadLabels) toast.error(uploadLabels.failed);
     }
   };
+
+  // Drop a pending debounced onChange on unmount so it can't fire after the
+  // editor is torn down.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   // Sync external value resets (e.g. revision restore in the same view) without
   // clobbering the cursor during normal typing.
