@@ -1,11 +1,6 @@
 "use client";
 
-import Image from "@tiptap/extension-image";
-import Placeholder from "@tiptap/extension-placeholder";
-import { TableKit } from "@tiptap/extension-table";
-import { Markdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import {
   BetweenHorizontalEnd,
   BetweenVerticalEnd,
@@ -44,6 +39,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { buildEditorExtensions } from "@/lib/knowledge-editor-extensions";
 import { cn } from "@/lib/utils";
 import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
 
@@ -161,33 +157,16 @@ export function KnowledgeEditor({
   onChangeRef.current = onChange;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // The last markdown string we emitted upward. Used to distinguish our own
+  // change (which already updated `value`) from a genuine external reset, so
+  // the sync effect below never clobbers in-flight typing — see there.
+  const lastEmittedRef = useRef(value);
+
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      // StarterKit v3 already bundles Link and Underline. Configure Link here
-      // instead of re-adding the extension (a duplicate would warn and make the
-      // openOnClick/autolink config unreliable). Underline is dropped: it has no
-      // markdown representation, so tiptap-markdown would leak raw <u> HTML.
-      StarterKit.configure({
-        link: { openOnClick: false, autolink: true },
-        underline: false,
-      }),
-      // StarterKit ships no table node — without this a pasted GFM table
-      // collapses to a run-on paragraph and the structure is lost on save.
-      // resizable is off: column pixel widths have no GFM representation, so
-      // they would silently vanish on save — don't offer a control whose state
-      // can't be persisted.
-      TableKit.configure({ table: { resizable: false } }),
-      // Inline images. Markdown serializes these as ![alt](src); src points at
-      // /api/knowledge/asset/<id> (a stable, auth-gated route), never a blob/
-      // base64, so the body stays small and portable.
-      Image.configure({ inline: false }),
-      Placeholder.configure({ placeholder: placeholder ?? "" }),
-      // First-party markdown serialize/parse, version-locked to @tiptap/core.
-      // gfm enables tables/strikethrough; bare-URL autolink is handled by
-      // StarterKit's Link (autolink: true) above, so no extra linkify here.
-      Markdown.configure({ markedOptions: { gfm: true } }),
-    ],
+    // Extension set lives in lib/knowledge-editor-extensions so the markdown
+    // round-trip test builds from the exact same config the editor runs.
+    extensions: buildEditorExtensions(placeholder ?? ""),
     content: value,
     // `content` is markdown, not HTML — without this it parses as HTML.
     contentType: "markdown",
@@ -232,14 +211,18 @@ export function KnowledgeEditor({
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         debounceRef.current = undefined;
-        onChangeRef.current(e.getMarkdown());
+        const md = e.getMarkdown();
+        lastEmittedRef.current = md;
+        onChangeRef.current(md);
       }, 300);
     },
     onBlur: ({ editor: e }) => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = undefined;
-        onChangeRef.current(e.getMarkdown());
+        const md = e.getMarkdown();
+        lastEmittedRef.current = md;
+        onChangeRef.current(md);
       }
     },
   });
@@ -282,16 +265,20 @@ export function KnowledgeEditor({
   }, []);
 
   // Sync external value resets (e.g. revision restore in the same view) without
-  // clobbering the cursor during normal typing.
+  // clobbering the cursor during normal typing. A `value` that equals what we
+  // last emitted is just our own change echoing back — ignore it. Re-parsing
+  // the live doc to compare would race: chars typed between emit and this
+  // effect would make `current` newer than `value` and trigger a setContent
+  // that discards them and jumps the cursor. Gating on lastEmittedRef means we
+  // only ever reset for a value the editor did NOT produce.
   useEffect(() => {
     if (!editor) return;
-    const current = editor.getMarkdown();
-    if (value !== current) {
-      editor.commands.setContent(value, {
-        contentType: "markdown",
-        emitUpdate: false,
-      });
-    }
+    if (value === lastEmittedRef.current) return;
+    lastEmittedRef.current = value;
+    editor.commands.setContent(value, {
+      contentType: "markdown",
+      emitUpdate: false,
+    });
   }, [value, editor]);
 
   if (!editor) return null;
