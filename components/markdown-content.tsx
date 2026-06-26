@@ -1,26 +1,8 @@
 import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
-
-// The TipTap editor can't serialize complex tables (merged cells, column
-// widths) to GFM markdown, so it embeds raw `<table>` HTML in the source.
-// rehype-raw parses that HTML; rehype-sanitize then strips anything unsafe.
-// We extend the default (GitHub) schema to keep table structure that GFM
-// markdown alone can't express: colgroup/col and the colSpan/rowSpan attrs.
-const sanitizeSchema = {
-  ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "colgroup", "col"],
-  attributes: {
-    ...defaultSchema.attributes,
-    td: [...(defaultSchema.attributes?.td ?? []), "colSpan", "rowSpan"],
-    th: [...(defaultSchema.attributes?.th ?? []), "colSpan", "rowSpan"],
-    col: ["span"],
-  },
-};
 
 /**
  * Read-only renderer for the knowledge base's markdown source. Mirrors the
@@ -40,14 +22,12 @@ export function MarkdownContent({
     <article className={cn("max-w-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        // rehype-raw parses embedded HTML (e.g. TipTap's complex tables);
-        // rehype-sanitize must run right after to neutralize XSS. rehype-slug
-        // then stamps stable heading ids for the on-page table of contents.
-        rehypePlugins={[
-          rehypeRaw,
-          [rehypeSanitize, sanitizeSchema],
-          rehypeSlug,
-        ]}
+        // The KnowledgeEditor is the sole writer and emits pure GFM markdown —
+        // never raw HTML — so no rehype-raw/rehype-sanitize is needed. react-
+        // markdown does not render embedded HTML by default and strips unsafe
+        // link protocols, so the only plugin we need is rehype-slug for stable
+        // heading ids (on-page table of contents).
+        rehypePlugins={[rehypeSlug]}
         components={{
           h1: (props) => (
             <h1
