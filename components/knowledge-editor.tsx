@@ -174,7 +174,10 @@ export function KnowledgeEditor({
       }),
       // StarterKit ships no table node — without this a pasted GFM table
       // collapses to a run-on paragraph and the structure is lost on save.
-      TableKit.configure({ table: { resizable: true } }),
+      // resizable is off: column pixel widths have no GFM representation, so
+      // they would silently vanish on save — don't offer a control whose state
+      // can't be persisted.
+      TableKit.configure({ table: { resizable: false } }),
       // Inline images. Markdown serializes these as ![alt](src); src points at
       // /api/knowledge/asset/<id> (a stable, auth-gated route), never a blob/
       // base64, so the body stays small and portable.
