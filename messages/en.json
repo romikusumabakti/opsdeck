@@ -899,6 +899,13 @@
     "linkCopied": "Link copied",
     "insertImage": "Insert image",
     "imageTooLarge": "Image is too large (max 25 MB)",
-    "imageUploadFailed": "Failed to upload image"
+    "imageUploadFailed": "Failed to upload image",
+    "imageAltEdit": "Edit alt text",
+    "imageAltPlaceholder": "Describe the image",
+    "tableAddRow": "Add row",
+    "tableDeleteRow": "Delete row",
+    "tableAddColumn": "Add column",
+    "tableDeleteColumn": "Delete column",
+    "tableDelete": "Delete table"
   }
 }
