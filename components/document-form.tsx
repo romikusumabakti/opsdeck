@@ -2,7 +2,13 @@
 
 import { Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ReactNode, useState, useTransition } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 import {
   createDocument,
@@ -81,6 +87,34 @@ export function DocumentForm({
     doc ? doc.publishedAt !== null : true
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Snapshot of the form as first rendered; edits are diffed against it to drive
+  // the unsaved-changes guard below.
+  const initialRef = useRef({
+    title: doc?.title ?? "",
+    content: doc?.content ?? "",
+    collectionId,
+    published,
+  });
+  const initial = initialRef.current;
+  const dirty =
+    title !== initial.title ||
+    content !== initial.content ||
+    collectionId !== initial.collectionId ||
+    published !== initial.published;
+
+  // Warn before a full-page unload (refresh, tab close, external nav) drops
+  // unsaved edits. Browsers ignore any custom message, so none is set. Client
+  // router navigations don't trigger this and intentionally aren't blocked.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
 
   const canSubmit = title.trim().length > 0 && collectionId && !isPending;
 
@@ -255,6 +289,12 @@ export function DocumentForm({
                 title: t("linkDocument"),
                 search: t("searchPlaceholder"),
                 empty: t("searchNoResults"),
+              }}
+              linkInputLabels={{
+                label: t("linkUrl"),
+                placeholder: t("linkUrlPlaceholder"),
+                apply: t("linkApply"),
+                remove: t("linkRemove"),
               }}
               uploadLabels={{
                 button: t("insertImage"),

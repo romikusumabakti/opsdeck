@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "@tiptap/extension-image";
-import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
@@ -18,9 +17,10 @@ import {
   List,
   ListOrdered,
   Quote,
+  Strikethrough,
   Table as TableIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Markdown } from "tiptap-markdown";
 import { Button } from "@/components/ui/button";
@@ -32,12 +32,35 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
 
 export type LinkableDoc = { title: string; slug: string };
 
 export type UploadLabels = { button: string; tooLarge: string; failed: string };
+
+export type LinkInputLabels = {
+  label: string;
+  placeholder: string;
+  apply: string;
+  remove: string;
+};
+
+// Add a protocol when the user types a bare host so the href is a valid URL
+// rather than a same-page relative path. Leave relative (/…), anchor (#…),
+// mailto:, tel: and already-schemed URLs untouched.
+function normalizeHref(raw: string): string {
+  const url = raw.trim();
+  if (url === "") return "";
+  if (/^(https?:|mailto:|tel:|\/|#)/i.test(url)) return url;
+  return `https://${url}`;
+}
 
 // tiptap-markdown adds `markdown` to editor.storage at runtime but ships no v3
 // type augmentation; read it through this narrow accessor instead of `any`.
@@ -93,11 +116,13 @@ export function KnowledgeEditor({
   placeholder,
   linkableDocs = [],
   linkLabels,
+  linkInputLabels,
   uploadLabels,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
   linkLabels?: { title: string; search: string; empty: string };
+  linkInputLabels?: LinkInputLabels;
   uploadLabels?: UploadLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
@@ -106,11 +131,19 @@ export function KnowledgeEditor({
   // need the latest upload closure — route through a ref reassigned each render.
   const uploadRef = useRef<(file: File) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      // StarterKit v3 already bundles Link and Underline. Configure Link here
+      // instead of re-adding the extension (a duplicate would warn and make the
+      // openOnClick/autolink config unreliable). Underline is dropped: it has no
+      // markdown representation, so tiptap-markdown would leak raw <u> HTML.
+      StarterKit.configure({
+        link: { openOnClick: false, autolink: true },
+        underline: false,
+      }),
       // StarterKit ships no table node — without this a pasted GFM table
       // collapses to a run-on paragraph and the structure is lost on save.
       TableKit.configure({ table: { resizable: true } }),
@@ -118,7 +151,6 @@ export function KnowledgeEditor({
       // /api/knowledge/asset/<id> (a stable, auth-gated route), never a blob/
       // base64, so the body stays small and portable.
       Image.configure({ inline: false }),
-      Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
       Markdown.configure({ transformPastedText: true, linkify: true }),
     ],
@@ -166,6 +198,8 @@ export function KnowledgeEditor({
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
 
   // Reassigned every render so it always closes over the current editor.
   uploadRef.current = async (file: File) => {
@@ -201,15 +235,29 @@ export function KnowledgeEditor({
 
   if (!editor) return null;
 
-  const setLink = () => {
-    const prev = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("URL", prev ?? "https://");
-    if (url === null) return;
-    if (url === "") {
-      editor.chain().focus().unsetLink().run();
-      return;
+  // Prefill the popover from the link under the cursor (empty for a new link).
+  const onLinkOpenChange = (open: boolean) => {
+    if (open) {
+      const prev = editor.getAttributes("link").href as string | undefined;
+      setLinkUrl(prev ?? "");
     }
-    editor.chain().focus().setLink({ href: url }).run();
+    setLinkOpen(open);
+  };
+
+  const applyLink = (e?: FormEvent) => {
+    e?.preventDefault();
+    const href = normalizeHref(linkUrl);
+    if (href === "") {
+      editor.chain().focus().unsetLink().run();
+    } else {
+      editor.chain().focus().setLink({ href }).run();
+    }
+    setLinkOpen(false);
+  };
+
+  const removeLink = () => {
+    editor.chain().focus().unsetLink().run();
+    setLinkOpen(false);
   };
 
   // Insert an internal document link as a text node carrying a link mark. The
@@ -244,6 +292,13 @@ export function KnowledgeEditor({
           label="Italic"
         >
           <Italic className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          active={editor.isActive("strike")}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          label="Strikethrough"
+        >
+          <Strikethrough className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={editor.isActive("heading", { level: 2 })}
@@ -304,13 +359,56 @@ export function KnowledgeEditor({
         >
           <TableIcon className="size-4" />
         </ToolbarButton>
-        <ToolbarButton
-          active={editor.isActive("link")}
-          onClick={setLink}
-          label="Link"
-        >
-          <Link2 className="size-4" />
-        </ToolbarButton>
+        <Popover open={linkOpen} onOpenChange={onLinkOpenChange}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant={editor.isActive("link") ? "secondary" : "ghost"}
+              aria-label={linkInputLabels?.label ?? "Link"}
+              aria-pressed={editor.isActive("link")}
+            >
+              <Link2 className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="w-80"
+            onOpenAutoFocus={(e) => {
+              // Focus the input, not the first button.
+              e.preventDefault();
+              linkInputRef.current?.focus();
+            }}
+          >
+            <form onSubmit={applyLink} className="flex flex-col gap-2">
+              <Input
+                ref={linkInputRef}
+                type="url"
+                inputMode="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder={
+                  linkInputLabels?.placeholder ?? "https://example.com"
+                }
+              />
+              <div className="flex justify-end gap-2">
+                {editor.isActive("link") && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={removeLink}
+                  >
+                    {linkInputLabels?.remove ?? "Remove"}
+                  </Button>
+                )}
+                <Button type="submit" size="sm">
+                  {linkInputLabels?.apply ?? "Apply"}
+                </Button>
+              </div>
+            </form>
+          </PopoverContent>
+        </Popover>
         <ToolbarButton
           onClick={() => fileInputRef.current?.click()}
           label={uploadLabels?.button ?? "Insert image"}
