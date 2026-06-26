@@ -301,6 +301,18 @@ export function DocumentForm({
                 tooLarge: t("imageTooLarge"),
                 failed: t("imageUploadFailed"),
               }}
+              tableLabels={{
+                addRow: t("tableAddRow"),
+                deleteRow: t("tableDeleteRow"),
+                addColumn: t("tableAddColumn"),
+                deleteColumn: t("tableDeleteColumn"),
+                deleteTable: t("tableDelete"),
+              }}
+              imageAltLabels={{
+                edit: t("imageAltEdit"),
+                placeholder: t("imageAltPlaceholder"),
+                apply: t("linkApply"),
+              }}
             />
           </div>
         </div>
