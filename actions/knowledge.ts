@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -184,7 +184,7 @@ export async function createDocument(
   }
   const { collectionId, parentId, title, content, projectId } = parsed.data;
   try {
-    const slug = await ensureUniqueSlug(collectionId, slugify(title));
+    const slug = await ensureUniqueSlug(slugify(title));
     const rank = await appendDocumentRank(collectionId, parentId ?? null);
     const created = await db.transaction(async (tx) => {
       const [doc] = await tx
@@ -227,19 +227,11 @@ export async function updateDocument(
   }
   const input = parsed.data;
   try {
-    const updated = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const existing = await tx.query.knowledgeDocuments.findFirst({
         where: { id },
       });
-      if (!existing) return null;
-
-      // Snapshot the PRIOR state before overwriting so history is complete.
-      await tx.insert(knowledgeRevisions).values({
-        documentId: id,
-        title: existing.title,
-        content: existing.content,
-        editedById: session.user.id,
-      });
+      if (!existing) return { kind: "notfound" } as const;
 
       const nextTitle = input.title ?? existing.title;
       const nextContent = input.content ?? existing.content;
@@ -248,7 +240,7 @@ export async function updateDocument(
       // Re-slug only when the title changed; keep stable URLs otherwise.
       const slug =
         input.title && input.title !== existing.title
-          ? await ensureUniqueSlug(nextCollectionId, slugify(nextTitle), id)
+          ? await ensureUniqueSlug(slugify(nextTitle), id)
           : existing.slug;
 
       const set: Partial<typeof knowledgeDocuments.$inferInsert> = {
@@ -257,6 +249,7 @@ export async function updateDocument(
         content: nextContent,
         contentText: markdownToPlainText(nextContent),
         collectionId: nextCollectionId,
+        version: existing.version + 1,
         updatedById: session.user.id,
         updatedAt: new Date(),
       };
@@ -268,22 +261,52 @@ export async function updateDocument(
           ? new Date(input.publishedAt)
           : null;
 
+      // Optimistic concurrency: when the editor sent the version it loaded,
+      // guard the write on it. A version mismatch matches zero rows — the doc
+      // moved under us — so we bail BEFORE writing the revision snapshot,
+      // leaving the transaction a no-op rather than overwriting a newer edit.
+      const guard =
+        input.expectedVersion !== undefined
+          ? and(
+              eq(knowledgeDocuments.id, id),
+              eq(knowledgeDocuments.version, input.expectedVersion)
+            )
+          : eq(knowledgeDocuments.id, id);
+
       const [doc] = await tx
         .update(knowledgeDocuments)
         .set(set)
-        .where(eq(knowledgeDocuments.id, id))
+        .where(guard)
         .returning();
+      if (!doc) return { kind: "stale" } as const;
+
+      // Snapshot the PRIOR state now that the write succeeded so history is
+      // complete and a restore is possible.
+      await tx.insert(knowledgeRevisions).values({
+        documentId: id,
+        title: existing.title,
+        content: existing.content,
+        editedById: session.user.id,
+      });
 
       if (input.content !== undefined) {
         await rebuildLinks(tx, id, nextContent);
       }
-      return doc;
+      return { kind: "ok", doc } as const;
     });
 
-    if (!updated) return { success: false, message: "Document not found" };
+    if (result.kind === "notfound") {
+      return { success: false, message: "Document not found" };
+    }
+    if (result.kind === "stale") {
+      return {
+        success: false,
+        message: "Document changed since you opened it — reload and retry",
+      };
+    }
     revalidatePath(KNOWLEDGE_PATH);
-    revalidatePath(`${KNOWLEDGE_PATH}/${updated.slug}`);
-    return { success: true, data: updated };
+    revalidatePath(`${KNOWLEDGE_PATH}/${result.doc.slug}`);
+    return { success: true, data: result.doc };
   } catch (error) {
     console.error(`Failed to update document ${id}:`, error);
     return { success: false, message: "Failed to update document" };
@@ -336,18 +359,18 @@ export async function moveDocument(
 // Breadth-first collect of every descendant id under `rootId` (exclusive).
 // Bounded by a node cap so a corrupt cycle can't loop forever.
 async function collectDescendants(tx: Tx, rootId: string): Promise<string[]> {
-  const out: string[] = [];
+  const seen = new Set<string>();
   let frontier = [rootId];
   for (let i = 0; i < 10_000 && frontier.length > 0; ) {
     const children = await tx
       .select({ id: knowledgeDocuments.id })
       .from(knowledgeDocuments)
       .where(inArray(knowledgeDocuments.parentId, frontier));
-    frontier = children.map((c) => c.id).filter((id) => !out.includes(id));
-    out.push(...frontier);
+    frontier = children.map((c) => c.id).filter((id) => !seen.has(id));
+    for (const id of frontier) seen.add(id);
     i += frontier.length;
   }
-  return out;
+  return [...seen];
 }
 
 // Walk up from `nodeId` to see whether `ancestorId` sits above it — prevents a
@@ -426,6 +449,7 @@ export async function restoreRevision(
           title: rev.title,
           content: rev.content,
           contentText: markdownToPlainText(rev.content),
+          version: existing.version + 1,
           updatedById: session.user.id,
           updatedAt: new Date(),
         })
