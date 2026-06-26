@@ -300,7 +300,11 @@ export const knowledgeDocuments = pgTable(
     // Sibling ordering within the same parent via a fractional-index rank
     // string (C-collated, see migration) — insert-between never renumbers.
     rank: text("rank").notNull(),
-    // Null = draft (author-only visibility); set on publish.
+    // Optimistic-concurrency token. Bumped on every title/content write; the
+    // update action guards on the version the editor loaded so two concurrent
+    // edits can't silently overwrite each other (the loser is told to reload).
+    version: integer("version").notNull().default(0),
+    // Null = draft (author/admin-only visibility); set on publish.
     publishedAt: timestamp("published_at"),
     // Optional link to a project so a runbook can surface in project context.
     // set null: the doc outlives the project (standalone KB is primary).
@@ -323,12 +327,10 @@ export const knowledgeDocuments = pgTable(
       t.parentId,
       t.rank
     ),
-    // Routing resolves a doc by slug within its collection; also enforces no
-    // duplicate slugs per collection.
-    uniqueIndex("knowledge_documents_collection_slug_idx").on(
-      t.collectionId,
-      t.slug
-    ),
+    // Routing resolves a doc by slug; globally unique so a `/knowledge/<slug>`
+    // link in a body resolves to exactly one document (no cross-collection
+    // ambiguity in the backlink graph).
+    uniqueIndex("knowledge_documents_slug_idx").on(t.slug),
     // FTS ranking scans the generated vector.
     index("knowledge_documents_search_idx").using("gin", t.searchVector),
     // Inbound-link / project-context lookups.
