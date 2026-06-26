@@ -139,6 +139,8 @@ export function DocumentForm({
           content,
           collectionId,
           publishedAt: published ? new Date().toISOString() : null,
+          // Optimistic-concurrency guard: reject if the doc changed since load.
+          expectedVersion: mode.document.version,
         });
         if (!res.success || !res.data) {
           toast.error(res.message ?? tCommon("errorGeneric"));
