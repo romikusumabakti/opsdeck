@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -323,17 +323,22 @@ export async function moveDocument(
   }
   const { documentId, collectionId, parentId, rank } = parsed.data;
   try {
-    // Guard against cycles: a document cannot become its own ancestor.
-    if (parentId && (await isDescendant(parentId, documentId))) {
-      return { success: false, message: "Cannot nest a document under itself" };
-    }
     await db.transaction(async (tx) => {
+      // Guard against cycles INSIDE the tx so the ancestor walk and the write
+      // see one consistent snapshot — a concurrent move can't slip a cycle
+      // through the gap between check and update.
+      if (parentId && (await isDescendant(tx, parentId, documentId))) {
+        throw new MoveCycleError();
+      }
       await tx
         .update(knowledgeDocuments)
         .set({
           parentId: parentId ?? null,
           rank,
           collectionId,
+          // Bump the optimistic-concurrency token so a move is observable to an
+          // editor holding a stale version, consistent with updateDocument.
+          version: sql`${knowledgeDocuments.version} + 1`,
           updatedAt: new Date(),
         })
         .where(eq(knowledgeDocuments.id, documentId));
@@ -351,10 +356,18 @@ export async function moveDocument(
     revalidatePath(KNOWLEDGE_PATH);
     return { success: true };
   } catch (error) {
+    if (error instanceof MoveCycleError) {
+      return { success: false, message: "Cannot nest a document under itself" };
+    }
     console.error(`Failed to move document ${documentId}:`, error);
     return { success: false, message: "Failed to move document" };
   }
 }
+
+// Thrown inside moveDocument's transaction when the requested parent sits below
+// the moved node — surfaces as a user-facing message, not a 500, while still
+// rolling the transaction back.
+class MoveCycleError extends Error {}
 
 // Breadth-first collect of every descendant id under `rootId` (exclusive).
 // Bounded by a node cap so a corrupt cycle can't loop forever.
@@ -374,16 +387,18 @@ async function collectDescendants(tx: Tx, rootId: string): Promise<string[]> {
 }
 
 // Walk up from `nodeId` to see whether `ancestorId` sits above it — prevents a
-// move that would create a parent/child cycle. Bounded by a depth cap so a
+// move that would create a parent/child cycle. Runs on the caller's tx so the
+// walk and the subsequent write share one snapshot. Bounded by a depth cap so a
 // pre-existing corrupt cycle can't spin forever.
 async function isDescendant(
+  tx: Tx,
   nodeId: string,
   ancestorId: string
 ): Promise<boolean> {
   let current: string | null = nodeId;
   for (let depth = 0; current && depth < 1000; depth++) {
     if (current === ancestorId) return true;
-    const [row]: { parentId: string | null }[] = await db
+    const [row]: { parentId: string | null }[] = await tx
       .select({ parentId: knowledgeDocuments.parentId })
       .from(knowledgeDocuments)
       .where(eq(knowledgeDocuments.id, current))
