@@ -160,10 +160,12 @@ export const documentMoveSchema = z.object({
 // the length so a pathological query can't pin the planner.
 export const knowledgeSearchSchema = z.string().trim().min(1).max(200);
 
-// Attachment upload ceiling. 25 MB is generous for screenshots/diagrams while
-// bounding the request body the upload route buffers in memory. The route also
-// magic-byte sniffs the bytes (raster only — SVG is rejected as an XSS vector).
-export const KNOWLEDGE_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
+// Attachment upload ceiling. 10 MB is generous for screenshots/diagrams while
+// bounding the request body the upload route buffers whole in memory. Originals
+// rarely need more — imgproxy downscales on read (see the GET asset route), so
+// the stored bytes are never served at full size. The route also magic-byte
+// sniffs the bytes (raster only — SVG is rejected as an XSS vector).
+export const KNOWLEDGE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
 export type DocumentInput = z.infer<typeof documentInputSchema>;
