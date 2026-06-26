@@ -87,10 +87,6 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   knowledgeAttachments: {
-    document: r.one.knowledgeDocuments({
-      from: r.knowledgeAttachments.documentId,
-      to: r.knowledgeDocuments.id,
-    }),
     uploadedBy: r.one.users({
       from: r.knowledgeAttachments.uploadedById,
       to: r.users.id,
