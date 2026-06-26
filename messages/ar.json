@@ -899,6 +899,13 @@
     "linkCopied": "تم نسخ الرابط",
     "insertImage": "إدراج صورة",
     "imageTooLarge": "الصورة كبيرة جدًا (الحد الأقصى 25 ميجابايت)",
-    "imageUploadFailed": "فشل رفع الصورة"
+    "imageUploadFailed": "فشل رفع الصورة",
+    "imageAltEdit": "تعديل النص البديل",
+    "imageAltPlaceholder": "صف الصورة",
+    "tableAddRow": "إضافة صف",
+    "tableDeleteRow": "حذف صف",
+    "tableAddColumn": "إضافة عمود",
+    "tableDeleteColumn": "حذف عمود",
+    "tableDelete": "حذف الجدول"
   }
 }

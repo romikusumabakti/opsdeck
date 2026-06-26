@@ -58,11 +58,16 @@ export function markdownToPlainText(markdown: string): string {
  * rebuilding the backlink graph.
  */
 export function extractLinkedSlugs(markdown: string): string[] {
+  // Strip fenced and inline code first so a `/knowledge/<slug>` shown as a code
+  // example isn't mistaken for a real link and counted as a backlink edge.
+  const body = markdown
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`\n]*`/g, "");
   const re = /\]\((?:\/[a-z]{2})?\/knowledge\/([a-z0-9-]+)\)/g;
   const slugs = new Set<string>();
   let m: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: standard regex iteration
-  while ((m = re.exec(markdown)) !== null) {
+  while ((m = re.exec(body)) !== null) {
     slugs.add(m[1]);
   }
   return [...slugs];

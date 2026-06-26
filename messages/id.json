@@ -899,6 +899,13 @@
     "linkCopied": "Tautan disalin",
     "insertImage": "Sisipkan gambar",
     "imageTooLarge": "Gambar terlalu besar (maks 25 MB)",
-    "imageUploadFailed": "Gagal mengunggah gambar"
+    "imageUploadFailed": "Gagal mengunggah gambar",
+    "imageAltEdit": "Edit teks alt",
+    "imageAltPlaceholder": "Deskripsikan gambar",
+    "tableAddRow": "Tambah baris",
+    "tableDeleteRow": "Hapus baris",
+    "tableAddColumn": "Tambah kolom",
+    "tableDeleteColumn": "Hapus kolom",
+    "tableDelete": "Hapus tabel"
   }
 }

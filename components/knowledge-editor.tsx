@@ -7,8 +7,11 @@ import { Markdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
+  BetweenHorizontalEnd,
+  BetweenVerticalEnd,
   Bold,
   Code,
+  Columns3,
   FileText,
   Heading2,
   Heading3,
@@ -18,8 +21,11 @@ import {
   List,
   ListOrdered,
   Quote,
+  Rows3,
   Strikethrough,
   Table as TableIcon,
+  TextCursorInput,
+  Trash2,
 } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -50,6 +56,20 @@ export type LinkInputLabels = {
   placeholder: string;
   apply: string;
   remove: string;
+};
+
+export type TableLabels = {
+  addRow: string;
+  deleteRow: string;
+  addColumn: string;
+  deleteColumn: string;
+  deleteTable: string;
+};
+
+export type ImageAltLabels = {
+  edit: string;
+  placeholder: string;
+  apply: string;
 };
 
 // Add a protocol when the user types a bare host so the href is a valid URL
@@ -113,12 +133,16 @@ export function KnowledgeEditor({
   linkLabels,
   linkInputLabels,
   uploadLabels,
+  tableLabels,
+  imageAltLabels,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
   linkLabels?: { title: string; search: string; empty: string };
   linkInputLabels?: LinkInputLabels;
   uploadLabels?: UploadLabels;
+  tableLabels?: TableLabels;
+  imageAltLabels?: ImageAltLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
 }) {
@@ -220,6 +244,9 @@ export function KnowledgeEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const [altOpen, setAltOpen] = useState(false);
+  const [altText, setAltText] = useState("");
+  const altInputRef = useRef<HTMLInputElement>(null);
 
   // Reassigned every render so it always closes over the current editor.
   uploadRef.current = async (file: File) => {
@@ -289,6 +316,21 @@ export function KnowledgeEditor({
   const removeLink = () => {
     editor.chain().focus().unsetLink().run();
     setLinkOpen(false);
+  };
+
+  // Prefill the alt popover from the selected image's current alt text.
+  const onAltOpenChange = (open: boolean) => {
+    if (open) {
+      const alt = editor.getAttributes("image").alt as string | undefined;
+      setAltText(alt ?? "");
+    }
+    setAltOpen(open);
+  };
+
+  const applyAlt = (e?: FormEvent) => {
+    e?.preventDefault();
+    editor.chain().focus().updateAttributes("image", { alt: altText }).run();
+    setAltOpen(false);
   };
 
   // Insert an internal document link as a text node carrying a link mark. The
@@ -464,6 +506,85 @@ export function KnowledgeEditor({
           >
             <FileText className="size-4" />
           </ToolbarButton>
+        )}
+        {/* Image alt-text editor — only when an image node is selected. Alt
+            text is the read-side accessibility/SEO label, so it must be
+            editable after the upload-time filename default. */}
+        {editor.isActive("image") && (
+          <Popover open={altOpen} onOpenChange={onAltOpenChange}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label={imageAltLabels?.edit ?? "Edit alt text"}
+              >
+                <TextCursorInput className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-80"
+              onOpenAutoFocus={(e) => {
+                e.preventDefault();
+                altInputRef.current?.focus();
+              }}
+            >
+              <form onSubmit={applyAlt} className="flex flex-col gap-2">
+                <Input
+                  ref={altInputRef}
+                  value={altText}
+                  onChange={(e) => setAltText(e.target.value)}
+                  placeholder={
+                    imageAltLabels?.placeholder ?? "Describe the image"
+                  }
+                />
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm">
+                    {imageAltLabels?.apply ?? "Apply"}
+                  </Button>
+                </div>
+              </form>
+            </PopoverContent>
+          </Popover>
+        )}
+        {/* Table structure controls — only when the cursor is inside a table.
+            Insert-only is not enough: pasted/created tables need row/column
+            add + delete and a way to remove the whole table. */}
+        {editor.isActive("table") && (
+          <>
+            <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+              label={tableLabels?.addRow ?? "Add row"}
+            >
+              <BetweenHorizontalEnd className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().deleteRow().run()}
+              label={tableLabels?.deleteRow ?? "Delete row"}
+            >
+              <Rows3 className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+              label={tableLabels?.addColumn ?? "Add column"}
+            >
+              <BetweenVerticalEnd className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+              label={tableLabels?.deleteColumn ?? "Delete column"}
+            >
+              <Columns3 className="size-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().deleteTable().run()}
+              label={tableLabels?.deleteTable ?? "Delete table"}
+            >
+              <Trash2 className="size-4" />
+            </ToolbarButton>
+          </>
         )}
       </div>
       <EditorContent editor={editor} />
