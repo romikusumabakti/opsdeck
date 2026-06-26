@@ -139,6 +139,9 @@ export const documentUpdateSchema = z
     projectId: z.uuid().nullish(),
     // null = unpublish (back to draft), Date = publish.
     publishedAt: z.union([z.iso.datetime({ offset: true }), z.null()]),
+    // Optimistic-concurrency token: the version the editor loaded. When present
+    // the update is rejected if the stored version moved (concurrent edit).
+    expectedVersion: z.number().int().nonnegative(),
   })
   .partial();
 
