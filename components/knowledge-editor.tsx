@@ -3,7 +3,8 @@
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { type Editor, EditorContent, useEditor } from "@tiptap/react";
+import { Markdown } from "@tiptap/markdown";
+import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
@@ -22,7 +23,6 @@ import {
 } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Markdown } from "tiptap-markdown";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -60,14 +60,6 @@ function normalizeHref(raw: string): string {
   if (url === "") return "";
   if (/^(https?:|mailto:|tel:|\/|#)/i.test(url)) return url;
   return `https://${url}`;
-}
-
-// tiptap-markdown adds `markdown` to editor.storage at runtime but ships no v3
-// type augmentation; read it through this narrow accessor instead of `any`.
-function getMarkdownSource(editor: Editor): string {
-  return (
-    editor.storage as unknown as { markdown: { getMarkdown: () => string } }
-  ).markdown.getMarkdown();
 }
 
 // Image files out of a clipboard/drag FileList. The server re-validates by
@@ -152,9 +144,14 @@ export function KnowledgeEditor({
       // base64, so the body stays small and portable.
       Image.configure({ inline: false }),
       Placeholder.configure({ placeholder: placeholder ?? "" }),
-      Markdown.configure({ transformPastedText: true, linkify: true }),
+      // First-party markdown serialize/parse, version-locked to @tiptap/core.
+      // gfm enables tables/strikethrough; bare-URL autolink is handled by
+      // StarterKit's Link (autolink: true) above, so no extra linkify here.
+      Markdown.configure({ markedOptions: { gfm: true } }),
     ],
     content: value,
+    // `content` is markdown, not HTML — without this it parses as HTML.
+    contentType: "markdown",
     editorProps: {
       attributes: {
         class: cn(
@@ -193,7 +190,7 @@ export function KnowledgeEditor({
       },
     },
     onUpdate: ({ editor: e }) => {
-      onChange(getMarkdownSource(e));
+      onChange(e.getMarkdown());
     },
   });
 
@@ -227,9 +224,12 @@ export function KnowledgeEditor({
   // clobbering the cursor during normal typing.
   useEffect(() => {
     if (!editor) return;
-    const current = getMarkdownSource(editor);
+    const current = editor.getMarkdown();
     if (value !== current) {
-      editor.commands.setContent(value, { emitUpdate: false });
+      editor.commands.setContent(value, {
+        contentType: "markdown",
+        emitUpdate: false,
+      });
     }
   }, [value, editor]);
 
