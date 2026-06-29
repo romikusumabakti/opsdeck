@@ -143,8 +143,8 @@ export async function restoreDatabaseBackup(
     projectId: project.id,
     userId: session.user.id,
     description: options.restartBackend
-      ? `Restore ${database} from ${filename} (+ restart backend)`
-      : `Restore ${database} from ${filename}`,
+      ? `Restore database ${database} from ${filename} (+ restart backend)`
+      : `Restore database ${database} from ${filename}`,
   });
   await inngest.send({
     name: "db/restore.requested",
