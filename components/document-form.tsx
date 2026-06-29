@@ -122,14 +122,15 @@ export function DocumentForm({
     if (!canSubmit) return;
     startTransition(async () => {
       if (mode.type === "create") {
-        const res = await createDocument({ collectionId, title, content });
+        const res = await createDocument({
+          collectionId,
+          title,
+          content,
+          publishedAt: published ? new Date().toISOString() : null,
+        });
         if (!res.success || !res.data) {
           toast.error(res.message ?? tCommon("errorGeneric"));
           return;
-        }
-        // Publish state on create: if left unpublished, flip it after insert.
-        if (!published) {
-          await updateDocument(res.data.id, { publishedAt: null });
         }
         toast.success(t("created"));
         router.push(`/knowledge/${res.data.slug}`);
