@@ -198,10 +198,22 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: (updater) => {
+      setColumnFilters(updater);
+      // Mirrors react-table's default autoReset behavior, which we disable
+      // below: a filter change should jump back to the first page so the user
+      // isn't stranded on a now-out-of-range page.
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+    },
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onPaginationChange: setPagination,
+    // Off because `data` arrives as a fresh reference on every parent render
+    // (useOptimistic, server re-fetch after the URL-sync router.replace). With
+    // the default `true`, each such re-render reset pageIndex to 0 — paging to
+    // page > 1 snapped straight back to page 1. Page reset on filter change is
+    // handled explicitly in onColumnFiltersChange above.
+    autoResetPageIndex: false,
     enableRowSelection: bulkActions
       ? canSelectRow
         ? (row) => canSelectRow(row.original)
