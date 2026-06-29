@@ -182,7 +182,8 @@ export async function createDocument(
   if (!parsed.success) {
     return { success: false, message: "Invalid document data" };
   }
-  const { collectionId, parentId, title, content, projectId } = parsed.data;
+  const { collectionId, parentId, title, content, projectId, publishedAt } =
+    parsed.data;
   try {
     const slug = await ensureUniqueSlug(slugify(title));
     const rank = await appendDocumentRank(collectionId, parentId ?? null);
@@ -198,6 +199,7 @@ export async function createDocument(
           contentText: markdownToPlainText(content),
           rank,
           projectId: projectId ?? null,
+          publishedAt: publishedAt ? new Date(publishedAt) : null,
           createdById: session.user.id,
           updatedById: session.user.id,
         })

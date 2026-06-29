@@ -128,6 +128,8 @@ export const documentInputSchema = z.object({
   // Markdown body. Generous ceiling — these are wiki pages, not blobs.
   content: z.string().max(500_000).default(""),
   projectId: z.uuid().nullish(),
+  // null = draft, ISO date = published. Optional; absent defaults to draft.
+  publishedAt: z.union([z.iso.datetime({ offset: true }), z.null()]).optional(),
 });
 
 export const documentUpdateSchema = z
