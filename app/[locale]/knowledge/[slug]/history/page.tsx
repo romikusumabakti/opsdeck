@@ -27,30 +27,39 @@ export default async function DocumentHistoryPage({
   ]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-      <KnowledgeBreadcrumb
-        items={[
-          { label: doc.title, href: `/knowledge/${doc.slug}` },
-          { label: t("history") },
-        ]}
-      />
-      <PageHeader
-        title={t("historyOf", { title: doc.title })}
-        subtitle={t("historyHint")}
-        action={
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Static toolbar — the content below is the scroll region, so the
+          toolbar stays put without sticky positioning. */}
+      <div className="flex shrink-0 items-center justify-between gap-4 bg-background px-4 pt-4 pb-3 sm:px-6 lg:px-8">
+        <div className="min-w-0 flex-1">
+          <KnowledgeBreadcrumb
+            items={[
+              { label: doc.title, href: `/knowledge/${doc.slug}` },
+              { label: t("history") },
+            ]}
+          />
+        </div>
+        <div className="shrink-0">
           <Button asChild variant="outline" size="sm">
             <Link href={`/knowledge/${doc.slug}`}>
               <ArrowLeft className="size-4" />
               {t("backToDocument")}
             </Link>
           </Button>
-        }
-      />
-      <KnowledgeHistoryClient
-        documentId={doc.id}
-        documentSlug={doc.slug}
-        revisions={revisions}
-      />
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pt-6 pb-6 sm:px-6 lg:px-8">
+        <PageHeader
+          title={t("historyOf", { title: doc.title })}
+          subtitle={t("historyHint")}
+        />
+        <KnowledgeHistoryClient
+          documentId={doc.id}
+          documentSlug={doc.slug}
+          revisions={revisions}
+        />
+      </div>
     </div>
   );
 }
