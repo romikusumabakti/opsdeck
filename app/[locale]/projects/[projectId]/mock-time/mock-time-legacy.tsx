@@ -209,7 +209,7 @@ export function MockTimeLegacy({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr] lg:items-start">
-        <section className="flex flex-col gap-3 rounded-md border bg-card p-4 lg:sticky lg:top-20">
+        <section className="flex flex-col gap-3 rounded-md border bg-card p-4 lg:sticky lg:top-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Clock className="size-4 text-muted-foreground" />
