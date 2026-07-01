@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
 
-// Matches the marker emitted by inngest/functions.ts after a successful dump.
+// Matches the marker emitted by lib/jobs/processor.ts after a successful dump.
 // Kept here as a single source of truth for the parser — if the marker text
 // ever changes in the worker, update both sides.
 const FILENAME_MARKER = /✓ Backup file created:\s*(.+?)\s*$/m;

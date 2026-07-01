@@ -54,14 +54,11 @@ services:
       # NEXT_PUBLIC_APP_NAME + NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN.
       RESEND_API_KEY: ${RESEND_API_KEY-}
       EMAIL_FROM: ${EMAIL_FROM-}
-      # Inngest — production self-hosted. `INNGEST_DEV=0` forces production
-      # mode (signature verification on); `INNGEST_BASE_URL` points the SDK at
-      # the self-hosted server's event API over the compose network instead of
-      # Inngest Cloud. Keys must match the `inngest` service.
-      INNGEST_DEV: "0"
-      INNGEST_BASE_URL: http://inngest:8288
-      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?INNGEST_EVENT_KEY is required}
-      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?INNGEST_SIGNING_KEY is required}
+      # Background jobs (BullMQ). The in-process worker (started via Next's
+      # instrumentation hook) and the enqueue side both connect to Valkey over
+      # the compose network. Valkey is Redis-compatible; BullMQ speaks the Redis
+      # protocol.
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
       # Object storage (Garage) for knowledge-base attachments. Endpoint is the
       # in-network S3 API; bucket + key are provisioned once via the garage CLI
       # (see README). The app reaches Garage over the compose network only.
@@ -92,6 +89,8 @@ services:
       start_period: 100s
     depends_on:
       postgres:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
       garage:
         condition: service_started
@@ -176,35 +175,8 @@ services:
       timeout: 3s
       retries: 5
 
-  inngest:
-    container_name: dss-panel-inngest
-    image: inngest/inngest
-    restart: unless-stopped
-    mem_limit: 512m
-    # `start` runs production mode: durable queue + state in external Postgres
-    # and Valkey/Redis (not in-memory like `dev`). Apps are registered via sync
-    # (see README), not the dev-only `-u` flag. INNGEST_POSTGRES_URI must point
-    # at a dedicated `inngest` database — create it once; it is separate from
-    # the app's own database.
-    command: ["inngest", "start"]
-    environment:
-      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?INNGEST_EVENT_KEY is required}
-      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?INNGEST_SIGNING_KEY is required}
-      INNGEST_POSTGRES_URI: ${INNGEST_POSTGRES_URI:?INNGEST_POSTGRES_URI is required}
-      INNGEST_REDIS_URI: redis://valkey:6379
-    ports:
-      - "8288:8288"
-    volumes:
-      - inngest_data:/var/lib/inngest
-    depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
-
 volumes:
   postgres_data:
-  inngest_data:
   valkey_data:
   garage_meta:
   garage_data:
