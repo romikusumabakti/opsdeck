@@ -19,9 +19,9 @@ all over SSH against your own infrastructure.
   object storage), breadcrumbs, and a scroll-spy table of contents.
 - **Auth & teams** — email/password via [better-auth](https://better-auth.com),
   `admin`/`member` roles, invitations, and optional email-domain whitelisting.
-- **Background jobs** — durable operations run through self-hosted
-  [Inngest](https://www.inngest.com/) (backups, restores, service control,
-  database lifecycle).
+- **Background jobs** — long-running operations run through
+  [BullMQ](https://bullmq.io/) on Valkey/Redis (backups, restores, service
+  control, database lifecycle). An in-process worker drains the queue.
 - **Internationalization** — `en`, `id`, `ar`, `zh` via `next-intl`.
 - **Email** — transactional mail via [Resend](https://resend.com) + React Email
   (optional; disabled when unconfigured).
@@ -34,7 +34,7 @@ all over SSH against your own infrastructure.
 | Language     | TypeScript 6 · Node 24                              |
 | Database     | PostgreSQL 18 · Drizzle ORM (UUIDv7 keys)           |
 | Auth         | better-auth                                         |
-| Jobs / queue | Inngest (self-hosted) · Valkey/Redis                |
+| Jobs / queue | BullMQ · Valkey/Redis                               |
 | UI           | Tailwind CSS 4 · Radix UI / shadcn · Tiptap         |
 | Tooling      | pnpm · Biome · Vitest                               |
 
@@ -59,9 +59,7 @@ admin account.
 | `DATABASE_URL`                    | yes      | App PostgreSQL connection string                 |
 | `BETTER_AUTH_URL`                 | yes      | Public base URL of the app                       |
 | `BETTER_AUTH_SECRET`              | yes      | Auth signing secret                              |
-| `INNGEST_EVENT_KEY`               | yes      | Inngest event key (must match the Inngest server)|
-| `INNGEST_SIGNING_KEY`            | yes      | Inngest signing key                              |
-| `INNGEST_BASE_URL`                | no       | Self-hosted Inngest event API (Docker setup)     |
+| `REDIS_URL`                       | no       | Valkey/Redis URL for BullMQ (worker off if unset)|
 | `NEXT_PUBLIC_APP_NAME`            | no       | Whitelabel app name (defaults to `OpsDeck`)      |
 | `NEXT_PUBLIC_COMPANY_NAME`        | no       | Whitelabel company name                          |
 | `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`| no       | Restrict sign-up to one email domain             |
@@ -84,17 +82,18 @@ admin account.
 
 ## Docker
 
-`compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, a
-self-hosted Inngest server, a Garage object store, and an imgproxy image
-server. Set the required secrets in `.env`, then:
+`compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, a Garage
+object store, and an imgproxy image server. Set the required secrets in `.env`,
+then:
 
 ```bash
 docker compose up -d --build
 ```
 
-Inngest runs in production mode and needs a dedicated `inngest` database
-(`INNGEST_POSTGRES_URI`), separate from the app's own database. App functions
-are registered via Inngest sync after the stack is up.
+Background jobs run on BullMQ against the `valkey` service (`REDIS_URL`
+defaults to `redis://valkey:6379`). The worker runs in-process inside the app
+container — started by Next's `instrumentation` hook on boot — so there is no
+separate worker service to manage.
 
 ### Object storage setup (Garage)
 
@@ -135,8 +134,7 @@ share the same values.
 actions/      Server actions (servers, databases, backups, services, tasks, knowledge, …)
 app/          Next.js App Router — [locale] pages + /api routes
 components/    UI components (shadcn / Radix-based)
-inngest/      Background job client + functions
-lib/          Core libs — db, auth, ssh, email, branding, validation
+lib/          Core libs — db, auth, ssh, email, branding, validation, queue + jobs/
 drizzle/      Migrations + generated artifacts
 messages/     i18n message catalogs (ar/en/id/zh)
 tests/        Vitest tests

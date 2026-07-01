@@ -1,8 +1,8 @@
 "use server";
 
-import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import { loadProjectWithServers } from "@/lib/projects";
+import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand, buildSqlcmdCommand } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -121,9 +121,10 @@ export async function createDatabase(
     userId: session.user.id,
     description: `Create database (${database})`,
   });
-  await inngest.send({
-    name: "db/database.create.requested",
-    data: { projectId: project.id, database, taskId },
+  await enqueue("db/database.create.requested", {
+    projectId: project.id,
+    database,
+    taskId,
   });
   return { taskId };
 }
@@ -155,9 +156,10 @@ export async function dropDatabase(
     userId: session.user.id,
     description: `Drop database (${database})`,
   });
-  await inngest.send({
-    name: "db/database.drop.requested",
-    data: { projectId: project.id, database, taskId },
+  await enqueue("db/database.drop.requested", {
+    projectId: project.id,
+    database,
+    taskId,
   });
   return { taskId };
 }
@@ -197,9 +199,11 @@ export async function renameDatabase(
     userId: session.user.id,
     description: `Rename database (${from} → ${to})`,
   });
-  await inngest.send({
-    name: "db/database.rename.requested",
-    data: { projectId: project.id, from, to, taskId },
+  await enqueue("db/database.rename.requested", {
+    projectId: project.id,
+    from,
+    to,
+    taskId,
   });
   return { taskId };
 }
