@@ -1,10 +1,10 @@
 "use server";
 
-import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type ProjectWithServers, tasks } from "@/lib/db/schema";
 import { loadProjectWithServers } from "@/lib/projects";
+import { enqueue } from "@/lib/queue";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { createTask } from "@/lib/task-progress";
 import {
@@ -353,9 +353,10 @@ export async function mockProjectTimeLegacy(
       userId: ctx.userId,
       description: `Mock time to ${mockedAt} (legacy)`,
     });
-    await inngest.send({
-      name: "project/mock-time.legacy",
-      data: { projectId: ctx.project.id, mockedAt, taskId },
+    await enqueue("project/mock-time.legacy", {
+      projectId: ctx.project.id,
+      mockedAt,
+      taskId,
     });
     return { success: true, mode: "legacy", taskId };
   } catch (error) {
@@ -463,9 +464,10 @@ export async function advanceClockLegacy(
       userId: ctx.userId,
       description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
     });
-    await inngest.send({
-      name: "project/mock-time.legacy",
-      data: { projectId: ctx.project.id, mockedAt: targetIso, taskId },
+    await enqueue("project/mock-time.legacy", {
+      projectId: ctx.project.id,
+      mockedAt: targetIso,
+      taskId,
     });
     return { success: true, mode: "legacy", taskId };
   } catch (err) {
@@ -484,9 +486,9 @@ export async function resetClockLegacy(
       userId: ctx.userId,
       description: "Reset clock to real time (legacy)",
     });
-    await inngest.send({
-      name: "project/mock-time.reset-legacy",
-      data: { projectId: ctx.project.id, taskId },
+    await enqueue("project/mock-time.reset-legacy", {
+      projectId: ctx.project.id,
+      taskId,
     });
     return { success: true, mode: "legacy", taskId };
   } catch (err) {

@@ -91,12 +91,12 @@ describe("knowledge editor markdown round-trip", () => {
     expect(twice).toBe(once);
   });
 
-  it.each(CASES)(
-    "editor output renders as expected for $name",
-    ({ md, html }) => {
-      expect(renderHtml(serialize(md))).toContain(html);
-    }
-  );
+  it.each(CASES)("editor output renders as expected for $name", ({
+    md,
+    html,
+  }) => {
+    expect(renderHtml(serialize(md))).toContain(html);
+  });
 
   it("preserves an internal link as a real backlink edge", () => {
     // The backlink extractor keys off `](/knowledge/<slug>)` — if serialize
