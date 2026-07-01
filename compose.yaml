@@ -3,10 +3,6 @@ services:
     image: postgres:18
     container_name: dss-panel-postgres
     restart: always
-    mem_limit: 1g
-    mem_reservation: 256m
-    # shared_buffers defaults to 128MB; bump via command/conf if you raise the
-    # limit. Postgres is the biggest non-app consumer under load.
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -30,15 +26,7 @@ services:
     # redirects).
     expose:
       - "3000"
-    # RAM caps. mem_limit is the kernel hard ceiling (cgroup) — enforced by
-    # `docker compose up` (unlike deploy.resources.limits, which only applies
-    # under Swarm). NODE_OPTIONS --max-old-space-size keeps V8's heap ~75% of
-    # the container limit so it GCs before the kernel OOM-kills the container
-    # (SIGKILL = no graceful shutdown). Raise both together if the app OOMs.
-    mem_limit: 1g
-    mem_reservation: 512m
     environment:
-      NODE_OPTIONS: "--max-old-space-size=768"
       # App connection string. Set explicitly in .env so passwords with special
       # characters don't break URL parsing (no string concat from POSTGRES_*).
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
@@ -101,7 +89,6 @@ services:
     image: caddy:2-alpine
     container_name: dss-panel-caddy
     restart: always
-    mem_limit: 128m
     # Public edge: reverse-proxies to the app. HTTP only (no TLS) — see Caddyfile.
     ports:
       - "80:80"
@@ -117,7 +104,6 @@ services:
     image: dxflrs/garage:v2.3.0
     container_name: dss-panel-garage
     restart: always
-    mem_limit: 512m
     # Secrets via env (not committed garage.toml). Generate once:
     #   GARAGE_RPC_SECRET=$(openssl rand -hex 32)
     #   GARAGE_ADMIN_TOKEN=$(openssl rand -base64 32)
@@ -133,9 +119,6 @@ services:
     image: ghcr.io/imgproxy/imgproxy:v4.0.6
     container_name: dss-panel-imgproxy
     restart: always
-    # imgproxy decodes images into memory — IMGPROXY_MAX_SRC_RESOLUTION /
-    # concurrency drive peak. 512m headroom for AVIF/WebP transforms.
-    mem_limit: 512m
     # Internal only — no published port. The app reaches it over the compose
     # network and is the single public surface; imgproxy is never exposed.
     environment:
@@ -163,10 +146,6 @@ services:
     image: valkey/valkey:8-alpine
     container_name: dss-panel-valkey
     restart: always
-    mem_limit: 256m
-    # Cap Valkey's own dataset below the container limit so it evicts instead of
-    # being OOM-killed.
-    command: ["valkey-server", "--maxmemory", "192mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - valkey_data:/data
     healthcheck:
