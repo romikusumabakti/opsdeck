@@ -1,8 +1,8 @@
 "use server";
 
-import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import { loadProjectWithServers } from "@/lib/projects";
+import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -112,11 +112,13 @@ export async function createDatabaseBackup(
       ? `Backup database (${database})`
       : `Backup database (${database}, uncompressed)`,
   });
-  // Send only the projectId + database — Inngest re-loads credentials
-  // server-side so they never live in the event payload / run history.
-  await inngest.send({
-    name: "db/backup.requested",
-    data: { projectId: project.id, compress, database, taskId },
+  // Enqueue only the projectId + database — the worker re-loads credentials
+  // server-side so they never live in the job payload.
+  await enqueue("db/backup.requested", {
+    projectId: project.id,
+    compress,
+    database,
+    taskId,
   });
   return { taskId };
 }
@@ -146,17 +148,14 @@ export async function restoreDatabaseBackup(
       ? `Restore database ${database} from ${filename} (+ restart backend)`
       : `Restore database ${database} from ${filename}`,
   });
-  await inngest.send({
-    name: "db/restore.requested",
-    data: {
-      projectId: project.id,
-      filename,
-      // Only forward a non-default target so the worker keeps using its trusted
-      // project.dbName when restoring the default database.
-      database: isDefault ? undefined : database,
-      restartBackend: options.restartBackend ?? false,
-      taskId,
-    },
+  await enqueue("db/restore.requested", {
+    projectId: project.id,
+    filename,
+    // Only forward a non-default target so the worker keeps using its trusted
+    // project.dbName when restoring the default database.
+    database: isDefault ? undefined : database,
+    restartBackend: options.restartBackend ?? false,
+    taskId,
   });
   return { taskId };
 }

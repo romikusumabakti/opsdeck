@@ -11,8 +11,8 @@ import type {
 /**
  * Load a project together with its three server relations — including SSH/DB
  * credentials. SERVER-ONLY: the result carries plaintext passwords and the
- * mock-time API key, so it must never be returned to a client component or an
- * Inngest event payload. Actions take a `projectId` from the client and call
+ * mock-time API key, so it must never be returned to a client component or a
+ * background-job payload. Actions take a `projectId` from the client and call
  * this to re-resolve the trusted record server-side; never trust a project
  * object sent up from the browser.
  */

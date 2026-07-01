@@ -1,9 +1,9 @@
 "use server";
 
-import { inngest } from "@/inngest/client";
 import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import { loadProjectWithServers } from "@/lib/projects";
+import { enqueue } from "@/lib/queue";
 import {
   buildStatusCommand,
   getServiceConfig,
@@ -100,14 +100,11 @@ export async function controlService(
     userId: session.user.id,
     description: `${actionLabel(parsedAction.data)} ${parsedRole.data} service (${cfg.serviceName})`,
   });
-  await inngest.send({
-    name: "service/control.requested",
-    data: {
-      projectId: project.id,
-      role: parsedRole.data,
-      action: parsedAction.data,
-      taskId,
-    },
+  await enqueue("service/control.requested", {
+    projectId: project.id,
+    role: parsedRole.data,
+    action: parsedAction.data,
+    taskId,
   });
   return { taskId };
 }

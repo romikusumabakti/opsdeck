@@ -10,7 +10,7 @@ export async function executeRemoteCommand(
   command: string
 ) {
   // Fresh client per call: a shared singleton races when concurrent callers
-  // (e.g. parallel Inngest steps, overlapping backup/restore requests) all
+  // (e.g. parallel worker jobs, overlapping backup/restore requests) all
   // connect/dispose the same instance and tear down each other's session.
   const ssh = new NodeSSH();
   try {

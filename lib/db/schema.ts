@@ -110,7 +110,7 @@ export const tasks = pgTable(
     }),
     description: text("description").notNull(),
     status: taskStatusEnum("status").notNull().default("started"),
-    // Streaming log appended by Inngest steps via appendTaskOutput. Lines are
+    // Streaming log appended by worker job steps via appendTaskOutput. Lines are
     // separated by `\n`; the SSE endpoint emits the full snapshot on each tick.
     output: text("output").notNull().default(""),
     errorMessage: text("error_message"),

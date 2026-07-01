@@ -176,7 +176,9 @@ export function ManageDatabases({
                 className="shrink-0"
                 disabled={d.isDefault || submitting}
                 onClick={() => onRename(d.name)}
-                title={d.isDefault ? t("cannotRenameDefault") : t("renameTitle")}
+                title={
+                  d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
+                }
                 aria-label={t("renameTitle")}
               >
                 <Pencil className="size-4" />
