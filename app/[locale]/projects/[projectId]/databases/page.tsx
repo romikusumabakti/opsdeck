@@ -1,5 +1,6 @@
 import { AlertTriangle, Database } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getBackupList } from "@/actions/backups";
 import { getDatabaseList } from "@/actions/databases";
 import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
@@ -27,17 +28,24 @@ export default async function Page({
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const dbResult = await getDatabaseList(project.id);
+  // Best-effort enumeration; both lists degrade gracefully so a single failing
+  // probe never blocks the page.
+  const [dbResult, backupResult] = await Promise.all([
+    getDatabaseList(project.id),
+    getBackupList(project.id),
+  ]);
   const databases = dbResult.success
     ? dbResult.data
     : [{ name: project.dbName, isDefault: true }];
   const listError = dbResult.success ? null : dbResult.error;
+  const backups = backupResult.success ? backupResult.data : [];
+  const backupListError = backupResult.success ? null : backupResult.error;
 
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      <Card className="max-w-2xl w-full">
+      <Card className="max-w-3xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Database className="size-5 text-muted-foreground" />
@@ -52,7 +60,12 @@ export default async function Page({
               <p>{listError}</p>
             </div>
           )}
-          <ManageDatabases project={project} databases={databases} />
+          <ManageDatabases
+            project={project}
+            databases={databases}
+            backups={backups}
+            backupListError={backupListError}
+          />
         </CardContent>
       </Card>
     </>

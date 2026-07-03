@@ -348,7 +348,9 @@
     "cannotRenameDefault": "无法重命名项目配置的数据库。",
     "renameTaskTitle": "重命名数据库",
     "renameQueuedTitle": "重命名已加入队列",
-    "renameQueuedDescription": "数据库 {from} 重命名为 {to} 已加入队列。"
+    "renameQueuedDescription": "数据库 {from} 重命名为 {to} 已加入队列。",
+    "backupTitle": "备份数据库",
+    "restoreSectionLabel": "从备份还原"
   },
   "mockTime": {
     "title": "模拟时间",
