@@ -29,9 +29,13 @@ function extractFilename(output: string): string | null {
 export function BackupDatabase({
   project,
   databases,
+  fixedDatabase,
 }: {
   project: SafeProjectWithServers;
   databases: DatabaseEntry[];
+  // When set (e.g. the Databases row action), this database is the fixed
+  // source and the in-panel picker is hidden.
+  fixedDatabase?: string;
 }) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
@@ -40,7 +44,9 @@ export function BackupDatabase({
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
-  const [database, setDatabase] = React.useState(project.dbName);
+  const [database, setDatabase] = React.useState(
+    fixedDatabase ?? project.dbName
+  );
   const [submitting, startTransition] = React.useTransition();
 
   const runBackup = React.useCallback(() => {
@@ -98,21 +104,23 @@ export function BackupDatabase({
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="backup-database-picker">{t("databaseLabel")}</Label>
-        <DatabasePicker
-          id="backup-database-picker"
-          databases={databases}
-          value={database}
-          onChange={setDatabase}
-          disabled={submitting}
-          defaultSuffix={t("defaultSuffix")}
-          placeholder={t("selectDatabase")}
-          searchPlaceholder={t("searchDatabase")}
-          emptyText={t("noDatabase")}
-        />
-        <p className="text-xs text-muted-foreground">{t("databaseHint")}</p>
-      </div>
+      {fixedDatabase ? null : (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="backup-database-picker">{t("databaseLabel")}</Label>
+          <DatabasePicker
+            id="backup-database-picker"
+            databases={databases}
+            value={database}
+            onChange={setDatabase}
+            disabled={submitting}
+            defaultSuffix={t("defaultSuffix")}
+            placeholder={t("selectDatabase")}
+            searchPlaceholder={t("searchDatabase")}
+            emptyText={t("noDatabase")}
+          />
+          <p className="text-xs text-muted-foreground">{t("databaseHint")}</p>
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <Checkbox
           id="backup-compress"

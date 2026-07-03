@@ -348,7 +348,9 @@
     "cannotRenameDefault": "لا يمكن إعادة تسمية قاعدة البيانات المُهيأة للمشروع.",
     "renameTaskTitle": "إعادة تسمية قاعدة البيانات",
     "renameQueuedTitle": "تم وضع إعادة التسمية في قائمة الانتظار",
-    "renameQueuedDescription": "تم وضع إعادة تسمية قاعدة البيانات {from} إلى {to} في قائمة الانتظار."
+    "renameQueuedDescription": "تم وضع إعادة تسمية قاعدة البيانات {from} إلى {to} في قائمة الانتظار.",
+    "backupTitle": "نسخ احتياطي لقاعدة البيانات",
+    "restoreSectionLabel": "الاستعادة من نسخة احتياطية"
   },
   "mockTime": {
     "title": "محاكاة الوقت",
