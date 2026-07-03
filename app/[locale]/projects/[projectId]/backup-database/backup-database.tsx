@@ -2,6 +2,7 @@
 
 import { Database, FileArchive } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
@@ -35,6 +36,7 @@ export function BackupDatabase({
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
+  const router = useRouter();
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
@@ -72,6 +74,9 @@ export function BackupDatabase({
   }
 
   function onTaskSuccess(snapshot: { output: string }) {
+    // Revalidate server data so the newly created file appears in the restore
+    // tab's picker without a manual page reload.
+    router.refresh();
     const filename = extractFilename(snapshot.output);
     if (!filename) return;
     setLastFilename(filename);
