@@ -348,7 +348,9 @@
     "cannotRenameDefault": "Database yang dikonfigurasi proyek tidak dapat diganti namanya.",
     "renameTaskTitle": "Ganti nama database",
     "renameQueuedTitle": "Penggantian nama di-queue",
-    "renameQueuedDescription": "Penggantian nama database {from} menjadi {to} sudah di-queue."
+    "renameQueuedDescription": "Penggantian nama database {from} menjadi {to} sudah di-queue.",
+    "backupTitle": "Backup database",
+    "restoreSectionLabel": "Pulihkan dari backup"
   },
   "mockTime": {
     "title": "Mock waktu",

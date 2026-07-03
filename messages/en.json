@@ -348,7 +348,9 @@
     "cannotRenameDefault": "The project's configured database cannot be renamed.",
     "renameTaskTitle": "Rename database",
     "renameQueuedTitle": "Rename queued",
-    "renameQueuedDescription": "Rename of database {from} to {to} has been queued."
+    "renameQueuedDescription": "Rename of database {from} to {to} has been queued.",
+    "backupTitle": "Back up database",
+    "restoreSectionLabel": "Restore from backup"
   },
   "mockTime": {
     "title": "Mock time",
