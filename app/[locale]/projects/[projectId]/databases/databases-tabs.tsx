@@ -11,7 +11,6 @@ import type { DatabaseEntry } from "@/actions/databases";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Project, SafeProjectWithServers } from "@/lib/db/schema";
-import { dbLocationMatches } from "@/lib/db-location";
 import type { Backup } from "@/lib/types";
 import { BackupDatabase } from "../backup-database/backup-database";
 import { RestoreDatabase } from "../restore-database/restore-database";
@@ -38,11 +37,12 @@ export function DatabasesTabs({
   const tBackup = useTranslations("backupDb");
   const tRestore = useTranslations("restoreDb");
 
-  // Other projects whose backups sit in the same reachable filesystem — the
-  // valid sources for a cross-project restore. When any exist, the restore tab
-  // stays reachable even with no local backups (a sibling may have some).
+  // Other projects of the same DB engine — the valid sources for a cross-project
+  // restore (the worker reads them in place when on the same server, otherwise
+  // stages the file across hosts). When any exist, the restore tab stays
+  // reachable even with no local backups (a source may have some).
   const sourceProjects = allProjects.filter(
-    (p) => p.id !== project.id && dbLocationMatches(p, project)
+    (p) => p.id !== project.id && p.dbType === project.dbType
   );
 
   return (

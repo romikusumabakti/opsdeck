@@ -40,6 +40,49 @@ export async function executeRemoteCommand(
   }
 }
 
+// SFTP a file OFF a remote host to a local path. Fresh client per call (same
+// rationale as executeRemoteCommand). The remote path must be readable by the
+// SSH user — callers stage container/root-owned files into an SSH-owned temp
+// first (see the restore transfer path in lib/jobs/processor).
+export async function downloadRemoteFile(
+  {
+    host,
+    username,
+    password,
+  }: { host: string; username: string; password: string },
+  remotePath: string,
+  localPath: string
+): Promise<void> {
+  const ssh = new NodeSSH();
+  try {
+    await ssh.connect({ host, username, password });
+    await ssh.getFile(localPath, remotePath);
+  } finally {
+    ssh.dispose();
+  }
+}
+
+// SFTP a local file ONTO a remote host. The destination directory must be
+// writable by the SSH user; callers land the file in a temp dir and then move
+// it into place with the correct ownership via a follow-up command.
+export async function uploadRemoteFile(
+  {
+    host,
+    username,
+    password,
+  }: { host: string; username: string; password: string },
+  localPath: string,
+  remotePath: string
+): Promise<void> {
+  const ssh = new NodeSSH();
+  try {
+    await ssh.connect({ host, username, password });
+    await ssh.putFile(localPath, remotePath);
+  } finally {
+    ssh.dispose();
+  }
+}
+
 export type SshStreamHandlers = {
   onChunk: (chunk: Buffer, source: "stdout" | "stderr") => void;
   onClose: (info: { code: number | null; signal: string | null }) => void;
