@@ -284,7 +284,8 @@
     "defaultSuffix": "(default)",
     "selectDatabase": "Pilih database…",
     "searchDatabase": "Cari database…",
-    "noDatabase": "Database tidak ditemukan."
+    "noDatabase": "Database tidak ditemukan.",
+    "advancedOptions": "Opsi lanjutan"
   },
   "restoreDb": {
     "title": "Restore database",
@@ -319,7 +320,8 @@
     "searchProject": "Cari proyek…",
     "noProject": "Proyek tidak ditemukan.",
     "loadingBackups": "Memuat backup…",
-    "confirmDescriptionCrossProject": "Restore {dbName} dari {filename} (sumber: {sourceName})? Ini akan menimpa database saat ini."
+    "confirmDescriptionCrossProject": "Restore {dbName} dari {filename} (sumber: {sourceName})? Ini akan menimpa database saat ini.",
+    "advancedOptions": "Opsi lanjutan"
   },
   "backupRestore": {
     "title": "Backup & restore",

@@ -284,7 +284,8 @@
     "defaultSuffix": "(default)",
     "selectDatabase": "Select database…",
     "searchDatabase": "Search database…",
-    "noDatabase": "No database found."
+    "noDatabase": "No database found.",
+    "advancedOptions": "Advanced options"
   },
   "restoreDb": {
     "title": "Restore database",
@@ -319,7 +320,8 @@
     "searchProject": "Search project…",
     "noProject": "No project found.",
     "loadingBackups": "Loading backups…",
-    "confirmDescriptionCrossProject": "Restore {dbName} from {filename} (source: {sourceName})? This will overwrite the current database."
+    "confirmDescriptionCrossProject": "Restore {dbName} from {filename} (source: {sourceName})? This will overwrite the current database.",
+    "advancedOptions": "Advanced options"
   },
   "backupRestore": {
     "title": "Backup & restore",
