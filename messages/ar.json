@@ -349,8 +349,9 @@
     "renameTaskTitle": "إعادة تسمية قاعدة البيانات",
     "renameQueuedTitle": "تم وضع إعادة التسمية في قائمة الانتظار",
     "renameQueuedDescription": "تم وضع إعادة تسمية قاعدة البيانات {from} إلى {to} في قائمة الانتظار.",
-    "backupTitle": "نسخ احتياطي لقاعدة البيانات",
-    "restoreSectionLabel": "الاستعادة من نسخة احتياطية"
+    "manageTab": "إدارة",
+    "backupTab": "نسخ احتياطي",
+    "restoreTab": "استعادة"
   },
   "mockTime": {
     "title": "محاكاة الوقت",

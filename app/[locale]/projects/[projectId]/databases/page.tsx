@@ -1,24 +1,20 @@
-import { AlertTriangle, Database } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getBackupList } from "@/actions/backups";
 import { getDatabaseList } from "@/actions/databases";
 import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { ManageDatabases } from "./manage-databases";
+import { Card, CardContent } from "@/components/ui/card";
+import { DatabasesTabs } from "./databases-tabs";
 
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; projectId: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { locale, projectId } = await params;
+  const { tab } = await searchParams;
   setRequestLocale(locale);
   const project = await getProjectById(projectId);
   const t = await getTranslations("databases");
@@ -29,7 +25,7 @@ export default async function Page({
   }
 
   // Best-effort enumeration; both lists degrade gracefully so a single failing
-  // probe never blocks the page.
+  // probe never blocks the page from rendering the other tabs.
   const [dbResult, backupResult] = await Promise.all([
     getDatabaseList(project.id),
     getBackupList(project.id),
@@ -41,30 +37,22 @@ export default async function Page({
   const backups = backupResult.success ? backupResult.data : [];
   const backupListError = backupResult.success ? null : backupResult.error;
 
+  const defaultTab =
+    tab === "restore" || tab === "manage" ? tab : "backup";
+
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
       <Card className="max-w-3xl w-full">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Database className="size-5 text-muted-foreground" />
-            <CardTitle className="text-base">{t("cardTitle")}</CardTitle>
-          </div>
-          <CardDescription>{t("cardDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {listError && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-              <p>{listError}</p>
-            </div>
-          )}
-          <ManageDatabases
+        <CardContent>
+          <DatabasesTabs
             project={project}
             databases={databases}
             backups={backups}
+            listError={listError}
             backupListError={backupListError}
+            defaultTab={defaultTab}
           />
         </CardContent>
       </Card>

@@ -8,5 +8,5 @@ export default async function Page({
   params: Promise<{ locale: string; projectId: string }>;
 }) {
   const { projectId } = await params;
-  await redirect(`/projects/${projectId}/databases`);
+  await redirect(`/projects/${projectId}/databases?tab=backup`);
 }

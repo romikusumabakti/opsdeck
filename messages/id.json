@@ -349,8 +349,9 @@
     "renameTaskTitle": "Ganti nama database",
     "renameQueuedTitle": "Penggantian nama di-queue",
     "renameQueuedDescription": "Penggantian nama database {from} menjadi {to} sudah di-queue.",
-    "backupTitle": "Backup database",
-    "restoreSectionLabel": "Pulihkan dari backup"
+    "manageTab": "Kelola",
+    "backupTab": "Backup",
+    "restoreTab": "Pulihkan"
   },
   "mockTime": {
     "title": "Mock waktu",
