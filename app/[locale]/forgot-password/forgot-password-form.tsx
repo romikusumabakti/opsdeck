@@ -58,8 +58,8 @@ export function ForgotPasswordForm() {
           <CircleCheck />
           <AlertDescription>{t("successMessage")}</AlertDescription>
         </Alert>
-        <Button asChild variant="outline">
-          <Link href="/sign-in">{t("backToSignIn")}</Link>
+        <Button render={<Link href="/sign-in" />} variant="outline">
+          {t("backToSignIn")}
         </Button>
       </div>
     );

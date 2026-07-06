@@ -48,25 +48,27 @@ export function DatabasePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className="w-full justify-between"
-        >
-          {selected ? (
-            <span className="truncate font-mono text-xs">
-              {selected.name}
-              {selected.isDefault ? ` ${defaultSuffix}` : ""}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
-          )}
-          <ChevronsUpDown className="opacity-50 shrink-0" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            id={id}
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className="w-full justify-between"
+          />
+        }
+      >
+        {selected ? (
+          <span className="truncate font-mono text-xs">
+            {selected.name}
+            {selected.isDefault ? ` ${defaultSuffix}` : ""}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{placeholder}</span>
+        )}
+        <ChevronsUpDown className="opacity-50 shrink-0" />
       </PopoverTrigger>
       <PopoverContent
         align="start"

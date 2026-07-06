@@ -86,17 +86,19 @@ export function DateTimePicker({
       <Field className="flex-1">
         <FieldLabel htmlFor={`${idPrefix}-date`}>{t("dateLabel")}</FieldLabel>
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              id={`${idPrefix}-date`}
-              className="w-full justify-between font-normal"
-            >
-              {date
-                ? format(date, "PPP", { locale: dateFnsLocale })
-                : t("selectDate")}
-              <ChevronDownIcon />
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="outline"
+                id={`${idPrefix}-date`}
+                className="w-full justify-between font-normal"
+              />
+            }
+          >
+            {date
+              ? format(date, "PPP", { locale: dateFnsLocale })
+              : t("selectDate")}
+            <ChevronDownIcon />
           </PopoverTrigger>
           <PopoverContent className="w-auto overflow-hidden p-0" align="start">
             <Calendar

@@ -172,19 +172,21 @@ export function DocumentForm({
         <div className="min-w-0 flex-1">{toolbarStart}</div>
         <div className="flex shrink-0 items-center gap-2">
           <Tooltip>
-            <TooltipTrigger asChild>
-              <label
-                htmlFor="doc-published"
-                className="flex cursor-pointer items-center gap-2 pe-1 text-sm"
-              >
-                <Switch
-                  id="doc-published"
-                  checked={published}
-                  onCheckedChange={setPublished}
-                />
-                {t("published")}
-              </label>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <label
+                  htmlFor="doc-published"
+                  className="flex cursor-pointer items-center gap-2 pe-1 text-sm"
+                >
+                  <Switch
+                    id="doc-published"
+                    checked={published}
+                    onCheckedChange={setPublished}
+                  />
+                  {t("published")}
+                </label>
+              }
+            />
             <TooltipContent>{t("publishedHint")}</TooltipContent>
           </Tooltip>
 
@@ -203,20 +205,22 @@ export function DocumentForm({
 
           {mode.type === "edit" && mode.canDelete && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={tCommon("more")}
-                  disabled={isPending}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={tCommon("more")}
+                    disabled={isPending}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   variant="destructive"
-                  onSelect={() => setConfirmOpen(true)}
+                  onClick={() => setConfirmOpen(true)}
                 >
                   <Trash2 className="size-4" />
                   {tCommon("delete")}
@@ -266,7 +270,10 @@ export function DocumentForm({
             </div>
             <div className="flex shrink-0 flex-col gap-1.5">
               <Label htmlFor="doc-collection">{t("collection")}</Label>
-              <Select value={collectionId} onValueChange={setCollectionId}>
+              <Select
+                value={collectionId}
+                onValueChange={(v) => setCollectionId(v ?? "")}
+              >
                 <SelectTrigger id="doc-collection">
                   <SelectValue placeholder={t("collection")} />
                 </SelectTrigger>

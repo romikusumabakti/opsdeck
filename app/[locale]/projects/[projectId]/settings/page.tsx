@@ -66,11 +66,12 @@ export default async function ProjectSettingsPage({
               <CardDescription>{t("duplicateDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild variant="outline">
-                <Link href={`/projects/new?from=${project.id}`}>
-                  <Copy className="size-4" />
-                  {t("duplicateButton")}
-                </Link>
+              <Button
+                render={<Link href={`/projects/new?from=${project.id}`} />}
+                variant="outline"
+              >
+                <Copy className="size-4" />
+                {t("duplicateButton")}
               </Button>
             </CardContent>
           </Card>

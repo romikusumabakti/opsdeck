@@ -79,13 +79,15 @@ export function AppSidebar({
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip={tApp("name")}>
-              <Link href="/">
-                <span className="size-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                  <Aperture className="size-4" />
-                </span>
-                <span className="font-semibold truncate">{tApp("name")}</span>
-              </Link>
+            <SidebarMenuButton
+              render={<Link href="/" />}
+              size="lg"
+              tooltip={tApp("name")}
+            >
+              <span className="size-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                <Aperture className="size-4" />
+              </span>
+              <span className="font-semibold truncate">{tApp("name")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -97,52 +99,44 @@ export function AppSidebar({
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  asChild
+                  render={<Link href="/" />}
                   isActive={pathname === "/"}
                   tooltip={tNav("projects")}
                 >
-                  <Link href="/">
-                    <FolderKanban />
-                    <span>{tNav("projects")}</span>
-                  </Link>
+                  <FolderKanban />
+                  <span>{tNav("projects")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  asChild
+                  render={<Link href="/knowledge" />}
                   isActive={pathname.startsWith("/knowledge")}
                   tooltip={tNav("knowledge")}
                 >
-                  <Link href="/knowledge">
-                    <BookOpen />
-                    <span>{tNav("knowledge")}</span>
-                  </Link>
+                  <BookOpen />
+                  <span>{tNav("knowledge")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {isAdmin && (
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      asChild
+                      render={<Link href="/servers" />}
                       isActive={pathname.startsWith("/servers")}
                       tooltip={tNav("servers")}
                     >
-                      <Link href="/servers">
-                        <Server />
-                        <span>{tNav("servers")}</span>
-                      </Link>
+                      <Server />
+                      <span>{tNav("servers")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      asChild
+                      render={<Link href="/users" />}
                       isActive={pathname.startsWith("/users")}
                       tooltip={tNav("users")}
                     >
-                      <Link href="/users">
-                        <Users />
-                        <span>{tNav("users")}</span>
-                      </Link>
+                      <Users />
+                      <span>{tNav("users")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>
@@ -169,14 +163,12 @@ export function AppSidebar({
                     return (
                       <SidebarMenuItem key={item.key}>
                         <SidebarMenuButton
-                          asChild
+                          render={<Link href={itemPath} />}
                           isActive={isActive}
                           tooltip={tNav(item.key)}
                         >
-                          <Link href={itemPath}>
-                            <item.icon />
-                            <span>{tNav(item.key)}</span>
-                          </Link>
+                          <item.icon />
+                          <span>{tNav(item.key)}</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );

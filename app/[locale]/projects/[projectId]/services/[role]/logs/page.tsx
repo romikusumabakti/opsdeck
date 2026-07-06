@@ -108,11 +108,12 @@ export default async function Page({
         title={t("logs.title", { target })}
         subtitle={t("logs.pageSubtitle", { serviceName, serverName })}
         action={
-          <Button asChild variant="outline">
-            <Link href={`/projects/${projectId}/services`}>
-              <ArrowLeft className="size-4" />
-              {t("logs.backToServices")}
-            </Link>
+          <Button
+            render={<Link href={`/projects/${projectId}/services`} />}
+            variant="outline"
+          >
+            <ArrowLeft className="size-4" />
+            {t("logs.backToServices")}
           </Button>
         }
       />

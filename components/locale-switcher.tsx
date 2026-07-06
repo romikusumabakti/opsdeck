@@ -30,15 +30,17 @@ export function LocaleSwitcher() {
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={t("ariaLabel")}
-          disabled={pending}
-        >
-          <Languages className="size-4" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t("ariaLabel")}
+            disabled={pending}
+          />
+        }
+      >
+        <Languages className="size-4" />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-44 p-1">
         {locales.map((locale) => (

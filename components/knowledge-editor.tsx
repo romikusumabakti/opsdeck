@@ -423,25 +423,24 @@ export function KnowledgeEditor({
           <TableIcon className="size-4" />
         </ToolbarButton>
         <Popover open={linkOpen} onOpenChange={onLinkOpenChange}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant={editor.isActive("link") ? "secondary" : "ghost"}
-              aria-label={linkInputLabels?.label ?? "Link"}
-              aria-pressed={editor.isActive("link")}
-            >
-              <Link2 className="size-4" />
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                size="icon-sm"
+                variant={editor.isActive("link") ? "secondary" : "ghost"}
+                aria-label={linkInputLabels?.label ?? "Link"}
+                aria-pressed={editor.isActive("link")}
+              />
+            }
+          >
+            <Link2 className="size-4" />
           </PopoverTrigger>
           <PopoverContent
             align="start"
             className="w-80"
-            onOpenAutoFocus={(e) => {
-              // Focus the input, not the first button.
-              e.preventDefault();
-              linkInputRef.current?.focus();
-            }}
+            // Focus the input, not the first button.
+            initialFocus={linkInputRef}
           >
             <form onSubmit={applyLink} className="flex flex-col gap-2">
               <Input
@@ -502,23 +501,22 @@ export function KnowledgeEditor({
             editable after the upload-time filename default. */}
         {editor.isActive("image") && (
           <Popover open={altOpen} onOpenChange={onAltOpenChange}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                aria-label={imageAltLabels?.edit ?? "Edit alt text"}
-              >
-                <TextCursorInput className="size-4" />
-              </Button>
+            <PopoverTrigger
+              render={
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={imageAltLabels?.edit ?? "Edit alt text"}
+                />
+              }
+            >
+              <TextCursorInput className="size-4" />
             </PopoverTrigger>
             <PopoverContent
               align="start"
               className="w-80"
-              onOpenAutoFocus={(e) => {
-                e.preventDefault();
-                altInputRef.current?.focus();
-              }}
+              initialFocus={altInputRef}
             >
               <form onSubmit={applyAlt} className="flex flex-col gap-2">
                 <Input
