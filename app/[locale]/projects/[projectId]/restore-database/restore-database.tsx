@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown, RotateCcw } from "lucide-react";
+import { Check, ChevronDown, ChevronsUpDown, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -56,6 +56,9 @@ export function RestoreDatabase({
   // compatible siblings exist) can switch it. Switching re-fetches the chosen
   // project's backup list and clears the selected file.
   const [sourceOpen, setSourceOpen] = React.useState(false);
+  // Advanced controls (restore into a non-default DB, or from another project)
+  // stay hidden until opened so the common path is a single backup + Restore.
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [sourceProjectId, setSourceProjectId] = React.useState(project.id);
   const [sourceBackups, setSourceBackups] = React.useState<Backup[]>(backups);
   const [loadingBackups, setLoadingBackups] = React.useState(false);
@@ -159,108 +162,126 @@ export function RestoreDatabase({
 
   return (
     <div className="flex flex-col gap-3">
-      {sourceProjects.length > 0 && (
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((v) => !v)}
+        aria-expanded={advancedOpen}
+        className="flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronDown
+          className={cn(
+            "size-4 transition-transform",
+            advancedOpen && "rotate-180"
+          )}
+        />
+        {t("advancedOptions")}
+      </button>
+      {advancedOpen && (
         <>
-          <Label htmlFor="restore-source-picker">
-            {t("sourceProjectLabel")}
-          </Label>
-          <Popover open={sourceOpen} onOpenChange={setSourceOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                id="restore-source-picker"
-                variant="outline"
-                role="combobox"
-                aria-expanded={sourceOpen}
-                disabled={submitting}
-                className="justify-between"
-              >
-                <span className="truncate">
-                  {sourceName}
-                  {!isCrossProject && (
-                    <span className="text-muted-foreground">
-                      {" "}
-                      {t("sourceSelfSuffix")}
-                    </span>
-                  )}
-                </span>
-                <ChevronsUpDown className="opacity-50 shrink-0" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              className="w-[var(--radix-popper-anchor-width)] p-0"
-            >
-              <Command>
-                <CommandInput
-                  placeholder={t("searchProject")}
-                  className="h-9"
-                />
-                <CommandList>
-                  <CommandEmpty>{t("noProject")}</CommandEmpty>
-                  <CommandGroup>
-                    {[
-                      { id: project.id, name: project.name, self: true },
-                      ...sourceProjects.map((p) => ({
-                        id: p.id,
-                        name: p.name,
-                        self: false,
-                      })),
-                    ].map((p) => (
-                      <CommandItem
-                        key={p.id}
-                        value={`${p.name} ${p.id}`}
-                        onSelect={() => {
-                          onSourceChange(p.id);
-                          requestAnimationFrame(() => setSourceOpen(false));
-                        }}
-                      >
-                        <span className="truncate">
-                          {p.name}
-                          {p.self && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              {t("sourceSelfSuffix")}
-                            </span>
-                          )}
+          {sourceProjects.length > 0 && (
+            <>
+              <Label htmlFor="restore-source-picker">
+                {t("sourceProjectLabel")}
+              </Label>
+              <Popover open={sourceOpen} onOpenChange={setSourceOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="restore-source-picker"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={sourceOpen}
+                    disabled={submitting}
+                    className="justify-between"
+                  >
+                    <span className="truncate">
+                      {sourceName}
+                      {!isCrossProject && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          {t("sourceSelfSuffix")}
                         </span>
-                        <Check
-                          className={cn(
-                            "ml-auto",
-                            sourceProjectId === p.id
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+                      )}
+                    </span>
+                    <ChevronsUpDown className="opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-[var(--radix-popper-anchor-width)] p-0"
+                >
+                  <Command>
+                    <CommandInput
+                      placeholder={t("searchProject")}
+                      className="h-9"
+                    />
+                    <CommandList>
+                      <CommandEmpty>{t("noProject")}</CommandEmpty>
+                      <CommandGroup>
+                        {[
+                          { id: project.id, name: project.name, self: true },
+                          ...sourceProjects.map((p) => ({
+                            id: p.id,
+                            name: p.name,
+                            self: false,
+                          })),
+                        ].map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={`${p.name} ${p.id}`}
+                            onSelect={() => {
+                              onSourceChange(p.id);
+                              requestAnimationFrame(() => setSourceOpen(false));
+                            }}
+                          >
+                            <span className="truncate">
+                              {p.name}
+                              {p.self && (
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  {t("sourceSelfSuffix")}
+                                </span>
+                              )}
+                            </span>
+                            <Check
+                              className={cn(
+                                "ml-auto",
+                                sourceProjectId === p.id
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                {t("sourceProjectHint")}
+              </p>
+            </>
+          )}
+          <Label htmlFor="restore-database-picker">
+            {t("targetDatabaseLabel")}
+          </Label>
+          <DatabasePicker
+            id="restore-database-picker"
+            databases={databases}
+            value={database}
+            onChange={onDatabaseChange}
+            disabled={submitting}
+            defaultSuffix={t("defaultSuffix")}
+            placeholder={t("selectDatabase")}
+            searchPlaceholder={t("searchDatabase")}
+            emptyText={t("noDatabase")}
+          />
           <p className="text-xs text-muted-foreground">
-            {t("sourceProjectHint")}
+            {t("targetDatabaseHint")}
           </p>
         </>
       )}
-      <Label htmlFor="restore-database-picker">
-        {t("targetDatabaseLabel")}
-      </Label>
-      <DatabasePicker
-        id="restore-database-picker"
-        databases={databases}
-        value={database}
-        onChange={onDatabaseChange}
-        disabled={submitting}
-        defaultSuffix={t("defaultSuffix")}
-        placeholder={t("selectDatabase")}
-        searchPlaceholder={t("searchDatabase")}
-        emptyText={t("noDatabase")}
-      />
-      <p className="text-xs text-muted-foreground">{t("targetDatabaseHint")}</p>
-      <Label htmlFor="restore-backup-picker" className="mt-1">
-        {t("selectBackupLabel")}
-      </Label>
+      <Label htmlFor="restore-backup-picker">{t("selectBackupLabel")}</Label>
       <div className="flex flex-col sm:flex-row gap-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>

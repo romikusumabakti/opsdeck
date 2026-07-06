@@ -284,7 +284,8 @@
     "defaultSuffix": "(افتراضية)",
     "selectDatabase": "اختر قاعدة بيانات…",
     "searchDatabase": "ابحث عن قاعدة بيانات…",
-    "noDatabase": "لم يتم العثور على قاعدة بيانات."
+    "noDatabase": "لم يتم العثور على قاعدة بيانات.",
+    "advancedOptions": "خيارات متقدمة"
   },
   "restoreDb": {
     "title": "استعادة قاعدة البيانات",
@@ -319,7 +320,8 @@
     "searchProject": "ابحث عن مشروع…",
     "noProject": "لم يتم العثور على مشروع.",
     "loadingBackups": "جارٍ تحميل النسخ الاحتياطية…",
-    "confirmDescriptionCrossProject": "استعادة {dbName} من {filename} (المصدر: {sourceName})؟ سيؤدي هذا إلى الكتابة فوق قاعدة البيانات الحالية."
+    "confirmDescriptionCrossProject": "استعادة {dbName} من {filename} (المصدر: {sourceName})؟ سيؤدي هذا إلى الكتابة فوق قاعدة البيانات الحالية.",
+    "advancedOptions": "خيارات متقدمة"
   },
   "backupRestore": {
     "title": "النسخ الاحتياطي والاستعادة",
