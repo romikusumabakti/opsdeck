@@ -1,11 +1,15 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
+import {
+  getServerSession,
+  requireAdmin,
+  requireSession,
+} from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
-import { type Project, projects } from "@/lib/db/schema";
+import { type Project, projectAccess, projects } from "@/lib/db/schema";
 import { loadSafeProject } from "@/lib/projects";
 import {
   projectIdSchema,
@@ -24,12 +28,49 @@ type ActionResponse = {
  * picker, sidebar, etc. where only id+name matters).
  */
 export async function getProjects(): Promise<Project[]> {
-  await requireSession();
+  const session = await requireSession();
   try {
-    return await db.select().from(projects).orderBy(projects.id);
+    // Order by the caller's recency (most-recently-opened first), falling back
+    // to name for projects they've never opened. `nulls last` keeps unvisited
+    // projects below visited ones instead of Postgres' default nulls-first.
+    return await db
+      .select(getTableColumns(projects))
+      .from(projects)
+      .leftJoin(
+        projectAccess,
+        and(
+          eq(projectAccess.projectId, projects.id),
+          eq(projectAccess.userId, session.user.id)
+        )
+      )
+      .orderBy(
+        sql`${projectAccess.lastAccessedAt} desc nulls last`,
+        asc(projects.name)
+      );
   } catch (error) {
     console.error("Failed to fetch projects:", error);
     return [];
+  }
+}
+
+/**
+ * Record that the current user just opened a project, bumping its recency so
+ * the header switcher surfaces it first next time. Fire-and-forget: any failure
+ * is logged, never thrown, so it can't break a project page render.
+ */
+export async function recordProjectAccess(projectId: string): Promise<void> {
+  const session = await getServerSession();
+  if (!session) return;
+  try {
+    await db
+      .insert(projectAccess)
+      .values({ userId: session.user.id, projectId })
+      .onConflictDoUpdate({
+        target: [projectAccess.userId, projectAccess.projectId],
+        set: { lastAccessedAt: sql`now()` },
+      });
+  } catch (error) {
+    console.error("Failed to record project access:", error);
   }
 }
 

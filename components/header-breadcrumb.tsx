@@ -301,7 +301,9 @@ function ProjectSwitcher({
                     <span className="size-5 rounded bg-primary/10 text-primary flex items-center justify-center text-[10px] font-semibold shrink-0">
                       {project.name.charAt(0).toUpperCase()}
                     </span>
-                    <span className="truncate">{project.name}</span>
+                    <span className="flex-1 min-w-0 truncate">
+                      {project.name}
+                    </span>
                     <Check
                       className={cn(
                         "ms-auto size-4 shrink-0",
