@@ -284,7 +284,8 @@
     "defaultSuffix": "（默认）",
     "selectDatabase": "选择数据库…",
     "searchDatabase": "搜索数据库…",
-    "noDatabase": "未找到数据库。"
+    "noDatabase": "未找到数据库。",
+    "advancedOptions": "高级选项"
   },
   "restoreDb": {
     "title": "还原数据库",
@@ -319,7 +320,8 @@
     "searchProject": "搜索项目…",
     "noProject": "未找到项目。",
     "loadingBackups": "正在加载备份…",
-    "confirmDescriptionCrossProject": "从 {filename} 还原 {dbName}（来源：{sourceName}）？这将覆盖当前数据库。"
+    "confirmDescriptionCrossProject": "从 {filename} 还原 {dbName}（来源：{sourceName}）？这将覆盖当前数据库。",
+    "advancedOptions": "高级选项"
   },
   "backupRestore": {
     "title": "备份与还原",

@@ -1,8 +1,8 @@
 "use client";
 
-import { Database, FileArchive } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { ChevronDown, Database, FileArchive } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { createDatabaseBackup } from "@/actions/backups";
@@ -11,10 +11,12 @@ import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 
 // Matches the marker emitted by lib/jobs/processor.ts after a successful dump.
 // Kept here as a single source of truth for the parser — if the marker text
@@ -39,11 +41,15 @@ export function BackupDatabase({
 }) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
+  const tDash = useTranslations("dashboard");
   const dialog = useDialog();
   const router = useRouter();
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
+  // Database target + compression stay hidden until opened so the common path
+  // is a single "Backup" click on the default DB.
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [database, setDatabase] = React.useState(
     fixedDatabase ?? project.dbName
   );
@@ -102,45 +108,110 @@ export function BackupDatabase({
     });
   }
 
+  const compressField = (
+    <div className="flex items-start gap-2">
+      <Checkbox
+        id="backup-compress"
+        checked={compress}
+        onCheckedChange={(checked) => setCompress(checked === true)}
+        disabled={submitting}
+        className="mt-0.5"
+      />
+      <Label
+        htmlFor="backup-compress"
+        className="text-sm font-normal cursor-pointer"
+      >
+        <span className="flex flex-col gap-0.5">
+          <span>{t("compressLabel")}</span>
+          <span className="text-xs text-muted-foreground">
+            {t("compressHint")}
+          </span>
+        </span>
+      </Label>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-4 w-full">
-      {fixedDatabase ? null : (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="backup-database-picker">{t("databaseLabel")}</Label>
-          <DatabasePicker
-            id="backup-database-picker"
-            databases={databases}
-            value={database}
-            onChange={setDatabase}
-            disabled={submitting}
-            defaultSuffix={t("defaultSuffix")}
-            placeholder={t("selectDatabase")}
-            searchPlaceholder={t("searchDatabase")}
-            emptyText={t("noDatabase")}
-          />
-          <p className="text-xs text-muted-foreground">{t("databaseHint")}</p>
-        </div>
+      {fixedDatabase ? (
+        compressField
+      ) : (
+        <>
+          {/* Compact labelled context. The target DB is dropped once Advanced
+              is open, where the picker surfaces and edits it. */}
+          <dl className="flex flex-wrap gap-x-8 gap-y-3 rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                {tDash("dbType")}
+              </dt>
+              <dd>
+                <Badge variant="secondary">
+                  {tDash(`dbTypes.${project.dbType}`)}
+                </Badge>
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                {tDash("server")}
+              </dt>
+              <dd className="truncate">{project.dbServer.name}</dd>
+            </div>
+            {!advancedOpen && (
+              <div className="flex flex-col gap-1">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {t("databaseLabel")}
+                </dt>
+                <dd className="flex items-center gap-2">
+                  <code className="font-mono text-sm">{database}</code>
+                  {database === project.dbName && (
+                    <span className="text-xs text-muted-foreground">
+                      {t("defaultSuffix")}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            )}
+          </dl>
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform",
+                advancedOpen && "rotate-180"
+              )}
+            />
+            {t("advancedOptions")}
+          </button>
+          {advancedOpen && (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="backup-database-picker">
+                  {t("databaseLabel")}
+                </Label>
+                <DatabasePicker
+                  id="backup-database-picker"
+                  databases={databases}
+                  value={database}
+                  onChange={setDatabase}
+                  disabled={submitting}
+                  defaultSuffix={t("defaultSuffix")}
+                  placeholder={t("selectDatabase")}
+                  searchPlaceholder={t("searchDatabase")}
+                  emptyText={t("noDatabase")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("databaseHint")}
+                </p>
+              </div>
+              {compressField}
+            </>
+          )}
+        </>
       )}
-      <div className="flex items-start gap-2">
-        <Checkbox
-          id="backup-compress"
-          checked={compress}
-          onCheckedChange={(checked) => setCompress(checked === true)}
-          disabled={submitting}
-          className="mt-0.5"
-        />
-        <Label
-          htmlFor="backup-compress"
-          className="text-sm font-normal cursor-pointer"
-        >
-          <span className="flex flex-col gap-0.5">
-            <span>{t("compressLabel")}</span>
-            <span className="text-xs text-muted-foreground">
-              {t("compressHint")}
-            </span>
-          </span>
-        </Label>
-      </div>
       <div className="flex justify-end">
         <Button onClick={onClick} disabled={submitting}>
           <Database className="size-4" />

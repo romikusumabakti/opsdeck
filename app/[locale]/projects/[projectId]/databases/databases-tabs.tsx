@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { DatabaseEntry } from "@/actions/databases";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Project, SafeProjectWithServers } from "@/lib/db/schema";
@@ -38,7 +37,6 @@ export function DatabasesTabs({
   const t = useTranslations("databases");
   const tBackup = useTranslations("backupDb");
   const tRestore = useTranslations("restoreDb");
-  const tDash = useTranslations("dashboard");
 
   // Other projects whose backups sit in the same reachable filesystem — the
   // valid sources for a cross-project restore. When any exist, the restore tab
@@ -68,32 +66,6 @@ export function DatabasesTabs({
         <p className="text-sm text-muted-foreground">
           {tBackup("targetDescription")}
         </p>
-        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm rounded-md border bg-muted/30 p-3">
-          <div className="flex flex-col gap-1">
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              {tDash("dbType")}
-            </dt>
-            <dd>
-              <Badge variant="secondary">
-                {tDash(`dbTypes.${project.dbType}`)}
-              </Badge>
-            </dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              {tDash("dbName")}
-            </dt>
-            <dd>
-              <code className="font-mono text-sm">{project.dbName}</code>
-            </dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              {tDash("server")}
-            </dt>
-            <dd className="truncate">{project.dbServer.name}</dd>
-          </div>
-        </dl>
         <BackupDatabase project={project} databases={databases} />
         <p className="text-xs text-muted-foreground">{tBackup("infoNote")}</p>
       </TabsContent>
