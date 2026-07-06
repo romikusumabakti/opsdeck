@@ -22,26 +22,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Project } from "@/lib/db/schema";
 
-type SortKey = "recent" | "name_asc" | "name_desc";
+export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
 export function ProjectsGrid({
   projects,
   lastActivity,
+  lastOpened,
+  initialSort,
 }: {
   projects: Project[];
   lastActivity: Record<string, ProjectActivity | null>;
+  lastOpened: Record<string, number>;
+  initialSort: SortKey;
 }) {
   const t = useTranslations("home");
   const tDash = useTranslations("dashboard");
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState<SortKey>("recent");
+  const [sort, setSort] = React.useState<SortKey>(initialSort);
+
+  // Persist the sort in the URL (?sort=) so it survives reload, back/forward,
+  // and is shareable. `recent` is the default, so keep it out of the URL to
+  // leave the canonical /projects link clean.
+  function changeSort(next: SortKey) {
+    setSort(next);
+    router.replace(
+      next === "recent" ? pathname : { pathname, query: { sort: next } }
+    );
+  }
 
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -56,8 +72,11 @@ export function ProjectsGrid({
       const a = lastActivity[id];
       return a ? new Date(a.runAt).getTime() : 0;
     };
+    const openedAt = (id: string) => lastOpened[id] ?? 0;
     return [...filtered].sort((a, b) => {
       switch (sort) {
+        case "opened":
+          return openedAt(b.id) - openedAt(a.id);
         case "name_asc":
           return a.name.localeCompare(b.name);
         case "name_desc":
@@ -66,7 +85,7 @@ export function ProjectsGrid({
           return runAt(b.id) - runAt(a.id);
       }
     });
-  }, [projects, lastActivity, query, sort]);
+  }, [projects, lastActivity, lastOpened, query, sort]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,7 +100,7 @@ export function ProjectsGrid({
             aria-label={t("searchPlaceholder")}
           />
         </div>
-        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+        <Select value={sort} onValueChange={(v) => changeSort(v as SortKey)}>
           <SelectTrigger
             className="sm:ms-auto sm:w-56"
             aria-label={t("sortLabel")}
@@ -90,6 +109,7 @@ export function ProjectsGrid({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="recent">{t("sortRecent")}</SelectItem>
+            <SelectItem value="opened">{t("sortOpened")}</SelectItem>
             <SelectItem value="name_asc">{t("sortNameAsc")}</SelectItem>
             <SelectItem value="name_desc">{t("sortNameDesc")}</SelectItem>
           </SelectContent>
