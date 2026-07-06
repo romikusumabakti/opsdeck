@@ -91,26 +91,28 @@ export function UserMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {variant === "sidebar" ? (
-          <SidebarUserTrigger
-            user={user}
-            initials={initials}
-            label={t("ariaLabel")}
-          />
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            aria-label={t("ariaLabel")}
-          >
-            <span className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
-              {initials}
-            </span>
-          </Button>
-        )}
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          variant === "sidebar" ? (
+            <SidebarUserTrigger
+              user={user}
+              initials={initials}
+              label={t("ariaLabel")}
+            />
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label={t("ariaLabel")}
+            >
+              <span className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
+                {initials}
+              </span>
+            </Button>
+          )
+        }
+      />
       <DropdownMenuContent
         align="end"
         side={variant === "sidebar" ? "right" : "bottom"}

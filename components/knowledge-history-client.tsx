@@ -83,15 +83,17 @@ export function KnowledgeHistoryClient({
                 </span>
               </div>
               <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={isPending}>
-                    {isPending && restoringId === rev.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <RotateCcw className="size-4" />
-                    )}
-                    {t("restore")}
-                  </Button>
+                <AlertDialogTrigger
+                  render={
+                    <Button variant="outline" size="sm" disabled={isPending} />
+                  }
+                >
+                  {isPending && restoringId === rev.id ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="size-4" />
+                  )}
+                  {t("restore")}
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>

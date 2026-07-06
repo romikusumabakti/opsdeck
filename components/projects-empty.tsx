@@ -15,8 +15,8 @@ export async function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
         description={t("description")}
         action={
           canCreate ? (
-            <Button asChild>
-              <Link href="/projects/new">{t("create")}</Link>
+            <Button render={<Link href="/projects/new" />}>
+              {t("create")}
             </Button>
           ) : undefined
         }

@@ -184,26 +184,28 @@ export function RestoreDatabase({
                 {t("sourceProjectLabel")}
               </Label>
               <Popover open={sourceOpen} onOpenChange={setSourceOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="restore-source-picker"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={sourceOpen}
-                    disabled={submitting}
-                    className="justify-between"
-                  >
-                    <span className="truncate">
-                      {sourceName}
-                      {!isCrossProject && (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          {t("sourceSelfSuffix")}
-                        </span>
-                      )}
-                    </span>
-                    <ChevronsUpDown className="opacity-50 shrink-0" />
-                  </Button>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      id="restore-source-picker"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={sourceOpen}
+                      disabled={submitting}
+                      className="justify-between"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    {sourceName}
+                    {!isCrossProject && (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        {t("sourceSelfSuffix")}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronsUpDown className="opacity-50 shrink-0" />
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
@@ -284,30 +286,28 @@ export function RestoreDatabase({
       <Label htmlFor="restore-backup-picker">{t("selectBackupLabel")}</Label>
       <div className="flex flex-col sm:flex-row gap-2">
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              id="restore-backup-picker"
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              disabled={submitting || loadingBackups}
-              className="flex-1 justify-between"
-            >
-              {loadingBackups ? (
-                <span className="text-muted-foreground">
-                  {t("loadingBackups")}
-                </span>
-              ) : backup ? (
-                <span className="truncate font-mono text-xs">
-                  {backup.name}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">
-                  {t("selectBackup")}
-                </span>
-              )}
-              <ChevronsUpDown className="opacity-50 shrink-0" />
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                id="restore-backup-picker"
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                disabled={submitting || loadingBackups}
+                className="flex-1 justify-between"
+              />
+            }
+          >
+            {loadingBackups ? (
+              <span className="text-muted-foreground">
+                {t("loadingBackups")}
+              </span>
+            ) : backup ? (
+              <span className="truncate font-mono text-xs">{backup.name}</span>
+            ) : (
+              <span className="text-muted-foreground">{t("selectBackup")}</span>
+            )}
+            <ChevronsUpDown className="opacity-50 shrink-0" />
           </PopoverTrigger>
           <PopoverContent
             align="start"

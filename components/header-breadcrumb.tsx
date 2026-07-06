@@ -260,19 +260,21 @@ function ProjectSwitcher({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          role="combobox"
-          aria-expanded={open}
-          className="gap-1.5 h-8 px-2 font-medium"
-        >
-          <span className="truncate max-w-[140px] sm:max-w-[240px]">
-            {activeProject.name}
-          </span>
-          <ChevronDown className="size-3.5 opacity-60 shrink-0" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            role="combobox"
+            aria-expanded={open}
+            className="gap-1.5 h-8 px-2 font-medium"
+          />
+        }
+      >
+        <span className="truncate max-w-[140px] sm:max-w-[240px]">
+          {activeProject.name}
+        </span>
+        <ChevronDown className="size-3.5 opacity-60 shrink-0" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-0">
         <Command>

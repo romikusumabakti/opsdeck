@@ -38,11 +38,9 @@ export default async function KnowledgeHome({
       title={t("landingTitle")}
       description={t("landingHint")}
       action={
-        <Button asChild>
-          <Link href="/knowledge/new">
-            <Plus className="size-4" />
-            {t("newDocument")}
-          </Link>
+        <Button render={<Link href="/knowledge/new" />}>
+          <Plus className="size-4" />
+          {t("newDocument")}
         </Button>
       }
     />

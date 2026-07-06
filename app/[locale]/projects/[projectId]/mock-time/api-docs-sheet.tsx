@@ -19,11 +19,9 @@ export function ApiDocsSheet({ content }: { content: string }) {
 
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm">
-          <BookOpen className="size-4" />
-          {t("button")}
-        </Button>
+      <SheetTrigger render={<Button variant="outline" size="sm" />}>
+        <BookOpen className="size-4" />
+        {t("button")}
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader className="border-b">

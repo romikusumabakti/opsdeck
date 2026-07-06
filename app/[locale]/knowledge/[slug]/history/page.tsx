@@ -40,11 +40,13 @@ export default async function DocumentHistoryPage({
           />
         </div>
         <div className="shrink-0">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/knowledge/${doc.slug}`}>
-              <ArrowLeft className="size-4" />
-              {t("backToDocument")}
-            </Link>
+          <Button
+            render={<Link href={`/knowledge/${doc.slug}`} />}
+            variant="outline"
+            size="sm"
+          >
+            <ArrowLeft className="size-4" />
+            {t("backToDocument")}
           </Button>
         </div>
       </div>
