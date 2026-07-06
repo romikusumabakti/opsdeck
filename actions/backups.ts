@@ -1,6 +1,7 @@
 "use server";
 
 import { requireSession } from "@/lib/auth-session";
+import { dbLocationMatches } from "@/lib/db-location";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand } from "@/lib/services";
@@ -125,7 +126,12 @@ export async function createDatabaseBackup(
 
 export async function restoreDatabaseBackup(
   projectId: string,
-  options: { filename: string; restartBackend?: boolean; database?: string }
+  options: {
+    filename: string;
+    restartBackend?: boolean;
+    database?: string;
+    sourceProjectId?: string;
+  }
 ): Promise<{ taskId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
@@ -139,6 +145,25 @@ export async function restoreDatabaseBackup(
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error("Project not found");
   const database = resolveTargetDatabase(project, options.database);
+
+  // Resolve an optional cross-project source. A source equal to (or omitting)
+  // the target reads the backup from the target's own dir as before. Any other
+  // source must share the target's DB location so the target's DB server can
+  // read the source's backup dir without a host-to-host transfer.
+  let sourceProjectId: string | undefined;
+  if (options.sourceProjectId && options.sourceProjectId !== projectId) {
+    if (!projectIdSchema.safeParse(options.sourceProjectId).success) {
+      throw new Error("Invalid source project id");
+    }
+    const source = await loadProjectWithServers(options.sourceProjectId);
+    if (!source) throw new Error("Source project not found");
+    if (!dbLocationMatches(source, project)) {
+      throw new Error(
+        "Source project must share the target's database server and service"
+      );
+    }
+    sourceProjectId = source.id;
+  }
 
   const isDefault = database === project.dbName;
   const taskId = await createTask({
@@ -155,6 +180,7 @@ export async function restoreDatabaseBackup(
     // project.dbName when restoring the default database.
     database: isDefault ? undefined : database,
     restartBackend: options.restartBackend ?? false,
+    sourceProjectId,
     taskId,
   });
   return { taskId };
