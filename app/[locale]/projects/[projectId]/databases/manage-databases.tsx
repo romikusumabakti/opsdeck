@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  AlertTriangle,
-  Database,
-  DatabaseBackup,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Database, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -21,40 +14,23 @@ import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
-import type { Backup } from "@/lib/types";
-import { BackupDatabase } from "../backup-database/backup-database";
-import { RestoreDatabase } from "../restore-database/restore-database";
 
 export function ManageDatabases({
   project,
   databases,
-  backups,
-  backupListError,
 }: {
   project: SafeProjectWithServers;
   databases: DatabaseEntry[];
-  backups: Backup[];
-  backupListError?: string | null;
 }) {
   const t = useTranslations("databases");
   const tCommon = useTranslations("common");
-  const tRestore = useTranslations("restoreDb");
   const dialog = useDialog();
   const router = useRouter();
   const [newName, setNewName] = React.useState("");
-  const [backupFor, setBackupFor] = React.useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [taskTitle, setTaskTitle] = React.useState("");
   const [taskTarget, setTaskTarget] = React.useState("");
@@ -210,17 +186,6 @@ export function ManageDatabases({
               <Button
                 variant="ghost"
                 size="icon"
-                className="shrink-0"
-                disabled={submitting}
-                onClick={() => setBackupFor(d.name)}
-                title={t("backupTitle")}
-                aria-label={t("backupTitle")}
-              >
-                <DatabaseBackup className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
                 className="shrink-0 text-destructive hover:text-destructive"
                 disabled={d.isDefault || submitting}
                 onClick={() => onDrop(d.name)}
@@ -233,61 +198,6 @@ export function ManageDatabases({
           ))}
         </ul>
       </div>
-
-      <div className="flex flex-col gap-2">
-        <Label>{t("restoreSectionLabel")}</Label>
-        <p className="text-sm text-muted-foreground">
-          {tRestore("pickerDescription")}
-        </p>
-        {backupListError ? (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-            <p>{backupListError}</p>
-          </div>
-        ) : backups.length === 0 ? (
-          <EmptyState
-            icon={DatabaseBackup}
-            title={tRestore("backupsNotFound")}
-            description={tRestore("backupsNotFoundDescription")}
-          />
-        ) : (
-          <>
-            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-              <p>{tRestore("dangerNote")}</p>
-            </div>
-            <RestoreDatabase
-              project={project}
-              backups={backups}
-              databases={databases}
-            />
-          </>
-        )}
-      </div>
-
-      <Dialog
-        open={backupFor !== null}
-        onOpenChange={(open) => {
-          if (!open) setBackupFor(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("backupTitle")}</DialogTitle>
-            <DialogDescription>
-              <code className="font-mono text-xs">{backupFor}</code>
-            </DialogDescription>
-          </DialogHeader>
-          {backupFor !== null && (
-            <BackupDatabase
-              key={backupFor}
-              project={project}
-              databases={databases}
-              fixedDatabase={backupFor}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       <LiveTaskDialog
         taskId={activeTaskId}
