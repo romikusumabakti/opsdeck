@@ -151,6 +151,7 @@
     "searchPlaceholder": "Cari proyek...",
     "sortLabel": "Urutkan",
     "sortRecent": "Aktivitas terbaru",
+    "sortOpened": "Terakhir dibuka",
     "sortNameAsc": "Nama (A–Z)",
     "sortNameDesc": "Nama (Z–A)",
     "noMatch": "Tidak ada proyek yang cocok dengan \"{query}\".",

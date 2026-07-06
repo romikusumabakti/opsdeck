@@ -151,6 +151,7 @@
     "searchPlaceholder": "ابحث في المشاريع...",
     "sortLabel": "ترتيب",
     "sortRecent": "أحدث نشاط",
+    "sortOpened": "المفتوحة مؤخرًا",
     "sortNameAsc": "الاسم (أ–ي)",
     "sortNameDesc": "الاسم (ي–أ)",
     "noMatch": "لا توجد مشاريع تطابق \"{query}\".",

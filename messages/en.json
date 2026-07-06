@@ -151,6 +151,7 @@
     "searchPlaceholder": "Search projects...",
     "sortLabel": "Sort",
     "sortRecent": "Most recent activity",
+    "sortOpened": "Recently opened",
     "sortNameAsc": "Name (A–Z)",
     "sortNameDesc": "Name (Z–A)",
     "noMatch": "No projects match \"{query}\".",

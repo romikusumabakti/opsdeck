@@ -75,6 +75,31 @@ export async function recordProjectAccess(projectId: string): Promise<void> {
 }
 
 /**
+ * Per-user "recently opened" timestamps (epoch ms) keyed by project id, for the
+ * projects grid's "Recently opened" sort. Mirrors the header switcher's MRU but
+ * as a map the client can sort by. Missing project = never opened by this user.
+ */
+export async function getProjectsLastOpened(): Promise<Record<string, number>> {
+  const session = await getServerSession();
+  if (!session) return {};
+  try {
+    const rows = await db
+      .select({
+        projectId: projectAccess.projectId,
+        lastAccessedAt: projectAccess.lastAccessedAt,
+      })
+      .from(projectAccess)
+      .where(eq(projectAccess.userId, session.user.id));
+    const map: Record<string, number> = {};
+    for (const r of rows) map[r.projectId] = r.lastAccessedAt.getTime();
+    return map;
+  } catch (error) {
+    console.error("Failed to fetch project open times:", error);
+    return {};
+  }
+}
+
+/**
  * GET: Fetch a single project by ID with its three server relations loaded.
  * Returns a CREDENTIAL-FREE projection — SSH/DB passwords and the mock-time API
  * key are stripped before the data crosses to the client. Actions that need the
