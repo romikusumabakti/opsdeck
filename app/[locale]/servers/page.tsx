@@ -26,11 +26,9 @@ export default async function ServersPage({
         title={t("title")}
         subtitle={t("subtitle")}
         action={
-          <Button asChild>
-            <Link href="/servers/new">
-              <Plus className="size-4" />
-              {t("addServer")}
-            </Link>
+          <Button render={<Link href="/servers/new" />}>
+            <Plus className="size-4" />
+            {t("addServer")}
           </Button>
         }
       />

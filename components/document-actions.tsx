@@ -63,27 +63,33 @@ export function DocumentActions({
 
   return (
     <div className="flex items-center gap-2">
-      <Button asChild variant="outline" size="sm">
-        <Link href={`/knowledge/${slug}/history`}>
-          <History className="size-4" />
-          {t("history")}
-        </Link>
+      <Button
+        render={<Link href={`/knowledge/${slug}/history`} />}
+        variant="outline"
+        size="sm"
+      >
+        <History className="size-4" />
+        {t("history")}
       </Button>
-      <Button asChild size="sm">
-        <Link href={`/knowledge/${slug}/edit`}>
-          <Pencil className="size-4" />
-          {tCommon("edit")}
-        </Link>
+      <Button render={<Link href={`/knowledge/${slug}/edit`} />} size="sm">
+        <Pencil className="size-4" />
+        {tCommon("edit")}
       </Button>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={tCommon("more")}>
-            <MoreHorizontal className="size-4" />
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={tCommon("more")}
+            />
+          }
+        >
+          <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={copyLink}>
+          <DropdownMenuItem onClick={copyLink}>
             <Link2 className="size-4" />
             {t("copyLink")}
           </DropdownMenuItem>
@@ -92,7 +98,7 @@ export function DocumentActions({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onSelect={() => setConfirmOpen(true)}
+                onClick={() => setConfirmOpen(true)}
               >
                 <Trash2 className="size-4" />
                 {tCommon("delete")}

@@ -16,11 +16,9 @@ export default async function LocaleNotFound() {
         <p className="text-sm text-muted-foreground">
           {t("notFoundDescription")}
         </p>
-        <Button asChild className="mt-2">
-          <Link href="/">
-            <Home className="size-4" />
-            {t("backToHome")}
-          </Link>
+        <Button render={<Link href="/" />} className="mt-2">
+          <Home className="size-4" />
+          {t("backToHome")}
         </Button>
       </div>
     </div>

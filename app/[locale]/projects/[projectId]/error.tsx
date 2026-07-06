@@ -51,11 +51,9 @@ export default function ProjectError({
             <RotateCcw className="size-4" />
             {t("tryAgain")}
           </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/">
-              <ArrowLeft className="size-4" />
-              {t("backToHome")}
-            </Link>
+          <Button render={<Link href="/" />} size="sm" variant="outline">
+            <ArrowLeft className="size-4" />
+            {t("backToHome")}
           </Button>
         </div>
       </div>

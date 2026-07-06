@@ -167,7 +167,8 @@ export function DataTable<TData, TValue>({
         const some = table.getIsSomePageRowsSelected();
         return (
           <Checkbox
-            checked={all ? true : some ? "indeterminate" : false}
+            checked={all}
+            indeterminate={!all && some}
             onCheckedChange={(value) =>
               table.toggleAllPageRowsSelected(value === true)
             }
@@ -379,18 +380,20 @@ export function DataTable<TData, TValue>({
           )}
           {hasHideableColumns && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn("ms-auto", hasCardLayout && "hidden md:flex")}
+                  />
+                }
+              >
                 {/* Column visibility only applies to the table layout; on the
                     card layout (narrow screens) there are no columns to toggle,
                     so the control is hidden there via CSS. */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn("ms-auto", hasCardLayout && "hidden md:flex")}
-                >
-                  <Settings2 className="size-4" />
-                  {t("columns")}
-                </Button>
+                <Settings2 className="size-4" />
+                {t("columns")}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {table
@@ -521,11 +524,13 @@ export function DataTable<TData, TValue>({
                 {t("rowsPerPage")}
               </span>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 gap-1">
-                    {pagination.pageSize}
-                    <ChevronDown className="size-3.5" />
-                  </Button>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="h-8 gap-1" />
+                  }
+                >
+                  {pagination.pageSize}
+                  <ChevronDown className="size-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuRadioGroup

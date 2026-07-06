@@ -56,8 +56,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/roles";
-import { cn } from "@/lib/utils";
 
 const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
 
@@ -392,15 +398,17 @@ export function UsersClient({
       const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
       return (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={tCommon("openMenu")}
-              disabled={isPending}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={tCommon("openMenu")}
+                disabled={isPending}
+              />
+            }
+          >
+            <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
@@ -553,15 +561,17 @@ export function UsersClient({
           const inv = row.original;
           return (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={tCommon("openMenu")}
-                  disabled={isPending}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={tCommon("openMenu")}
+                    disabled={isPending}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
@@ -638,15 +648,23 @@ export function UsersClient({
                 render={({ field }) => (
                   <FormItem className="md:w-40">
                     <FormLabel>{t("roleLabel")}</FormLabel>
-                    <FormControl>
-                      <RoleSelect {...field}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(v) => field.onChange(v ?? "")}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
                         {ROLE_OPTIONS.map((r) => (
-                          <option key={r} value={r}>
+                          <SelectItem key={r} value={r}>
                             {t(`role.${r}`)}
-                          </option>
+                          </SelectItem>
                         ))}
-                      </RoleSelect>
-                    </FormControl>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -749,24 +767,5 @@ function RoleBadge({ role, t }: { role: string; t: (key: string) => string }) {
     >
       {label}
     </Badge>
-  );
-}
-
-function RoleSelect({
-  className,
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      className={cn(
-        "border-input bg-transparent dark:bg-input/30 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </select>
   );
 }

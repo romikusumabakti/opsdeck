@@ -84,16 +84,18 @@ export function ActiveTasksIndicator() {
     <>
       {count > 0 && (
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 h-8 px-2"
-              aria-label={t("trigger", { count })}
-            >
-              <Loader2 className="size-4 animate-spin text-primary" />
-              <span className="text-xs font-medium tabular-nums">{count}</span>
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 h-8 px-2"
+                aria-label={t("trigger", { count })}
+              />
+            }
+          >
+            <Loader2 className="size-4 animate-spin text-primary" />
+            <span className="text-xs font-medium tabular-nums">{count}</span>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80 p-0">
             <div className="px-3 py-2 border-b">

@@ -42,10 +42,10 @@ export function LiveTaskDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description !== undefined && (
-            <DialogDescription asChild>
-              <div className="flex items-center gap-1 flex-wrap">
-                {description}
-              </div>
+            <DialogDescription
+              render={<div className="flex items-center gap-1 flex-wrap" />}
+            >
+              {description}
             </DialogDescription>
           )}
         </DialogHeader>

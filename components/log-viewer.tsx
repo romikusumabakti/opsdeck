@@ -363,7 +363,7 @@ export function LogViewer({
           </span>
           <Select
             value={String(initialLines)}
-            onValueChange={onLinesChange}
+            onValueChange={(v) => onLinesChange(v ?? "")}
             disabled={isConnecting}
           >
             <SelectTrigger size="sm" className="w-24">

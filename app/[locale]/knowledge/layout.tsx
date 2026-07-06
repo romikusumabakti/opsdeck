@@ -44,11 +44,14 @@ export default async function KnowledgeLayout({
           {collections.length > 0 && (
             <>
               <KnowledgeSearch />
-              <Button asChild size="sm" variant="outline" className="mx-2">
-                <Link href="/knowledge/new">
-                  <Plus className="size-4" />
-                  {t("newDocument")}
-                </Link>
+              <Button
+                render={<Link href="/knowledge/new" />}
+                size="sm"
+                variant="outline"
+                className="mx-2"
+              >
+                <Plus className="size-4" />
+                {t("newDocument")}
               </Button>
             </>
           )}

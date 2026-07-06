@@ -20,10 +20,16 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeProjectWithServers, Server } from "@/lib/db/schema";
-import { cn } from "@/lib/utils";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
@@ -247,15 +253,11 @@ export function ProjectForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("serviceType")}</FormLabel>
-                  <FormControl>
-                    <Select {...field}>
-                      {SERVICE_TYPES.map((v) => (
-                        <option key={v} value={v}>
-                          {tEnums(`serviceTypes.${v}`)}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <EnumSelect
+                    field={field}
+                    options={SERVICE_TYPES}
+                    getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -279,15 +281,11 @@ export function ProjectForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("dbType")}</FormLabel>
-                  <FormControl>
-                    <Select {...field}>
-                      {DB_TYPES.map((v) => (
-                        <option key={v} value={v}>
-                          {tEnums(`dbTypes.${v}`)}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <EnumSelect
+                    field={field}
+                    options={DB_TYPES}
+                    getLabel={(v) => tEnums(`dbTypes.${v}`)}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -361,15 +359,11 @@ export function ProjectForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("serviceType")}</FormLabel>
-                  <FormControl>
-                    <Select {...field}>
-                      {SERVICE_TYPES.map((v) => (
-                        <option key={v} value={v}>
-                          {tEnums(`serviceTypes.${v}`)}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <EnumSelect
+                    field={field}
+                    options={SERVICE_TYPES}
+                    getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -448,15 +442,11 @@ export function ProjectForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("serviceType")}</FormLabel>
-                  <FormControl>
-                    <Select {...field}>
-                      {SERVICE_TYPES.map((v) => (
-                        <option key={v} value={v}>
-                          {tEnums(`serviceTypes.${v}`)}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <EnumSelect
+                    field={field}
+                    options={SERVICE_TYPES}
+                    getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -524,22 +514,42 @@ function Section({
   );
 }
 
-function Select({
-  className,
-  children,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+// A form-bound shadcn Select for a fixed set of string options. Wraps the
+// trigger in FormControl so RHF field state (id, aria-invalid) is applied.
+function EnumSelect({
+  field,
+  options,
+  getLabel,
+  placeholder,
+}: {
+  field: {
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+  };
+  options: readonly string[];
+  getLabel: (value: string) => string;
+  placeholder?: string;
+}) {
   return (
-    <select
-      className={cn(
-        "border-input bg-transparent dark:bg-input/30 h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        className
-      )}
-      {...props}
+    <Select
+      value={field.value}
+      onValueChange={(v) => field.onChange(v ?? "")}
+      disabled={field.disabled}
     >
-      {children}
-    </select>
+      <FormControl>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+      </FormControl>
+      <SelectContent>
+        {options.map((v) => (
+          <SelectItem key={v} value={v}>
+            {getLabel(v)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -565,18 +575,23 @@ function ServerPicker({
         <FormItem className="sm:col-span-2">
           <FormLabel>{t("server")}</FormLabel>
           <div className="flex gap-2">
-            <FormControl>
-              <Select {...field} value={field.value ?? ""} className="flex-1">
-                <option value="" disabled>
-                  {t("pickServer")}
-                </option>
+            <Select
+              value={field.value || undefined}
+              onValueChange={field.onChange}
+            >
+              <FormControl>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder={t("pickServer")} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
                 {servers.map((s) => (
-                  <option key={s.id} value={s.id}>
+                  <SelectItem key={s.id} value={s.id}>
                     {s.name} ({s.host})
-                  </option>
+                  </SelectItem>
                 ))}
-              </Select>
-            </FormControl>
+              </SelectContent>
+            </Select>
             <Button type="button" variant="outline" onClick={onRequestCreate}>
               <Plus className="size-4" />
               <span className="hidden sm:inline">{t("newServerShort")}</span>

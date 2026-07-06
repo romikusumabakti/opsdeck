@@ -43,11 +43,9 @@ export default function LocaleError({
           </code>
         )}
         <div className="flex flex-col-reverse sm:flex-row gap-2 mt-2">
-          <Button asChild variant="outline">
-            <Link href="/">
-              <Home className="size-4" />
-              {t("backToHome")}
-            </Link>
+          <Button render={<Link href="/" />} variant="outline">
+            <Home className="size-4" />
+            {t("backToHome")}
           </Button>
           <Button onClick={reset}>
             <RotateCcw className="size-4" />

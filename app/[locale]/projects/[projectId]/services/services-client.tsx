@@ -288,14 +288,19 @@ function ServiceCard({
               {t("actions.viewLogs")}
             </Button>
           ) : (
-            <Button asChild size="sm" variant="ghost" className="col-span-2">
-              <Link
-                href={`/projects/${project.id}/services/${meta.role}/logs`}
-                aria-label={t("actions.viewLogs")}
-              >
-                <FileText className="size-4" />
-                {t("actions.viewLogs")}
-              </Link>
+            <Button
+              render={
+                <Link
+                  href={`/projects/${project.id}/services/${meta.role}/logs`}
+                  aria-label={t("actions.viewLogs")}
+                />
+              }
+              size="sm"
+              variant="ghost"
+              className="col-span-2"
+            >
+              <FileText className="size-4" />
+              {t("actions.viewLogs")}
             </Button>
           )}
         </div>

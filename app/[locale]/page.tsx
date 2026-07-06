@@ -30,11 +30,9 @@ export default async function Home() {
         subtitle={t("subtitle")}
         action={
           admin ? (
-            <Button asChild>
-              <Link href="/projects/new">
-                <Plus className="size-4" />
-                {t("create")}
-              </Link>
+            <Button render={<Link href="/projects/new" />}>
+              <Plus className="size-4" />
+              {t("create")}
             </Button>
           ) : undefined
         }

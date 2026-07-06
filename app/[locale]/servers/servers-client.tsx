@@ -202,11 +202,9 @@ export function ServersClient({ servers }: { servers: Server[] }) {
           title={t("emptyTitle")}
           description={t("empty")}
           action={
-            <Button asChild>
-              <Link href="/servers/new">
-                <Plus className="size-4" />
-                {t("addServer")}
-              </Link>
+            <Button render={<Link href="/servers/new" />}>
+              <Plus className="size-4" />
+              {t("addServer")}
             </Button>
           }
         />
@@ -258,15 +256,17 @@ function ServerActions({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={triggerLabel}
-          disabled={disabled}
-        >
-          <MoreHorizontal className="size-4" />
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={triggerLabel}
+            disabled={disabled}
+          />
+        }
+      >
+        <MoreHorizontal className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>

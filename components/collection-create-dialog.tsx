@@ -46,10 +46,16 @@ export function CollectionCreateDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="icon-sm" variant="ghost" aria-label={t("newCollection")}>
-          <FolderPlus className="size-4" />
-        </Button>
+      <DialogTrigger
+        render={
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("newCollection")}
+          />
+        }
+      >
+        <FolderPlus className="size-4" />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
