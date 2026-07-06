@@ -203,7 +203,7 @@ export function HeaderBreadcrumb({
 
   return (
     <>
-      <Separator orientation="vertical" className="h-5" />
+      <Separator orientation="vertical" className="h-5 data-vertical:self-center" />
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 min-w-0">
         {activeProject ? (
           <ProjectSwitcher
