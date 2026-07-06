@@ -127,6 +127,32 @@ export const tasks = pgTable(
   ]
 );
 
+// Per-user, per-project recency. Drives the header project switcher's order:
+// most-recently-opened first (MRU), so the projects a user actually works in
+// float to the top instead of an arbitrary id/creation order. One row per
+// (user, project); upserted on each project open by recordProjectAccess.
+export const projectAccess = pgTable(
+  "project_access",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    lastAccessedAt: timestamp("last_accessed_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.projectId] }),
+    // getProjects orders one user's rows by lastAccessedAt desc; a covering
+    // index on (userId, lastAccessedAt) serves that without a sort.
+    index("project_access_user_recency_idx").on(
+      t.userId,
+      t.lastAccessedAt.desc()
+    ),
+  ]
+);
+
 // =========================
 // Auth (better-auth) tables
 // =========================
