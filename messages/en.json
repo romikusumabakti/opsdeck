@@ -349,8 +349,9 @@
     "renameTaskTitle": "Rename database",
     "renameQueuedTitle": "Rename queued",
     "renameQueuedDescription": "Rename of database {from} to {to} has been queued.",
-    "backupTitle": "Back up database",
-    "restoreSectionLabel": "Restore from backup"
+    "manageTab": "Manage",
+    "backupTab": "Backup",
+    "restoreTab": "Restore"
   },
   "mockTime": {
     "title": "Mock time",

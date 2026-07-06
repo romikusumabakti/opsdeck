@@ -1,6 +1,11 @@
 "use client";
 
-import { AlertTriangle, Database, DatabaseBackup } from "lucide-react";
+import {
+  AlertTriangle,
+  Database,
+  DatabaseBackup,
+  DatabaseZap,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { DatabaseEntry } from "@/actions/databases";
 import { Badge } from "@/components/ui/badge";
@@ -10,21 +15,24 @@ import type { SafeProjectWithServers } from "@/lib/db/schema";
 import type { Backup } from "@/lib/types";
 import { BackupDatabase } from "../backup-database/backup-database";
 import { RestoreDatabase } from "../restore-database/restore-database";
+import { ManageDatabases } from "./manage-databases";
 
-export function BackupRestoreTabs({
+export function DatabasesTabs({
   project,
   databases,
   backups,
   listError,
+  backupListError,
   defaultTab = "backup",
 }: {
   project: SafeProjectWithServers;
   databases: DatabaseEntry[];
   backups: Backup[];
   listError: string | null;
-  defaultTab?: "backup" | "restore";
+  backupListError: string | null;
+  defaultTab?: "manage" | "backup" | "restore";
 }) {
-  const tNav = useTranslations("nav");
+  const t = useTranslations("databases");
   const tBackup = useTranslations("backupDb");
   const tRestore = useTranslations("restoreDb");
   const tDash = useTranslations("dashboard");
@@ -34,11 +42,15 @@ export function BackupRestoreTabs({
       <TabsList className="w-full">
         <TabsTrigger value="backup">
           <Database className="size-4" />
-          {tNav("backupDatabase")}
+          {t("backupTab")}
         </TabsTrigger>
         <TabsTrigger value="restore">
           <DatabaseBackup className="size-4" />
-          {tNav("restoreDatabase")}
+          {t("restoreTab")}
+        </TabsTrigger>
+        <TabsTrigger value="manage">
+          <DatabaseZap className="size-4" />
+          {t("manageTab")}
         </TabsTrigger>
       </TabsList>
 
@@ -80,10 +92,10 @@ export function BackupRestoreTabs({
         <p className="text-sm text-muted-foreground">
           {tRestore("pickerDescription")}
         </p>
-        {listError ? (
+        {backupListError ? (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-            <p>{listError}</p>
+            <p>{backupListError}</p>
           </div>
         ) : backups.length === 0 ? (
           <EmptyState
@@ -104,6 +116,16 @@ export function BackupRestoreTabs({
             />
           </>
         )}
+      </TabsContent>
+
+      <TabsContent value="manage" className="flex flex-col gap-4">
+        {listError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <p>{listError}</p>
+          </div>
+        )}
+        <ManageDatabases project={project} databases={databases} />
       </TabsContent>
     </Tabs>
   );
