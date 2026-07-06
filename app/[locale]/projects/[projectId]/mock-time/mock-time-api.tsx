@@ -1,13 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import {
-  Clock,
-  FastForward,
-  RefreshCw,
-  RotateCcw,
-  Snowflake,
-} from "lucide-react";
+import { Clock, RotateCcw, Snowflake } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -20,41 +14,18 @@ import {
   travelClock,
 } from "@/actions/mock-time";
 import { useDialog } from "@/components/dialog-provider";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
+import { AdvanceFields } from "./advance-fields";
+import { ClockStatePanel } from "./clock-state-panel";
 import { DateTimePicker } from "./date-time-picker";
-import { LiveClock } from "./live-clock";
-
-type AdvanceUnit = "minutes" | "hours" | "days";
-type AdvanceDirection = "forward" | "backward";
-
-function buildDuration(
-  amount: number,
-  unit: AdvanceUnit,
-  direction: AdvanceDirection
-): string {
-  const sign = direction === "backward" ? "-" : "";
-  switch (unit) {
-    case "days":
-      return `${sign}P${amount}D`;
-    case "hours":
-      return `${sign}PT${amount}H`;
-    case "minutes":
-      return `${sign}PT${amount}M`;
-  }
-}
+import {
+  type AdvanceDirection,
+  type AdvanceUnit,
+  buildDuration,
+} from "./duration";
 
 export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
   const t = useTranslations("mockTime");
@@ -255,64 +226,15 @@ export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr] lg:items-start">
-        <section className="flex flex-col gap-3 rounded-md border bg-card p-4 lg:sticky lg:top-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Clock className="size-4 text-muted-foreground" />
-              <h3 className="text-sm font-medium">{t("clockState.title")}</h3>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => refreshClock(false)}
-              disabled={anyPending}
-              aria-label={t("clockState.refresh")}
-            >
-              <RefreshCw
-                className={`size-4 ${
-                  pendingAction === "refresh" ? "animate-spin" : ""
-                }`}
-              />
-              {t("clockState.refresh")}
-            </Button>
-          </div>
-          {clockLoading && !clock ? (
-            <p className="text-sm text-muted-foreground">
-              {t("clockState.loading")}
-            </p>
-          ) : clockError ? (
-            <p className="text-sm text-destructive">
-              {t("clockState.loadError")}: {clockError}
-            </p>
-          ) : clock ? (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">{t("clockState.now")}</dt>
-              <dd className="tabular-nums">
-                <LiveClock
-                  now={clock.now}
-                  frozen={clock.frozen}
-                  dateFnsLocale={dateFnsLocale}
-                />
-              </dd>
-              <dt className="text-muted-foreground">
-                {t("clockState.mocked")}
-              </dt>
-              <dd>
-                <Badge variant={isMocked ? "default" : "secondary"}>
-                  {isMocked ? t("clockState.yes") : t("clockState.real")}
-                </Badge>
-              </dd>
-              <dt className="text-muted-foreground">
-                {t("clockState.frozen")}
-              </dt>
-              <dd>
-                <Badge variant={isFrozen ? "default" : "secondary"}>
-                  {isFrozen ? t("clockState.yes") : t("clockState.running")}
-                </Badge>
-              </dd>
-            </dl>
-          ) : null}
-        </section>
+        <ClockStatePanel
+          clock={clock}
+          clockError={clockError}
+          clockLoading={clockLoading}
+          refreshing={pendingAction === "refresh"}
+          disabled={anyPending}
+          showFrozen
+          onRefresh={() => refreshClock(false)}
+        />
 
         <div className="flex flex-col gap-6">
           <section className="flex flex-col gap-3">
@@ -390,78 +312,18 @@ export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
                 {t("advance.notFrozen")}
               </p>
             ) : null}
-            <FieldGroup className="flex-row items-end gap-2 flex-wrap">
-              <Field className="flex-1">
-                <FieldLabel htmlFor="advance-amount">
-                  {t("advance.amountLabel")}
-                </FieldLabel>
-                <Input
-                  id="advance-amount"
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={advanceAmount}
-                  onChange={(e) => setAdvanceAmount(e.target.value)}
-                  disabled={!isFrozen || anyPending}
-                  className="tabular-nums"
-                />
-              </Field>
-              <Field className="flex-1">
-                <FieldLabel htmlFor="advance-unit">
-                  {t("advance.unitLabel")}
-                </FieldLabel>
-                <Select
-                  value={advanceUnit}
-                  onValueChange={(v) => setAdvanceUnit(v as AdvanceUnit)}
-                  disabled={!isFrozen || anyPending}
-                >
-                  <SelectTrigger id="advance-unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="minutes">
-                      {t("advance.units.minutes")}
-                    </SelectItem>
-                    <SelectItem value="hours">
-                      {t("advance.units.hours")}
-                    </SelectItem>
-                    <SelectItem value="days">
-                      {t("advance.units.days")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field className="flex-1">
-                <FieldLabel htmlFor="advance-direction">
-                  {t("advance.directionLabel")}
-                </FieldLabel>
-                <Select
-                  value={advanceDirection}
-                  onValueChange={(v) =>
-                    setAdvanceDirection(v as AdvanceDirection)
-                  }
-                  disabled={!isFrozen || anyPending}
-                >
-                  <SelectTrigger id="advance-direction">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="forward">
-                      {t("advance.forward")}
-                    </SelectItem>
-                    <SelectItem value="backward">
-                      {t("advance.backward")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Button onClick={onAdvance} disabled={!isFrozen || anyPending}>
-                <FastForward className="size-4" />
-                {pendingAction === "advance"
-                  ? t("advance.submitting")
-                  : t("advance.submit")}
-              </Button>
-            </FieldGroup>
+            <AdvanceFields
+              idPrefix="api"
+              amount={advanceAmount}
+              unit={advanceUnit}
+              direction={advanceDirection}
+              disabled={!isFrozen || anyPending}
+              submitting={pendingAction === "advance"}
+              onAmountChange={setAdvanceAmount}
+              onUnitChange={setAdvanceUnit}
+              onDirectionChange={setAdvanceDirection}
+              onSubmit={onAdvance}
+            />
           </section>
 
           <Separator />
