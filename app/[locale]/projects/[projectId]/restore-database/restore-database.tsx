@@ -4,7 +4,7 @@ import { Check, ChevronsUpDown, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { restoreDatabaseBackup } from "@/actions/backups";
+import { getBackupList, restoreDatabaseBackup } from "@/actions/backups";
 import type { DatabaseEntry } from "@/actions/databases";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { Project, SafeProjectWithServers } from "@/lib/db/schema";
 import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -33,10 +33,14 @@ export function RestoreDatabase({
   project,
   backups,
   databases,
+  sourceProjects,
 }: {
   project: SafeProjectWithServers;
   backups: Backup[];
   databases: DatabaseEntry[];
+  // Other projects sharing this project's DB location, offered as alternative
+  // backup sources. Empty when the project has no compatible siblings.
+  sourceProjects: Project[];
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");
@@ -48,7 +52,43 @@ export function RestoreDatabase({
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [submitting, startTransition] = React.useTransition();
 
-  const backup = backups.find((b) => b.name === value);
+  // Backup source. Defaults to this project; the picker (shown only when
+  // compatible siblings exist) can switch it. Switching re-fetches the chosen
+  // project's backup list and clears the selected file.
+  const [sourceOpen, setSourceOpen] = React.useState(false);
+  const [sourceProjectId, setSourceProjectId] = React.useState(project.id);
+  const [sourceBackups, setSourceBackups] = React.useState<Backup[]>(backups);
+  const [loadingBackups, setLoadingBackups] = React.useState(false);
+
+  const isCrossProject = sourceProjectId !== project.id;
+  const sourceProject = sourceProjects.find((p) => p.id === sourceProjectId);
+  const sourceName = sourceProject?.name ?? project.name;
+
+  function onSourceChange(nextId: string) {
+    if (nextId === sourceProjectId) return;
+    setSourceProjectId(nextId);
+    setValue("");
+    if (nextId === project.id) {
+      // Reuse the server-rendered list for the current project — no round-trip.
+      setSourceBackups(backups);
+      return;
+    }
+    setLoadingBackups(true);
+    void (async () => {
+      try {
+        const res = await getBackupList(nextId);
+        setSourceBackups(res.success ? res.data : []);
+        if (!res.success) toast.error(res.error);
+      } catch {
+        setSourceBackups([]);
+        toast.error(tCommon("errorGeneric"));
+      } finally {
+        setLoadingBackups(false);
+      }
+    })();
+  }
+
+  const backup = sourceBackups.find((b) => b.name === value);
   const isDefaultDatabase =
     databases.find((d) => d.name === database)?.isDefault ?? false;
 
@@ -70,6 +110,7 @@ export function RestoreDatabase({
           filename: backup.name,
           restartBackend,
           database,
+          sourceProjectId: isCrossProject ? sourceProjectId : undefined,
         });
         setActiveTaskId(taskId);
         toast.success(t("successTitle"), {
@@ -81,17 +122,32 @@ export function RestoreDatabase({
         );
       }
     });
-  }, [backup, project, restartBackend, database, t, tCommon]);
+  }, [
+    backup,
+    project,
+    restartBackend,
+    database,
+    isCrossProject,
+    sourceProjectId,
+    t,
+    tCommon,
+  ]);
 
   function onRestore() {
     if (!backup) return;
     void (async () => {
       const ok = await dialog.confirm({
         title: t("confirmTitle"),
-        description: t("confirmDescription", {
-          filename: backup.name,
-          dbName: database,
-        }),
+        description: isCrossProject
+          ? t("confirmDescriptionCrossProject", {
+              filename: backup.name,
+              dbName: database,
+              sourceName,
+            })
+          : t("confirmDescription", {
+              filename: backup.name,
+              dbName: database,
+            }),
         confirmText: t("restore"),
         cancelText: tCommon("cancel"),
         destructive: true,
@@ -103,6 +159,90 @@ export function RestoreDatabase({
 
   return (
     <div className="flex flex-col gap-3">
+      {sourceProjects.length > 0 && (
+        <>
+          <Label htmlFor="restore-source-picker">
+            {t("sourceProjectLabel")}
+          </Label>
+          <Popover open={sourceOpen} onOpenChange={setSourceOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                id="restore-source-picker"
+                variant="outline"
+                role="combobox"
+                aria-expanded={sourceOpen}
+                disabled={submitting}
+                className="justify-between"
+              >
+                <span className="truncate">
+                  {sourceName}
+                  {!isCrossProject && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      {t("sourceSelfSuffix")}
+                    </span>
+                  )}
+                </span>
+                <ChevronsUpDown className="opacity-50 shrink-0" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-[var(--radix-popper-anchor-width)] p-0"
+            >
+              <Command>
+                <CommandInput
+                  placeholder={t("searchProject")}
+                  className="h-9"
+                />
+                <CommandList>
+                  <CommandEmpty>{t("noProject")}</CommandEmpty>
+                  <CommandGroup>
+                    {[
+                      { id: project.id, name: project.name, self: true },
+                      ...sourceProjects.map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        self: false,
+                      })),
+                    ].map((p) => (
+                      <CommandItem
+                        key={p.id}
+                        value={`${p.name} ${p.id}`}
+                        onSelect={() => {
+                          onSourceChange(p.id);
+                          requestAnimationFrame(() => setSourceOpen(false));
+                        }}
+                      >
+                        <span className="truncate">
+                          {p.name}
+                          {p.self && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              {t("sourceSelfSuffix")}
+                            </span>
+                          )}
+                        </span>
+                        <Check
+                          className={cn(
+                            "ml-auto",
+                            sourceProjectId === p.id
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          <p className="text-xs text-muted-foreground">
+            {t("sourceProjectHint")}
+          </p>
+        </>
+      )}
       <Label htmlFor="restore-database-picker">
         {t("targetDatabaseLabel")}
       </Label>
@@ -129,9 +269,14 @@ export function RestoreDatabase({
               variant="outline"
               role="combobox"
               aria-expanded={open}
+              disabled={submitting || loadingBackups}
               className="flex-1 justify-between"
             >
-              {backup ? (
+              {loadingBackups ? (
+                <span className="text-muted-foreground">
+                  {t("loadingBackups")}
+                </span>
+              ) : backup ? (
                 <span className="truncate font-mono text-xs">
                   {backup.name}
                 </span>
@@ -152,7 +297,7 @@ export function RestoreDatabase({
               <CommandList>
                 <CommandEmpty>{t("noBackup")}</CommandEmpty>
                 <CommandGroup>
-                  {backups.map((b) => (
+                  {sourceBackups.map((b) => (
                     <CommandItem
                       key={b.name}
                       value={b.name}

@@ -1,5 +1,6 @@
 import type { Job } from "bullmq";
 import type { ProjectWithServers } from "@/lib/db/schema";
+import { dbLocationMatches } from "@/lib/db-location";
 import { loadProjectWithServers } from "@/lib/projects";
 import type { JobMap, JobName } from "@/lib/queue";
 import {
@@ -352,7 +353,14 @@ async function handleMockProjectTimeResetLegacy(
 async function handleRestoreDatabaseBackup(
   data: JobMap["db/restore.requested"]
 ): Promise<{ success: true; restored: string }> {
-  const { projectId, filename, taskId, restartBackend, database } = data;
+  const {
+    projectId,
+    filename,
+    taskId,
+    restartBackend,
+    database,
+    sourceProjectId,
+  } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   // Restore target — the configured database unless the picker sent another
@@ -364,6 +372,25 @@ async function handleRestoreDatabaseBackup(
     password: project.dbServer.password,
   };
 
+  // Optional cross-project source: read the backup from another project's
+  // `dbBackupPath`. Re-validate the location match here (defence in depth — the
+  // action already checked) so a hand-crafted event can't point the restore at
+  // an unreachable/foreign path. When absent, restore from the target's own dir.
+  let backupPath = project.dbBackupPath;
+  if (sourceProjectId && sourceProjectId !== projectId) {
+    const sourceProject = await loadProjectWithServers(sourceProjectId);
+    if (!sourceProject) {
+      throw new Error(`Source project ${sourceProjectId} not found`);
+    }
+    if (!dbLocationMatches(sourceProject, project)) {
+      throw new Error(
+        "Source project does not share the target's database location"
+      );
+    }
+    backupPath = sourceProject.dbBackupPath;
+  }
+  const source = `${backupPath}/${filename}`;
+
   try {
     if (!filename) throw new Error("Filename is required");
 
@@ -372,7 +399,7 @@ async function handleRestoreDatabaseBackup(
         taskId,
         `Restoring ${dbName} from ${filename}`,
         async () => {
-          await runMssqlRestore(project, dbName, filename, credentials);
+          await runMssqlRestore(project, dbName, source, credentials);
         }
       );
     } else {
@@ -380,7 +407,13 @@ async function handleRestoreDatabaseBackup(
         await runPostgresRecreateDatabase(project, dbName, credentials);
       });
       await tracked(taskId, `Restoring from ${filename}`, async () => {
-        await runPostgresRestore(project, dbName, filename, credentials);
+        await runPostgresRestore(
+          project,
+          dbName,
+          filename,
+          source,
+          credentials
+        );
       });
     }
 
@@ -447,9 +480,9 @@ async function runPostgresRestore(
   data: ProjectWithServers,
   database: string,
   filename: string,
+  source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const source = `${data.dbBackupPath}/${filename}`;
   // `-v ON_ERROR_STOP=on` aborts psql at the first failing statement instead
   // of silently continuing through a half-broken restore. Branch on the file
   // suffix so we can restore both gzipped (`.sql.gz`) and plain (`.sql`)
@@ -588,7 +621,7 @@ function buildMssqlMoveClauses(
 async function runMssqlRestore(
   data: ProjectWithServers,
   database: string,
-  filename: string,
+  source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   if (!data.dbPassword) {
@@ -596,7 +629,6 @@ async function runMssqlRestore(
       "Project dbPassword is required for MSSQL restores (sqlcmd needs it)"
     );
   }
-  const source = `${data.dbBackupPath}/${filename}`;
   const dbId = sqlBracketId(database);
   const dbLit = sqlQuoteString(database);
 

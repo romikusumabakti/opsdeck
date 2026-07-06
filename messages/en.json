@@ -312,7 +312,14 @@
     "defaultSuffix": "(default)",
     "selectDatabase": "Select database…",
     "searchDatabase": "Search database…",
-    "noDatabase": "No database found."
+    "noDatabase": "No database found.",
+    "sourceProjectLabel": "Backup source",
+    "sourceProjectHint": "Restore from another project’s backups. Only projects on the same database server and service are listed.",
+    "sourceSelfSuffix": "(this project)",
+    "searchProject": "Search project…",
+    "noProject": "No project found.",
+    "loadingBackups": "Loading backups…",
+    "confirmDescriptionCrossProject": "Restore {dbName} from {filename} (source: {sourceName})? This will overwrite the current database."
   },
   "backupRestore": {
     "title": "Backup & restore",
