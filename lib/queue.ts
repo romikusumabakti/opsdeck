@@ -23,6 +23,11 @@ export type JobMap = {
     taskId: string;
     restartBackend?: boolean;
     database?: string;
+    // When set (and different from projectId), the backup file is read from this
+    // source project's `dbBackupPath` instead of the target's. Only ever a
+    // project sharing the target's DB location (see dbLocationMatches), so the
+    // target DB server reaches the source's backup dir without a file transfer.
+    sourceProjectId?: string;
   };
   "db/database.create.requested": {
     projectId: string;

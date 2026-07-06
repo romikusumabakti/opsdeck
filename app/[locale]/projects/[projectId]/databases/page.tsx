@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getBackupList } from "@/actions/backups";
 import { getDatabaseList } from "@/actions/databases";
-import { getProjectById } from "@/actions/projects";
+import { getProjectById, getProjects } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { DatabasesTabs } from "./databases-tabs";
@@ -25,10 +25,13 @@ export default async function Page({
   }
 
   // Best-effort enumeration; both lists degrade gracefully so a single failing
-  // probe never blocks the page from rendering the other tabs.
-  const [dbResult, backupResult] = await Promise.all([
+  // probe never blocks the page from rendering the other tabs. `allProjects`
+  // feeds the restore tab's "source project" picker (filtered client-side to
+  // ones sharing this project's DB location).
+  const [dbResult, backupResult, allProjects] = await Promise.all([
     getDatabaseList(project.id),
     getBackupList(project.id),
+    getProjects(),
   ]);
   const databases = dbResult.success
     ? dbResult.data
@@ -37,8 +40,7 @@ export default async function Page({
   const backups = backupResult.success ? backupResult.data : [];
   const backupListError = backupResult.success ? null : backupResult.error;
 
-  const defaultTab =
-    tab === "restore" || tab === "manage" ? tab : "backup";
+  const defaultTab = tab === "restore" || tab === "manage" ? tab : "backup";
 
   return (
     <>
@@ -50,6 +52,7 @@ export default async function Page({
             project={project}
             databases={databases}
             backups={backups}
+            allProjects={allProjects}
             listError={listError}
             backupListError={backupListError}
             defaultTab={defaultTab}

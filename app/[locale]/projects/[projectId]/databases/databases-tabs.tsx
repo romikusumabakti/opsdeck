@@ -11,7 +11,8 @@ import type { DatabaseEntry } from "@/actions/databases";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { Project, SafeProjectWithServers } from "@/lib/db/schema";
+import { dbLocationMatches } from "@/lib/db-location";
 import type { Backup } from "@/lib/types";
 import { BackupDatabase } from "../backup-database/backup-database";
 import { RestoreDatabase } from "../restore-database/restore-database";
@@ -21,6 +22,7 @@ export function DatabasesTabs({
   project,
   databases,
   backups,
+  allProjects,
   listError,
   backupListError,
   defaultTab = "backup",
@@ -28,6 +30,7 @@ export function DatabasesTabs({
   project: SafeProjectWithServers;
   databases: DatabaseEntry[];
   backups: Backup[];
+  allProjects: Project[];
   listError: string | null;
   backupListError: string | null;
   defaultTab?: "manage" | "backup" | "restore";
@@ -36,6 +39,13 @@ export function DatabasesTabs({
   const tBackup = useTranslations("backupDb");
   const tRestore = useTranslations("restoreDb");
   const tDash = useTranslations("dashboard");
+
+  // Other projects whose backups sit in the same reachable filesystem — the
+  // valid sources for a cross-project restore. When any exist, the restore tab
+  // stays reachable even with no local backups (a sibling may have some).
+  const sourceProjects = allProjects.filter(
+    (p) => p.id !== project.id && dbLocationMatches(p, project)
+  );
 
   return (
     <Tabs defaultValue={defaultTab} className="gap-4">
@@ -97,7 +107,7 @@ export function DatabasesTabs({
             <AlertTriangle className="size-4 shrink-0 mt-0.5" />
             <p>{backupListError}</p>
           </div>
-        ) : backups.length === 0 ? (
+        ) : backups.length === 0 && sourceProjects.length === 0 ? (
           <EmptyState
             icon={DatabaseBackup}
             title={tRestore("backupsNotFound")}
@@ -113,6 +123,7 @@ export function DatabasesTabs({
               project={project}
               backups={backups}
               databases={databases}
+              sourceProjects={sourceProjects}
             />
           </>
         )}

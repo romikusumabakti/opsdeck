@@ -312,7 +312,14 @@
     "defaultSuffix": "(default)",
     "selectDatabase": "Pilih database…",
     "searchDatabase": "Cari database…",
-    "noDatabase": "Database tidak ditemukan."
+    "noDatabase": "Database tidak ditemukan.",
+    "sourceProjectLabel": "Sumber backup",
+    "sourceProjectHint": "Restore dari backup proyek lain. Hanya proyek pada server dan service database yang sama yang ditampilkan.",
+    "sourceSelfSuffix": "(proyek ini)",
+    "searchProject": "Cari proyek…",
+    "noProject": "Proyek tidak ditemukan.",
+    "loadingBackups": "Memuat backup…",
+    "confirmDescriptionCrossProject": "Restore {dbName} dari {filename} (sumber: {sourceName})? Ini akan menimpa database saat ini."
   },
   "backupRestore": {
     "title": "Backup & restore",
