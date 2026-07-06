@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { Clock, Info, ServerCog } from "lucide-react";
+import { Clock, ServerCog } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { cache } from "react";
 import { getProjectById } from "@/actions/projects";
@@ -74,13 +74,6 @@ export default async function Page({
           <CardDescription>{t("formDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {!hasApi && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              <Info className="size-4 shrink-0 mt-0.5" />
-              <p>{t("legacyWarning")}</p>
-            </div>
-          )}
-
           <MockTime project={project} />
         </CardContent>
       </Card>
