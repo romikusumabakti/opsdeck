@@ -151,6 +151,7 @@
     "searchPlaceholder": "搜索项目...",
     "sortLabel": "排序",
     "sortRecent": "最近活动",
+    "sortOpened": "最近打开",
     "sortNameAsc": "名称 (A–Z)",
     "sortNameDesc": "名称 (Z–A)",
     "noMatch": "没有匹配 \"{query}\" 的项目。",
