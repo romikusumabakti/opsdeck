@@ -315,7 +315,7 @@
     "searchDatabase": "搜索数据库…",
     "noDatabase": "未找到数据库。",
     "sourceProjectLabel": "备份来源",
-    "sourceProjectHint": "从其他项目的备份还原。仅列出位于同一数据库服务器和服务上的项目。",
+    "sourceProjectHint": "从其他项目的备份还原。列出使用相同数据库类型的项目；位于不同服务器上的来源会自动复制过来。",
     "sourceSelfSuffix": "（本项目）",
     "searchProject": "搜索项目…",
     "noProject": "未找到项目。",

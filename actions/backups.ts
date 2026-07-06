@@ -1,7 +1,6 @@
 "use server";
 
 import { requireSession } from "@/lib/auth-session";
-import { dbLocationMatches } from "@/lib/db-location";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand } from "@/lib/services";
@@ -148,8 +147,9 @@ export async function restoreDatabaseBackup(
 
   // Resolve an optional cross-project source. A source equal to (or omitting)
   // the target reads the backup from the target's own dir as before. Any other
-  // source must share the target's DB location so the target's DB server can
-  // read the source's backup dir without a host-to-host transfer.
+  // source must share the target's dbType (postgres↔postgres, mssql↔mssql); the
+  // worker reads it directly when the DB location also matches, otherwise it
+  // stages the file across hosts.
   let sourceProjectId: string | undefined;
   if (options.sourceProjectId && options.sourceProjectId !== projectId) {
     if (!projectIdSchema.safeParse(options.sourceProjectId).success) {
@@ -157,10 +157,8 @@ export async function restoreDatabaseBackup(
     }
     const source = await loadProjectWithServers(options.sourceProjectId);
     if (!source) throw new Error("Source project not found");
-    if (!dbLocationMatches(source, project)) {
-      throw new Error(
-        "Source project must share the target's database server and service"
-      );
+    if (source.dbType !== project.dbType) {
+      throw new Error("Source project must have the same database type");
     }
     sourceProjectId = source.id;
   }

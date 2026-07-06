@@ -315,7 +315,7 @@
     "searchDatabase": "Cari database…",
     "noDatabase": "Database tidak ditemukan.",
     "sourceProjectLabel": "Sumber backup",
-    "sourceProjectHint": "Restore dari backup proyek lain. Hanya proyek pada server dan service database yang sama yang ditampilkan.",
+    "sourceProjectHint": "Restore dari backup proyek lain. Proyek dengan tipe database yang sama ditampilkan; sumber di server berbeda akan disalin otomatis.",
     "sourceSelfSuffix": "(proyek ini)",
     "searchProject": "Cari proyek…",
     "noProject": "Proyek tidak ditemukan.",

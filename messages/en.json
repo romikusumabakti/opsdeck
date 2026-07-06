@@ -315,7 +315,7 @@
     "searchDatabase": "Search database…",
     "noDatabase": "No database found.",
     "sourceProjectLabel": "Backup source",
-    "sourceProjectHint": "Restore from another project’s backups. Only projects on the same database server and service are listed.",
+    "sourceProjectHint": "Restore from another project’s backups. Projects using the same database type are listed; a source on a different server is copied over automatically.",
     "sourceSelfSuffix": "(this project)",
     "searchProject": "Search project…",
     "noProject": "No project found.",

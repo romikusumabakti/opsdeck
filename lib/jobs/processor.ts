@@ -1,3 +1,6 @@
+import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Job } from "bullmq";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
@@ -10,7 +13,11 @@ import {
   getServiceConfig,
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
-import { executeRemoteCommand } from "@/lib/ssh";
+import {
+  downloadRemoteFile,
+  executeRemoteCommand,
+  uploadRemoteFile,
+} from "@/lib/ssh";
 import { appendTaskOutput, completeTask, failTask } from "@/lib/task-progress";
 
 // Appends a step's label to the task output before running it, and on failure
@@ -350,6 +357,178 @@ async function handleMockProjectTimeResetLegacy(
   }
 }
 
+// --- Cross-server restore transfer ----------------------------------------
+// When the source backup lives on a different DB server/service than the
+// restore target (only the dbType matches), the file must be physically copied
+// into the target's backup dir before the normal restore can read it. The move
+// hops through the panel: extract the source file into an SSH-owned temp on the
+// source host, SFTP it down to the panel, SFTP it up to the target host, then
+// place it into the target's backup dir with the DB user's ownership. Streaming
+// host-to-host directly isn't possible (SFTP is per-connection), and passing
+// the bytes through a shell would collide with `sudo -S`'s stdin.
+
+type SshCreds = { host: string; username: string; password: string };
+
+function credsOf(server: {
+  host: string;
+  username: string;
+  password: string;
+}): SshCreds {
+  return {
+    host: server.host,
+    username: server.username,
+    password: server.password,
+  };
+}
+
+function dbOsUser(dbType: ProjectWithServers["dbType"]): string {
+  return dbType === "postgres" ? "postgres" : "mssql";
+}
+
+// Best-effort side effect (temp cleanup) — logs and swallows so a failed
+// cleanup never masks the real restore outcome.
+async function ignoreErrors(fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.error("Restore transfer cleanup failed:", err);
+  }
+}
+
+// Command (run on the SOURCE host as the SSH user) that writes the backup file
+// to `hostTmp`, an SSH-owned path. The db-shell wrapper `cat`s the file from
+// inside the container / as the DB OS user; the `> hostTmp` redirect runs in
+// the outer SSH-user shell so the temp ends up SSH-readable for SFTP.
+function buildExtractCommand(
+  project: ProjectWithServers,
+  filePath: string,
+  hostTmp: string
+): string {
+  const inner = buildDbShellCommand(
+    project.dbServiceType,
+    project.dbServiceName,
+    `cat ${shq(filePath)}`,
+    {
+      runAsUser: dbOsUser(project.dbType),
+      sudoPassword: project.dbServer.password,
+    }
+  );
+  return `${inner} > ${shq(hostTmp)}`;
+}
+
+// Command (run on the TARGET host) that moves the SSH-owned `hostTmp` into the
+// target's backup dir as `dst`, owned/readable by the DB process.
+function buildPlaceCommand(
+  project: ProjectWithServers,
+  hostTmp: string,
+  dst: string
+): string {
+  const name = project.dbServiceName;
+  if (project.dbServiceType === "docker") {
+    return (
+      `docker cp ${shq(hostTmp)} ${shq(`${name}:${dst}`)} && ` +
+      `docker exec ${shq(name)} chmod 644 ${shq(dst)}`
+    );
+  }
+  if (project.dbServiceType === "kubernetes") {
+    // `kubectl cp` needs a pod name, not a deploy/, so stream via `exec -i`.
+    const write = `cat > ${shq(dst)}`;
+    return (
+      `kubectl exec -i deploy/${shq(name)} -- bash -c ${shq(write)} < ${shq(hostTmp)} && ` +
+      `kubectl exec deploy/${shq(name)} -- chmod 644 ${shq(dst)}`
+    );
+  }
+  // systemd: copy in as root, then hand ownership to the DB user. The password
+  // only feeds sudo (the file is an argument, not stdin), so there's no stdin
+  // conflict.
+  const user = dbOsUser(project.dbType);
+  const script =
+    `cp ${shq(hostTmp)} ${shq(dst)}; ` +
+    `chown ${user}:${user} ${shq(dst)}; ` +
+    `chmod 644 ${shq(dst)}`;
+  return `printf '%s\\n' ${shq(project.dbServer.password)} | sudo -S bash -c ${shq(script)}`;
+}
+
+// Command (run on the TARGET host) removing the staged copy from the backup dir
+// once the restore has consumed it, so foreign backups don't linger.
+function buildRemovePlacedCommand(
+  project: ProjectWithServers,
+  dst: string
+): string {
+  const name = project.dbServiceName;
+  if (project.dbServiceType === "docker") {
+    return `docker exec ${shq(name)} rm -f ${shq(dst)}`;
+  }
+  if (project.dbServiceType === "kubernetes") {
+    return `kubectl exec deploy/${shq(name)} -- rm -f ${shq(dst)}`;
+  }
+  return `printf '%s\\n' ${shq(project.dbServer.password)} | sudo -S rm -f ${shq(dst)}`;
+}
+
+// Stage `filename` from `sourceProject`'s backup dir into `targetProject`'s
+// backup dir (different host/service). Returns a cleanup that removes the placed
+// file after the restore is done. Throws (with temps cleaned up) on any failure.
+async function transferBackupToTarget(
+  sourceProject: ProjectWithServers,
+  targetProject: ProjectWithServers,
+  filename: string,
+  stamp: string
+): Promise<() => Promise<void>> {
+  const srcCreds = credsOf(sourceProject.dbServer);
+  const dstCreds = credsOf(targetProject.dbServer);
+  const srcHostTmp = `/tmp/opsdeck-restore-src-${stamp}`;
+  const dstHostTmp = `/tmp/opsdeck-restore-dst-${stamp}`;
+  const localTmp = join(tmpdir(), `opsdeck-restore-${stamp}`);
+  const sourceFile = `${sourceProject.dbBackupPath}/${filename}`;
+  const dst = `${targetProject.dbBackupPath}/${filename}`;
+
+  // Ensure the target backup dir exists before placing into it.
+  await executeRemoteCommand(
+    dstCreds,
+    buildDbShellCommand(
+      targetProject.dbServiceType,
+      targetProject.dbServiceName,
+      `mkdir -p ${shq(targetProject.dbBackupPath)}`,
+      {
+        runAsUser: dbOsUser(targetProject.dbType),
+        sudoPassword: dstCreds.password,
+      }
+    )
+  );
+
+  await executeRemoteCommand(
+    srcCreds,
+    buildExtractCommand(sourceProject, sourceFile, srcHostTmp)
+  );
+  try {
+    await downloadRemoteFile(srcCreds, srcHostTmp, localTmp);
+    await uploadRemoteFile(dstCreds, localTmp, dstHostTmp);
+    await executeRemoteCommand(
+      dstCreds,
+      buildPlaceCommand(targetProject, dstHostTmp, dst)
+    );
+  } finally {
+    // Drop the transient temps on both hosts and the panel regardless of
+    // outcome; the placed backup file is cleaned separately after the restore.
+    await ignoreErrors(() =>
+      executeRemoteCommand(srcCreds, `rm -f ${shq(srcHostTmp)}`)
+    );
+    await ignoreErrors(() =>
+      executeRemoteCommand(dstCreds, `rm -f ${shq(dstHostTmp)}`)
+    );
+    await ignoreErrors(() => fs.rm(localTmp, { force: true }));
+  }
+
+  return async () => {
+    await ignoreErrors(() =>
+      executeRemoteCommand(
+        dstCreds,
+        buildRemovePlacedCommand(targetProject, dst)
+      )
+    );
+  };
+}
+
 async function handleRestoreDatabaseBackup(
   data: JobMap["db/restore.requested"]
 ): Promise<{ success: true; restored: string }> {
@@ -372,28 +551,39 @@ async function handleRestoreDatabaseBackup(
     password: project.dbServer.password,
   };
 
-  // Optional cross-project source: read the backup from another project's
-  // `dbBackupPath`. Re-validate the location match here (defence in depth — the
-  // action already checked) so a hand-crafted event can't point the restore at
-  // an unreachable/foreign path. When absent, restore from the target's own dir.
+  if (!filename) throw new Error("Filename is required");
+
+  // Optional cross-project source: read the backup from another project.
+  // - Same DB location (server + service + type): read its `dbBackupPath`
+  //   directly — the target's DB server already reaches that path.
+  // - Same dbType but different server/service: physically stage the file into
+  //   the target's backup dir first (see transferBackupToTarget). Re-validate
+  //   the dbType match here (defence in depth — the action already checked).
   let backupPath = project.dbBackupPath;
+  let cleanupTransfer: (() => Promise<void>) | null = null;
   if (sourceProjectId && sourceProjectId !== projectId) {
     const sourceProject = await loadProjectWithServers(sourceProjectId);
     if (!sourceProject) {
       throw new Error(`Source project ${sourceProjectId} not found`);
     }
-    if (!dbLocationMatches(sourceProject, project)) {
-      throw new Error(
-        "Source project does not share the target's database location"
-      );
+    if (sourceProject.dbType !== project.dbType) {
+      throw new Error("Source project database type does not match the target");
     }
-    backupPath = sourceProject.dbBackupPath;
+    if (dbLocationMatches(sourceProject, project)) {
+      backupPath = sourceProject.dbBackupPath;
+    } else {
+      cleanupTransfer = await tracked(
+        taskId,
+        `Transferring backup from ${sourceProject.name}`,
+        () => transferBackupToTarget(sourceProject, project, filename, taskId)
+      );
+      // File now lives under `filename` in the target's own backup dir.
+      backupPath = project.dbBackupPath;
+    }
   }
   const source = `${backupPath}/${filename}`;
 
   try {
-    if (!filename) throw new Error("Filename is required");
-
     if (project.dbType === "mssql") {
       await tracked(
         taskId,
@@ -449,6 +639,10 @@ async function handleRestoreDatabaseBackup(
     const message = err instanceof Error ? err.message : String(err);
     await failTask(taskId, message);
     throw err;
+  } finally {
+    // Remove the staged copy from the target's backup dir (cross-server source
+    // only). Best-effort: never let cleanup change the task's outcome.
+    if (cleanupTransfer) await cleanupTransfer();
   }
 }
 
