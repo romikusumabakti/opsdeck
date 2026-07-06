@@ -97,6 +97,15 @@ export function LiveTaskPanel({
   React.useEffect(() => {
     onSuccessRef.current = onSuccess;
   }, [onSuccess]);
+  // Same treatment for the translator: `useTranslations` can hand back a fresh
+  // `t` reference on re-render (e.g. after a parent's router.refresh()). If the
+  // EventSource effect depended on `t`, it would re-subscribe and reset
+  // successFiredRef, replaying the final snapshot and re-firing onSuccess — an
+  // infinite refresh↔re-subscribe loop when onSuccess itself calls refresh.
+  const tRef = React.useRef(t);
+  React.useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   // Guard against firing the callback twice if the server replays the final
   // snapshot (e.g. on resume after a transient disconnect).
   const successFiredRef = React.useRef(false);
@@ -131,7 +140,7 @@ export function LiveTaskPanel({
     });
 
     es.addEventListener("not-found", () => {
-      setStreamError(t("notFound"));
+      setStreamError(tRef.current("notFound"));
       es.close();
     });
 
@@ -147,14 +156,15 @@ export function LiveTaskPanel({
         setReconnecting(true);
       }
       setTimeout(() => {
-        if (!snapshotRef.current) setStreamError(t("connectionError"));
+        if (!snapshotRef.current)
+          setStreamError(tRef.current("connectionError"));
       }, 5000);
     };
 
     return () => {
       es.close();
     };
-  }, [taskId, t]);
+  }, [taskId]);
 
   // Auto-scroll log viewer to bottom unless the user has scrolled up. Trigger
   // intentionally listens to `snapshot?.output` even though the body doesn't
