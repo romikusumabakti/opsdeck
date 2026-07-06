@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { getProjectById } from "@/actions/projects";
+import { getProjectById, recordProjectAccess } from "@/actions/projects";
 
 export default async function Layout({
   children,
@@ -17,6 +17,11 @@ export default async function Layout({
     const tCommon = await getTranslations("common");
     return <p>{tCommon("projectNotFound")}</p>;
   }
+
+  // Project confirmed to exist (valid FK) — bump its recency for this user so
+  // the header switcher lists it first. Runs on segment entry, not on client
+  // nav between sibling pages, which matches "opened this project".
+  await recordProjectAccess(projectId);
 
   return <>{children}</>;
 }
