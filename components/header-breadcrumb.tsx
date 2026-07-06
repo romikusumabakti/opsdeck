@@ -77,13 +77,13 @@ function getStaticSegments(pathname: string): StaticSegment[] {
 // Sections that exist identically under every project. When the user
 // switches projects from one of these, we keep them on the same section in
 // the target project (e.g. /projects/A/services → /projects/B/services)
-// because the intent is "show me area X for another project". Flow/action
-// routes (backup-restore, mock-time) are deliberately
-// excluded: they're tied to the source project's context and often mid-
-// operation, so we drop those switches back to the target dashboard.
+// because the intent is "show me area X for another project". backup-restore
+// is deliberately excluded: it's a source-specific flow, often mid-operation,
+// so switching from there drops back to the target dashboard.
 const PARALLEL_SECTIONS = new Set([
   "services",
   "databases",
+  "mock-time",
   "history",
   "settings",
 ]);
