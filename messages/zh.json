@@ -767,6 +767,8 @@
     "inviteSubmitting": "发送中…",
     "pendingTitle": "待处理邀请",
     "pendingDescription": "尚未激活的邀请。",
+    "expiredTitle": "已过期的邀请",
+    "expiredDescription": "这些链接已过期。重新发送以生成新链接。",
     "expiresAt": "{date} 到期",
     "revoke": "撤销",
     "revokeTitle": "撤销邀请",

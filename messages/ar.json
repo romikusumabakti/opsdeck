@@ -767,6 +767,8 @@
     "inviteSubmitting": "جارٍ الإرسال…",
     "pendingTitle": "الدعوات المعلقة",
     "pendingDescription": "الدعوات التي لم يتم تفعيلها.",
+    "expiredTitle": "الدعوات المنتهية",
+    "expiredDescription": "انتهت صلاحية هذه الروابط. أعد الإرسال لإنشاء رابط جديد.",
     "expiresAt": "تنتهي صلاحيتها {date}",
     "revoke": "إلغاء",
     "revokeTitle": "إلغاء الدعوة",

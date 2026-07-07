@@ -518,7 +518,15 @@ export function DataTable<TData, TValue>({
               total: filteredCount,
             })}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div
+            className={cn(
+              "flex items-center gap-3 flex-wrap",
+              // Nothing to control when everything fits on one page: no page to
+              // switch to, and no reason to shrink the page size. Drop the whole
+              // cluster so the footer is just the "showing X of Y" count.
+              table.getPageCount() <= 1 && "hidden"
+            )}
+          >
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground whitespace-nowrap">
                 {t("rowsPerPage")}

@@ -767,6 +767,8 @@
     "inviteSubmitting": "Sending…",
     "pendingTitle": "Pending invitations",
     "pendingDescription": "Invitations that have not been activated.",
+    "expiredTitle": "Expired invitations",
+    "expiredDescription": "These links have expired. Resend to issue a fresh one.",
     "expiresAt": "Expires {date}",
     "revoke": "Revoke",
     "revokeTitle": "Revoke invitation",
