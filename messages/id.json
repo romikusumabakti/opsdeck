@@ -469,7 +469,8 @@
       "button": "Dokumentasi API",
       "title": "Time Mocking API",
       "description": "Referensi REST API untuk mengontrol waktu sistem di lingkungan testing."
-    }
+    },
+    "advancedOptions": "Opsi lanjutan"
   },
   "history": {
     "title": "Riwayat",

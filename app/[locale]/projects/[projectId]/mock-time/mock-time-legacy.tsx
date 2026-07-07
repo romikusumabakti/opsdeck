@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Clock, Info, RotateCcw } from "lucide-react";
+import { ChevronDown, Clock, Info, RotateCcw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
 import { DateTimePicker } from "./date-time-picker";
@@ -53,6 +54,8 @@ export function MockTimeLegacy({
   >(null);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [activeTaskLabel, setActiveTaskLabel] = React.useState<string>("");
+
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   const [advanceAmount, setAdvanceAmount] = React.useState<string>("1");
   const [advanceUnit, setAdvanceUnit] = React.useState<AdvanceUnit>("hours");
@@ -184,13 +187,14 @@ export function MockTimeLegacy({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr] lg:items-start">
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:sticky lg:top-0">
           <ClockStatePanel
             clock={clock}
             clockError={clockError}
             clockLoading={clockLoading}
             refreshing={pendingAction === "refresh"}
             disabled={anyPending}
+            sticky={false}
             onRefresh={() => refreshClock(false)}
           />
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
@@ -230,28 +234,47 @@ export function MockTimeLegacy({
 
           <Separator />
 
-          <section className="flex flex-col gap-3">
-            <header className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">{t("advance.title")}</h3>
-              <p className="text-xs text-muted-foreground">
-                {t("advance.descriptionLegacy")}
-              </p>
-            </header>
-            <AdvanceFields
-              idPrefix="legacy"
-              amount={advanceAmount}
-              unit={advanceUnit}
-              direction={advanceDirection}
-              disabled={anyPending}
-              submitting={pendingAction === "advance"}
-              onAmountChange={setAdvanceAmount}
-              onUnitChange={setAdvanceUnit}
-              onDirectionChange={setAdvanceDirection}
-              onSubmit={onAdvance}
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform",
+                advancedOpen && "rotate-180"
+              )}
             />
-          </section>
+            {t("advancedOptions")}
+          </button>
 
-          <Separator />
+          {advancedOpen && (
+            <>
+              <section className="flex flex-col gap-3">
+                <header className="flex flex-col gap-1">
+                  <h3 className="text-sm font-medium">{t("advance.title")}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {t("advance.descriptionLegacy")}
+                  </p>
+                </header>
+                <AdvanceFields
+                  idPrefix="legacy"
+                  amount={advanceAmount}
+                  unit={advanceUnit}
+                  direction={advanceDirection}
+                  disabled={anyPending}
+                  submitting={pendingAction === "advance"}
+                  onAmountChange={setAdvanceAmount}
+                  onUnitChange={setAdvanceUnit}
+                  onDirectionChange={setAdvanceDirection}
+                  onSubmit={onAdvance}
+                />
+              </section>
+
+              <Separator />
+            </>
+          )}
 
           <section className="flex flex-col gap-3">
             <header className="flex flex-col gap-1">
