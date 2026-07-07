@@ -469,7 +469,8 @@
       "button": "API docs",
       "title": "Time Mocking API",
       "description": "REST API reference for controlling system time in testing environments."
-    }
+    },
+    "advancedOptions": "Advanced options"
   },
   "history": {
     "title": "History",

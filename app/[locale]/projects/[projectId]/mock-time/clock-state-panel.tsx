@@ -6,6 +6,7 @@ import type { ClockState } from "@/actions/mock-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { cn } from "@/lib/utils";
 import { LiveClock } from "./live-clock";
 
 export function ClockStatePanel({
@@ -15,6 +16,7 @@ export function ClockStatePanel({
   refreshing,
   disabled,
   showFrozen = false,
+  sticky = true,
   onRefresh,
 }: {
   clock: ClockState | null;
@@ -23,6 +25,7 @@ export function ClockStatePanel({
   refreshing: boolean;
   disabled: boolean;
   showFrozen?: boolean;
+  sticky?: boolean;
   onRefresh: () => void;
 }) {
   const t = useTranslations("mockTime");
@@ -33,7 +36,12 @@ export function ClockStatePanel({
   const isFrozen = clock?.frozen === true;
 
   return (
-    <section className="flex flex-col gap-3 rounded-md border bg-card p-4 lg:sticky lg:top-0">
+    <section
+      className={cn(
+        "flex flex-col gap-3 rounded-md border bg-card p-4",
+        sticky && "lg:sticky lg:top-0"
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Clock className="size-4 text-muted-foreground" />

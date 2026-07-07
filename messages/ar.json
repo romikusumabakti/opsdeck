@@ -469,7 +469,8 @@
       "button": "وثائق API",
       "title": "واجهة برمجة محاكاة الوقت",
       "description": "مرجع REST API للتحكم في وقت النظام في بيئات الاختبار."
-    }
+    },
+    "advancedOptions": "خيارات متقدمة"
   },
   "history": {
     "title": "السجل",
