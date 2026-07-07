@@ -13,7 +13,7 @@ export default function Loading() {
             <Skeleton className="h-5 w-24" />
           </CardHeader>
           <CardContent>
-            <DataTableSkeleton columns={2} rows={5} />
+            <DataTableSkeleton columns={3} rows={5} />
           </CardContent>
         </Card>
       </div>
