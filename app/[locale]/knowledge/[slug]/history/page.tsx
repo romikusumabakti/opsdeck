@@ -56,11 +56,7 @@ export default async function DocumentHistoryPage({
           title={t("historyOf", { title: doc.title })}
           subtitle={t("historyHint")}
         />
-        <KnowledgeHistoryClient
-          documentId={doc.id}
-          documentSlug={doc.slug}
-          revisions={revisions}
-        />
+        <KnowledgeHistoryClient documentId={doc.id} revisions={revisions} />
       </div>
     </div>
   );

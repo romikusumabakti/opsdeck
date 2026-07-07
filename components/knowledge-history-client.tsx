@@ -30,11 +30,9 @@ type Revision = {
 
 export function KnowledgeHistoryClient({
   documentId,
-  documentSlug,
   revisions,
 }: {
   documentId: string;
-  documentSlug: string;
   revisions: Revision[];
 }) {
   const t = useTranslations("knowledge");
