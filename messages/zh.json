@@ -469,7 +469,8 @@
       "button": "API 文档",
       "title": "时间模拟 API",
       "description": "用于在测试环境中控制系统时间的 REST API 参考。"
-    }
+    },
+    "advancedOptions": "高级选项"
   },
   "history": {
     "title": "历史记录",

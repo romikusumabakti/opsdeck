@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Clock, RotateCcw, Snowflake } from "lucide-react";
+import { ChevronDown, Clock, RotateCcw, Snowflake } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
 import { DateTimePicker } from "./date-time-picker";
@@ -46,6 +47,8 @@ export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
   const [pendingAction, setPendingAction] = React.useState<
     null | "travel" | "freezeAt" | "freezeNow" | "advance" | "reset" | "refresh"
   >(null);
+
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   const [advanceAmount, setAdvanceAmount] = React.useState<string>("1");
   const [advanceUnit, setAdvanceUnit] = React.useState<AdvanceUnit>("hours");
@@ -267,66 +270,85 @@ export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
 
           <Separator />
 
-          <section className="flex flex-col gap-3">
-            <header className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">{t("freeze.title")}</h3>
-              <p className="text-xs text-muted-foreground">
-                {t("freeze.description")}
-              </p>
-            </header>
-            <div className="flex flex-row gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={onFreezeAt}
-                disabled={anyPending}
-              >
-                <Snowflake className="size-4" />
-                {pendingAction === "freezeAt"
-                  ? t("freeze.submitting")
-                  : t("freeze.submitAt")}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onFreezeNow}
-                disabled={anyPending}
-              >
-                <Snowflake className="size-4" />
-                {pendingAction === "freezeNow"
-                  ? t("freeze.submitting")
-                  : t("freeze.submitNow")}
-              </Button>
-            </div>
-          </section>
-
-          <Separator />
-
-          <section className="flex flex-col gap-3">
-            <header className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">{t("advance.title")}</h3>
-              <p className="text-xs text-muted-foreground">
-                {t("advance.description")}
-              </p>
-            </header>
-            {!isFrozen && clock ? (
-              <p className="text-xs text-muted-foreground italic">
-                {t("advance.notFrozen")}
-              </p>
-            ) : null}
-            <AdvanceFields
-              idPrefix="api"
-              amount={advanceAmount}
-              unit={advanceUnit}
-              direction={advanceDirection}
-              disabled={!isFrozen || anyPending}
-              submitting={pendingAction === "advance"}
-              onAmountChange={setAdvanceAmount}
-              onUnitChange={setAdvanceUnit}
-              onDirectionChange={setAdvanceDirection}
-              onSubmit={onAdvance}
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            aria-expanded={advancedOpen}
+            className="flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform",
+                advancedOpen && "rotate-180"
+              )}
             />
-          </section>
+            {t("advancedOptions")}
+          </button>
 
-          <Separator />
+          {advancedOpen && (
+            <>
+              <section className="flex flex-col gap-3">
+                <header className="flex flex-col gap-1">
+                  <h3 className="text-sm font-medium">{t("freeze.title")}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {t("freeze.description")}
+                  </p>
+                </header>
+                <div className="flex flex-row gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    onClick={onFreezeAt}
+                    disabled={anyPending}
+                  >
+                    <Snowflake className="size-4" />
+                    {pendingAction === "freezeAt"
+                      ? t("freeze.submitting")
+                      : t("freeze.submitAt")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={onFreezeNow}
+                    disabled={anyPending}
+                  >
+                    <Snowflake className="size-4" />
+                    {pendingAction === "freezeNow"
+                      ? t("freeze.submitting")
+                      : t("freeze.submitNow")}
+                  </Button>
+                </div>
+              </section>
+
+              <Separator />
+
+              <section className="flex flex-col gap-3">
+                <header className="flex flex-col gap-1">
+                  <h3 className="text-sm font-medium">{t("advance.title")}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {t("advance.description")}
+                  </p>
+                </header>
+                {!isFrozen && clock ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    {t("advance.notFrozen")}
+                  </p>
+                ) : null}
+                <AdvanceFields
+                  idPrefix="api"
+                  amount={advanceAmount}
+                  unit={advanceUnit}
+                  direction={advanceDirection}
+                  disabled={!isFrozen || anyPending}
+                  submitting={pendingAction === "advance"}
+                  onAmountChange={setAdvanceAmount}
+                  onUnitChange={setAdvanceUnit}
+                  onDirectionChange={setAdvanceDirection}
+                  onSubmit={onAdvance}
+                />
+              </section>
+
+              <Separator />
+            </>
+          )}
 
           <section className="flex flex-col gap-3">
             <header className="flex flex-col gap-1">
