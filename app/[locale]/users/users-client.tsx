@@ -29,6 +29,7 @@ import {
   updateUserRole,
 } from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,6 +119,7 @@ export function UsersClient({
   const format = useFormatter();
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
+  const [inviteOpen, setInviteOpen] = React.useState(false);
 
   // Optimistic state for the pending invitations list. When a new invite is
   // sent, we render a placeholder row immediately so the user sees the result
@@ -186,8 +196,19 @@ export function UsersClient({
       }
       toast.success(result.message ?? "");
       form.reset({ name: "", email: "", role: ROLE_MEMBER });
+      setInviteOpen(false);
     });
   }
+
+  // Reset the form whenever the dialog closes (cancel, Esc, backdrop, or a
+  // successful invite) so the next open starts clean.
+  const onInviteOpenChange = React.useCallback(
+    (open: boolean) => {
+      setInviteOpen(open);
+      if (!open) form.reset({ name: "", email: "", role: ROLE_MEMBER });
+    },
+    [form]
+  );
 
   const onDelete = React.useCallback(
     async (user: UserRow) => {
@@ -596,24 +617,46 @@ export function UsersClient({
     [t, tCommon, isPending, onRevoke, onResend, format]
   );
 
+  // Split invitations by lifecycle so the "Pending" heading never lies: a link
+  // past its expiry lives in its own "Expired" table (resend to renew), while
+  // Pending only holds still-actionable invites.
+  const nowMs = Date.now();
+  const pendingInvitations = optimisticInvitations.filter(
+    (inv) => new Date(inv.expiresAt).getTime() >= nowMs
+  );
+  const expiredInvitations = optimisticInvitations.filter(
+    (inv) => new Date(inv.expiresAt).getTime() < nowMs
+  );
+
   return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("inviteCardTitle")}</CardTitle>
-          <CardDescription>{t("inviteCardDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <>
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="size-4" />
+            {t("inviteCardTitle")}
+          </Button>
+        }
+      />
+
+      <Dialog open={inviteOpen} onOpenChange={onInviteOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("inviteCardTitle")}</DialogTitle>
+            <DialogDescription>{t("inviteCardDescription")}</DialogDescription>
+          </DialogHeader>
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onInvite)}
-              className="flex flex-col gap-4 md:flex-row md:items-start"
+              className="flex flex-col gap-4"
             >
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
-                  <FormItem className="flex-1">
+                  <FormItem>
                     <FormLabel>{t("fullName")}</FormLabel>
                     <FormControl>
                       <Input
@@ -629,7 +672,7 @@ export function UsersClient({
                 control={form.control}
                 name="email"
                 render={({ field }) => (
-                  <FormItem className="flex-1">
+                  <FormItem>
                     <FormLabel>{t("email")}</FormLabel>
                     <FormControl>
                       <Input
@@ -646,7 +689,7 @@ export function UsersClient({
                 control={form.control}
                 name="role"
                 render={({ field }) => (
-                  <FormItem className="md:w-40">
+                  <FormItem>
                     <FormLabel>{t("roleLabel")}</FormLabel>
                     <Select
                       value={field.value}
@@ -669,91 +712,135 @@ export function UsersClient({
                   </FormItem>
                 )}
               />
-              <Button
-                type="submit"
-                disabled={form.formState.isSubmitting}
-                className="md:mt-6"
-              >
-                <UserPlus className="size-4" />
-                {form.formState.isSubmitting
-                  ? t("inviteSubmitting")
-                  : t("inviteSubmit")}
-              </Button>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onInviteOpenChange(false)}
+                >
+                  {tCommon("cancel")}
+                </Button>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
+                  <UserPlus className="size-4" />
+                  {form.formState.isSubmitting
+                    ? t("inviteSubmitting")
+                    : t("inviteSubmit")}
+                </Button>
+              </DialogFooter>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
-      {optimisticInvitations.length > 0 && (
+      <div className="flex flex-col gap-6">
+        {pendingInvitations.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {t("pendingTitle")}{" "}
+                <span className="text-muted-foreground font-normal">
+                  ({pendingInvitations.length})
+                </span>
+              </CardTitle>
+              <CardDescription>{t("pendingDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                columns={invitationColumns}
+                data={pendingInvitations}
+                initialPageSize={10}
+                getRowId={(row) => row.id}
+                filterColumn="name"
+                filterPlaceholder={t("searchPlaceholder")}
+                urlKey="inv"
+                bulkActions={(ids, clearSelection) => (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onBulkRevoke(ids, clearSelection)}
+                    disabled={isPending}
+                  >
+                    <Trash2 className="size-4" />
+                    {t("bulkRevoke")}
+                  </Button>
+                )}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {expiredInvitations.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {t("expiredTitle")}{" "}
+                <span className="text-muted-foreground font-normal">
+                  ({expiredInvitations.length})
+                </span>
+              </CardTitle>
+              <CardDescription>{t("expiredDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                columns={invitationColumns}
+                data={expiredInvitations}
+                initialPageSize={10}
+                getRowId={(row) => row.id}
+                filterColumn="name"
+                filterPlaceholder={t("searchPlaceholder")}
+                urlKey="invx"
+                bulkActions={(ids, clearSelection) => (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onBulkRevoke(ids, clearSelection)}
+                    disabled={isPending}
+                  >
+                    <Trash2 className="size-4" />
+                    {t("bulkRevoke")}
+                  </Button>
+                )}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>
-              {t("pendingTitle")}{" "}
+              {t("listCardTitle")}{" "}
               <span className="text-muted-foreground font-normal">
-                ({optimisticInvitations.length})
+                ({optimisticUsers.length})
               </span>
             </CardTitle>
-            <CardDescription>{t("pendingDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable
-              columns={invitationColumns}
-              data={optimisticInvitations}
-              initialPageSize={5}
-              getRowId={(row) => row.id}
+              columns={userColumns}
+              data={optimisticUsers}
+              initialPageSize={25}
               filterColumn="name"
               filterPlaceholder={t("searchPlaceholder")}
-              urlKey="inv"
+              getRowId={(row) => row.id}
+              canSelectRow={(row) => row.id !== currentUserId}
+              urlKey="usr"
+              renderCard={renderUserCard}
               bulkActions={(ids, clearSelection) => (
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => onBulkRevoke(ids, clearSelection)}
+                  onClick={() => onBulkDeleteUsers(ids, clearSelection)}
                   disabled={isPending}
                 >
                   <Trash2 className="size-4" />
-                  {t("bulkRevoke")}
+                  {t("bulkDelete")}
                 </Button>
               )}
             />
           </CardContent>
         </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {t("listCardTitle")}{" "}
-            <span className="text-muted-foreground font-normal">
-              ({optimisticUsers.length})
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={userColumns}
-            data={optimisticUsers}
-            filterColumn="name"
-            filterPlaceholder={t("searchPlaceholder")}
-            getRowId={(row) => row.id}
-            canSelectRow={(row) => row.id !== currentUserId}
-            urlKey="usr"
-            renderCard={renderUserCard}
-            bulkActions={(ids, clearSelection) => (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => onBulkDeleteUsers(ids, clearSelection)}
-                disabled={isPending}
-              >
-                <Trash2 className="size-4" />
-                {t("bulkDelete")}
-              </Button>
-            )}
-          />
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </>
   );
 }
 

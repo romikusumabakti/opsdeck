@@ -767,6 +767,8 @@
     "inviteSubmitting": "Mengirim…",
     "pendingTitle": "Undangan tertunda",
     "pendingDescription": "Undangan yang belum diaktivasi pengguna.",
+    "expiredTitle": "Undangan kedaluwarsa",
+    "expiredDescription": "Tautan ini sudah kedaluwarsa. Kirim ulang untuk membuat tautan baru.",
     "expiresAt": "Kadaluarsa {date}",
     "revoke": "Batalkan",
     "revokeTitle": "Batalkan undangan",

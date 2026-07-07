@@ -6,27 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <>
-      <PageHeaderSkeleton withAction={false} />
+      <PageHeaderSkeleton />
       <div className="flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-4 w-64 mt-1" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4 md:flex-row md:items-end">
-              <div className="flex-1 flex flex-col gap-2">
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-9 w-full" />
-              </div>
-              <div className="flex-1 flex flex-col gap-2">
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-9 w-full" />
-              </div>
-              <Skeleton className="h-9 w-24" />
-            </div>
-          </CardContent>
-        </Card>
         <Card>
           <CardHeader>
             <Skeleton className="h-5 w-24" />
