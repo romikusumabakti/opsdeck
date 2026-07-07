@@ -9,7 +9,7 @@ import {
   Preview,
   Section,
   Text,
-} from "@react-email/components";
+} from "react-email";
 import { APP_NAME } from "@/lib/branding";
 
 export interface InvitationEmailProps {

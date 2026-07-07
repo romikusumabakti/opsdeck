@@ -1,4 +1,4 @@
-import { render } from "@react-email/render";
+import { render } from "react-email";
 import { APP_NAME } from "../branding";
 import { getFromAddress, getResend } from "./client";
 import {
