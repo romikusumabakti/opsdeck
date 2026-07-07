@@ -798,7 +798,9 @@
     "searchPlaceholder": "按姓名搜索…",
     "colUser": "用户",
     "colInvitee": "被邀请人",
-    "colExpires": "到期时间"
+    "colExpires": "到期时间",
+    "colLastActive": "最近活跃",
+    "neverActive": "从未"
   },
   "setup": {
     "title": "初始设置",
