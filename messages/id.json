@@ -798,7 +798,9 @@
     "searchPlaceholder": "Cari berdasarkan nama…",
     "colUser": "Pengguna",
     "colInvitee": "Diundang",
-    "colExpires": "Kadaluarsa"
+    "colExpires": "Kadaluarsa",
+    "colLastActive": "Aktif terakhir",
+    "neverActive": "Belum pernah"
   },
   "setup": {
     "title": "Pengaturan awal",

@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { invitations, users as userTable } from "@/lib/db/schema";
+import { invitations, sessions, users as userTable } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
 
 export type ActionResponse =
@@ -112,6 +112,11 @@ export async function createInitialUser(input: {
 
 export async function listUsers() {
   await requireAdmin();
+  // Last-active is derived from the most recent session touch per user
+  // (better-auth bumps sessions.updatedAt on activity/refresh). A LEFT JOIN +
+  // MAX keeps it a single query; users with no session yet come back null
+  // ("never signed in"). GROUP BY the users PK lets Postgres carry the other
+  // user columns without listing each.
   return db
     .select({
       id: userTable.id,
@@ -121,8 +126,11 @@ export async function listUsers() {
       image: userTable.image,
       role: userTable.role,
       createdAt: userTable.createdAt,
+      lastActiveAt: max(sessions.updatedAt),
     })
     .from(userTable)
+    .leftJoin(sessions, eq(sessions.userId, userTable.id))
+    .groupBy(userTable.id)
     .orderBy(userTable.createdAt);
 }
 

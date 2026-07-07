@@ -84,6 +84,7 @@ type UserRow = {
   image: string | null;
   role: string;
   createdAt: Date;
+  lastActiveAt: Date | null;
 };
 
 type InvitationRow = {
@@ -494,23 +495,60 @@ export function UsersClient({
 
   const renderUserCard = React.useCallback(
     (user: UserRow) => (
-      <div className="flex items-start justify-between gap-3">
-        {renderUserIdentity(user)}
-        {renderUserActions(user)}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          {renderUserIdentity(user)}
+          {renderUserActions(user)}
+        </div>
+        <div className="ps-12 text-sm text-muted-foreground">
+          {user.lastActiveAt
+            ? format.relativeTime(new Date(user.lastActiveAt))
+            : t("neverActive")}
+        </div>
       </div>
     ),
-    [renderUserIdentity, renderUserActions]
+    [renderUserIdentity, renderUserActions, t, format]
   );
 
   const userColumns = React.useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
         accessorKey: "name",
+        enableHiding: false,
         meta: { label: t("colUser") },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t("colUser")} />
         ),
         cell: ({ row }) => renderUserIdentity(row.original),
+      },
+      {
+        accessorKey: "lastActiveAt",
+        meta: { label: t("colLastActive") },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("colLastActive")} />
+        ),
+        cell: ({ row }) => {
+          const at = row.original.lastActiveAt;
+          if (!at) {
+            return (
+              <span className="text-sm text-muted-foreground">
+                {t("neverActive")}
+              </span>
+            );
+          }
+          const date = new Date(at);
+          return (
+            <span
+              className="text-sm text-muted-foreground"
+              title={format.dateTime(date, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            >
+              {format.relativeTime(date)}
+            </span>
+          );
+        },
       },
       {
         id: "actions",
@@ -519,7 +557,7 @@ export function UsersClient({
         cell: ({ row }) => renderUserActions(row.original),
       },
     ],
-    [t, renderUserIdentity, renderUserActions]
+    [t, format, renderUserIdentity, renderUserActions]
   );
 
   const invitationColumns = React.useMemo<ColumnDef<InvitationRow>[]>(
