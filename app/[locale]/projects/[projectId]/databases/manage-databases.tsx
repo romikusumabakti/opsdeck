@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Pencil, Plus, Trash2 } from "lucide-react";
+import { Database, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -14,10 +14,16 @@ import { useDialog } from "@/components/dialog-provider";
 import { LiveTaskDialog } from "@/components/live-task-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeProjectWithServers } from "@/lib/db/schema";
+import { formatBytes } from "@/lib/utils";
+
+// Above this many databases the list gets a search box — small lists don't
+// need one and the extra control just adds noise.
+const SEARCH_THRESHOLD = 8;
 
 export function ManageDatabases({
   project,
@@ -31,12 +37,20 @@ export function ManageDatabases({
   const dialog = useDialog();
   const router = useRouter();
   const [newName, setNewName] = React.useState("");
+  const [query, setQuery] = React.useState("");
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [taskTitle, setTaskTitle] = React.useState("");
   const [taskTarget, setTaskTarget] = React.useState("");
   const [submitting, startTransition] = React.useTransition();
 
   const trimmed = newName.trim();
+
+  const showSearch = databases.length > SEARCH_THRESHOLD;
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return databases;
+    return databases.filter((d) => d.name.toLowerCase().includes(q));
+  }, [databases, query]);
 
   function onCreate() {
     if (!trimmed) return;
@@ -98,12 +112,14 @@ export function ManageDatabases({
 
   function onDrop(name: string) {
     void (async () => {
-      const ok = await dialog.confirm({
+      const ok = await dialog.confirmTyping({
         title: t("dropConfirmTitle"),
         description: t("dropConfirmDescription", { dbName: name }),
+        phrase: name,
+        phraseLabel: t("dropConfirmTypingLabel"),
+        placeholder: t("dropConfirmTypingPlaceholder"),
         confirmText: t("drop"),
         cancelText: tCommon("cancel"),
-        destructive: true,
       });
       if (!ok) return;
       startTransition(async () => {
@@ -154,49 +170,86 @@ export function ManageDatabases({
       </form>
 
       <div className="flex flex-col gap-2">
-        <Label>{t("existingLabel")}</Label>
-        <ul className="flex flex-col divide-y rounded-md border">
-          {databases.map((d) => (
-            <li
-              key={d.name}
-              className="flex items-center gap-2 px-3 py-2 text-sm"
-            >
-              <Database className="size-4 shrink-0 text-muted-foreground" />
-              <code className="font-mono text-xs truncate flex-1 min-w-0">
-                {d.name}
-              </code>
-              {d.isDefault && (
-                <Badge variant="secondary" className="shrink-0">
-                  {t("defaultBadge")}
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                disabled={d.isDefault || submitting}
-                onClick={() => onRename(d.name)}
-                title={
-                  d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
-                }
-                aria-label={t("renameTitle")}
+        <div className="flex items-center justify-between gap-2">
+          <Label>{t("existingLabel")}</Label>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {t("count", { count: databases.length })}
+          </span>
+        </div>
+
+        {showSearch && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className="pl-8 font-mono text-sm"
+              autoComplete="off"
+              spellCheck={false}
+              aria-label={t("searchPlaceholder")}
+            />
+          </div>
+        )}
+
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title={t("noMatchTitle")}
+            description={t("noMatchDescription")}
+            className="rounded-md border py-10"
+          />
+        ) : (
+          <ul className="flex flex-col divide-y rounded-md border">
+            {filtered.map((d) => (
+              <li
+                key={d.name}
+                className="flex items-center gap-2 px-3 py-2 text-sm"
               >
-                <Pencil className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 text-destructive hover:text-destructive"
-                disabled={d.isDefault || submitting}
-                onClick={() => onDrop(d.name)}
-                title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
-                aria-label={t("dropTitle")}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </li>
-          ))}
-        </ul>
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <Database className="size-4 shrink-0 text-muted-foreground" />
+                  <code className="min-w-0 truncate font-mono text-xs">
+                    {d.name}
+                  </code>
+                  {d.isDefault && (
+                    <Badge variant="secondary" className="shrink-0">
+                      {t("defaultBadge")}
+                    </Badge>
+                  )}
+                </div>
+                {d.sizeBytes !== undefined && (
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {formatBytes(d.sizeBytes)}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={d.isDefault || submitting}
+                  onClick={() => onRename(d.name)}
+                  title={
+                    d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
+                  }
+                  aria-label={t("renameTitle")}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-destructive hover:text-destructive"
+                  disabled={d.isDefault || submitting}
+                  onClick={() => onDrop(d.name)}
+                  title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
+                  aria-label={t("dropTitle")}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <LiveTaskDialog
