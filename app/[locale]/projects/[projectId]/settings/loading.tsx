@@ -7,15 +7,19 @@ export default function Loading() {
     <>
       <PageHeaderSkeleton withAction={false} />
       <div className="flex flex-col gap-6 max-w-2xl w-full">
+        {/* TabsList */}
+        <Skeleton className="h-9 w-56 rounded-lg" />
+
+        {/* Edit form card */}
         <Card>
           <CardHeader>
             <Skeleton className="h-5 w-40" />
             <Skeleton className="h-4 w-72" />
           </CardHeader>
-          <CardContent className="flex flex-col gap-8">
+          <CardContent className="flex flex-col gap-6">
             <FormSection fields={1} />
-            <FormSection fields={6} />
-            <FormSection fields={4} />
+            <FormSection fields={7} />
+            <FormSection fields={5} />
             <FormSection fields={3} />
             <div className="flex justify-end gap-2">
               <Skeleton className="h-9 w-24" />
@@ -24,7 +28,8 @@ export default function Loading() {
           </CardContent>
         </Card>
 
-        <Card className="border-destructive/50">
+        {/* Duplicate card */}
+        <Card>
           <CardHeader>
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-72" />
@@ -40,7 +45,7 @@ export default function Loading() {
 
 function FormSection({ fields }: { fields: number }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <Skeleton className="h-4 w-24" />
       <div className="grid gap-4 sm:grid-cols-2">
         {Array.from({ length: fields }, (_, i) => (
