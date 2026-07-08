@@ -361,7 +361,13 @@
     "renameQueuedDescription": "数据库 {from} 重命名为 {to} 已加入队列。",
     "manageTab": "管理",
     "backupTab": "备份",
-    "restoreTab": "还原"
+    "restoreTab": "还原",
+    "searchPlaceholder": "搜索数据库…",
+    "noMatchTitle": "没有匹配的数据库",
+    "noMatchDescription": "没有数据库与您的搜索匹配。",
+    "count": "{count, plural, other {# 个数据库}}",
+    "dropConfirmTypingLabel": "输入数据库名称以确认",
+    "dropConfirmTypingPlaceholder": "输入数据库名称"
   },
   "mockTime": {
     "title": "模拟时间",
