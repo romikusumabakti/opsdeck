@@ -14,9 +14,22 @@ export async function executeRemoteCommand(
   // connect/dispose the same instance and tear down each other's session.
   const ssh = new NodeSSH();
   try {
-    await ssh.connect({ host, username, password });
+    // Bound the SSH handshake so an unreachable/overloaded DB host fails fast
+    // (node-ssh defaults to ~20s) instead of hanging a page render on it.
+    await ssh.connect({ host, username, password, readyTimeout: 5000 });
 
-    const result = await ssh.execCommand(command);
+    // ssh2's exec has no command timeout, so race the command against a wall
+    // clock and tear the connection down if it overruns — otherwise a stuck
+    // remote command (locked psql, slow disk) blocks the caller indefinitely.
+    const result = await Promise.race([
+      ssh.execCommand(command),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("SSH command timed out after 10000ms")),
+          10000
+        )
+      ),
+    ]);
 
     if (result.code !== 0) {
       // Some tools (sqlcmd, mysql client, etc.) write errors to stdout instead

@@ -1,6 +1,8 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
+import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand } from "@/lib/services";
@@ -34,6 +36,52 @@ function resolveTargetDatabase(
   return parsed.data;
 }
 
+// The SSH probe with no session/request state, so it is safe inside
+// `unstable_cache`. Throws on failure so a transient SSH error is not cached.
+async function probeBackupList(projectId: string): Promise<Backup[]> {
+  const project = await loadProjectWithServers(projectId);
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
+  // postgres (compressed or not) and `.bak` for mssql. Anything else in the
+  // folder is ignored so users can't pick an unrestoreable file from the
+  // dropdown.
+  const extensionPattern =
+    project.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
+
+  // `grep -E` for the optional `.gz` alternation. Run as the DB's OS user
+  // for systemd so the listing works even when the backup dir is mode 700
+  // (typical for Postgres data dirs and mssql backup dirs); no-op for
+  // docker/kubernetes where the exec wrapper already enters the container.
+  const inner = `ls -lt ${shq(project.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+  const cmd = buildDbShellCommand(
+    project.dbServiceType,
+    project.dbServiceName,
+    inner,
+    {
+      runAsUser: project.dbType === "postgres" ? "postgres" : "mssql",
+      sudoPassword: project.dbServer.password,
+    }
+  );
+  const output = await executeRemoteCommand(
+    {
+      host: project.dbServer.host,
+      username: project.dbServer.username,
+      password: project.dbServer.password,
+    },
+    cmd
+  );
+
+  return output
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [size, name] = line.trim().split(/\s+/);
+      return { name, size };
+    });
+}
+
 export async function getBackupList(
   projectId: string
 ): Promise<BackupListResult> {
@@ -41,51 +89,18 @@ export async function getBackupList(
   if (!projectIdSchema.safeParse(projectId).success) {
     return { success: false, error: "Invalid project id" };
   }
-  const project = await loadProjectWithServers(projectId);
-  if (!project) {
-    return { success: false, error: "Project not found" };
-  }
   try {
-    // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
-    // postgres (compressed or not) and `.bak` for mssql. Anything else in the
-    // folder is ignored so users can't pick an unrestoreable file from the
-    // dropdown.
-    const extensionPattern =
-      project.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
-
-    // `grep -E` for the optional `.gz` alternation. Run as the DB's OS user
-    // for systemd so the listing works even when the backup dir is mode 700
-    // (typical for Postgres data dirs and mssql backup dirs); no-op for
-    // docker/kubernetes where the exec wrapper already enters the container.
-    const inner = `ls -lt ${shq(project.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
-    const cmd = buildDbShellCommand(
-      project.dbServiceType,
-      project.dbServiceName,
-      inner,
-      {
-        runAsUser: project.dbType === "postgres" ? "postgres" : "mssql",
-        sudoPassword: project.dbServer.password,
-      }
-    );
-    const output = await executeRemoteCommand(
-      {
-        host: project.dbServer.host,
-        username: project.dbServer.username,
-        password: project.dbServer.password,
-      },
-      cmd
-    );
-
-    const backups = output
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => {
-        const [size, name] = line.trim().split(/\s+/);
-        return { name, size };
-      });
-
-    return { success: true, data: backups };
+    const data = await unstable_cache(
+      () => probeBackupList(projectId),
+      ["backup-list", projectId],
+      { tags: [backupListCacheTag(projectId)], revalidate: 30 }
+    )();
+    return { success: true, data };
   } catch (error) {
+    const message = (error as Error).message;
+    if (message === "Project not found") {
+      return { success: false, error: message };
+    }
     // Don't surface raw SSH stderr (paths, hostnames) to the client.
     console.error(`Failed to fetch backups for project ${projectId}:`, error);
     return { success: false, error: "Failed to fetch backups" };
