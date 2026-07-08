@@ -361,7 +361,13 @@
     "renameQueuedDescription": "Rename of database {from} to {to} has been queued.",
     "manageTab": "Manage",
     "backupTab": "Backup",
-    "restoreTab": "Restore"
+    "restoreTab": "Restore",
+    "searchPlaceholder": "Search databases…",
+    "noMatchTitle": "No matching databases",
+    "noMatchDescription": "No database matches your search.",
+    "count": "{count, plural, one {# database} other {# databases}}",
+    "dropConfirmTypingLabel": "Type the database name to confirm",
+    "dropConfirmTypingPlaceholder": "Enter the database name"
   },
   "mockTime": {
     "title": "Mock time",

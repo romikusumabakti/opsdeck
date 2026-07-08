@@ -361,7 +361,13 @@
     "renameQueuedDescription": "Penggantian nama database {from} menjadi {to} sudah di-queue.",
     "manageTab": "Kelola",
     "backupTab": "Backup",
-    "restoreTab": "Pulihkan"
+    "restoreTab": "Pulihkan",
+    "searchPlaceholder": "Cari basis data…",
+    "noMatchTitle": "Tidak ada basis data yang cocok",
+    "noMatchDescription": "Tidak ada basis data yang cocok dengan pencarian Anda.",
+    "count": "{count, plural, other {# basis data}}",
+    "dropConfirmTypingLabel": "Ketik nama basis data untuk konfirmasi",
+    "dropConfirmTypingPlaceholder": "Masukkan nama basis data"
   },
   "mockTime": {
     "title": "Mock waktu",

@@ -361,7 +361,13 @@
     "renameQueuedDescription": "تم وضع إعادة تسمية قاعدة البيانات {from} إلى {to} في قائمة الانتظار.",
     "manageTab": "إدارة",
     "backupTab": "نسخ احتياطي",
-    "restoreTab": "استعادة"
+    "restoreTab": "استعادة",
+    "searchPlaceholder": "البحث في قواعد البيانات…",
+    "noMatchTitle": "لا توجد قواعد بيانات مطابقة",
+    "noMatchDescription": "لا توجد قاعدة بيانات تطابق بحثك.",
+    "count": "{count, plural, other {# قاعدة بيانات}}",
+    "dropConfirmTypingLabel": "اكتب اسم قاعدة البيانات للتأكيد",
+    "dropConfirmTypingPlaceholder": "أدخل اسم قاعدة البيانات"
   },
   "mockTime": {
     "title": "محاكاة الوقت",

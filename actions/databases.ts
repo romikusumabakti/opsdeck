@@ -14,6 +14,10 @@ import { databaseNameSchema, projectIdSchema } from "@/lib/validation";
 export interface DatabaseEntry {
   name: string;
   isDefault: boolean;
+  // On-disk size in bytes. Best-effort: undefined when the probe couldn't
+  // measure it (e.g. the injected default db, or a size column that failed to
+  // parse). The UI simply omits the badge when absent.
+  sizeBytes?: number;
 }
 
 type DatabaseListResult =
@@ -37,8 +41,10 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
     // Skip the four system databases (database_id 1-4: master, tempdb, model,
     // msdb). `-h -1` drops the header, `-W` trims trailing spaces so each line
     // is a clean database name. `SET NOCOUNT ON` suppresses the row-count tail.
+    // Emit `name|sizeBytes` (size = SUM of file pages × 8 KB) so listing and
+    // size come back in one round-trip; parsing tolerates a missing size.
     const query =
-      "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name;";
+      "SET NOCOUNT ON; SELECT name + '|' + CAST(CAST((SELECT SUM(mf.size) FROM sys.master_files mf WHERE mf.database_id = d.database_id) AS BIGINT) * 8192 AS VARCHAR(32)) FROM sys.databases d WHERE database_id > 4 ORDER BY name;";
     cmd = buildSqlcmdCommand(
       query,
       project.dbPassword,
@@ -47,11 +53,11 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
       ["-h", "-1", "-W"]
     );
   } else {
-    // `-tAc`: tuples-only, unaligned, run-command — one bare datname per line.
-    // Exclude template databases (template0/template1) which can't be backed
-    // up or restored into.
+    // `-tAc`: tuples-only, unaligned, run-command — one `datname|sizeBytes` per
+    // line (pg_database_size gives on-disk bytes). Exclude template databases
+    // (template0/template1) which can't be backed up or restored into.
     const query =
-      "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname";
+      "SELECT datname || '|' || pg_database_size(datname) FROM pg_database WHERE datistemplate = false ORDER BY datname";
     const inner = `psql -U postgres -tAc ${shq(query)}`;
     cmd = buildDbShellCommand(
       project.dbServiceType,
@@ -69,18 +75,34 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
     },
     cmd
   );
-  const names = output
+  // Each line is `name|sizeBytes`. Split on the first `|` only — validated
+  // database names never contain one, and a line with no `|` (older query, or
+  // a size that failed to compute) still yields a usable name.
+  const entries = output
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((line) => {
+      const sep = line.indexOf("|");
+      const name = sep >= 0 ? line.slice(0, sep) : line;
+      const sizeStr = sep >= 0 ? line.slice(sep + 1).trim() : "";
+      const size = Number(sizeStr);
+      return {
+        name,
+        sizeBytes:
+          sizeStr !== "" && Number.isFinite(size) && size >= 0
+            ? size
+            : undefined,
+      };
+    });
   // Always surface the configured database, even if the enumeration somehow
   // missed it (permissions, race), and mark it as the default.
-  if (!names.includes(project.dbName)) {
-    names.unshift(project.dbName);
+  if (!entries.some((e) => e.name === project.dbName)) {
+    entries.unshift({ name: project.dbName, sizeBytes: undefined });
   }
-  return names.map((name) => ({
-    name,
-    isDefault: name === project.dbName,
+  return entries.map((e) => ({
+    ...e,
+    isDefault: e.name === project.dbName,
   }));
 }
 
