@@ -1,6 +1,8 @@
 "use server";
 
+import { unstable_cache } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
+import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand, buildSqlcmdCommand } from "@/lib/services";
@@ -18,10 +20,75 @@ type DatabaseListResult =
   | { success: true; data: DatabaseEntry[] }
   | { success: false; error: string };
 
+// The actual SSH probe, with no session/request state so it is safe to wrap in
+// `unstable_cache`. Throws on any failure so a transient SSH error is NOT
+// cached — only successful listings are stored (see getDatabaseList).
+async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
+  const project = await loadProjectWithServers(projectId);
+  if (!project) {
+    throw new Error("Project not found");
+  }
+
+  let cmd: string;
+  if (project.dbType === "mssql") {
+    if (!project.dbPassword) {
+      throw new Error("Project dbPassword is required to list MSSQL databases");
+    }
+    // Skip the four system databases (database_id 1-4: master, tempdb, model,
+    // msdb). `-h -1` drops the header, `-W` trims trailing spaces so each line
+    // is a clean database name. `SET NOCOUNT ON` suppresses the row-count tail.
+    const query =
+      "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name;";
+    cmd = buildSqlcmdCommand(
+      query,
+      project.dbPassword,
+      project.dbServiceType,
+      project.dbServiceName,
+      ["-h", "-1", "-W"]
+    );
+  } else {
+    // `-tAc`: tuples-only, unaligned, run-command — one bare datname per line.
+    // Exclude template databases (template0/template1) which can't be backed
+    // up or restored into.
+    const query =
+      "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname";
+    const inner = `psql -U postgres -tAc ${shq(query)}`;
+    cmd = buildDbShellCommand(
+      project.dbServiceType,
+      project.dbServiceName,
+      inner,
+      { runAsUser: "postgres", sudoPassword: project.dbServer.password }
+    );
+  }
+
+  const output = await executeRemoteCommand(
+    {
+      host: project.dbServer.host,
+      username: project.dbServer.username,
+      password: project.dbServer.password,
+    },
+    cmd
+  );
+  const names = output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  // Always surface the configured database, even if the enumeration somehow
+  // missed it (permissions, race), and mark it as the default.
+  if (!names.includes(project.dbName)) {
+    names.unshift(project.dbName);
+  }
+  return names.map((name) => ({
+    name,
+    isDefault: name === project.dbName,
+  }));
+}
+
 // Enumerate the databases that live on the project's DB server, so the picker
 // can offer targets other than the project's configured "default" database.
-// Synchronous SSH (like getBackupList) — the list is needed to render the page,
-// not as a background task.
+// Synchronous SSH (like getBackupList), so the result is cached per project for
+// a short window to keep repeat navigations off the remote host; the timeout
+// guard in executeRemoteCommand bounds a cold miss.
 export async function getDatabaseList(
   projectId: string
 ): Promise<DatabaseListResult> {
@@ -29,72 +96,20 @@ export async function getDatabaseList(
   if (!projectIdSchema.safeParse(projectId).success) {
     return { success: false, error: "Invalid project id" };
   }
-  const project = await loadProjectWithServers(projectId);
-  if (!project) {
-    return { success: false, error: "Project not found" };
-  }
-
   try {
-    let cmd: string;
-    if (project.dbType === "mssql") {
-      if (!project.dbPassword) {
-        return {
-          success: false,
-          error: "Project dbPassword is required to list MSSQL databases",
-        };
-      }
-      // Skip the four system databases (database_id 1-4: master, tempdb, model,
-      // msdb). `-h -1` drops the header, `-W` trims trailing spaces so each line
-      // is a clean database name. `SET NOCOUNT ON` suppresses the row-count tail.
-      const query =
-        "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name;";
-      cmd = buildSqlcmdCommand(
-        query,
-        project.dbPassword,
-        project.dbServiceType,
-        project.dbServiceName,
-        ["-h", "-1", "-W"]
-      );
-    } else {
-      // `-tAc`: tuples-only, unaligned, run-command — one bare datname per line.
-      // Exclude template databases (template0/template1) which can't be backed
-      // up or restored into.
-      const query =
-        "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname";
-      const inner = `psql -U postgres -tAc ${shq(query)}`;
-      cmd = buildDbShellCommand(
-        project.dbServiceType,
-        project.dbServiceName,
-        inner,
-        { runAsUser: "postgres", sudoPassword: project.dbServer.password }
-      );
-    }
-
-    const output = await executeRemoteCommand(
-      {
-        host: project.dbServer.host,
-        username: project.dbServer.username,
-        password: project.dbServer.password,
-      },
-      cmd
-    );
-    const names = output
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    // Always surface the configured database, even if the enumeration somehow
-    // missed it (permissions, race), and mark it as the default.
-    if (!names.includes(project.dbName)) {
-      names.unshift(project.dbName);
-    }
-    const data = names.map((name) => ({
-      name,
-      isDefault: name === project.dbName,
-    }));
-
+    const data = await unstable_cache(
+      () => probeDatabaseList(projectId),
+      ["db-list", projectId],
+      { tags: [dbListCacheTag(projectId)], revalidate: 30 }
+    )();
     return { success: true, data };
   } catch (error) {
-    // Don't surface raw SSH stderr (paths, hostnames) to the client.
+    // Don't surface raw SSH stderr (paths, hostnames) to the client. "Project
+    // not found" / the mssql-password message are safe and stay verbatim.
+    const message = (error as Error).message;
+    if (message === "Project not found" || message.startsWith("Project ")) {
+      return { success: false, error: message };
+    }
     console.error(`Failed to list databases for project ${projectId}:`, error);
     return { success: false, error: "Failed to list databases" };
   }
