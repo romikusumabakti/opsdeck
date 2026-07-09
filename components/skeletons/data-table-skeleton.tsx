@@ -53,7 +53,7 @@ export function DataTableSkeleton({
               <TableRow key={`tr-${r}`}>
                 {Array.from({ length: columns }, (_, c) => (
                   <TableCell key={`td-${r}-${c}`}>
-                    <Skeleton className="h-4 w-full max-w-[160px]" />
+                    <Skeleton className="h-5 w-full max-w-[160px]" />
                   </TableCell>
                 ))}
               </TableRow>
