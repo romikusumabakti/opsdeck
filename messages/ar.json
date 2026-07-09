@@ -110,7 +110,8 @@
     "servers": "الخوادم",
     "users": "المستخدمون",
     "projects": "المشاريع",
-    "knowledge": "المعرفة"
+    "knowledge": "المعرفة",
+    "storage": "التخزين"
   },
   "header": {
     "selectProject": "اختر مشروعاً…",
@@ -970,6 +971,55 @@
     "modified": "آخر تعديل",
     "download": "تنزيل",
     "serverFilesTitle": "الملفات — {name}",
-    "serverFilesSubtitle": "تصفح {root} عبر SFTP"
+    "serverFilesSubtitle": "تصفح {root} عبر SFTP",
+    "storageFilesTitle": "الملفات — {name}",
+    "storageFilesSubtitle": "تصفح الحاوية {bucket}"
+  },
+  "storage": {
+    "title": "التخزين",
+    "subtitle": "اتصالات تخزين الكائنات المتوافقة مع S3.",
+    "addConnection": "إضافة اتصال",
+    "colName": "الاسم",
+    "colEndpoint": "نقطة النهاية",
+    "colBucket": "الحاوية",
+    "browse": "تصفح الملفات",
+    "emptyTitle": "لا توجد اتصالات",
+    "empty": "أضف اتصالاً متوافقًا مع S3 لتصفح كائناته.",
+    "searchPlaceholder": "بحث في الاتصالات…",
+    "deleteTitle": "حذف الاتصال",
+    "deleteDescription": "حذف “{name}”؟ لن تتأثر الكائنات المخزنة."
+  },
+  "newStorage": {
+    "title": "اتصال جديد",
+    "description": "اربط حاوية متوافقة مع S3.",
+    "formTitle": "تفاصيل الاتصال",
+    "formDescription": "تُخزَّن بيانات الاعتماد على الخادم ولا تُرسل إلى المتصفح أبدًا."
+  },
+  "editStorage": {
+    "title": "تعديل {name}",
+    "description": "تحديث تفاصيل الاتصال.",
+    "formTitle": "تفاصيل الاتصال",
+    "formDescription": "اترك المفتاح السري فارغًا للاحتفاظ بالمخزَّن.",
+    "browseFiles": "تصفح الملفات"
+  },
+  "s3Form": {
+    "name": "الاسم",
+    "namePlaceholder": "حاويتي",
+    "endpoint": "نقطة النهاية",
+    "endpointInvalid": "يجب أن يكون عنوان URL صالحًا",
+    "bucket": "الحاوية",
+    "region": "المنطقة",
+    "accessKeyId": "معرّف مفتاح الوصول",
+    "secretKey": "المفتاح السري",
+    "secretKeyEdit": "المفتاح السري",
+    "secretKeyEditPlaceholder": "اتركه فارغًا للاحتفاظ بالحالي",
+    "forcePathStyle": "عنونة بنمط المسار",
+    "forcePathStyleDescription": "مطلوب لـ Garage ومعظم خوادم S3 المستضافة ذاتيًا. اتركه مفعّلاً ما لم تستخدم نمط المضيف الافتراضي من AWS.",
+    "testConnection": "اختبار الاتصال",
+    "testSuccess": "نجح الاتصال",
+    "testFailed": "فشل الاتصال",
+    "submitting": "جارٍ الحفظ…",
+    "saveChanges": "حفظ التغييرات",
+    "create": "إنشاء"
   }
 }
