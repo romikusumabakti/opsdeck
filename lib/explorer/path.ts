@@ -36,7 +36,10 @@ export function confineSftpPath(root: string, input: string): string {
   // "/etc/passwd" resolves under root, not the real filesystem root.
   const rel = input.replace(/^\/+/, "");
   const resolved = path.posix.normalize(path.posix.join(base, rel));
-  if (resolved !== base && !resolved.startsWith(`${base}/`)) {
+  // Prefix a child must start with. When root is "/", that prefix is just "/"
+  // (not "//"), otherwise every subpath fails the startsWith check.
+  const prefix = base === "/" ? "/" : `${base}/`;
+  if (resolved !== base && !resolved.startsWith(prefix)) {
     throw new PathError("Path escapes the configured root");
   }
   return resolved;
