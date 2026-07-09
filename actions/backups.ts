@@ -1,6 +1,6 @@
 "use server";
 
-import { unstable_cache } from "next/cache";
+import { unstable_cache, updateTag } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadProjectWithServers } from "@/lib/projects";
@@ -105,6 +105,15 @@ export async function getBackupList(
     console.error(`Failed to fetch backups for project ${projectId}:`, error);
     return { success: false, error: "Failed to fetch backups" };
   }
+}
+
+// Drop the cached backup listing so the restore tab reflects a file the worker
+// just wrote. Called from the client once a backup run completes — the enqueue
+// path can't invalidate because the file only exists after the worker finishes.
+export async function revalidateBackupList(projectId: string): Promise<void> {
+  await requireSession();
+  if (!projectIdSchema.safeParse(projectId).success) return;
+  updateTag(backupListCacheTag(projectId));
 }
 
 export async function createDatabaseBackup(

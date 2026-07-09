@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { createDatabaseBackup } from "@/actions/backups";
+import { createDatabaseBackup, revalidateBackupList } from "@/actions/backups";
 import type { DatabaseEntry } from "@/actions/databases";
 import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
@@ -85,9 +85,11 @@ export function BackupDatabase({
     runBackup();
   }
 
-  function onTaskSuccess(snapshot: { output: string }) {
-    // Revalidate server data so the newly created file appears in the restore
-    // tab's picker without a manual page reload.
+  async function onTaskSuccess(snapshot: { output: string }) {
+    // Drop the `unstable_cache` backup listing first, then refresh: `router.refresh()`
+    // alone only re-runs the server component, which still reads the stale cached
+    // list — so the just-created file wouldn't appear until the 30s revalidate.
+    await revalidateBackupList(project.id);
     router.refresh();
     const filename = extractFilename(snapshot.output);
     if (!filename) return;
