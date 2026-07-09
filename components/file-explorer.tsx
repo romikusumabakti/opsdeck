@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -272,8 +273,40 @@ export function FileExplorer({ source, rootLabel }: Props) {
           />
         </div>
       ) : loading ? (
-        <div className="flex flex-1 min-h-0 items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="size-5 animate-spin" />
+        // Skeleton mirrors the real table below (same panel, header, columns)
+        // so there's no layout shift when entries arrive.
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-md border bg-card">
+          <Table containerClassName="flex-1 min-h-0">
+            <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
+              <TableRow>
+                <TableHead>{t("name")}</TableHead>
+                <TableHead className="w-32 text-right">{t("size")}</TableHead>
+                <TableHead className="w-48">{t("modified")}</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 8 }, (_, i) => (
+                <TableRow key={`sk-${i}`}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="size-4 shrink-0 rounded-sm" />
+                      <Skeleton className="h-4 w-40" />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Skeleton className="ml-auto h-4 w-12" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="size-8 rounded-md" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : entries.length === 0 ? (
         <div className="flex flex-1 min-h-0 items-center justify-center">
