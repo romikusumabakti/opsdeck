@@ -39,3 +39,6 @@ next-env.d.ts
 
 # Personal Claude Code overrides (per-dev permissions, not team config)
 .claude/settings.local.json
+
+# Runtime lock (per-session, not team config)
+.claude/scheduled_tasks.lock
