@@ -943,6 +943,7 @@
     "linkCopied": "链接已复制",
     "insertImage": "插入图片",
     "imageTooLarge": "图片过大（上限 25 MB）",
+    "imageUploading": "正在上传图片…",
     "imageUploadFailed": "图片上传失败",
     "imageAltEdit": "编辑替代文本",
     "imageAltPlaceholder": "描述图片",
