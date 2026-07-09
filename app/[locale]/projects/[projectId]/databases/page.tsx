@@ -31,10 +31,18 @@ export default async function Page({
 
   return (
     <>
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader
+        className="shrink-0"
+        title={t("title")}
+        subtitle={t("subtitle")}
+      />
 
-      <Card className="max-w-3xl w-full">
-        <CardContent>
+      {/* No `flex-1`: the card hugs its content, so the short Backup/Restore
+          tabs stay compact. It still carries `min-h-0` + `overflow-hidden` so
+          the tall Manage tab shrinks to the available height and scrolls its
+          list internally instead of pushing the page into a scroll. */}
+      <Card className="max-w-3xl w-full flex min-h-0 flex-col overflow-hidden">
+        <CardContent className="flex flex-1 min-h-0 flex-col">
           {/* The DB/backup lists come from synchronous SSH probes to the remote
               DB host; streaming them behind Suspense lets the tab shell paint
               instantly instead of blocking the whole page on remote latency. */}

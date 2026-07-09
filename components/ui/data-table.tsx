@@ -115,6 +115,14 @@ type DataTableProps<TData, TValue> = {
    * plain `emptyMessage` text when not provided.
    */
   emptyState?: React.ReactNode;
+  /**
+   * Fill the parent's height and confine scrolling to the table body: the
+   * toolbar, table header (sticky), and pagination footer stay pinned while
+   * only the rows scroll. Requires the parent to give the table a bounded
+   * height (a flex column with `min-h-0`, e.g. the app `<main>`). Leave off
+   * for tables that should grow with their content and let the page scroll.
+   */
+  fillHeight?: boolean;
 };
 
 export function DataTable<TData, TValue>({
@@ -131,6 +139,7 @@ export function DataTable<TData, TValue>({
   renderCard,
   onRowClick,
   emptyState,
+  fillHeight,
 }: DataTableProps<TData, TValue>) {
   const t = useTranslations("dataTable");
   // Card layout is chosen with CSS (md: breakpoint), not a JS width hook, so the
@@ -352,9 +361,9 @@ export function DataTable<TData, TValue>({
   const showFooter = filteredCount > 0;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={cn("flex flex-col gap-3", fillHeight && "flex-1 min-h-0")}>
       {bulkActions && selectedIds.length > 0 && (
-        <div className="flex items-center gap-2 justify-between rounded-md border bg-muted/40 px-3 py-2">
+        <div className="shrink-0 flex items-center gap-2 justify-between rounded-md border bg-muted/40 px-3 py-2">
           <span className="text-sm font-medium">
             {t("selectedCount", { count: selectedIds.length })}
           </span>
@@ -367,7 +376,7 @@ export function DataTable<TData, TValue>({
         </div>
       )}
       {(filterColumn || hasHideableColumns) && (
-        <div className="flex items-center gap-2">
+        <div className="shrink-0 flex items-center gap-2">
           {filterColumn && (
             <Input
               placeholder={filterPlaceholder ?? t("searchPlaceholder")}
@@ -416,7 +425,12 @@ export function DataTable<TData, TValue>({
         </div>
       )}
       {hasCardLayout && (
-        <div className="flex flex-col gap-3 md:hidden">
+        <div
+          className={cn(
+            "flex flex-col gap-3 md:hidden",
+            fillHeight && "flex-1 min-h-0 overflow-y-auto"
+          )}
+        >
           {hasRows ? (
             table.getRowModel().rows.map((row) => (
               <div
@@ -447,9 +461,32 @@ export function DataTable<TData, TValue>({
           )}
         </div>
       )}
-      <div className={cn("rounded-md border", hasCardLayout && "hidden md:block")}>
-        <Table>
-          <TableHeader>
+      <div
+        className={cn(
+          "rounded-md border",
+          hasCardLayout && "hidden md:block",
+          // A defined surface so the sticky header (bg-card) reads seamlessly
+          // with the rows scrolling under it, whether the table sits on the
+          // page background or inside a Card.
+          fillHeight && "bg-card",
+          fillHeight &&
+            (hasCardLayout
+              ? "md:flex md:flex-col md:flex-1 md:min-h-0 overflow-hidden"
+              : "flex flex-col flex-1 min-h-0 overflow-hidden")
+        )}
+      >
+        <Table containerClassName={cn(fillHeight && "flex-1 min-h-0")}>
+          <TableHeader
+            className={cn(
+              // Single-<table> layout: pinning the header while the body
+              // scrolls needs `sticky` (no pure-overflow equivalent inside one
+              // table). bg + bottom border on the cells so rows scroll cleanly
+              // underneath. The page header and pagination footer stay visible
+              // via flex/overflow, not sticky.
+              fillHeight &&
+                "sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b"
+            )}
+          >
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -510,7 +547,7 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
       {showFooter && (
-        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
+        <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
           <div className="text-sm text-muted-foreground">
             {t("showingRange", {
               from: fromIdx,

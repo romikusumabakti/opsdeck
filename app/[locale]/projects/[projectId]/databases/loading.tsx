@@ -6,8 +6,8 @@ export default function Loading() {
   return (
     <>
       <PageHeaderSkeleton withAction={false} />
-      <Card className="max-w-3xl w-full">
-        <CardContent>
+      <Card className="max-w-3xl w-full flex min-h-0 flex-col overflow-hidden">
+        <CardContent className="flex flex-1 min-h-0 flex-col">
           <DatabasesTabsSkeleton />
         </CardContent>
       </Card>

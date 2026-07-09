@@ -36,14 +36,11 @@ export function ManageDatabases({
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const router = useRouter();
-  const [newName, setNewName] = React.useState("");
   const [query, setQuery] = React.useState("");
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [taskTitle, setTaskTitle] = React.useState("");
   const [taskTarget, setTaskTarget] = React.useState("");
   const [submitting, startTransition] = React.useTransition();
-
-  const trimmed = newName.trim();
 
   const showSearch = databases.length > SEARCH_THRESHOLD;
   const filtered = React.useMemo(() => {
@@ -52,26 +49,35 @@ export function ManageDatabases({
     return databases.filter((d) => d.name.toLowerCase().includes(q));
   }, [databases, query]);
 
-  function onCreate() {
-    if (!trimmed) return;
-    startTransition(async () => {
-      try {
-        const { runId } = await createDatabase(project.id, {
-          database: trimmed,
-        });
-        setTaskTitle(t("createTaskTitle"));
-        setTaskTarget(trimmed);
-        setActiveTaskId(runId);
-        setNewName("");
-        toast.success(t("createQueuedTitle"), {
-          description: t("createQueuedDescription", { dbName: trimmed }),
-        });
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : tCommon("errorGeneric")
-        );
-      }
-    });
+  function onCreatePrompt() {
+    void (async () => {
+      const next = await dialog.prompt({
+        title: t("createLabel"),
+        description: t("createHint"),
+        placeholder: t("createPlaceholder"),
+        confirmText: t("create"),
+        cancelText: tCommon("cancel"),
+      });
+      const name = next?.trim();
+      if (!name) return;
+      startTransition(async () => {
+        try {
+          const { runId } = await createDatabase(project.id, {
+            database: name,
+          });
+          setTaskTitle(t("createTaskTitle"));
+          setTaskTarget(name);
+          setActiveTaskId(runId);
+          toast.success(t("createQueuedTitle"), {
+            description: t("createQueuedDescription", { dbName: name }),
+          });
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : tCommon("errorGeneric")
+          );
+        }
+      });
+    })();
   }
 
   function onRename(name: string) {
@@ -141,44 +147,24 @@ export function ManageDatabases({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onCreate();
-        }}
-      >
-        <Label htmlFor="new-database-name">{t("createLabel")}</Label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            id="new-database-name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder={t("createPlaceholder")}
-            disabled={submitting}
-            className="flex-1 font-mono text-sm"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <Button type="submit" disabled={!trimmed || submitting}>
-            <Plus className="size-4" />
-            {submitting ? t("queuing") : t("create")}
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">{t("createHint")}</p>
-      </form>
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-1 min-h-0 flex-col gap-2">
+      {/* Create moved into a dialog (the button below) so the list, not an
+          always-open form, owns the card's height. */}
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <Label>{t("existingLabel")}</Label>
           <span className="text-xs text-muted-foreground tabular-nums">
             {t("count", { count: databases.length })}
           </span>
         </div>
+        <Button onClick={onCreatePrompt} disabled={submitting}>
+          <Plus className="size-4" />
+          {submitting ? t("queuing") : t("create")}
+        </Button>
+      </div>
 
-        {showSearch && (
-          <div className="relative">
+      {showSearch && (
+        <div className="shrink-0 relative">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
@@ -200,7 +186,11 @@ export function ManageDatabases({
             className="rounded-md border py-10"
           />
         ) : (
-          <ul className="flex flex-col divide-y rounded-md border">
+          // Fill the card's remaining height and scroll only these rows so the
+          // header, search, tab bar, and page header stay pinned. The min-h
+          // floor keeps the list usable (~6 rows) on short viewports — if the
+          // card can't fit it, the page scrolls as a graceful fallback.
+          <ul className="flex flex-1 min-h-[16rem] flex-col divide-y overflow-y-auto rounded-md border">
             {filtered.map((d) => (
               <li
                 key={d.name}
@@ -250,7 +240,6 @@ export function ManageDatabases({
             ))}
           </ul>
         )}
-      </div>
 
       <LiveRunDialog
         runId={activeTaskId}
