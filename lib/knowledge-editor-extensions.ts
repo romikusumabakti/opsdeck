@@ -1,9 +1,16 @@
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
+import { common, createLowlight } from "lowlight";
+
+// Shared across editor instances — lowlight is stateless after registration.
+// `common` (~35 languages) matches rehype-highlight's default grammar set on
+// the read side, so what highlights here highlights identically after save.
+const lowlight = createLowlight(common);
 
 /**
  * The Tiptap extension set for the knowledge editor. Lives in its own pure
@@ -21,7 +28,16 @@ export function buildEditorExtensions(placeholder = "") {
     StarterKit.configure({
       link: { openOnClick: false, autolink: true },
       underline: false,
+      // Replaced by CodeBlockLowlight below — same node name ("codeBlock"),
+      // so the markdown fence round-trip (```lang) is unchanged.
+      codeBlock: false,
     }),
+    // Syntax-highlighted code blocks. Highlighting is render-only decoration:
+    // the document stores plain text + a language attr, and the serializer
+    // emits a standard fenced block, so nothing highlight-related leaks into
+    // the saved markdown. The read side (markdown-content) runs
+    // rehype-highlight over the same highlight.js grammars for parity.
+    CodeBlockLowlight.configure({ lowlight }),
     // StarterKit ships no table node — without this a pasted GFM table
     // collapses to a run-on paragraph and the structure is lost on save.
     // resizable is off: column pixel widths have no GFM representation, so

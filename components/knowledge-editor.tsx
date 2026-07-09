@@ -1,5 +1,6 @@
 "use client";
 
+import { EditorState } from "@tiptap/pm/state";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import {
   BetweenHorizontalEnd,
@@ -44,6 +45,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { buildEditorExtensions } from "@/lib/knowledge-editor-extensions";
+import {
+  addUploadPlaceholder,
+  findUploadPlaceholder,
+  removeUploadPlaceholder,
+  UploadPlaceholder,
+} from "@/lib/knowledge-upload-placeholder";
 import { cn } from "@/lib/utils";
 import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
 
@@ -194,7 +201,9 @@ export function KnowledgeEditor({
     const buttons = Array.from(
       el.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")
     );
-    const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const current = buttons.indexOf(
+      document.activeElement as HTMLButtonElement
+    );
     if (current === -1) return;
     event.preventDefault();
     const rtl = getComputedStyle(el).direction === "rtl";
@@ -210,8 +219,12 @@ export function KnowledgeEditor({
   // one serialize per idle window; onBlur flushes immediately so a Save click
   // (which blurs the editor first) never reads stale content. Routed through a
   // ref so the latest onChange is always used without re-creating the editor.
+  // The ref write happens in an effect (never during render, per the React
+  // rules); events and the debounce timer only read it after effects ran.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // The last markdown string we emitted upward. Used to distinguish our own
@@ -223,7 +236,13 @@ export function KnowledgeEditor({
     immediatelyRender: false,
     // Extension set lives in lib/knowledge-editor-extensions so the markdown
     // round-trip test builds from the exact same config the editor runs.
-    extensions: buildEditorExtensions(placeholder ?? ""),
+    // UploadPlaceholder is appended here, outside that shared set: it is pure
+    // view decoration (in-flight upload widgets) and never touches the
+    // markdown contract the test pins.
+    extensions: [
+      ...buildEditorExtensions(placeholder ?? ""),
+      UploadPlaceholder,
+    ],
     content: value,
     // `content` is markdown, not HTML — without this it parses as HTML.
     contentType: "markdown",
@@ -330,30 +349,43 @@ export function KnowledgeEditor({
   const [altText, setAltText] = useState("");
   const altInputRef = useRef<HTMLInputElement>(null);
 
-  // Reassigned every render so it always closes over the current editor.
-  uploadRef.current = async (file: File, pos?: number) => {
-    if (!editor) return;
-    if (file.size > KNOWLEDGE_IMAGE_MAX_BYTES) {
-      if (uploadLabels) toast.error(uploadLabels.tooLarge);
-      return;
-    }
-    // Loading toast so the user sees the upload is in flight — the image only
-    // appears in the doc once the round-trip finishes.
-    const toastId = uploadLabels
-      ? toast.loading(uploadLabels.uploading)
-      : undefined;
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const res = await fetch("/api/knowledge/asset", {
-        method: "POST",
-        body: form,
+  // Reassigned after every render (in an effect — ref writes during render
+  // break React's purity rules) so it always closes over the current editor.
+  useEffect(() => {
+    uploadRef.current = async (file: File, pos?: number) => {
+      if (!editor) return;
+      if (file.size > KNOWLEDGE_IMAGE_MAX_BYTES) {
+        if (uploadLabels) toast.error(uploadLabels.tooLarge);
+        return;
+      }
+      // A widget decoration marks the insert point while the upload is in
+      // flight: a dimmed blob-URL preview of the image. The document itself is
+      // untouched until the server URL exists, so a save mid-upload can never
+      // persist a blob: src; and because decorations map through edits, the
+      // image lands where the placeholder is by then, not at a stale offset.
+      const id = {};
+      const previewUrl = URL.createObjectURL(file);
+      addUploadPlaceholder(editor.view, {
+        id,
+        pos: pos ?? editor.state.selection.from,
+        previewUrl,
+        label: uploadLabels?.uploading ?? "Uploading…",
       });
-      if (!res.ok) throw new Error(String(res.status));
-      const { url } = (await res.json()) as { url: string };
-      if (pos !== undefined) {
-        // Clamp: the doc may have changed while the upload was in flight.
-        const at = Math.min(pos, editor.state.doc.content.size);
+      const form = new FormData();
+      form.append("file", file);
+      try {
+        const res = await fetch("/api/knowledge/asset", {
+          method: "POST",
+          body: form,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        const { url } = (await res.json()) as { url: string };
+        if (editor.isDestroyed) return;
+        const at = findUploadPlaceholder(editor.state, id);
+        removeUploadPlaceholder(editor.view, id);
+        // Placeholder gone means the user deleted that region mid-upload —
+        // honor the deletion and drop the result.
+        if (at === null) return;
         editor
           .chain()
           .focus()
@@ -362,15 +394,14 @@ export function KnowledgeEditor({
             attrs: { src: url, alt: file.name },
           })
           .run();
-      } else {
-        editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      } catch {
+        if (!editor.isDestroyed) removeUploadPlaceholder(editor.view, id);
+        if (uploadLabels) toast.error(uploadLabels.failed);
+      } finally {
+        URL.revokeObjectURL(previewUrl);
       }
-    } catch {
-      if (uploadLabels) toast.error(uploadLabels.failed);
-    } finally {
-      if (toastId !== undefined) toast.dismiss(toastId);
-    }
-  };
+    };
+  });
 
   // Drop a pending debounced onChange on unmount so it can't fire after the
   // editor is torn down.
@@ -395,6 +426,18 @@ export function KnowledgeEditor({
       contentType: "markdown",
       emitUpdate: false,
     });
+    // An external reset is a new baseline: rebuild the ProseMirror state with
+    // the same doc + plugins so all plugin state (undo history included)
+    // starts fresh. Otherwise Ctrl+Z after a revision restore would step back
+    // across the restore into the pre-restore document. Tiptap v3 exposes no
+    // clear-history command, so this state swap is the canonical route.
+    editor.view.updateState(
+      EditorState.create({
+        doc: editor.state.doc,
+        selection: editor.state.selection,
+        plugins: editor.state.plugins,
+      })
+    );
   }, [value, editor]);
 
   // `active` is only null while `editor` is (first client render before the
@@ -655,84 +698,88 @@ export function KnowledgeEditor({
             <FileText className="size-4" />
           </ToolbarButton>
         )}
-        {/* Image alt-text editor — only when an image node is selected. Alt
-            text is the read-side accessibility/SEO label, so it must be
-            editable after the upload-time filename default. */}
-        {active.image && (
-          <Popover open={altOpen} onOpenChange={onAltOpenChange}>
-            <PopoverTrigger
-              render={
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={imageAltLabels?.edit ?? "Edit alt text"}
-                />
-              }
-            >
-              <TextCursorInput className="size-4" />
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              className="w-80"
-              initialFocus={altInputRef}
-            >
-              <form onSubmit={applyAlt} className="flex flex-col gap-2">
-                <Input
-                  ref={altInputRef}
-                  value={altText}
-                  onChange={(e) => setAltText(e.target.value)}
-                  placeholder={
-                    imageAltLabels?.placeholder ?? "Describe the image"
-                  }
-                />
-                <div className="flex justify-end">
-                  <Button type="submit" size="sm">
-                    {imageAltLabels?.apply ?? "Apply"}
-                  </Button>
-                </div>
-              </form>
-            </PopoverContent>
-          </Popover>
-        )}
-        {/* Table structure controls — only when the cursor is inside a table.
-            Insert-only is not enough: pasted/created tables need row/column
-            add + delete and a way to remove the whole table. */}
-        {active.table && (
-          <>
-            <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-            <ToolbarButton
-              onClick={() => editor.chain().focus().addRowAfter().run()}
-              label={tableLabels?.addRow ?? "Add row"}
-            >
-              <BetweenHorizontalEnd className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().deleteRow().run()}
-              label={tableLabels?.deleteRow ?? "Delete row"}
-            >
-              <Rows3 className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().addColumnAfter().run()}
-              label={tableLabels?.addColumn ?? "Add column"}
-            >
-              <BetweenVerticalEnd className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().deleteColumn().run()}
-              label={tableLabels?.deleteColumn ?? "Delete column"}
-            >
-              <Columns3 className="size-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().deleteTable().run()}
-              label={tableLabels?.deleteTable ?? "Delete table"}
-            >
-              <Trash2 className="size-4" />
-            </ToolbarButton>
-          </>
-        )}
+        {/* Image alt-text editor — enabled only when an image node is
+            selected, but always rendered (disabled otherwise) so the toolbar
+            never reflows as the selection moves. Alt text is the read-side
+            accessibility/SEO label, so it must be editable after the
+            upload-time filename default. */}
+        <Popover open={altOpen} onOpenChange={onAltOpenChange}>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={!active.image}
+                aria-label={imageAltLabels?.edit ?? "Edit alt text"}
+              />
+            }
+          >
+            <TextCursorInput className="size-4" />
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="w-80"
+            initialFocus={altInputRef}
+          >
+            <form onSubmit={applyAlt} className="flex flex-col gap-2">
+              <Input
+                ref={altInputRef}
+                value={altText}
+                onChange={(e) => setAltText(e.target.value)}
+                placeholder={
+                  imageAltLabels?.placeholder ?? "Describe the image"
+                }
+              />
+              <div className="flex justify-end">
+                <Button type="submit" size="sm">
+                  {imageAltLabels?.apply ?? "Apply"}
+                </Button>
+              </div>
+            </form>
+          </PopoverContent>
+        </Popover>
+        {/* Table structure controls — enabled only when the cursor is inside
+            a table, but always rendered (disabled otherwise) so the toolbar
+            width is stable. Insert-only is not enough: pasted/created tables
+            need row/column add + delete and a way to remove the whole
+            table. */}
+        <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+        <ToolbarButton
+          disabled={!active.table}
+          onClick={() => editor.chain().focus().addRowAfter().run()}
+          label={tableLabels?.addRow ?? "Add row"}
+        >
+          <BetweenHorizontalEnd className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!active.table}
+          onClick={() => editor.chain().focus().deleteRow().run()}
+          label={tableLabels?.deleteRow ?? "Delete row"}
+        >
+          <Rows3 className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!active.table}
+          onClick={() => editor.chain().focus().addColumnAfter().run()}
+          label={tableLabels?.addColumn ?? "Add column"}
+        >
+          <BetweenVerticalEnd className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!active.table}
+          onClick={() => editor.chain().focus().deleteColumn().run()}
+          label={tableLabels?.deleteColumn ?? "Delete column"}
+        >
+          <Columns3 className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={!active.table}
+          onClick={() => editor.chain().focus().deleteTable().run()}
+          label={tableLabels?.deleteTable ?? "Delete table"}
+        >
+          <Trash2 className="size-4" />
+        </ToolbarButton>
       </div>
       <EditorContent editor={editor} />
 

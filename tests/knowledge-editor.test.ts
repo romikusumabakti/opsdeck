@@ -12,6 +12,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildEditorExtensions } from "@/lib/knowledge-editor-extensions";
@@ -41,10 +42,16 @@ function serialize(markdown: string): string {
   return out;
 }
 
-/** Render markdown through the read-side engine and return static HTML. */
+/** Render markdown through the read-side engine and return static HTML.
+ *  Plugins mirror components/markdown-content (rehype-slug omitted — it only
+ *  adds heading ids and would make every heading assertion noisier). */
 function renderHtml(markdown: string): string {
   return renderToStaticMarkup(
-    createElement(ReactMarkdown, { remarkPlugins: [remarkGfm] }, markdown)
+    createElement(
+      ReactMarkdown,
+      { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeHighlight] },
+      markdown
+    )
   );
 }
 
@@ -62,6 +69,14 @@ const CASES: { name: string; md: string; html: string }[] = [
   { name: "blockquote", md: "> quote", html: "<blockquote>" },
   { name: "inline code", md: "`x`", html: "<code>x</code>" },
   { name: "code block", md: "```\ncode\n```", html: "<pre>" },
+  {
+    // The language must survive the fence round-trip (```ts stays ```ts) AND
+    // actually highlight on the read side — hljs-keyword proves rehype-
+    // highlight recognized the language, not just passed the class through.
+    name: "fenced code with language",
+    md: '```ts\nconst x = "y";\n```',
+    html: '<span class="hljs-keyword">const</span>',
+  },
   {
     name: "external link",
     md: "[site](https://example.com)",
