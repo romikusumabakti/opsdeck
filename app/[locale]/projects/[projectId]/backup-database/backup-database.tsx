@@ -10,7 +10,7 @@ import type { DatabaseEntry } from "@/actions/databases";
 import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskDialog } from "@/components/live-task-dialog";
+import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,11 +58,11 @@ export function BackupDatabase({
   const runBackup = React.useCallback(() => {
     startTransition(async () => {
       try {
-        const { taskId } = await createDatabaseBackup(project.id, {
+        const { runId } = await createDatabaseBackup(project.id, {
           compress,
           database,
         });
-        setActiveTaskId(taskId);
+        setActiveTaskId(runId);
         toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: database }),
         });
@@ -230,8 +230,8 @@ export function BackupDatabase({
           <CopyButton value={lastFilename} label={tCommon("copy")} />
         </div>
       )}
-      <LiveTaskDialog
-        taskId={activeTaskId}
+      <LiveRunDialog
+        runId={activeTaskId}
         onOpenChange={(open) => {
           if (!open) setActiveTaskId(null);
         }}

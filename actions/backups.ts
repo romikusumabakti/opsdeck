@@ -5,10 +5,10 @@ import { requireSession } from "@/lib/auth-session";
 import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
+import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
-import { createTask } from "@/lib/task-progress";
 import type { Backup } from "@/lib/types";
 import {
   backupFilenameSchema,
@@ -110,7 +110,7 @@ export async function getBackupList(
 export async function createDatabaseBackup(
   projectId: string,
   options: { compress?: boolean; database?: string } = {}
-): Promise<{ taskId: string }> {
+): Promise<{ runId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
@@ -120,7 +120,7 @@ export async function createDatabaseBackup(
   const database = resolveTargetDatabase(project, options.database);
 
   const compress = options.compress ?? true;
-  const taskId = await createTask({
+  const runId = await createRun({
     projectId: project.id,
     userId: session.user.id,
     description: compress
@@ -133,9 +133,9 @@ export async function createDatabaseBackup(
     projectId: project.id,
     compress,
     database,
-    taskId,
+    runId,
   });
-  return { taskId };
+  return { runId };
 }
 
 export async function restoreDatabaseBackup(
@@ -146,7 +146,7 @@ export async function restoreDatabaseBackup(
     database?: string;
     sourceProjectId?: string;
   }
-): Promise<{ taskId: string }> {
+): Promise<{ runId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
@@ -179,7 +179,7 @@ export async function restoreDatabaseBackup(
   }
 
   const isDefault = database === project.dbName;
-  const taskId = await createTask({
+  const runId = await createRun({
     projectId: project.id,
     userId: session.user.id,
     description: options.restartBackend
@@ -194,7 +194,7 @@ export async function restoreDatabaseBackup(
     database: isDefault ? undefined : database,
     restartBackend: options.restartBackend ?? false,
     sourceProjectId,
-    taskId,
+    runId,
   });
-  return { taskId };
+  return { runId };
 }

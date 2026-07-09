@@ -11,7 +11,7 @@ import {
   renameDatabase,
 } from "@/actions/databases";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskDialog } from "@/components/live-task-dialog";
+import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -56,12 +56,12 @@ export function ManageDatabases({
     if (!trimmed) return;
     startTransition(async () => {
       try {
-        const { taskId } = await createDatabase(project.id, {
+        const { runId } = await createDatabase(project.id, {
           database: trimmed,
         });
         setTaskTitle(t("createTaskTitle"));
         setTaskTarget(trimmed);
-        setActiveTaskId(taskId);
+        setActiveTaskId(runId);
         setNewName("");
         toast.success(t("createQueuedTitle"), {
           description: t("createQueuedDescription", { dbName: trimmed }),
@@ -88,13 +88,13 @@ export function ManageDatabases({
       if (!target || target === name) return;
       startTransition(async () => {
         try {
-          const { taskId } = await renameDatabase(project.id, {
+          const { runId } = await renameDatabase(project.id, {
             from: name,
             to: target,
           });
           setTaskTitle(t("renameTaskTitle"));
           setTaskTarget(`${name} → ${target}`);
-          setActiveTaskId(taskId);
+          setActiveTaskId(runId);
           toast.success(t("renameQueuedTitle"), {
             description: t("renameQueuedDescription", {
               from: name,
@@ -124,10 +124,10 @@ export function ManageDatabases({
       if (!ok) return;
       startTransition(async () => {
         try {
-          const { taskId } = await dropDatabase(project.id, { database: name });
+          const { runId } = await dropDatabase(project.id, { database: name });
           setTaskTitle(t("dropTaskTitle"));
           setTaskTarget(name);
-          setActiveTaskId(taskId);
+          setActiveTaskId(runId);
           toast.success(t("dropQueuedTitle"), {
             description: t("dropQueuedDescription", { dbName: name }),
           });
@@ -252,8 +252,8 @@ export function ManageDatabases({
         )}
       </div>
 
-      <LiveTaskDialog
-        taskId={activeTaskId}
+      <LiveRunDialog
+        runId={activeTaskId}
         onOpenChange={(open) => {
           if (!open) {
             setActiveTaskId(null);

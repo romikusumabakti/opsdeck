@@ -1,27 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getTaskSnapshot } from "@/actions/tasks";
+import { getActiveRuns } from "@/actions/runs";
 import { getServerSession } from "@/lib/auth-session";
 
-// Streamed updates require Node runtime (Edge has stricter timeouts and no
-// long-lived I/O). We poll the DB instead of LISTEN/NOTIFY because the same
-// snapshot pattern feeds the initial page render — keeping one source of truth
-// is simpler than juggling pub/sub.
+// Streams the global running-runs list as SSE. Same pattern as the per-run
+// stream: server-side polls the DB, diff-suppresses, and pushes only on change.
+// Replaces an 8s client poll — the server stays the only thing hitting the DB,
+// and clients see updates within POLL_INTERVAL_MS instead of 8 s.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const POLL_INTERVAL_MS = 1000;
-// Cap a single SSE connection at 10 minutes to avoid leaking sockets when a
-// browser silently disappears. Clients reconnect via EventSource on close.
+const POLL_INTERVAL_MS = 2000;
+// Cap each SSE connection at 10 minutes; the EventSource on the client will
+// auto-reconnect on close, which also lets us release file descriptors held
+// by silently-departed tabs.
 const MAX_DURATION_MS = 10 * 60 * 1000;
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest) {
   const session = await getServerSession();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
-
-  const { id } = await params;
 
   const encoder = new TextEncoder();
   const startedAt = Date.now();
@@ -52,33 +48,22 @@ export async function GET(
             break;
           }
 
-          let task: Awaited<ReturnType<typeof getTaskSnapshot>>;
+          let runs: Awaited<ReturnType<typeof getActiveRuns>>;
           try {
-            task = await getTaskSnapshot(id);
+            runs = await getActiveRuns();
           } catch (err) {
-            // Surface transient DB errors as an `error` event and stop. Without
-            // this the throw escapes, the stream closes with no signal, and the
-            // browser's EventSource silently reconnects into the same failure
-            // (tight reconnect loop). Message is generic to avoid leaking DB
-            // internals; the real error is logged server-side.
-            console.error("task stream snapshot failed:", err);
+            // Surface transient DB errors and stop, so the client backs off
+            // instead of EventSource reconnecting straight into the same
+            // failure. Generic message; real error logged server-side.
+            console.error("running-runs stream failed:", err);
             send("error", { message: "snapshot failed" });
             break;
           }
-          if (!task) {
-            send("not-found", { id });
-            break;
-          }
-
-          // Diff suppression: only emit when the snapshot actually changed.
-          // Saves bytes for long polls where output rarely updates.
-          const serialized = JSON.stringify(task);
+          const serialized = JSON.stringify(runs);
           if (serialized !== lastSerialized) {
-            if (!send("snapshot", task)) break;
+            if (!send("snapshot", runs)) break;
             lastSerialized = serialized;
           }
-
-          if (task.status !== "started") break;
 
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
         }
@@ -98,7 +83,6 @@ export async function GET(
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      // Disables proxy buffering (nginx) so events flush immediately.
       "X-Accel-Buffering": "no",
     },
   });

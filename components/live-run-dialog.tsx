@@ -1,7 +1,7 @@
 "use client";
 
 import type * as React from "react";
-import { LiveTaskPanel } from "@/components/live-task-panel";
+import { LiveRunPanel } from "@/components/live-run-panel";
 import {
   Dialog,
   DialogContent,
@@ -11,24 +11,24 @@ import {
 } from "@/components/ui/dialog";
 
 type Props = {
-  taskId: string | null;
+  runId: string | null;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: React.ReactNode;
-  // Forwarded to LiveTaskPanel — fires when the task succeeds.
-  onSuccess?: React.ComponentProps<typeof LiveTaskPanel>["onSuccess"];
-  // Forwarded to LiveTaskPanel — re-triggers the operation on failure.
+  // Forwarded to LiveRunPanel — fires when the run succeeds.
+  onSuccess?: React.ComponentProps<typeof LiveRunPanel>["onSuccess"];
+  // Forwarded to LiveRunPanel — re-triggers the operation on failure.
   onRetry?: () => void;
   // Optional content rendered below the live panel (e.g. copy filename).
   footer?: React.ReactNode;
 };
 
-// Wraps LiveTaskPanel inside a Dialog. The dialog is "open" iff taskId is set;
+// Wraps LiveRunPanel inside a Dialog. The dialog is "open" iff runId is set;
 // closing (X / ESC / overlay-click) calls onOpenChange(false) so the caller can
-// clear the task and re-fetch related state. The task itself keeps running
+// clear the run and re-fetch related state. The run itself keeps running
 // server-side even if dismissed early.
-export function LiveTaskDialog({
-  taskId,
+export function LiveRunDialog({
+  runId,
   onOpenChange,
   title,
   description,
@@ -37,7 +37,7 @@ export function LiveTaskDialog({
   footer,
 }: Props) {
   return (
-    <Dialog open={taskId !== null} onOpenChange={onOpenChange}>
+    <Dialog open={runId !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -49,10 +49,10 @@ export function LiveTaskDialog({
             </DialogDescription>
           )}
         </DialogHeader>
-        {taskId && (
-          <LiveTaskPanel
-            key={taskId}
-            taskId={taskId}
+        {runId && (
+          <LiveRunPanel
+            key={runId}
+            runId={runId}
             onSuccess={onSuccess}
             onRetry={onRetry}
           />

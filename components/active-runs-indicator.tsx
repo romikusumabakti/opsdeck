@@ -3,15 +3,15 @@
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import type { RunningTask } from "@/actions/tasks";
-import { LiveTaskDialog } from "@/components/live-task-dialog";
+import type { ActiveRun } from "@/actions/runs";
+import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useTaskCompletionNotifications } from "@/hooks/use-task-notifications";
+import { useRunCompletionNotifications } from "@/hooks/use-run-notifications";
 
 function toMs(value: Date | string): number {
   // Server actions serialize Date to string over the wire — TS types still
@@ -28,28 +28,28 @@ function formatElapsed(from: Date | string, now: number): string {
   return `${m}m ${rs}s`;
 }
 
-export function ActiveTasksIndicator() {
+export function ActiveRunsIndicator() {
   const t = useTranslations("activeTasks");
-  const [tasks, setTasks] = React.useState<RunningTask[]>([]);
+  const [runs, setTasks] = React.useState<ActiveRun[]>([]);
   const [open, setOpen] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => Date.now());
 
-  useTaskCompletionNotifications(tasks, {
+  useRunCompletionNotifications(runs, {
     titleSuccess: t("notifyTitleSuccess"),
     titleFailed: t("notifyTitleFailed"),
   });
 
-  // Subscribe to a server-sent stream of the running-task list. The server
+  // Subscribe to a server-sent stream of the running-run list. The server
   // polls the DB and pushes diffs, so we get fresh state without each client
   // hammering the DB on its own timer. EventSource auto-reconnects on
   // transient errors and after the server's 10-minute max-duration close.
   React.useEffect(() => {
-    const es = new EventSource("/api/tasks/running/stream");
+    const es = new EventSource("/api/runs/running/stream");
 
     es.addEventListener("snapshot", (ev) => {
       try {
-        const data = JSON.parse((ev as MessageEvent).data) as RunningTask[];
+        const data = JSON.parse((ev as MessageEvent).data) as ActiveRun[];
         setTasks(data);
       } catch {
         /* ignore malformed frame */
@@ -63,19 +63,19 @@ export function ActiveTasksIndicator() {
 
   // Tick the elapsed display once a second only while something is running.
   React.useEffect(() => {
-    if (tasks.length === 0) return;
+    if (runs.length === 0) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [tasks.length]);
+  }, [runs.length]);
 
-  const count = tasks.length;
+  const count = runs.length;
   const activeTask = activeTaskId
-    ? (tasks.find((task) => task.id === activeTaskId) ?? null)
+    ? (runs.find((run) => run.id === activeTaskId) ?? null)
     : null;
 
-  // Keep the dialog mounted while a user has one selected, even if that task
+  // Keep the dialog mounted while a user has one selected, even if that run
   // has just finished and dropped out of the running list. Closing the dialog
-  // returns the indicator to its idle (hidden) state if no other tasks remain.
+  // returns the indicator to its idle (hidden) state if no other runs remain.
   if (count === 0 && activeTaskId === null) {
     return null;
   }
@@ -105,24 +105,24 @@ export function ActiveTasksIndicator() {
               </p>
             </div>
             <ul className="max-h-72 overflow-auto py-1">
-              {tasks.map((task) => (
-                <li key={task.id}>
+              {runs.map((run) => (
+                <li key={run.id}>
                   <button
                     type="button"
                     onClick={() => {
                       setOpen(false);
-                      setActiveTaskId(task.id);
+                      setActiveTaskId(run.id);
                     }}
                     className="w-full text-left px-3 py-2 hover:bg-accent flex items-start gap-2 transition-colors"
                   >
                     <Loader2 className="size-3.5 animate-spin text-primary mt-0.5 shrink-0" />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm font-medium truncate">
-                        {task.description}
+                        {run.description}
                       </span>
                       <span className="block text-xs text-muted-foreground truncate">
-                        {task.project?.name ?? "—"} ·{" "}
-                        {formatElapsed(task.runAt, now)}
+                        {run.project?.name ?? "—"} ·{" "}
+                        {formatElapsed(run.runAt, now)}
                       </span>
                     </span>
                   </button>
@@ -132,8 +132,8 @@ export function ActiveTasksIndicator() {
           </PopoverContent>
         </Popover>
       )}
-      <LiveTaskDialog
-        taskId={activeTaskId}
+      <LiveRunDialog
+        runId={activeTaskId}
         onOpenChange={(isOpen) => {
           if (!isOpen) setActiveTaskId(null);
         }}

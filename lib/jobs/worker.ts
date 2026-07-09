@@ -15,7 +15,7 @@ const globalForWorker = globalThis as unknown as {
   __tasksWorker?: Worker;
 };
 
-// Starts the BullMQ worker that drains the tasks queue. Idempotent: a second
+// Starts the BullMQ worker that drains the runs queue. Idempotent: a second
 // call returns the existing worker. No-op (returns null) when REDIS_URL is
 // unset so the app still boots for local `next dev` without Redis — only the
 // background operations are unavailable.
@@ -31,9 +31,9 @@ export function startWorker(): Worker | null {
     concurrency: WORKER_CONCURRENCY,
   });
 
-  // A job's own handler records task success/failure in Postgres; this is a
+  // A job's own handler records run success/failure in Postgres; this is a
   // last-resort log for infrastructure-level failures (Redis hiccup, handler
-  // throwing before it could write the task row).
+  // throwing before it could write the run row).
   worker.on("failed", (job, err) => {
     console.error(`Job ${job?.name} (${job?.id}) failed:`, err);
   });

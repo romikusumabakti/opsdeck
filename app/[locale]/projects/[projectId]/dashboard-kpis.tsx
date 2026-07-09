@@ -12,12 +12,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
-import { getProjectKpis, type KpiEntry } from "@/actions/tasks";
+import { getProjectKpis, type KpiEntry } from "@/actions/runs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { Task } from "@/lib/db/schema";
+import type { Run } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 export async function DashboardKpis({ projectId }: { projectId: string }) {
@@ -264,7 +264,7 @@ function DeltaBadge({
   );
 }
 
-function StatusDot({ status }: { status: Task["status"] }) {
+function StatusDot({ status }: { status: Run["status"] }) {
   if (status === "started") {
     return <Loader2 className="size-3 text-primary animate-spin shrink-0" />;
   }

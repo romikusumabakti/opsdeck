@@ -22,7 +22,7 @@ import {
   type ServiceStatusResult,
 } from "@/actions/services";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskDialog } from "@/components/live-task-dialog";
+import { LiveRunDialog } from "@/components/live-run-dialog";
 import { PageHeader } from "@/components/page-header";
 import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -157,11 +157,11 @@ function ServiceCard({
 
   const [pendingAction, setPendingAction] =
     React.useState<ServiceAction | null>(null);
-  // The action that owns the currently-open task dialog. Kept separate from
+  // The action that owns the currently-open run dialog. Kept separate from
   // pendingAction (which clears once the action handler returns) so the
   // dialog title can keep displaying e.g. "Restart" until the user closes it.
   const [activeTask, setActiveTask] = React.useState<{
-    taskId: string;
+    runId: string;
     action: ServiceAction;
   } | null>(null);
 
@@ -181,12 +181,12 @@ function ServiceCard({
 
     setPendingAction(action);
     try {
-      const { taskId: newTaskId } = await controlService(
+      const { runId: newTaskId } = await controlService(
         project.id,
         meta.role,
         action
       );
-      setActiveTask({ taskId: newTaskId, action });
+      setActiveTask({ runId: newTaskId, action });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : tCommon("errorGeneric"));
     } finally {
@@ -197,8 +197,8 @@ function ServiceCard({
   const state = status?.state ?? "unknown";
   const Icon = meta.icon;
   const busy = loading || pendingAction !== null;
-  // Closing the dialog (X / ESC / overlay-click) clears the task and re-fetches
-  // status. The task itself keeps running server-side even if the user dismisses
+  // Closing the dialog (X / ESC / overlay-click) clears the run and re-fetches
+  // status. The run itself keeps running server-side even if the user dismisses
   // early — refresh will surface the eventual final state.
   function onOpenChange(open: boolean) {
     if (!open) {
@@ -313,8 +313,8 @@ function ServiceCard({
         )}
       </CardContent>
 
-      <LiveTaskDialog
-        taskId={activeTask?.taskId ?? null}
+      <LiveRunDialog
+        runId={activeTask?.runId ?? null}
         onOpenChange={onOpenChange}
         title={
           activeTask

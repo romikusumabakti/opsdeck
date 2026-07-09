@@ -90,14 +90,14 @@ export const projects = pgTable(
   ]
 );
 
-export const taskStatusEnum = pgEnum("task_status", [
+export const runStatusEnum = pgEnum("run_status", [
   "started",
   "success",
   "failed",
 ]);
 
-export const tasks = pgTable(
-  "tasks",
+export const runs = pgTable(
+  "runs",
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     projectId: uuid("project_id")
@@ -109,8 +109,8 @@ export const tasks = pgTable(
       onDelete: "set null",
     }),
     description: text("description").notNull(),
-    status: taskStatusEnum("status").notNull().default("started"),
-    // Streaming log appended by worker job steps via appendTaskOutput. Lines are
+    status: runStatusEnum("status").notNull().default("started"),
+    // Streaming log appended by worker job steps via appendRunOutput. Lines are
     // separated by `\n`; the SSE endpoint emits the full snapshot on each tick.
     output: text("output").notNull().default(""),
     errorMessage: text("error_message"),
@@ -119,11 +119,11 @@ export const tasks = pgTable(
     completedAt: timestamp("completed_at"),
   },
   (t) => [
-    // Every task query filters by projectId and orders by runAt desc
-    // (getProjectTasks, getProjectKpis, findLatestByKind, DISTINCT ON).
-    index("tasks_project_run_idx").on(t.projectId, t.runAt.desc()),
-    // getRunningTasks filters status='started'.
-    index("tasks_status_idx").on(t.status),
+    // Every run query filters by projectId and orders by runAt desc
+    // (getProjectRuns, getProjectKpis, findLatestByKind, DISTINCT ON).
+    index("runs_project_run_idx").on(t.projectId, t.runAt.desc()),
+    // getActiveRuns filters status='started'.
+    index("runs_status_idx").on(t.status),
   ]
 );
 
@@ -491,8 +491,8 @@ export type SafeProjectWithServers = Omit<
   hasMockTimeApiKey: boolean;
 };
 
-export type Task = InferSelectModel<typeof tasks>;
-export type NewTask = InferInsertModel<typeof tasks>;
+export type Run = InferSelectModel<typeof runs>;
+export type NewRun = InferInsertModel<typeof runs>;
 
 export type User = InferSelectModel<typeof users>;
 export type NewUser = InferInsertModel<typeof users>;

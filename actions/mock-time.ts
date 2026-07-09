@@ -2,11 +2,11 @@
 
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { type ProjectWithServers, tasks } from "@/lib/db/schema";
+import { type ProjectWithServers, runs } from "@/lib/db/schema";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
+import { createRun } from "@/lib/run-progress";
 import { executeRemoteCommand } from "@/lib/ssh";
-import { createTask } from "@/lib/task-progress";
 import {
   isoDateTimeSchema,
   isoDurationSchema,
@@ -20,7 +20,7 @@ export type ClockState = {
 };
 
 export type LegacyResult =
-  | { success: true; mode: "legacy"; taskId: string }
+  | { success: true; mode: "legacy"; runId: string }
   | { success: false; mode: "legacy"; error: string };
 
 export type ApiResult<T = ClockState> =
@@ -143,7 +143,7 @@ async function recordAudit(
   errorMessage?: string
 ) {
   try {
-    await db.insert(tasks).values({
+    await db.insert(runs).values({
       projectId: project.id,
       userId,
       description,
@@ -153,7 +153,7 @@ async function recordAudit(
       errorMessage: errorMessage ?? null,
     });
   } catch (err) {
-    console.error("mock-time: failed to record audit task", err);
+    console.error("mock-time: failed to record audit run", err);
   }
 }
 
@@ -348,7 +348,7 @@ export async function mockProjectTimeLegacy(
     return { success: false, mode: "legacy", error: "Invalid timestamp" };
   }
   try {
-    const taskId = await createTask({
+    const runId = await createRun({
       projectId: ctx.project.id,
       userId: ctx.userId,
       description: `Mock time to ${mockedAt} (legacy)`,
@@ -356,9 +356,9 @@ export async function mockProjectTimeLegacy(
     await enqueue("project/mock-time.legacy", {
       projectId: ctx.project.id,
       mockedAt,
-      taskId,
+      runId,
     });
-    return { success: true, mode: "legacy", taskId };
+    return { success: true, mode: "legacy", runId };
   } catch (error) {
     return { success: false, mode: "legacy", error: describeFetchError(error) };
   }
@@ -459,7 +459,7 @@ export async function advanceClockLegacy(
   }
   const targetIso = new Date(baseMs + offsetMs).toISOString();
   try {
-    const taskId = await createTask({
+    const runId = await createRun({
       projectId: ctx.project.id,
       userId: ctx.userId,
       description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
@@ -467,9 +467,9 @@ export async function advanceClockLegacy(
     await enqueue("project/mock-time.legacy", {
       projectId: ctx.project.id,
       mockedAt: targetIso,
-      taskId,
+      runId,
     });
-    return { success: true, mode: "legacy", taskId };
+    return { success: true, mode: "legacy", runId };
   } catch (err) {
     return { success: false, mode: "legacy", error: describeFetchError(err) };
   }
@@ -481,16 +481,16 @@ export async function resetClockLegacy(
   const ctx = await requireProject(projectId);
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   try {
-    const taskId = await createTask({
+    const runId = await createRun({
       projectId: ctx.project.id,
       userId: ctx.userId,
       description: "Reset clock to real time (legacy)",
     });
     await enqueue("project/mock-time.reset-legacy", {
       projectId: ctx.project.id,
-      taskId,
+      runId,
     });
-    return { success: true, mode: "legacy", taskId };
+    return { success: true, mode: "legacy", runId };
   } catch (err) {
     return { success: false, mode: "legacy", error: describeFetchError(err) };
   }
