@@ -17,7 +17,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
   projects: {
-    tasks: r.many.tasks(),
+    runs: r.many.runs(),
     dbServer: r.one.servers({
       from: r.projects.dbServerId,
       to: r.servers.id,
@@ -31,13 +31,13 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.servers.id,
     }),
   },
-  tasks: {
+  runs: {
     project: r.one.projects({
-      from: r.tasks.projectId,
+      from: r.runs.projectId,
       to: r.projects.id,
     }),
     user: r.one.users({
-      from: r.tasks.userId,
+      from: r.runs.userId,
       to: r.users.id,
     }),
   },

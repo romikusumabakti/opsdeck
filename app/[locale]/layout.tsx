@@ -9,7 +9,7 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 import { getProjects } from "@/actions/projects";
-import { ActiveTasksIndicator } from "@/components/active-tasks-indicator";
+import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { DialogProvider } from "@/components/dialog-provider";
@@ -137,7 +137,7 @@ export default async function LocaleLayout({
                         <SidebarTrigger className="-ms-1" />
                         <HeaderBreadcrumb projects={projects} isAdmin={admin} />
                         <div className="ms-auto flex items-center gap-2">
-                          <ActiveTasksIndicator />
+                          <ActiveRunsIndicator />
                           <div className="hidden md:flex items-center gap-2 pe-1">
                             <ServerTime timeZone={APP_TIMEZONE} />
                           </div>

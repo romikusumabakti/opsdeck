@@ -13,7 +13,7 @@ import {
   resetClockLegacy,
 } from "@/actions/mock-time";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskDialog } from "@/components/live-task-dialog";
+import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
@@ -113,7 +113,7 @@ export function MockTimeLegacy({
         return;
       }
       setActiveTaskLabel(displayLabel);
-      setActiveTaskId(result.taskId);
+      setActiveTaskId(result.runId);
       toast.success(t("successTitle"), {
         description: t("travel.queuedDescriptionLegacy", {
           dateTime: displayLabel,
@@ -148,7 +148,7 @@ export function MockTimeLegacy({
         return;
       }
       setActiveTaskLabel(duration);
-      setActiveTaskId(result.taskId);
+      setActiveTaskId(result.runId);
       toast.success(t("advance.successTitle"), {
         description: t("advance.queuedDescriptionLegacy", { duration }),
       });
@@ -173,7 +173,7 @@ export function MockTimeLegacy({
         return;
       }
       setActiveTaskLabel(t("reset.title"));
-      setActiveTaskId(result.taskId);
+      setActiveTaskId(result.runId);
       toast.success(t("reset.successTitle"), {
         description: t("reset.queuedDescriptionLegacy"),
       });
@@ -299,12 +299,12 @@ export function MockTimeLegacy({
         </div>
       </div>
 
-      <LiveTaskDialog
-        taskId={activeTaskId}
+      <LiveRunDialog
+        runId={activeTaskId}
         onOpenChange={(open) => {
           if (!open) {
             setActiveTaskId(null);
-            // After a legacy task completes, the clock may have changed —
+            // After a legacy run completes, the clock may have changed —
             // pull the new state so the user doesn't have to refresh manually.
             refreshClock(true);
           }

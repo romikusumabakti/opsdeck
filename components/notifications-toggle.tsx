@@ -4,7 +4,7 @@ import { Bell, BellOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useNotificationsState } from "@/hooks/use-task-notifications";
+import { useNotificationsState } from "@/hooks/use-run-notifications";
 
 export function NotificationsToggle() {
   const t = useTranslations("notifications");

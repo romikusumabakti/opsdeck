@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import type { RunningTask } from "@/actions/tasks";
+import type { ActiveRun } from "@/actions/runs";
 
-const STORAGE_KEY = "opsdeck:task-notifications";
+const STORAGE_KEY = "opsdeck:run-notifications";
 const CHANGE_EVENT = "opsdeck:notifications-changed";
 
 export type NotificationLabels = {
@@ -77,11 +77,11 @@ export function useNotificationsState() {
   };
 }
 
-// Fetches the terminal snapshot for a task via the existing SSE endpoint and
+// Fetches the terminal snapshot for a run via the existing SSE endpoint and
 // fires a system notification with its status. We reuse SSE rather than adding
 // a one-shot REST endpoint to keep auth + serialization paths consistent.
-function notifyForTask(id: string, labels: NotificationLabels) {
-  const es = new EventSource(`/api/tasks/${id}/stream`);
+function notifyForRun(id: string, labels: NotificationLabels) {
+  const es = new EventSource(`/api/runs/${id}/stream`);
   let fired = false;
   const cleanup = () => {
     es.close();
@@ -117,11 +117,11 @@ function notifyForTask(id: string, labels: NotificationLabels) {
   const timeoutId = setTimeout(cleanup, 5000);
 }
 
-// Diff the running-task list across renders. When a task ID disappears,
-// resolve its final status from the per-task SSE stream and notify if the
+// Diff the running-run list across renders. When a run ID disappears,
+// resolve its final status from the per-run SSE stream and notify if the
 // document is hidden + the user has opted in.
-export function useTaskCompletionNotifications(
-  runningTasks: RunningTask[],
+export function useRunCompletionNotifications(
+  runningTasks: ActiveRun[],
   labels: NotificationLabels
 ) {
   const seenIdsRef = React.useRef<Set<string>>(new Set());
@@ -133,9 +133,9 @@ export function useTaskCompletionNotifications(
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const currentIds = new Set(runningTasks.map((task) => task.id));
+    const currentIds = new Set(runningTasks.map((run) => run.id));
 
-    // Suppress notifications for tasks that were already running when the
+    // Suppress notifications for runs that were already running when the
     // panel loaded — only fire for transitions observed during this session.
     if (firstSnapshotRef.current) {
       seenIdsRef.current = currentIds;
@@ -154,7 +154,7 @@ export function useTaskCompletionNotifications(
     if (document.visibilityState === "visible") return;
 
     for (const id of completed) {
-      notifyForTask(id, labelsRef.current);
+      notifyForRun(id, labelsRef.current);
     }
   }, [runningTasks]);
 }

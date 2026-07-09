@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { getProjects, getProjectsLastOpened } from "@/actions/projects";
-import { getProjectsLastActivity } from "@/actions/tasks";
+import { getProjectsLastActivity } from "@/actions/runs";
 import { PageHeader } from "@/components/page-header";
 import { ProjectsEmpty } from "@/components/projects-empty";
 import type { SortKey } from "@/components/projects-grid";

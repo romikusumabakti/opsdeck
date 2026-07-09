@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth-session";
 import type { ProjectWithServers } from "@/lib/db/schema";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
+import { createRun } from "@/lib/run-progress";
 import {
   buildStatusCommand,
   getServiceConfig,
@@ -13,7 +14,6 @@ import {
   type ServiceState,
 } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
-import { createTask } from "@/lib/task-progress";
 import {
   projectIdSchema,
   serviceActionSchema,
@@ -80,7 +80,7 @@ export async function controlService(
   projectId: string,
   role: ServiceRole,
   action: ServiceAction
-): Promise<{ taskId: string }> {
+): Promise<{ runId: string }> {
   const session = await requireSession();
   const parsedRole = serviceRoleSchema.safeParse(role);
   const parsedAction = serviceActionSchema.safeParse(action);
@@ -95,7 +95,7 @@ export async function controlService(
   if (!project) throw new Error("Project not found");
 
   const cfg = getServiceConfig(project, parsedRole.data);
-  const taskId = await createTask({
+  const runId = await createRun({
     projectId: project.id,
     userId: session.user.id,
     description: `${actionLabel(parsedAction.data)} ${parsedRole.data} service (${cfg.serviceName})`,
@@ -104,9 +104,9 @@ export async function controlService(
     projectId: project.id,
     role: parsedRole.data,
     action: parsedAction.data,
-    taskId,
+    runId,
   });
-  return { taskId };
+  return { runId };
 }
 
 function actionLabel(action: ServiceAction): string {

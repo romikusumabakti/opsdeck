@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 type TaskStatus = "started" | "success" | "failed";
 
-type TaskSnapshot = {
+type RunSnapshot = {
   id: string;
   description: string;
   status: TaskStatus;
@@ -29,19 +29,19 @@ type TaskSnapshot = {
 };
 
 type Props = {
-  taskId: string;
+  runId: string;
   // Optional: keeps the panel mounted by parent so it can be dismissed.
   onDismiss?: () => void;
-  // Fires once when the task transitions into success — handy for parents
+  // Fires once when the run transitions into success — handy for parents
   // that want to surface a result (e.g. copy generated filename to clipboard).
-  onSuccess?: (snapshot: TaskSnapshot) => void;
+  onSuccess?: (snapshot: RunSnapshot) => void;
   // When set, a Retry button is shown on failure. The parent re-triggers the
   // original operation (it owns the action + its params, not this panel).
   onRetry?: () => void;
 };
 
 // Last non-empty output line, stripped of its `[timestamp]` prefix — used as a
-// human-readable "current step" while the task runs.
+// human-readable "current step" while the run runs.
 function lastStep(output: string | undefined): string | null {
   if (!output) return null;
   const lines = output.split("\n");
@@ -61,14 +61,9 @@ function formatDuration(ms: number): string {
   return `${m}m ${rs}s`;
 }
 
-export function LiveTaskPanel({
-  taskId,
-  onDismiss,
-  onSuccess,
-  onRetry,
-}: Props) {
+export function LiveRunPanel({ runId, onDismiss, onSuccess, onRetry }: Props) {
   const t = useTranslations("liveTask");
-  const [snapshot, setSnapshot] = React.useState<TaskSnapshot | null>(null);
+  const [snapshot, setSnapshot] = React.useState<RunSnapshot | null>(null);
   const [streamError, setStreamError] = React.useState<string | null>(null);
   const [reconnecting, setReconnecting] = React.useState(false);
   const [logsOpen, setLogsOpen] = React.useState(true);
@@ -77,7 +72,7 @@ export function LiveTaskPanel({
   const [now, setNow] = React.useState(() => Date.now());
 
   // Tick every second so the elapsed counter advances while running. Stop the
-  // ticker once the task is in a terminal state to avoid wasted renders.
+  // ticker once the run is in a terminal state to avoid wasted renders.
   React.useEffect(() => {
     if (snapshot && snapshot.status !== "started") return;
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -115,11 +110,11 @@ export function LiveTaskPanel({
     setStreamError(null);
     setReconnecting(false);
     successFiredRef.current = false;
-    const es = new EventSource(`/api/tasks/${taskId}/stream`);
+    const es = new EventSource(`/api/runs/${runId}/stream`);
 
     es.addEventListener("snapshot", (ev) => {
       try {
-        const data = JSON.parse((ev as MessageEvent).data) as TaskSnapshot;
+        const data = JSON.parse((ev as MessageEvent).data) as RunSnapshot;
         // A frame arrived — any prior transient reconnect has resolved.
         setReconnecting(false);
         setSnapshot(data);
@@ -150,7 +145,7 @@ export function LiveTaskPanel({
 
     es.onerror = () => {
       // EventSource auto-reconnects on transient errors. Surface a soft
-      // "reconnecting" hint while a still-running task drops its connection,
+      // "reconnecting" hint while a still-running run drops its connection,
       // and only a hard error if no snapshot ever arrives within 5s.
       if (snapshotRef.current?.status === "started") {
         setReconnecting(true);
@@ -164,7 +159,7 @@ export function LiveTaskPanel({
     return () => {
       es.close();
     };
-  }, [taskId]);
+  }, [runId]);
 
   // Auto-scroll log viewer to bottom unless the user has scrolled up. Trigger
   // intentionally listens to `snapshot?.output` even though the body doesn't
