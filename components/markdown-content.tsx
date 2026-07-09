@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { Link } from "@/i18n/navigation";
@@ -25,9 +26,13 @@ export function MarkdownContent({
         // The KnowledgeEditor is the sole writer and emits pure GFM markdown —
         // never raw HTML — so no rehype-raw/rehype-sanitize is needed. react-
         // markdown does not render embedded HTML by default and strips unsafe
-        // link protocols, so the only plugin we need is rehype-slug for stable
-        // heading ids (on-page table of contents).
-        rehypePlugins={[rehypeSlug]}
+        // link protocols, so no rehype-raw/rehype-sanitize is needed —
+        // rehype-slug gives stable heading ids (on-page table of contents) and
+        // rehype-highlight colors fenced code blocks with the same
+        // highlight.js grammars the editor's lowlight uses (hljs token colors
+        // live in globals.css). ignoreMissing-by-default: unknown languages
+        // render as plain <code>, never throw.
+        rehypePlugins={[rehypeSlug, rehypeHighlight]}
         components={{
           h1: (props) => (
             <h1
