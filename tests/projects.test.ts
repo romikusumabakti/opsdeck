@@ -9,6 +9,7 @@ function makeServer(name: string): Server {
     host: `${name}.example.com`,
     username: "ops",
     password: "super-secret-ssh-password",
+    sftpRoot: "/",
     createdAt: new Date("2024-01-01T00:00:00Z"),
     updatedAt: new Date("2024-01-01T00:00:00Z"),
   };

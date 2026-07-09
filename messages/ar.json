@@ -34,7 +34,8 @@
     "notFoundDescription": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
     "errorDetails": "التفاصيل",
     "capsLockOn": "مفتاح Caps Lock مُفعَّل",
-    "more": "المزيد"
+    "more": "المزيد",
+    "create": "إنشاء"
   },
   "dataTable": {
     "searchPlaceholder": "بحث…",
@@ -660,7 +661,10 @@
     "usageTitle": "مستخدم بواسطة",
     "usageDescription": "المشاريع التي تشير إلى هذا الخادم.",
     "usageEmptyTitle": "غير مستخدم",
-    "usageEmptyDescription": "لا يوجد مشروع يستخدم هذا الخادم حالياً."
+    "usageEmptyDescription": "لا يوجد مشروع يستخدم هذا الخادم حالياً.",
+    "sftpRoot": "جذر SFTP",
+    "sftpRootDescription": "المسار المطلق الذي يقتصر عليه مستكشف الملفات. استخدم / للمضيف بالكامل.",
+    "sftpRootInvalid": "يجب أن يكون مسارًا مطلقًا (يبدأ بـ /)"
   },
   "newServer": {
     "title": "إضافة خادم",
@@ -672,7 +676,8 @@
     "title": "تعديل الخادم: {name}",
     "description": "تحديث بيانات اعتماد SSH ومراجعة أماكن استخدام هذا الخادم.",
     "formTitle": "بيانات اعتماد SSH",
-    "formDescription": "اترك كلمة المرور فارغة للإبقاء عليها."
+    "formDescription": "اترك كلمة المرور فارغة للإبقاء عليها.",
+    "browseFiles": "تصفح الملفات"
   },
   "localeSwitcher": {
     "ariaLabel": "اختر اللغة"
@@ -851,7 +856,21 @@
     "hostAndUsernameRequired": "المضيف واسم المستخدم مطلوبان",
     "passwordRequiredForTest": "أدخل كلمة المرور لاختبار الاتصال",
     "invalidInput": "إدخال غير صالح",
-    "errorGeneric": "حدث خطأ ما"
+    "errorGeneric": "حدث خطأ ما",
+    "sourceNotFound": "مصدر التخزين غير موجود",
+    "invalidPath": "مسار غير صالح",
+    "explorerFailed": "فشلت عملية التخزين",
+    "folderCreated": "تم إنشاء المجلد",
+    "entryDeleted": "تم الحذف",
+    "entryRenamed": "تمت إعادة التسمية",
+    "s3Created": "تم إنشاء اتصال S3",
+    "s3CreateFailed": "فشل إنشاء اتصال S3",
+    "s3NotFound": "اتصال S3 غير موجود",
+    "s3Updated": "تم تحديث اتصال S3",
+    "s3UpdateFailed": "فشل تحديث اتصال S3",
+    "s3Deleted": "تم حذف اتصال S3",
+    "s3DeleteFailed": "فشل حذف اتصال S3",
+    "s3SecretRequiredForTest": "المفتاح السري مطلوب لاختبار الاتصال"
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -931,5 +950,26 @@
     "tableAddColumn": "إضافة عمود",
     "tableDeleteColumn": "حذف عمود",
     "tableDelete": "حذف الجدول"
+  },
+  "explorer": {
+    "newFolder": "مجلد جديد",
+    "newFolderDescription": "أنشئ مجلدًا في الدليل الحالي.",
+    "folderNamePlaceholder": "اسم المجلد",
+    "rename": "إعادة تسمية",
+    "newNamePlaceholder": "الاسم الجديد",
+    "deleteTitle": "حذف العنصر",
+    "deleteDescription": "حذف “{name}”؟ لا يمكن التراجع عن هذا.",
+    "upload": "رفع",
+    "uploadFailed": "فشل الرفع",
+    "uploaded": "تم رفع {name}",
+    "loadFailed": "فشل التحميل",
+    "emptyTitle": "مجلد فارغ",
+    "emptyDescription": "لا توجد ملفات أو مجلدات هنا بعد.",
+    "name": "الاسم",
+    "size": "الحجم",
+    "modified": "آخر تعديل",
+    "download": "تنزيل",
+    "serverFilesTitle": "الملفات — {name}",
+    "serverFilesSubtitle": "تصفح {root} عبر SFTP"
   }
 }
