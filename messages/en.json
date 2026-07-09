@@ -110,7 +110,8 @@
     "servers": "Servers",
     "users": "Users",
     "projects": "Projects",
-    "knowledge": "Knowledge"
+    "knowledge": "Knowledge",
+    "storage": "Storage"
   },
   "header": {
     "selectProject": "Select project…",
@@ -970,6 +971,55 @@
     "modified": "Modified",
     "download": "Download",
     "serverFilesTitle": "Files — {name}",
-    "serverFilesSubtitle": "Browsing {root} over SFTP"
+    "serverFilesSubtitle": "Browsing {root} over SFTP",
+    "storageFilesTitle": "Files — {name}",
+    "storageFilesSubtitle": "Browsing bucket {bucket}"
+  },
+  "storage": {
+    "title": "Storage",
+    "subtitle": "S3-compatible object storage connections.",
+    "addConnection": "Add connection",
+    "colName": "Name",
+    "colEndpoint": "Endpoint",
+    "colBucket": "Bucket",
+    "browse": "Browse files",
+    "emptyTitle": "No connections",
+    "empty": "Add an S3-compatible connection to browse its objects.",
+    "searchPlaceholder": "Search connections…",
+    "deleteTitle": "Delete connection",
+    "deleteDescription": "Delete “{name}”? The stored objects are not affected."
+  },
+  "newStorage": {
+    "title": "New connection",
+    "description": "Connect an S3-compatible bucket.",
+    "formTitle": "Connection details",
+    "formDescription": "Credentials are stored server-side and never sent to the browser."
+  },
+  "editStorage": {
+    "title": "Edit {name}",
+    "description": "Update connection details.",
+    "formTitle": "Connection details",
+    "formDescription": "Leave the secret key blank to keep the stored one.",
+    "browseFiles": "Browse files"
+  },
+  "s3Form": {
+    "name": "Name",
+    "namePlaceholder": "My bucket",
+    "endpoint": "Endpoint",
+    "endpointInvalid": "Must be a valid URL",
+    "bucket": "Bucket",
+    "region": "Region",
+    "accessKeyId": "Access key ID",
+    "secretKey": "Secret key",
+    "secretKeyEdit": "Secret key",
+    "secretKeyEditPlaceholder": "Leave blank to keep current",
+    "forcePathStyle": "Path-style addressing",
+    "forcePathStyleDescription": "Required for Garage and most self-hosted S3. Leave on unless using AWS virtual-host style.",
+    "testConnection": "Test connection",
+    "testSuccess": "Connection successful",
+    "testFailed": "Connection failed",
+    "submitting": "Saving…",
+    "saveChanges": "Save changes",
+    "create": "Create"
   }
 }

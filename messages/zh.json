@@ -110,7 +110,8 @@
     "servers": "服务器",
     "users": "用户",
     "projects": "项目",
-    "knowledge": "知识库"
+    "knowledge": "知识库",
+    "storage": "存储"
   },
   "header": {
     "selectProject": "选择项目…",
@@ -970,6 +971,55 @@
     "modified": "修改时间",
     "download": "下载",
     "serverFilesTitle": "文件 — {name}",
-    "serverFilesSubtitle": "通过 SFTP 浏览 {root}"
+    "serverFilesSubtitle": "通过 SFTP 浏览 {root}",
+    "storageFilesTitle": "文件 — {name}",
+    "storageFilesSubtitle": "浏览存储桶 {bucket}"
+  },
+  "storage": {
+    "title": "存储",
+    "subtitle": "S3 兼容的对象存储连接。",
+    "addConnection": "添加连接",
+    "colName": "名称",
+    "colEndpoint": "端点",
+    "colBucket": "存储桶",
+    "browse": "浏览文件",
+    "emptyTitle": "暂无连接",
+    "empty": "添加 S3 兼容连接以浏览其对象。",
+    "searchPlaceholder": "搜索连接…",
+    "deleteTitle": "删除连接",
+    "deleteDescription": "删除“{name}”？已存储的对象不受影响。"
+  },
+  "newStorage": {
+    "title": "新建连接",
+    "description": "连接 S3 兼容的存储桶。",
+    "formTitle": "连接详情",
+    "formDescription": "凭证存储在服务器端，绝不会发送到浏览器。"
+  },
+  "editStorage": {
+    "title": "编辑 {name}",
+    "description": "更新连接详情。",
+    "formTitle": "连接详情",
+    "formDescription": "留空密钥以保留已存储的密钥。",
+    "browseFiles": "浏览文件"
+  },
+  "s3Form": {
+    "name": "名称",
+    "namePlaceholder": "我的存储桶",
+    "endpoint": "端点",
+    "endpointInvalid": "必须是有效的 URL",
+    "bucket": "存储桶",
+    "region": "区域",
+    "accessKeyId": "访问密钥 ID",
+    "secretKey": "密钥",
+    "secretKeyEdit": "密钥",
+    "secretKeyEditPlaceholder": "留空以保留当前密钥",
+    "forcePathStyle": "路径风格寻址",
+    "forcePathStyleDescription": "Garage 和大多数自托管 S3 需要。除非使用 AWS 虚拟主机风格，否则保持开启。",
+    "testConnection": "测试连接",
+    "testSuccess": "连接成功",
+    "testFailed": "连接失败",
+    "submitting": "保存中…",
+    "saveChanges": "保存更改",
+    "create": "创建"
   }
 }

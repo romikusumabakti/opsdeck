@@ -6,6 +6,7 @@ import {
   Clock,
   DatabaseZap,
   FolderKanban,
+  HardDrive,
   History,
   LayoutDashboard,
   Server,
@@ -127,6 +128,16 @@ export function AppSidebar({
                     >
                       <Server />
                       <span>{tNav("servers")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/storage" />}
+                      isActive={pathname.startsWith("/storage")}
+                      tooltip={tNav("storage")}
+                    >
+                      <HardDrive />
+                      <span>{tNav("storage")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

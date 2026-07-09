@@ -110,7 +110,8 @@
     "servers": "Server",
     "users": "Pengguna",
     "projects": "Proyek",
-    "knowledge": "Pengetahuan"
+    "knowledge": "Pengetahuan",
+    "storage": "Penyimpanan"
   },
   "header": {
     "selectProject": "Pilih proyek…",
@@ -970,6 +971,55 @@
     "modified": "Diubah",
     "download": "Unduh",
     "serverFilesTitle": "Berkas — {name}",
-    "serverFilesSubtitle": "Menjelajahi {root} melalui SFTP"
+    "serverFilesSubtitle": "Menjelajahi {root} melalui SFTP",
+    "storageFilesTitle": "Berkas — {name}",
+    "storageFilesSubtitle": "Menjelajahi bucket {bucket}"
+  },
+  "storage": {
+    "title": "Penyimpanan",
+    "subtitle": "Koneksi penyimpanan objek yang kompatibel dengan S3.",
+    "addConnection": "Tambah koneksi",
+    "colName": "Nama",
+    "colEndpoint": "Endpoint",
+    "colBucket": "Bucket",
+    "browse": "Jelajahi berkas",
+    "emptyTitle": "Belum ada koneksi",
+    "empty": "Tambahkan koneksi kompatibel S3 untuk menjelajahi objeknya.",
+    "searchPlaceholder": "Cari koneksi…",
+    "deleteTitle": "Hapus koneksi",
+    "deleteDescription": "Hapus “{name}”? Objek yang tersimpan tidak terpengaruh."
+  },
+  "newStorage": {
+    "title": "Koneksi baru",
+    "description": "Hubungkan bucket kompatibel S3.",
+    "formTitle": "Detail koneksi",
+    "formDescription": "Kredensial disimpan di sisi server dan tidak pernah dikirim ke browser."
+  },
+  "editStorage": {
+    "title": "Edit {name}",
+    "description": "Perbarui detail koneksi.",
+    "formTitle": "Detail koneksi",
+    "formDescription": "Kosongkan secret key untuk mempertahankan yang tersimpan.",
+    "browseFiles": "Jelajahi berkas"
+  },
+  "s3Form": {
+    "name": "Nama",
+    "namePlaceholder": "Bucket saya",
+    "endpoint": "Endpoint",
+    "endpointInvalid": "Harus berupa URL yang valid",
+    "bucket": "Bucket",
+    "region": "Region",
+    "accessKeyId": "Access key ID",
+    "secretKey": "Secret key",
+    "secretKeyEdit": "Secret key",
+    "secretKeyEditPlaceholder": "Kosongkan untuk mempertahankan yang sekarang",
+    "forcePathStyle": "Pengalamatan path-style",
+    "forcePathStyleDescription": "Diperlukan untuk Garage dan sebagian besar S3 mandiri. Biarkan aktif kecuali memakai gaya virtual-host AWS.",
+    "testConnection": "Uji koneksi",
+    "testSuccess": "Koneksi berhasil",
+    "testFailed": "Koneksi gagal",
+    "submitting": "Menyimpan…",
+    "saveChanges": "Simpan perubahan",
+    "create": "Buat"
   }
 }
