@@ -31,6 +31,10 @@ export const servers = pgTable("servers", {
   host: text("host").notNull(),
   username: text("username").notNull(),
   password: text("password").notNull(),
+  // Root the SFTP file explorer is confined to (see lib/explorer/confineSftpPath).
+  // Defaults to "/" (whole host as the SSH user). Narrow it per server — e.g.
+  // "/home/deploy" or "/var/www" — to limit the blast radius of the explorer.
+  sftpRoot: text("sftp_root").notNull().default("/"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -261,6 +265,34 @@ export const invitations = pgTable(
     index("invitations_email_idx").on(t.email),
   ]
 );
+
+// =========================
+// Custom: S3 storage connections
+// =========================
+
+// User-configured S3-compatible endpoints browsed by the storage explorer.
+// Distinct from the single env-configured bucket in lib/storage.ts (KB
+// attachments): those creds are ops-owned infra config, these are arbitrary
+// targets an admin points the explorer at (Garage, real S3, SeaweedFS, Ceph…).
+// Managing them is admin-only; `secretKey` never crosses the server/client
+// boundary (see SafeS3Connection).
+export const s3Connections = pgTable("s3_connections", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  name: text("name").notNull(),
+  endpoint: text("endpoint").notNull(),
+  region: text("region").notNull().default("us-east-1"),
+  bucket: text("bucket").notNull(),
+  accessKeyId: text("access_key_id").notNull(),
+  // Secret credential. Stored like servers.password (plaintext today; see the
+  // at-rest encryption TODO in docs) and stripped before reaching the client.
+  secretKey: text("secret_key").notNull(),
+  // Path-style addressing (bucket in the URL path, not a virtual-host DNS
+  // prefix). Required by Garage and most self-hosted S3; real AWS S3 tolerates
+  // it too, so it defaults on.
+  forcePathStyle: boolean("force_path_style").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 // =========================
 // Team Knowledge Base
@@ -499,3 +531,15 @@ export type NewUser = InferInsertModel<typeof users>;
 
 export type Invitation = InferSelectModel<typeof invitations>;
 export type NewInvitation = InferInsertModel<typeof invitations>;
+
+export type S3Connection = InferSelectModel<typeof s3Connections>;
+export type NewS3Connection = InferInsertModel<typeof s3Connections>;
+
+// Credential-free projection handed to the client. `secretKey` must never cross
+// the server/client boundary (RSC payloads are visible in the browser). Server
+// code loads the full row; anything passed to a client component is sanitized
+// to this shape first. `hasSecret` lets edit forms show a "leave blank to keep"
+// affordance without ever receiving the secret.
+export type SafeS3Connection = Omit<S3Connection, "secretKey"> & {
+  hasSecret: boolean;
+};
