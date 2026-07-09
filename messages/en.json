@@ -34,7 +34,8 @@
     "notFoundDescription": "The page you’re looking for doesn’t exist or has been moved.",
     "errorDetails": "Details",
     "capsLockOn": "Caps Lock is on",
-    "more": "More"
+    "more": "More",
+    "create": "Create"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -660,7 +661,10 @@
     "usageTitle": "Used by",
     "usageDescription": "Projects that reference this server.",
     "usageEmptyTitle": "Not in use",
-    "usageEmptyDescription": "No project is currently using this server."
+    "usageEmptyDescription": "No project is currently using this server.",
+    "sftpRoot": "SFTP root",
+    "sftpRootDescription": "Absolute path the file explorer is confined to. Use / for the whole host.",
+    "sftpRootInvalid": "Must be an absolute path (start with /)"
   },
   "newServer": {
     "title": "Add server",
@@ -672,7 +676,8 @@
     "title": "Edit server: {name}",
     "description": "Update SSH credentials and review where this server is used.",
     "formTitle": "SSH credentials",
-    "formDescription": "Leave the password blank to keep it unchanged."
+    "formDescription": "Leave the password blank to keep it unchanged.",
+    "browseFiles": "Browse files"
   },
   "localeSwitcher": {
     "ariaLabel": "Select language"
@@ -851,7 +856,21 @@
     "hostAndUsernameRequired": "Host and username are required",
     "passwordRequiredForTest": "Enter the password to test the connection",
     "invalidInput": "Invalid input",
-    "errorGeneric": "Something went wrong"
+    "errorGeneric": "Something went wrong",
+    "sourceNotFound": "Storage source not found",
+    "invalidPath": "Invalid path",
+    "explorerFailed": "Storage operation failed",
+    "folderCreated": "Folder created",
+    "entryDeleted": "Deleted",
+    "entryRenamed": "Renamed",
+    "s3Created": "S3 connection created",
+    "s3CreateFailed": "Failed to create S3 connection",
+    "s3NotFound": "S3 connection not found",
+    "s3Updated": "S3 connection updated",
+    "s3UpdateFailed": "Failed to update S3 connection",
+    "s3Deleted": "S3 connection deleted",
+    "s3DeleteFailed": "Failed to delete S3 connection",
+    "s3SecretRequiredForTest": "Secret key is required to test the connection"
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -931,5 +950,26 @@
     "tableAddColumn": "Add column",
     "tableDeleteColumn": "Delete column",
     "tableDelete": "Delete table"
+  },
+  "explorer": {
+    "newFolder": "New folder",
+    "newFolderDescription": "Create a folder in the current directory.",
+    "folderNamePlaceholder": "Folder name",
+    "rename": "Rename",
+    "newNamePlaceholder": "New name",
+    "deleteTitle": "Delete item",
+    "deleteDescription": "Delete “{name}”? This cannot be undone.",
+    "upload": "Upload",
+    "uploadFailed": "Upload failed",
+    "uploaded": "Uploaded {name}",
+    "loadFailed": "Failed to load",
+    "emptyTitle": "Empty folder",
+    "emptyDescription": "No files or folders here yet.",
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified",
+    "download": "Download",
+    "serverFilesTitle": "Files — {name}",
+    "serverFilesSubtitle": "Browsing {root} over SFTP"
   }
 }

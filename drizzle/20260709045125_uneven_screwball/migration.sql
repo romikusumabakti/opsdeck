@@ -1,0 +1,1 @@
+ALTER TABLE "servers" ADD COLUMN "sftp_root" text DEFAULT '/' NOT NULL;

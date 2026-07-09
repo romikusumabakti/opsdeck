@@ -34,7 +34,8 @@
     "notFoundDescription": "Halaman yang Anda cari tidak ada atau telah dipindahkan.",
     "errorDetails": "Detail",
     "capsLockOn": "Caps Lock aktif",
-    "more": "Lainnya"
+    "more": "Lainnya",
+    "create": "Buat"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -660,7 +661,10 @@
     "usageTitle": "Digunakan oleh",
     "usageDescription": "Proyek yang menggunakan server ini.",
     "usageEmptyTitle": "Belum digunakan",
-    "usageEmptyDescription": "Belum ada proyek yang menggunakan server ini."
+    "usageEmptyDescription": "Belum ada proyek yang menggunakan server ini.",
+    "sftpRoot": "Root SFTP",
+    "sftpRootDescription": "Jalur absolut tempat penjelajah berkas dibatasi. Gunakan / untuk seluruh host.",
+    "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)"
   },
   "newServer": {
     "title": "Tambah server",
@@ -672,7 +676,8 @@
     "title": "Edit server: {name}",
     "description": "Ubah kredensial SSH dan lihat proyek yang menggunakan server ini.",
     "formTitle": "Kredensial SSH",
-    "formDescription": "Kosongkan password jika tidak ingin mengubahnya."
+    "formDescription": "Kosongkan password jika tidak ingin mengubahnya.",
+    "browseFiles": "Jelajahi berkas"
   },
   "localeSwitcher": {
     "ariaLabel": "Pilih bahasa"
@@ -851,7 +856,21 @@
     "hostAndUsernameRequired": "Host dan username wajib diisi",
     "passwordRequiredForTest": "Masukkan password untuk tes koneksi",
     "invalidInput": "Input tidak valid",
-    "errorGeneric": "Terjadi kesalahan"
+    "errorGeneric": "Terjadi kesalahan",
+    "sourceNotFound": "Sumber penyimpanan tidak ditemukan",
+    "invalidPath": "Jalur tidak valid",
+    "explorerFailed": "Operasi penyimpanan gagal",
+    "folderCreated": "Folder dibuat",
+    "entryDeleted": "Dihapus",
+    "entryRenamed": "Nama diubah",
+    "s3Created": "Koneksi S3 dibuat",
+    "s3CreateFailed": "Gagal membuat koneksi S3",
+    "s3NotFound": "Koneksi S3 tidak ditemukan",
+    "s3Updated": "Koneksi S3 diperbarui",
+    "s3UpdateFailed": "Gagal memperbarui koneksi S3",
+    "s3Deleted": "Koneksi S3 dihapus",
+    "s3DeleteFailed": "Gagal menghapus koneksi S3",
+    "s3SecretRequiredForTest": "Secret key diperlukan untuk menguji koneksi"
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -931,5 +950,26 @@
     "tableAddColumn": "Tambah kolom",
     "tableDeleteColumn": "Hapus kolom",
     "tableDelete": "Hapus tabel"
+  },
+  "explorer": {
+    "newFolder": "Folder baru",
+    "newFolderDescription": "Buat folder di direktori saat ini.",
+    "folderNamePlaceholder": "Nama folder",
+    "rename": "Ganti nama",
+    "newNamePlaceholder": "Nama baru",
+    "deleteTitle": "Hapus item",
+    "deleteDescription": "Hapus “{name}”? Tindakan ini tidak dapat dibatalkan.",
+    "upload": "Unggah",
+    "uploadFailed": "Unggahan gagal",
+    "uploaded": "{name} diunggah",
+    "loadFailed": "Gagal memuat",
+    "emptyTitle": "Folder kosong",
+    "emptyDescription": "Belum ada berkas atau folder di sini.",
+    "name": "Nama",
+    "size": "Ukuran",
+    "modified": "Diubah",
+    "download": "Unduh",
+    "serverFilesTitle": "Berkas — {name}",
+    "serverFilesSubtitle": "Menjelajahi {root} melalui SFTP"
   }
 }

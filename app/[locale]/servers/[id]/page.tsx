@@ -1,10 +1,11 @@
-import { Folder, ServerCog } from "lucide-react";
+import { Folder, FolderOpen, ServerCog } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServerById, getServerUsage } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
 import { ServerForm } from "@/components/server-form";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -41,6 +42,15 @@ export default async function EditServerPage({
       <PageHeader
         title={t("title", { name: server.name })}
         subtitle={t("description")}
+        action={
+          <Button
+            variant="outline"
+            render={<Link href={`/servers/${id}/files`} />}
+          >
+            <FolderOpen className="size-4" />
+            {t("browseFiles")}
+          </Button>
+        }
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem] max-w-5xl w-full">
         <Card>

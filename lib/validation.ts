@@ -60,6 +60,15 @@ export const serverInputSchema = z.object({
   host: z.string().trim().min(1).max(255),
   username: z.string().trim().min(1).max(255),
   password: z.string().min(1).max(1024),
+  // Absolute path the SFTP explorer is confined to. Optional on input (the
+  // column defaults to "/"); must be absolute when provided.
+  sftpRoot: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1024)
+    .regex(/^\//, "SFTP root must be an absolute path")
+    .optional(),
 });
 
 export const projectInputSchema = z.object({
@@ -89,6 +98,53 @@ export const serverUpdateSchema = serverInputSchema.partial();
 
 export type ServerInput = z.infer<typeof serverInputSchema>;
 export type ProjectInput = z.infer<typeof projectInputSchema>;
+
+// =========================
+// Storage explorer
+// =========================
+
+export const s3ConnectionInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  endpoint: z.url().max(2048),
+  region: z.string().trim().min(1).max(100),
+  bucket: z.string().trim().min(1).max(255),
+  accessKeyId: z.string().trim().min(1).max(512),
+  secretKey: z.string().min(1).max(1024),
+  forcePathStyle: z.boolean(),
+});
+
+// Update allows omitting secretKey ("leave blank to keep"); everything else is
+// individually optional so partial edits round-trip.
+export const s3ConnectionUpdateSchema = s3ConnectionInputSchema
+  .partial()
+  .extend({ secretKey: z.string().min(1).max(1024).optional() });
+
+export type S3ConnectionInput = z.infer<typeof s3ConnectionInputSchema>;
+
+// A browsed location. `kind` selects the backend; the id names the connection
+// or server. Credentials are NEVER part of this — the action layer loads them.
+export const explorerSourceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("s3"), connectionId: z.uuid() }),
+  z.object({ kind: z.literal("sftp"), serverId: z.uuid() }),
+]);
+
+// An untrusted path/key from the client. Bounded length; the backends' own
+// normalizeS3Key / confineSftpPath enforce the real traversal defence. Reject
+// NUL bytes here since neither a key nor a filesystem path may contain one.
+export const explorerPathSchema = z
+  .string()
+  .max(4096)
+  .refine((p) => !p.includes("\0"), "Path must not contain NUL");
+
+// A single path segment (folder/file name) typed for mkdir/rename. No slashes,
+// no traversal, no control chars — the caller joins it onto a validated parent.
+export const explorerNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[^/\\\r\n\t]+$/, "Name must not contain path separators")
+  .refine((n) => n !== "." && n !== "..", "Reserved name");
 
 // =========================
 // Team Knowledge Base

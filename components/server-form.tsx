@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -59,6 +60,10 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
       mode.type === "create"
         ? z.string().min(1, tCommon("required"))
         : z.string(),
+    sftpRoot: z
+      .string()
+      .min(1, tCommon("required"))
+      .regex(/^\//, t("sftpRootInvalid")),
   });
 
   const form = useForm<z.infer<typeof schema>>({
@@ -68,6 +73,7 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
       host: initial?.host ?? "",
       username: initial?.username ?? "",
       password: "",
+      sftpRoot: initial?.sftpRoot ?? "/",
     },
   });
 
@@ -108,6 +114,7 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
         host: values.host.trim(),
         username: values.username.trim(),
         password: values.password,
+        sftpRoot: values.sftpRoot.trim(),
       });
       if (!result.success) {
         toast.error(result.message);
@@ -128,10 +135,12 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
       host: string;
       username: string;
       password?: string;
+      sftpRoot: string;
     } = {
       name: values.name.trim(),
       host: values.host.trim(),
       username: values.username.trim(),
+      sftpRoot: values.sftpRoot.trim(),
     };
     if (values.password.length > 0) data.password = values.password;
 
@@ -248,6 +257,20 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
                   }}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="sftpRoot"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("sftpRoot")}</FormLabel>
+              <FormControl>
+                <Input placeholder="/" {...field} />
+              </FormControl>
+              <FormDescription>{t("sftpRootDescription")}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

@@ -34,7 +34,8 @@
     "notFoundDescription": "您查找的页面不存在或已被移动。",
     "errorDetails": "详情",
     "capsLockOn": "大写锁定已开启",
-    "more": "更多"
+    "more": "更多",
+    "create": "创建"
   },
   "dataTable": {
     "searchPlaceholder": "搜索…",
@@ -660,7 +661,10 @@
     "usageTitle": "使用者",
     "usageDescription": "引用此服务器的项目。",
     "usageEmptyTitle": "未使用",
-    "usageEmptyDescription": "当前没有项目使用此服务器。"
+    "usageEmptyDescription": "当前没有项目使用此服务器。",
+    "sftpRoot": "SFTP 根目录",
+    "sftpRootDescription": "文件浏览器限定的绝对路径。使用 / 表示整个主机。",
+    "sftpRootInvalid": "必须是绝对路径（以 / 开头）"
   },
   "newServer": {
     "title": "添加服务器",
@@ -672,7 +676,8 @@
     "title": "编辑服务器：{name}",
     "description": "更新 SSH 凭据并查看此服务器的使用情况。",
     "formTitle": "SSH 凭据",
-    "formDescription": "留空密码则保持不变。"
+    "formDescription": "留空密码则保持不变。",
+    "browseFiles": "浏览文件"
   },
   "localeSwitcher": {
     "ariaLabel": "选择语言"
@@ -851,7 +856,21 @@
     "hostAndUsernameRequired": "主机和用户名为必填项",
     "passwordRequiredForTest": "请输入密码以测试连接",
     "invalidInput": "输入无效",
-    "errorGeneric": "出现错误"
+    "errorGeneric": "出现错误",
+    "sourceNotFound": "未找到存储源",
+    "invalidPath": "路径无效",
+    "explorerFailed": "存储操作失败",
+    "folderCreated": "已创建文件夹",
+    "entryDeleted": "已删除",
+    "entryRenamed": "已重命名",
+    "s3Created": "已创建 S3 连接",
+    "s3CreateFailed": "创建 S3 连接失败",
+    "s3NotFound": "未找到 S3 连接",
+    "s3Updated": "已更新 S3 连接",
+    "s3UpdateFailed": "更新 S3 连接失败",
+    "s3Deleted": "已删除 S3 连接",
+    "s3DeleteFailed": "删除 S3 连接失败",
+    "s3SecretRequiredForTest": "测试连接需要密钥"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -931,5 +950,26 @@
     "tableAddColumn": "添加列",
     "tableDeleteColumn": "删除列",
     "tableDelete": "删除表格"
+  },
+  "explorer": {
+    "newFolder": "新建文件夹",
+    "newFolderDescription": "在当前目录中创建文件夹。",
+    "folderNamePlaceholder": "文件夹名称",
+    "rename": "重命名",
+    "newNamePlaceholder": "新名称",
+    "deleteTitle": "删除项目",
+    "deleteDescription": "删除“{name}”？此操作无法撤销。",
+    "upload": "上传",
+    "uploadFailed": "上传失败",
+    "uploaded": "已上传 {name}",
+    "loadFailed": "加载失败",
+    "emptyTitle": "空文件夹",
+    "emptyDescription": "这里还没有文件或文件夹。",
+    "name": "名称",
+    "size": "大小",
+    "modified": "修改时间",
+    "download": "下载",
+    "serverFilesTitle": "文件 — {name}",
+    "serverFilesSubtitle": "通过 SFTP 浏览 {root}"
   }
 }
