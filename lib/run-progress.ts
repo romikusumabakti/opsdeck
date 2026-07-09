@@ -1,32 +1,32 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { type NewTask, tasks } from "@/lib/db/schema";
+import { type NewRun, runs } from "@/lib/db/schema";
 
-export type CreateTaskInput = Omit<
-  NewTask,
+export type CreateRunInput = Omit<
+  NewRun,
   "id" | "status" | "output" | "errorMessage" | "completedAt" | "runAt"
 > & { runAt?: Date };
 
-export async function createTask(input: CreateTaskInput): Promise<string> {
+export async function createRun(input: CreateRunInput): Promise<string> {
   const [row] = await db
-    .insert(tasks)
+    .insert(runs)
     .values({
       ...input,
       runAt: input.runAt ?? new Date(),
       status: "started",
       output: "",
     })
-    .returning({ id: tasks.id });
+    .returning({ id: runs.id });
   return row.id;
 }
 
-// Hard cap on stored task output. Bounds the row size and, more importantly,
+// Hard cap on stored run output. Bounds the row size and, more importantly,
 // the per-poll serialization cost in the SSE stream (which re-reads the whole
-// blob each tick — unbounded growth makes that O(n²) over a task's life).
+// blob each tick — unbounded growth makes that O(n²) over a run's life).
 const MAX_OUTPUT_CHARS = 262144; // ~256 KB
 
-export async function appendTaskOutput(
-  taskId: string,
+export async function appendRunOutput(
+  runId: string,
   line: string
 ): Promise<void> {
   const ts = new Date().toISOString();
@@ -35,30 +35,30 @@ export async function appendTaskOutput(
   // multibyte-safe; it may clip the oldest retained line, which is acceptable
   // for a scrolling log.
   await db
-    .update(tasks)
+    .update(runs)
     .set({
-      output: sql`right(${tasks.output} || ${formatted}, ${MAX_OUTPUT_CHARS})`,
+      output: sql`right(${runs.output} || ${formatted}, ${MAX_OUTPUT_CHARS})`,
     })
-    .where(eq(tasks.id, taskId));
+    .where(eq(runs.id, runId));
 }
 
-export async function completeTask(taskId: string): Promise<void> {
+export async function completeRun(runId: string): Promise<void> {
   await db
-    .update(tasks)
+    .update(runs)
     .set({ status: "success", completedAt: new Date() })
-    .where(eq(tasks.id, taskId));
+    .where(eq(runs.id, runId));
 }
 
-export async function failTask(
-  taskId: string,
+export async function failRun(
+  runId: string,
   errorMessage: string
 ): Promise<void> {
   await db
-    .update(tasks)
+    .update(runs)
     .set({
       status: "failed",
       errorMessage,
       completedAt: new Date(),
     })
-    .where(eq(tasks.id, taskId));
+    .where(eq(runs.id, runId));
 }

@@ -3,33 +3,33 @@
 import { and, desc, eq, gte, like } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { type Task, tasks } from "@/lib/db/schema";
+import { type Run, runs } from "@/lib/db/schema";
 
-export type TaskWithUser = Task & {
+export type RunWithUser = Run & {
   user: { id: string; name: string; email: string } | null;
 };
 
-export type RunningTask = Pick<
-  Task,
+export type ActiveRun = Pick<
+  Run,
   "id" | "projectId" | "description" | "runAt"
 > & {
   project: { id: string; name: string } | null;
 };
 
-// Returns currently-running tasks across all projects, newest first. Used by
+// Returns currently-running runs across all projects, newest first. Used by
 // the global header indicator so users can see and jump back into long
 // background jobs (backup/restore/mock-time) even after dismissing the
 // per-page dialog. Capped at 10 — more than that is a system-health issue,
 // not a UX problem.
 export type ProjectActivity = {
-  status: Task["status"];
+  status: Run["status"];
   runAt: Date;
 };
 
 /**
- * Returns a map of {projectId -> most recent task} so the projects list can
+ * Returns a map of {projectId -> most recent run} so the projects list can
  * show an at-a-glance health dot per card. Uses Postgres `DISTINCT ON` —
- * cheaper than fetching the latest task per project in N round-trips.
+ * cheaper than fetching the latest run per project in N round-trips.
  */
 export async function getProjectsLastActivity(): Promise<
   Record<string, ProjectActivity>
@@ -37,13 +37,13 @@ export async function getProjectsLastActivity(): Promise<
   await requireSession();
   try {
     const rows = await db
-      .selectDistinctOn([tasks.projectId], {
-        projectId: tasks.projectId,
-        status: tasks.status,
-        runAt: tasks.runAt,
+      .selectDistinctOn([runs.projectId], {
+        projectId: runs.projectId,
+        status: runs.status,
+        runAt: runs.runAt,
       })
-      .from(tasks)
-      .orderBy(tasks.projectId, desc(tasks.runAt));
+      .from(runs)
+      .orderBy(runs.projectId, desc(runs.runAt));
     const map: Record<string, ProjectActivity> = {};
     for (const row of rows) {
       map[row.projectId] = { status: row.status, runAt: row.runAt };
@@ -55,10 +55,10 @@ export async function getProjectsLastActivity(): Promise<
   }
 }
 
-export async function getRunningTasks(): Promise<RunningTask[]> {
+export async function getActiveRuns(): Promise<ActiveRun[]> {
   await requireSession();
   try {
-    const rows = await db.query.tasks.findMany({
+    const rows = await db.query.runs.findMany({
       where: { status: "started" },
       columns: {
         id: true,
@@ -74,19 +74,19 @@ export async function getRunningTasks(): Promise<RunningTask[]> {
       orderBy: { runAt: "desc" },
       limit: 10,
     });
-    return rows as RunningTask[];
+    return rows as ActiveRun[];
   } catch (error) {
-    console.error("Failed to fetch running tasks:", error);
+    console.error("Failed to fetch running runs:", error);
     return [];
   }
 }
 
-export async function getProjectTasks(
+export async function getProjectRuns(
   projectId: string
-): Promise<TaskWithUser[]> {
+): Promise<RunWithUser[]> {
   await requireSession();
   try {
-    const rows = await db.query.tasks.findMany({
+    const rows = await db.query.runs.findMany({
       where: { projectId },
       with: {
         user: {
@@ -95,15 +95,15 @@ export async function getProjectTasks(
       },
       orderBy: { runAt: "desc" },
     });
-    return rows as TaskWithUser[];
+    return rows as RunWithUser[];
   } catch (error) {
-    console.error(`Failed to fetch tasks for project ${projectId}:`, error);
+    console.error(`Failed to fetch runs for project ${projectId}:`, error);
     return [];
   }
 }
 
-export type TaskSnapshot = Pick<
-  Task,
+export type RunSnapshot = Pick<
+  Run,
   | "id"
   | "projectId"
   | "description"
@@ -114,12 +114,12 @@ export type TaskSnapshot = Pick<
   | "completedAt"
 >;
 
-export async function getTaskSnapshot(
-  taskId: string
-): Promise<TaskSnapshot | null> {
+export async function getRunSnapshot(
+  runId: string
+): Promise<RunSnapshot | null> {
   await requireSession();
-  const row = await db.query.tasks.findFirst({
-    where: { id: taskId },
+  const row = await db.query.runs.findFirst({
+    where: { id: runId },
     columns: {
       id: true,
       projectId: true,
@@ -138,7 +138,7 @@ export type KpiKind = "backup" | "restore" | "mock";
 
 export type KpiEntry = {
   runAt: Date;
-  status: Task["status"];
+  status: Run["status"];
 } | null;
 
 export type ProjectKpis = {
@@ -172,15 +172,15 @@ async function findLatestByKind(
   kind: KpiKind
 ): Promise<KpiEntry> {
   const [row] = await db
-    .select({ runAt: tasks.runAt, status: tasks.status })
-    .from(tasks)
+    .select({ runAt: runs.runAt, status: runs.status })
+    .from(runs)
     .where(
       and(
-        eq(tasks.projectId, projectId),
-        like(tasks.description, `${KPI_PREFIX[kind]}%`)
+        eq(runs.projectId, projectId),
+        like(runs.description, `${KPI_PREFIX[kind]}%`)
       )
     )
-    .orderBy(desc(tasks.runAt))
+    .orderBy(desc(runs.runAt))
     .limit(1);
   return row ?? null;
 }
@@ -200,9 +200,9 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
       findLatestByKind(projectId, "restore"),
       findLatestByKind(projectId, "mock"),
       db
-        .select({ status: tasks.status, runAt: tasks.runAt })
-        .from(tasks)
-        .where(and(eq(tasks.projectId, projectId), gte(tasks.runAt, since14))),
+        .select({ status: runs.status, runAt: runs.runAt })
+        .from(runs)
+        .where(and(eq(runs.projectId, projectId), gte(runs.runAt, since14))),
     ]);
 
     // Bucket by UTC day-index relative to today. Day 0 = today, day 6 = a
@@ -214,7 +214,7 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
     const dailyRuns = new Array(7).fill(0);
     let totalRuns7d = 0;
     let prevTotalRuns7d = 0;
-    const completedCurrent: { status: Task["status"] }[] = [];
+    const completedCurrent: { status: Run["status"] }[] = [];
 
     for (const row of recent) {
       const runDay = new Date(row.runAt);

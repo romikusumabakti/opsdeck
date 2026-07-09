@@ -2,7 +2,7 @@ import { formatDistanceToNow, type Locale } from "date-fns";
 import { Activity, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { getProjectTasks, type TaskWithUser } from "@/actions/tasks";
+import { getProjectRuns, type RunWithUser } from "@/actions/runs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,7 @@ const RECENT_LIMIT = 5;
 export async function RecentActivity({ projectId }: { projectId: string }) {
   // Re-uses the existing query so we don't multiply DB round-trips. Trimmed
   // here rather than via SQL because the list is bounded by project scope.
-  const tasks = (await getProjectTasks(projectId)).slice(0, RECENT_LIMIT);
+  const runs = (await getProjectRuns(projectId)).slice(0, RECENT_LIMIT);
   const t = await getTranslations("dashboard.recentActivity");
   const locale = await getLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
@@ -25,7 +25,7 @@ export async function RecentActivity({ projectId }: { projectId: string }) {
           <Activity className="size-4 text-muted-foreground" />
           <CardTitle className="text-base">{t("title")}</CardTitle>
         </div>
-        {tasks.length > 0 && (
+        {runs.length > 0 && (
           <Link
             href={`/projects/${projectId}/history`}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -35,16 +35,16 @@ export async function RecentActivity({ projectId }: { projectId: string }) {
         )}
       </CardHeader>
       <CardContent>
-        {tasks.length === 0 ? (
+        {runs.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
           <ul className="flex flex-col">
-            {tasks.map((task, i) => (
+            {runs.map((run, i) => (
               <li
-                key={task.id}
+                key={run.id}
                 className={i === 0 ? "py-2" : "py-2 border-t border-border/40"}
               >
-                <ActivityRow task={task} dateFnsLocale={dateFnsLocale} t={t} />
+                <ActivityRow run={run} dateFnsLocale={dateFnsLocale} t={t} />
               </li>
             ))}
           </ul>
@@ -55,34 +55,34 @@ export async function RecentActivity({ projectId }: { projectId: string }) {
 }
 
 function ActivityRow({
-  task,
+  run,
   dateFnsLocale,
   t,
 }: {
-  task: TaskWithUser;
+  run: RunWithUser;
   dateFnsLocale: Locale | undefined;
   t: (key: string) => string;
 }) {
-  const relative = formatDistanceToNow(new Date(task.runAt), {
+  const relative = formatDistanceToNow(new Date(run.runAt), {
     addSuffix: true,
     locale: dateFnsLocale,
   });
   return (
     <div className="flex items-center gap-3">
-      <StatusGlyph status={task.status} />
+      <StatusGlyph status={run.status} />
       <div className="flex-1 min-w-0 flex flex-col">
-        <span className="text-sm truncate">{task.description}</span>
+        <span className="text-sm truncate">{run.description}</span>
         <span className="text-xs text-muted-foreground">
           {relative}
-          {task.user ? ` · ${task.user.name}` : ""}
+          {run.user ? ` · ${run.user.name}` : ""}
         </span>
       </div>
-      <StatusBadge status={task.status} t={t} />
+      <StatusBadge status={run.status} t={t} />
     </div>
   );
 }
 
-function StatusGlyph({ status }: { status: TaskWithUser["status"] }) {
+function StatusGlyph({ status }: { status: RunWithUser["status"] }) {
   if (status === "success") {
     return (
       <span className="size-7 rounded-full bg-success/15 text-success flex items-center justify-center shrink-0">
@@ -108,7 +108,7 @@ function StatusBadge({
   status,
   t,
 }: {
-  status: TaskWithUser["status"];
+  status: RunWithUser["status"];
   t: (key: string) => string;
 }) {
   if (status === "success") {

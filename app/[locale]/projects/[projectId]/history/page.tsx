@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById } from "@/actions/projects";
-import { getProjectTasks } from "@/actions/tasks";
+import { getProjectRuns } from "@/actions/runs";
 import { PageHeader } from "@/components/page-header";
 import { HistoryClient } from "./history-client";
 
@@ -12,9 +12,9 @@ export default async function Page({
   const { locale, projectId } = await params;
   setRequestLocale(locale);
 
-  const [project, tasks, t, tCommon] = await Promise.all([
+  const [project, runs, t, tCommon] = await Promise.all([
     getProjectById(projectId),
-    getProjectTasks(projectId),
+    getProjectRuns(projectId),
     getTranslations("history"),
     getTranslations("common"),
   ]);
@@ -26,7 +26,7 @@ export default async function Page({
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
-      <HistoryClient tasks={tasks} />
+      <HistoryClient runs={runs} />
     </>
   );
 }

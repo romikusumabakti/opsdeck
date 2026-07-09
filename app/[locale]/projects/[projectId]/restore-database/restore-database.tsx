@@ -8,7 +8,7 @@ import { getBackupList, restoreDatabaseBackup } from "@/actions/backups";
 import type { DatabaseEntry } from "@/actions/databases";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
-import { LiveTaskDialog } from "@/components/live-task-dialog";
+import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -109,13 +109,13 @@ export function RestoreDatabase({
     if (!backup) return;
     startTransition(async () => {
       try {
-        const { taskId } = await restoreDatabaseBackup(project.id, {
+        const { runId } = await restoreDatabaseBackup(project.id, {
           filename: backup.name,
           restartBackend,
           database,
           sourceProjectId: isCrossProject ? sourceProjectId : undefined,
         });
-        setActiveTaskId(taskId);
+        setActiveTaskId(runId);
         toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: database }),
         });
@@ -392,8 +392,8 @@ export function RestoreDatabase({
           </Label>
         </div>
       )}
-      <LiveTaskDialog
-        taskId={activeTaskId}
+      <LiveRunDialog
+        runId={activeTaskId}
         onOpenChange={(open) => {
           if (!open) setActiveTaskId(null);
         }}

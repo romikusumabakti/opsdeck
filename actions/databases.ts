@@ -5,10 +5,10 @@ import { requireSession } from "@/lib/auth-session";
 import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadProjectWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
+import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, buildSqlcmdCommand } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
-import { createTask } from "@/lib/task-progress";
 import { databaseNameSchema, projectIdSchema } from "@/lib/validation";
 
 export interface DatabaseEntry {
@@ -140,7 +140,7 @@ export async function getDatabaseList(
 export async function createDatabase(
   projectId: string,
   options: { database: string }
-): Promise<{ taskId: string }> {
+): Promise<{ runId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
@@ -153,7 +153,7 @@ export async function createDatabase(
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error("Project not found");
 
-  const taskId = await createTask({
+  const runId = await createRun({
     projectId: project.id,
     userId: session.user.id,
     description: `Create database (${database})`,
@@ -161,15 +161,15 @@ export async function createDatabase(
   await enqueue("db/database.create.requested", {
     projectId: project.id,
     database,
-    taskId,
+    runId,
   });
-  return { taskId };
+  return { runId };
 }
 
 export async function dropDatabase(
   projectId: string,
   options: { database: string }
-): Promise<{ taskId: string }> {
+): Promise<{ runId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
@@ -188,7 +188,7 @@ export async function dropDatabase(
     throw new Error("Cannot drop the project's configured database");
   }
 
-  const taskId = await createTask({
+  const runId = await createRun({
     projectId: project.id,
     userId: session.user.id,
     description: `Drop database (${database})`,
@@ -196,15 +196,15 @@ export async function dropDatabase(
   await enqueue("db/database.drop.requested", {
     projectId: project.id,
     database,
-    taskId,
+    runId,
   });
-  return { taskId };
+  return { runId };
 }
 
 export async function renameDatabase(
   projectId: string,
   options: { from: string; to: string }
-): Promise<{ taskId: string }> {
+): Promise<{ runId: string }> {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
@@ -231,7 +231,7 @@ export async function renameDatabase(
     throw new Error("Cannot rename the project's configured database");
   }
 
-  const taskId = await createTask({
+  const runId = await createRun({
     projectId: project.id,
     userId: session.user.id,
     description: `Rename database (${from} → ${to})`,
@@ -240,7 +240,7 @@ export async function renameDatabase(
     projectId: project.id,
     from,
     to,
-    taskId,
+    runId,
   });
-  return { taskId };
+  return { runId };
 }

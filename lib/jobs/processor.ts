@@ -6,6 +6,7 @@ import type { ProjectWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
 import { loadProjectWithServers } from "@/lib/projects";
 import type { JobMap, JobName } from "@/lib/queue";
+import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
   buildControlCommand,
   buildDbShellCommand,
@@ -18,23 +19,22 @@ import {
   executeRemoteCommand,
   uploadRemoteFile,
 } from "@/lib/ssh";
-import { appendTaskOutput, completeTask, failTask } from "@/lib/task-progress";
 
-// Appends a step's label to the task output before running it, and on failure
+// Appends a step's label to the run output before running it, and on failure
 // logs `✗ label — message` then re-throws so the handler's catch marks the
-// task failed. (The old Inngest version wrapped each call in step.run for
+// run failed. (The old Inngest version wrapped each call in step.run for
 // durable memoization; jobs run with attempts: 1, so a plain call suffices.)
 async function tracked<T>(
-  taskId: string,
+  runId: string,
   label: string,
   fn: () => Promise<T>
 ): Promise<T> {
-  await appendTaskOutput(taskId, label);
+  await appendRunOutput(runId, label);
   try {
     return await fn();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await appendTaskOutput(taskId, `✗ ${label} — ${message}`);
+    await appendRunOutput(runId, `✗ ${label} — ${message}`);
     throw err;
   }
 }
@@ -66,7 +66,7 @@ function pgQuoteLiteral(value: string): string {
 async function handleCreateDatabaseBackup(
   data: JobMap["db/backup.requested"]
 ): Promise<{ success: true; filename: string }> {
-  const { taskId, compress, projectId, database } = data;
+  const { runId, compress, projectId, database } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const useCompression = compress ?? true;
@@ -82,7 +82,7 @@ async function handleCreateDatabaseBackup(
   };
 
   try {
-    await tracked(taskId, "Ensuring backup directory exists", async () => {
+    await tracked(runId, "Ensuring backup directory exists", async () => {
       // Run as the DB's OS user so the directory ends up owned by the
       // process that later writes into it: pg_dump runs as `postgres`,
       // and SQL Server's BACKUP DATABASE writes the .bak file from the
@@ -99,7 +99,7 @@ async function handleCreateDatabaseBackup(
     });
 
     const filename = await tracked(
-      taskId,
+      runId,
       `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
       async () => {
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -122,13 +122,13 @@ async function handleCreateDatabaseBackup(
       }
     );
 
-    await appendTaskOutput(taskId, `✓ Backup file created: ${filename}`);
-    await completeTask(taskId);
+    await appendRunOutput(runId, `✓ Backup file created: ${filename}`);
+    await completeRun(runId);
 
     return { success: true, filename };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -205,7 +205,7 @@ async function runMssqlBackup(
 async function handleMockProjectTimeLegacy(
   data: JobMap["project/mock-time.legacy"]
 ): Promise<{ success: true; mockedAt: string }> {
-  const { projectId, mockedAt, taskId } = data;
+  const { projectId, mockedAt, runId } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
@@ -233,7 +233,7 @@ async function handleMockProjectTimeLegacy(
     `printf '%s\\n' ${shq(credentials.password)} | sudo -S ${cmd}`;
 
   try {
-    await tracked(taskId, "Disabling NTP on backend server", async () => {
+    await tracked(runId, "Disabling NTP on backend server", async () => {
       // Stops the time daemon from reverting our manual override mid-test.
       // `timedatectl set-ntp false` errors with "NTP not supported" when no
       // NTP unit is registered (e.g. chronyd disabled, no timesyncd) — that
@@ -248,7 +248,7 @@ async function handleMockProjectTimeLegacy(
       );
     });
 
-    await tracked(taskId, `Setting system time to ${dateArg} UTC`, async () => {
+    await tracked(runId, `Setting system time to ${dateArg} UTC`, async () => {
       await executeRemoteCommand(
         credentials,
         sudo(`date -u -s ${shq(dateArg)}`)
@@ -256,7 +256,7 @@ async function handleMockProjectTimeLegacy(
     });
 
     await tracked(
-      taskId,
+      runId,
       `Restarting backend service ${project.backendServiceName}`,
       async () => {
         const cmd = buildControlCommand(
@@ -269,22 +269,22 @@ async function handleMockProjectTimeLegacy(
       }
     );
 
-    await appendTaskOutput(taskId, "✓ Mock-time complete");
-    await completeTask(taskId);
+    await appendRunOutput(runId, "✓ Mock-time complete");
+    await completeRun(runId);
 
     return { success: true, mockedAt };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Heads-up for the operator: by the time we reach here, NTP is off and
     // the system clock may already be set. The server is in an inconsistent
-    // state until someone re-enables NTP — surface that in the task log so
+    // state until someone re-enables NTP — surface that in the run log so
     // it's obvious from the UI without digging into the failure.
-    await appendTaskOutput(
-      taskId,
+    await appendRunOutput(
+      runId,
       "⚠ Backend server may be in inconsistent state — NTP disabled and time potentially overridden. " +
         "To recover, run `sudo timedatectl set-ntp true` on the backend server."
     );
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -292,7 +292,7 @@ async function handleMockProjectTimeLegacy(
 async function handleMockProjectTimeResetLegacy(
   data: JobMap["project/mock-time.reset-legacy"]
 ): Promise<{ success: true }> {
-  const { projectId, taskId } = data;
+  const { projectId, runId } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
@@ -306,7 +306,7 @@ async function handleMockProjectTimeResetLegacy(
     `printf '%s\\n' ${shq(credentials.password)} | sudo -S ${cmd}`;
 
   try {
-    await tracked(taskId, "Re-enabling NTP on backend server", async () => {
+    await tracked(runId, "Re-enabling NTP on backend server", async () => {
       // Mirror disable-ntp: `set-ntp true` fails with "NTP not supported"
       // on hosts with no registered NTP unit. Start chronyd directly there
       // so the clock can resync; keep the step green either way.
@@ -323,7 +323,7 @@ async function handleMockProjectTimeResetLegacy(
     // restart, the host can sit on the mocked time for a polling interval.
     // Try systemd-timesyncd and chronyd; `|| true` keeps the step green when
     // only one of them is installed.
-    await tracked(taskId, "Forcing immediate clock sync", async () => {
+    await tracked(runId, "Forcing immediate clock sync", async () => {
       await executeRemoteCommand(
         credentials,
         sudo(
@@ -333,7 +333,7 @@ async function handleMockProjectTimeResetLegacy(
     });
 
     await tracked(
-      taskId,
+      runId,
       `Restarting backend service ${project.backendServiceName}`,
       async () => {
         const cmd = buildControlCommand(
@@ -346,13 +346,13 @@ async function handleMockProjectTimeResetLegacy(
       }
     );
 
-    await appendTaskOutput(taskId, "✓ Clock reset complete");
-    await completeTask(taskId);
+    await appendRunOutput(runId, "✓ Clock reset complete");
+    await completeRun(runId);
 
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -535,7 +535,7 @@ async function handleRestoreDatabaseBackup(
   const {
     projectId,
     filename,
-    taskId,
+    runId,
     restartBackend,
     database,
     sourceProjectId,
@@ -573,9 +573,9 @@ async function handleRestoreDatabaseBackup(
       backupPath = sourceProject.dbBackupPath;
     } else {
       cleanupTransfer = await tracked(
-        taskId,
+        runId,
         `Transferring backup from ${sourceProject.name}`,
-        () => transferBackupToTarget(sourceProject, project, filename, taskId)
+        () => transferBackupToTarget(sourceProject, project, filename, runId)
       );
       // File now lives under `filename` in the target's own backup dir.
       backupPath = project.dbBackupPath;
@@ -585,18 +585,14 @@ async function handleRestoreDatabaseBackup(
 
   try {
     if (project.dbType === "mssql") {
-      await tracked(
-        taskId,
-        `Restoring ${dbName} from ${filename}`,
-        async () => {
-          await runMssqlRestore(project, dbName, source, credentials);
-        }
-      );
+      await tracked(runId, `Restoring ${dbName} from ${filename}`, async () => {
+        await runMssqlRestore(project, dbName, source, credentials);
+      });
     } else {
-      await tracked(taskId, `Dropping and recreating ${dbName}`, async () => {
+      await tracked(runId, `Dropping and recreating ${dbName}`, async () => {
         await runPostgresRecreateDatabase(project, dbName, credentials);
       });
-      await tracked(taskId, `Restoring from ${filename}`, async () => {
+      await tracked(runId, `Restoring from ${filename}`, async () => {
         await runPostgresRestore(
           project,
           dbName,
@@ -612,7 +608,7 @@ async function handleRestoreDatabaseBackup(
     // backend server's credentials, not the DB server's.
     if (restartBackend) {
       await tracked(
-        taskId,
+        runId,
         `Restarting backend ${project.backendServiceName}`,
         async () => {
           const backendCreds = {
@@ -631,17 +627,17 @@ async function handleRestoreDatabaseBackup(
       );
     }
 
-    await appendTaskOutput(taskId, `✓ Restore complete (${filename})`);
-    await completeTask(taskId);
+    await appendRunOutput(runId, `✓ Restore complete (${filename})`);
+    await completeRun(runId);
 
     return { success: true, restored: filename };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   } finally {
     // Remove the staged copy from the target's backup dir (cross-server source
-    // only). Best-effort: never let cleanup change the task's outcome.
+    // only). Best-effort: never let cleanup change the run's outcome.
     if (cleanupTransfer) await cleanupTransfer();
   }
 }
@@ -697,7 +693,7 @@ async function runPostgresRestore(
 async function handleControlService(
   data: JobMap["service/control.requested"]
 ): Promise<{ success: true }> {
-  const { projectId, role, action, taskId } = data;
+  const { projectId, role, action, runId } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const cfg = getServiceConfig(project, role);
@@ -709,7 +705,7 @@ async function handleControlService(
 
   try {
     await tracked(
-      taskId,
+      runId,
       `${action} ${cfg.serviceName} (${cfg.serviceType})`,
       async () => {
         const cmd = buildControlCommand(
@@ -721,18 +717,18 @@ async function handleControlService(
         const output = await executeRemoteCommand(credentials, cmd);
         const trimmed = output.trim();
         if (trimmed) {
-          await appendTaskOutput(taskId, trimmed);
+          await appendRunOutput(runId, trimmed);
         }
       }
     );
 
-    await appendTaskOutput(taskId, `✓ ${action} ${cfg.serviceName} complete`);
-    await completeTask(taskId);
+    await appendRunOutput(runId, `✓ ${action} ${cfg.serviceName} complete`);
+    await completeRun(runId);
 
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -866,7 +862,7 @@ async function runMssqlRestore(
 async function handleCreateDatabase(
   data: JobMap["db/database.create.requested"]
 ): Promise<{ success: true; database: string }> {
-  const { projectId, database, taskId } = data;
+  const { projectId, database, runId } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const credentials = {
@@ -878,7 +874,7 @@ async function handleCreateDatabase(
   try {
     if (!database) throw new Error("Database name is required");
 
-    await tracked(taskId, `Creating database ${database}`, async () => {
+    await tracked(runId, `Creating database ${database}`, async () => {
       if (project.dbType === "mssql") {
         await runMssqlCreateDatabase(project, database, credentials);
       } else {
@@ -886,13 +882,13 @@ async function handleCreateDatabase(
       }
     });
 
-    await appendTaskOutput(taskId, `✓ Database created: ${database}`);
-    await completeTask(taskId);
+    await appendRunOutput(runId, `✓ Database created: ${database}`);
+    await completeRun(runId);
 
     return { success: true, database };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -936,7 +932,7 @@ async function runMssqlCreateDatabase(
 async function handleDropDatabase(
   data: JobMap["db/database.drop.requested"]
 ): Promise<{ success: true; database: string }> {
-  const { projectId, database, taskId } = data;
+  const { projectId, database, runId } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const credentials = {
@@ -954,7 +950,7 @@ async function handleDropDatabase(
       throw new Error("Refusing to drop the project's configured database");
     }
 
-    await tracked(taskId, `Dropping database ${database}`, async () => {
+    await tracked(runId, `Dropping database ${database}`, async () => {
       if (project.dbType === "mssql") {
         await runMssqlDropDatabase(project, database, credentials);
       } else {
@@ -962,13 +958,13 @@ async function handleDropDatabase(
       }
     });
 
-    await appendTaskOutput(taskId, `✓ Database dropped: ${database}`);
-    await completeTask(taskId);
+    await appendRunOutput(runId, `✓ Database dropped: ${database}`);
+    await completeRun(runId);
 
     return { success: true, database };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -1023,7 +1019,7 @@ async function runMssqlDropDatabase(
 async function handleRenameDatabase(
   data: JobMap["db/database.rename.requested"]
 ): Promise<{ success: true; from: string; to: string }> {
-  const { projectId, from, to, taskId } = data;
+  const { projectId, from, to, runId } = data;
   const project = await loadProjectWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const credentials = {
@@ -1042,7 +1038,7 @@ async function handleRenameDatabase(
       throw new Error("Refusing to rename the project's configured database");
     }
 
-    await tracked(taskId, `Renaming database ${from} → ${to}`, async () => {
+    await tracked(runId, `Renaming database ${from} → ${to}`, async () => {
       if (project.dbType === "mssql") {
         await runMssqlRenameDatabase(project, from, to, credentials);
       } else {
@@ -1050,13 +1046,13 @@ async function handleRenameDatabase(
       }
     });
 
-    await appendTaskOutput(taskId, `✓ Database renamed: ${from} → ${to}`);
-    await completeTask(taskId);
+    await appendRunOutput(runId, `✓ Database renamed: ${from} → ${to}`);
+    await completeRun(runId);
 
     return { success: true, from, to };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await failTask(taskId, message);
+    await failRun(runId, message);
     throw err;
   }
 }
@@ -1113,7 +1109,7 @@ async function runMssqlRenameDatabase(
 
 // Dispatches a job to its handler by name. The Worker calls this for every job;
 // a thrown error propagates to BullMQ, which (with attempts: 1) marks the job
-// failed — the handlers have already recorded the task failure in Postgres.
+// failed — the handlers have already recorded the run failure in Postgres.
 export async function processJob(job: Job): Promise<unknown> {
   const name = job.name as JobName;
   switch (name) {

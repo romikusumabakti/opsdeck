@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
-import type { TaskWithUser } from "@/actions/tasks";
+import type { RunWithUser } from "@/actions/runs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -25,20 +25,20 @@ function formatDuration(ms: number): string {
   return `${m}m ${rs}s`;
 }
 
-export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
+export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
   const t = useTranslations("history");
   const format = useFormatter();
 
-  // Tick every second so the duration column for in-progress tasks updates
+  // Tick every second so the duration column for in-progress runs updates
   // live. Cheap because filteredCount is small and only re-renders cells.
   const [, setTick] = React.useState(0);
   React.useEffect(() => {
-    if (!tasks.some((task) => task.status === "started")) return;
+    if (!runs.some((run) => run.status === "started")) return;
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, [tasks]);
+  }, [runs]);
 
-  const columns = React.useMemo<ColumnDef<TaskWithUser>[]>(
+  const columns = React.useMemo<ColumnDef<RunWithUser>[]>(
     () => [
       {
         id: "status",
@@ -106,13 +106,13 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
         meta: { label: t("colDuration") },
         header: t("colDuration"),
         cell: ({ row }) => {
-          const task = row.original;
+          const run = row.original;
           // Tasks still running have no completedAt; show live elapsed time
           // so the user sees the operation hasn't stalled.
-          const endMs = task.completedAt
-            ? new Date(task.completedAt).getTime()
+          const endMs = run.completedAt
+            ? new Date(run.completedAt).getTime()
             : Date.now();
-          const ms = endMs - new Date(task.runAt).getTime();
+          const ms = endMs - new Date(run.runAt).getTime();
           return (
             <span className="font-mono text-xs text-muted-foreground tabular-nums">
               {formatDuration(ms)}
@@ -124,7 +124,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
     [t, format]
   );
 
-  if (tasks.length === 0) {
+  if (runs.length === 0) {
     return (
       <div className="rounded-lg border bg-card">
         <EmptyState
@@ -139,7 +139,7 @@ export function HistoryClient({ tasks }: { tasks: TaskWithUser[] }) {
   return (
     <DataTable
       columns={columns}
-      data={tasks}
+      data={runs}
       filterColumn="description"
       filterPlaceholder={t("searchPlaceholder")}
       urlKey="hist"
@@ -151,7 +151,7 @@ function StatusBadge({
   status,
   t,
 }: {
-  status: TaskWithUser["status"];
+  status: RunWithUser["status"];
   t: (key: string) => string;
 }) {
   if (status === "success") {

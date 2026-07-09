@@ -11,7 +11,7 @@ import {
 import { streamRemoteCommand } from "@/lib/ssh";
 
 // Streams `docker logs -f` / `kubectl logs -f` / `journalctl -fu` output as
-// SSE. Same shape as the task streams: clients use EventSource and get
+// SSE. Same shape as the run streams: clients use EventSource and get
 // auto-reconnect for free. Node runtime is required — Edge can't keep a
 // long-lived ssh2 socket open.
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 // Cap each stream at 10 minutes. EventSource on the client auto-reconnects
 // on close, which also lets us release SSH sockets held by silently-departed
-// tabs. Aligned with the task stream cap.
+// tabs. Aligned with the run stream cap.
 const MAX_DURATION_MS = 10 * 60 * 1000;
 // Heartbeat comment so reverse proxies (and the browser EventSource) don't
 // idle-timeout the connection when logs are quiet.
