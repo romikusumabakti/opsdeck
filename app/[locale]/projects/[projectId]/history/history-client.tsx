@@ -138,6 +138,7 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
 
   return (
     <DataTable
+      fillHeight
       columns={columns}
       data={runs}
       filterColumn="description"

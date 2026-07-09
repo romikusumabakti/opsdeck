@@ -32,13 +32,6 @@ import { useDialog } from "@/components/dialog-provider";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import {
   Dialog,
@@ -72,6 +65,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/roles";
 
 const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
@@ -770,114 +769,123 @@ export function UsersClient({
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col gap-6">
-        {pendingInvitations.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {t("pendingTitle")}{" "}
-                <span className="text-muted-foreground font-normal">
-                  ({pendingInvitations.length})
-                </span>
-              </CardTitle>
-              <CardDescription>{t("pendingDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={invitationColumns}
-                data={pendingInvitations}
-                initialPageSize={10}
-                getRowId={(row) => row.id}
-                filterColumn="name"
-                filterPlaceholder={t("searchPlaceholder")}
-                urlKey="inv"
-                bulkActions={(ids, clearSelection) => (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onBulkRevoke(ids, clearSelection)}
-                    disabled={isPending}
-                  >
-                    <Trash2 className="size-4" />
-                    {t("bulkRevoke")}
-                  </Button>
-                )}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {expiredInvitations.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {t("expiredTitle")}{" "}
-                <span className="text-muted-foreground font-normal">
-                  ({expiredInvitations.length})
-                </span>
-              </CardTitle>
-              <CardDescription>{t("expiredDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={invitationColumns}
-                data={expiredInvitations}
-                initialPageSize={10}
-                getRowId={(row) => row.id}
-                filterColumn="name"
-                filterPlaceholder={t("searchPlaceholder")}
-                urlKey="invx"
-                bulkActions={(ids, clearSelection) => (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onBulkRevoke(ids, clearSelection)}
-                    disabled={isPending}
-                  >
-                    <Trash2 className="size-4" />
-                    {t("bulkRevoke")}
-                  </Button>
-                )}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {t("listCardTitle")}{" "}
-              <span className="text-muted-foreground font-normal">
-                ({optimisticUsers.length})
+      {/* One list per tab. Each section is an independent table, so tabs let a
+          single table own the viewport and scroll its own body (fixed header +
+          footer) — stacking them as cards can't keep every header/footer
+          visible at once. Invitation tabs only appear when they have rows. */}
+      <Tabs
+        defaultValue="users"
+        className="flex flex-1 min-h-0 flex-col gap-4"
+      >
+        <TabsList className="shrink-0">
+          <TabsTrigger value="users">
+            {t("listCardTitle")}
+            <span className="text-muted-foreground">
+              {optimisticUsers.length}
+            </span>
+          </TabsTrigger>
+          {pendingInvitations.length > 0 && (
+            <TabsTrigger value="pending">
+              {t("pendingTitle")}
+              <span className="text-muted-foreground">
+                {pendingInvitations.length}
               </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </TabsTrigger>
+          )}
+          {expiredInvitations.length > 0 && (
+            <TabsTrigger value="expired">
+              {t("expiredTitle")}
+              <span className="text-muted-foreground">
+                {expiredInvitations.length}
+              </span>
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="users" className="flex flex-1 min-h-0 flex-col">
+          <DataTable
+            fillHeight
+            columns={userColumns}
+            data={optimisticUsers}
+            initialPageSize={25}
+            filterColumn="name"
+            filterPlaceholder={t("searchPlaceholder")}
+            getRowId={(row) => row.id}
+            canSelectRow={(row) => row.id !== currentUserId}
+            urlKey="usr"
+            renderCard={renderUserCard}
+            bulkActions={(ids, clearSelection) => (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onBulkDeleteUsers(ids, clearSelection)}
+                disabled={isPending}
+              >
+                <Trash2 className="size-4" />
+                {t("bulkDelete")}
+              </Button>
+            )}
+          />
+        </TabsContent>
+
+        {pendingInvitations.length > 0 && (
+          <TabsContent
+            value="pending"
+            className="flex flex-1 min-h-0 flex-col"
+          >
             <DataTable
-              columns={userColumns}
-              data={optimisticUsers}
+              fillHeight
+              columns={invitationColumns}
+              data={pendingInvitations}
               initialPageSize={25}
+              getRowId={(row) => row.id}
               filterColumn="name"
               filterPlaceholder={t("searchPlaceholder")}
-              getRowId={(row) => row.id}
-              canSelectRow={(row) => row.id !== currentUserId}
-              urlKey="usr"
-              renderCard={renderUserCard}
+              urlKey="inv"
               bulkActions={(ids, clearSelection) => (
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => onBulkDeleteUsers(ids, clearSelection)}
+                  onClick={() => onBulkRevoke(ids, clearSelection)}
                   disabled={isPending}
                 >
                   <Trash2 className="size-4" />
-                  {t("bulkDelete")}
+                  {t("bulkRevoke")}
                 </Button>
               )}
             />
-          </CardContent>
-        </Card>
-      </div>
+          </TabsContent>
+        )}
+
+        {expiredInvitations.length > 0 && (
+          <TabsContent
+            value="expired"
+            className="flex flex-1 min-h-0 flex-col"
+          >
+            <DataTable
+              fillHeight
+              columns={invitationColumns}
+              data={expiredInvitations}
+              initialPageSize={25}
+              getRowId={(row) => row.id}
+              filterColumn="name"
+              filterPlaceholder={t("searchPlaceholder")}
+              urlKey="invx"
+              bulkActions={(ids, clearSelection) => (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onBulkRevoke(ids, clearSelection)}
+                  disabled={isPending}
+                >
+                  <Trash2 className="size-4" />
+                  {t("bulkRevoke")}
+                </Button>
+              )}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
     </>
   );
 }

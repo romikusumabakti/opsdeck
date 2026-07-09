@@ -206,9 +206,9 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const trail = crumbs(path);
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Toolbar: breadcrumb + actions */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="flex flex-1 min-h-0 flex-col gap-4">
+      {/* Toolbar: breadcrumb + actions. Stays pinned while the list scrolls. */}
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2">
         <nav className="flex items-center gap-1 text-sm text-muted-foreground">
           <button
             type="button"
@@ -264,28 +264,39 @@ export function FileExplorer({ source, rootLabel }: Props) {
       </div>
 
       {error ? (
-        <EmptyState icon={Folder} title={t("loadFailed")} description={error} />
+        <div className="flex flex-1 min-h-0 items-center justify-center">
+          <EmptyState
+            icon={Folder}
+            title={t("loadFailed")}
+            description={error}
+          />
+        </div>
       ) : loading ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <div className="flex flex-1 min-h-0 items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : entries.length === 0 ? (
-        <EmptyState
-          icon={Folder}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
-        />
+        <div className="flex flex-1 min-h-0 items-center justify-center">
+          <EmptyState
+            icon={Folder}
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
+          />
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("name")}</TableHead>
-              <TableHead className="w-32 text-right">{t("size")}</TableHead>
-              <TableHead className="w-48">{t("modified")}</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        // Body scrolls inside this bounded bg-card panel; the header row pins
+        // via sticky (single-<table> layout, same approach as DataTable).
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-md border bg-card">
+          <Table containerClassName="flex-1 min-h-0">
+            <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
+              <TableRow>
+                <TableHead>{t("name")}</TableHead>
+                <TableHead className="w-32 text-right">{t("size")}</TableHead>
+                <TableHead className="w-48">{t("modified")}</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
             {entries.map((entry) => (
               <TableRow key={entry.path}>
                 <TableCell>
@@ -349,7 +360,8 @@ export function FileExplorer({ source, rootLabel }: Props) {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ export default function Loading() {
   return (
     <>
       <PageHeaderSkeleton />
-      <DataTableSkeleton columns={4} rows={6} />
+      <DataTableSkeleton fillHeight columns={4} rows={6} />
     </>
   );
 }

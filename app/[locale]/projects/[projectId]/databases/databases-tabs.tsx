@@ -46,8 +46,11 @@ export function DatabasesTabs({
   );
 
   return (
-    <Tabs defaultValue={defaultTab} className="gap-4">
-      <TabsList className="w-full">
+    <Tabs
+      defaultValue={defaultTab}
+      className="flex flex-1 min-h-0 flex-col gap-4"
+    >
+      <TabsList className="w-full shrink-0">
         <TabsTrigger value="backup">
           <Database className="size-4" />
           {t("backupTab")}
@@ -62,7 +65,10 @@ export function DatabasesTabs({
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="backup" className="flex flex-col gap-4">
+      <TabsContent
+        value="backup"
+        className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto"
+      >
         <p className="text-sm text-muted-foreground">
           {tBackup("targetDescription")}
         </p>
@@ -70,7 +76,10 @@ export function DatabasesTabs({
         <p className="text-xs text-muted-foreground">{tBackup("infoNote")}</p>
       </TabsContent>
 
-      <TabsContent value="restore" className="flex flex-col gap-4">
+      <TabsContent
+        value="restore"
+        className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto"
+      >
         <p className="text-sm text-muted-foreground">
           {tRestore("pickerDescription")}
         </p>
@@ -101,7 +110,10 @@ export function DatabasesTabs({
         )}
       </TabsContent>
 
-      <TabsContent value="manage" className="flex flex-col gap-4">
+      <TabsContent
+        value="manage"
+        className="flex flex-1 min-h-0 flex-col gap-4"
+      >
         {listError && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <AlertTriangle className="size-4 shrink-0 mt-0.5" />
