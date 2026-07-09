@@ -1,4 +1,5 @@
 import Image from "@tiptap/extension-image";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
@@ -27,7 +28,14 @@ export function buildEditorExtensions(placeholder = "") {
     // they would silently vanish on save — don't offer a control whose state
     // can't be persisted.
     TableKit.configure({ table: { resizable: false } }),
-    // Inline images. Markdown serializes these as ![alt](src); src points at
+    // GFM task lists (`- [ ]` / `- [x]`). StarterKit only ships plain lists;
+    // both nodes carry their own markdown token handlers so checkboxes
+    // round-trip through serialize/parse. nested keeps Tab-indent working
+    // like the other list types.
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    // Block-level images (inline: false). Markdown serializes these as
+    // ![alt](src); src points at
     // /api/knowledge/asset/<id> (a stable, auth-gated route), never a blob/
     // base64, so the body stays small and portable.
     Image.configure({ inline: false }),

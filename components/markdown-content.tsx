@@ -44,9 +44,16 @@ export function MarkdownContent({
           p: (props) => (
             <p className="leading-relaxed my-3 text-foreground/90" {...props} />
           ),
-          ul: (props) => (
+          ul: ({ className: cls, ...props }) => (
             <ul
-              className="list-disc pl-5 my-3 space-y-1 text-foreground/90"
+              className={cn(
+                "my-3 space-y-1 text-foreground/90",
+                // remark-gfm marks task lists with this class; the checkbox
+                // replaces the disc marker.
+                cls?.includes("contains-task-list")
+                  ? "list-none pl-1"
+                  : "list-disc pl-5"
+              )}
               {...props}
             />
           ),
@@ -127,6 +134,11 @@ export function MarkdownContent({
           ),
           td: (props) => <td className="border-b px-3 py-2" {...props} />,
           hr: () => <hr className="my-6 border-border" />,
+          // GFM task-list checkboxes — the only <input> remark-gfm ever emits
+          // (already disabled; the read view is not editable).
+          input: (props) => (
+            <input {...props} className="me-1.5 align-middle accent-primary" />
+          ),
           img: ({ src, alt, ...props }) => (
             // Attachments resolve through /api/knowledge/asset/<id> (auth-gated).
             // Lazy + async so a doc full of screenshots doesn't block first paint.

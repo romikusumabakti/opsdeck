@@ -308,6 +308,7 @@ export function DocumentForm({
               }}
               uploadLabels={{
                 button: t("insertImage"),
+                uploading: t("imageUploading"),
                 tooLarge: t("imageTooLarge"),
                 failed: t("imageUploadFailed"),
               }}
