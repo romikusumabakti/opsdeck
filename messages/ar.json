@@ -951,7 +951,22 @@
     "tableDeleteRow": "حذف صف",
     "tableAddColumn": "إضافة عمود",
     "tableDeleteColumn": "حذف عمود",
-    "tableDelete": "حذف الجدول"
+    "tableDelete": "حذف الجدول",
+    "editorToolbar": "التنسيق",
+    "editorUndo": "تراجع",
+    "editorRedo": "إعادة",
+    "editorBold": "غامق",
+    "editorItalic": "مائل",
+    "editorStrikethrough": "يتوسطه خط",
+    "editorHeading2": "عنوان 2",
+    "editorHeading3": "عنوان 3",
+    "editorBulletList": "قائمة نقطية",
+    "editorOrderedList": "قائمة مرقمة",
+    "editorTaskList": "قائمة مهام",
+    "editorInlineCode": "كود مضمّن",
+    "editorCodeBlock": "كتلة كود",
+    "editorQuote": "اقتباس",
+    "editorInsertTable": "إدراج جدول"
   },
   "explorer": {
     "newFolder": "مجلد جديد",

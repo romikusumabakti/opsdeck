@@ -951,7 +951,22 @@
     "tableDeleteRow": "Hapus baris",
     "tableAddColumn": "Tambah kolom",
     "tableDeleteColumn": "Hapus kolom",
-    "tableDelete": "Hapus tabel"
+    "tableDelete": "Hapus tabel",
+    "editorToolbar": "Pemformatan",
+    "editorUndo": "Urungkan",
+    "editorRedo": "Ulangi",
+    "editorBold": "Tebal",
+    "editorItalic": "Miring",
+    "editorStrikethrough": "Coret",
+    "editorHeading2": "Judul 2",
+    "editorHeading3": "Judul 3",
+    "editorBulletList": "Daftar poin",
+    "editorOrderedList": "Daftar bernomor",
+    "editorTaskList": "Daftar tugas",
+    "editorInlineCode": "Kode sebaris",
+    "editorCodeBlock": "Blok kode",
+    "editorQuote": "Kutipan",
+    "editorInsertTable": "Sisipkan tabel"
   },
   "explorer": {
     "newFolder": "Folder baru",
