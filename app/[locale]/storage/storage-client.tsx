@@ -144,6 +144,7 @@ export function StorageClient({
 
   return (
     <DataTable
+      fillHeight
       columns={columns}
       data={optimistic}
       filterColumn="name"

@@ -5,9 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 // (streaming the SSH-probed lists) so the two never flash different shapes.
 export function DatabasesTabsSkeleton() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-1 min-h-0 flex-col gap-4">
       {/* TabsList: three equal-width triggers */}
-      <div className="flex gap-1 rounded-md bg-muted p-1">
+      <div className="shrink-0 flex gap-1 rounded-md bg-muted p-1">
         <Skeleton className="h-8 flex-1" />
         <Skeleton className="h-8 flex-1" />
         <Skeleton className="h-8 flex-1" />

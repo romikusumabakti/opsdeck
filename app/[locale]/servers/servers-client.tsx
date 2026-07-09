@@ -214,6 +214,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
 
   return (
     <DataTable
+      fillHeight
       columns={columns}
       data={optimisticServers}
       filterColumn="name"
