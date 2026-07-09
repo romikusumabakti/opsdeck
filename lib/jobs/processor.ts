@@ -265,7 +265,9 @@ async function handleMockProjectTimeLegacy(
           "restart",
           credentials.password
         );
-        await executeRemoteCommand(credentials, cmd);
+        // Service restart waits for the unit to report started — can exceed the
+        // default 10s. Allow 60s so a slow-but-healthy restart isn't killed.
+        await executeRemoteCommand(credentials, cmd, 60000);
       }
     );
 
@@ -342,7 +344,9 @@ async function handleMockProjectTimeResetLegacy(
           "restart",
           credentials.password
         );
-        await executeRemoteCommand(credentials, cmd);
+        // Service restart waits for the unit to report started — can exceed the
+        // default 10s. Allow 60s so a slow-but-healthy restart isn't killed.
+        await executeRemoteCommand(credentials, cmd, 60000);
       }
     );
 
@@ -622,7 +626,10 @@ async function handleRestoreDatabaseBackup(
             "restart",
             backendCreds.password
           );
-          await executeRemoteCommand(backendCreds, cmd);
+          // Service restart waits for the unit to report started — can exceed
+          // the default 10s. Allow 60s so a slow-but-healthy restart isn't
+          // killed (was the cause of the SSH-timeout restore failures).
+          await executeRemoteCommand(backendCreds, cmd, 60000);
         }
       );
     }

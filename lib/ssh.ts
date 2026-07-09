@@ -7,7 +7,12 @@ export async function executeRemoteCommand(
     username,
     password,
   }: { host: string; username: string; password: string },
-  command: string
+  command: string,
+  // Wall-clock bound on the remote command. Defaults to 10s to fail fast on
+  // page-render paths (db/backup listing). Callers running commands that
+  // legitimately take longer — e.g. `systemctl restart` waiting for a service
+  // to come back up — must pass a larger value to avoid a false timeout.
+  timeoutMs = 10000
 ) {
   // Fresh client per call: a shared singleton races when concurrent callers
   // (e.g. parallel worker jobs, overlapping backup/restore requests) all
@@ -25,8 +30,8 @@ export async function executeRemoteCommand(
       ssh.execCommand(command),
       new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error("SSH command timed out after 10000ms")),
-          10000
+          () => reject(new Error(`SSH command timed out after ${timeoutMs}ms`)),
+          timeoutMs
         )
       ),
     ]);
