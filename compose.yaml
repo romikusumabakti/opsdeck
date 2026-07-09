@@ -90,6 +90,9 @@ services:
     container_name: opsdeck-caddy
     restart: always
     # Public edge: reverse-proxies to the app. HTTP only (no TLS) — see Caddyfile.
+    environment:
+      # Hostname Caddy serves (Caddyfile reads {$SITE_ADDRESS}). Defaults to localhost.
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
     ports:
       - "80:80"
     volumes:
@@ -156,8 +159,14 @@ services:
 
 volumes:
   postgres_data:
+    name: opsdeck_postgres_data
   valkey_data:
+    name: opsdeck_valkey_data
   garage_meta:
+    name: opsdeck_garage_meta
   garage_data:
+    name: opsdeck_garage_data
   caddy_data:
+    name: opsdeck_caddy_data
   caddy_config:
+    name: opsdeck_caddy_config
