@@ -324,6 +324,23 @@ export function DocumentForm({
                 placeholder: t("imageAltPlaceholder"),
                 apply: t("linkApply"),
               }}
+              toolbarLabels={{
+                toolbar: t("editorToolbar"),
+                undo: t("editorUndo"),
+                redo: t("editorRedo"),
+                bold: t("editorBold"),
+                italic: t("editorItalic"),
+                strikethrough: t("editorStrikethrough"),
+                heading2: t("editorHeading2"),
+                heading3: t("editorHeading3"),
+                bulletList: t("editorBulletList"),
+                orderedList: t("editorOrderedList"),
+                taskList: t("editorTaskList"),
+                code: t("editorInlineCode"),
+                codeBlock: t("editorCodeBlock"),
+                quote: t("editorQuote"),
+                insertTable: t("editorInsertTable"),
+              }}
             />
           </div>
         </div>

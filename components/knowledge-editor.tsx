@@ -19,6 +19,7 @@ import {
   Quote,
   Redo2,
   Rows3,
+  SquareCode,
   Strikethrough,
   Table as TableIcon,
   TextCursorInput,
@@ -74,6 +75,24 @@ export type ImageAltLabels = {
   edit: string;
   placeholder: string;
   apply: string;
+};
+
+export type ToolbarLabels = {
+  toolbar: string;
+  undo: string;
+  redo: string;
+  bold: string;
+  italic: string;
+  strikethrough: string;
+  heading2: string;
+  heading3: string;
+  bulletList: string;
+  orderedList: string;
+  taskList: string;
+  code: string;
+  codeBlock: string;
+  quote: string;
+  insertTable: string;
 };
 
 // Add a protocol when the user types a bare host so the href is a valid URL
@@ -142,6 +161,7 @@ export function KnowledgeEditor({
   uploadLabels,
   tableLabels,
   imageAltLabels,
+  toolbarLabels,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
@@ -150,6 +170,7 @@ export function KnowledgeEditor({
   uploadLabels?: UploadLabels;
   tableLabels?: TableLabels;
   imageAltLabels?: ImageAltLabels;
+  toolbarLabels?: ToolbarLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
 }) {
@@ -160,6 +181,29 @@ export function KnowledgeEditor({
   const uploadRef = useRef<(file: File, pos?: number) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // WAI-ARIA toolbar keyboard pattern: arrow keys move focus between the
+  // buttons. Buttons keep their natural tab stops (no roving tabindex) — the
+  // toolbar is small and the editor itself is the next stop either way. In RTL
+  // locales the arrows follow visual direction, so swap them.
+  const onToolbarKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const el = toolbarRef.current;
+    if (!el) return;
+    const buttons = Array.from(
+      el.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")
+    );
+    const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (current === -1) return;
+    event.preventDefault();
+    const rtl = getComputedStyle(el).direction === "rtl";
+    const forward = (event.key === "ArrowRight") !== rtl;
+    const next = forward
+      ? (current + 1) % buttons.length
+      : (current - 1 + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  };
 
   // onChange is debounced: serializing the whole doc to markdown on every
   // keystroke is O(doc) and re-renders the parent form each time. Coalesce to
@@ -268,6 +312,7 @@ export function KnowledgeEditor({
       bulletList: e?.isActive("bulletList") ?? false,
       orderedList: e?.isActive("orderedList") ?? false,
       taskList: e?.isActive("taskList") ?? false,
+      code: e?.isActive("code") ?? false,
       codeBlock: e?.isActive("codeBlock") ?? false,
       blockquote: e?.isActive("blockquote") ?? false,
       table: e?.isActive("table") ?? false,
@@ -371,7 +416,10 @@ export function KnowledgeEditor({
     if (href === "") {
       editor.chain().focus().unsetLink().run();
     } else {
-      editor.chain().focus().setLink({ href }).run();
+      // extendMarkRange: with a collapsed cursor inside an existing link,
+      // setLink alone applies to an empty range and leaves the old href
+      // untouched — extend to the whole mark so editing the URL works.
+      editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     }
     setLinkOpen(false);
   };
@@ -414,18 +462,24 @@ export function KnowledgeEditor({
 
   return (
     <div className="flex flex-col">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-t-md border bg-muted/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
+      <div
+        ref={toolbarRef}
+        role="toolbar"
+        aria-label={toolbarLabels?.toolbar ?? "Formatting"}
+        onKeyDown={onToolbarKeyDown}
+        className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-t-md border bg-muted/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-muted/80"
+      >
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!active.canUndo}
-          label="Undo"
+          label={toolbarLabels?.undo ?? "Undo"}
         >
           <Undo2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!active.canRedo}
-          label="Redo"
+          label={toolbarLabels?.redo ?? "Redo"}
         >
           <Redo2 className="size-4" />
         </ToolbarButton>
@@ -433,30 +487,37 @@ export function KnowledgeEditor({
         <ToolbarButton
           active={active.bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
-          label="Bold"
+          label={toolbarLabels?.bold ?? "Bold"}
         >
           <Bold className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.italic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          label="Italic"
+          label={toolbarLabels?.italic ?? "Italic"}
         >
           <Italic className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.strike}
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          label="Strikethrough"
+          label={toolbarLabels?.strikethrough ?? "Strikethrough"}
         >
           <Strikethrough className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          active={active.code}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          label={toolbarLabels?.code ?? "Inline code"}
+        >
+          <Code className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.h2}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 2 }).run()
           }
-          label="Heading 2"
+          label={toolbarLabels?.heading2 ?? "Heading 2"}
         >
           <Heading2 className="size-4" />
         </ToolbarButton>
@@ -465,42 +526,42 @@ export function KnowledgeEditor({
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 3 }).run()
           }
-          label="Heading 3"
+          label={toolbarLabels?.heading3 ?? "Heading 3"}
         >
           <Heading3 className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.bulletList}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          label="Bullet list"
+          label={toolbarLabels?.bulletList ?? "Bullet list"}
         >
           <List className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.orderedList}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          label="Ordered list"
+          label={toolbarLabels?.orderedList ?? "Ordered list"}
         >
           <ListOrdered className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.taskList}
           onClick={() => editor.chain().focus().toggleTaskList().run()}
-          label="Task list"
+          label={toolbarLabels?.taskList ?? "Task list"}
         >
           <ListTodo className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.codeBlock}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          label="Code block"
+          label={toolbarLabels?.codeBlock ?? "Code block"}
         >
-          <Code className="size-4" />
+          <SquareCode className="size-4" />
         </ToolbarButton>
         <ToolbarButton
           active={active.blockquote}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          label="Quote"
+          label={toolbarLabels?.quote ?? "Quote"}
         >
           <Quote className="size-4" />
         </ToolbarButton>
@@ -513,7 +574,7 @@ export function KnowledgeEditor({
               .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
               .run()
           }
-          label="Insert table"
+          label={toolbarLabels?.insertTable ?? "Insert table"}
         >
           <TableIcon className="size-4" />
         </ToolbarButton>
