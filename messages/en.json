@@ -951,7 +951,22 @@
     "tableDeleteRow": "Delete row",
     "tableAddColumn": "Add column",
     "tableDeleteColumn": "Delete column",
-    "tableDelete": "Delete table"
+    "tableDelete": "Delete table",
+    "editorToolbar": "Formatting",
+    "editorUndo": "Undo",
+    "editorRedo": "Redo",
+    "editorBold": "Bold",
+    "editorItalic": "Italic",
+    "editorStrikethrough": "Strikethrough",
+    "editorHeading2": "Heading 2",
+    "editorHeading3": "Heading 3",
+    "editorBulletList": "Bullet list",
+    "editorOrderedList": "Ordered list",
+    "editorTaskList": "Task list",
+    "editorInlineCode": "Inline code",
+    "editorCodeBlock": "Code block",
+    "editorQuote": "Quote",
+    "editorInsertTable": "Insert table"
   },
   "explorer": {
     "newFolder": "New folder",

@@ -951,7 +951,22 @@
     "tableDeleteRow": "删除行",
     "tableAddColumn": "添加列",
     "tableDeleteColumn": "删除列",
-    "tableDelete": "删除表格"
+    "tableDelete": "删除表格",
+    "editorToolbar": "格式工具栏",
+    "editorUndo": "撤销",
+    "editorRedo": "重做",
+    "editorBold": "加粗",
+    "editorItalic": "斜体",
+    "editorStrikethrough": "删除线",
+    "editorHeading2": "标题 2",
+    "editorHeading3": "标题 3",
+    "editorBulletList": "无序列表",
+    "editorOrderedList": "有序列表",
+    "editorTaskList": "任务列表",
+    "editorInlineCode": "行内代码",
+    "editorCodeBlock": "代码块",
+    "editorQuote": "引用",
+    "editorInsertTable": "插入表格"
   },
   "explorer": {
     "newFolder": "新建文件夹",
