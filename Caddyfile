@@ -2,15 +2,16 @@
 # compose network. Serves plain HTTP — no TLS.
 #
 # WARNING: HTTP only. Login credentials and session cookies travel in plaintext.
-# Acceptable only on a trusted LAN. The domain (opsdeck.romikusumabakti.com) is private and not
-# publicly registered, so a browser-trusted cert isn't obtainable for it; TLS was
-# dropped by choice to avoid per-device CA installs. To re-enable HTTPS, switch to
-# a publicly-owned hostname (e.g. opsdeck.romikusumabakti.com) with Let's Encrypt
-# DNS-01, or use `tls internal` and trust Caddy's root CA on every client.
+# Acceptable only on a trusted LAN. The served hostname comes from the SITE_ADDRESS
+# env var (see .env.example); it defaults to `localhost`. If that host is a private,
+# unregistered domain, a browser-trusted cert isn't obtainable for it, so TLS is
+# dropped here by choice to avoid per-device CA installs. To re-enable HTTPS, point
+# SITE_ADDRESS at a publicly-owned hostname and use Let's Encrypt DNS-01, or use
+# `tls internal` and trust Caddy's root CA on every client.
 #
 # The `http://` prefix disables Caddy's automatic HTTPS (no TLS, no 80->443
 # redirect); Caddy listens on :80 only.
-http://opsdeck.romikusumabakti.com {
+http://{$SITE_ADDRESS:localhost} {
 	reverse_proxy app:3000 {
 		# Next standalone doesn't trust X-Forwarded-* for nextUrl, so next-intl's
 		# absolute locale redirects leak the internal listen port (:3000) into the
