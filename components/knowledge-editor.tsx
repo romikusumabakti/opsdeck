@@ -1,6 +1,6 @@
 "use client";
 
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import {
   BetweenHorizontalEnd,
   BetweenVerticalEnd,
@@ -15,12 +15,15 @@ import {
   Link2,
   List,
   ListOrdered,
+  ListTodo,
   Quote,
+  Redo2,
   Rows3,
   Strikethrough,
   Table as TableIcon,
   TextCursorInput,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -45,7 +48,12 @@ import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
 
 export type LinkableDoc = { title: string; slug: string };
 
-export type UploadLabels = { button: string; tooLarge: string; failed: string };
+export type UploadLabels = {
+  button: string;
+  uploading: string;
+  tooLarge: string;
+  failed: string;
+};
 
 export type LinkInputLabels = {
   label: string;
@@ -88,11 +96,13 @@ function imageFiles(list: FileList | null | undefined): File[] {
 // is active. Avoids pulling in @radix-ui/react-toggle for a one-off toolbar.
 function ToolbarButton({
   active,
+  disabled,
   onClick,
   label,
   children,
 }: {
   active?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   label: string;
   children: React.ReactNode;
@@ -103,6 +113,7 @@ function ToolbarButton({
       size="icon-sm"
       variant={active ? "secondary" : "ghost"}
       onClick={onClick}
+      disabled={disabled}
       aria-label={label}
       aria-pressed={active}
     >
@@ -144,7 +155,9 @@ export function KnowledgeEditor({
 }) {
   // Paste/drop handlers live inside the editor config (set once on mount) but
   // need the latest upload closure — route through a ref reassigned each render.
-  const uploadRef = useRef<(file: File) => void>(() => {});
+  // `pos` is the document position to insert at (drop point); omitted means the
+  // current selection (toolbar button, paste).
+  const uploadRef = useRef<(file: File, pos?: number) => void>(() => {});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
 
@@ -188,7 +201,13 @@ export function KnowledgeEditor({
           "[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border",
           "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm",
           "[&_th]:border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",
-          "[&_td]:border [&_td]:px-3 [&_td]:py-1.5"
+          "[&_td]:border [&_td]:px-3 [&_td]:py-1.5",
+          // Task lists: hide the disc marker (the checkbox is the marker) and
+          // lay each item out as checkbox + content.
+          "[&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-1",
+          "[&_ul[data-type=taskList]_li]:flex [&_ul[data-type=taskList]_li]:items-start [&_ul[data-type=taskList]_li]:gap-2",
+          "[&_ul[data-type=taskList]_li_>_label]:mt-0.5 [&_ul[data-type=taskList]_li_>_div_>_p]:my-0",
+          "[&_ul[data-type=taskList]_input]:accent-primary"
         ),
       },
       // Upload images pasted from the clipboard or dropped into the editor.
@@ -199,11 +218,17 @@ export function KnowledgeEditor({
         for (const f of files) uploadRef.current(f);
         return true;
       },
-      handleDrop: (_view, event) => {
-        const files = imageFiles((event as DragEvent).dataTransfer?.files);
+      handleDrop: (view, event) => {
+        const drag = event as DragEvent;
+        const files = imageFiles(drag.dataTransfer?.files);
         if (files.length === 0) return false;
         event.preventDefault();
-        for (const f of files) uploadRef.current(f);
+        // Insert at the drop point, not wherever the cursor happens to be.
+        const pos = view.posAtCoords({
+          left: drag.clientX,
+          top: drag.clientY,
+        })?.pos;
+        for (const f of files) uploadRef.current(f, pos);
         return true;
       },
     },
@@ -227,6 +252,32 @@ export function KnowledgeEditor({
     },
   });
 
+  // Tiptap v3 does NOT re-render on transactions (shouldRerenderOnTransaction
+  // defaults to false), so reading editor.isActive() directly during render
+  // goes stale the moment the selection moves. useEditorState subscribes to
+  // transactions and re-renders only when this selected slice deep-changes —
+  // the canonical v3 pattern for toolbar state.
+  const active = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      bold: e?.isActive("bold") ?? false,
+      italic: e?.isActive("italic") ?? false,
+      strike: e?.isActive("strike") ?? false,
+      h2: e?.isActive("heading", { level: 2 }) ?? false,
+      h3: e?.isActive("heading", { level: 3 }) ?? false,
+      bulletList: e?.isActive("bulletList") ?? false,
+      orderedList: e?.isActive("orderedList") ?? false,
+      taskList: e?.isActive("taskList") ?? false,
+      codeBlock: e?.isActive("codeBlock") ?? false,
+      blockquote: e?.isActive("blockquote") ?? false,
+      table: e?.isActive("table") ?? false,
+      link: e?.isActive("link") ?? false,
+      image: e?.isActive("image") ?? false,
+      canUndo: e?.can().undo() ?? false,
+      canRedo: e?.can().redo() ?? false,
+    }),
+  });
+
   const [pickerOpen, setPickerOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
@@ -235,12 +286,17 @@ export function KnowledgeEditor({
   const altInputRef = useRef<HTMLInputElement>(null);
 
   // Reassigned every render so it always closes over the current editor.
-  uploadRef.current = async (file: File) => {
+  uploadRef.current = async (file: File, pos?: number) => {
     if (!editor) return;
     if (file.size > KNOWLEDGE_IMAGE_MAX_BYTES) {
       if (uploadLabels) toast.error(uploadLabels.tooLarge);
       return;
     }
+    // Loading toast so the user sees the upload is in flight — the image only
+    // appears in the doc once the round-trip finishes.
+    const toastId = uploadLabels
+      ? toast.loading(uploadLabels.uploading)
+      : undefined;
     const form = new FormData();
     form.append("file", file);
     try {
@@ -250,9 +306,24 @@ export function KnowledgeEditor({
       });
       if (!res.ok) throw new Error(String(res.status));
       const { url } = (await res.json()) as { url: string };
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      if (pos !== undefined) {
+        // Clamp: the doc may have changed while the upload was in flight.
+        const at = Math.min(pos, editor.state.doc.content.size);
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(at, {
+            type: "image",
+            attrs: { src: url, alt: file.name },
+          })
+          .run();
+      } else {
+        editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      }
     } catch {
       if (uploadLabels) toast.error(uploadLabels.failed);
+    } finally {
+      if (toastId !== undefined) toast.dismiss(toastId);
     }
   };
 
@@ -281,7 +352,9 @@ export function KnowledgeEditor({
     });
   }, [value, editor]);
 
-  if (!editor) return null;
+  // `active` is only null while `editor` is (first client render before the
+  // editor instance exists) — one guard covers both.
+  if (!editor || !active) return null;
 
   // Prefill the popover from the link under the cursor (empty for a new link).
   const onLinkOpenChange = (open: boolean) => {
@@ -343,28 +416,43 @@ export function KnowledgeEditor({
     <div className="flex flex-col">
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 rounded-t-md border bg-muted/95 p-1 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
         <ToolbarButton
-          active={editor.isActive("bold")}
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={!active.canUndo}
+          label="Undo"
+        >
+          <Undo2 className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={!active.canRedo}
+          label="Redo"
+        >
+          <Redo2 className="size-4" />
+        </ToolbarButton>
+        <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+        <ToolbarButton
+          active={active.bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
           label="Bold"
         >
           <Bold className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("italic")}
+          active={active.italic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           label="Italic"
         >
           <Italic className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("strike")}
+          active={active.strike}
           onClick={() => editor.chain().focus().toggleStrike().run()}
           label="Strikethrough"
         >
           <Strikethrough className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("heading", { level: 2 })}
+          active={active.h2}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 2 }).run()
           }
@@ -373,7 +461,7 @@ export function KnowledgeEditor({
           <Heading2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("heading", { level: 3 })}
+          active={active.h3}
           onClick={() =>
             editor.chain().focus().toggleHeading({ level: 3 }).run()
           }
@@ -382,35 +470,42 @@ export function KnowledgeEditor({
           <Heading3 className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("bulletList")}
+          active={active.bulletList}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           label="Bullet list"
         >
           <List className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("orderedList")}
+          active={active.orderedList}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           label="Ordered list"
         >
           <ListOrdered className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("codeBlock")}
+          active={active.taskList}
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          label="Task list"
+        >
+          <ListTodo className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          active={active.codeBlock}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           label="Code block"
         >
           <Code className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("blockquote")}
+          active={active.blockquote}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           label="Quote"
         >
           <Quote className="size-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("table")}
+          active={active.table}
           onClick={() =>
             editor
               .chain()
@@ -428,9 +523,9 @@ export function KnowledgeEditor({
               <Button
                 type="button"
                 size="icon-sm"
-                variant={editor.isActive("link") ? "secondary" : "ghost"}
+                variant={active.link ? "secondary" : "ghost"}
                 aria-label={linkInputLabels?.label ?? "Link"}
-                aria-pressed={editor.isActive("link")}
+                aria-pressed={active.link}
               />
             }
           >
@@ -443,9 +538,12 @@ export function KnowledgeEditor({
             initialFocus={linkInputRef}
           >
             <form onSubmit={applyLink} className="flex flex-col gap-2">
+              {/* type="text", not "url": native url validation would block
+                  submit for exactly the inputs normalizeHref exists to handle
+                  (bare hosts, relative /paths, #anchors). */}
               <Input
                 ref={linkInputRef}
-                type="url"
+                type="text"
                 inputMode="url"
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
@@ -454,7 +552,7 @@ export function KnowledgeEditor({
                 }
               />
               <div className="flex justify-end gap-2">
-                {editor.isActive("link") && (
+                {active.link && (
                   <Button
                     type="button"
                     size="sm"
@@ -499,7 +597,7 @@ export function KnowledgeEditor({
         {/* Image alt-text editor — only when an image node is selected. Alt
             text is the read-side accessibility/SEO label, so it must be
             editable after the upload-time filename default. */}
-        {editor.isActive("image") && (
+        {active.image && (
           <Popover open={altOpen} onOpenChange={onAltOpenChange}>
             <PopoverTrigger
               render={
@@ -539,7 +637,7 @@ export function KnowledgeEditor({
         {/* Table structure controls — only when the cursor is inside a table.
             Insert-only is not enough: pasted/created tables need row/column
             add + delete and a way to remove the whole table. */}
-        {editor.isActive("table") && (
+        {active.table && (
           <>
             <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
             <ToolbarButton

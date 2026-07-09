@@ -82,6 +82,11 @@ const CASES: { name: string; md: string; html: string }[] = [
     md: "| x | y |\n| --- | --- |\n| 1 | 2 |",
     html: "<table>",
   },
+  {
+    name: "task list",
+    md: "- [ ] open\n- [x] done",
+    html: '<input type="checkbox"',
+  },
 ];
 
 describe("knowledge editor markdown round-trip", () => {

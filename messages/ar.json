@@ -943,6 +943,7 @@
     "linkCopied": "تم نسخ الرابط",
     "insertImage": "إدراج صورة",
     "imageTooLarge": "الصورة كبيرة جدًا (الحد الأقصى 25 ميجابايت)",
+    "imageUploading": "جارٍ رفع الصورة…",
     "imageUploadFailed": "فشل رفع الصورة",
     "imageAltEdit": "تعديل النص البديل",
     "imageAltPlaceholder": "صف الصورة",
