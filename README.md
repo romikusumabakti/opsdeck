@@ -142,4 +142,4 @@ tests/        Vitest tests
 
 ## License
 
-Private — all rights reserved.
+[MIT](LICENSE) © 2026 Romi Kusuma Bakti
