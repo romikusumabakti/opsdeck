@@ -112,6 +112,16 @@ export function AppSidebar({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
+                  render={<Link href="/issues" />}
+                  isActive={pathname.startsWith("/issues")}
+                  tooltip={tNav("allIssues")}
+                >
+                  <CircleDot />
+                  <span>{tNav("allIssues")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
                   render={<Link href="/knowledge" />}
                   isActive={pathname.startsWith("/knowledge")}
                   tooltip={tNav("knowledge")}

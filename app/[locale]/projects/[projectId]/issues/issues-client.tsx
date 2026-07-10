@@ -1,12 +1,17 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { CircleDot, Plus, Search } from "lucide-react";
+import { CircleDot, LayoutGrid, List, Plus, Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import type { IssueWithMeta } from "@/actions/issues";
 import { createIssue, setIssueStatus } from "@/actions/issues";
+import {
+  IssueBoard,
+  type Status,
+  StatusSelect,
+} from "@/components/issues-board";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,17 +40,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import { cn } from "@/lib/utils";
-
-const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
-type Status = (typeof STATUSES)[number];
-
-const STATUS_DOT: Record<Status, string> = {
-  open: "bg-amber-500",
-  in_progress: "bg-blue-500",
-  resolved: "bg-success",
-  closed: "bg-muted-foreground",
-};
 
 type EnvOption = { id: string; name: string };
 
@@ -74,6 +68,7 @@ export function IssuesClient({
 
   const [query, setQuery] = React.useState("");
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [view, setView] = React.useState<"table" | "board">("table");
 
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -110,10 +105,34 @@ export function IssuesClient({
             aria-label={t("searchPlaceholder")}
           />
         </div>
-        <Button className="sm:ms-auto" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4" />
-          {t("new")}
-        </Button>
+        <div className="flex items-center gap-2 sm:ms-auto">
+          <div className="flex rounded-md border p-0.5">
+            <Button
+              type="button"
+              variant={view === "table" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setView("table")}
+              aria-label={t("viewTable")}
+            >
+              <List className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={view === "board" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setView("board")}
+              aria-label={t("viewBoard")}
+            >
+              <LayoutGrid className="size-4" />
+            </Button>
+          </div>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" />
+            {t("new")}
+          </Button>
+        </div>
       </div>
 
       {visible.length === 0 ? (
@@ -126,6 +145,19 @@ export function IssuesClient({
             </p>
           </div>
         </div>
+      ) : view === "board" ? (
+        <IssueBoard
+          issues={visible.map((i) => ({
+            id: i.id,
+            number: i.number,
+            title: i.title,
+            status: i.status as Status,
+            keyPrefix: projectKey,
+            envName: i.environment?.name ?? null,
+            assigneeName: i.assignee?.name ?? null,
+          }))}
+          onStatusChange={onStatusChange}
+        />
       ) : (
         <div className="rounded-lg border">
           <Table>
@@ -150,7 +182,6 @@ export function IssuesClient({
                     <StatusSelect
                       value={issue.status as Status}
                       onChange={(s) => onStatusChange(issue.id, s)}
-                      label={(s) => t(`status.${s}`)}
                     />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate">
@@ -191,37 +222,6 @@ export function IssuesClient({
   );
 }
 
-function StatusSelect({
-  value,
-  onChange,
-  label,
-}: {
-  value: Status;
-  onChange: (s: Status) => void;
-  label: (s: Status) => string;
-}) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as Status)}>
-      <SelectTrigger className="h-8 w-full" aria-label={label(value)}>
-        <span className="flex items-center gap-2">
-          <span className={cn("size-2 rounded-full", STATUS_DOT[value])} />
-          <SelectValue />
-        </span>
-      </SelectTrigger>
-      <SelectContent>
-        {STATUSES.map((s) => (
-          <SelectItem key={s} value={s}>
-            <span className="flex items-center gap-2">
-              <span className={cn("size-2 rounded-full", STATUS_DOT[s])} />
-              {label(s)}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 function CreateIssueDialog({
   open,
   onOpenChange,
@@ -240,10 +240,14 @@ function CreateIssueDialog({
   const t = useTranslations("issues");
   const tCommon = useTranslations("common");
 
+  const NONE = "none";
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [environmentId, setEnvironmentId] =
-    React.useState(defaultEnvironmentId);
+  // Empty default (e.g. from the project overview, which has no "current" env)
+  // falls back to the "None" option.
+  const [environmentId, setEnvironmentId] = React.useState(
+    defaultEnvironmentId || NONE
+  );
   const [saving, setSaving] = React.useState(false);
 
   // Reset the form each time the dialog opens.
@@ -251,7 +255,7 @@ function CreateIssueDialog({
     if (open) {
       setTitle("");
       setDescription("");
-      setEnvironmentId(defaultEnvironmentId);
+      setEnvironmentId(defaultEnvironmentId || NONE);
     }
   }, [open, defaultEnvironmentId]);
 
@@ -262,7 +266,7 @@ function CreateIssueDialog({
       projectId,
       title: title.trim(),
       description: description.trim(),
-      environmentId: environmentId === "none" ? null : environmentId,
+      environmentId: environmentId === NONE ? null : environmentId,
     });
     setSaving(false);
     if (!result.success) {
@@ -272,8 +276,6 @@ function CreateIssueDialog({
     toast.success(t("createdSuccess"));
     onCreated();
   }
-
-  const NONE = "none";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
