@@ -114,7 +114,8 @@
     "knowledge": "知识库",
     "storage": "存储",
     "issues": "问题",
-    "allIssues": "问题"
+    "allIssues": "问题",
+    "home": "主页"
   },
   "header": {
     "selectProject": "选择项目…",
@@ -1139,5 +1140,18 @@
     "noEnvironments": "暂无环境",
     "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
     "client": "客户"
+  },
+  "inbox": {
+    "title": "主页",
+    "subtitle": "你的工作与需要关注的事项。",
+    "assignedToMe": "分配给我",
+    "assignedEmpty": "没有分配给你的事项。",
+    "runningNow": "正在运行",
+    "runningEmpty": "没有正在运行的任务。",
+    "needsAttention": "需要关注",
+    "failedEmpty": "近期没有失败。",
+    "jumpBackIn": "快速返回",
+    "recentEmpty": "暂无最近环境。",
+    "viewAll": "查看全部"
   }
 }

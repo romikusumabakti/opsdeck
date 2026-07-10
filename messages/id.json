@@ -114,7 +114,8 @@
     "knowledge": "Pengetahuan",
     "storage": "Penyimpanan",
     "issues": "Isu",
-    "allIssues": "Isu"
+    "allIssues": "Isu",
+    "home": "Beranda"
   },
   "header": {
     "selectProject": "Pilih proyek…",
@@ -1139,5 +1140,18 @@
     "noEnvironments": "Belum ada environment",
     "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
     "client": "Klien"
+  },
+  "inbox": {
+    "title": "Beranda",
+    "subtitle": "Pekerjaan Anda dan yang perlu perhatian.",
+    "assignedToMe": "Ditugaskan ke saya",
+    "assignedEmpty": "Tidak ada tugas untuk Anda.",
+    "runningNow": "Sedang berjalan",
+    "runningEmpty": "Tidak ada job berjalan.",
+    "needsAttention": "Perlu perhatian",
+    "failedEmpty": "Tidak ada kegagalan terbaru.",
+    "jumpBackIn": "Lanjutkan",
+    "recentEmpty": "Belum ada environment terbaru.",
+    "viewAll": "Lihat semua"
   }
 }

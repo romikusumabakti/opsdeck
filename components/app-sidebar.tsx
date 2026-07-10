@@ -9,6 +9,7 @@ import {
   FolderKanban,
   HardDrive,
   History,
+  House,
   LayoutDashboard,
   Server,
   ServerCog,
@@ -104,6 +105,16 @@ export function AppSidebar({
                 <SidebarMenuButton
                   render={<Link href="/" />}
                   isActive={pathname === "/"}
+                  tooltip={tNav("home")}
+                >
+                  <House />
+                  <span>{tNav("home")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/projects" />}
+                  isActive={pathname === "/projects"}
                   tooltip={tNav("projects")}
                 >
                   <FolderKanban />

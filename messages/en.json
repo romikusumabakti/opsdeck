@@ -114,7 +114,8 @@
     "knowledge": "Knowledge",
     "storage": "Storage",
     "issues": "Issues",
-    "allIssues": "Issues"
+    "allIssues": "Issues",
+    "home": "Home"
   },
   "header": {
     "selectProject": "Select project…",
@@ -1139,5 +1140,18 @@
     "noEnvironments": "No environments yet",
     "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project.",
     "client": "Client"
+  },
+  "inbox": {
+    "title": "Home",
+    "subtitle": "Your work and what needs attention.",
+    "assignedToMe": "Assigned to me",
+    "assignedEmpty": "Nothing assigned to you.",
+    "runningNow": "Running now",
+    "runningEmpty": "No jobs running.",
+    "needsAttention": "Needs attention",
+    "failedEmpty": "No recent failures.",
+    "jumpBackIn": "Jump back in",
+    "recentEmpty": "No recent environments.",
+    "viewAll": "View all"
   }
 }
