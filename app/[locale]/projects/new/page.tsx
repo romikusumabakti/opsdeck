@@ -19,9 +19,12 @@ export default async function NewProjectPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; project?: string }>;
 }) {
-  const [{ locale }, { from }] = await Promise.all([params, searchParams]);
+  const [{ locale }, { from, project }] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   setRequestLocale(locale);
 
   await requireAdmin();
@@ -66,6 +69,7 @@ export default async function NewProjectPage({
             mode={{ type: "create", cloneFrom: cloneFrom ?? undefined }}
             servers={servers}
             projects={projects}
+            defaultProjectId={project}
           />
         </CardContent>
       </Card>

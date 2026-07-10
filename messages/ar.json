@@ -113,7 +113,8 @@
     "projects": "المشاريع",
     "knowledge": "المعرفة",
     "storage": "التخزين",
-    "issues": "المشكلات"
+    "issues": "المشكلات",
+    "allIssues": "المشكلات"
   },
   "header": {
     "selectProject": "اختر مشروعاً…",
@@ -165,7 +166,8 @@
     "noEnvironments": "لا توجد بيئات بعد",
     "newEnvironment": "بيئة جديدة",
     "newProject": "مشروع جديد",
-    "ownedBy": "المالك: {owner}"
+    "ownedBy": "المالك: {owner}",
+    "openIssues": "{count, plural, other {# مشكلة مفتوحة}}"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -1107,7 +1109,20 @@
     "createdSuccess": "تم إنشاء المشكلة",
     "createFailed": "فشل إنشاء المشكلة",
     "updateFailed": "فشل تحديث المشكلة",
-    "statusUpdated": "تم تحديث الحالة"
+    "statusUpdated": "تم تحديث الحالة",
+    "viewTable": "جدول",
+    "viewBoard": "لوحة",
+    "allProjects": "كل المشاريع",
+    "project": "المشروع",
+    "assignee": "المُكلَّف",
+    "assignedToMe": "مُسنَدة إليّ",
+    "filterStatus": "الحالة",
+    "allStatuses": "كل الحالات",
+    "globalTitle": "المشكلات",
+    "globalSubtitle": "كل المشكلات عبر المشاريع.",
+    "columnProject": "المشروع",
+    "boardEmpty": "لا شيء",
+    "openInProject": "فتح في المشروع"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",
@@ -1115,5 +1130,14 @@
     "release": "إصدار",
     "sandbox": "تجريبية",
     "prod": "إنتاج"
+  },
+  "projectOverview": {
+    "environments": "البيئات",
+    "issues": "المشكلات",
+    "newEnvironment": "بيئة جديدة",
+    "editProject": "تعديل المشروع",
+    "noEnvironments": "لا توجد بيئات بعد",
+    "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع.",
+    "client": "العميل"
   }
 }

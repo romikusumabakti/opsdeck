@@ -113,7 +113,8 @@
     "projects": "Projects",
     "knowledge": "Knowledge",
     "storage": "Storage",
-    "issues": "Issues"
+    "issues": "Issues",
+    "allIssues": "Issues"
   },
   "header": {
     "selectProject": "Select project…",
@@ -165,7 +166,8 @@
     "noEnvironments": "No environments yet",
     "newEnvironment": "New environment",
     "newProject": "New project",
-    "ownedBy": "Owner: {owner}"
+    "ownedBy": "Owner: {owner}",
+    "openIssues": "{count, plural, one {# open issue} other {# open issues}}"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -1107,7 +1109,20 @@
     "createdSuccess": "Issue created",
     "createFailed": "Failed to create issue",
     "updateFailed": "Failed to update issue",
-    "statusUpdated": "Status updated"
+    "statusUpdated": "Status updated",
+    "viewTable": "Table",
+    "viewBoard": "Board",
+    "allProjects": "All projects",
+    "project": "Project",
+    "assignee": "Assignee",
+    "assignedToMe": "Assigned to me",
+    "filterStatus": "Status",
+    "allStatuses": "All statuses",
+    "globalTitle": "Issues",
+    "globalSubtitle": "All issues across projects.",
+    "columnProject": "Project",
+    "boardEmpty": "Nothing here",
+    "openInProject": "Open in project"
   },
   "environmentKinds": {
     "qa": "QA",
@@ -1115,5 +1130,14 @@
     "release": "Release",
     "sandbox": "Sandbox",
     "prod": "Production"
+  },
+  "projectOverview": {
+    "environments": "Environments",
+    "issues": "Issues",
+    "newEnvironment": "New environment",
+    "editProject": "Edit project",
+    "noEnvironments": "No environments yet",
+    "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project.",
+    "client": "Client"
   }
 }

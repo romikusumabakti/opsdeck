@@ -113,7 +113,8 @@
     "projects": "Proyek",
     "knowledge": "Pengetahuan",
     "storage": "Penyimpanan",
-    "issues": "Isu"
+    "issues": "Isu",
+    "allIssues": "Isu"
   },
   "header": {
     "selectProject": "Pilih proyek…",
@@ -165,7 +166,8 @@
     "noEnvironments": "Belum ada environment",
     "newEnvironment": "Environment baru",
     "newProject": "Proyek baru",
-    "ownedBy": "Pemilik: {owner}"
+    "ownedBy": "Pemilik: {owner}",
+    "openIssues": "{count, plural, other {# isu terbuka}}"
   },
   "dashboard": {
     "title": "Dasbor",
@@ -1107,7 +1109,20 @@
     "createdSuccess": "Isu dibuat",
     "createFailed": "Gagal membuat isu",
     "updateFailed": "Gagal memperbarui isu",
-    "statusUpdated": "Status diperbarui"
+    "statusUpdated": "Status diperbarui",
+    "viewTable": "Tabel",
+    "viewBoard": "Papan",
+    "allProjects": "Semua proyek",
+    "project": "Proyek",
+    "assignee": "Penanggung jawab",
+    "assignedToMe": "Ditugaskan ke saya",
+    "filterStatus": "Status",
+    "allStatuses": "Semua status",
+    "globalTitle": "Isu",
+    "globalSubtitle": "Semua isu lintas proyek.",
+    "columnProject": "Proyek",
+    "boardEmpty": "Kosong",
+    "openInProject": "Buka di proyek"
   },
   "environmentKinds": {
     "qa": "QA",
@@ -1115,5 +1130,14 @@
     "release": "Rilis",
     "sandbox": "Sandbox",
     "prod": "Produksi"
+  },
+  "projectOverview": {
+    "environments": "Environment",
+    "issues": "Isu",
+    "newEnvironment": "Environment baru",
+    "editProject": "Edit proyek",
+    "noEnvironments": "Belum ada environment",
+    "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
+    "client": "Klien"
   }
 }

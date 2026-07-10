@@ -52,10 +52,14 @@ export function ProjectForm({
   mode,
   servers: initialServers,
   projects: initialProjects,
+  defaultProjectId,
 }: {
   mode: Mode;
   servers: Server[];
   projects: Project[];
+  // Preselected parent project for a fresh create (e.g. "New environment" from
+  // a project overview). Ignored on edit/clone, which take the source's project.
+  defaultProjectId?: string;
 }) {
   const t = useTranslations("projectForm");
   const tEnums = useTranslations("dashboard");
@@ -156,7 +160,7 @@ export function ProjectForm({
           frontendServiceName: source.frontendServiceName,
         }
       : {
-          projectId: initialProjects[0]?.id ?? "",
+          projectId: defaultProjectId ?? initialProjects[0]?.id ?? "",
           name: "",
           kind: "",
           owner: "",

@@ -78,6 +78,22 @@ export async function getProjectWithEnvironments(
   return row as ProjectWithEnvironments | undefined;
 }
 
+/**
+ * Resolve a project by its human `key` (e.g. "CMEM"), with environments — the
+ * project-overview page is routed by key for readable, shareable URLs. Key is
+ * matched case-insensitively and stored uppercase.
+ */
+export async function getProjectByKeyWithEnvironments(
+  key: string
+): Promise<ProjectWithEnvironments | undefined> {
+  await requireSession();
+  const row = await db.query.projects.findFirst({
+    where: { key: key.toUpperCase() },
+    with: { environments: true },
+  });
+  return row as ProjectWithEnvironments | undefined;
+}
+
 export async function addProject(data: unknown): Promise<ActionResponse> {
   await requireAdmin();
   const parsed = projectMetaInputSchema.safeParse(data);

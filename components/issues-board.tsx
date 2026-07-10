@@ -1,0 +1,146 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+export const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
+export type Status = (typeof STATUSES)[number];
+
+export const STATUS_DOT: Record<Status, string> = {
+  open: "bg-amber-500",
+  in_progress: "bg-blue-500",
+  resolved: "bg-success",
+  closed: "bg-muted-foreground",
+};
+
+// A minimal shape both the project-scoped and global issue lists can produce.
+export type BoardIssue = {
+  id: string;
+  number: number;
+  title: string;
+  status: Status;
+  keyPrefix: string;
+  envName?: string | null;
+  assigneeName?: string | null;
+  projectName?: string | null;
+};
+
+// Compact status control with a colored dot, reused by the table and board.
+export function StatusSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: Status;
+  onChange: (s: Status) => void;
+  className?: string;
+}) {
+  const t = useTranslations("issues");
+  return (
+    <Select value={value} onValueChange={(v) => v && onChange(v as Status)}>
+      <SelectTrigger
+        className={cn("h-8 w-full", className)}
+        aria-label={t(`status.${value}`)}
+      >
+        <span className="flex items-center gap-2">
+          <span className={cn("size-2 rounded-full", STATUS_DOT[value])} />
+          <SelectValue />
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {STATUSES.map((s) => (
+          <SelectItem key={s} value={s}>
+            <span className="flex items-center gap-2">
+              <span className={cn("size-2 rounded-full", STATUS_DOT[s])} />
+              {t(`status.${s}`)}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// Kanban-by-status board. Columns are the fixed status set; each card can move
+// via its own StatusSelect (no drag dependency).
+export function IssueBoard({
+  issues,
+  onStatusChange,
+  showProject = false,
+}: {
+  issues: BoardIssue[];
+  onStatusChange: (id: string, status: Status) => void;
+  showProject?: boolean;
+}) {
+  const t = useTranslations("issues");
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {STATUSES.map((status) => {
+        const column = issues.filter((i) => i.status === status);
+        return (
+          <div key={status} className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-1">
+              <span className={cn("size-2 rounded-full", STATUS_DOT[status])} />
+              <span className="text-sm font-medium">
+                {t(`status.${status}`)}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {column.length}
+              </span>
+            </div>
+            <div className="flex min-h-16 flex-col gap-2 rounded-lg border border-dashed p-2">
+              {column.length === 0 ? (
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+                  {t("boardEmpty")}
+                </p>
+              ) : (
+                column.map((issue) => (
+                  <div
+                    key={issue.id}
+                    className="flex flex-col gap-2 rounded-md border bg-card p-2.5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {issue.keyPrefix}-{issue.number}
+                      </span>
+                      {showProject && issue.projectName ? (
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          · {issue.projectName}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm font-medium leading-snug">
+                      {issue.title}
+                    </p>
+                    {(issue.envName || issue.assigneeName) && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        {issue.envName ? <span>{issue.envName}</span> : null}
+                        {issue.envName && issue.assigneeName ? (
+                          <span aria-hidden="true">·</span>
+                        ) : null}
+                        {issue.assigneeName ? (
+                          <span>{issue.assigneeName}</span>
+                        ) : null}
+                      </div>
+                    )}
+                    <StatusSelect
+                      value={issue.status}
+                      onChange={(s) => onStatusChange(issue.id, s)}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
