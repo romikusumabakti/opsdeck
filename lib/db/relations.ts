@@ -56,6 +56,17 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.issues.assigneeId,
       to: r.users.id,
     }),
+    comments: r.many.issueComments(),
+  },
+  issueComments: {
+    issue: r.one.issues({
+      from: r.issueComments.issueId,
+      to: r.issues.id,
+    }),
+    author: r.one.users({
+      from: r.issueComments.authorId,
+      to: r.users.id,
+    }),
   },
   runs: {
     environment: r.one.environments({

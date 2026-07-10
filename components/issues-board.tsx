@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
 export const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
@@ -148,18 +149,24 @@ export function IssueBoard({
                     className="flex flex-col gap-2 rounded-md border bg-card p-2.5"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-muted-foreground">
+                      <Link
+                        href={`/project/${issue.keyPrefix}/${issue.number}`}
+                        className="font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                      >
                         {issue.keyPrefix}-{issue.number}
-                      </span>
+                      </Link>
                       {showProject && issue.projectName ? (
                         <span className="truncate text-[11px] text-muted-foreground">
                           · {issue.projectName}
                         </span>
                       ) : null}
                     </div>
-                    <p className="text-sm font-medium leading-snug">
+                    <Link
+                      href={`/project/${issue.keyPrefix}/${issue.number}`}
+                      className="text-sm font-medium leading-snug hover:underline"
+                    >
                       {issue.title}
-                    </p>
+                    </Link>
                     {(issue.envName || issue.assigneeName) && (
                       <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                         {issue.envName ? <span>{issue.envName}</span> : null}

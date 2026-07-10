@@ -28,7 +28,7 @@ export async function notifyIssueAssigned(input: {
     userId: input.assigneeId,
     type: "issue_assigned",
     data: { key: input.projectKey, number: input.number, title: input.title },
-    href: `/project/${input.projectKey}`,
+    href: `/project/${input.projectKey}/${input.number}`,
   });
 }
 

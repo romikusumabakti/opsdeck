@@ -1158,5 +1158,25 @@
     "jumpBackIn": "快速返回",
     "recentEmpty": "暂无最近环境。",
     "viewAll": "查看全部"
+  },
+  "issueDetail": {
+    "description": "描述",
+    "noDescription": "暂无描述。",
+    "descriptionPlaceholder": "添加描述…",
+    "titlePlaceholder": "问题标题",
+    "comments": "评论",
+    "noComments": "暂无评论。",
+    "commentPlaceholder": "写评论…",
+    "post": "评论",
+    "posting": "发送中…",
+    "commentAdded": "评论已添加",
+    "commentFailed": "添加评论失败",
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "已保存",
+    "saveFailed": "保存失败",
+    "createdBy": "由 {name} 创建",
+    "unknownUser": "未知",
+    "notFound": "未找到该问题。"
   }
 }

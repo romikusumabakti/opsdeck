@@ -40,7 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 type EnvOption = { id: string; name: string };
@@ -202,9 +202,21 @@ export function IssuesClient({
               {visible.map((issue) => (
                 <TableRow key={issue.id}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {projectKey}-{issue.number}
+                    <Link
+                      href={`/project/${projectKey}/${issue.number}`}
+                      className="hover:text-foreground hover:underline"
+                    >
+                      {projectKey}-{issue.number}
+                    </Link>
                   </TableCell>
-                  <TableCell className="font-medium">{issue.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={`/project/${projectKey}/${issue.number}`}
+                      className="hover:underline"
+                    >
+                      {issue.title}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <StatusSelect
                       value={issue.status as Status}

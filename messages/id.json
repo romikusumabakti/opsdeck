@@ -1158,5 +1158,25 @@
     "jumpBackIn": "Lanjutkan",
     "recentEmpty": "Belum ada environment terbaru.",
     "viewAll": "Lihat semua"
+  },
+  "issueDetail": {
+    "description": "Deskripsi",
+    "noDescription": "Tidak ada deskripsi.",
+    "descriptionPlaceholder": "Tambahkan deskripsi…",
+    "titlePlaceholder": "Judul isu",
+    "comments": "Komentar",
+    "noComments": "Belum ada komentar.",
+    "commentPlaceholder": "Tulis komentar…",
+    "post": "Kirim",
+    "posting": "Mengirim…",
+    "commentAdded": "Komentar ditambahkan",
+    "commentFailed": "Gagal menambah komentar",
+    "save": "Simpan",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
+    "saveFailed": "Gagal menyimpan",
+    "createdBy": "Dibuka oleh {name}",
+    "unknownUser": "Tidak diketahui",
+    "notFound": "Isu tidak ditemukan."
   }
 }
