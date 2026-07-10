@@ -8,6 +8,10 @@ import {
   getTranslations,
   setRequestLocale,
 } from "next-intl/server";
+import {
+  getUnreadNotificationCount,
+  listNotifications,
+} from "@/actions/notifications";
 import { listProjects } from "@/actions/project-catalog";
 import { getProjects } from "@/actions/projects";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
@@ -18,6 +22,7 @@ import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { NavigationGuardProvider } from "@/components/navigation-guard";
+import { NotificationBell } from "@/components/notification-bell";
 import { ServerTime } from "@/components/server-time";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -89,6 +94,9 @@ export default async function LocaleLayout({
   const projectKeyById: Record<string, string> = Object.fromEntries(
     logicalProjects.map((p) => [p.id, p.key])
   );
+  const [notifications, unreadCount] = session
+    ? await Promise.all([listNotifications(), getUnreadNotificationCount()])
+    : [[], 0];
   const admin = session ? isAdmin(session) : false;
   const messages = await getMessages({ locale });
   const tHeader = await getTranslations({ locale, namespace: "header" });
@@ -154,6 +162,10 @@ export default async function LocaleLayout({
                           <div className="hidden md:flex items-center gap-2 pe-1">
                             <ServerTime timeZone={APP_TIMEZONE} />
                           </div>
+                          <NotificationBell
+                            initialNotifications={notifications}
+                            initialUnread={unreadCount}
+                          />
                           <CommandPalette projects={projects} isAdmin={admin} />
                         </div>
                       </header>

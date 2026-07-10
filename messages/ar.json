@@ -133,7 +133,7 @@
     "notifyTitleFailed": "فشلت المهمة"
   },
   "notifications": {
-    "title": "إشعارات المتصفح",
+    "title": "الإشعارات",
     "description": "احصل على إشعارات عند اكتمال المهام طويلة الأمد (النسخ الاحتياطي، الاستعادة، محاكاة الوقت) — حتى عندما لا يكون هذا التبويب في التركيز.",
     "enable": "تفعيل الإشعارات",
     "disable": "تعطيل الإشعارات",
@@ -143,7 +143,12 @@
     "unsupportedTitle": "غير مدعوم",
     "unsupportedDescription": "متصفحك لا يدعم إشعارات الويب.",
     "permissionDeniedTitle": "تم رفض الإذن",
-    "permissionDeniedDescription": "يمكنك إعادة السماح بالإشعارات من إعدادات موقع المتصفح."
+    "permissionDeniedDescription": "يمكنك إعادة السماح بالإشعارات من إعدادات موقع المتصفح.",
+    "empty": "لا جديد لديك.",
+    "markAllRead": "تحديد الكل كمقروء",
+    "ariaLabel": "الإشعارات",
+    "issue_assigned": "أُسنِد إليك: {key}-{number} · {title}",
+    "run_failed": "{description} فشل في {environment}"
   },
   "projectsEmpty": {
     "title": "لا توجد مشاريع بعد",
