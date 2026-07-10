@@ -8,6 +8,7 @@ import {
   getTranslations,
   setRequestLocale,
 } from "next-intl/server";
+import { listProjects } from "@/actions/project-catalog";
 import { getProjects } from "@/actions/projects";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -81,6 +82,10 @@ export default async function LocaleLayout({
 
   const session = await getServerSession();
   const projects = session ? await getProjects() : [];
+  const logicalProjects = session ? await listProjects() : [];
+  const projectNameById: Record<string, string> = Object.fromEntries(
+    logicalProjects.map((p) => [p.id, p.name])
+  );
   const admin = session ? isAdmin(session) : false;
   const messages = await getMessages({ locale });
   const tHeader = await getTranslations({ locale, namespace: "header" });
@@ -135,7 +140,11 @@ export default async function LocaleLayout({
                     <SidebarInset className="min-w-0">
                       <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
                         <SidebarTrigger className="-ms-1" />
-                        <HeaderBreadcrumb projects={projects} isAdmin={admin} />
+                        <HeaderBreadcrumb
+                          projects={projects}
+                          projectNameById={projectNameById}
+                          isAdmin={admin}
+                        />
                         <div className="ms-auto flex items-center gap-2">
                           <ActiveRunsIndicator />
                           <div className="hidden md:flex items-center gap-2 pe-1">

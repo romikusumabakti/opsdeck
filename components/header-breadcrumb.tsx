@@ -84,6 +84,7 @@ const PARALLEL_SECTIONS = new Set([
   "services",
   "databases",
   "mock-time",
+  "issues",
   "history",
   "settings",
 ]);
@@ -106,6 +107,8 @@ function getProjectSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.history";
     case "settings":
       return "breadcrumbs.settings";
+    case "issues":
+      return "breadcrumbs.issues";
     default:
       return null;
   }
@@ -158,9 +161,11 @@ function StaticCrumb({
 
 export function HeaderBreadcrumb({
   projects,
+  projectNameById,
   isAdmin,
 }: {
   projects: Environment[];
+  projectNameById: Record<string, string>;
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
@@ -211,6 +216,7 @@ export function HeaderBreadcrumb({
         {activeProject ? (
           <ProjectSwitcher
             projects={projects}
+            projectNameById={projectNameById}
             activeProject={activeProject}
             isAdmin={isAdmin}
             activeSection={
@@ -240,11 +246,13 @@ export function HeaderBreadcrumb({
 
 function ProjectSwitcher({
   projects,
+  projectNameById,
   activeProject,
   isAdmin,
   activeSection,
 }: {
   projects: Environment[];
+  projectNameById: Record<string, string>;
   activeProject: Environment;
   isAdmin: boolean;
   activeSection?: string;
@@ -260,6 +268,28 @@ function ProjectSwitcher({
     setOpen(false);
     router.push(href);
   }
+
+  // Group the flat environment list under their logical project, then sort the
+  // groups alphabetically by project name so the switcher mirrors the
+  // two-level model.
+  const groups = React.useMemo(() => {
+    const byProject = new Map<string, Environment[]>();
+    for (const env of projects) {
+      const list = byProject.get(env.projectId);
+      if (list) {
+        list.push(env);
+      } else {
+        byProject.set(env.projectId, [env]);
+      }
+    }
+    return [...byProject.entries()]
+      .map(([projectId, envs]) => ({
+        projectId,
+        heading: projectNameById[projectId] ?? "—",
+        envs,
+      }))
+      .sort((a, b) => a.heading.localeCompare(b.heading));
+  }, [projects, projectNameById]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -287,9 +317,9 @@ function ProjectSwitcher({
           />
           <CommandList>
             <CommandEmpty>{tHeader("noProject")}</CommandEmpty>
-            {projects.length > 0 && (
-              <CommandGroup>
-                {projects.map((project) => (
+            {groups.map((group) => (
+              <CommandGroup key={group.projectId} heading={group.heading}>
+                {group.envs.map((project) => (
                   <CommandItem
                     key={project.id}
                     value={project.name}
@@ -318,7 +348,7 @@ function ProjectSwitcher({
                   </CommandItem>
                 ))}
               </CommandGroup>
-            )}
+            ))}
             {isAdmin && (
               <>
                 <CommandSeparator />

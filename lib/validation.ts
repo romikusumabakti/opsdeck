@@ -71,9 +71,30 @@ export const serverInputSchema = z.object({
     .optional(),
 });
 
+// The logical project (parent). `key` is the uppercase issue-prefix used to
+// form human issue keys (CMEM-42) and must stay short + identifier-shaped.
+export const projectKeySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(
+    /^[A-Z][A-Z0-9]{1,9}$/,
+    "Key must be 2–10 uppercase letters/digits, starting with a letter"
+  );
+
+export const projectMetaInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  key: projectKeySchema,
+  client: z.string().trim().max(120).nullish(),
+  description: z.string().trim().max(2000).nullish(),
+});
+export const projectMetaUpdateSchema = projectMetaInputSchema.partial();
+export type ProjectMetaInput = z.infer<typeof projectMetaInputSchema>;
+
+// An environment (deployment) belongs to one logical project.
 export const projectInputSchema = z.object({
-  // The logical project this deployment belongs to. TODO(phase-2): the
-  // create/edit environment form must send this via a project picker.
+  // The logical project this deployment belongs to (chosen via the form's
+  // project picker).
   projectId: z.uuid(),
   name: z.string().trim().min(1).max(200),
 
@@ -98,6 +119,35 @@ export const projectInputSchema = z.object({
 
 export const projectUpdateSchema = projectInputSchema.partial();
 export const serverUpdateSchema = serverInputSchema.partial();
+
+// =========================
+// Issue tracker
+// =========================
+
+export const issueStatusSchema = z.enum([
+  "open",
+  "in_progress",
+  "resolved",
+  "closed",
+]);
+
+export const issueInputSchema = z.object({
+  projectId: z.uuid(),
+  title: z.string().trim().min(1).max(300),
+  description: z.string().trim().max(20_000).default(""),
+  // Optional deployment where the issue was observed.
+  environmentId: z.uuid().nullish(),
+  assigneeId: z.uuid().nullish(),
+});
+export type IssueInput = z.infer<typeof issueInputSchema>;
+
+export const issueUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(300).optional(),
+  description: z.string().trim().max(20_000).optional(),
+  status: issueStatusSchema.optional(),
+  environmentId: z.uuid().nullish(),
+  assigneeId: z.uuid().nullish(),
+});
 
 export type ServerInput = z.infer<typeof serverInputSchema>;
 export type ProjectInput = z.infer<typeof projectInputSchema>;
