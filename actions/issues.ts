@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -13,6 +13,55 @@ export type IssueWithMeta = Issue & {
   assignee: { id: string; name: string } | null;
   environment: { id: string; name: string } | null;
 };
+
+// Adds the owning project — for the cross-project (global) issues view.
+export type GlobalIssue = IssueWithMeta & {
+  project: { id: string; name: string; key: string };
+};
+
+// Statuses that count as "still needs work" for the open-issue badges.
+const OPEN_STATUSES = ["open", "in_progress"] as const;
+
+/** Map of projectId → count of not-yet-resolved issues, for the grid badges. */
+export async function getOpenIssueCounts(): Promise<Record<string, number>> {
+  await requireSession();
+  try {
+    const rows = await db
+      .select({
+        projectId: issues.projectId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(issues)
+      .where(inArray(issues.status, [...OPEN_STATUSES]))
+      .groupBy(issues.projectId);
+    const map: Record<string, number> = {};
+    for (const r of rows) map[r.projectId] = Number(r.count);
+    return map;
+  } catch (error) {
+    console.error("Failed to count open issues:", error);
+    return {};
+  }
+}
+
+/** Every issue across all projects, newest-updated first — the global view. */
+export async function listAllIssues(): Promise<GlobalIssue[]> {
+  await requireSession();
+  try {
+    const rows = await db.query.issues.findMany({
+      with: {
+        project: { columns: { id: true, name: true, key: true } },
+        createdBy: { columns: { id: true, name: true } },
+        assignee: { columns: { id: true, name: true } },
+        environment: { columns: { id: true, name: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    return rows as GlobalIssue[];
+  } catch (error) {
+    console.error("Failed to list all issues:", error);
+    return [];
+  }
+}
 
 type ActionResponse = { success: boolean; message?: string; data?: Issue };
 

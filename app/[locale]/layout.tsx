@@ -86,6 +86,9 @@ export default async function LocaleLayout({
   const projectNameById: Record<string, string> = Object.fromEntries(
     logicalProjects.map((p) => [p.id, p.name])
   );
+  const projectKeyById: Record<string, string> = Object.fromEntries(
+    logicalProjects.map((p) => [p.id, p.key])
+  );
   const admin = session ? isAdmin(session) : false;
   const messages = await getMessages({ locale });
   const tHeader = await getTranslations({ locale, namespace: "header" });
@@ -143,6 +146,7 @@ export default async function LocaleLayout({
                         <HeaderBreadcrumb
                           projects={projects}
                           projectNameById={projectNameById}
+                          projectKeyById={projectKeyById}
                           isAdmin={admin}
                         />
                         <div className="ms-auto flex items-center gap-2">

@@ -177,10 +177,12 @@ function StaticCrumb({
 export function HeaderBreadcrumb({
   projects,
   projectNameById,
+  projectKeyById,
   isAdmin,
 }: {
   projects: Environment[];
   projectNameById: Record<string, string>;
+  projectKeyById: Record<string, string>;
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
@@ -229,17 +231,25 @@ export function HeaderBreadcrumb({
       />
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 min-w-0">
         {activeProject ? (
-          <ProjectSwitcher
-            projects={projects}
-            projectNameById={projectNameById}
-            activeProject={activeProject}
-            isAdmin={isAdmin}
-            activeSection={
-              projectSubSlug && PARALLEL_SECTIONS.has(projectSubSlug)
-                ? projectSubSlug
-                : undefined
-            }
-          />
+          <>
+            <StaticCrumb
+              href={`/project/${projectKeyById[activeProject.projectId] ?? ""}`}
+              label={projectNameById[activeProject.projectId] ?? "—"}
+              isLast={false}
+            />
+            <Slash />
+            <ProjectSwitcher
+              projects={projects}
+              projectNameById={projectNameById}
+              activeProject={activeProject}
+              isAdmin={isAdmin}
+              activeSection={
+                projectSubSlug && PARALLEL_SECTIONS.has(projectSubSlug)
+                  ? projectSubSlug
+                  : undefined
+              }
+            />
+          </>
         ) : null}
         {trailing.map((seg, i) => {
           const isLast = i === trailing.length - 1;
@@ -325,19 +335,6 @@ function ProjectSwitcher({
         }
       >
         <span className="flex items-center gap-1 min-w-0 max-w-[180px] sm:max-w-[300px]">
-          {activeProjectName ? (
-            <>
-              <span className="truncate text-muted-foreground">
-                {activeProjectName}
-              </span>
-              <span
-                aria-hidden="true"
-                className="text-muted-foreground/50 shrink-0"
-              >
-                /
-              </span>
-            </>
-          ) : null}
           <span className="truncate">
             {stripProjectPrefix(activeProject.name, activeProjectName)}
           </span>

@@ -113,7 +113,8 @@
     "projects": "项目",
     "knowledge": "知识库",
     "storage": "存储",
-    "issues": "问题"
+    "issues": "问题",
+    "allIssues": "问题"
   },
   "header": {
     "selectProject": "选择项目…",
@@ -165,7 +166,8 @@
     "noEnvironments": "暂无环境",
     "newEnvironment": "新建环境",
     "newProject": "新建项目",
-    "ownedBy": "负责人：{owner}"
+    "ownedBy": "负责人：{owner}",
+    "openIssues": "{count, plural, other {# 个未解决}}"
   },
   "dashboard": {
     "title": "仪表板",
@@ -1107,7 +1109,20 @@
     "createdSuccess": "问题已创建",
     "createFailed": "创建问题失败",
     "updateFailed": "更新问题失败",
-    "statusUpdated": "状态已更新"
+    "statusUpdated": "状态已更新",
+    "viewTable": "表格",
+    "viewBoard": "看板",
+    "allProjects": "所有项目",
+    "project": "项目",
+    "assignee": "负责人",
+    "assignedToMe": "分配给我",
+    "filterStatus": "状态",
+    "allStatuses": "所有状态",
+    "globalTitle": "问题",
+    "globalSubtitle": "所有项目的问题。",
+    "columnProject": "项目",
+    "boardEmpty": "空",
+    "openInProject": "在项目中打开"
   },
   "environmentKinds": {
     "qa": "测试",
@@ -1115,5 +1130,14 @@
     "release": "发布",
     "sandbox": "沙盒",
     "prod": "生产"
+  },
+  "projectOverview": {
+    "environments": "环境",
+    "issues": "问题",
+    "newEnvironment": "新建环境",
+    "editProject": "编辑项目",
+    "noEnvironments": "暂无环境",
+    "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
+    "client": "客户"
   }
 }

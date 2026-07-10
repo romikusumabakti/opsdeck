@@ -31,12 +31,16 @@ export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 export function ProjectsGrid({
   projects,
   projectNameById,
+  projectKeyById,
+  openIssueCounts,
   lastActivity,
   lastOpened,
   initialSort,
 }: {
   projects: Environment[];
   projectNameById: Record<string, string>;
+  projectKeyById: Record<string, string>;
+  openIssueCounts: Record<string, number>;
   lastActivity: Record<string, ProjectActivity | null>;
   lastOpened: Record<string, number>;
   initialSort: SortKey;
@@ -152,35 +156,55 @@ export function ProjectsGrid({
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {groups.map((group) => (
-            <section key={group.projectId} className="flex flex-col gap-3">
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-sm font-semibold truncate">{group.name}</h2>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {t("environmentCount", { count: group.envs.length })}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-                {group.envs.map((project) => (
-                  <EnvironmentCard
-                    key={project.id}
-                    project={project}
-                    projectName={group.name}
-                    activity={lastActivity[project.id] ?? null}
-                    dateFnsLocale={dateFnsLocale}
-                    neverText={t("neverActive")}
-                    dbTypeLabel={tDash(`dbTypes.${project.dbType}`)}
-                    kindLabel={project.kind ? tKinds(project.kind) : null}
-                    ownerLabel={
-                      project.owner
-                        ? t("ownedBy", { owner: project.owner })
-                        : null
-                    }
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+          {groups.map((group) => {
+            const openCount = openIssueCounts[group.projectId] ?? 0;
+            const projectKey = projectKeyById[group.projectId];
+            return (
+              <section key={group.projectId} className="flex flex-col gap-3">
+                <div className="flex items-baseline gap-2">
+                  {projectKey ? (
+                    <Link
+                      href={`/project/${projectKey}`}
+                      className="text-sm font-semibold truncate hover:underline"
+                    >
+                      {group.name}
+                    </Link>
+                  ) : (
+                    <h2 className="text-sm font-semibold truncate">
+                      {group.name}
+                    </h2>
+                  )}
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {t("environmentCount", { count: group.envs.length })}
+                  </span>
+                  {openCount > 0 ? (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      · {t("openIssues", { count: openCount })}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                  {group.envs.map((project) => (
+                    <EnvironmentCard
+                      key={project.id}
+                      project={project}
+                      projectName={group.name}
+                      activity={lastActivity[project.id] ?? null}
+                      dateFnsLocale={dateFnsLocale}
+                      neverText={t("neverActive")}
+                      dbTypeLabel={tDash(`dbTypes.${project.dbType}`)}
+                      kindLabel={project.kind ? tKinds(project.kind) : null}
+                      ownerLabel={
+                        project.owner
+                          ? t("ownedBy", { owner: project.owner })
+                          : null
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
     </div>
