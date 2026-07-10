@@ -37,6 +37,8 @@ function makeProject(
     frontendServerId: "fe",
     frontendServiceType: "docker",
     frontendServiceName: "web",
+    kind: null,
+    owner: null,
     dbServer: makeServer("11"),
     backendServer: makeServer("22"),
     frontendServer: makeServer("33"),

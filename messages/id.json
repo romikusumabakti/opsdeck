@@ -119,8 +119,9 @@
     "selectProject": "Pilih proyek…",
     "searchProject": "Cari proyek…",
     "noProject": "Proyek tidak ditemukan.",
-    "createProject": "Buat proyek baru",
-    "skipToContent": "Lewati ke konten utama"
+    "createProject": "Proyek baru",
+    "skipToContent": "Lewati ke konten utama",
+    "createEnvironment": "Environment baru"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# tugas berjalan} other {# tugas berjalan}}",
@@ -149,7 +150,7 @@
   },
   "home": {
     "title": "Proyek",
-    "subtitle": "Pilih proyek untuk mengelola backup, restore, dan riwayat.",
+    "subtitle": "Pilih proyek, lalu environment untuk dikelola.",
     "create": "Proyek baru",
     "neverActive": "Belum ada aktivitas",
     "searchPlaceholder": "Cari proyek...",
@@ -161,7 +162,10 @@
     "noMatch": "Tidak ada proyek yang cocok dengan \"{query}\".",
     "clearSearch": "Hapus pencarian",
     "environmentCount": "{count, plural, other {# environment}}",
-    "noEnvironments": "Belum ada environment"
+    "noEnvironments": "Belum ada environment",
+    "newEnvironment": "Environment baru",
+    "newProject": "Proyek baru",
+    "ownedBy": "Pemilik: {owner}"
   },
   "dashboard": {
     "title": "Dasbor",
@@ -571,7 +575,14 @@
     "project": "Proyek",
     "pickProject": "Pilih proyek…",
     "newProjectShort": "Proyek baru",
-    "projectRequired": "Pilih proyek"
+    "projectRequired": "Pilih proyek",
+    "kind": "Jenis",
+    "kindNone": "Tidak ditentukan",
+    "kindHint": "Untuk apa environment ini. Opsional.",
+    "owner": "Pemilik",
+    "ownerPlaceholder": "mis. QA — Budi",
+    "ownerHint": "Siapa pemilik deployment ini. Opsional.",
+    "purpose": "Tujuan"
   },
   "projectSettings": {
     "title": "Pengaturan proyek",
@@ -1097,5 +1108,12 @@
     "createFailed": "Gagal membuat isu",
     "updateFailed": "Gagal memperbarui isu",
     "statusUpdated": "Status diperbarui"
+  },
+  "environmentKinds": {
+    "qa": "QA",
+    "dev": "Dev",
+    "release": "Rilis",
+    "sandbox": "Sandbox",
+    "prod": "Produksi"
   }
 }
