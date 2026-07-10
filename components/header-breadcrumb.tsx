@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, FolderPlus, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
+import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -20,9 +21,23 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { Environment } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+
+// Drop the redundant project-name prefix from an environment's name when it's
+// shown under that project's heading (e.g. "CAR Membership P2SK (137)" ->
+// "P2SK (137)"). Falls back to the full name when there's nothing left.
+function stripProjectPrefix(envName: string, projectName: string): string {
+  if (
+    projectName &&
+    envName.toLowerCase().startsWith(projectName.toLowerCase())
+  ) {
+    const rest = envName.slice(projectName.length).replace(/^[\s:–—-]+/, "");
+    return rest.trim() || envName;
+  }
+  return envName;
+}
 
 const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/([^/?#]+))?/i;
 // Logs live one level below services (/services/<role>/logs) — the single-slug
@@ -261,8 +276,13 @@ function ProjectSwitcher({
   // it doesn't look like an instant context wipe; helps locate which content
   // changed when many sections re-render at once.
   const router = useViewTransitionRouter();
+  const plainRouter = useRouter();
   const tHeader = useTranslations("header");
+  const tKinds = useTranslations("environmentKinds");
   const [open, setOpen] = React.useState(false);
+  const [projectDialogOpen, setProjectDialogOpen] = React.useState(false);
+
+  const activeProjectName = projectNameById[activeProject.projectId] ?? "";
 
   function go(href: string) {
     setOpen(false);
@@ -304,8 +324,23 @@ function ProjectSwitcher({
           />
         }
       >
-        <span className="truncate max-w-[140px] sm:max-w-[240px]">
-          {activeProject.name}
+        <span className="flex items-center gap-1 min-w-0 max-w-[180px] sm:max-w-[300px]">
+          {activeProjectName ? (
+            <>
+              <span className="truncate text-muted-foreground">
+                {activeProjectName}
+              </span>
+              <span
+                aria-hidden="true"
+                className="text-muted-foreground/50 shrink-0"
+              >
+                /
+              </span>
+            </>
+          ) : null}
+          <span className="truncate">
+            {stripProjectPrefix(activeProject.name, activeProjectName)}
+          </span>
         </span>
         <ChevronDown className="size-3.5 opacity-60 shrink-0" />
       </PopoverTrigger>
@@ -319,28 +354,31 @@ function ProjectSwitcher({
             <CommandEmpty>{tHeader("noProject")}</CommandEmpty>
             {groups.map((group) => (
               <CommandGroup key={group.projectId} heading={group.heading}>
-                {group.envs.map((project) => (
+                {group.envs.map((env) => (
                   <CommandItem
-                    key={project.id}
-                    value={project.name}
+                    key={env.id}
+                    // Include the project name so search matches the heading too.
+                    value={`${group.heading} ${env.name}`}
                     onSelect={() =>
                       go(
                         activeSection
-                          ? `/projects/${project.id}/${activeSection}`
-                          : `/projects/${project.id}`
+                          ? `/projects/${env.id}/${activeSection}`
+                          : `/projects/${env.id}`
                       )
                     }
                   >
-                    <span className="size-5 rounded bg-primary/10 text-primary flex items-center justify-center text-[10px] font-semibold shrink-0">
-                      {project.name.charAt(0).toUpperCase()}
-                    </span>
                     <span className="flex-1 min-w-0 truncate">
-                      {project.name}
+                      {stripProjectPrefix(env.name, group.heading)}
                     </span>
+                    {env.kind ? (
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                        {tKinds(env.kind)}
+                      </span>
+                    ) : null}
                     <Check
                       className={cn(
-                        "ms-auto size-4 shrink-0",
-                        activeProject.id === project.id
+                        "size-4 shrink-0",
+                        activeProject.id === env.id
                           ? "opacity-100"
                           : "opacity-0"
                       )}
@@ -354,10 +392,20 @@ function ProjectSwitcher({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    value="__create-project"
+                    value="__create-environment"
                     onSelect={() => go("/projects/new")}
                   >
                     <Plus className="size-4" />
+                    {tHeader("createEnvironment")}
+                  </CommandItem>
+                  <CommandItem
+                    value="__create-project"
+                    onSelect={() => {
+                      setOpen(false);
+                      setProjectDialogOpen(true);
+                    }}
+                  >
+                    <FolderPlus className="size-4" />
                     {tHeader("createProject")}
                   </CommandItem>
                 </CommandGroup>
@@ -366,6 +414,15 @@ function ProjectSwitcher({
           </CommandList>
         </Command>
       </PopoverContent>
+
+      <ProjectCreateDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onCreated={() => {
+          setProjectDialogOpen(false);
+          plainRouter.refresh();
+        }}
+      />
     </Popover>
   );
 }

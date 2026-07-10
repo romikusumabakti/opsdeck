@@ -119,8 +119,9 @@
     "selectProject": "اختر مشروعاً…",
     "searchProject": "ابحث عن مشروع…",
     "noProject": "لم يتم العثور على مشروع.",
-    "createProject": "إنشاء مشروع جديد",
-    "skipToContent": "انتقل إلى المحتوى الرئيسي"
+    "createProject": "مشروع جديد",
+    "skipToContent": "انتقل إلى المحتوى الرئيسي",
+    "createEnvironment": "بيئة جديدة"
   },
   "activeTasks": {
     "trigger": "{count, plural, zero {لا مهام قيد التشغيل} one {# مهمة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمةً قيد التشغيل} other {# مهمةً قيد التشغيل}}",
@@ -149,7 +150,7 @@
   },
   "home": {
     "title": "المشاريع",
-    "subtitle": "اختر مشروعاً لإدارة النسخ الاحتياطية والاستعادة والسجل.",
+    "subtitle": "اختر مشروعًا، ثم بيئة لإدارتها.",
     "create": "مشروع جديد",
     "neverActive": "لا يوجد نشاط بعد",
     "searchPlaceholder": "ابحث في المشاريع...",
@@ -161,7 +162,10 @@
     "noMatch": "لا توجد مشاريع تطابق \"{query}\".",
     "clearSearch": "مسح البحث",
     "environmentCount": "{count, plural, other {# بيئة}}",
-    "noEnvironments": "لا توجد بيئات بعد"
+    "noEnvironments": "لا توجد بيئات بعد",
+    "newEnvironment": "بيئة جديدة",
+    "newProject": "مشروع جديد",
+    "ownedBy": "المالك: {owner}"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -571,7 +575,14 @@
     "project": "المشروع",
     "pickProject": "اختر مشروعًا…",
     "newProjectShort": "مشروع جديد",
-    "projectRequired": "اختر مشروعًا"
+    "projectRequired": "اختر مشروعًا",
+    "kind": "النوع",
+    "kindNone": "غير محدد",
+    "kindHint": "الغرض من هذه البيئة. اختياري.",
+    "owner": "المالك",
+    "ownerPlaceholder": "مثال: QA — Budi",
+    "ownerHint": "مالك عملية النشر هذه. اختياري.",
+    "purpose": "الغرض"
   },
   "projectSettings": {
     "title": "إعدادات المشروع",
@@ -1097,5 +1108,12 @@
     "createFailed": "فشل إنشاء المشكلة",
     "updateFailed": "فشل تحديث المشكلة",
     "statusUpdated": "تم تحديث الحالة"
+  },
+  "environmentKinds": {
+    "qa": "اختبار الجودة",
+    "dev": "تطوير",
+    "release": "إصدار",
+    "sandbox": "تجريبية",
+    "prod": "إنتاج"
   }
 }

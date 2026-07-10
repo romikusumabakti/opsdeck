@@ -119,8 +119,9 @@
     "selectProject": "选择项目…",
     "searchProject": "搜索项目…",
     "noProject": "未找到项目。",
-    "createProject": "创建新项目",
-    "skipToContent": "跳转到主要内容"
+    "createProject": "新建项目",
+    "skipToContent": "跳转到主要内容",
+    "createEnvironment": "新建环境"
   },
   "activeTasks": {
     "trigger": "{count, plural, other {# 个运行中的任务}}",
@@ -149,7 +150,7 @@
   },
   "home": {
     "title": "项目",
-    "subtitle": "选择一个项目来管理备份、还原和历史记录。",
+    "subtitle": "先选择项目，再选择要管理的环境。",
     "create": "新建项目",
     "neverActive": "暂无活动",
     "searchPlaceholder": "搜索项目...",
@@ -161,7 +162,10 @@
     "noMatch": "没有匹配 \"{query}\" 的项目。",
     "clearSearch": "清除搜索",
     "environmentCount": "{count, plural, other {# 个环境}}",
-    "noEnvironments": "暂无环境"
+    "noEnvironments": "暂无环境",
+    "newEnvironment": "新建环境",
+    "newProject": "新建项目",
+    "ownedBy": "负责人：{owner}"
   },
   "dashboard": {
     "title": "仪表板",
@@ -571,7 +575,14 @@
     "project": "项目",
     "pickProject": "选择项目…",
     "newProjectShort": "新建项目",
-    "projectRequired": "请选择项目"
+    "projectRequired": "请选择项目",
+    "kind": "类型",
+    "kindNone": "未指定",
+    "kindHint": "该环境的用途。可选。",
+    "owner": "负责人",
+    "ownerPlaceholder": "例如 QA — Budi",
+    "ownerHint": "该部署的负责人。可选。",
+    "purpose": "用途"
   },
   "projectSettings": {
     "title": "项目设置",
@@ -1097,5 +1108,12 @@
     "createFailed": "创建问题失败",
     "updateFailed": "更新问题失败",
     "statusUpdated": "状态已更新"
+  },
+  "environmentKinds": {
+    "qa": "测试",
+    "dev": "开发",
+    "release": "发布",
+    "sandbox": "沙盒",
+    "prod": "生产"
   }
 }

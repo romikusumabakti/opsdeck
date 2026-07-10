@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { listProjects } from "@/actions/project-catalog";
 import { getProjects, getProjectsLastOpened } from "@/actions/projects";
 import { getProjectsLastActivity } from "@/actions/runs";
+import { NewProjectButton } from "@/components/new-project-button";
 import { PageHeader } from "@/components/page-header";
 import { ProjectsEmpty } from "@/components/projects-empty";
 import type { SortKey } from "@/components/projects-grid";
@@ -54,10 +55,13 @@ export default async function Home({
         subtitle={t("subtitle")}
         action={
           admin ? (
-            <Button render={<Link href="/projects/new" />}>
-              <Plus className="size-4" />
-              {t("create")}
-            </Button>
+            <div className="flex gap-2">
+              <NewProjectButton />
+              <Button render={<Link href="/projects/new" />}>
+                <Plus className="size-4" />
+                {t("newEnvironment")}
+              </Button>
+            </div>
           ) : undefined
         }
       />

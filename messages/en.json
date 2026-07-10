@@ -119,8 +119,9 @@
     "selectProject": "Select project…",
     "searchProject": "Search project…",
     "noProject": "No project found.",
-    "createProject": "Create new project",
-    "skipToContent": "Skip to main content"
+    "createProject": "New project",
+    "skipToContent": "Skip to main content",
+    "createEnvironment": "New environment"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# running task} other {# running tasks}}",
@@ -149,7 +150,7 @@
   },
   "home": {
     "title": "Projects",
-    "subtitle": "Pick a project to manage backups, restores, and history.",
+    "subtitle": "Pick a project, then an environment to manage.",
     "create": "New project",
     "neverActive": "No activity yet",
     "searchPlaceholder": "Search projects...",
@@ -161,7 +162,10 @@
     "noMatch": "No projects match \"{query}\".",
     "clearSearch": "Clear search",
     "environmentCount": "{count, plural, one {# environment} other {# environments}}",
-    "noEnvironments": "No environments yet"
+    "noEnvironments": "No environments yet",
+    "newEnvironment": "New environment",
+    "newProject": "New project",
+    "ownedBy": "Owner: {owner}"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -571,7 +575,14 @@
     "project": "Project",
     "pickProject": "Select a project…",
     "newProjectShort": "New project",
-    "projectRequired": "Select a project"
+    "projectRequired": "Select a project",
+    "kind": "Kind",
+    "kindNone": "Unspecified",
+    "kindHint": "What this environment is for. Optional.",
+    "owner": "Owner",
+    "ownerPlaceholder": "e.g. QA — Budi",
+    "ownerHint": "Who owns this deployment. Optional.",
+    "purpose": "Purpose"
   },
   "projectSettings": {
     "title": "Project settings",
@@ -1097,5 +1108,12 @@
     "createFailed": "Failed to create issue",
     "updateFailed": "Failed to update issue",
     "statusUpdated": "Status updated"
+  },
+  "environmentKinds": {
+    "qa": "QA",
+    "dev": "Dev",
+    "release": "Release",
+    "sandbox": "Sandbox",
+    "prod": "Production"
   }
 }

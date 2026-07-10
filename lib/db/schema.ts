@@ -25,6 +25,16 @@ export const issueStatusEnum = pgEnum("issue_status", [
   "resolved",
   "closed",
 ]);
+// Why an environment exists — lets the grid/switcher label the 1..N deployments
+// of a project by purpose (a QA's own copy, a frontend dev's, a devops sandbox)
+// instead of an opaque host suffix.
+export const environmentKindEnum = pgEnum("environment_kind", [
+  "qa",
+  "dev",
+  "release",
+  "sandbox",
+  "prod",
+]);
 
 // All IDs use UUIDv7 (RFC 9562, May 2024) — time-ordered random UUIDs that
 // preserve B-tree index locality unlike v4. Default value uses Postgres 18's
@@ -116,6 +126,13 @@ export const environments = pgTable(
       .references(() => servers.id, { onDelete: "restrict" }),
     frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
     frontendServiceName: text("frontend_service_name").notNull(),
+
+    // --- Purpose / ownership (both optional) ---
+    // What this deployment is for; drives the kind badge in the grid/switcher.
+    kind: environmentKindEnum("kind"),
+    // Who owns this deployment (e.g. "QA — Budi", "FE dev"). Free text: owners
+    // aren't always app users, and this is a human label, not an access grant.
+    owner: text("owner"),
   },
   (t) => [
     // Every project page lists its environments; index the parent FK.

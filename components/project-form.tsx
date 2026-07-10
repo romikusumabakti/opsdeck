@@ -38,6 +38,9 @@ import type {
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
+const ENV_KINDS = ["qa", "dev", "release", "sandbox", "prod"] as const;
+// Sentinel for the "unspecified" Select option (Select can't hold an empty value).
+const KIND_NONE = "none";
 
 type ServerRole = "db" | "backend" | "frontend";
 
@@ -56,6 +59,7 @@ export function ProjectForm({
 }) {
   const t = useTranslations("projectForm");
   const tEnums = useTranslations("dashboard");
+  const tKinds = useTranslations("environmentKinds");
   const tCommon = useTranslations("common");
   const router = useRouter();
 
@@ -68,6 +72,9 @@ export function ProjectForm({
     .object({
       projectId: z.string().min(1, t("projectRequired")),
       name: z.string().min(1, tCommon("required")),
+      // "" = unspecified (mapped to null on submit).
+      kind: z.enum(ENV_KINDS).or(z.literal("")),
+      owner: z.string(),
 
       dbServerId: z.string().min(1, t("pickServerRequired")),
       dbServiceType: z.enum(SERVICE_TYPES),
@@ -130,6 +137,8 @@ export function ProjectForm({
             mode.type === "create"
               ? t("nameCopySuffix", { name: source.name })
               : source.name,
+          kind: source.kind ?? "",
+          owner: source.owner ?? "",
           dbServerId: source.dbServerId,
           dbServiceType: source.dbServiceType,
           dbServiceName: source.dbServiceName,
@@ -149,6 +158,8 @@ export function ProjectForm({
       : {
           projectId: initialProjects[0]?.id ?? "",
           name: "",
+          kind: "",
+          owner: "",
           dbServerId: initialServers[0]?.id ?? "",
           dbServiceType: "docker",
           dbServiceName: "",
@@ -186,6 +197,9 @@ export function ProjectForm({
       backendMockTimeApiUrl: values.backendMockTimeApiUrl
         ? values.backendMockTimeApiUrl
         : null,
+      // "" from the picker/input means "unset".
+      kind: values.kind ? values.kind : null,
+      owner: values.owner.trim() ? values.owner.trim() : null,
     };
     // On create: persist password (null for postgres). On edit: only include it
     // when the user typed something — empty means "keep stored value".
@@ -292,6 +306,55 @@ export function ProjectForm({
                   <FormControl>
                     <Input placeholder={t("namePlaceholder")} {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="kind"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("kind")}</FormLabel>
+                  <Select
+                    value={field.value || KIND_NONE}
+                    onValueChange={(v) =>
+                      field.onChange(v === KIND_NONE ? "" : v)
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={KIND_NONE}>{t("kindNone")}</SelectItem>
+                      {ENV_KINDS.map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {tKinds(k)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {t("kindHint")}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="owner"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("owner")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={t("ownerPlaceholder")} {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("ownerHint")}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
