@@ -12,7 +12,7 @@ import {
   ROLE_MEMBER,
   type UserRole,
 } from "@/lib/auth";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { invitations, sessions, users as userTable } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
@@ -108,6 +108,21 @@ export async function createInitialUser(input: {
 
   revalidatePath("/", "layout");
   return { success: true, message: t("accountCreated") };
+}
+
+/**
+ * Minimal, session-gated user list for issue assignment pickers — id + name of
+ * non-banned users. Not admin-only (any member can assign an issue).
+ */
+export async function listAssignableUsers(): Promise<
+  { id: string; name: string }[]
+> {
+  await requireSession();
+  return db
+    .select({ id: userTable.id, name: userTable.name })
+    .from(userTable)
+    .where(eq(userTable.banned, false))
+    .orderBy(userTable.name);
 }
 
 export async function listUsers() {

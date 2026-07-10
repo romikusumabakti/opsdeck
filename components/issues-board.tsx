@@ -68,6 +68,47 @@ export function StatusSelect({
   );
 }
 
+export type AssignableUser = { id: string; name: string };
+
+const UNASSIGNED = "__unassigned";
+
+// Assignee picker reused by the create dialog and the inline table/board cells.
+// `null` = unassigned.
+export function AssigneeSelect({
+  users,
+  value,
+  onChange,
+  className,
+}: {
+  users: AssignableUser[];
+  value: string | null;
+  onChange: (assigneeId: string | null) => void;
+  className?: string;
+}) {
+  const t = useTranslations("issues");
+  return (
+    <Select
+      value={value ?? UNASSIGNED}
+      onValueChange={(v) => onChange(!v || v === UNASSIGNED ? null : v)}
+    >
+      <SelectTrigger
+        className={cn("h-8 w-full", className)}
+        aria-label={t("assignee")}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={UNASSIGNED}>{t("unassigned")}</SelectItem>
+        {users.map((u) => (
+          <SelectItem key={u.id} value={u.id}>
+            {u.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // Kanban-by-status board. Columns are the fixed status set; each card can move
 // via its own StatusSelect (no drag dependency).
 export function IssueBoard({
