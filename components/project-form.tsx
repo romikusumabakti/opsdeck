@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { createProject, updateProject } from "@/actions/projects";
+import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { ServerCreateDialog } from "@/components/server-create-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +30,11 @@ import {
 } from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
-import type { SafeEnvironmentWithServers, Server } from "@/lib/db/schema";
+import type {
+  Project,
+  SafeEnvironmentWithServers,
+  Server,
+} from "@/lib/db/schema";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
@@ -43,9 +48,11 @@ type Mode =
 export function ProjectForm({
   mode,
   servers: initialServers,
+  projects: initialProjects,
 }: {
   mode: Mode;
   servers: Server[];
+  projects: Project[];
 }) {
   const t = useTranslations("projectForm");
   const tEnums = useTranslations("dashboard");
@@ -53,10 +60,13 @@ export function ProjectForm({
   const router = useRouter();
 
   const [servers, setServers] = useState<Server[]>(initialServers);
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   const schema = z
     .object({
+      projectId: z.string().min(1, t("projectRequired")),
       name: z.string().min(1, tCommon("required")),
 
       dbServerId: z.string().min(1, t("pickServerRequired")),
@@ -113,6 +123,7 @@ export function ProjectForm({
     resolver: zodResolver(schema),
     defaultValues: source
       ? {
+          projectId: source.projectId,
           // On clone, suffix the source name to make it obvious the new project
           // is a copy and to avoid duplicate-name confusion in the picker.
           name:
@@ -136,6 +147,7 @@ export function ProjectForm({
           frontendServiceName: source.frontendServiceName,
         }
       : {
+          projectId: initialProjects[0]?.id ?? "",
           name: "",
           dbServerId: initialServers[0]?.id ?? "",
           dbServiceType: "docker",
@@ -160,6 +172,11 @@ export function ProjectForm({
     if (dialogRole === "db") form.setValue("dbServerId", server.id);
     if (dialogRole === "backend") form.setValue("backendServerId", server.id);
     if (dialogRole === "frontend") form.setValue("frontendServerId", server.id);
+  }
+
+  function onProjectCreated(project: Project) {
+    setProjects((prev) => [...prev, project]);
+    form.setValue("projectId", project.id, { shouldValidate: true });
   }
 
   async function onSubmit(values: FormValues) {
@@ -224,6 +241,48 @@ export function ProjectForm({
           className="flex flex-col gap-6"
         >
           <Section title={t("info")}>
+            <FormField
+              control={form.control}
+              name="projectId"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>{t("project")}</FormLabel>
+                  <div className="flex gap-2">
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder={t("pickProject")} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {projects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                            <span className="ms-2 text-xs text-muted-foreground">
+                              {p.key}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setProjectDialogOpen(true)}
+                    >
+                      <Plus className="size-4" />
+                      <span className="hidden sm:inline">
+                        {t("newProjectShort")}
+                      </span>
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="name"
@@ -492,6 +551,12 @@ export function ProjectForm({
           if (!open) setDialogRole(null);
         }}
         onCreated={onServerCreated}
+      />
+
+      <ProjectCreateDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onCreated={onProjectCreated}
       />
     </>
   );

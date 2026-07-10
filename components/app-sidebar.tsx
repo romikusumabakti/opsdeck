@@ -3,6 +3,7 @@
 import {
   Aperture,
   BookOpen,
+  CircleDot,
   Clock,
   DatabaseZap,
   FolderKanban,
@@ -43,6 +44,7 @@ const projectItems = [
     adminOnly: false,
   },
   { key: "mockTime", url: "/mock-time", icon: Clock, adminOnly: false },
+  { key: "issues", url: "/issues", icon: CircleDot, adminOnly: false },
   { key: "history", url: "/history", icon: History, adminOnly: false },
   { key: "settings", url: "/settings", icon: Settings, adminOnly: true },
 ] as const;

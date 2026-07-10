@@ -74,7 +74,8 @@
     "edit": "Ubah",
     "loading": "Memuat…",
     "security": "Keamanan",
-    "sessions": "Sesi"
+    "sessions": "Sesi",
+    "issues": "Isu"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -111,7 +112,8 @@
     "users": "Pengguna",
     "projects": "Proyek",
     "knowledge": "Pengetahuan",
-    "storage": "Penyimpanan"
+    "storage": "Penyimpanan",
+    "issues": "Isu"
   },
   "header": {
     "selectProject": "Pilih proyek…",
@@ -157,7 +159,9 @@
     "sortNameAsc": "Nama (A–Z)",
     "sortNameDesc": "Nama (Z–A)",
     "noMatch": "Tidak ada proyek yang cocok dengan \"{query}\".",
-    "clearSearch": "Hapus pencarian"
+    "clearSearch": "Hapus pencarian",
+    "environmentCount": "{count, plural, other {# environment}}",
+    "noEnvironments": "Belum ada environment"
   },
   "dashboard": {
     "title": "Dasbor",
@@ -563,7 +567,11 @@
     "submitFailed": "Gagal menyimpan proyek",
     "createdSuccess": "Proyek berhasil dibuat",
     "savedSuccess": "Proyek berhasil disimpan",
-    "nameCopySuffix": "{name} (salinan)"
+    "nameCopySuffix": "{name} (salinan)",
+    "project": "Proyek",
+    "pickProject": "Pilih proyek…",
+    "newProjectShort": "Proyek baru",
+    "projectRequired": "Pilih proyek"
   },
   "projectSettings": {
     "title": "Pengaturan proyek",
@@ -1037,5 +1045,57 @@
     "submitting": "Menyimpan…",
     "saveChanges": "Simpan perubahan",
     "create": "Buat"
+  },
+  "projectCreateDialog": {
+    "title": "Proyek baru",
+    "description": "Kelompokkan deployment (QA, dev, devops) dalam satu proyek.",
+    "name": "Nama proyek",
+    "namePlaceholder": "mis. Common Membership",
+    "key": "Kunci",
+    "keyPlaceholder": "mis. CMEM",
+    "keyHint": "Prefix huruf besar untuk kunci isu (CMEM-42). 2–10 huruf/angka.",
+    "client": "Klien (opsional)",
+    "clientPlaceholder": "mis. DPLK",
+    "submit": "Buat proyek",
+    "submitting": "Membuat…",
+    "created": "Proyek dibuat",
+    "createFailed": "Gagal membuat proyek",
+    "keyTaken": "Kunci sudah dipakai"
+  },
+  "issues": {
+    "title": "Isu",
+    "subtitle": "Lacak bug dan tugas untuk proyek ini.",
+    "new": "Isu baru",
+    "searchPlaceholder": "Cari isu…",
+    "empty": "Belum ada isu",
+    "emptyDescription": "Buat isu pertama untuk mulai melacak pekerjaan proyek ini.",
+    "columnKey": "Kunci",
+    "columnTitle": "Judul",
+    "columnStatus": "Status",
+    "columnEnvironment": "Environment",
+    "columnAssignee": "Penanggung jawab",
+    "columnCreated": "Dibuat",
+    "unassigned": "Belum ditugaskan",
+    "allEnvironments": "Tidak spesifik environment",
+    "status": {
+      "open": "Terbuka",
+      "in_progress": "Dikerjakan",
+      "resolved": "Selesai",
+      "closed": "Ditutup"
+    },
+    "createTitle": "Isu baru",
+    "createDescription": "Jelaskan bug atau tugas.",
+    "titleLabel": "Judul",
+    "titlePlaceholder": "Ringkasan singkat",
+    "descriptionLabel": "Deskripsi",
+    "descriptionPlaceholder": "Apa yang terjadi, langkah reproduksi, harapan vs aktual…",
+    "environmentLabel": "Environment (opsional)",
+    "none": "Tidak ada",
+    "create": "Buat isu",
+    "creating": "Membuat…",
+    "createdSuccess": "Isu dibuat",
+    "createFailed": "Gagal membuat isu",
+    "updateFailed": "Gagal memperbarui isu",
+    "statusUpdated": "Status diperbarui"
   }
 }

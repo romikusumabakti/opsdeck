@@ -74,7 +74,8 @@
     "edit": "تعديل",
     "loading": "جارٍ التحميل…",
     "security": "الأمان",
-    "sessions": "الجلسات"
+    "sessions": "الجلسات",
+    "issues": "المشكلات"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",
@@ -111,7 +112,8 @@
     "users": "المستخدمون",
     "projects": "المشاريع",
     "knowledge": "المعرفة",
-    "storage": "التخزين"
+    "storage": "التخزين",
+    "issues": "المشكلات"
   },
   "header": {
     "selectProject": "اختر مشروعاً…",
@@ -157,7 +159,9 @@
     "sortNameAsc": "الاسم (أ–ي)",
     "sortNameDesc": "الاسم (ي–أ)",
     "noMatch": "لا توجد مشاريع تطابق \"{query}\".",
-    "clearSearch": "مسح البحث"
+    "clearSearch": "مسح البحث",
+    "environmentCount": "{count, plural, other {# بيئة}}",
+    "noEnvironments": "لا توجد بيئات بعد"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -563,7 +567,11 @@
     "submitFailed": "فشل حفظ المشروع",
     "createdSuccess": "تم إنشاء المشروع",
     "savedSuccess": "تم حفظ المشروع",
-    "nameCopySuffix": "{name} (نسخة)"
+    "nameCopySuffix": "{name} (نسخة)",
+    "project": "المشروع",
+    "pickProject": "اختر مشروعًا…",
+    "newProjectShort": "مشروع جديد",
+    "projectRequired": "اختر مشروعًا"
   },
   "projectSettings": {
     "title": "إعدادات المشروع",
@@ -1037,5 +1045,57 @@
     "submitting": "جارٍ الحفظ…",
     "saveChanges": "حفظ التغييرات",
     "create": "إنشاء"
+  },
+  "projectCreateDialog": {
+    "title": "مشروع جديد",
+    "description": "اجمع عمليات النشر (اختبار الجودة، التطوير، DevOps) ضمن مشروع واحد.",
+    "name": "اسم المشروع",
+    "namePlaceholder": "مثال: Common Membership",
+    "key": "الرمز",
+    "keyPlaceholder": "مثال: CMEM",
+    "keyHint": "بادئة بأحرف كبيرة لرموز المشكلات (CMEM-42). من 2 إلى 10 أحرف/أرقام.",
+    "client": "العميل (اختياري)",
+    "clientPlaceholder": "مثال: DPLK",
+    "submit": "إنشاء المشروع",
+    "submitting": "جارٍ الإنشاء…",
+    "created": "تم إنشاء المشروع",
+    "createFailed": "فشل إنشاء المشروع",
+    "keyTaken": "هذا الرمز مستخدم بالفعل"
+  },
+  "issues": {
+    "title": "المشكلات",
+    "subtitle": "تتبّع الأخطاء والمهام لهذا المشروع.",
+    "new": "مشكلة جديدة",
+    "searchPlaceholder": "ابحث في المشكلات…",
+    "empty": "لا توجد مشكلات بعد",
+    "emptyDescription": "أنشئ أول مشكلة لبدء تتبّع العمل في هذا المشروع.",
+    "columnKey": "الرمز",
+    "columnTitle": "العنوان",
+    "columnStatus": "الحالة",
+    "columnEnvironment": "البيئة",
+    "columnAssignee": "المُكلَّف",
+    "columnCreated": "تاريخ الإنشاء",
+    "unassigned": "غير مُسنَد",
+    "allEnvironments": "غير مرتبطة ببيئة",
+    "status": {
+      "open": "مفتوحة",
+      "in_progress": "قيد التنفيذ",
+      "resolved": "تم الحل",
+      "closed": "مغلقة"
+    },
+    "createTitle": "مشكلة جديدة",
+    "createDescription": "صف الخطأ أو المهمة.",
+    "titleLabel": "العنوان",
+    "titlePlaceholder": "ملخص قصير",
+    "descriptionLabel": "الوصف",
+    "descriptionPlaceholder": "ماذا حدث، خطوات إعادة الإنتاج، المتوقع مقابل الفعلي…",
+    "environmentLabel": "البيئة (اختياري)",
+    "none": "لا شيء",
+    "create": "إنشاء مشكلة",
+    "creating": "جارٍ الإنشاء…",
+    "createdSuccess": "تم إنشاء المشكلة",
+    "createFailed": "فشل إنشاء المشكلة",
+    "updateFailed": "فشل تحديث المشكلة",
+    "statusUpdated": "تم تحديث الحالة"
   }
 }

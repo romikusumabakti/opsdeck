@@ -1,5 +1,6 @@
 import { Copy, FolderPlus } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { listProjects } from "@/actions/project-catalog";
 import { getProjectById } from "@/actions/projects";
 import { getServers } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
@@ -26,8 +27,9 @@ export default async function NewProjectPage({
   await requireAdmin();
 
   const t = await getTranslations("newProject");
-  const [servers, cloneFrom] = await Promise.all([
+  const [servers, projects, cloneFrom] = await Promise.all([
     getServers(),
+    listProjects(),
     from ? getProjectById(from) : Promise.resolve(undefined),
   ]);
 
@@ -63,6 +65,7 @@ export default async function NewProjectPage({
           <ProjectForm
             mode={{ type: "create", cloneFrom: cloneFrom ?? undefined }}
             servers={servers}
+            projects={projects}
           />
         </CardContent>
       </Card>

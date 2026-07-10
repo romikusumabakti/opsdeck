@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import { listProjects } from "@/actions/project-catalog";
 import { getProjects, getProjectsLastOpened } from "@/actions/projects";
 import { getProjectsLastActivity } from "@/actions/runs";
 import { PageHeader } from "@/components/page-header";
@@ -17,15 +18,25 @@ export default async function Home({
 }: {
   searchParams: Promise<{ sort?: string }>;
 }) {
-  const [{ sort }, projects, session, lastActivity, lastOpened] =
-    await Promise.all([
-      searchParams,
-      getProjects(),
-      getServerSession(),
-      getProjectsLastActivity(),
-      getProjectsLastOpened(),
-    ]);
+  const [
+    { sort },
+    projects,
+    logicalProjects,
+    session,
+    lastActivity,
+    lastOpened,
+  ] = await Promise.all([
+    searchParams,
+    getProjects(),
+    listProjects(),
+    getServerSession(),
+    getProjectsLastActivity(),
+    getProjectsLastOpened(),
+  ]);
   const admin = session ? isAdmin(session) : false;
+  const projectNameById: Record<string, string> = Object.fromEntries(
+    logicalProjects.map((p) => [p.id, p.name])
+  );
   const initialSort: SortKey = SORT_KEYS.includes(sort as SortKey)
     ? (sort as SortKey)
     : "recent";
@@ -52,6 +63,7 @@ export default async function Home({
       />
       <ProjectsGrid
         projects={projects}
+        projectNameById={projectNameById}
         lastActivity={lastActivity}
         lastOpened={lastOpened}
         initialSort={initialSort}
