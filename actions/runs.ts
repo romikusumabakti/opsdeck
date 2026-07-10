@@ -265,3 +265,47 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
     };
   }
 }
+
+// A run surfaced on the Home/Inbox: which environment, what it was, when.
+export type HomeRun = {
+  id: string;
+  environmentId: string;
+  environmentName: string | null;
+  description: string;
+  status: Run["status"];
+  runAt: Date;
+};
+
+/**
+ * Most recent failed runs across all environments — the "needs attention" feed
+ * on Home. Capped small; Home is a glance, not an audit log.
+ */
+export async function getRecentFailedRuns(limit = 8): Promise<HomeRun[]> {
+  await requireSession();
+  try {
+    const rows = await db.query.runs.findMany({
+      where: { status: "failed" },
+      columns: {
+        id: true,
+        projectId: true,
+        description: true,
+        status: true,
+        runAt: true,
+      },
+      with: { environment: { columns: { id: true, name: true } } },
+      orderBy: { runAt: "desc" },
+      limit,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      environmentId: r.projectId,
+      environmentName: r.environment?.name ?? null,
+      description: r.description,
+      status: r.status,
+      runAt: r.runAt,
+    }));
+  } catch (error) {
+    console.error("Failed to fetch failed runs:", error);
+    return [];
+  }
+}

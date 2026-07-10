@@ -114,7 +114,8 @@
     "knowledge": "المعرفة",
     "storage": "التخزين",
     "issues": "المشكلات",
-    "allIssues": "المشكلات"
+    "allIssues": "المشكلات",
+    "home": "الرئيسية"
   },
   "header": {
     "selectProject": "اختر مشروعاً…",
@@ -1139,5 +1140,18 @@
     "noEnvironments": "لا توجد بيئات بعد",
     "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع.",
     "client": "العميل"
+  },
+  "inbox": {
+    "title": "الرئيسية",
+    "subtitle": "عملك وما يحتاج إلى انتباه.",
+    "assignedToMe": "مُسنَد إليّ",
+    "assignedEmpty": "لا شيء مُسنَد إليك.",
+    "runningNow": "قيد التشغيل الآن",
+    "runningEmpty": "لا مهام قيد التشغيل.",
+    "needsAttention": "يحتاج انتباه",
+    "failedEmpty": "لا إخفاقات حديثة.",
+    "jumpBackIn": "العودة السريعة",
+    "recentEmpty": "لا بيئات حديثة.",
+    "viewAll": "عرض الكل"
   }
 }
