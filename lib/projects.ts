@@ -2,24 +2,25 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import type {
-  ProjectWithServers,
-  SafeProjectWithServers,
+  EnvironmentWithServers,
+  SafeEnvironmentWithServers,
   SafeServer,
   Server,
 } from "@/lib/db/schema";
 
 /**
- * Load a project together with its three server relations — including SSH/DB
- * credentials. SERVER-ONLY: the result carries plaintext passwords and the
- * mock-time API key, so it must never be returned to a client component or a
- * background-job payload. Actions take a `projectId` from the client and call
- * this to re-resolve the trusted record server-side; never trust a project
- * object sent up from the browser.
+ * Load an environment (deployment) together with its three server relations —
+ * including SSH/DB credentials. SERVER-ONLY: the result carries plaintext
+ * passwords and the mock-time API key, so it must never be returned to a client
+ * component or a background-job payload. Actions take an id from the client
+ * (route param `[projectId]`, historically the deployment id) and call this to
+ * re-resolve the trusted record server-side; never trust an object sent up from
+ * the browser.
  */
-export async function loadProjectWithServers(
+export async function loadEnvironmentWithServers(
   id: string
-): Promise<ProjectWithServers | null> {
-  const project = await db.query.projects.findFirst({
+): Promise<EnvironmentWithServers | null> {
+  const project = await db.query.environments.findFirst({
     where: { id },
     with: {
       dbServer: true,
@@ -27,7 +28,7 @@ export async function loadProjectWithServers(
       frontendServer: true,
     },
   });
-  return (project as ProjectWithServers | undefined) ?? null;
+  return (project as EnvironmentWithServers | undefined) ?? null;
 }
 
 function stripServer(server: Server): SafeServer {
@@ -41,8 +42,8 @@ function stripServer(server: Server): SafeServer {
  * three SSH passwords, the mssql `sa` password, and the mock-time API key.
  */
 export function sanitizeProject(
-  project: ProjectWithServers
-): SafeProjectWithServers {
+  project: EnvironmentWithServers
+): SafeEnvironmentWithServers {
   const {
     dbPassword: _dbPassword,
     backendMockTimeApiKey: _apiKey,
@@ -64,7 +65,7 @@ export function sanitizeProject(
 /** Load a project and sanitize it in one step for handing to the client. */
 export async function loadSafeProject(
   id: string
-): Promise<SafeProjectWithServers | null> {
-  const project = await loadProjectWithServers(id);
+): Promise<SafeEnvironmentWithServers | null> {
+  const project = await loadEnvironmentWithServers(id);
   return project ? sanitizeProject(project) : null;
 }

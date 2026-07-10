@@ -67,14 +67,19 @@ export async function getActiveRuns(): Promise<ActiveRun[]> {
         runAt: true,
       },
       with: {
-        project: {
+        environment: {
           columns: { id: true, name: true },
         },
       },
       orderBy: { runAt: "desc" },
       limit: 10,
     });
-    return rows as ActiveRun[];
+    // `environment` is the run's deployment; surface it under the historical
+    // `project` field name that ActiveRun's consumers expect.
+    return rows.map(({ environment, ...run }) => ({
+      ...run,
+      project: environment,
+    })) as ActiveRun[];
   } catch (error) {
     console.error("Failed to fetch running runs:", error);
     return [];

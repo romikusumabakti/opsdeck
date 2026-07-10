@@ -35,7 +35,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import type { ServiceAction, ServiceRole, ServiceType } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +53,7 @@ type StatusMap = Partial<Record<ServiceRole, ServiceStatusResult>>;
 export function ServicesClient({
   project,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
 }) {
   const t = useTranslations("services");
   const tCommon = useTranslations("common");
@@ -144,7 +144,7 @@ function ServiceCard({
   loading,
   onRefresh,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   meta: RoleMeta;
   status: ServiceStatusResult | null;
   loading: boolean;

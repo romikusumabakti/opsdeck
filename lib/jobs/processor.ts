@@ -2,9 +2,9 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Job } from "bullmq";
-import type { ProjectWithServers } from "@/lib/db/schema";
+import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
-import { loadProjectWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/projects";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
@@ -67,7 +67,7 @@ async function handleCreateDatabaseBackup(
   data: JobMap["db/backup.requested"]
 ): Promise<{ success: true; filename: string }> {
   const { runId, compress, projectId, database } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const useCompression = compress ?? true;
   // Fall back to the project's configured database when no explicit target is
@@ -134,7 +134,7 @@ async function handleCreateDatabaseBackup(
 }
 
 async function runPostgresBackup(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   database: string,
   ts: string,
   credentials: { host: string; username: string; password: string },
@@ -165,7 +165,7 @@ async function runPostgresBackup(
 }
 
 async function runMssqlBackup(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   database: string,
   ts: string,
   credentials: { host: string; username: string; password: string },
@@ -206,7 +206,7 @@ async function handleMockProjectTimeLegacy(
   data: JobMap["project/mock-time.legacy"]
 ): Promise<{ success: true; mockedAt: string }> {
   const { projectId, mockedAt, runId } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   const credentials = {
@@ -295,7 +295,7 @@ async function handleMockProjectTimeResetLegacy(
   data: JobMap["project/mock-time.reset-legacy"]
 ): Promise<{ success: true }> {
   const { projectId, runId } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   const credentials = {
@@ -385,7 +385,7 @@ function credsOf(server: {
   };
 }
 
-function dbOsUser(dbType: ProjectWithServers["dbType"]): string {
+function dbOsUser(dbType: EnvironmentWithServers["dbType"]): string {
   return dbType === "postgres" ? "postgres" : "mssql";
 }
 
@@ -404,7 +404,7 @@ async function ignoreErrors(fn: () => Promise<unknown>): Promise<void> {
 // inside the container / as the DB OS user; the `> hostTmp` redirect runs in
 // the outer SSH-user shell so the temp ends up SSH-readable for SFTP.
 function buildExtractCommand(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   filePath: string,
   hostTmp: string
 ): string {
@@ -423,7 +423,7 @@ function buildExtractCommand(
 // Command (run on the TARGET host) that moves the SSH-owned `hostTmp` into the
 // target's backup dir as `dst`, owned/readable by the DB process.
 function buildPlaceCommand(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   hostTmp: string,
   dst: string
 ): string {
@@ -456,7 +456,7 @@ function buildPlaceCommand(
 // Command (run on the TARGET host) removing the staged copy from the backup dir
 // once the restore has consumed it, so foreign backups don't linger.
 function buildRemovePlacedCommand(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   dst: string
 ): string {
   const name = project.dbServiceName;
@@ -473,8 +473,8 @@ function buildRemovePlacedCommand(
 // backup dir (different host/service). Returns a cleanup that removes the placed
 // file after the restore is done. Throws (with temps cleaned up) on any failure.
 async function transferBackupToTarget(
-  sourceProject: ProjectWithServers,
-  targetProject: ProjectWithServers,
+  sourceProject: EnvironmentWithServers,
+  targetProject: EnvironmentWithServers,
   filename: string,
   stamp: string
 ): Promise<() => Promise<void>> {
@@ -544,7 +544,7 @@ async function handleRestoreDatabaseBackup(
     database,
     sourceProjectId,
   } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   // Restore target — the configured database unless the picker sent another
   // one (already validated by the action layer).
@@ -566,7 +566,7 @@ async function handleRestoreDatabaseBackup(
   let backupPath = project.dbBackupPath;
   let cleanupTransfer: (() => Promise<void>) | null = null;
   if (sourceProjectId && sourceProjectId !== projectId) {
-    const sourceProject = await loadProjectWithServers(sourceProjectId);
+    const sourceProject = await loadEnvironmentWithServers(sourceProjectId);
     if (!sourceProject) {
       throw new Error(`Source project ${sourceProjectId} not found`);
     }
@@ -650,7 +650,7 @@ async function handleRestoreDatabaseBackup(
 }
 
 async function runPostgresRecreateDatabase(
-  data: ProjectWithServers,
+  data: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -674,7 +674,7 @@ async function runPostgresRecreateDatabase(
 }
 
 async function runPostgresRestore(
-  data: ProjectWithServers,
+  data: EnvironmentWithServers,
   database: string,
   filename: string,
   source: string,
@@ -701,7 +701,7 @@ async function handleControlService(
   data: JobMap["service/control.requested"]
 ): Promise<{ success: true }> {
   const { projectId, role, action, runId } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const cfg = getServiceConfig(project, role);
   const credentials = {
@@ -758,7 +758,7 @@ function posixDirname(p: string): string {
 // name. We only keep rows whose 3rd column is a known file type, which also
 // filters sqlcmd's trailing "(N rows affected)" line.
 async function getMssqlBackupFileList(
-  data: ProjectWithServers,
+  data: EnvironmentWithServers,
   source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<MssqlBackupFile[]> {
@@ -816,7 +816,7 @@ function buildMssqlMoveClauses(
 }
 
 async function runMssqlRestore(
-  data: ProjectWithServers,
+  data: EnvironmentWithServers,
   database: string,
   source: string,
   credentials: { host: string; username: string; password: string }
@@ -870,7 +870,7 @@ async function handleCreateDatabase(
   data: JobMap["db/database.create.requested"]
 ): Promise<{ success: true; database: string }> {
   const { projectId, database, runId } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const credentials = {
     host: project.dbServer.host,
@@ -901,7 +901,7 @@ async function handleCreateDatabase(
 }
 
 async function runPostgresCreateDatabase(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -917,7 +917,7 @@ async function runPostgresCreateDatabase(
 }
 
 async function runMssqlCreateDatabase(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -940,7 +940,7 @@ async function handleDropDatabase(
   data: JobMap["db/database.drop.requested"]
 ): Promise<{ success: true; database: string }> {
   const { projectId, database, runId } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const credentials = {
     host: project.dbServer.host,
@@ -977,7 +977,7 @@ async function handleDropDatabase(
 }
 
 async function runPostgresDropDatabase(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -995,7 +995,7 @@ async function runPostgresDropDatabase(
 }
 
 async function runMssqlDropDatabase(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
@@ -1027,7 +1027,7 @@ async function handleRenameDatabase(
   data: JobMap["db/database.rename.requested"]
 ): Promise<{ success: true; from: string; to: string }> {
   const { projectId, from, to, runId } = data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const credentials = {
     host: project.dbServer.host,
@@ -1065,7 +1065,7 @@ async function handleRenameDatabase(
 }
 
 async function runPostgresRenameDatabase(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   from: string,
   to: string,
   credentials: { host: string; username: string; password: string }
@@ -1088,7 +1088,7 @@ async function runPostgresRenameDatabase(
 }
 
 async function runMssqlRenameDatabase(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   from: string,
   to: string,
   credentials: { host: string; username: string; password: string }

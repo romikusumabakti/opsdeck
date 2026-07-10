@@ -7,7 +7,7 @@ import {
   type LogViewerState,
 } from "@/components/log-viewer";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import type { LogLines, ServiceRole } from "@/lib/services";
 
 export type InitialLogState = {
@@ -18,7 +18,7 @@ export type InitialLogState = {
 };
 
 type Props = {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   role: ServiceRole;
   serviceName: string;
   initial: InitialLogState;

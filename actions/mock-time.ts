@@ -2,8 +2,8 @@
 
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { type ProjectWithServers, runs } from "@/lib/db/schema";
-import { loadProjectWithServers } from "@/lib/projects";
+import { type EnvironmentWithServers, runs } from "@/lib/db/schema";
+import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -38,14 +38,14 @@ const API_TIMEOUT_MS = 30_000;
 async function requireProject(
   projectId: string
 ): Promise<
-  | { ok: true; project: ProjectWithServers; userId: string }
+  | { ok: true; project: EnvironmentWithServers; userId: string }
   | { ok: false; error: string }
 > {
   const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     return { ok: false, error: "Invalid project id" };
   }
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) return { ok: false, error: "Project not found" };
   return { ok: true, project, userId: session.user.id };
 }
@@ -92,7 +92,7 @@ async function describeHttpError(response: Response): Promise<string> {
   return statusLine;
 }
 
-function clockUrl(project: ProjectWithServers): string | null {
+function clockUrl(project: EnvironmentWithServers): string | null {
   const url = project.backendMockTimeApiUrl?.trim();
   return url ? url.replace(/\/+$/, "") : null;
 }
@@ -114,7 +114,7 @@ type ClockRequest = {
 };
 
 async function clockFetch(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   req: ClockRequest
 ): Promise<Response> {
   const base = clockUrl(project);
@@ -135,7 +135,7 @@ async function clockFetch(
 }
 
 async function recordAudit(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   userId: string,
   runAt: Date,
   description: string,
@@ -158,7 +158,7 @@ async function recordAudit(
 }
 
 async function callMutating(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   userId: string,
   req: ClockRequest,
   auditDescription: string,
@@ -364,7 +364,7 @@ export async function mockProjectTimeLegacy(
   }
 }
 
-function legacyCredentials(project: ProjectWithServers) {
+function legacyCredentials(project: EnvironmentWithServers) {
   return {
     host: project.backendServer.host,
     username: project.backendServer.username,

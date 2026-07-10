@@ -33,13 +33,13 @@ import { useModKey } from "@/hooks/use-is-mac";
 import { useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
-import type { Project } from "@/lib/db/schema";
+import type { Environment } from "@/lib/db/schema";
 
 export function CommandPalette({
   projects,
   isAdmin,
 }: {
-  projects: Project[];
+  projects: Environment[];
   isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);

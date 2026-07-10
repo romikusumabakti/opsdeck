@@ -17,7 +17,7 @@ import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
@@ -31,7 +31,7 @@ import {
 export function MockTimeLegacy({
   project,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");

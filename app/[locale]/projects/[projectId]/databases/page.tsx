@@ -5,7 +5,7 @@ import { getDatabaseList } from "@/actions/databases";
 import { getProjectById, getProjects } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { DatabasesTabs } from "./databases-tabs";
 import { DatabasesTabsSkeleton } from "./databases-tabs-skeleton";
 
@@ -61,7 +61,7 @@ async function DatabasesContent({
   project,
   defaultTab,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   defaultTab: "manage" | "backup" | "restore";
 }) {
   // Best-effort enumeration; both lists degrade gracefully so a single failing

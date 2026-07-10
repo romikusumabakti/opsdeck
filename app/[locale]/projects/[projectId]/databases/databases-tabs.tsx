@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 import type { DatabaseEntry } from "@/actions/databases";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Project, SafeProjectWithServers } from "@/lib/db/schema";
+import type { Environment, SafeEnvironmentWithServers } from "@/lib/db/schema";
 import type { Backup } from "@/lib/types";
 import { BackupDatabase } from "../backup-database/backup-database";
 import { RestoreDatabase } from "../restore-database/restore-database";
@@ -25,10 +25,10 @@ export function DatabasesTabs({
   backupListError,
   defaultTab = "backup",
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
   backups: Backup[];
-  allProjects: Project[];
+  allProjects: Environment[];
   listError: string | null;
   backupListError: string | null;
   defaultTab?: "manage" | "backup" | "restore";

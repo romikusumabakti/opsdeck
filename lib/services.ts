@@ -1,4 +1,4 @@
-import type { ProjectWithServers, Server } from "@/lib/db/schema";
+import type { EnvironmentWithServers, Server } from "@/lib/db/schema";
 import { shq } from "@/lib/sh";
 
 export type ServiceRole = "db" | "backend" | "frontend";
@@ -20,7 +20,7 @@ export type ServiceConfig = {
 };
 
 export function getServiceConfig(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   role: ServiceRole
 ): ServiceConfig {
   if (role === "db") {

@@ -21,7 +21,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { Project } from "@/lib/db/schema";
+import type { Environment } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/([^/?#]+))?/i;
@@ -160,7 +160,7 @@ export function HeaderBreadcrumb({
   projects,
   isAdmin,
 }: {
-  projects: Project[];
+  projects: Environment[];
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
@@ -203,7 +203,10 @@ export function HeaderBreadcrumb({
 
   return (
     <>
-      <Separator orientation="vertical" className="h-5 data-vertical:self-center" />
+      <Separator
+        orientation="vertical"
+        className="h-5 data-vertical:self-center"
+      />
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 min-w-0">
         {activeProject ? (
           <ProjectSwitcher
@@ -241,8 +244,8 @@ function ProjectSwitcher({
   isAdmin,
   activeSection,
 }: {
-  projects: Project[];
-  activeProject: Project;
+  projects: Environment[];
+  activeProject: Environment;
   isAdmin: boolean;
   activeSection?: string;
 }) {
