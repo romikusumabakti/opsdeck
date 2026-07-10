@@ -62,7 +62,7 @@ export default async function HomePage({
               {assigned.map((i) => (
                 <li key={i.id}>
                   <Link
-                    href={`/project/${i.project.key}`}
+                    href={`/project/${i.project.key}/${i.number}`}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 transition-colors"
                   >
                     <span

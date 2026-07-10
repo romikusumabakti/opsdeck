@@ -227,9 +227,21 @@ export function GlobalIssuesClient({
               {visible.map((issue) => (
                 <TableRow key={issue.id}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {issue.project.key}-{issue.number}
+                    <Link
+                      href={`/project/${issue.project.key}/${issue.number}`}
+                      className="hover:text-foreground hover:underline"
+                    >
+                      {issue.project.key}-{issue.number}
+                    </Link>
                   </TableCell>
-                  <TableCell className="font-medium">{issue.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={`/project/${issue.project.key}/${issue.number}`}
+                      className="hover:underline"
+                    >
+                      {issue.title}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate">
                     <Link
                       href={`/project/${issue.project.key}`}

@@ -1158,5 +1158,25 @@
     "jumpBackIn": "العودة السريعة",
     "recentEmpty": "لا بيئات حديثة.",
     "viewAll": "عرض الكل"
+  },
+  "issueDetail": {
+    "description": "الوصف",
+    "noDescription": "لا يوجد وصف.",
+    "descriptionPlaceholder": "أضف وصفًا…",
+    "titlePlaceholder": "عنوان المشكلة",
+    "comments": "التعليقات",
+    "noComments": "لا توجد تعليقات بعد.",
+    "commentPlaceholder": "اكتب تعليقًا…",
+    "post": "تعليق",
+    "posting": "جارٍ النشر…",
+    "commentAdded": "تمت إضافة التعليق",
+    "commentFailed": "فشل إضافة التعليق",
+    "save": "حفظ",
+    "saving": "جارٍ الحفظ…",
+    "saved": "تم الحفظ",
+    "saveFailed": "فشل الحفظ",
+    "createdBy": "فتحها {name}",
+    "unknownUser": "غير معروف",
+    "notFound": "لم يتم العثور على المشكلة."
   }
 }

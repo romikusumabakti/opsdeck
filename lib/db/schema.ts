@@ -258,6 +258,27 @@ export const issues = pgTable(
   ]
 );
 
+// Threaded discussion on an issue. Author is set null on user delete so the
+// comment survives (shown as "Unknown"); the row is deleted with its issue.
+export const issueComments = pgTable(
+  "issue_comments",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    issueId: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // The detail page lists a thread oldest-first.
+    index("issue_comments_issue_idx").on(t.issueId, t.createdAt),
+  ]
+);
+
 // =========================
 // Notifications
 // =========================
@@ -637,6 +658,9 @@ export type NewIssue = InferInsertModel<typeof issues>;
 
 export type Notification = InferSelectModel<typeof notifications>;
 export type NewNotification = InferInsertModel<typeof notifications>;
+
+export type IssueComment = InferSelectModel<typeof issueComments>;
+export type NewIssueComment = InferInsertModel<typeof issueComments>;
 
 // A concrete deployment. Was historically called "Project" — now `Environment`.
 export type Environment = InferSelectModel<typeof environments>;
