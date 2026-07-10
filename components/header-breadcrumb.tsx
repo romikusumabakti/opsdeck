@@ -75,7 +75,7 @@ function getStaticSegments(pathname: string): StaticSegment[] {
   // /projects/new
   if (pathname === "/projects/new") {
     return [
-      { kind: "static", href: "/", labelKey: "breadcrumbs.projects" },
+      { kind: "static", href: "/projects", labelKey: "breadcrumbs.projects" },
       { kind: "static", labelKey: "breadcrumbs.new" },
     ];
   }

@@ -43,6 +43,34 @@ export async function getOpenIssueCounts(): Promise<Record<string, number>> {
   }
 }
 
+/**
+ * Not-yet-resolved issues assigned to one user, newest-updated first — the
+ * "assigned to me" feed on Home.
+ */
+export async function listAssignedIssues(
+  userId: string
+): Promise<GlobalIssue[]> {
+  await requireSession();
+  try {
+    const rows = await db.query.issues.findMany({
+      where: { assigneeId: userId },
+      with: {
+        project: { columns: { id: true, name: true, key: true } },
+        createdBy: { columns: { id: true, name: true } },
+        assignee: { columns: { id: true, name: true } },
+        environment: { columns: { id: true, name: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    return (rows as GlobalIssue[]).filter((i) =>
+      (OPEN_STATUSES as readonly string[]).includes(i.status)
+    );
+  } catch (error) {
+    console.error("Failed to list assigned issues:", error);
+    return [];
+  }
+}
+
 /** Every issue across all projects, newest-updated first — the global view. */
 export async function listAllIssues(): Promise<GlobalIssue[]> {
   await requireSession();
