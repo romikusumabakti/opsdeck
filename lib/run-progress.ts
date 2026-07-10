@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { type NewRun, runs } from "@/lib/db/schema";
+import { environments, type NewRun, runs } from "@/lib/db/schema";
+import { notifyRunFailed } from "@/lib/notifications";
 
 export type CreateRunInput = Omit<
   NewRun,
@@ -61,4 +62,33 @@ export async function failRun(
       completedAt: new Date(),
     })
     .where(eq(runs.id, runId));
+
+  // Best-effort: notify the initiator that their job failed. Never let a
+  // notification error mask the original failure.
+  try {
+    const [run] = await db
+      .select({
+        userId: runs.userId,
+        environmentId: runs.projectId,
+        description: runs.description,
+      })
+      .from(runs)
+      .where(eq(runs.id, runId))
+      .limit(1);
+    if (run?.userId) {
+      const [env] = await db
+        .select({ name: environments.name })
+        .from(environments)
+        .where(eq(environments.id, run.environmentId))
+        .limit(1);
+      await notifyRunFailed({
+        userId: run.userId,
+        environmentId: run.environmentId,
+        environmentName: env?.name ?? "",
+        description: run.description,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to emit run-failed notification:", error);
+  }
 }

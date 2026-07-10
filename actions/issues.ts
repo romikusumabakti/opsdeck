@@ -4,8 +4,19 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { type Issue, issues } from "@/lib/db/schema";
+import { type Issue, issues, projects } from "@/lib/db/schema";
+import { notifyIssueAssigned } from "@/lib/notifications";
 import { issueInputSchema, issueUpdateSchema } from "@/lib/validation";
+
+/** Look up a project's issue-key prefix (for notification text). */
+async function projectKeyOf(projectId: string): Promise<string> {
+  const [row] = await db
+    .select({ key: projects.key })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return row?.key ?? "";
+}
 
 // An issue plus the display names needed by the list, credential-free.
 export type IssueWithMeta = Issue & {
@@ -149,6 +160,15 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
           .returning();
         return row;
       });
+      if (input.assigneeId) {
+        await notifyIssueAssigned({
+          assigneeId: input.assigneeId,
+          actorId: session.user.id,
+          projectKey: await projectKeyOf(input.projectId),
+          number: created.number,
+          title: created.title,
+        });
+      }
       revalidatePath("/projects", "layout");
       return { success: true, data: created };
     } catch (error) {
@@ -164,7 +184,7 @@ export async function updateIssue(
   id: string,
   data: unknown
 ): Promise<ActionResponse> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = issueUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid issue data" };
@@ -176,6 +196,16 @@ export async function updateIssue(
       .where(eq(issues.id, id))
       .returning();
     if (!updated) return { success: false, message: "Issue not found" };
+    // Notify on (re)assignment to someone other than the actor.
+    if ("assigneeId" in parsed.data && parsed.data.assigneeId) {
+      await notifyIssueAssigned({
+        assigneeId: parsed.data.assigneeId,
+        actorId: session.user.id,
+        projectKey: await projectKeyOf(updated.projectId),
+        number: updated.number,
+        title: updated.title,
+      });
+    }
     revalidatePath("/projects", "layout");
     return { success: true, data: updated };
   } catch (error) {

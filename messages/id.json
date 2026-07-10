@@ -133,7 +133,7 @@
     "notifyTitleFailed": "Tugas gagal"
   },
   "notifications": {
-    "title": "Notifikasi browser",
+    "title": "Notifikasi",
     "description": "Dapatkan notifikasi saat tugas berdurasi panjang (backup, restore, mock time) selesai — bahkan ketika tab ini tidak aktif.",
     "enable": "Aktifkan notifikasi",
     "disable": "Nonaktifkan notifikasi",
@@ -143,7 +143,12 @@
     "unsupportedTitle": "Tidak didukung",
     "unsupportedDescription": "Browser Anda tidak mendukung notifikasi web.",
     "permissionDeniedTitle": "Izin ditolak",
-    "permissionDeniedDescription": "Anda dapat mengizinkan ulang notifikasi dari pengaturan situs di browser."
+    "permissionDeniedDescription": "Anda dapat mengizinkan ulang notifikasi dari pengaturan situs di browser.",
+    "empty": "Semua sudah terbaca.",
+    "markAllRead": "Tandai semua dibaca",
+    "ariaLabel": "Notifikasi",
+    "issue_assigned": "Ditugaskan ke Anda: {key}-{number} · {title}",
+    "run_failed": "{description} gagal di {environment}"
   },
   "projectsEmpty": {
     "title": "Belum ada proyek",
