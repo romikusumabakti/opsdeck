@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectWithServers, Server } from "@/lib/db/schema";
+import type { EnvironmentWithServers, Server } from "@/lib/db/schema";
 import { sanitizeProject } from "@/lib/projects";
 
 function makeServer(name: string): Server {
@@ -16,10 +16,11 @@ function makeServer(name: string): Server {
 }
 
 function makeProject(
-  overrides: Partial<ProjectWithServers> = {}
-): ProjectWithServers {
+  overrides: Partial<EnvironmentWithServers> = {}
+): EnvironmentWithServers {
   return {
     id: "11111111-1111-1111-1111-111111111111",
+    projectId: "22222222-2222-2222-2222-222222222222",
     name: "Demo",
     dbServerId: "db",
     dbServiceType: "docker",

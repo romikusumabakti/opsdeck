@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { formatBytes } from "@/lib/utils";
 
 // Above this many databases the list gets a search box — small lists don't
@@ -29,7 +29,7 @@ export function ManageDatabases({
   project,
   databases,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
 }) {
   const t = useTranslations("databases");

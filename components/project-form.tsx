@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
-import type { SafeProjectWithServers, Server } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers, Server } from "@/lib/db/schema";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
@@ -37,8 +37,8 @@ const DB_TYPES = ["postgres", "mssql"] as const;
 type ServerRole = "db" | "backend" | "frontend";
 
 type Mode =
-  | { type: "create"; cloneFrom?: SafeProjectWithServers }
-  | { type: "edit"; project: SafeProjectWithServers };
+  | { type: "create"; cloneFrom?: SafeEnvironmentWithServers }
+  | { type: "edit"; project: SafeEnvironmentWithServers };
 
 export function ProjectForm({
   mode,

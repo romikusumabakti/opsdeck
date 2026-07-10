@@ -3,38 +3,64 @@ import * as schema from "./schema";
 
 export const relations = defineRelations(schema, (r) => ({
   servers: {
-    dbProjects: r.many.projects({
+    dbEnvironments: r.many.environments({
       from: r.servers.id,
-      to: r.projects.dbServerId,
+      to: r.environments.dbServerId,
     }),
-    backendProjects: r.many.projects({
+    backendEnvironments: r.many.environments({
       from: r.servers.id,
-      to: r.projects.backendServerId,
+      to: r.environments.backendServerId,
     }),
-    frontendProjects: r.many.projects({
+    frontendEnvironments: r.many.environments({
       from: r.servers.id,
-      to: r.projects.frontendServerId,
+      to: r.environments.frontendServerId,
     }),
   },
   projects: {
+    environments: r.many.environments(),
+    issues: r.many.issues(),
+  },
+  environments: {
+    project: r.one.projects({
+      from: r.environments.projectId,
+      to: r.projects.id,
+    }),
     runs: r.many.runs(),
     dbServer: r.one.servers({
-      from: r.projects.dbServerId,
+      from: r.environments.dbServerId,
       to: r.servers.id,
     }),
     backendServer: r.one.servers({
-      from: r.projects.backendServerId,
+      from: r.environments.backendServerId,
       to: r.servers.id,
     }),
     frontendServer: r.one.servers({
-      from: r.projects.frontendServerId,
+      from: r.environments.frontendServerId,
       to: r.servers.id,
     }),
   },
-  runs: {
+  issues: {
     project: r.one.projects({
-      from: r.runs.projectId,
+      from: r.issues.projectId,
       to: r.projects.id,
+    }),
+    environment: r.one.environments({
+      from: r.issues.environmentId,
+      to: r.environments.id,
+    }),
+    createdBy: r.one.users({
+      from: r.issues.createdById,
+      to: r.users.id,
+    }),
+    assignee: r.one.users({
+      from: r.issues.assigneeId,
+      to: r.users.id,
+    }),
+  },
+  runs: {
+    environment: r.one.environments({
+      from: r.runs.projectId,
+      to: r.environments.id,
     }),
     user: r.one.users({
       from: r.runs.userId,

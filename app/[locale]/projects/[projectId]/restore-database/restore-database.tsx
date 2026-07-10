@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { Project, SafeProjectWithServers } from "@/lib/db/schema";
+import type { Environment, SafeEnvironmentWithServers } from "@/lib/db/schema";
 import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -35,12 +35,12 @@ export function RestoreDatabase({
   databases,
   sourceProjects,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   backups: Backup[];
   databases: DatabaseEntry[];
   // Other projects sharing this project's DB location, offered as alternative
   // backup sources. Empty when the project has no compatible siblings.
-  sourceProjects: Project[];
+  sourceProjects: Environment[];
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");

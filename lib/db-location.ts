@@ -1,12 +1,12 @@
-import type { Project } from "@/lib/db/schema";
+import type { Environment } from "@/lib/db/schema";
 
-// The subset of project fields that pin down where its backup files physically
-// live: the same host (dbServerId), the same service instance (type + name, so
-// the same container/pod for docker/kubernetes), and the same engine (dbType).
-// Pure + client-safe (no server-only imports) so both the source-project picker
-// and the restore action/worker can share one compatibility rule.
+// The subset of environment fields that pin down where its backup files
+// physically live: the same host (dbServerId), the same service instance (type +
+// name, so the same container/pod for docker/kubernetes), and the same engine
+// (dbType). Pure + client-safe (no server-only imports) so both the source
+// picker and the restore action/worker can share one compatibility rule.
 export type DbLocation = Pick<
-  Project,
+  Environment,
   "dbServerId" | "dbServiceType" | "dbServiceName" | "dbType"
 >;
 

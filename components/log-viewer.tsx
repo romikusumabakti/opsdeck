@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
   LogContent,
   type LogLevel,
@@ -78,7 +78,7 @@ const BOTTOM_THRESHOLD_PX = 16;
 const STATE_SYNC_DEBOUNCE_MS = 350;
 
 type Props = {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   role: ServiceRole;
   serviceName: string;
   // Seed view state (defaults: tail=200, q="", level="all", view="pretty").

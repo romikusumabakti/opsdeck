@@ -19,6 +19,12 @@ export const serviceTypeEnum = pgEnum("service_type", [
   "kubernetes",
 ]);
 export const databaseTypeEnum = pgEnum("database_type", ["postgres", "mssql"]);
+export const issueStatusEnum = pgEnum("issue_status", [
+  "open",
+  "in_progress",
+  "resolved",
+  "closed",
+]);
 
 // All IDs use UUIDv7 (RFC 9562, May 2024) — time-ordered random UUIDs that
 // preserve B-tree index locality unlike v4. Default value uses Postgres 18's
@@ -39,10 +45,36 @@ export const servers = pgTable("servers", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const projects = pgTable(
-  "projects",
+// The real, logical project — one application (e.g. "Common Membership",
+// "TMLI Portal"), independent of how many times it is deployed. An issue
+// tracker, knowledge, and members hang off THIS, not off a deployment. Each
+// project owns one or more `environments` (the concrete server/db/backend/
+// frontend triples that used to each be a top-level "project" row).
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  name: text("name").notNull(),
+  // Short stable identifier used as the issue-key prefix (e.g. "CMEM" -> CMEM-42)
+  // and in URLs. Uppercase, unique across all projects.
+  key: text("key").notNull().unique(),
+  // Optional grouping label for the owning client/tenant (e.g. "DPLK", "TMLI").
+  // A plain nullable column, not a table — promote to `clients` only if per-client
+  // access control is ever needed. Keeps the model two-level, not three.
+  client: text("client"),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// A concrete deployment of a project — the server/db/backend/frontend triple a
+// QA, a frontend dev, or devops runs. This is what used to be a top-level
+// "project" row; runs (backups/restores/mock-time) act on ONE environment.
+export const environments = pgTable(
+  "environments",
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
 
     // --- Database ---
@@ -86,11 +118,16 @@ export const projects = pgTable(
     frontendServiceName: text("frontend_service_name").notNull(),
   },
   (t) => [
+    // Every project page lists its environments; index the parent FK.
+    index("environments_project_idx").on(t.projectId),
+    // Environment names are unique within a project (so "Dev"/"Release"/"QA-Budi"
+    // can't collide under one project, while different projects may reuse them).
+    uniqueIndex("environments_project_name_idx").on(t.projectId, t.name),
     // FK columns are filtered/joined on every server-usage lookup and the
-    // onDelete:restrict checks; index them so those don't seq-scan `projects`.
-    index("projects_db_server_idx").on(t.dbServerId),
-    index("projects_backend_server_idx").on(t.backendServerId),
-    index("projects_frontend_server_idx").on(t.frontendServerId),
+    // onDelete:restrict checks; index them so those don't seq-scan.
+    index("environments_db_server_idx").on(t.dbServerId),
+    index("environments_backend_server_idx").on(t.backendServerId),
+    index("environments_frontend_server_idx").on(t.frontendServerId),
   ]
 );
 
@@ -104,9 +141,12 @@ export const runs = pgTable(
   "runs",
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    // A run acts on ONE deployment, so this references `environments`. The
+    // column keeps its `project_id` name for continuity with the route param
+    // `[projectId]` and job payloads — historically a "project" was a deployment.
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => environments.id, { onDelete: "cascade" }),
     // Nullable + set null on user delete: preserve audit history even after the
     // initiating user is removed. UI shows "Unknown" when null.
     userId: uuid("user_id").references(() => users.id, {
@@ -131,10 +171,10 @@ export const runs = pgTable(
   ]
 );
 
-// Per-user, per-project recency. Drives the header project switcher's order:
-// most-recently-opened first (MRU), so the projects a user actually works in
-// float to the top instead of an arbitrary id/creation order. One row per
-// (user, project); upserted on each project open by recordProjectAccess.
+// Per-user, per-environment recency. Drives the header switcher's order:
+// most-recently-opened first (MRU). One row per (user, environment); upserted on
+// each open by recordProjectAccess. Column keeps its `project_id` name for
+// continuity — the thing opened is a deployment (`environments`).
 export const projectAccess = pgTable(
   "project_access",
   {
@@ -143,7 +183,7 @@ export const projectAccess = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => environments.id, { onDelete: "cascade" }),
     lastAccessedAt: timestamp("last_accessed_at").notNull().defaultNow(),
   },
   (t) => [
@@ -154,6 +194,49 @@ export const projectAccess = pgTable(
       t.userId,
       t.lastAccessedAt.desc()
     ),
+  ]
+);
+
+// =========================
+// Issue tracker (per project)
+// =========================
+
+// Issues belong to the LOGICAL project, not a deployment, so a bug tracked as
+// CMEM-42 is stable no matter which environment it was seen in. `number` is a
+// per-project sequential counter (assigned as max(number)+1 within a
+// transaction in the create action) that pairs with projects.key to form the
+// human key. `environmentId` optionally pins which deployment it was found in.
+export const issues = pgTable(
+  "issues",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Per-project sequential number -> `${project.key}-${number}` (e.g. CMEM-42).
+    number: integer("number").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    status: issueStatusEnum("status").notNull().default("open"),
+    // Which deployment the issue was observed in. set null: the issue outlives
+    // any single environment. Null = not tied to a specific one.
+    environmentId: uuid("environment_id").references(() => environments.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    assigneeId: uuid("assignee_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // The human issue key CMEM-42 must resolve to exactly one row.
+    uniqueIndex("issues_project_number_idx").on(t.projectId, t.number),
+    // Board/list view filters by project then status.
+    index("issues_project_status_idx").on(t.projectId, t.status),
   ]
 );
 
@@ -494,10 +577,18 @@ export type KnowledgeTreeNode = Pick<
 export type Server = InferSelectModel<typeof servers>;
 export type NewServer = InferInsertModel<typeof servers>;
 
+// The logical project (parent). Deployment-level data lives on `Environment`.
 export type Project = InferSelectModel<typeof projects>;
 export type NewProject = InferInsertModel<typeof projects>;
 
-export type ProjectWithServers = Project & {
+export type Issue = InferSelectModel<typeof issues>;
+export type NewIssue = InferInsertModel<typeof issues>;
+
+// A concrete deployment. Was historically called "Project" — now `Environment`.
+export type Environment = InferSelectModel<typeof environments>;
+export type NewEnvironment = InferInsertModel<typeof environments>;
+
+export type EnvironmentWithServers = Environment & {
   dbServer: Server;
   backendServer: Server;
   frontendServer: Server;
@@ -506,12 +597,12 @@ export type ProjectWithServers = Project & {
 // Credential-free projections handed to the client. SSH passwords, the mssql
 // `sa` password, and the mock-time API key must never cross the server/client
 // boundary (RSC payloads are visible in the browser). Server code loads the
-// full `ProjectWithServers` via lib/projects#loadProjectWithServers; anything
+// full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers; anything
 // passed to a client component must be sanitized to these shapes first.
 export type SafeServer = Omit<Server, "password">;
 
-export type SafeProjectWithServers = Omit<
-  Project,
+export type SafeEnvironmentWithServers = Omit<
+  Environment,
   "dbPassword" | "backendMockTimeApiKey"
 > & {
   dbServer: SafeServer;

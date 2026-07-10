@@ -17,7 +17,7 @@ import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
@@ -28,7 +28,7 @@ import {
   buildDuration,
 } from "./duration";
 
-export function MockTimeApi({ project }: { project: SafeProjectWithServers }) {
+export function MockTimeApi({ project }: { project: SafeEnvironmentWithServers }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
   const locale = useLocale();

@@ -8,8 +8,8 @@ import {
   requireSession,
 } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
-import { type Project, projectAccess, projects } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { type Environment, environments, projectAccess } from "@/lib/db/schema";
 import { loadSafeProject } from "@/lib/projects";
 import {
   projectIdSchema,
@@ -20,32 +20,32 @@ import {
 type ActionResponse = {
   success: boolean;
   message?: string;
-  data?: Project;
+  data?: Environment;
 };
 
 /**
  * GET: Fetch all projects (without server details — used for the header
  * picker, sidebar, etc. where only id+name matters).
  */
-export async function getProjects(): Promise<Project[]> {
+export async function getProjects(): Promise<Environment[]> {
   const session = await requireSession();
   try {
     // Order by the caller's recency (most-recently-opened first), falling back
     // to name for projects they've never opened. `nulls last` keeps unvisited
     // projects below visited ones instead of Postgres' default nulls-first.
     return await db
-      .select(getTableColumns(projects))
-      .from(projects)
+      .select(getTableColumns(environments))
+      .from(environments)
       .leftJoin(
         projectAccess,
         and(
-          eq(projectAccess.projectId, projects.id),
+          eq(projectAccess.projectId, environments.id),
           eq(projectAccess.userId, session.user.id)
         )
       )
       .orderBy(
         sql`${projectAccess.lastAccessedAt} desc nulls last`,
-        asc(projects.name)
+        asc(environments.name)
       );
   } catch (error) {
     console.error("Failed to fetch projects:", error);
@@ -107,7 +107,7 @@ export async function getProjectsLastOpened(): Promise<Record<string, number>> {
  */
 export async function getProjectById(
   id: string
-): Promise<SafeProjectWithServers | undefined> {
+): Promise<SafeEnvironmentWithServers | undefined> {
   await requireSession();
   try {
     return (await loadSafeProject(id)) ?? undefined;
@@ -129,7 +129,7 @@ export async function createProject(data: unknown): Promise<ActionResponse> {
   }
   try {
     const [insertedProject] = await db
-      .insert(projects)
+      .insert(environments)
       .values(parsed.data)
       .returning();
 
@@ -161,9 +161,9 @@ export async function updateProject(
   }
   try {
     const [updatedProject] = await db
-      .update(projects)
+      .update(environments)
       .set(parsed.data)
-      .where(eq(projects.id, id))
+      .where(eq(environments.id, id))
       .returning();
 
     if (!updatedProject) {
@@ -187,7 +187,7 @@ export async function updateProject(
 export async function deleteProject(id: string): Promise<ActionResponse> {
   await requireAdmin();
   try {
-    await db.delete(projects).where(eq(projects.id, id));
+    await db.delete(environments).where(eq(environments.id, id));
     revalidatePath("/projects");
     revalidatePath("/", "layout");
     return { success: true, message: "Project deleted successfully" };

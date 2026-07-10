@@ -3,7 +3,7 @@
 import { unstable_cache, updateTag } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { backupListCacheTag } from "@/lib/db-cache-tags";
-import { loadProjectWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand } from "@/lib/services";
@@ -39,7 +39,7 @@ function resolveTargetDatabase(
 // The SSH probe with no session/request state, so it is safe inside
 // `unstable_cache`. Throws on failure so a transient SSH error is not cached.
 async function probeBackupList(projectId: string): Promise<Backup[]> {
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) {
     throw new Error("Project not found");
   }
@@ -124,7 +124,7 @@ export async function createDatabaseBackup(
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
   }
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
   const database = resolveTargetDatabase(project, options.database);
 
@@ -165,7 +165,7 @@ export async function restoreDatabaseBackup(
     throw new Error("Invalid backup filename");
   }
   const filename = parsedFilename.data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
   const database = resolveTargetDatabase(project, options.database);
 
@@ -179,7 +179,7 @@ export async function restoreDatabaseBackup(
     if (!projectIdSchema.safeParse(options.sourceProjectId).success) {
       throw new Error("Invalid source project id");
     }
-    const source = await loadProjectWithServers(options.sourceProjectId);
+    const source = await loadEnvironmentWithServers(options.sourceProjectId);
     if (!source) throw new Error("Source project not found");
     if (source.dbType !== project.dbType) {
       throw new Error("Source project must have the same database type");

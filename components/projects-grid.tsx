@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { Project } from "@/lib/db/schema";
+import type { Environment } from "@/lib/db/schema";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
@@ -34,7 +34,7 @@ export function ProjectsGrid({
   lastOpened,
   initialSort,
 }: {
-  projects: Project[];
+  projects: Environment[];
   lastActivity: Record<string, ProjectActivity | null>;
   lastOpened: Record<string, number>;
   initialSort: SortKey;

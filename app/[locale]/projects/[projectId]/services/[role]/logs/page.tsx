@@ -5,7 +5,7 @@ import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
   LOG_LINE_OPTIONS,
   type LogLines,
@@ -21,7 +21,7 @@ const ROLE_TITLE_KEY = {
   frontend: "frontend",
 } as const;
 
-function roleConfig(project: SafeProjectWithServers, role: ServiceRole) {
+function roleConfig(project: SafeEnvironmentWithServers, role: ServiceRole) {
   if (role === "db") {
     return {
       serviceName: project.dbServiceName,

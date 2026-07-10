@@ -3,7 +3,7 @@
 import { unstable_cache } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { dbListCacheTag } from "@/lib/db-cache-tags";
-import { loadProjectWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, buildSqlcmdCommand } from "@/lib/services";
@@ -28,7 +28,7 @@ type DatabaseListResult =
 // `unstable_cache`. Throws on any failure so a transient SSH error is NOT
 // cached — only successful listings are stored (see getDatabaseList).
 async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) {
     throw new Error("Project not found");
   }
@@ -150,7 +150,7 @@ export async function createDatabase(
     throw new Error("Invalid database name");
   }
   const database = parsed.data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
 
   const runId = await createRun({
@@ -179,7 +179,7 @@ export async function dropDatabase(
     throw new Error("Invalid database name");
   }
   const database = parsed.data;
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
 
   // Guard the project's configured database — dropping it would break the panel
@@ -222,7 +222,7 @@ export async function renameDatabase(
   if (from === to) {
     throw new Error("New name must differ from the current name");
   }
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
 
   // Guard the project's configured database — renaming it would orphan the

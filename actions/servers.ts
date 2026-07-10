@@ -6,9 +6,9 @@ import { getTranslations } from "next-intl/server";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
+  type Environment,
+  environments,
   type NewServer,
-  type Project,
-  projects,
   type Server,
   servers,
 } from "@/lib/db/schema";
@@ -16,7 +16,9 @@ import { testSshConnection } from "@/lib/ssh";
 import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
 
 export type ServerUsage = {
-  project: Pick<Project, "id" | "name">;
+  // The deployment that uses this server. Field kept named `project` for its UI
+  // consumers; it is an `environments` row.
+  project: Pick<Environment, "id" | "name">;
   roles: ("db" | "backend" | "frontend")[];
 };
 
@@ -24,21 +26,21 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
   await requireSession();
   const rows = await db
     .select({
-      id: projects.id,
-      name: projects.name,
-      dbServerId: projects.dbServerId,
-      backendServerId: projects.backendServerId,
-      frontendServerId: projects.frontendServerId,
+      id: environments.id,
+      name: environments.name,
+      dbServerId: environments.dbServerId,
+      backendServerId: environments.backendServerId,
+      frontendServerId: environments.frontendServerId,
     })
-    .from(projects)
+    .from(environments)
     .where(
       or(
-        eq(projects.dbServerId, serverId),
-        eq(projects.backendServerId, serverId),
-        eq(projects.frontendServerId, serverId)
+        eq(environments.dbServerId, serverId),
+        eq(environments.backendServerId, serverId),
+        eq(environments.frontendServerId, serverId)
       )
     )
-    .orderBy(projects.name);
+    .orderBy(environments.name);
 
   return rows.map((p) => {
     const roles: ServerUsage["roles"] = [];
