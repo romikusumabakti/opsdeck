@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import type { SafeProjectWithServers } from "@/lib/db/schema";
+import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 // Matches the marker emitted by lib/jobs/processor.ts after a successful dump.
@@ -33,7 +33,7 @@ export function BackupDatabase({
   databases,
   fixedDatabase,
 }: {
-  project: SafeProjectWithServers;
+  project: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
   // When set (e.g. the Databases row action), this database is the fixed
   // source and the in-panel picker is hidden.

@@ -72,6 +72,9 @@ export const serverInputSchema = z.object({
 });
 
 export const projectInputSchema = z.object({
+  // The logical project this deployment belongs to. TODO(phase-2): the
+  // create/edit environment form must send this via a project picker.
+  projectId: z.uuid(),
   name: z.string().trim().min(1).max(200),
 
   dbServerId: z.uuid(),

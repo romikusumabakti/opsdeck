@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
-import { loadProjectWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/projects";
 import {
   buildFollowLogsCommand,
   getServiceConfig,
@@ -47,7 +47,7 @@ export async function GET(
 
   // Load the full project (with credentials) server-side — the SSH password is
   // needed to open the log stream and must never come from the client.
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) return new NextResponse("Not found", { status: 404 });
 
   const lines = parseLines(req.nextUrl.searchParams.get("lines"));

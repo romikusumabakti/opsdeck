@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { Project } from "@/lib/db/schema";
+import type { Environment } from "@/lib/db/schema";
 
 const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/|$)/i;
 
@@ -60,7 +60,7 @@ export function AppSidebar({
   user,
   side = "left",
 }: {
-  projects: Project[];
+  projects: Environment[];
   isAdmin: boolean;
   user: AppSidebarUser;
   side?: "left" | "right";

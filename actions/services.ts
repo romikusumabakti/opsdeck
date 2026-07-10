@@ -1,8 +1,8 @@
 "use server";
 
 import { requireSession } from "@/lib/auth-session";
-import type { ProjectWithServers } from "@/lib/db/schema";
-import { loadProjectWithServers } from "@/lib/projects";
+import type { EnvironmentWithServers } from "@/lib/db/schema";
+import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import {
@@ -29,7 +29,7 @@ export type ServiceStatusResult = {
 
 // Internal: probe one service against an already-loaded (trusted) project.
 async function probeServiceStatus(
-  project: ProjectWithServers,
+  project: EnvironmentWithServers,
   role: ServiceRole
 ): Promise<ServiceStatusResult> {
   const cfg = getServiceConfig(project, role);
@@ -67,7 +67,7 @@ export async function getAllServiceStatuses(
   if (!projectIdSchema.safeParse(projectId).success) {
     return [];
   }
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) return [];
   return Promise.all([
     probeServiceStatus(project, "db"),
@@ -91,7 +91,7 @@ export async function controlService(
   ) {
     throw new Error("Invalid request");
   }
-  const project = await loadProjectWithServers(projectId);
+  const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
 
   const cfg = getServiceConfig(project, parsedRole.data);
