@@ -74,7 +74,8 @@
     "edit": "Edit",
     "loading": "Loading…",
     "security": "Security",
-    "sessions": "Sessions"
+    "sessions": "Sessions",
+    "issues": "Issues"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",
@@ -111,7 +112,8 @@
     "users": "Users",
     "projects": "Projects",
     "knowledge": "Knowledge",
-    "storage": "Storage"
+    "storage": "Storage",
+    "issues": "Issues"
   },
   "header": {
     "selectProject": "Select project…",
@@ -157,7 +159,9 @@
     "sortNameAsc": "Name (A–Z)",
     "sortNameDesc": "Name (Z–A)",
     "noMatch": "No projects match \"{query}\".",
-    "clearSearch": "Clear search"
+    "clearSearch": "Clear search",
+    "environmentCount": "{count, plural, one {# environment} other {# environments}}",
+    "noEnvironments": "No environments yet"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -563,7 +567,11 @@
     "submitFailed": "Failed to save project",
     "createdSuccess": "Project created",
     "savedSuccess": "Project saved",
-    "nameCopySuffix": "{name} (copy)"
+    "nameCopySuffix": "{name} (copy)",
+    "project": "Project",
+    "pickProject": "Select a project…",
+    "newProjectShort": "New project",
+    "projectRequired": "Select a project"
   },
   "projectSettings": {
     "title": "Project settings",
@@ -1037,5 +1045,57 @@
     "submitting": "Saving…",
     "saveChanges": "Save changes",
     "create": "Create"
+  },
+  "projectCreateDialog": {
+    "title": "New project",
+    "description": "Group deployments (QA, dev, devops) under one project.",
+    "name": "Project name",
+    "namePlaceholder": "e.g. Common Membership",
+    "key": "Key",
+    "keyPlaceholder": "e.g. CMEM",
+    "keyHint": "Short uppercase prefix for issue keys (CMEM-42). 2–10 letters/digits.",
+    "client": "Client (optional)",
+    "clientPlaceholder": "e.g. DPLK",
+    "submit": "Create project",
+    "submitting": "Creating…",
+    "created": "Project created",
+    "createFailed": "Failed to create project",
+    "keyTaken": "That key is already in use"
+  },
+  "issues": {
+    "title": "Issues",
+    "subtitle": "Track bugs and tasks for this project.",
+    "new": "New issue",
+    "searchPlaceholder": "Search issues…",
+    "empty": "No issues yet",
+    "emptyDescription": "Create the first issue to start tracking work for this project.",
+    "columnKey": "Key",
+    "columnTitle": "Title",
+    "columnStatus": "Status",
+    "columnEnvironment": "Environment",
+    "columnAssignee": "Assignee",
+    "columnCreated": "Created",
+    "unassigned": "Unassigned",
+    "allEnvironments": "Not environment-specific",
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "createTitle": "New issue",
+    "createDescription": "Describe the bug or task.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Short summary",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What happened, steps to reproduce, expected vs actual…",
+    "environmentLabel": "Environment (optional)",
+    "none": "None",
+    "create": "Create issue",
+    "creating": "Creating…",
+    "createdSuccess": "Issue created",
+    "createFailed": "Failed to create issue",
+    "updateFailed": "Failed to update issue",
+    "statusUpdated": "Status updated"
   }
 }

@@ -1,5 +1,6 @@
 import { Copy } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { listProjects } from "@/actions/project-catalog";
 import { getProjectById } from "@/actions/projects";
 import { getServers } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
@@ -27,9 +28,10 @@ export default async function ProjectSettingsPage({
 
   await requireAdmin();
 
-  const [project, servers] = await Promise.all([
+  const [project, servers, projects] = await Promise.all([
     getProjectById(projectId),
     getServers(),
+    listProjects(),
   ]);
 
   const t = await getTranslations("projectSettings");
@@ -56,7 +58,11 @@ export default async function ProjectSettingsPage({
               <CardDescription>{t("editDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ProjectForm mode={{ type: "edit", project }} servers={servers} />
+              <ProjectForm
+                mode={{ type: "edit", project }}
+                servers={servers}
+                projects={projects}
+              />
             </CardContent>
           </Card>
 

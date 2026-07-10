@@ -30,11 +30,13 @@ export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
 export function ProjectsGrid({
   projects,
+  projectNameById,
   lastActivity,
   lastOpened,
   initialSort,
 }: {
   projects: Environment[];
+  projectNameById: Record<string, string>;
   lastActivity: Record<string, ProjectActivity | null>;
   lastOpened: Record<string, number>;
   initialSort: SortKey;
@@ -87,6 +89,28 @@ export function ProjectsGrid({
     });
   }, [projects, lastActivity, lastOpened, query, sort]);
 
+  // Group the filtered+sorted environments under their logical project,
+  // preserving the within-group order from `visible`. Groups are sorted
+  // alphabetically by project name.
+  const groups = React.useMemo(() => {
+    const byProject = new Map<string, Environment[]>();
+    for (const env of visible) {
+      const list = byProject.get(env.projectId);
+      if (list) {
+        list.push(env);
+      } else {
+        byProject.set(env.projectId, [env]);
+      }
+    }
+    return [...byProject.entries()]
+      .map(([projectId, envs]) => ({
+        projectId,
+        name: projectNameById[projectId] ?? "—",
+        envs,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [visible, projectNameById]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -126,49 +150,80 @@ export function ProjectsGrid({
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-          {visible.map((project) => {
-            const activity = lastActivity[project.id] ?? null;
-            return (
-              <Link
-                key={project.id}
-                href={`/projects/${project.id}`}
-                className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
-              >
-                <Card className="h-full py-0 hover:border-primary/50 hover:shadow-sm transition-all">
-                  <CardContent className="p-4 flex flex-col gap-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="size-9 rounded-md bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">
-                          {project.name.charAt(0).toUpperCase()}
-                        </span>
-                        <span className="font-medium truncate">
-                          {project.name}
-                        </span>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
-                    </div>
-                    <div className="flex items-center gap-2 text-sm min-w-0">
-                      <Badge variant="secondary" className="text-xs shrink-0">
-                        {tDash(`dbTypes.${project.dbType}`)}
-                      </Badge>
-                      <code className="font-mono text-xs text-muted-foreground truncate">
-                        {project.dbName}
-                      </code>
-                    </div>
-                    <ActivityRow
-                      activity={activity}
-                      dateFnsLocale={dateFnsLocale}
-                      neverText={t("neverActive")}
-                    />
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
+        <div className="flex flex-col gap-6">
+          {groups.map((group) => (
+            <section key={group.projectId} className="flex flex-col gap-3">
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-sm font-semibold truncate">{group.name}</h2>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {t("environmentCount", { count: group.envs.length })}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {group.envs.map((project) => (
+                  <EnvironmentCard
+                    key={project.id}
+                    project={project}
+                    activity={lastActivity[project.id] ?? null}
+                    dateFnsLocale={dateFnsLocale}
+                    neverText={t("neverActive")}
+                    dbTypeLabel={tDash(`dbTypes.${project.dbType}`)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+function EnvironmentCard({
+  project,
+  activity,
+  dateFnsLocale,
+  neverText,
+  dbTypeLabel,
+}: {
+  project: Environment;
+  activity: ProjectActivity | null;
+  dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
+  neverText: string;
+  dbTypeLabel: string;
+}) {
+  return (
+    <Link
+      href={`/projects/${project.id}`}
+      className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+    >
+      <Card className="h-full py-0 hover:border-primary/50 hover:shadow-sm transition-all">
+        <CardContent className="p-4 flex flex-col gap-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="size-9 rounded-md bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">
+                {project.name.charAt(0).toUpperCase()}
+              </span>
+              <span className="font-medium truncate">{project.name}</span>
+            </div>
+            <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+          </div>
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <Badge variant="secondary" className="text-xs shrink-0">
+              {dbTypeLabel}
+            </Badge>
+            <code className="font-mono text-xs text-muted-foreground truncate">
+              {project.dbName}
+            </code>
+          </div>
+          <ActivityRow
+            activity={activity}
+            dateFnsLocale={dateFnsLocale}
+            neverText={neverText}
+          />
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
