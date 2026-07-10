@@ -1158,5 +1158,25 @@
     "jumpBackIn": "Jump back in",
     "recentEmpty": "No recent environments.",
     "viewAll": "View all"
+  },
+  "issueDetail": {
+    "description": "Description",
+    "noDescription": "No description.",
+    "descriptionPlaceholder": "Add a description…",
+    "titlePlaceholder": "Issue title",
+    "comments": "Comments",
+    "noComments": "No comments yet.",
+    "commentPlaceholder": "Write a comment…",
+    "post": "Comment",
+    "posting": "Posting…",
+    "commentAdded": "Comment added",
+    "commentFailed": "Failed to add comment",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveFailed": "Failed to save",
+    "createdBy": "Opened by {name}",
+    "unknownUser": "Unknown",
+    "notFound": "Issue not found."
   }
 }

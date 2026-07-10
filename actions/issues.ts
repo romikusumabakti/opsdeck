@@ -4,7 +4,13 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { type Issue, issues, projects } from "@/lib/db/schema";
+import {
+  type Issue,
+  type IssueComment,
+  issueComments,
+  issues,
+  projects,
+} from "@/lib/db/schema";
 import { notifyIssueAssigned } from "@/lib/notifications";
 import { issueInputSchema, issueUpdateSchema } from "@/lib/validation";
 
@@ -79,6 +85,72 @@ export async function listAssignedIssues(
   } catch (error) {
     console.error("Failed to list assigned issues:", error);
     return [];
+  }
+}
+
+export type IssueDetail = Issue & {
+  project: { id: string; name: string; key: string };
+  environment: { id: string; name: string } | null;
+  assignee: { id: string; name: string } | null;
+  createdBy: { id: string; name: string } | null;
+  comments: (IssueComment & {
+    author: { id: string; name: string } | null;
+  })[];
+};
+
+/** Resolve a single issue by its human key (`CMEM` + number) with its thread. */
+export async function getIssueDetail(
+  projectKey: string,
+  number: number
+): Promise<IssueDetail | null> {
+  await requireSession();
+  try {
+    const project = await db.query.projects.findFirst({
+      where: { key: projectKey.toUpperCase() },
+      columns: { id: true },
+    });
+    if (!project) return null;
+    const issue = await db.query.issues.findFirst({
+      where: { projectId: project.id, number },
+      with: {
+        project: { columns: { id: true, name: true, key: true } },
+        environment: { columns: { id: true, name: true } },
+        assignee: { columns: { id: true, name: true } },
+        createdBy: { columns: { id: true, name: true } },
+        comments: {
+          with: { author: { columns: { id: true, name: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    return (issue as IssueDetail | undefined) ?? null;
+  } catch (error) {
+    console.error("Failed to load issue detail:", error);
+    return null;
+  }
+}
+
+export async function addComment(
+  issueId: string,
+  body: string
+): Promise<{ success: boolean; message?: string }> {
+  const session = await requireSession();
+  const trimmed = (body ?? "").trim();
+  if (!trimmed) return { success: false, message: "Empty comment" };
+  if (trimmed.length > 20_000) {
+    return { success: false, message: "Comment too long" };
+  }
+  try {
+    await db.insert(issueComments).values({
+      issueId,
+      authorId: session.user.id,
+      body: trimmed,
+    });
+    revalidatePath("/projects", "layout");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to add comment:", error);
+    return { success: false, message: "Failed to add comment" };
   }
 }
 
