@@ -133,7 +133,7 @@
     "notifyTitleFailed": "Task failed"
   },
   "notifications": {
-    "title": "Browser notifications",
+    "title": "Notifications",
     "description": "Get notified when long-running tasks (backup, restore, mock time) finish — even when this tab isn't focused.",
     "enable": "Enable notifications",
     "disable": "Disable notifications",
@@ -143,7 +143,12 @@
     "unsupportedTitle": "Not supported",
     "unsupportedDescription": "Your browser doesn't support web notifications.",
     "permissionDeniedTitle": "Permission denied",
-    "permissionDeniedDescription": "You can re-allow notifications from your browser's site settings."
+    "permissionDeniedDescription": "You can re-allow notifications from your browser's site settings.",
+    "empty": "You're all caught up.",
+    "markAllRead": "Mark all read",
+    "ariaLabel": "Notifications",
+    "issue_assigned": "Assigned to you: {key}-{number} · {title}",
+    "run_failed": "{description} failed in {environment}"
   },
   "projectsEmpty": {
     "title": "No projects yet",

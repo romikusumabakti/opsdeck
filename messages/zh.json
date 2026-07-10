@@ -133,7 +133,7 @@
     "notifyTitleFailed": "任务失败"
   },
   "notifications": {
-    "title": "浏览器通知",
+    "title": "通知",
     "description": "当长时间运行的任务（备份、还原、模拟时间）完成时获得通知——即使此标签页不在焦点。",
     "enable": "启用通知",
     "disable": "禁用通知",
@@ -143,7 +143,12 @@
     "unsupportedTitle": "不支持",
     "unsupportedDescription": "您的浏览器不支持网页通知。",
     "permissionDeniedTitle": "权限被拒绝",
-    "permissionDeniedDescription": "您可以在浏览器的网站设置中重新允许通知。"
+    "permissionDeniedDescription": "您可以在浏览器的网站设置中重新允许通知。",
+    "empty": "全部已读。",
+    "markAllRead": "全部标为已读",
+    "ariaLabel": "通知",
+    "issue_assigned": "已分配给你：{key}-{number} · {title}",
+    "run_failed": "{description} 在 {environment} 失败"
   },
   "projectsEmpty": {
     "title": "暂无项目",

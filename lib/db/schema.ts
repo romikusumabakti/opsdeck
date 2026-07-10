@@ -4,6 +4,7 @@ import {
   customType,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -254,6 +255,39 @@ export const issues = pgTable(
     uniqueIndex("issues_project_number_idx").on(t.projectId, t.number),
     // Board/list view filters by project then status.
     index("issues_project_status_idx").on(t.projectId, t.status),
+  ]
+);
+
+// =========================
+// Notifications
+// =========================
+
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "issue_assigned",
+  "run_failed",
+]);
+
+// Per-user inbox items. Text is NOT stored — only a `type` + structured `data`
+// so the message renders in the recipient's own locale at read time (their
+// locale isn't known when the event fires). `href` is the jump target.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: notificationTypeEnum("type").notNull(),
+    // Params for the i18n template keyed by `type` (e.g. { key, number, title }).
+    data: jsonb("data").$type<Record<string, string | number>>().notNull(),
+    href: text("href"),
+    // Null = unread. Set when the user opens/acknowledges it.
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // The bell lists one user's notifications newest-first and counts unread.
+    index("notifications_user_created_idx").on(t.userId, t.createdAt.desc()),
   ]
 );
 
@@ -600,6 +634,9 @@ export type NewProject = InferInsertModel<typeof projects>;
 
 export type Issue = InferSelectModel<typeof issues>;
 export type NewIssue = InferInsertModel<typeof issues>;
+
+export type Notification = InferSelectModel<typeof notifications>;
+export type NewNotification = InferInsertModel<typeof notifications>;
 
 // A concrete deployment. Was historically called "Project" — now `Environment`.
 export type Environment = InferSelectModel<typeof environments>;
