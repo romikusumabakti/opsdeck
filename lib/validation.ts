@@ -115,6 +115,10 @@ export const projectInputSchema = z.object({
   frontendServerId: z.uuid(),
   frontendServiceType: serviceTypeSchema,
   frontendServiceName: z.string().trim().min(1).max(255),
+
+  // Purpose + owner of this deployment (both optional).
+  kind: z.enum(["qa", "dev", "release", "sandbox", "prod"]).nullish(),
+  owner: z.string().trim().max(120).nullish(),
 });
 
 export const projectUpdateSchema = projectInputSchema.partial();

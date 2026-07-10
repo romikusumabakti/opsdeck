@@ -43,6 +43,7 @@ export function ProjectsGrid({
 }) {
   const t = useTranslations("home");
   const tDash = useTranslations("dashboard");
+  const tKinds = useTranslations("environmentKinds");
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
   const router = useRouter();
@@ -164,10 +165,17 @@ export function ProjectsGrid({
                   <EnvironmentCard
                     key={project.id}
                     project={project}
+                    projectName={group.name}
                     activity={lastActivity[project.id] ?? null}
                     dateFnsLocale={dateFnsLocale}
                     neverText={t("neverActive")}
                     dbTypeLabel={tDash(`dbTypes.${project.dbType}`)}
+                    kindLabel={project.kind ? tKinds(project.kind) : null}
+                    ownerLabel={
+                      project.owner
+                        ? t("ownedBy", { owner: project.owner })
+                        : null
+                    }
                   />
                 ))}
               </div>
@@ -179,19 +187,39 @@ export function ProjectsGrid({
   );
 }
 
+// Drop the redundant project-name prefix now that the card sits under that
+// project's heading (e.g. "CAR Membership P2SK (137)" -> "P2SK (137)").
+function stripProjectPrefix(envName: string, projectName: string): string {
+  if (
+    projectName &&
+    envName.toLowerCase().startsWith(projectName.toLowerCase())
+  ) {
+    const rest = envName.slice(projectName.length).replace(/^[\s:–—-]+/, "");
+    return rest.trim() || envName;
+  }
+  return envName;
+}
+
 function EnvironmentCard({
   project,
+  projectName,
   activity,
   dateFnsLocale,
   neverText,
   dbTypeLabel,
+  kindLabel,
+  ownerLabel,
 }: {
   project: Environment;
+  projectName: string;
   activity: ProjectActivity | null;
   dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
   neverText: string;
   dbTypeLabel: string;
+  kindLabel: string | null;
+  ownerLabel: string | null;
 }) {
+  const displayName = stripProjectPrefix(project.name, projectName);
   return (
     <Link
       href={`/projects/${project.id}`}
@@ -200,11 +228,16 @@ function EnvironmentCard({
       <Card className="h-full py-0 hover:border-primary/50 hover:shadow-sm transition-all">
         <CardContent className="p-4 flex flex-col gap-2.5">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="size-9 rounded-md bg-primary/10 text-primary flex items-center justify-center font-semibold shrink-0">
-                {project.name.charAt(0).toUpperCase()}
-              </span>
-              <span className="font-medium truncate">{project.name}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-medium truncate">{displayName}</span>
+              {kindLabel ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] uppercase shrink-0"
+                >
+                  {kindLabel}
+                </Badge>
+              ) : null}
             </div>
             <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
           </div>
@@ -216,6 +249,11 @@ function EnvironmentCard({
               {project.dbName}
             </code>
           </div>
+          {ownerLabel ? (
+            <span className="text-xs text-muted-foreground truncate">
+              {ownerLabel}
+            </span>
+          ) : null}
           <ActivityRow
             activity={activity}
             dateFnsLocale={dateFnsLocale}
