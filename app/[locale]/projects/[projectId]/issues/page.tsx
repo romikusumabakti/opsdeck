@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
 import { getProjectById } from "@/actions/projects";
+import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
 import { requireSession } from "@/lib/auth-session";
 import { IssuesClient } from "./issues-client";
@@ -24,9 +25,10 @@ export default async function IssuesPage({
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const [project, issues] = await Promise.all([
+  const [project, issues, users] = await Promise.all([
     getProjectWithEnvironments(env.projectId),
     listIssues(env.projectId),
+    listAssignableUsers(),
   ]);
   if (!project) {
     return <p>{tCommon("projectNotFound")}</p>;
@@ -45,6 +47,7 @@ export default async function IssuesPage({
           id: e.id,
           name: e.name,
         }))}
+        users={users}
         initialIssues={issues}
       />
     </>

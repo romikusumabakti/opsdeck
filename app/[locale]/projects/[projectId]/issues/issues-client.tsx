@@ -6,8 +6,10 @@ import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import type { IssueWithMeta } from "@/actions/issues";
-import { createIssue, setIssueStatus } from "@/actions/issues";
+import { createIssue, setIssueStatus, updateIssue } from "@/actions/issues";
 import {
+  type AssignableUser,
+  AssigneeSelect,
   IssueBoard,
   type Status,
   StatusSelect,
@@ -48,12 +50,14 @@ export function IssuesClient({
   projectKey,
   currentEnvironmentId,
   environments,
+  users,
   initialIssues,
 }: {
   projectId: string;
   projectKey: string;
   currentEnvironmentId: string;
   environments: EnvOption[];
+  users: AssignableUser[];
   initialIssues: IssueWithMeta[];
 }) {
   const t = useTranslations("issues");
@@ -91,6 +95,29 @@ export function IssuesClient({
     toast.success(t("statusUpdated"));
     router.refresh();
   }
+
+  async function onAssigneeChange(id: string, assigneeId: string | null) {
+    setIssues((prev) =>
+      prev.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              assignee: assigneeId
+                ? { id: assigneeId, name: usersById[assigneeId] ?? "" }
+                : null,
+            }
+          : i
+      )
+    );
+    const result = await updateIssue(id, { assigneeId });
+    if (!result.success) toast.error(t("updateFailed"));
+    router.refresh();
+  }
+
+  const usersById = React.useMemo(
+    () => Object.fromEntries(users.map((u) => [u.id, u.name])),
+    [users]
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -189,10 +216,12 @@ export function IssuesClient({
                       <span className="italic">{t("allEnvironments")}</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground truncate">
-                    {issue.assignee?.name ?? (
-                      <span className="italic">{t("unassigned")}</span>
-                    )}
+                  <TableCell>
+                    <AssigneeSelect
+                      users={users}
+                      value={issue.assignee?.id ?? null}
+                      onChange={(a) => onAssigneeChange(issue.id, a)}
+                    />
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(issue.createdAt), {
@@ -212,6 +241,7 @@ export function IssuesClient({
         onOpenChange={setCreateOpen}
         projectId={projectId}
         environments={environments}
+        users={users}
         defaultEnvironmentId={currentEnvironmentId}
         onCreated={() => {
           setCreateOpen(false);
@@ -227,6 +257,7 @@ function CreateIssueDialog({
   onOpenChange,
   projectId,
   environments,
+  users,
   defaultEnvironmentId,
   onCreated,
 }: {
@@ -234,6 +265,7 @@ function CreateIssueDialog({
   onOpenChange: (open: boolean) => void;
   projectId: string;
   environments: EnvOption[];
+  users: AssignableUser[];
   defaultEnvironmentId: string;
   onCreated: () => void;
 }) {
@@ -243,6 +275,7 @@ function CreateIssueDialog({
   const NONE = "none";
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
+  const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
   // Empty default (e.g. from the project overview, which has no "current" env)
   // falls back to the "None" option.
   const [environmentId, setEnvironmentId] = React.useState(
@@ -255,6 +288,7 @@ function CreateIssueDialog({
     if (open) {
       setTitle("");
       setDescription("");
+      setAssigneeId(null);
       setEnvironmentId(defaultEnvironmentId || NONE);
     }
   }, [open, defaultEnvironmentId]);
@@ -267,6 +301,7 @@ function CreateIssueDialog({
       title: title.trim(),
       description: description.trim(),
       environmentId: environmentId === NONE ? null : environmentId,
+      assigneeId,
     });
     setSaving(false);
     if (!result.success) {
@@ -325,6 +360,14 @@ function CreateIssueDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">{t("assignee")}</span>
+            <AssigneeSelect
+              users={users}
+              value={assigneeId}
+              onChange={setAssigneeId}
+            />
           </div>
         </div>
         <DialogFooter>

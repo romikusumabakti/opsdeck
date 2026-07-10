@@ -5,6 +5,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
 import { getProjectByKeyWithEnvironments } from "@/actions/project-catalog";
 import { getProjectsLastActivity } from "@/actions/runs";
+import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,8 +43,9 @@ export default async function ProjectOverviewPage({
   }
   const admin = session ? isAdmin(session) : false;
 
-  const [issues, t, tOv, tDash, tKinds] = await Promise.all([
+  const [issues, users, t, tOv, tDash, tKinds] = await Promise.all([
     listIssues(project.id),
+    listAssignableUsers(),
     getTranslations("home"),
     getTranslations("projectOverview"),
     getTranslations("dashboard"),
@@ -169,6 +171,7 @@ export default async function ProjectOverviewPage({
             projectKey={project.key}
             currentEnvironmentId=""
             environments={environments.map((e) => ({ id: e.id, name: e.name }))}
+            users={users}
             initialIssues={issues}
           />
         </TabsContent>

@@ -6,8 +6,10 @@ import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import type { GlobalIssue } from "@/actions/issues";
-import { setIssueStatus } from "@/actions/issues";
+import { setIssueStatus, updateIssue } from "@/actions/issues";
 import {
+  type AssignableUser,
+  AssigneeSelect,
   IssueBoard,
   type Status,
   StatusSelect,
@@ -37,9 +39,11 @@ const ALL = "all";
 export function GlobalIssuesClient({
   initialIssues,
   currentUserId,
+  users,
 }: {
   initialIssues: GlobalIssue[];
   currentUserId: string;
+  users: AssignableUser[];
 }) {
   const t = useTranslations("issues");
   const locale = useLocale();
@@ -48,6 +52,11 @@ export function GlobalIssuesClient({
 
   const [issues, setIssues] = React.useState(initialIssues);
   React.useEffect(() => setIssues(initialIssues), [initialIssues]);
+
+  const usersById = React.useMemo(
+    () => Object.fromEntries(users.map((u) => [u.id, u.name])),
+    [users]
+  );
 
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<string>(ALL);
@@ -89,6 +98,24 @@ export function GlobalIssuesClient({
     } else {
       toast.success(t("statusUpdated"));
     }
+    router.refresh();
+  }
+
+  async function onAssigneeChange(id: string, assigneeId: string | null) {
+    setIssues((prev) =>
+      prev.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              assignee: assigneeId
+                ? { id: assigneeId, name: usersById[assigneeId] ?? "" }
+                : null,
+            }
+          : i
+      )
+    );
+    const result = await updateIssue(id, { assigneeId });
+    if (!result.success) toast.error(t("updateFailed"));
     router.refresh();
   }
 
@@ -217,10 +244,12 @@ export function GlobalIssuesClient({
                       onChange={(s) => onStatusChange(issue.id, s)}
                     />
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground truncate">
-                    {issue.assignee?.name ?? (
-                      <span className="italic">{t("unassigned")}</span>
-                    )}
+                  <TableCell>
+                    <AssigneeSelect
+                      users={users}
+                      value={issue.assignee?.id ?? null}
+                      onChange={(a) => onAssigneeChange(issue.id, a)}
+                    />
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(issue.createdAt), {
