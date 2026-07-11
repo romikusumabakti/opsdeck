@@ -1,7 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { getIssueDetail } from "@/actions/issues";
+import { getIssueDetail, listIssues } from "@/actions/issues";
 import { listLabels } from "@/actions/labels";
 import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
@@ -29,15 +29,22 @@ export default async function IssueDetailPage({
     notFound();
   }
 
-  const [project, users, allLabels, milestones, t] = await Promise.all([
-    getProjectWithEnvironments(issue.project.id),
-    listAssignableUsers(),
-    listLabels(),
-    listMilestones(issue.project.id),
-    getTranslations("issueDetail"),
-  ]);
+  const [project, users, allLabels, milestones, allIssues, t] =
+    await Promise.all([
+      getProjectWithEnvironments(issue.project.id),
+      listAssignableUsers(),
+      listLabels(),
+      listMilestones(issue.project.id),
+      listIssues(issue.project.id),
+      getTranslations("issueDetail"),
+    ]);
   const environments =
     project?.environments.map((e) => ({ id: e.id, name: e.name })) ?? [];
+  // Candidate parents: every other issue in the project (self and descendants
+  // are filtered client-side to keep the tree acyclic).
+  const siblings = allIssues
+    .filter((i) => i.id !== issue.id)
+    .map((i) => ({ id: i.id, number: i.number, title: i.title }));
 
   return (
     <>
@@ -61,6 +68,7 @@ export default async function IssueDetailPage({
         users={users}
         environments={environments}
         milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
+        siblings={siblings}
         allLabels={allLabels}
       />
     </>
