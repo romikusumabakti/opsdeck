@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
+import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
 import { getProjectById } from "@/actions/projects";
 import { listAssignableUsers } from "@/actions/users";
@@ -25,10 +26,11 @@ export default async function IssuesPage({
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const [project, issues, users] = await Promise.all([
+  const [project, issues, users, milestones] = await Promise.all([
     getProjectWithEnvironments(env.projectId),
     listIssues(env.projectId),
     listAssignableUsers(),
+    listMilestones(env.projectId),
   ]);
   if (!project) {
     return <p>{tCommon("projectNotFound")}</p>;
@@ -48,6 +50,7 @@ export default async function IssuesPage({
           name: e.name,
         }))}
         users={users}
+        milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
         initialIssues={issues}
       />
     </>

@@ -146,6 +146,7 @@ export const issueInputSchema = z.object({
   // Optional deployment where the issue was observed.
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
+  milestoneId: z.uuid().nullish(),
 });
 export type IssueInput = z.infer<typeof issueInputSchema>;
 
@@ -157,7 +158,17 @@ export const issueUpdateSchema = z.object({
   priority: issuePrioritySchema.optional(),
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
+  milestoneId: z.uuid().nullish(),
 });
+
+export const milestoneInputSchema = z.object({
+  projectId: z.uuid(),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).optional(),
+  // Accepts an ISO string from the client; coerced to a Date. Nullable to clear.
+  dueAt: z.coerce.date().nullish(),
+});
+export type MilestoneInput = z.infer<typeof milestoneInputSchema>;
 
 export type ServerInput = z.infer<typeof serverInputSchema>;
 export type ProjectInput = z.infer<typeof projectInputSchema>;

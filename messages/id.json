@@ -1154,7 +1154,10 @@
     },
     "typeLabel": "Tipe",
     "priorityLabel": "Prioritas",
-    "columnPriority": "Prioritas"
+    "columnPriority": "Prioritas",
+    "milestone": "Milestone",
+    "noMilestone": "Tanpa milestone",
+    "allMilestones": "Semua milestone"
   },
   "environmentKinds": {
     "qa": "QA",
@@ -1171,7 +1174,8 @@
     "noEnvironments": "Belum ada environment",
     "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
     "client": "Klien",
-    "members": "Anggota"
+    "members": "Anggota",
+    "milestones": "Milestone"
   },
   "inbox": {
     "title": "Beranda",
@@ -1228,5 +1232,26 @@
     "errorInvalidInput": "Masukan tidak valid",
     "errorInvalidRole": "Peran tidak valid",
     "errorAddFailed": "Gagal menambahkan anggota"
+  },
+  "milestones": {
+    "add": "Tambah",
+    "name": "Nama",
+    "namePlaceholder": "mis. Rilis v2.0",
+    "dueDate": "Tenggat",
+    "noDue": "Tanpa tenggat",
+    "colName": "Milestone",
+    "colDue": "Tenggat",
+    "colIssues": "Isu",
+    "colStatus": "Status",
+    "open": "Terbuka",
+    "closed": "Selesai",
+    "empty": "Belum ada milestone",
+    "emptyDescription": "Buat milestone untuk mengelompokkan isu menuju rilis atau target.",
+    "created": "Milestone dibuat",
+    "closedMsg": "Milestone ditutup",
+    "reopenedMsg": "Milestone dibuka lagi",
+    "deletedMsg": "Milestone dihapus",
+    "delete": "Hapus",
+    "errorGeneric": "Terjadi kesalahan"
   }
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getIssueDetail } from "@/actions/issues";
 import { listLabels } from "@/actions/labels";
+import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
 import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
@@ -28,10 +29,11 @@ export default async function IssueDetailPage({
     notFound();
   }
 
-  const [project, users, allLabels, t] = await Promise.all([
+  const [project, users, allLabels, milestones, t] = await Promise.all([
     getProjectWithEnvironments(issue.project.id),
     listAssignableUsers(),
     listLabels(),
+    listMilestones(issue.project.id),
     getTranslations("issueDetail"),
   ]);
   const environments =
@@ -58,6 +60,7 @@ export default async function IssueDetailPage({
         issue={issue}
         users={users}
         environments={environments}
+        milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
         allLabels={allLabels}
       />
     </>
