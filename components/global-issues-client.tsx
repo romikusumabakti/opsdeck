@@ -25,6 +25,7 @@ import {
   PrioritySelect,
   type Status,
   StatusSelect,
+  type Swimlane,
   TypeIcon,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
@@ -107,6 +108,7 @@ export function GlobalIssuesClient({
   const [view, setView] = React.useState<"table" | "board">(
     initialFilters.view === "board" ? "board" : "table"
   );
+  const [swimlane, setSwimlane] = React.useState<Swimlane>("none");
 
   // The filter dimensions as a flat map (defaults omitted) — this is both the
   // URL query and what a saved view stores.
@@ -331,6 +333,20 @@ export function GlobalIssuesClient({
         >
           {t("assignedToMe")}
         </Button>
+        {view === "board" ? (
+          <Select
+            value={swimlane}
+            onValueChange={(v) => setSwimlane((v ?? "none") as Swimlane)}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("groupNone")}</SelectItem>
+              <SelectItem value="assignee">{t("groupAssignee")}</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : null}
         <div className="flex rounded-md border p-0.5">
           <Button
             type="button"
@@ -377,6 +393,7 @@ export function GlobalIssuesClient({
             labels: i.labels,
           }))}
           onStatusChange={onStatusChange}
+          swimlane={swimlane}
         />
       ) : (
         <div className="rounded-lg border">

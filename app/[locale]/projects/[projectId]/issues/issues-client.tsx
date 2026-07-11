@@ -18,6 +18,7 @@ import {
   PrioritySelect,
   type Status,
   StatusSelect,
+  type Swimlane,
   TypeIcon,
   TypeSelect,
 } from "@/components/issues-board";
@@ -83,6 +84,7 @@ export function IssuesClient({
   const [query, setQuery] = React.useState("");
   const [createOpen, setCreateOpen] = React.useState(false);
   const [view, setView] = React.useState<"table" | "board">("table");
+  const [swimlane, setSwimlane] = React.useState<Swimlane>("none");
   // "all" | "none" (unassigned) | a milestone id
   const [milestoneFilter, setMilestoneFilter] = React.useState("all");
 
@@ -187,6 +189,21 @@ export function IssuesClient({
           </Select>
         ) : null}
         <div className="flex items-center gap-2 sm:ms-auto">
+          {view === "board" ? (
+            <Select
+              value={swimlane}
+              onValueChange={(v) => setSwimlane((v ?? "none") as Swimlane)}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("groupNone")}</SelectItem>
+                <SelectItem value="assignee">{t("groupAssignee")}</SelectItem>
+                <SelectItem value="milestone">{t("groupMilestone")}</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : null}
           <div className="flex rounded-md border p-0.5">
             <Button
               type="button"
@@ -238,9 +255,13 @@ export function IssuesClient({
             keyPrefix: projectKey,
             envName: i.environment?.name ?? null,
             assigneeName: i.assignee?.name ?? null,
+            milestoneName: i.milestoneId
+              ? (milestonesById[i.milestoneId] ?? null)
+              : null,
             labels: i.labels,
           }))}
           onStatusChange={onStatusChange}
+          swimlane={swimlane}
         />
       ) : (
         <div className="rounded-lg border">

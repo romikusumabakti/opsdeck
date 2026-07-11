@@ -1157,7 +1157,10 @@
     "columnPriority": "الأولوية",
     "milestone": "معلم",
     "noMilestone": "بدون معلم",
-    "allMilestones": "كل المعالم"
+    "allMilestones": "كل المعالم",
+    "groupNone": "بدون تجميع",
+    "groupAssignee": "حسب المكلَّف",
+    "groupMilestone": "حسب المعلم"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",
