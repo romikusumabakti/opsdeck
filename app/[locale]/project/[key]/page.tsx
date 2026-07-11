@@ -21,7 +21,7 @@ import {
 } from "@/lib/auth-session";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { roleHasCapability } from "@/lib/roles";
-import { IssuesClient } from "../../projects/[projectId]/issues/issues-client";
+import { IssuesClient } from "../../[projectKey]/[envSlug]/issues/issues-client";
 import { MilestonesClient } from "./milestones-client";
 import { ProjectMembersClient } from "./project-members-client";
 
@@ -145,7 +145,7 @@ export default async function ProjectOverviewPage({
                 return (
                   <Link
                     key={env.id}
-                    href={`/projects/${env.id}`}
+                    href={`/${project.key}/${env.slug}`}
                     className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
                   >
                     <Card className="h-full py-0 hover:border-primary/50 hover:shadow-sm transition-all">

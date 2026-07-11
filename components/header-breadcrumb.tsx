@@ -22,7 +22,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import type { Environment } from "@/lib/db/schema";
+import type { EnvironmentListItem } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 // Drop the redundant project-name prefix from an environment's name when it's
@@ -39,12 +39,14 @@ function stripProjectPrefix(envName: string, projectName: string): string {
   return envName;
 }
 
-const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/([^/?#]+))?/i;
-// Logs live one level below services (/services/<role>/logs) — the single-slug
-// project regex can't see that depth, so match it explicitly to render a
-// Services › Logs trail instead of stopping at Services.
+// Readable env path: /[KEY]/[envSlug]/[sub?]. group1=key, group2=envSlug,
+// group3=section slug. Uppercase key distinguishes it from lowercase top-level
+// routes.
+const ENV_PATH_REGEX =
+  /^\/([A-Z][A-Z0-9]{1,9})\/([a-z0-9][a-z0-9-]*)(?:\/([^/?#]+))?/;
+// Logs live one level below services (/[key]/[slug]/services/<role>/logs).
 const LOGS_PATH_REGEX =
-  /^\/projects\/[0-9a-f-]{20,}\/services\/(?:db|backend|frontend)\/logs/i;
+  /^\/[A-Z][A-Z0-9]{1,9}\/[a-z0-9-]+\/services\/(?:db|backend|frontend)\/logs/;
 
 type StaticSegment = {
   kind: "static";
@@ -180,7 +182,7 @@ export function HeaderBreadcrumb({
   projectKeyById,
   isAdmin,
 }: {
-  projects: Environment[];
+  projects: EnvironmentListItem[];
   projectNameById: Record<string, string>;
   projectKeyById: Record<string, string>;
   isAdmin: boolean;
@@ -188,11 +190,10 @@ export function HeaderBreadcrumb({
   const pathname = usePathname();
   const t = useTranslations();
 
-  const match = PROJECT_PATH_REGEX.exec(pathname);
-  const activeProjectId = match?.[1];
-  const projectSubSlug = match?.[2];
-  const activeProject = activeProjectId
-    ? (projects.find((p) => p.id === activeProjectId) ?? null)
+  const match = ENV_PATH_REGEX.exec(pathname);
+  const projectSubSlug = match?.[3];
+  const activeProject = match
+    ? (projects.find((p) => p.key === match[1] && p.slug === match[2]) ?? null)
     : null;
 
   // Build the trailing segment list (after the optional project switcher).
@@ -203,7 +204,7 @@ export function HeaderBreadcrumb({
       trailing = [
         {
           kind: "static",
-          href: `/projects/${activeProjectId}/services`,
+          href: `/${activeProject.key}/${activeProject.slug}/services`,
           labelKey: "breadcrumbs.services",
         },
         { kind: "static", labelKey: "breadcrumbs.logs" },
@@ -276,9 +277,9 @@ function ProjectSwitcher({
   isAdmin,
   activeSection,
 }: {
-  projects: Environment[];
+  projects: EnvironmentListItem[];
   projectNameById: Record<string, string>;
-  activeProject: Environment;
+  activeProject: EnvironmentListItem;
   isAdmin: boolean;
   activeSection?: string;
 }) {
@@ -303,7 +304,7 @@ function ProjectSwitcher({
   // groups alphabetically by project name so the switcher mirrors the
   // two-level model.
   const groups = React.useMemo(() => {
-    const byProject = new Map<string, Environment[]>();
+    const byProject = new Map<string, EnvironmentListItem[]>();
     for (const env of projects) {
       const list = byProject.get(env.projectId);
       if (list) {
@@ -359,8 +360,8 @@ function ProjectSwitcher({
                     onSelect={() =>
                       go(
                         activeSection
-                          ? `/projects/${env.id}/${activeSection}`
-                          : `/projects/${env.id}`
+                          ? `/${env.key}/${env.slug}/${activeSection}`
+                          : `/${env.key}/${env.slug}`
                       )
                     }
                   >

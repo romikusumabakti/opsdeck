@@ -28,7 +28,11 @@ type RoleMeta = {
 
 type StatusMap = Partial<Record<ServiceRole, ServiceStatusResult>>;
 
-export function ProjectStack({ project }: { project: SafeEnvironmentWithServers }) {
+export function ProjectStack({
+  project,
+}: {
+  project: SafeEnvironmentWithServers;
+}) {
   const t = useTranslations("dashboard.stack");
   const tDash = useTranslations("dashboard");
   const tCommon = useTranslations("common");

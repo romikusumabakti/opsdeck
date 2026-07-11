@@ -36,13 +36,13 @@ import { useModKey } from "@/hooks/use-is-mac";
 import { useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
-import type { Environment } from "@/lib/db/schema";
+import type { EnvironmentListItem } from "@/lib/db/schema";
 
 export function CommandPalette({
   projects,
   isAdmin,
 }: {
-  projects: Environment[];
+  projects: EnvironmentListItem[];
   isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -189,7 +189,9 @@ export function CommandPalette({
                   <CommandItem
                     key={p.id}
                     value={`project ${p.name}`}
-                    onSelect={() => run(() => router.push(`/projects/${p.id}`))}
+                    onSelect={() =>
+                      run(() => router.push(`/${p.key}/${p.slug}`))
+                    }
                   >
                     <Folder />
                     <span className="truncate">{p.name}</span>

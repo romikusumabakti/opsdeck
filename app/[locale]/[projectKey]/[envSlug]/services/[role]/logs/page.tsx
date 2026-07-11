@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import {
   LOG_LINE_OPTIONS,
   type LogLines,
@@ -63,10 +64,16 @@ export default async function Page({
   params,
   searchParams,
 }: {
-  params: Promise<{ locale: string; projectId: string; role: string }>;
+  params: Promise<{
+    locale: string;
+    projectKey: string;
+    envSlug: string;
+    role: string;
+  }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { locale, projectId, role } = await params;
+  const { locale, projectKey, envSlug, role } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
   if (!VALID_ROLES.includes(role as ServiceRole)) notFound();

@@ -914,6 +914,10 @@ export type EnvironmentWithServers = Environment & {
   frontendServer: Server;
 };
 
+// An environment plus its owning project's issue key, for readable-URL link
+// builders (/[key]/[slug]/…). Credential-free — safe for client components.
+export type EnvironmentListItem = Environment & { key: string };
+
 // Credential-free projections handed to the client. SSH passwords, the mssql
 // `sa` password, and the mock-time API key must never cross the server/client
 // boundary (RSC payloads are visible in the browser). Server code loads the
