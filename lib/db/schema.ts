@@ -454,6 +454,33 @@ export const savedViews = pgTable(
 );
 
 // =========================
+// Activity / audit stream
+// =========================
+
+// One append-only org-wide event feed. `action` is a dotted verb key
+// (e.g. "issue.created") the reader renders via an i18n template; `data` holds
+// that template's params, denormalized at write time so the feed reads without
+// joins even after the referenced row changes or is deleted. Add event types,
+// not new subsystems — this stream feeds the Activity page (and, later,
+// compliance export). `actorId` set null keeps history after a user is removed.
+export const activityLog = pgTable(
+  "activity_log",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    actorId: uuid("actor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    // Coarse tag for filtering ("issue" | "member" | "milestone" | "test"…).
+    entityType: text("entity_type"),
+    entityId: uuid("entity_id"),
+    data: jsonb("data").$type<Record<string, string | number>>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("activity_created_idx").on(t.createdAt.desc())]
+);
+
+// =========================
 // Notifications
 // =========================
 
@@ -852,6 +879,9 @@ export type NewIssueAttachment = InferInsertModel<typeof issueAttachments>;
 
 export type Notification = InferSelectModel<typeof notifications>;
 export type NewNotification = InferInsertModel<typeof notifications>;
+
+export type ActivityEvent = InferSelectModel<typeof activityLog>;
+export type NewActivityEvent = InferInsertModel<typeof activityLog>;
 
 export type IssueComment = InferSelectModel<typeof issueComments>;
 export type NewIssueComment = InferInsertModel<typeof issueComments>;

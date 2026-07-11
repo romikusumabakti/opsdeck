@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   Aperture,
   BookOpen,
   CircleDot,
@@ -139,6 +140,16 @@ export function AppSidebar({
                 >
                   <BookOpen />
                   <span>{tNav("knowledge")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/activity" />}
+                  isActive={pathname.startsWith("/activity")}
+                  tooltip={tNav("activity")}
+                >
+                  <Activity />
+                  <span>{tNav("activity")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {isAdmin && (

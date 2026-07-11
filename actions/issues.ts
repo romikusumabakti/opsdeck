@@ -2,6 +2,7 @@
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
@@ -309,15 +310,23 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
           .returning();
         return row;
       });
+      const projectKey = await projectKeyOf(input.projectId);
       if (input.assigneeId) {
         await notifyIssueAssigned({
           assigneeId: input.assigneeId,
           actorId: session.user.id,
-          projectKey: await projectKeyOf(input.projectId),
+          projectKey,
           number: created.number,
           title: created.title,
         });
       }
+      await recordActivity({
+        actorId: session.user.id,
+        action: "issue.created",
+        entityType: "issue",
+        entityId: created.id,
+        data: { key: `${projectKey}-${created.number}`, title: created.title },
+      });
       revalidatePath("/projects", "layout");
       return { success: true, data: created };
     } catch (error) {
@@ -358,6 +367,18 @@ export async function updateIssue(
         projectKey: await projectKeyOf(updated.projectId),
         number: updated.number,
         title: updated.title,
+      });
+    }
+    if (parsed.data.status) {
+      await recordActivity({
+        actorId: session.user.id,
+        action: "issue.status_changed",
+        entityType: "issue",
+        entityId: updated.id,
+        data: {
+          key: `${await projectKeyOf(updated.projectId)}-${updated.number}`,
+          status: parsed.data.status,
+        },
       });
     }
     revalidatePath("/projects", "layout");
