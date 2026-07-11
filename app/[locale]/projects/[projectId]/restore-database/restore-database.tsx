@@ -9,6 +9,7 @@ import type { DatabaseEntry } from "@/actions/databases";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
+import { useCanRunOps } from "@/components/ops-capability";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -44,6 +45,7 @@ export function RestoreDatabase({
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");
+  const canRunOps = useCanRunOps();
   const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
@@ -348,7 +350,7 @@ export function RestoreDatabase({
         </Popover>
         <Button
           variant="destructive"
-          disabled={!backup || submitting}
+          disabled={!backup || submitting || !canRunOps}
           onClick={onRestore}
           className="shrink-0"
         >

@@ -14,6 +14,7 @@ import {
 } from "@/actions/mock-time";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
+import { useCanRunOps } from "@/components/ops-capability";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
@@ -182,7 +183,8 @@ export function MockTimeLegacy({
     }
   }
 
-  const anyPending = pendingAction !== null;
+  const canRunOps = useCanRunOps();
+  const anyPending = pendingAction !== null || !canRunOps;
 
   return (
     <div className="flex flex-col gap-6">

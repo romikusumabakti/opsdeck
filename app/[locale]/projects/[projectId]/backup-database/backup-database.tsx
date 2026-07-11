@@ -11,6 +11,7 @@ import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
+import { useCanRunOps } from "@/components/ops-capability";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,6 +43,7 @@ export function BackupDatabase({
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
   const tDash = useTranslations("dashboard");
+  const canRunOps = useCanRunOps();
   const dialog = useDialog();
   const router = useRouter();
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
@@ -215,7 +217,7 @@ export function BackupDatabase({
         </>
       )}
       <div className="flex justify-end">
-        <Button onClick={onClick} disabled={submitting}>
+        <Button onClick={onClick} disabled={submitting || !canRunOps}>
           <Database className="size-4" />
           {submitting ? t("queuing") : t("button")}
         </Button>
