@@ -1,10 +1,28 @@
 # Rework Plan: OpsDeck → 5-Role Delivery + Ops Hub
 
-**Status:** Proposal · **Last updated:** 2026-07-11
+**Status:** In progress (Phases 0–1 shipped) · **Last updated:** 2026-07-11
 
 Target: evolve OpsDeck from a DevOps-first control panel into a shared hub that
 serves five personas — PM, BA, QA, Developer, DevOps — without turning it into a
 Jira/TestRail clone.
+
+## Progress
+
+| Phase | Status |
+|---|---|
+| 0 — RBAC foundation | ✅ Shipped |
+| 1 — Issue depth | ✅ Shipped |
+| 2 — Board + My Work | ⬜ Not started |
+| 3 — QA test management | ⬜ Not started |
+| 4 — BA requirements + Activity | ⬜ Not started |
+| 5 — Polish | ⬜ Not started |
+
+**Migrations to apply before deploy** (additive, safe while running):
+`20260711070000_project_members`, `20260711080000_issue_depth`.
+
+**Deferred within shipped phases:** service-control capability tuning (Phase 0);
+create-time parent picker, deep (>1-level) cycle guard, milestone filter on the
+global view, board grouping by milestone/parent (Phase 1).
 
 ## Guiding principles
 
@@ -27,7 +45,7 @@ Jira/TestRail clone.
 
 ---
 
-## Phase 0 — RBAC foundation (blocker)
+## Phase 0 — RBAC foundation (blocker) — ✅ Shipped
 
 Problem: five personas on flat `users.role` (`admin`/`member`). No answer to
 "who may restore a DB / delete a project / edit servers".
@@ -130,7 +148,7 @@ PR-2 is small but the most important — cherry-pick it first, ahead of the UI w
 
 ---
 
-## Phase 1 — Issue depth (PM + Developer)
+## Phase 1 — Issue depth (PM + Developer) — ✅ Shipped
 
 Issues are flat today. Make them usable without becoming Jira.
 

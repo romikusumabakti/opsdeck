@@ -301,6 +301,11 @@ export const knowledgeSearchSchema = z.string().trim().min(1).max(200);
 // sniffs the bytes (raster only — SVG is rejected as an XSS vector).
 export const KNOWLEDGE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 
+// Issue attachments accept any file (logs, screenshots, PDFs), served as a
+// download — so no image sniffing, just a hard size ceiling.
+export const ISSUE_ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+export const issueIdSchema = z.uuid();
+
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
 export type DocumentInput = z.infer<typeof documentInputSchema>;
 export type DocumentUpdate = z.infer<typeof documentUpdateSchema>;

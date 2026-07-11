@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -58,4 +59,27 @@ export async function deleteObject(key: string): Promise<void> {
   await getClient().send(
     new DeleteObjectCommand({ Bucket: bucket(), Key: key })
   );
+}
+
+/**
+ * Fetch an object's raw bytes as a web stream, for the app to proxy back to the
+ * client (issue attachments are served as-is — no imgproxy transform, since they
+ * can be any file type, not just images).
+ */
+export async function getObject(key: string): Promise<{
+  body: ReadableStream;
+  contentType?: string;
+  contentLength?: number;
+}> {
+  const res = await getClient().send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key })
+  );
+  if (!res.Body) throw new Error("empty object body");
+  return {
+    body: (
+      res.Body as { transformToWebStream(): ReadableStream }
+    ).transformToWebStream(),
+    contentType: res.ContentType,
+    contentLength: res.ContentLength,
+  };
 }
