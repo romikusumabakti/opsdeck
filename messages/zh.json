@@ -993,7 +993,14 @@
     "editorInlineCode": "行内代码",
     "editorCodeBlock": "代码块",
     "editorQuote": "引用",
-    "editorInsertTable": "插入表格"
+    "editorInsertTable": "插入表格",
+    "docTypeLabel": "类型",
+    "docType": {
+      "doc": "文档",
+      "runbook": "运行手册",
+      "spec": "规格",
+      "requirement": "需求"
+    }
   },
   "explorer": {
     "newFolder": "新建文件夹",

@@ -182,8 +182,15 @@ export async function createDocument(
   if (!parsed.success) {
     return { success: false, message: "Invalid document data" };
   }
-  const { collectionId, parentId, title, content, projectId, publishedAt } =
-    parsed.data;
+  const {
+    collectionId,
+    parentId,
+    title,
+    docType,
+    content,
+    projectId,
+    publishedAt,
+  } = parsed.data;
   try {
     const slug = await ensureUniqueSlug(slugify(title));
     const rank = await appendDocumentRank(collectionId, parentId ?? null);
@@ -194,6 +201,7 @@ export async function createDocument(
           collectionId,
           parentId: parentId ?? null,
           title,
+          docType,
           slug,
           content,
           contentText: markdownToPlainText(content),
@@ -256,6 +264,7 @@ export async function updateDocument(
         updatedAt: new Date(),
       };
       if (input.parentId !== undefined) set.parentId = input.parentId ?? null;
+      if (input.docType !== undefined) set.docType = input.docType;
       if (input.projectId !== undefined)
         set.projectId = input.projectId ?? null;
       if (input.publishedAt !== undefined)

@@ -68,6 +68,9 @@ export default async function DocumentPage({
             />
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {doc.docType !== "doc" && (
+                <Badge variant="outline">{t(`docType.${doc.docType}`)}</Badge>
+              )}
               {doc.publishedAt === null && (
                 <Badge variant="secondary">{t("draft")}</Badge>
               )}

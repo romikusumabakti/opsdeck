@@ -993,7 +993,14 @@
     "editorInlineCode": "Inline code",
     "editorCodeBlock": "Code block",
     "editorQuote": "Quote",
-    "editorInsertTable": "Insert table"
+    "editorInsertTable": "Insert table",
+    "docTypeLabel": "Type",
+    "docType": {
+      "doc": "Document",
+      "runbook": "Runbook",
+      "spec": "Spec",
+      "requirement": "Requirement"
+    }
   },
   "explorer": {
     "newFolder": "New folder",
