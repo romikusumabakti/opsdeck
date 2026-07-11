@@ -164,7 +164,9 @@ Gaps to reach the ideal:
 ## Suggested build order
 
 1. ~~**Home / Inbox** — my work + what needs me.~~ ✅ Done.
-2. **Notifications** feeding the Inbox (assignment, job failed).
+2. ~~**Notifications** feeding the Inbox (assignment, job failed).~~ ✅ Done.
+3. ~~**Issue depth** — assignee picker, detail + comments, labels, saved views.~~ ✅ Done.
+   Remaining polish: label management UI (CRUD), issue detail: mentions on comments.
 3. **Issue depth** — detail view, comments, labels, assignee picker, saved views.
 4. **Project-scoped Knowledge** tab + **org Activity** feed.
 5. **Role → default landing** and capability gates.

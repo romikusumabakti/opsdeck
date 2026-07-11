@@ -306,6 +306,23 @@ export const issueLabels = pgTable(
   ]
 );
 
+// Per-user saved filter presets for the global issues view. `params` is the
+// filter query (status/project/label/mine/view) as a flat string map so it maps
+// straight onto the URL query — views are just named URL states.
+export const savedViews = pgTable(
+  "saved_views",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    params: jsonb("params").$type<Record<string, string>>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("saved_views_user_idx").on(t.userId, t.createdAt)]
+);
+
 // =========================
 // Notifications
 // =========================
@@ -691,6 +708,9 @@ export type NewIssueComment = InferInsertModel<typeof issueComments>;
 
 export type Label = InferSelectModel<typeof labels>;
 export type NewLabel = InferInsertModel<typeof labels>;
+
+export type SavedView = InferSelectModel<typeof savedViews>;
+export type NewSavedView = InferInsertModel<typeof savedViews>;
 // The lightweight label shape attached to issues in list/detail payloads.
 export type LabelLite = Pick<Label, "id" | "name" | "color">;
 
