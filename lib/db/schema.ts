@@ -216,6 +216,42 @@ export const projectAccess = pgTable(
 );
 
 // =========================
+// Per-project membership (RBAC)
+// =========================
+
+// Effective role = max(users.role global floor, this per-project role). Members
+// attach to the LOGICAL project, not a deployment, so a QA granted `maintainer`
+// on "Common Membership" may restore/mock any of its environments. The global
+// `users.role` (text, owned by better-auth) is the floor; this raises it per
+// project. Same four-rung ladder as lib/roles.ts.
+export const projectRoleEnum = pgEnum("project_role", [
+  "viewer",
+  "member",
+  "maintainer",
+  "admin",
+]);
+
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: projectRoleEnum("role").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.userId] }),
+    // "Which projects can this user reach, and at what role" — the membership
+    // lookup on every capability check that carries a project/environment scope.
+    index("project_members_user_idx").on(t.userId),
+  ]
+);
+
+// =========================
 // Issue tracker (per project)
 // =========================
 
@@ -696,6 +732,9 @@ export type NewServer = InferInsertModel<typeof servers>;
 // The logical project (parent). Deployment-level data lives on `Environment`.
 export type Project = InferSelectModel<typeof projects>;
 export type NewProject = InferInsertModel<typeof projects>;
+
+export type ProjectMember = InferSelectModel<typeof projectMembers>;
+export type NewProjectMember = InferInsertModel<typeof projectMembers>;
 
 export type Issue = InferSelectModel<typeof issues>;
 export type NewIssue = InferInsertModel<typeof issues>;
