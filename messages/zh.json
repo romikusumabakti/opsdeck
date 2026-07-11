@@ -149,7 +149,8 @@
     "markAllRead": "全部标为已读",
     "ariaLabel": "通知",
     "issue_assigned": "已分配给你：{key}-{number} · {title}",
-    "run_failed": "{description} 在 {environment} 失败"
+    "run_failed": "{description} 在 {environment} 失败",
+    "issue_mention": "提到了你：{key}-{number} · {title}"
   },
   "projectsEmpty": {
     "title": "暂无项目",

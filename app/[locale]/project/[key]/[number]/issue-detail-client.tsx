@@ -33,6 +33,7 @@ import {
   TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips, LabelPicker } from "@/components/label-ui";
+import { MentionTextarea } from "@/components/mention-textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -515,9 +516,10 @@ export function IssueDetailClient({
         )}
 
         <div className="flex flex-col gap-2">
-          <Textarea
+          <MentionTextarea
             value={comment}
-            onChange={(e) => setComment(e.target.value)}
+            onChange={setComment}
+            users={users}
             placeholder={t("commentPlaceholder")}
             rows={3}
           />

@@ -1,6 +1,6 @@
 # Rework Plan: OpsDeck → 5-Role Delivery + Ops Hub
 
-**Status:** In progress (Phases 0–4 shipped) · **Last updated:** 2026-07-11
+**Status:** In progress (Phases 0–4 shipped; Phase 5 partial) · **Last updated:** 2026-07-11
 
 Target: evolve OpsDeck from a DevOps-first control panel into a shared hub that
 serves five personas — PM, BA, QA, Developer, DevOps — without turning it into a
@@ -15,7 +15,7 @@ Jira/TestRail clone.
 | 2 — Board + My Work | ✅ Shipped |
 | 3 — QA test management | ✅ Shipped (Option A, record-not-execute) |
 | 4 — BA requirements + Activity | ✅ Shipped |
-| 5 — Polish | ⬜ Not started |
+| 5 — Polish | 🟡 Partial (bulk actions, palette nav) |
 
 **Migrations to apply before deploy** (additive, safe while running):
 `20260711070000_project_members`, `20260711080000_issue_depth`,
@@ -267,7 +267,15 @@ activityLog (id, actorId, scope, entityType, entityId, action, data jsonb, at)
 
 ---
 
-## Phase 5 — Polish (cosmetic, last)
+## Phase 5 — Polish (cosmetic, last) — 🟡 Partial
+
+**Shipped:** bulk actions on the issue list (multi-select → set status / delete);
+command palette reaches every top-level section (Projects, Issues, Activity).
+**Deferred:** key/slug URL migration (`/CMEM/prod/...`, highest risk — touches
+many links); `@mention` in comments (needs a unique-username field; `users` only
+has a display `name` today); keyboard-first list navigation (j/k/x); destructive
+palette actions (a backup one keystroke away is deliberately out of scope).
+
 
 - **Key/slug URLs:** `/CMEM/prod/databases` instead of `/projects/[uuid]`. Route
   refactor, not a data change. `projects.key` + an env slug are the raw material.

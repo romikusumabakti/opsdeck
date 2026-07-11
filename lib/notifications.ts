@@ -32,6 +32,23 @@ export async function notifyIssueAssigned(input: {
   });
 }
 
+/** Notify a user mentioned in an issue comment. No-op for self-mention. */
+export async function notifyIssueMention(input: {
+  userId: string;
+  actorId: string;
+  projectKey: string;
+  number: number;
+  title: string;
+}): Promise<void> {
+  if (input.userId === input.actorId) return;
+  await createNotification({
+    userId: input.userId,
+    type: "issue_mention",
+    data: { key: input.projectKey, number: input.number, title: input.title },
+    href: `/project/${input.projectKey}/${input.number}`,
+  });
+}
+
 /** Notify the user who initiated a run when it fails. */
 export async function notifyRunFailed(input: {
   userId: string | null | undefined;

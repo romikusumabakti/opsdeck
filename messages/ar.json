@@ -149,7 +149,8 @@
     "markAllRead": "تحديد الكل كمقروء",
     "ariaLabel": "الإشعارات",
     "issue_assigned": "أُسنِد إليك: {key}-{number} · {title}",
-    "run_failed": "{description} فشل في {environment}"
+    "run_failed": "{description} فشل في {environment}",
+    "issue_mention": "أشار إليك: {key}-{number} · {title}"
   },
   "projectsEmpty": {
     "title": "لا توجد مشاريع بعد",

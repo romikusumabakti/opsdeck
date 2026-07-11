@@ -149,7 +149,8 @@
     "markAllRead": "Mark all read",
     "ariaLabel": "Notifications",
     "issue_assigned": "Assigned to you: {key}-{number} · {title}",
-    "run_failed": "{description} failed in {environment}"
+    "run_failed": "{description} failed in {environment}",
+    "issue_mention": "Mentioned you: {key}-{number} · {title}"
   },
   "projectsEmpty": {
     "title": "No projects yet",
