@@ -1155,7 +1155,8 @@
     "editProject": "编辑项目",
     "noEnvironments": "暂无环境",
     "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
-    "client": "客户"
+    "client": "客户",
+    "members": "成员"
   },
   "inbox": {
     "title": "主页",
@@ -1191,5 +1192,26 @@
     "notFound": "未找到该问题。",
     "labels": "标签",
     "noLabels": "无标签"
+  },
+  "projectMembers": {
+    "selectUser": "选择用户…",
+    "add": "添加",
+    "role": {
+      "viewer": "查看者",
+      "member": "成员",
+      "maintainer": "维护者",
+      "admin": "管理员"
+    },
+    "colName": "用户",
+    "colRole": "角色",
+    "remove": "移除",
+    "empty": "暂无成员",
+    "emptyDescription": "添加成员以授予高于其全局角色的项目级访问权限。",
+    "addedSuccess": "已添加成员",
+    "roleUpdatedSuccess": "角色已更新",
+    "removedSuccess": "已移除成员",
+    "errorInvalidInput": "输入无效",
+    "errorInvalidRole": "角色无效",
+    "errorAddFailed": "添加成员失败"
   }
 }
