@@ -1213,7 +1213,15 @@
     "noLabels": "لا تصنيفات",
     "parent": "الأصل",
     "noParent": "بدون أصل",
-    "subtasks": "المهام الفرعية"
+    "subtasks": "المهام الفرعية",
+    "attachments": "المرفقات",
+    "attachmentAdd": "إرفاق",
+    "attachmentUploading": "جارٍ الرفع…",
+    "attachmentAdded": "تم رفع المرفق",
+    "attachmentFailed": "فشل الرفع",
+    "attachmentTooLarge": "الملف كبير جدًا (الحد 25 ميغابايت)",
+    "attachmentDownload": "تنزيل",
+    "attachmentDelete": "حذف"
   },
   "projectMembers": {
     "selectUser": "اختر مستخدمًا…",

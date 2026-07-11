@@ -1213,7 +1213,15 @@
     "noLabels": "No labels",
     "parent": "Parent",
     "noParent": "No parent",
-    "subtasks": "Subtasks"
+    "subtasks": "Subtasks",
+    "attachments": "Attachments",
+    "attachmentAdd": "Attach",
+    "attachmentUploading": "Uploading…",
+    "attachmentAdded": "Attachment uploaded",
+    "attachmentFailed": "Upload failed",
+    "attachmentTooLarge": "File too large (max 25 MB)",
+    "attachmentDownload": "Download",
+    "attachmentDelete": "Delete"
   },
   "projectMembers": {
     "selectUser": "Select a user…",

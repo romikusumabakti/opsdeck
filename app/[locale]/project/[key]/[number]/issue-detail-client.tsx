@@ -1,9 +1,14 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
+import { Download, Paperclip, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
+import {
+  deleteIssueAttachment,
+  type IssueAttachmentRow,
+} from "@/actions/issue-attachments";
 import type { IssueDetail } from "@/actions/issues";
 import { addComment, updateIssue } from "@/actions/issues";
 import { setIssueLabels } from "@/actions/labels";
@@ -33,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { formatBytes } from "@/lib/utils";
 
 type EnvOption = { id: string; name: string };
 const NONE = "none";
@@ -43,6 +49,7 @@ export function IssueDetailClient({
   environments,
   milestones,
   siblings,
+  attachments,
   allLabels,
 }: {
   issue: IssueDetail;
@@ -50,6 +57,7 @@ export function IssueDetailClient({
   environments: EnvOption[];
   milestones: MilestoneOption[];
   siblings: { id: string; number: number; title: string }[];
+  attachments: IssueAttachmentRow[];
   allLabels: { id: string; name: string; color: string; createdAt: Date }[];
 }) {
   const t = useTranslations("issueDetail");
@@ -63,6 +71,44 @@ export function IssueDetailClient({
   const [labelIds, setLabelIds] = React.useState(issue.labels.map((l) => l.id));
   const [comment, setComment] = React.useState("");
   const [posting, setPosting] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so re-picking the same file re-fires onChange
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/issues/${issue.id}/attachments`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(
+          body.error === "too_large"
+            ? t("attachmentTooLarge")
+            : t("attachmentFailed")
+        );
+        return;
+      }
+      toast.success(t("attachmentAdded"));
+      router.refresh();
+    } catch {
+      toast.error(t("attachmentFailed"));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function onDeleteAttachment(id: string) {
+    const result = await deleteIssueAttachment(id);
+    if (!result.success) toast.error(t("saveFailed"));
+    else router.refresh();
+  }
 
   async function onLabelsChange(ids: string[]) {
     setLabelIds(ids);
@@ -255,6 +301,65 @@ export function IssueDetailClient({
           </ul>
         </div>
       ) : null}
+
+      {/* Attachments */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">
+            {t("attachments")}
+            <span className="ms-1.5 text-muted-foreground">
+              {attachments.length}
+            </span>
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip className="size-4" />
+            {uploading ? t("attachmentUploading") : t("attachmentAdd")}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={onUpload}
+          />
+        </div>
+        {attachments.length > 0 ? (
+          <ul className="flex flex-col gap-1">
+            {attachments.map((a) => (
+              <li
+                key={a.id}
+                className="flex items-center gap-2 rounded-md border p-2"
+              >
+                <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate text-sm">{a.filename}</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatBytes(a.sizeBytes)}
+                </span>
+                <a
+                  href={`/api/issues/attachments/${a.id}`}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label={t("attachmentDownload")}
+                >
+                  <Download className="size-4" />
+                </a>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={t("attachmentDelete")}
+                  onClick={() => onDeleteAttachment(a.id)}
+                >
+                  <Trash2 className="size-4 text-destructive" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
       {/* Description */}
       <div className="flex flex-col gap-2">
