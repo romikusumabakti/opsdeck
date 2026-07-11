@@ -183,7 +183,7 @@ export default async function HomePage({
               {recentEnvs.slice(0, 6).map((env) => (
                 <li key={env.id}>
                   <Link
-                    href={`/projects/${env.id}`}
+                    href={`/${env.key}/${env.slug}`}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 transition-colors group"
                   >
                     <span className="flex-1 min-w-0 truncate text-sm">

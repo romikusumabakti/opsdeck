@@ -32,9 +32,11 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { Environment } from "@/lib/db/schema";
+import type { EnvironmentListItem } from "@/lib/db/schema";
 
-const PROJECT_PATH_REGEX = /^\/projects\/([0-9a-f-]{20,})(?:\/|$)/i;
+// Readable env path: uppercase key + lowercase slug (/CMEM/prod/…). Distinct
+// from single-segment lowercase top-level routes (/issues, …).
+const ENV_PATH_REGEX = /^\/([A-Z][A-Z0-9]{1,9})\/([a-z0-9][a-z0-9-]*)(?:\/|$)/;
 
 const projectItems = [
   { key: "dashboard", url: "", icon: LayoutDashboard, adminOnly: false },
@@ -64,7 +66,7 @@ export function AppSidebar({
   user,
   side = "left",
 }: {
-  projects: Environment[];
+  projects: EnvironmentListItem[];
   isAdmin: boolean;
   user: AppSidebarUser;
   side?: "left" | "right";
@@ -73,10 +75,9 @@ export function AppSidebar({
   const tNav = useTranslations("nav");
   const pathname = usePathname();
 
-  const match = PROJECT_PATH_REGEX.exec(pathname);
-  const activeProjectId = match?.[1];
-  const activeProject = activeProjectId
-    ? (projects.find((p) => p.id === activeProjectId) ?? null)
+  const match = ENV_PATH_REGEX.exec(pathname);
+  const activeProject = match
+    ? (projects.find((p) => p.key === match[1] && p.slug === match[2]) ?? null)
     : null;
 
   return (
@@ -200,7 +201,7 @@ export function AppSidebar({
                 {projectItems
                   .filter((item) => !item.adminOnly || isAdmin)
                   .map((item) => {
-                    const itemPath = `/projects/${activeProject.id}${item.url}`;
+                    const itemPath = `/${activeProject.key}/${activeProject.slug}${item.url}`;
                     const isActive =
                       item.url === ""
                         ? pathname === itemPath

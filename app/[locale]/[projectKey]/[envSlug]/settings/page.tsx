@@ -16,14 +16,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth-session";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { DeleteProjectCard } from "./delete-project-card";
 
 export default async function ProjectSettingsPage({
   params,
 }: {
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
-  const { locale, projectId } = await params;
+  const { locale, projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
   await requireAdmin();
