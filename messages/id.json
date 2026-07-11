@@ -1155,7 +1155,8 @@
     "editProject": "Edit proyek",
     "noEnvironments": "Belum ada environment",
     "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
-    "client": "Klien"
+    "client": "Klien",
+    "members": "Anggota"
   },
   "inbox": {
     "title": "Beranda",
@@ -1191,5 +1192,26 @@
     "notFound": "Isu tidak ditemukan.",
     "labels": "Label",
     "noLabels": "Tidak ada label"
+  },
+  "projectMembers": {
+    "selectUser": "Pilih pengguna…",
+    "add": "Tambah",
+    "role": {
+      "viewer": "Pengamat",
+      "member": "Anggota",
+      "maintainer": "Pengelola",
+      "admin": "Admin"
+    },
+    "colName": "Pengguna",
+    "colRole": "Peran",
+    "remove": "Hapus",
+    "empty": "Belum ada anggota",
+    "emptyDescription": "Tambahkan anggota untuk memberi akses per-proyek di atas peran global mereka.",
+    "addedSuccess": "Anggota ditambahkan",
+    "roleUpdatedSuccess": "Peran diperbarui",
+    "removedSuccess": "Anggota dihapus",
+    "errorInvalidInput": "Masukan tidak valid",
+    "errorInvalidRole": "Peran tidak valid",
+    "errorAddFailed": "Gagal menambahkan anggota"
   }
 }

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
 import { getProjectByKeyWithEnvironments } from "@/actions/project-catalog";
+import { listProjectMembers } from "@/actions/project-members";
 import { getProjectsLastActivity } from "@/actions/runs";
 import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
@@ -12,9 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import {
+  getEffectiveRole,
+  getServerSession,
+  isAdmin,
+} from "@/lib/auth-session";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { roleHasCapability } from "@/lib/roles";
 import { IssuesClient } from "../../projects/[projectId]/issues/issues-client";
+import { ProjectMembersClient } from "./project-members-client";
 
 // Drop the project-name prefix from an environment label under its own project.
 function stripPrefix(envName: string, projectName: string): string {
@@ -52,6 +59,16 @@ export default async function ProjectOverviewPage({
     getTranslations("environmentKinds"),
   ]);
   const dateFnsLocale = getDateFnsLocale(locale);
+
+  // Membership is admin-only. Effective role folds in per-project admin, so a
+  // project-admin who isn't a global admin still manages members here.
+  const canManageMembers = session
+    ? roleHasCapability(
+        await getEffectiveRole({ projectId: project.id }),
+        "admin"
+      )
+    : false;
+  const members = canManageMembers ? await listProjectMembers(project.id) : [];
 
   const environments = [...project.environments].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -94,6 +111,14 @@ export default async function ProjectOverviewPage({
               {issues.length}
             </span>
           </TabsTrigger>
+          {canManageMembers ? (
+            <TabsTrigger value="members">
+              {tOv("members")}
+              <span className="ms-1.5 text-muted-foreground">
+                {members.length}
+              </span>
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="environments" className="flex flex-col gap-4">
@@ -175,6 +200,16 @@ export default async function ProjectOverviewPage({
             initialIssues={issues}
           />
         </TabsContent>
+
+        {canManageMembers ? (
+          <TabsContent value="members">
+            <ProjectMembersClient
+              projectId={project.id}
+              initialMembers={members}
+              assignableUsers={users}
+            />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </>
   );
