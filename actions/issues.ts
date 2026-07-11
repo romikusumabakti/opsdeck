@@ -265,6 +265,8 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
             number: Number(max) + 1,
             title: input.title,
             description: input.description ?? "",
+            type: input.type,
+            priority: input.priority,
             environmentId: input.environmentId ?? null,
             assigneeId: input.assigneeId ?? null,
             createdById: session.user.id,

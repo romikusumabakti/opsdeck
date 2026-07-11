@@ -1139,7 +1139,22 @@
     "deleteView": "删除",
     "noSavedViews": "暂无已保存视图",
     "save": "保存",
-    "cancel": "取消"
+    "cancel": "取消",
+    "type": {
+      "bug": "缺陷",
+      "task": "任务",
+      "story": "故事",
+      "epic": "史诗"
+    },
+    "priority": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急"
+    },
+    "typeLabel": "类型",
+    "priorityLabel": "优先级",
+    "columnPriority": "优先级"
   },
   "environmentKinds": {
     "qa": "测试",

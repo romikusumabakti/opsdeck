@@ -1139,7 +1139,22 @@
     "deleteView": "حذف",
     "noSavedViews": "لا عروض محفوظة بعد",
     "save": "حفظ",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "type": {
+      "bug": "علة",
+      "task": "مهمة",
+      "story": "قصة",
+      "epic": "ملحمة"
+    },
+    "priority": {
+      "low": "منخفض",
+      "medium": "متوسط",
+      "high": "مرتفع",
+      "urgent": "عاجل"
+    },
+    "typeLabel": "النوع",
+    "priorityLabel": "الأولوية",
+    "columnPriority": "الأولوية"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",

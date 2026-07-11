@@ -20,8 +20,12 @@ import {
   type AssignableUser,
   AssigneeSelect,
   IssueBoard,
+  type IssueType,
+  type Priority,
+  PrioritySelect,
   type Status,
   StatusSelect,
+  TypeIcon,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
@@ -208,6 +212,15 @@ export function GlobalIssuesClient({
     router.refresh();
   }
 
+  async function onPriorityChange(id: string, priority: Priority) {
+    setIssues((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, priority } : i))
+    );
+    const result = await updateIssue(id, { priority });
+    if (!result.success) toast.error(t("updateFailed"));
+    router.refresh();
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -355,6 +368,8 @@ export function GlobalIssuesClient({
             number: i.number,
             title: i.title,
             status: i.status as Status,
+            type: i.type as IssueType,
+            priority: i.priority as Priority,
             keyPrefix: i.project.key,
             projectName: i.project.name,
             envName: i.environment?.name ?? null,
@@ -372,6 +387,7 @@ export function GlobalIssuesClient({
                 <TableHead>{t("columnTitle")}</TableHead>
                 <TableHead className="w-44">{t("columnProject")}</TableHead>
                 <TableHead className="w-40">{t("columnStatus")}</TableHead>
+                <TableHead className="w-36">{t("columnPriority")}</TableHead>
                 <TableHead className="w-32">{t("columnAssignee")}</TableHead>
                 <TableHead className="w-32">{t("columnCreated")}</TableHead>
               </TableRow>
@@ -389,6 +405,7 @@ export function GlobalIssuesClient({
                   </TableCell>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
+                      <TypeIcon type={issue.type as IssueType} />
                       <Link
                         href={`/project/${issue.project.key}/${issue.number}`}
                         className="hover:underline"
@@ -410,6 +427,12 @@ export function GlobalIssuesClient({
                     <StatusSelect
                       value={issue.status as Status}
                       onChange={(s) => onStatusChange(issue.id, s)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <PrioritySelect
+                      value={issue.priority as Priority}
+                      onChange={(p) => onPriorityChange(issue.id, p)}
                     />
                   </TableCell>
                   <TableCell>

@@ -134,11 +134,15 @@ export const issueStatusSchema = z.enum([
   "resolved",
   "closed",
 ]);
+export const issueTypeSchema = z.enum(["bug", "task", "story", "epic"]);
+export const issuePrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
 
 export const issueInputSchema = z.object({
   projectId: z.uuid(),
   title: z.string().trim().min(1).max(300),
   description: z.string().trim().max(20_000).default(""),
+  type: issueTypeSchema.default("task"),
+  priority: issuePrioritySchema.default("medium"),
   // Optional deployment where the issue was observed.
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
@@ -149,6 +153,8 @@ export const issueUpdateSchema = z.object({
   title: z.string().trim().min(1).max(300).optional(),
   description: z.string().trim().max(20_000).optional(),
   status: issueStatusSchema.optional(),
+  type: issueTypeSchema.optional(),
+  priority: issuePrioritySchema.optional(),
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
 });

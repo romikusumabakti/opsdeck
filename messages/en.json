@@ -1139,7 +1139,22 @@
     "deleteView": "Delete",
     "noSavedViews": "No saved views yet",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "type": {
+      "bug": "Bug",
+      "task": "Task",
+      "story": "Story",
+      "epic": "Epic"
+    },
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "typeLabel": "Type",
+    "priorityLabel": "Priority",
+    "columnPriority": "Priority"
   },
   "environmentKinds": {
     "qa": "QA",
