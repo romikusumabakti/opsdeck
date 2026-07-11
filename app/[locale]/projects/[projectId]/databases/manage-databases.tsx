@@ -12,6 +12,7 @@ import {
 } from "@/actions/databases";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
+import { useCanRunOps } from "@/components/ops-capability";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,6 +35,7 @@ export function ManageDatabases({
 }) {
   const t = useTranslations("databases");
   const tCommon = useTranslations("common");
+  const canRunOps = useCanRunOps();
   const dialog = useDialog();
   const router = useRouter();
   const [query, setQuery] = React.useState("");
@@ -157,7 +159,7 @@ export function ManageDatabases({
             {t("count", { count: databases.length })}
           </span>
         </div>
-        <Button onClick={onCreatePrompt} disabled={submitting}>
+        <Button onClick={onCreatePrompt} disabled={submitting || !canRunOps}>
           <Plus className="size-4" />
           {submitting ? t("queuing") : t("create")}
         </Button>
@@ -165,81 +167,81 @@ export function ManageDatabases({
 
       {showSearch && (
         <div className="shrink-0 relative">
-            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("searchPlaceholder")}
-              className="pl-8 font-mono text-sm"
-              autoComplete="off"
-              spellCheck={false}
-              aria-label={t("searchPlaceholder")}
-            />
-          </div>
-        )}
-
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon={Search}
-            title={t("noMatchTitle")}
-            description={t("noMatchDescription")}
-            className="rounded-md border py-10"
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="pl-8 font-mono text-sm"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={t("searchPlaceholder")}
           />
-        ) : (
-          // Fill the card's remaining height and scroll only these rows so the
-          // header, search, tab bar, and page header stay pinned. The min-h
-          // floor keeps the list usable (~6 rows) on short viewports — if the
-          // card can't fit it, the page scrolls as a graceful fallback.
-          <ul className="flex flex-1 min-h-[16rem] flex-col divide-y overflow-y-auto rounded-md border">
-            {filtered.map((d) => (
-              <li
-                key={d.name}
-                className="flex items-center gap-2 px-3 py-2 text-sm"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Database className="size-4 shrink-0 text-muted-foreground" />
-                  <code className="min-w-0 truncate font-mono text-xs">
-                    {d.name}
-                  </code>
-                  {d.isDefault && (
-                    <Badge variant="secondary" className="shrink-0">
-                      {t("defaultBadge")}
-                    </Badge>
-                  )}
-                </div>
-                {d.sizeBytes !== undefined && (
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {formatBytes(d.sizeBytes)}
-                  </span>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title={t("noMatchTitle")}
+          description={t("noMatchDescription")}
+          className="rounded-md border py-10"
+        />
+      ) : (
+        // Fill the card's remaining height and scroll only these rows so the
+        // header, search, tab bar, and page header stay pinned. The min-h
+        // floor keeps the list usable (~6 rows) on short viewports — if the
+        // card can't fit it, the page scrolls as a graceful fallback.
+        <ul className="flex flex-1 min-h-[16rem] flex-col divide-y overflow-y-auto rounded-md border">
+          {filtered.map((d) => (
+            <li
+              key={d.name}
+              className="flex items-center gap-2 px-3 py-2 text-sm"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <Database className="size-4 shrink-0 text-muted-foreground" />
+                <code className="min-w-0 truncate font-mono text-xs">
+                  {d.name}
+                </code>
+                {d.isDefault && (
+                  <Badge variant="secondary" className="shrink-0">
+                    {t("defaultBadge")}
+                  </Badge>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  disabled={d.isDefault || submitting}
-                  onClick={() => onRename(d.name)}
-                  title={
-                    d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
-                  }
-                  aria-label={t("renameTitle")}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-destructive hover:text-destructive"
-                  disabled={d.isDefault || submitting}
-                  onClick={() => onDrop(d.name)}
-                  title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
-                  aria-label={t("dropTitle")}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+              </div>
+              {d.sizeBytes !== undefined && (
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {formatBytes(d.sizeBytes)}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                disabled={d.isDefault || submitting || !canRunOps}
+                onClick={() => onRename(d.name)}
+                title={
+                  d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
+                }
+                aria-label={t("renameTitle")}
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 text-destructive hover:text-destructive"
+                disabled={d.isDefault || submitting || !canRunOps}
+                onClick={() => onDrop(d.name)}
+                title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
+                aria-label={t("dropTitle")}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <LiveRunDialog
         runId={activeTaskId}
