@@ -1157,7 +1157,10 @@
     "columnPriority": "优先级",
     "milestone": "里程碑",
     "noMilestone": "无里程碑",
-    "allMilestones": "所有里程碑"
+    "allMilestones": "所有里程碑",
+    "groupNone": "不分组",
+    "groupAssignee": "按负责人",
+    "groupMilestone": "按里程碑"
   },
   "environmentKinds": {
     "qa": "测试",

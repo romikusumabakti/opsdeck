@@ -68,9 +68,12 @@ export type BoardIssue = {
   keyPrefix: string;
   envName?: string | null;
   assigneeName?: string | null;
+  milestoneName?: string | null;
   projectName?: string | null;
   labels?: LabelLite[];
 };
+
+export type Swimlane = "none" | "assignee" | "milestone";
 
 // Compact status control with a colored dot, reused by the table and board.
 export function StatusSelect({
@@ -281,14 +284,71 @@ export function MilestoneSelect({
 
 // Kanban-by-status board. Columns are the fixed status set; each card can move
 // via its own StatusSelect (no drag dependency).
-export function IssueBoard({
-  issues,
+function IssueCard({
+  issue,
+  showProject,
   onStatusChange,
-  showProject = false,
+}: {
+  issue: BoardIssue;
+  showProject: boolean;
+  onStatusChange: (id: string, status: Status) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-md border bg-card p-2.5">
+      <div className="flex items-center gap-2">
+        {issue.type ? <TypeIcon type={issue.type} /> : null}
+        {issue.priority ? (
+          <span
+            className={cn("size-2 rounded-full", PRIORITY_DOT[issue.priority])}
+          />
+        ) : null}
+        <Link
+          href={`/project/${issue.keyPrefix}/${issue.number}`}
+          className="font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+        >
+          {issue.keyPrefix}-{issue.number}
+        </Link>
+        {showProject && issue.projectName ? (
+          <span className="truncate text-[11px] text-muted-foreground">
+            · {issue.projectName}
+          </span>
+        ) : null}
+      </div>
+      <Link
+        href={`/project/${issue.keyPrefix}/${issue.number}`}
+        className="text-sm font-medium leading-snug hover:underline"
+      >
+        {issue.title}
+      </Link>
+      {issue.labels && issue.labels.length > 0 ? (
+        <LabelChips labels={issue.labels} />
+      ) : null}
+      {issue.envName || issue.assigneeName ? (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+          {issue.envName ? <span>{issue.envName}</span> : null}
+          {issue.envName && issue.assigneeName ? (
+            <span aria-hidden="true">·</span>
+          ) : null}
+          {issue.assigneeName ? <span>{issue.assigneeName}</span> : null}
+        </div>
+      ) : null}
+      <StatusSelect
+        value={issue.status}
+        onChange={(s) => onStatusChange(issue.id, s)}
+      />
+    </div>
+  );
+}
+
+// The status-column kanban for one set of issues. Reused per swimlane band.
+function StatusColumns({
+  issues,
+  showProject,
+  onStatusChange,
 }: {
   issues: BoardIssue[];
+  showProject: boolean;
   onStatusChange: (id: string, status: Status) => void;
-  showProject?: boolean;
 }) {
   const t = useTranslations("issues");
   return (
@@ -313,63 +373,82 @@ export function IssueBoard({
                 </p>
               ) : (
                 column.map((issue) => (
-                  <div
+                  <IssueCard
                     key={issue.id}
-                    className="flex flex-col gap-2 rounded-md border bg-card p-2.5"
-                  >
-                    <div className="flex items-center gap-2">
-                      {issue.type ? <TypeIcon type={issue.type} /> : null}
-                      {issue.priority ? (
-                        <span
-                          className={cn(
-                            "size-2 rounded-full",
-                            PRIORITY_DOT[issue.priority]
-                          )}
-                        />
-                      ) : null}
-                      <Link
-                        href={`/project/${issue.keyPrefix}/${issue.number}`}
-                        className="font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        {issue.keyPrefix}-{issue.number}
-                      </Link>
-                      {showProject && issue.projectName ? (
-                        <span className="truncate text-[11px] text-muted-foreground">
-                          · {issue.projectName}
-                        </span>
-                      ) : null}
-                    </div>
-                    <Link
-                      href={`/project/${issue.keyPrefix}/${issue.number}`}
-                      className="text-sm font-medium leading-snug hover:underline"
-                    >
-                      {issue.title}
-                    </Link>
-                    {issue.labels && issue.labels.length > 0 ? (
-                      <LabelChips labels={issue.labels} />
-                    ) : null}
-                    {(issue.envName || issue.assigneeName) && (
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                        {issue.envName ? <span>{issue.envName}</span> : null}
-                        {issue.envName && issue.assigneeName ? (
-                          <span aria-hidden="true">·</span>
-                        ) : null}
-                        {issue.assigneeName ? (
-                          <span>{issue.assigneeName}</span>
-                        ) : null}
-                      </div>
-                    )}
-                    <StatusSelect
-                      value={issue.status}
-                      onChange={(s) => onStatusChange(issue.id, s)}
-                    />
-                  </div>
+                    issue={issue}
+                    showProject={showProject}
+                    onStatusChange={onStatusChange}
+                  />
                 ))
               )}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Kanban-by-status board. Optional swimlanes split the issues into horizontal
+// bands by assignee or milestone, each an independent status kanban; each card
+// still moves via its own StatusSelect (no drag dependency).
+export function IssueBoard({
+  issues,
+  onStatusChange,
+  showProject = false,
+  swimlane = "none",
+}: {
+  issues: BoardIssue[];
+  onStatusChange: (id: string, status: Status) => void;
+  showProject?: boolean;
+  swimlane?: Swimlane;
+}) {
+  const t = useTranslations("issues");
+
+  if (swimlane === "none") {
+    return (
+      <StatusColumns
+        issues={issues}
+        showProject={showProject}
+        onStatusChange={onStatusChange}
+      />
+    );
+  }
+
+  const noneLabel =
+    swimlane === "assignee" ? t("unassigned") : t("noMilestone");
+  // Group, keeping the "none" bucket last and the rest alphabetical.
+  const groups = new Map<string, BoardIssue[]>();
+  for (const i of issues) {
+    const raw = swimlane === "assignee" ? i.assigneeName : i.milestoneName;
+    const key = raw || noneLabel;
+    const arr = groups.get(key);
+    if (arr) arr.push(i);
+    else groups.set(key, [i]);
+  }
+  const ordered = [...groups.keys()].sort((a, b) => {
+    if (a === noneLabel) return 1;
+    if (b === noneLabel) return -1;
+    return a.localeCompare(b);
+  });
+
+  return (
+    <div className="flex flex-col gap-6">
+      {ordered.map((group) => (
+        <div key={group} className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">{group}</span>
+            <span className="text-xs text-muted-foreground">
+              {groups.get(group)?.length ?? 0}
+            </span>
+          </div>
+          <StatusColumns
+            issues={groups.get(group) ?? []}
+            showProject={showProject}
+            onStatusChange={onStatusChange}
+          />
+        </div>
+      ))}
     </div>
   );
 }

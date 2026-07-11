@@ -1157,7 +1157,10 @@
     "columnPriority": "Prioritas",
     "milestone": "Milestone",
     "noMilestone": "Tanpa milestone",
-    "allMilestones": "Semua milestone"
+    "allMilestones": "Semua milestone",
+    "groupNone": "Tanpa grup",
+    "groupAssignee": "Per assignee",
+    "groupMilestone": "Per milestone"
   },
   "environmentKinds": {
     "qa": "QA",
