@@ -279,6 +279,33 @@ export const issueComments = pgTable(
   ]
 );
 
+// Workspace-wide issue labels (shared across all projects so the global issue
+// view can filter by one taxonomy). `color` is a hex string rendered as a chip.
+export const labels = pgTable("labels", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().default("#64748b"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Many-to-many join between issues and labels.
+export const issueLabels = pgTable(
+  "issue_labels",
+  {
+    issueId: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    labelId: uuid("label_id")
+      .notNull()
+      .references(() => labels.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.issueId, t.labelId] }),
+    // "Which issues have label X" for the label filter.
+    index("issue_labels_label_idx").on(t.labelId),
+  ]
+);
+
 // =========================
 // Notifications
 // =========================
@@ -661,6 +688,11 @@ export type NewNotification = InferInsertModel<typeof notifications>;
 
 export type IssueComment = InferSelectModel<typeof issueComments>;
 export type NewIssueComment = InferInsertModel<typeof issueComments>;
+
+export type Label = InferSelectModel<typeof labels>;
+export type NewLabel = InferInsertModel<typeof labels>;
+// The lightweight label shape attached to issues in list/detail payloads.
+export type LabelLite = Pick<Label, "id" | "name" | "color">;
 
 // A concrete deployment. Was historically called "Project" — now `Environment`.
 export type Environment = InferSelectModel<typeof environments>;

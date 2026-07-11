@@ -1128,7 +1128,9 @@
     "globalSubtitle": "All issues across projects.",
     "columnProject": "Project",
     "boardEmpty": "Nothing here",
-    "openInProject": "Open in project"
+    "openInProject": "Open in project",
+    "filterLabel": "Label",
+    "allLabels": "All labels"
   },
   "environmentKinds": {
     "qa": "QA",
@@ -1177,6 +1179,8 @@
     "saveFailed": "Failed to save",
     "createdBy": "Opened by {name}",
     "unknownUser": "Unknown",
-    "notFound": "Issue not found."
+    "notFound": "Issue not found.",
+    "labels": "Labels",
+    "noLabels": "No labels"
   }
 }
