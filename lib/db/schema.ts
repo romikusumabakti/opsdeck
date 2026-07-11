@@ -142,6 +142,12 @@ export const environments = pgTable(
     frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
     frontendServiceName: text("frontend_service_name").notNull(),
 
+    // URL-friendly identifier, unique within a project. Lowercase. Not routed
+    // yet — this is Stage 1 (data) of the key/slug URL migration; the readable
+    // env route (/[key]/[slug]/…) is a later stage. Kept stable across renames
+    // so a shared link doesn't rot.
+    slug: text("slug").notNull(),
+
     // --- Purpose / ownership (both optional) ---
     // What this deployment is for; drives the kind badge in the grid/switcher.
     kind: environmentKindEnum("kind"),
@@ -155,6 +161,9 @@ export const environments = pgTable(
     // Environment names are unique within a project (so "Dev"/"Release"/"QA-Budi"
     // can't collide under one project, while different projects may reuse them).
     uniqueIndex("environments_project_name_idx").on(t.projectId, t.name),
+    // The (key, slug) pair must resolve to exactly one environment for the
+    // future readable URL — unique within a project.
+    uniqueIndex("environments_project_slug_idx").on(t.projectId, t.slug),
     // FK columns are filtered/joined on every server-usage lookup and the
     // onDelete:restrict checks; index them so those don't seq-scan.
     index("environments_db_server_idx").on(t.dbServerId),
