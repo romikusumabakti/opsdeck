@@ -14,6 +14,7 @@ import {
   type Status,
   StatusSelect,
 } from "@/components/issues-board";
+import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -182,6 +183,7 @@ export function IssuesClient({
             keyPrefix: projectKey,
             envName: i.environment?.name ?? null,
             assigneeName: i.assignee?.name ?? null,
+            labels: i.labels,
           }))}
           onStatusChange={onStatusChange}
         />
@@ -210,12 +212,15 @@ export function IssuesClient({
                     </Link>
                   </TableCell>
                   <TableCell className="font-medium">
-                    <Link
-                      href={`/project/${projectKey}/${issue.number}`}
-                      className="hover:underline"
-                    >
-                      {issue.title}
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <Link
+                        href={`/project/${projectKey}/${issue.number}`}
+                        className="hover:underline"
+                      >
+                        {issue.title}
+                      </Link>
+                      <LabelChips labels={issue.labels} />
+                    </span>
                   </TableCell>
                   <TableCell>
                     <StatusSelect

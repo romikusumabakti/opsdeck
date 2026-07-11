@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { LabelChips } from "@/components/label-ui";
 import {
   Select,
   SelectContent,
@@ -9,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link } from "@/i18n/navigation";
+import type { LabelLite } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
 export const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
@@ -31,6 +33,7 @@ export type BoardIssue = {
   envName?: string | null;
   assigneeName?: string | null;
   projectName?: string | null;
+  labels?: LabelLite[];
 };
 
 // Compact status control with a colored dot, reused by the table and board.
@@ -167,6 +170,9 @@ export function IssueBoard({
                     >
                       {issue.title}
                     </Link>
+                    {issue.labels && issue.labels.length > 0 ? (
+                      <LabelChips labels={issue.labels} />
+                    ) : null}
                     {(issue.envName || issue.assigneeName) && (
                       <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                         {issue.envName ? <span>{issue.envName}</span> : null}

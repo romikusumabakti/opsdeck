@@ -1128,7 +1128,9 @@
     "globalSubtitle": "كل المشكلات عبر المشاريع.",
     "columnProject": "المشروع",
     "boardEmpty": "لا شيء",
-    "openInProject": "فتح في المشروع"
+    "openInProject": "فتح في المشروع",
+    "filterLabel": "التصنيف",
+    "allLabels": "كل التصنيفات"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",
@@ -1177,6 +1179,8 @@
     "saveFailed": "فشل الحفظ",
     "createdBy": "فتحها {name}",
     "unknownUser": "غير معروف",
-    "notFound": "لم يتم العثور على المشكلة."
+    "notFound": "لم يتم العثور على المشكلة.",
+    "labels": "التصنيفات",
+    "noLabels": "لا تصنيفات"
   }
 }

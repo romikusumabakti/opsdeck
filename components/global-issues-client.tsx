@@ -14,6 +14,7 @@ import {
   type Status,
   StatusSelect,
 } from "@/components/issues-board";
+import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,10 +41,12 @@ export function GlobalIssuesClient({
   initialIssues,
   currentUserId,
   users,
+  allLabels,
 }: {
   initialIssues: GlobalIssue[];
   currentUserId: string;
   users: AssignableUser[];
+  allLabels: { id: string; name: string; color: string }[];
 }) {
   const t = useTranslations("issues");
   const locale = useLocale();
@@ -61,6 +64,7 @@ export function GlobalIssuesClient({
   const [query, setQuery] = React.useState("");
   const [status, setStatus] = React.useState<string>(ALL);
   const [projectId, setProjectId] = React.useState<string>(ALL);
+  const [labelId, setLabelId] = React.useState<string>(ALL);
   const [mineOnly, setMineOnly] = React.useState(false);
   const [view, setView] = React.useState<"table" | "board">("table");
 
@@ -76,6 +80,8 @@ export function GlobalIssuesClient({
     return issues.filter((i) => {
       if (status !== ALL && i.status !== status) return false;
       if (projectId !== ALL && i.project.id !== projectId) return false;
+      if (labelId !== ALL && !i.labels.some((l) => l.id === labelId))
+        return false;
       if (mineOnly && i.assignee?.id !== currentUserId) return false;
       if (
         q &&
@@ -86,7 +92,7 @@ export function GlobalIssuesClient({
       }
       return true;
     });
-  }, [issues, query, status, projectId, mineOnly, currentUserId]);
+  }, [issues, query, status, projectId, labelId, mineOnly, currentUserId]);
 
   async function onStatusChange(id: string, next: Status) {
     setIssues((prev) =>
@@ -160,6 +166,25 @@ export function GlobalIssuesClient({
             ))}
           </SelectContent>
         </Select>
+        <Select value={labelId} onValueChange={(v) => setLabelId(v ?? ALL)}>
+          <SelectTrigger className="w-40" aria-label={t("filterLabel")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("allLabels")}</SelectItem>
+            {allLabels.map((l) => (
+              <SelectItem key={l.id} value={l.id}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ backgroundColor: l.color }}
+                  />
+                  {l.name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           variant={mineOnly ? "secondary" : "outline"}
           onClick={() => setMineOnly((v) => !v)}
@@ -207,6 +232,7 @@ export function GlobalIssuesClient({
             projectName: i.project.name,
             envName: i.environment?.name ?? null,
             assigneeName: i.assignee?.name ?? null,
+            labels: i.labels,
           }))}
           onStatusChange={onStatusChange}
         />
@@ -235,12 +261,15 @@ export function GlobalIssuesClient({
                     </Link>
                   </TableCell>
                   <TableCell className="font-medium">
-                    <Link
-                      href={`/project/${issue.project.key}/${issue.number}`}
-                      className="hover:underline"
-                    >
-                      {issue.title}
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <Link
+                        href={`/project/${issue.project.key}/${issue.number}`}
+                        className="hover:underline"
+                      >
+                        {issue.title}
+                      </Link>
+                      <LabelChips labels={issue.labels} />
+                    </span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate">
                     <Link

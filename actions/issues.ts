@@ -8,11 +8,46 @@ import {
   type Issue,
   type IssueComment,
   issueComments,
+  issueLabels,
   issues,
+  type LabelLite,
+  labels,
   projects,
 } from "@/lib/db/schema";
 import { notifyIssueAssigned } from "@/lib/notifications";
 import { issueInputSchema, issueUpdateSchema } from "@/lib/validation";
+
+/**
+ * Attach each issue's labels in one round-trip (avoids relational M2M). Returns
+ * the same rows with a `labels` array added.
+ */
+async function attachLabels<T extends { id: string }>(
+  rows: T[]
+): Promise<(T & { labels: LabelLite[] })[]> {
+  if (rows.length === 0) return [];
+  const pairs = await db
+    .select({
+      issueId: issueLabels.issueId,
+      id: labels.id,
+      name: labels.name,
+      color: labels.color,
+    })
+    .from(issueLabels)
+    .innerJoin(labels, eq(labels.id, issueLabels.labelId))
+    .where(
+      inArray(
+        issueLabels.issueId,
+        rows.map((r) => r.id)
+      )
+    );
+  const byIssue = new Map<string, LabelLite[]>();
+  for (const p of pairs) {
+    const arr = byIssue.get(p.issueId) ?? [];
+    arr.push({ id: p.id, name: p.name, color: p.color });
+    byIssue.set(p.issueId, arr);
+  }
+  return rows.map((r) => ({ ...r, labels: byIssue.get(r.id) ?? [] }));
+}
 
 /** Look up a project's issue-key prefix (for notification text). */
 async function projectKeyOf(projectId: string): Promise<string> {
@@ -29,6 +64,7 @@ export type IssueWithMeta = Issue & {
   createdBy: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
   environment: { id: string; name: string } | null;
+  labels: LabelLite[];
 };
 
 // Adds the owning project — for the cross-project (global) issues view.
@@ -79,9 +115,10 @@ export async function listAssignedIssues(
       },
       orderBy: { updatedAt: "desc" },
     });
-    return (rows as GlobalIssue[]).filter((i) =>
+    const open = rows.filter((i) =>
       (OPEN_STATUSES as readonly string[]).includes(i.status)
     );
+    return (await attachLabels(open)) as unknown as GlobalIssue[];
   } catch (error) {
     console.error("Failed to list assigned issues:", error);
     return [];
@@ -93,6 +130,7 @@ export type IssueDetail = Issue & {
   environment: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
   createdBy: { id: string; name: string } | null;
+  labels: LabelLite[];
   comments: (IssueComment & {
     author: { id: string; name: string } | null;
   })[];
@@ -123,7 +161,9 @@ export async function getIssueDetail(
         },
       },
     });
-    return (issue as IssueDetail | undefined) ?? null;
+    if (!issue) return null;
+    const [withLabels] = await attachLabels([issue]);
+    return withLabels as unknown as IssueDetail;
   } catch (error) {
     console.error("Failed to load issue detail:", error);
     return null;
@@ -167,7 +207,7 @@ export async function listAllIssues(): Promise<GlobalIssue[]> {
       },
       orderBy: { updatedAt: "desc" },
     });
-    return rows as GlobalIssue[];
+    return (await attachLabels(rows)) as unknown as GlobalIssue[];
   } catch (error) {
     console.error("Failed to list all issues:", error);
     return [];
@@ -189,7 +229,7 @@ export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
       },
       orderBy: { number: "desc" },
     });
-    return rows as IssueWithMeta[];
+    return (await attachLabels(rows)) as unknown as IssueWithMeta[];
   } catch (error) {
     console.error("Failed to list issues:", error);
     return [];

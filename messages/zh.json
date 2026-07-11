@@ -1128,7 +1128,9 @@
     "globalSubtitle": "所有项目的问题。",
     "columnProject": "项目",
     "boardEmpty": "空",
-    "openInProject": "在项目中打开"
+    "openInProject": "在项目中打开",
+    "filterLabel": "标签",
+    "allLabels": "所有标签"
   },
   "environmentKinds": {
     "qa": "测试",
@@ -1177,6 +1179,8 @@
     "saveFailed": "保存失败",
     "createdBy": "由 {name} 创建",
     "unknownUser": "未知",
-    "notFound": "未找到该问题。"
+    "notFound": "未找到该问题。",
+    "labels": "标签",
+    "noLabels": "无标签"
   }
 }
