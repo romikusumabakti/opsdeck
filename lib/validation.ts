@@ -147,6 +147,7 @@ export const issueInputSchema = z.object({
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
   milestoneId: z.uuid().nullish(),
+  parentId: z.uuid().nullish(),
 });
 export type IssueInput = z.infer<typeof issueInputSchema>;
 
@@ -159,6 +160,7 @@ export const issueUpdateSchema = z.object({
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
   milestoneId: z.uuid().nullish(),
+  parentId: z.uuid().nullish(),
 });
 
 export const milestoneInputSchema = z.object({

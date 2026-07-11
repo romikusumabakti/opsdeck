@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -125,12 +125,23 @@ export async function listAssignedIssues(
   }
 }
 
+// A subtask/child or the parent, in the minimal shape the detail page links to.
+export type IssueRef = {
+  id: string;
+  number: number;
+  title: string;
+  status: string;
+  type: string;
+};
+
 export type IssueDetail = Issue & {
   project: { id: string; name: string; key: string };
   environment: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
   createdBy: { id: string; name: string } | null;
   labels: LabelLite[];
+  parent: IssueRef | null;
+  children: IssueRef[];
   comments: (IssueComment & {
     author: { id: string; name: string } | null;
   })[];
@@ -163,7 +174,29 @@ export async function getIssueDetail(
     });
     if (!issue) return null;
     const [withLabels] = await attachLabels([issue]);
-    return withLabels as unknown as IssueDetail;
+
+    const refCols = {
+      id: issues.id,
+      number: issues.number,
+      title: issues.title,
+      status: issues.status,
+      type: issues.type,
+    };
+    const children = await db
+      .select(refCols)
+      .from(issues)
+      .where(eq(issues.parentId, issue.id))
+      .orderBy(asc(issues.number));
+    let parent: IssueRef | null = null;
+    if (issue.parentId) {
+      const [p] = await db
+        .select(refCols)
+        .from(issues)
+        .where(eq(issues.id, issue.parentId))
+        .limit(1);
+      parent = p ?? null;
+    }
+    return { ...withLabels, parent, children } as unknown as IssueDetail;
   } catch (error) {
     console.error("Failed to load issue detail:", error);
     return null;
@@ -270,6 +303,7 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
             environmentId: input.environmentId ?? null,
             assigneeId: input.assigneeId ?? null,
             milestoneId: input.milestoneId ?? null,
+            parentId: input.parentId ?? null,
             createdById: session.user.id,
           })
           .returning();
@@ -303,6 +337,11 @@ export async function updateIssue(
   const parsed = issueUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid issue data" };
+  }
+  // An issue can't be its own parent. (Deeper cycles are avoided in the UI by
+  // excluding descendants from the parent picker.)
+  if (parsed.data.parentId === id) {
+    return { success: false, message: "An issue cannot be its own parent" };
   }
   try {
     const [updated] = await db

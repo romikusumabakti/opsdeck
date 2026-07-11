@@ -1210,7 +1210,10 @@
     "unknownUser": "Unknown",
     "notFound": "Issue not found.",
     "labels": "Labels",
-    "noLabels": "No labels"
+    "noLabels": "No labels",
+    "parent": "Parent",
+    "noParent": "No parent",
+    "subtasks": "Subtasks"
   },
   "projectMembers": {
     "selectUser": "Select a user…",

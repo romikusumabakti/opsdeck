@@ -1210,7 +1210,10 @@
     "unknownUser": "غير معروف",
     "notFound": "لم يتم العثور على المشكلة.",
     "labels": "التصنيفات",
-    "noLabels": "لا تصنيفات"
+    "noLabels": "لا تصنيفات",
+    "parent": "الأصل",
+    "noParent": "بدون أصل",
+    "subtasks": "المهام الفرعية"
   },
   "projectMembers": {
     "selectUser": "اختر مستخدمًا…",

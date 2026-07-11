@@ -17,6 +17,7 @@ import {
   PrioritySelect,
   type Status,
   StatusSelect,
+  TypeIcon,
   TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips, LabelPicker } from "@/components/label-ui";
@@ -30,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 type EnvOption = { id: string; name: string };
@@ -41,12 +42,14 @@ export function IssueDetailClient({
   users,
   environments,
   milestones,
+  siblings,
   allLabels,
 }: {
   issue: IssueDetail;
   users: AssignableUser[];
   environments: EnvOption[];
   milestones: MilestoneOption[];
+  siblings: { id: string; number: number; title: string }[];
   allLabels: { id: string; name: string; color: string; createdAt: Date }[];
 }) {
   const t = useTranslations("issueDetail");
@@ -68,6 +71,12 @@ export function IssueDetailClient({
   }
 
   const selectedLabels = allLabels.filter((l) => labelIds.includes(l.id));
+
+  // A parent can't be self (already excluded server-side) or one of this issue's
+  // own children — that would make a cycle.
+  const childIds = new Set(issue.children.map((c) => c.id));
+  const parentCandidates = siblings.filter((s) => !childIds.has(s.id));
+  const projectKey = issue.project.key;
 
   async function patch(data: Record<string, unknown>, okMsg?: string) {
     const result = await updateIssue(issue.id, data);
@@ -178,6 +187,28 @@ export function IssueDetailClient({
             />
           </Field>
         ) : null}
+        {parentCandidates.length > 0 || issue.parentId ? (
+          <Field label={t("parent")}>
+            <Select
+              value={issue.parentId ?? NONE}
+              onValueChange={(v) =>
+                patch({ parentId: !v || v === NONE ? null : v })
+              }
+            >
+              <SelectTrigger className="h-8 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>{t("noParent")}</SelectItem>
+                {parentCandidates.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {projectKey}-{s.number} · {s.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        ) : null}
       </div>
 
       {/* Labels */}
@@ -193,6 +224,37 @@ export function IssueDetailClient({
           <span className="text-sm text-muted-foreground">{t("noLabels")}</span>
         )}
       </div>
+
+      {/* Subtasks */}
+      {issue.children.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">
+            {t("subtasks")}
+            <span className="ms-1.5 text-muted-foreground">
+              {issue.children.length}
+            </span>
+          </span>
+          <ul className="flex flex-col gap-1">
+            {issue.children.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/project/${projectKey}/${c.number}`}
+                  className="flex items-center gap-2 rounded-md border p-2 hover:bg-muted/50"
+                >
+                  <TypeIcon type={c.type as IssueType} />
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {projectKey}-{c.number}
+                  </span>
+                  <span className="flex-1 truncate text-sm">{c.title}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {tIssues(`status.${c.status}`)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Description */}
       <div className="flex flex-col gap-2">

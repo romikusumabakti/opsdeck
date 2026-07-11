@@ -1210,7 +1210,10 @@
     "unknownUser": "未知",
     "notFound": "未找到该问题。",
     "labels": "标签",
-    "noLabels": "无标签"
+    "noLabels": "无标签",
+    "parent": "父级",
+    "noParent": "无父级",
+    "subtasks": "子任务"
   },
   "projectMembers": {
     "selectUser": "选择用户…",
