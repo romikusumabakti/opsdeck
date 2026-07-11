@@ -3,6 +3,7 @@ import { ChevronRight, Plus } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
+import { listMilestones } from "@/actions/milestones";
 import { getProjectByKeyWithEnvironments } from "@/actions/project-catalog";
 import { listProjectMembers } from "@/actions/project-members";
 import { getProjectsLastActivity } from "@/actions/runs";
@@ -21,6 +22,7 @@ import {
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { roleHasCapability } from "@/lib/roles";
 import { IssuesClient } from "../../projects/[projectId]/issues/issues-client";
+import { MilestonesClient } from "./milestones-client";
 import { ProjectMembersClient } from "./project-members-client";
 
 // Drop the project-name prefix from an environment label under its own project.
@@ -50,9 +52,10 @@ export default async function ProjectOverviewPage({
   }
   const admin = session ? isAdmin(session) : false;
 
-  const [issues, users, t, tOv, tDash, tKinds] = await Promise.all([
+  const [issues, users, milestones, t, tOv, tDash, tKinds] = await Promise.all([
     listIssues(project.id),
     listAssignableUsers(),
+    listMilestones(project.id),
     getTranslations("home"),
     getTranslations("projectOverview"),
     getTranslations("dashboard"),
@@ -109,6 +112,12 @@ export default async function ProjectOverviewPage({
             {tOv("issues")}
             <span className="ms-1.5 text-muted-foreground">
               {issues.length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="milestones">
+            {tOv("milestones")}
+            <span className="ms-1.5 text-muted-foreground">
+              {milestones.length}
             </span>
           </TabsTrigger>
           {canManageMembers ? (
@@ -197,7 +206,15 @@ export default async function ProjectOverviewPage({
             currentEnvironmentId=""
             environments={environments.map((e) => ({ id: e.id, name: e.name }))}
             users={users}
+            milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
             initialIssues={issues}
+          />
+        </TabsContent>
+
+        <TabsContent value="milestones">
+          <MilestonesClient
+            projectId={project.id}
+            initialMilestones={milestones}
           />
         </TabsContent>
 

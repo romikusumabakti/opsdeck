@@ -1154,7 +1154,10 @@
     },
     "typeLabel": "Type",
     "priorityLabel": "Priority",
-    "columnPriority": "Priority"
+    "columnPriority": "Priority",
+    "milestone": "Milestone",
+    "noMilestone": "No milestone",
+    "allMilestones": "All milestones"
   },
   "environmentKinds": {
     "qa": "QA",
@@ -1171,7 +1174,8 @@
     "noEnvironments": "No environments yet",
     "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project.",
     "client": "Client",
-    "members": "Members"
+    "members": "Members",
+    "milestones": "Milestones"
   },
   "inbox": {
     "title": "Home",
@@ -1228,5 +1232,26 @@
     "errorInvalidInput": "Invalid input",
     "errorInvalidRole": "Invalid role",
     "errorAddFailed": "Failed to add member"
+  },
+  "milestones": {
+    "add": "Add",
+    "name": "Name",
+    "namePlaceholder": "e.g. v2.0 Release",
+    "dueDate": "Due date",
+    "noDue": "No due date",
+    "colName": "Milestone",
+    "colDue": "Due",
+    "colIssues": "Issues",
+    "colStatus": "Status",
+    "open": "Open",
+    "closed": "Closed",
+    "empty": "No milestones yet",
+    "emptyDescription": "Create a milestone to group issues toward a release or goal.",
+    "created": "Milestone created",
+    "closedMsg": "Milestone closed",
+    "reopenedMsg": "Milestone reopened",
+    "deletedMsg": "Milestone deleted",
+    "delete": "Delete",
+    "errorGeneric": "Something went wrong"
   }
 }

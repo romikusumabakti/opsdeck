@@ -239,6 +239,46 @@ export function AssigneeSelect({
   );
 }
 
+export type MilestoneOption = { id: string; name: string };
+
+const NO_MILESTONE = "__none";
+
+// Milestone picker reused by the create dialog and issue detail. `null` = none.
+export function MilestoneSelect({
+  milestones,
+  value,
+  onChange,
+  className,
+}: {
+  milestones: MilestoneOption[];
+  value: string | null;
+  onChange: (milestoneId: string | null) => void;
+  className?: string;
+}) {
+  const t = useTranslations("issues");
+  return (
+    <Select
+      value={value ?? NO_MILESTONE}
+      onValueChange={(v) => onChange(!v || v === NO_MILESTONE ? null : v)}
+    >
+      <SelectTrigger
+        className={cn("h-8 w-full", className)}
+        aria-label={t("milestone")}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_MILESTONE}>{t("noMilestone")}</SelectItem>
+        {milestones.map((m) => (
+          <SelectItem key={m.id} value={m.id}>
+            {m.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // Kanban-by-status board. Columns are the fixed status set; each card can move
 // via its own StatusSelect (no drag dependency).
 export function IssueBoard({

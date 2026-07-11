@@ -11,6 +11,8 @@ import {
   type AssignableUser,
   AssigneeSelect,
   type IssueType,
+  type MilestoneOption,
+  MilestoneSelect,
   type Priority,
   PrioritySelect,
   type Status,
@@ -38,11 +40,13 @@ export function IssueDetailClient({
   issue,
   users,
   environments,
+  milestones,
   allLabels,
 }: {
   issue: IssueDetail;
   users: AssignableUser[];
   environments: EnvOption[];
+  milestones: MilestoneOption[];
   allLabels: { id: string; name: string; color: string; createdAt: Date }[];
 }) {
   const t = useTranslations("issueDetail");
@@ -165,6 +169,15 @@ export function IssueDetailClient({
             </SelectContent>
           </Select>
         </Field>
+        {milestones.length > 0 ? (
+          <Field label={tIssues("milestone")}>
+            <MilestoneSelect
+              milestones={milestones}
+              value={issue.milestoneId ?? null}
+              onChange={(m) => patch({ milestoneId: m })}
+            />
+          </Field>
+        ) : null}
       </div>
 
       {/* Labels */}
