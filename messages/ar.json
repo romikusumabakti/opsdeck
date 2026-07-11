@@ -1168,7 +1168,15 @@
     "allMilestones": "كل المعالم",
     "groupNone": "بدون تجميع",
     "groupAssignee": "حسب المكلَّف",
-    "groupMilestone": "حسب المعلم"
+    "groupMilestone": "حسب المعلم",
+    "selectedCount": "{count} محدد",
+    "bulkStatus": "تعيين الحالة",
+    "clearSelection": "مسح",
+    "selectAll": "تحديد الكل",
+    "selectRow": "تحديد الصف",
+    "bulkDeleteTitle": "حذف المشكلات",
+    "bulkDeleteDescription": "حذف {count} مشكلة؟ لا يمكن التراجع.",
+    "bulkDeleted": "تم حذف المشكلات"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",

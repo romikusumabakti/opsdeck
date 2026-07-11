@@ -1168,7 +1168,15 @@
     "allMilestones": "Semua milestone",
     "groupNone": "Tanpa grup",
     "groupAssignee": "Per assignee",
-    "groupMilestone": "Per milestone"
+    "groupMilestone": "Per milestone",
+    "selectedCount": "{count} dipilih",
+    "bulkStatus": "Atur status",
+    "clearSelection": "Bersihkan",
+    "selectAll": "Pilih semua",
+    "selectRow": "Pilih baris",
+    "bulkDeleteTitle": "Hapus isu",
+    "bulkDeleteDescription": "Hapus {count} isu? Tindakan ini tak bisa dibatalkan.",
+    "bulkDeleted": "Isu dihapus"
   },
   "environmentKinds": {
     "qa": "QA",
