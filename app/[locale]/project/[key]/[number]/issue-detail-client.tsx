@@ -1,7 +1,13 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { Download, Paperclip, Trash2 } from "lucide-react";
+import {
+  CircleCheck,
+  CircleX,
+  Download,
+  Paperclip,
+  Trash2,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -12,6 +18,7 @@ import {
 import type { IssueDetail } from "@/actions/issues";
 import { addComment, updateIssue } from "@/actions/issues";
 import { setIssueLabels } from "@/actions/labels";
+import { recordTestRun, type TestRunRow } from "@/actions/test-runs";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -50,6 +57,7 @@ export function IssueDetailClient({
   milestones,
   siblings,
   attachments,
+  testRuns,
   allLabels,
 }: {
   issue: IssueDetail;
@@ -58,6 +66,7 @@ export function IssueDetailClient({
   milestones: MilestoneOption[];
   siblings: { id: string; number: number; title: string }[];
   attachments: IssueAttachmentRow[];
+  testRuns: TestRunRow[];
   allLabels: { id: string; name: string; color: string; createdAt: Date }[];
 }) {
   const t = useTranslations("issueDetail");
@@ -73,6 +82,29 @@ export function IssueDetailClient({
   const [posting, setPosting] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [testNote, setTestNote] = React.useState("");
+  const [recording, setRecording] = React.useState(false);
+
+  async function onRecordTest(passed: boolean) {
+    setRecording(true);
+    const result = await recordTestRun({
+      issueId: issue.id,
+      passed,
+      note: testNote.trim() || undefined,
+    });
+    setRecording(false);
+    if (!result.success) {
+      toast.error(
+        result.message === "no_environment"
+          ? t("testNeedsEnv")
+          : t("testRecordFailed")
+      );
+      return;
+    }
+    setTestNote("");
+    toast.success(t("testRecorded"));
+    router.refresh();
+  }
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -355,6 +387,68 @@ export function IssueDetailClient({
                 >
                   <Trash2 className="size-4 text-destructive" />
                 </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      {/* Test runs */}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">
+          {t("testRuns")}
+          <span className="ms-1.5 text-muted-foreground">
+            {testRuns.length}
+          </span>
+        </span>
+        {issue.environmentId ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+            <Input
+              value={testNote}
+              onChange={(e) => setTestNote(e.target.value)}
+              placeholder={t("testNotePlaceholder")}
+              className="min-w-52 flex-1"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={recording}
+              className="gap-1.5"
+              onClick={() => onRecordTest(true)}
+            >
+              <CircleCheck className="size-4 text-success" />
+              {t("testPass")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={recording}
+              className="gap-1.5"
+              onClick={() => onRecordTest(false)}
+            >
+              <CircleX className="size-4 text-destructive" />
+              {t("testFail")}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("testNeedsEnv")}</p>
+        )}
+        {testRuns.length > 0 ? (
+          <ul className="flex flex-col gap-1">
+            {testRuns.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center gap-2 rounded-md border p-2"
+              >
+                {r.status === "success" ? (
+                  <CircleCheck className="size-4 shrink-0 text-success" />
+                ) : (
+                  <CircleX className="size-4 shrink-0 text-destructive" />
+                )}
+                <span className="flex-1 truncate text-sm">{r.description}</span>
+                <span className="text-xs text-muted-foreground">
+                  {ago(r.runAt)}
+                </span>
               </li>
             ))}
           </ul>

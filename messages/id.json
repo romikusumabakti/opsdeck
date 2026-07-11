@@ -1224,7 +1224,14 @@
     "attachmentFailed": "Gagal mengunggah",
     "attachmentTooLarge": "File terlalu besar (maks 25 MB)",
     "attachmentDownload": "Unduh",
-    "attachmentDelete": "Hapus"
+    "attachmentDelete": "Hapus",
+    "testRuns": "Uji",
+    "testNotePlaceholder": "Catatan (opsional)",
+    "testPass": "Lulus",
+    "testFail": "Gagal",
+    "testNeedsEnv": "Kaitkan isu ke environment untuk mencatat hasil uji.",
+    "testRecorded": "Hasil uji dicatat",
+    "testRecordFailed": "Gagal mencatat uji"
   },
   "projectMembers": {
     "selectUser": "Pilih pengguna…",
