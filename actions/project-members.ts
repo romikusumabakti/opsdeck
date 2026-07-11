@@ -2,9 +2,10 @@
 
 import { and, eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
+import { recordActivity } from "@/lib/activity";
 import { requireCapability } from "@/lib/auth-session";
 import { db } from "@/lib/db";
-import { projectMembers, users as userTable } from "@/lib/db/schema";
+import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
 import { ROLE_RANK, type UserRole } from "@/lib/roles";
 import { projectIdSchema } from "@/lib/validation";
 
@@ -44,12 +45,32 @@ export async function listProjectMembers(
   return rows as ProjectMemberRow[];
 }
 
+// Snapshot the user + project display names for the activity feed so it reads
+// without joins even after a membership row changes.
+async function memberNames(projectId: string, userId: string) {
+  const [[u], [p]] = await Promise.all([
+    db
+      .select({ name: userTable.name })
+      .from(userTable)
+      .where(eq(userTable.id, userId))
+      .limit(1),
+    db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1),
+  ]);
+  return { user: u?.name ?? "?", project: p?.name ?? "?" };
+}
+
 export async function addProjectMember(input: {
   projectId: string;
   userId: string;
   role: string;
 }): Promise<ActionResponse> {
-  await requireCapability("admin", { projectId: input.projectId });
+  const session = await requireCapability("admin", {
+    projectId: input.projectId,
+  });
   const t = await getTranslations("projectMembers");
   if (
     !projectIdSchema.safeParse(input.projectId).success ||
@@ -77,6 +98,14 @@ export async function addProjectMember(input: {
   } catch {
     return { success: false, message: t("errorAddFailed") };
   }
+  const names = await memberNames(input.projectId, input.userId);
+  await recordActivity({
+    actorId: session.user.id,
+    action: "member.added",
+    entityType: "member",
+    entityId: input.userId,
+    data: { ...names, role: input.role },
+  });
   return { success: true, message: t("addedSuccess") };
 }
 
@@ -106,8 +135,12 @@ export async function removeProjectMember(input: {
   projectId: string;
   userId: string;
 }): Promise<ActionResponse> {
-  await requireCapability("admin", { projectId: input.projectId });
+  const session = await requireCapability("admin", {
+    projectId: input.projectId,
+  });
   const t = await getTranslations("projectMembers");
+  // Capture names before the row is gone.
+  const names = await memberNames(input.projectId, input.userId);
   await db
     .delete(projectMembers)
     .where(
@@ -116,5 +149,12 @@ export async function removeProjectMember(input: {
         eq(projectMembers.userId, input.userId)
       )
     );
+  await recordActivity({
+    actorId: session.user.id,
+    action: "member.removed",
+    entityType: "member",
+    entityId: input.userId,
+    data: names,
+  });
   return { success: true, message: t("removedSuccess") };
 }

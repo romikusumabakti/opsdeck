@@ -115,7 +115,8 @@
     "storage": "Penyimpanan",
     "issues": "Isu",
     "allIssues": "Isu",
-    "home": "Beranda"
+    "home": "Beranda",
+    "activity": "Aktivitas"
   },
   "header": {
     "selectProject": "Pilih proyek…",
@@ -1281,5 +1282,22 @@
     "deletedMsg": "Milestone dihapus",
     "delete": "Hapus",
     "errorGeneric": "Terjadi kesalahan"
+  },
+  "activity": {
+    "title": "Aktivitas",
+    "subtitle": "Kejadian terbaru di seluruh ruang kerja.",
+    "empty": "Belum ada aktivitas.",
+    "someone": "Seseorang",
+    "unknown": "{actor} melakukan sesuatu",
+    "issueCreated": "{actor} membuat {key}",
+    "issueStatusChanged": "{actor} memindah {key} ke {status}",
+    "memberAdded": "{actor} menambahkan {user} ke {project} sebagai {role}",
+    "memberRemoved": "{actor} menghapus {user} dari {project}",
+    "milestoneCreated": "{actor} membuat milestone {name}",
+    "testRecorded": "{actor} mencatat uji {result} pada {key}",
+    "result": {
+      "pass": "lulus",
+      "fail": "gagal"
+    }
   }
 }

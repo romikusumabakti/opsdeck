@@ -1,6 +1,6 @@
 # Rework Plan: OpsDeck → 5-Role Delivery + Ops Hub
 
-**Status:** In progress (Phases 0–3 shipped) · **Last updated:** 2026-07-11
+**Status:** In progress (Phases 0–4 shipped) · **Last updated:** 2026-07-11
 
 Target: evolve OpsDeck from a DevOps-first control panel into a shared hub that
 serves five personas — PM, BA, QA, Developer, DevOps — without turning it into a
@@ -14,12 +14,13 @@ Jira/TestRail clone.
 | 1 — Issue depth | ✅ Shipped |
 | 2 — Board + My Work | ✅ Shipped |
 | 3 — QA test management | ✅ Shipped (Option A, record-not-execute) |
-| 4 — BA requirements + Activity | ⬜ Not started |
+| 4 — BA requirements + Activity | ✅ Shipped |
 | 5 — Polish | ⬜ Not started |
 
 **Migrations to apply before deploy** (additive, safe while running):
 `20260711070000_project_members`, `20260711080000_issue_depth`,
-`20260711090000_test_runs`.
+`20260711090000_test_runs`, `20260711100000_kb_doc_type`,
+`20260711110000_activity_log`.
 
 **Deferred within shipped phases:** service-control capability tuning (Phase 0);
 create-time parent picker, deep (>1-level) cycle guard, milestone filter on the
@@ -235,7 +236,14 @@ Start with A. Move to B only when QA asks for a case library.
 
 ---
 
-## Phase 4 — BA requirements + Activity stream
+## Phase 4 — BA requirements + Activity stream — ✅ Shipped
+
+**Activity events wired so far:** `issue.created`, `issue.status_changed`,
+`milestone.created`, `test.recorded`, `member.added`, `member.removed`. Adding a
+new event = a `recordActivity` call at the mutation site plus one i18n template —
+no schema change. Ops-run events (backup/restore/mock completion) are the obvious
+next additions; deferred.
+
 
 **BA — no new tables**
 
