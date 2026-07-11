@@ -56,6 +56,78 @@ projectMembers (projectId, userId, role)             -- PK(projectId, userId)
 **Risk:** medium — touches every action. **Effort:** 2–3 days. **Migration:**
 enum + one table + backfill existing admins.
 
+### Task breakdown
+
+**Security finding driving this phase:** destructive ops (`restoreDatabaseBackup`,
+`dropDatabase`, `renameDatabase`, `createDatabase`, and the mock-time clock
+actions) are gated only by `requireSession()` today — any signed-in member can
+restore or drop a production database. Phase 0 closes this.
+
+Current model: two roles only (`ROLE_ADMIN` / `ROLE_MEMBER` in `lib/roles.ts`)
+via the better-auth admin plugin. Binary gate: `requireAdmin` (servers, storage,
+users, project CRUD, KB collections) vs `requireSession` (everything else,
+including destructive DB ops).
+
+**0.1 — Extend role constants** · `lib/roles.ts`, `lib/auth.ts`
+- Add `ROLE_VIEWER`, `ROLE_MAINTAINER`. Order: `viewer < member < maintainer < admin`.
+- Export `ROLE_RANK: Record<UserRole, number>` for capability comparison.
+- Keep `users.role` as `text` (the better-auth admin plugin owns this column) —
+  do not force it to a `pgEnum`; validate via constants in the action layer.
+
+**0.2 — Membership table + enum** · `lib/db/schema.ts`
+```
+projectRoleEnum = pgEnum(viewer|member|maintainer|admin)
+projectMembers {
+  projectId uuid -> projects.id (cascade)
+  userId    uuid -> users.id  (cascade)
+  role      projectRoleEnum notNull
+  PK(projectId, userId)
+  index(userId)
+}
+```
+Membership attaches to `projects` (logical), inherited by all its environments —
+no environment-level granularity. Then `pnpm drizzle-kit generate`.
+
+**0.3 — Capability resolver (core)** · `lib/auth-session.ts`
+```
+Capability = read | issue.edit | kb.edit | ops.destructive | admin
+resolveRole(session, projectId?) = max(users.role, projectMembers.role) via ROLE_RANK
+requireCapability(cap, projectId?) -> session | redirect
+```
+Static `cap → minRole` map (no matrix builder): read=viewer, issue.edit/kb.edit=member,
+ops.destructive=maintainer, admin=admin. Keep `requireAdmin`/`requireSession` as
+thin wrappers over `requireCapability` so existing callers don't break.
+
+**0.4 — Gate destructive ops (security fix)** — swap `requireSession()` →
+`requireCapability("ops.destructive", projectId)`:
+- `actions/backups.ts`: `createDatabaseBackup`, `restoreDatabaseBackup`
+- `actions/databases.ts`: `createDatabase`, `dropDatabase`, `renameDatabase`
+- `actions/mock-time.ts`: `travelClock`, `freezeClock`, `advanceClock`, `resetClock` (+ legacy)
+
+Read-only actions (`getBackupList`, `getClockState`, `getDatabaseList`) stay on
+`requireSession`.
+
+**0.5 — Membership CRUD + UI**
+- New `actions/project-members.ts`: `list/add/updateRole/remove`, gated by
+  `requireCapability("admin", projectId)`.
+- Members tab in `app/[locale]/projects/[projectId]/settings/` — user picker + role
+  dropdown, reusing the issue-assignee picker pattern.
+
+**0.6 — Hide actions in UI by capability**
+- Pass `effectiveRole` to the client via the layout/page.
+- Gate buttons: Restore/Backup/Drop/Mock (maintainer), Members/Settings (admin),
+  across `app/[locale]/projects/[projectId]/**`.
+
+**PR split**
+
+| PR | Tasks | Merges alone? |
+|:-:|---|---|
+| 1 | 0.1 + 0.2 + 0.3 | ✅ foundation, no behavior change |
+| 2 | 0.4 | ✅ **security fix**, immediate effect |
+| 3 | 0.5 + 0.6 | ✅ membership UI |
+
+PR-2 is small but the most important — cherry-pick it first, ahead of the UI work.
+
 ---
 
 ## Phase 1 — Issue depth (PM + Developer)
