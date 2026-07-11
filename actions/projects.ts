@@ -9,7 +9,13 @@ import {
 } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
-import { type Environment, environments, projectAccess } from "@/lib/db/schema";
+import {
+  type Environment,
+  type EnvironmentListItem,
+  environments,
+  projectAccess,
+  projects,
+} from "@/lib/db/schema";
 import { loadSafeProject } from "@/lib/projects";
 import {
   projectIdSchema,
@@ -27,15 +33,18 @@ type ActionResponse = {
  * GET: Fetch all projects (without server details — used for the header
  * picker, sidebar, etc. where only id+name matters).
  */
-export async function getProjects(): Promise<Environment[]> {
+export async function getProjects(): Promise<EnvironmentListItem[]> {
   const session = await requireSession();
   try {
     // Order by the caller's recency (most-recently-opened first), falling back
     // to name for projects they've never opened. `nulls last` keeps unvisited
     // projects below visited ones instead of Postgres' default nulls-first.
+    // Joins the owning project's `key` so consumers can build readable URLs
+    // (/[key]/[slug]/…) without a second query.
     return await db
-      .select(getTableColumns(environments))
+      .select({ ...getTableColumns(environments), key: projects.key })
       .from(environments)
+      .innerJoin(projects, eq(projects.id, environments.projectId))
       .leftJoin(
         projectAccess,
         and(

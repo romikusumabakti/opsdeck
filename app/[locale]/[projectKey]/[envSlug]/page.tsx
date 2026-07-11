@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
 import { getProjectById } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { DashboardKpis, DashboardKpisSkeleton } from "./dashboard-kpis";
 import { ProjectStack } from "./project-stack";
 import { RecentActivity, RecentActivitySkeleton } from "./recent-activity";
@@ -9,9 +10,10 @@ import { RecentActivity, RecentActivitySkeleton } from "./recent-activity";
 export default async function Page({
   params,
 }: {
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
-  const { locale, projectId } = await params;
+  const { locale, projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
   const project = await getProjectById(projectId);
   const t = await getTranslations("dashboard");

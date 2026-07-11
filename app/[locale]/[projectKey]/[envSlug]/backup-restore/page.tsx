@@ -1,4 +1,5 @@
 import { redirect } from "@/i18n/navigation";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 
 // Backup + restore now live on the Databases page (backup is a per-database row
 // action, restore is a section below the list). Keep this route as a redirect
@@ -6,8 +7,9 @@ import { redirect } from "@/i18n/navigation";
 export default async function Page({
   params,
 }: {
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
-  const { projectId } = await params;
+  const { projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   await redirect(`/projects/${projectId}/databases?tab=backup`);
 }

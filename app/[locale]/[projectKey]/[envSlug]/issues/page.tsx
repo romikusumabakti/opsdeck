@@ -6,14 +6,16 @@ import { getProjectById } from "@/actions/projects";
 import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
 import { requireSession } from "@/lib/auth-session";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { IssuesClient } from "./issues-client";
 
 export default async function IssuesPage({
   params,
 }: {
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
-  const { locale, projectId } = await params;
+  const { locale, projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
   await requireSession();
 

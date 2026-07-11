@@ -6,6 +6,7 @@ import { getProjectById, getProjects } from "@/actions/projects";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { DatabasesTabs } from "./databases-tabs";
 import { DatabasesTabsSkeleton } from "./databases-tabs-skeleton";
 
@@ -13,10 +14,11 @@ export default async function Page({
   params,
   searchParams,
 }: {
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const { locale, projectId } = await params;
+  const { locale, projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   const { tab } = await searchParams;
   setRequestLocale(locale);
   const project = await getProjectById(projectId);

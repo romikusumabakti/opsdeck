@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { ApiDocsSheet } from "./api-docs-sheet";
 import { MockTime } from "./mock-time";
 
@@ -33,9 +34,10 @@ const getApiDocs = cache(async () => {
 export default async function Page({
   params,
 }: {
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
-  const { locale, projectId } = await params;
+  const { locale, projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
   const [project, apiDocs] = await Promise.all([
     getProjectById(projectId),

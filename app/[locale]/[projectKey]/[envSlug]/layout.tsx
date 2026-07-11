@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById, recordProjectAccess } from "@/actions/projects";
 import { OpsCapabilityProvider } from "@/components/ops-capability";
 import { getEffectiveRole } from "@/lib/auth-session";
+import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { roleHasCapability } from "@/lib/roles";
 
 export default async function Layout({
@@ -9,9 +10,10 @@ export default async function Layout({
   params,
 }: Readonly<{
   children: React.ReactNode;
-  params: Promise<{ locale: string; projectId: string }>;
+  params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }>) {
-  const { locale, projectId } = await params;
+  const { locale, projectKey, envSlug } = await params;
+  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
   const project = await getProjectById(projectId);
