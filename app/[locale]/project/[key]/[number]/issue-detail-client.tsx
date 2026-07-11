@@ -10,8 +10,12 @@ import { setIssueLabels } from "@/actions/labels";
 import {
   type AssignableUser,
   AssigneeSelect,
+  type IssueType,
+  type Priority,
+  PrioritySelect,
   type Status,
   StatusSelect,
+  TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips, LabelPicker } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
@@ -116,10 +120,22 @@ export function IssueDetailClient({
 
       {/* Meta controls */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Field label={tIssues("typeLabel")}>
+          <TypeSelect
+            value={issue.type as IssueType}
+            onChange={(ty) => patch({ type: ty })}
+          />
+        </Field>
         <Field label={tIssues("columnStatus")}>
           <StatusSelect
             value={issue.status as Status}
             onChange={(s) => patch({ status: s }, tIssues("statusUpdated"))}
+          />
+        </Field>
+        <Field label={tIssues("priorityLabel")}>
+          <PrioritySelect
+            value={issue.priority as Priority}
+            onChange={(p) => patch({ priority: p })}
           />
         </Field>
         <Field label={tIssues("assignee")}>
