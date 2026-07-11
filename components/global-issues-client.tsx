@@ -1,12 +1,21 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { CircleDot, LayoutGrid, List, Search } from "lucide-react";
+import {
+  Bookmark,
+  ChevronDown,
+  CircleDot,
+  LayoutGrid,
+  List,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import type { GlobalIssue } from "@/actions/issues";
 import { setIssueStatus, updateIssue } from "@/actions/issues";
+import { createSavedView, deleteSavedView } from "@/actions/saved-views";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -16,6 +25,21 @@ import {
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -42,11 +66,15 @@ export function GlobalIssuesClient({
   currentUserId,
   users,
   allLabels,
+  initialFilters,
+  savedViews,
 }: {
   initialIssues: GlobalIssue[];
   currentUserId: string;
   users: AssignableUser[];
   allLabels: { id: string; name: string; color: string }[];
+  initialFilters: Record<string, string>;
+  savedViews: { id: string; name: string; params: Record<string, string> }[];
 }) {
   const t = useTranslations("issues");
   const locale = useLocale();
@@ -62,11 +90,66 @@ export function GlobalIssuesClient({
   );
 
   const [query, setQuery] = React.useState("");
-  const [status, setStatus] = React.useState<string>(ALL);
-  const [projectId, setProjectId] = React.useState<string>(ALL);
-  const [labelId, setLabelId] = React.useState<string>(ALL);
-  const [mineOnly, setMineOnly] = React.useState(false);
-  const [view, setView] = React.useState<"table" | "board">("table");
+  const [status, setStatus] = React.useState<string>(
+    initialFilters.status ?? ALL
+  );
+  const [projectId, setProjectId] = React.useState<string>(
+    initialFilters.project ?? ALL
+  );
+  const [labelId, setLabelId] = React.useState<string>(
+    initialFilters.label ?? ALL
+  );
+  const [mineOnly, setMineOnly] = React.useState(initialFilters.mine === "1");
+  const [view, setView] = React.useState<"table" | "board">(
+    initialFilters.view === "board" ? "board" : "table"
+  );
+
+  // The filter dimensions as a flat map (defaults omitted) — this is both the
+  // URL query and what a saved view stores.
+  const currentParams = React.useCallback((): Record<string, string> => {
+    const p: Record<string, string> = {};
+    if (status !== ALL) p.status = status;
+    if (projectId !== ALL) p.project = projectId;
+    if (labelId !== ALL) p.label = labelId;
+    if (mineOnly) p.mine = "1";
+    if (view === "board") p.view = "board";
+    return p;
+  }, [status, projectId, labelId, mineOnly, view]);
+
+  // Reflect filters in the URL so a view is shareable/bookmarkable. `query` is
+  // transient search — deliberately not synced.
+  React.useEffect(() => {
+    const qs = new URLSearchParams(currentParams()).toString();
+    router.replace(qs ? `/issues?${qs}` : "/issues", { scroll: false });
+  }, [currentParams, router]);
+
+  function applyParams(p: Record<string, string>) {
+    setStatus(p.status ?? ALL);
+    setProjectId(p.project ?? ALL);
+    setLabelId(p.label ?? ALL);
+    setMineOnly(p.mine === "1");
+    setView(p.view === "board" ? "board" : "table");
+  }
+
+  const [saveOpen, setSaveOpen] = React.useState(false);
+  const [viewName, setViewName] = React.useState("");
+
+  async function onSaveView() {
+    const name = viewName.trim();
+    if (!name) return;
+    const result = await createSavedView(name, currentParams());
+    if (result.success) {
+      toast.success(t("viewSaved"));
+      setViewName("");
+      setSaveOpen(false);
+      router.refresh();
+    }
+  }
+
+  async function onDeleteView(id: string) {
+    await deleteSavedView(id);
+    router.refresh();
+  }
 
   // Distinct projects present, for the project filter.
   const projectOptions = React.useMemo(() => {
@@ -128,6 +211,50 @@ export function GlobalIssuesClient({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="outline" className="gap-1.5">
+                <Bookmark className="size-4" />
+                {t("views")}
+                <ChevronDown className="size-3.5 opacity-60" />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="start" className="w-56">
+            {savedViews.length === 0 ? (
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                {t("noSavedViews")}
+              </DropdownMenuLabel>
+            ) : (
+              savedViews.map((v) => (
+                <DropdownMenuItem
+                  key={v.id}
+                  onClick={() => applyParams(v.params)}
+                  className="justify-between gap-2"
+                >
+                  <span className="truncate">{v.name}</span>
+                  <button
+                    type="button"
+                    aria-label={t("deleteView")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteView(v.id);
+                    }}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setSaveOpen(true)}>
+              <Bookmark className="size-4" />
+              {t("saveView")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="relative min-w-52 flex-1">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -304,6 +431,30 @@ export function GlobalIssuesClient({
           </Table>
         </div>
       )}
+
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("saveView")}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={viewName}
+            onChange={(e) => setViewName(e.target.value)}
+            placeholder={t("viewNamePlaceholder")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSaveView();
+            }}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSaveOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button onClick={onSaveView} disabled={!viewName.trim()}>
+              {t("save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

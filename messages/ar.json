@@ -1130,7 +1130,16 @@
     "boardEmpty": "لا شيء",
     "openInProject": "فتح في المشروع",
     "filterLabel": "التصنيف",
-    "allLabels": "كل التصنيفات"
+    "allLabels": "كل التصنيفات",
+    "views": "العروض",
+    "saveView": "حفظ العرض الحالي",
+    "viewName": "اسم العرض",
+    "viewNamePlaceholder": "مثال: مشكلاتي المفتوحة",
+    "viewSaved": "تم حفظ العرض",
+    "deleteView": "حذف",
+    "noSavedViews": "لا عروض محفوظة بعد",
+    "save": "حفظ",
+    "cancel": "إلغاء"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",

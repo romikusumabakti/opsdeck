@@ -1130,7 +1130,16 @@
     "boardEmpty": "空",
     "openInProject": "在项目中打开",
     "filterLabel": "标签",
-    "allLabels": "所有标签"
+    "allLabels": "所有标签",
+    "views": "视图",
+    "saveView": "保存当前视图",
+    "viewName": "视图名称",
+    "viewNamePlaceholder": "例如 我的未解决缺陷",
+    "viewSaved": "视图已保存",
+    "deleteView": "删除",
+    "noSavedViews": "暂无已保存视图",
+    "save": "保存",
+    "cancel": "取消"
   },
   "environmentKinds": {
     "qa": "测试",
