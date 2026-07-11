@@ -1,6 +1,6 @@
 # Rework Plan: OpsDeck → 5-Role Delivery + Ops Hub
 
-**Status:** In progress (Phases 0–2 shipped) · **Last updated:** 2026-07-11
+**Status:** In progress (Phases 0–3 shipped) · **Last updated:** 2026-07-11
 
 Target: evolve OpsDeck from a DevOps-first control panel into a shared hub that
 serves five personas — PM, BA, QA, Developer, DevOps — without turning it into a
@@ -13,12 +13,13 @@ Jira/TestRail clone.
 | 0 — RBAC foundation | ✅ Shipped |
 | 1 — Issue depth | ✅ Shipped |
 | 2 — Board + My Work | ✅ Shipped |
-| 3 — QA test management | ⬜ Not started |
+| 3 — QA test management | ✅ Shipped (Option A, record-not-execute) |
 | 4 — BA requirements + Activity | ⬜ Not started |
 | 5 — Polish | ⬜ Not started |
 
 **Migrations to apply before deploy** (additive, safe while running):
-`20260711070000_project_members`, `20260711080000_issue_depth`.
+`20260711070000_project_members`, `20260711080000_issue_depth`,
+`20260711090000_test_runs`.
 
 **Deferred within shipped phases:** service-control capability tuning (Phase 0);
 create-time parent picker, deep (>1-level) cycle guard, milestone filter on the
@@ -198,7 +199,15 @@ new schema.
 
 ---
 
-## Phase 3 — QA test management (QA)
+## Phase 3 — QA test management (QA) — ✅ Shipped (Option A)
+
+**Shipped as record-not-execute.** QA records a Pass/Fail result (+ note) against
+the issue's environment on the issue detail; it becomes a `run` (kind=`test`,
+status success/failed) linked back to the issue, reusing the runs history/infra.
+The issue must be pinned to an environment (runs are environment-scoped). Actual
+suite *execution* (a per-environment test command + worker job, with log
+streaming) is deferred until a concrete need — Option B below.
+
 
 Do not build TestRail. Extend the `runs` infrastructure (already has SSE / log /
 status).

@@ -1224,7 +1224,14 @@
     "attachmentFailed": "Upload failed",
     "attachmentTooLarge": "File too large (max 25 MB)",
     "attachmentDownload": "Download",
-    "attachmentDelete": "Delete"
+    "attachmentDelete": "Delete",
+    "testRuns": "Test runs",
+    "testNotePlaceholder": "Note (optional)",
+    "testPass": "Pass",
+    "testFail": "Fail",
+    "testNeedsEnv": "Pin this issue to an environment to record test results.",
+    "testRecorded": "Test result recorded",
+    "testRecordFailed": "Failed to record test"
   },
   "projectMembers": {
     "selectUser": "Select a user…",

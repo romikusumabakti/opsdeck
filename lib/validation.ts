@@ -163,6 +163,14 @@ export const issueUpdateSchema = z.object({
   parentId: z.uuid().nullish(),
 });
 
+// A recorded QA test result against the issue's environment.
+export const testRunSchema = z.object({
+  issueId: z.uuid(),
+  passed: z.boolean(),
+  note: z.string().trim().max(20_000).optional(),
+});
+export type TestRunInput = z.infer<typeof testRunSchema>;
+
 export const milestoneInputSchema = z.object({
   projectId: z.uuid(),
   name: z.string().trim().min(1).max(200),

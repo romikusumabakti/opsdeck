@@ -104,6 +104,10 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.runs.userId,
       to: r.users.id,
     }),
+    issue: r.one.issues({
+      from: r.runs.issueId,
+      to: r.issues.id,
+    }),
   },
   users: {
     sessions: r.many.sessions(),

@@ -1224,7 +1224,14 @@
     "attachmentFailed": "上传失败",
     "attachmentTooLarge": "文件过大（上限 25 MB）",
     "attachmentDownload": "下载",
-    "attachmentDelete": "删除"
+    "attachmentDelete": "删除",
+    "testRuns": "测试记录",
+    "testNotePlaceholder": "备注（可选）",
+    "testPass": "通过",
+    "testFail": "失败",
+    "testNeedsEnv": "将此问题关联到某个环境以记录测试结果。",
+    "testRecorded": "已记录测试结果",
+    "testRecordFailed": "记录测试失败"
   },
   "projectMembers": {
     "selectUser": "选择用户…",

@@ -1224,7 +1224,14 @@
     "attachmentFailed": "فشل الرفع",
     "attachmentTooLarge": "الملف كبير جدًا (الحد 25 ميغابايت)",
     "attachmentDownload": "تنزيل",
-    "attachmentDelete": "حذف"
+    "attachmentDelete": "حذف",
+    "testRuns": "عمليات الاختبار",
+    "testNotePlaceholder": "ملاحظة (اختياري)",
+    "testPass": "نجاح",
+    "testFail": "فشل",
+    "testNeedsEnv": "اربط هذه المشكلة ببيئة لتسجيل نتائج الاختبار.",
+    "testRecorded": "تم تسجيل نتيجة الاختبار",
+    "testRecordFailed": "فشل تسجيل الاختبار"
   },
   "projectMembers": {
     "selectUser": "اختر مستخدمًا…",
