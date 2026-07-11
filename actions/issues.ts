@@ -14,8 +14,9 @@ import {
   type LabelLite,
   labels,
   projects,
+  users as userTable,
 } from "@/lib/db/schema";
-import { notifyIssueAssigned } from "@/lib/notifications";
+import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
 import {
   issueInputSchema,
   issueStatusSchema,
@@ -224,6 +225,32 @@ export async function addComment(
       authorId: session.user.id,
       body: trimmed,
     });
+    // Notify mentioned users. The comment box inserts exact display names after
+    // `@`, so a plain `@${name}` substring scan resolves mentions without a
+    // username scheme. Ambiguous only if two users share a display name — rare
+    // in a small workspace, and at worst both get notified.
+    const issue = await db.query.issues.findFirst({
+      where: { id: issueId },
+      columns: { number: true, title: true },
+      with: { project: { columns: { key: true } } },
+    });
+    if (issue?.project) {
+      const users = await db
+        .select({ id: userTable.id, name: userTable.name })
+        .from(userTable)
+        .where(eq(userTable.banned, false));
+      for (const u of users) {
+        if (u.id !== session.user.id && trimmed.includes(`@${u.name}`)) {
+          await notifyIssueMention({
+            userId: u.id,
+            actorId: session.user.id,
+            projectKey: issue.project.key,
+            number: issue.number,
+            title: issue.title,
+          });
+        }
+      }
+    }
     revalidatePath("/projects", "layout");
     return { success: true };
   } catch (error) {

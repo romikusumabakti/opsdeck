@@ -87,6 +87,10 @@ export function IssuesClient({
   const router = useRouter();
   const dialog = useDialog();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  // Keyboard cursor into the table (j/k move, x select, Enter open). -1 = none.
+  const [cursor, setCursor] = React.useState(-1);
+  const cursorRef = React.useRef(-1);
+  cursorRef.current = cursor;
 
   // Seed from server data; re-sync whenever the server component re-renders
   // (router.refresh after a mutation) so creator/assignee names resolve.
@@ -215,6 +219,46 @@ export function IssuesClient({
     setSelected(new Set());
     router.refresh();
   }
+
+  // Keyboard-first navigation of the table (Linear-style). Ignores keys while a
+  // form control is focused so typing in the search box isn't hijacked.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cursor read via ref.
+  React.useEffect(() => {
+    if (view !== "table") return;
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      if (visible.length === 0) return;
+      if (e.key === "j") {
+        e.preventDefault();
+        setCursor((c) => Math.min((c < 0 ? -1 : c) + 1, visible.length - 1));
+      } else if (e.key === "k") {
+        e.preventDefault();
+        setCursor((c) => Math.max((c < 0 ? visible.length : c) - 1, 0));
+      } else if (e.key === "x") {
+        const i = cursorRef.current;
+        if (i >= 0 && i < visible.length) {
+          e.preventDefault();
+          toggleSelected(visible[i].id);
+        }
+      } else if (e.key === "Enter") {
+        const i = cursorRef.current;
+        if (i >= 0 && i < visible.length) {
+          e.preventDefault();
+          router.push(`/project/${projectKey}/${visible[i].number}`);
+        }
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [view, visible, projectKey, router]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -384,8 +428,11 @@ export function IssuesClient({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((issue) => (
-                  <TableRow key={issue.id}>
+                {visible.map((issue, idx) => (
+                  <TableRow
+                    key={issue.id}
+                    className={cursor === idx ? "bg-accent/60" : undefined}
+                  >
                     <TableCell>
                       <Checkbox
                         checked={selected.has(issue.id)}

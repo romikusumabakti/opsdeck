@@ -149,7 +149,8 @@
     "markAllRead": "Tandai semua dibaca",
     "ariaLabel": "Notifikasi",
     "issue_assigned": "Ditugaskan ke Anda: {key}-{number} · {title}",
-    "run_failed": "{description} gagal di {environment}"
+    "run_failed": "{description} gagal di {environment}",
+    "issue_mention": "Menyebut Anda: {key}-{number} · {title}"
   },
   "projectsEmpty": {
     "title": "Belum ada proyek",

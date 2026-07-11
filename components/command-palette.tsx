@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  Activity,
   BookOpen,
+  CircleDot,
   Folder,
+  FolderKanban,
   KeyRound,
   Languages,
   LogOut,
@@ -128,7 +131,21 @@ export function CommandPalette({
               onSelect={() => run(() => router.push("/"))}
             >
               <Folder />
-              {tNav("dashboard")}
+              {tNav("home")}
+            </CommandItem>
+            <CommandItem
+              value="projects environments"
+              onSelect={() => run(() => router.push("/projects"))}
+            >
+              <FolderKanban />
+              {tNav("projects")}
+            </CommandItem>
+            <CommandItem
+              value="issues bugs tasks"
+              onSelect={() => run(() => router.push("/issues"))}
+            >
+              <CircleDot />
+              {tNav("allIssues")}
             </CommandItem>
             <CommandItem
               value="knowledge base docs wiki"
@@ -136,6 +153,13 @@ export function CommandPalette({
             >
               <BookOpen />
               {tNav("knowledge")}
+            </CommandItem>
+            <CommandItem
+              value="activity audit feed events"
+              onSelect={() => run(() => router.push("/activity"))}
+            >
+              <Activity />
+              {tNav("activity")}
             </CommandItem>
             {isAdmin && (
               <>
