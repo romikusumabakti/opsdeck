@@ -1130,7 +1130,16 @@
     "boardEmpty": "Kosong",
     "openInProject": "Buka di proyek",
     "filterLabel": "Label",
-    "allLabels": "Semua label"
+    "allLabels": "Semua label",
+    "views": "Tampilan",
+    "saveView": "Simpan tampilan ini",
+    "viewName": "Nama tampilan",
+    "viewNamePlaceholder": "mis. Bug terbuka saya",
+    "viewSaved": "Tampilan disimpan",
+    "deleteView": "Hapus",
+    "noSavedViews": "Belum ada tampilan tersimpan",
+    "save": "Simpan",
+    "cancel": "Batal"
   },
   "environmentKinds": {
     "qa": "QA",

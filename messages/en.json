@@ -1130,7 +1130,16 @@
     "boardEmpty": "Nothing here",
     "openInProject": "Open in project",
     "filterLabel": "Label",
-    "allLabels": "All labels"
+    "allLabels": "All labels",
+    "views": "Views",
+    "saveView": "Save current view",
+    "viewName": "View name",
+    "viewNamePlaceholder": "e.g. My open bugs",
+    "viewSaved": "View saved",
+    "deleteView": "Delete",
+    "noSavedViews": "No saved views yet",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "environmentKinds": {
     "qa": "QA",
