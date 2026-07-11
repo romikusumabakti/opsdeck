@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { listIssueAttachments } from "@/actions/issue-attachments";
 import { getIssueDetail, listIssues } from "@/actions/issues";
 import { listLabels } from "@/actions/labels";
 import { listMilestones } from "@/actions/milestones";
@@ -29,13 +30,14 @@ export default async function IssueDetailPage({
     notFound();
   }
 
-  const [project, users, allLabels, milestones, allIssues, t] =
+  const [project, users, allLabels, milestones, allIssues, attachments, t] =
     await Promise.all([
       getProjectWithEnvironments(issue.project.id),
       listAssignableUsers(),
       listLabels(),
       listMilestones(issue.project.id),
       listIssues(issue.project.id),
+      listIssueAttachments(issue.id),
       getTranslations("issueDetail"),
     ]);
   const environments =
@@ -69,6 +71,7 @@ export default async function IssueDetailPage({
         environments={environments}
         milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
         siblings={siblings}
+        attachments={attachments}
         allLabels={allLabels}
       />
     </>

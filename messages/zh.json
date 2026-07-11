@@ -1213,7 +1213,15 @@
     "noLabels": "无标签",
     "parent": "父级",
     "noParent": "无父级",
-    "subtasks": "子任务"
+    "subtasks": "子任务",
+    "attachments": "附件",
+    "attachmentAdd": "添加附件",
+    "attachmentUploading": "上传中…",
+    "attachmentAdded": "附件已上传",
+    "attachmentFailed": "上传失败",
+    "attachmentTooLarge": "文件过大（上限 25 MB）",
+    "attachmentDownload": "下载",
+    "attachmentDelete": "删除"
   },
   "projectMembers": {
     "selectUser": "选择用户…",

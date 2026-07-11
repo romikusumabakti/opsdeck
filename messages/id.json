@@ -1213,7 +1213,15 @@
     "noLabels": "Tidak ada label",
     "parent": "Induk",
     "noParent": "Tanpa induk",
-    "subtasks": "Subtugas"
+    "subtasks": "Subtugas",
+    "attachments": "Lampiran",
+    "attachmentAdd": "Lampirkan",
+    "attachmentUploading": "Mengunggah…",
+    "attachmentAdded": "Lampiran diunggah",
+    "attachmentFailed": "Gagal mengunggah",
+    "attachmentTooLarge": "File terlalu besar (maks 25 MB)",
+    "attachmentDownload": "Unduh",
+    "attachmentDelete": "Hapus"
   },
   "projectMembers": {
     "selectUser": "Pilih pengguna…",
