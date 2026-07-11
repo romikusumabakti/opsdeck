@@ -1128,7 +1128,9 @@
     "globalSubtitle": "Semua isu lintas proyek.",
     "columnProject": "Proyek",
     "boardEmpty": "Kosong",
-    "openInProject": "Buka di proyek"
+    "openInProject": "Buka di proyek",
+    "filterLabel": "Label",
+    "allLabels": "Semua label"
   },
   "environmentKinds": {
     "qa": "QA",
@@ -1177,6 +1179,8 @@
     "saveFailed": "Gagal menyimpan",
     "createdBy": "Dibuka oleh {name}",
     "unknownUser": "Tidak diketahui",
-    "notFound": "Isu tidak ditemukan."
+    "notFound": "Isu tidak ditemukan.",
+    "labels": "Label",
+    "noLabels": "Tidak ada label"
   }
 }

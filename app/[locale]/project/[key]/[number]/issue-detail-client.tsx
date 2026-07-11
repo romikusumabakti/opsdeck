@@ -6,12 +6,14 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { IssueDetail } from "@/actions/issues";
 import { addComment, updateIssue } from "@/actions/issues";
+import { setIssueLabels } from "@/actions/labels";
 import {
   type AssignableUser,
   AssigneeSelect,
   type Status,
   StatusSelect,
 } from "@/components/issues-board";
+import { LabelChips, LabelPicker } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,10 +34,12 @@ export function IssueDetailClient({
   issue,
   users,
   environments,
+  allLabels,
 }: {
   issue: IssueDetail;
   users: AssignableUser[];
   environments: EnvOption[];
+  allLabels: { id: string; name: string; color: string; createdAt: Date }[];
 }) {
   const t = useTranslations("issueDetail");
   const tIssues = useTranslations("issues");
@@ -45,8 +49,17 @@ export function IssueDetailClient({
 
   const [title, setTitle] = React.useState(issue.title);
   const [description, setDescription] = React.useState(issue.description);
+  const [labelIds, setLabelIds] = React.useState(issue.labels.map((l) => l.id));
   const [comment, setComment] = React.useState("");
   const [posting, setPosting] = React.useState(false);
+
+  async function onLabelsChange(ids: string[]) {
+    setLabelIds(ids);
+    await setIssueLabels(issue.id, ids);
+    router.refresh();
+  }
+
+  const selectedLabels = allLabels.filter((l) => labelIds.includes(l.id));
 
   async function patch(data: Record<string, unknown>, okMsg?: string) {
     const result = await updateIssue(issue.id, data);
@@ -136,6 +149,20 @@ export function IssueDetailClient({
             </SelectContent>
           </Select>
         </Field>
+      </div>
+
+      {/* Labels */}
+      <div className="flex flex-wrap items-center gap-2">
+        <LabelPicker
+          allLabels={allLabels}
+          selected={labelIds}
+          onChange={onLabelsChange}
+        />
+        {selectedLabels.length > 0 ? (
+          <LabelChips labels={selectedLabels} />
+        ) : (
+          <span className="text-sm text-muted-foreground">{t("noLabels")}</span>
+        )}
       </div>
 
       {/* Description */}
