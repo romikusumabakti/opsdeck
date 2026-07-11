@@ -993,7 +993,14 @@
     "editorInlineCode": "كود مضمّن",
     "editorCodeBlock": "كتلة كود",
     "editorQuote": "اقتباس",
-    "editorInsertTable": "إدراج جدول"
+    "editorInsertTable": "إدراج جدول",
+    "docTypeLabel": "النوع",
+    "docType": {
+      "doc": "مستند",
+      "runbook": "دليل تشغيل",
+      "spec": "مواصفات",
+      "requirement": "متطلب"
+    }
   },
   "explorer": {
     "newFolder": "مجلد جديد",
