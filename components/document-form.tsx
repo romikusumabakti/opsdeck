@@ -86,6 +86,7 @@ export function DocumentForm({
   const [published, setPublished] = useState(
     doc ? doc.publishedAt !== null : true
   );
+  const [docType, setDocType] = useState<string>(doc?.docType ?? "doc");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Snapshot of the form as first rendered; edits are diffed against it to drive
@@ -95,13 +96,15 @@ export function DocumentForm({
     content: doc?.content ?? "",
     collectionId,
     published,
+    docType,
   });
   const initial = initialRef.current;
   const dirty =
     title !== initial.title ||
     content !== initial.content ||
     collectionId !== initial.collectionId ||
-    published !== initial.published;
+    published !== initial.published ||
+    docType !== initial.docType;
 
   // Warn before a full-page unload (refresh, tab close, external nav) drops
   // unsaved edits. Browsers ignore any custom message, so none is set. Client
@@ -125,6 +128,7 @@ export function DocumentForm({
         const res = await createDocument({
           collectionId,
           title,
+          docType,
           content,
           publishedAt: published ? new Date().toISOString() : null,
         });
@@ -137,6 +141,7 @@ export function DocumentForm({
       } else {
         const res = await updateDocument(mode.document.id, {
           title,
+          docType,
           content,
           collectionId,
           publishedAt: published ? new Date().toISOString() : null,
@@ -281,6 +286,24 @@ export function DocumentForm({
                   {collections.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex shrink-0 flex-col gap-1.5">
+              <Label htmlFor="doc-type">{t("docTypeLabel")}</Label>
+              <Select
+                value={docType}
+                onValueChange={(v) => setDocType(v ?? "doc")}
+              >
+                <SelectTrigger id="doc-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["doc", "runbook", "spec", "requirement"].map((dt) => (
+                    <SelectItem key={dt} value={dt}>
+                      {t(`docType.${dt}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -261,10 +261,13 @@ export const collectionMoveSchema = z.object({
   rank: z.string().min(1).max(100),
 });
 
+export const docTypeSchema = z.enum(["doc", "runbook", "spec", "requirement"]);
+
 export const documentInputSchema = z.object({
   collectionId: z.uuid(),
   parentId: z.uuid().nullish(),
   title: z.string().trim().min(1).max(255),
+  docType: docTypeSchema.default("doc"),
   // Markdown body. Generous ceiling — these are wiki pages, not blobs.
   content: z.string().max(500_000).default(""),
   projectId: z.uuid().nullish(),
@@ -275,6 +278,7 @@ export const documentInputSchema = z.object({
 export const documentUpdateSchema = z
   .object({
     title: z.string().trim().min(1).max(255),
+    docType: docTypeSchema,
     content: z.string().max(500_000),
     parentId: z.uuid().nullish(),
     collectionId: z.uuid(),

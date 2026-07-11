@@ -636,6 +636,16 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+// What a document is, so BA specs/requirements read distinctly from plain notes
+// and runbooks. `doc` is the neutral default; `spec`/`requirement` carry the BA
+// artifacts (acceptance criteria live as a markdown checklist in the body).
+export const knowledgeDocTypeEnum = pgEnum("knowledge_doc_type", [
+  "doc",
+  "runbook",
+  "spec",
+  "requirement",
+]);
+
 // Top-level grouping for documents (e.g. "Runbooks", "Onboarding"). Managing
 // collections is admin-only; documents inside are member-editable.
 export const knowledgeCollections = pgTable("knowledge_collections", {
@@ -669,6 +679,7 @@ export const knowledgeDocuments = pgTable(
       onDelete: "set null",
     }),
     title: text("title").notNull(),
+    docType: knowledgeDocTypeEnum("doc_type").notNull().default("doc"),
     // URL-friendly identifier, unique within a collection. Routed as
     // /knowledge/<slug>.
     slug: text("slug").notNull(),
@@ -817,7 +828,7 @@ export type KnowledgeDocumentWithMeta = KnowledgeDocument & {
 // Lightweight node for the navigation tree — no body, no FTS columns.
 export type KnowledgeTreeNode = Pick<
   KnowledgeDocument,
-  "id" | "collectionId" | "parentId" | "title" | "slug" | "rank"
+  "id" | "collectionId" | "parentId" | "title" | "slug" | "rank" | "docType"
 > & { publishedAt: Date | null };
 
 export type Server = InferSelectModel<typeof servers>;

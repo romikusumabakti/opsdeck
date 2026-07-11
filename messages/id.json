@@ -993,7 +993,14 @@
     "editorInlineCode": "Kode sebaris",
     "editorCodeBlock": "Blok kode",
     "editorQuote": "Kutipan",
-    "editorInsertTable": "Sisipkan tabel"
+    "editorInsertTable": "Sisipkan tabel",
+    "docTypeLabel": "Tipe",
+    "docType": {
+      "doc": "Dokumen",
+      "runbook": "Runbook",
+      "spec": "Spesifikasi",
+      "requirement": "Kebutuhan"
+    }
   },
   "explorer": {
     "newFolder": "Folder baru",

@@ -153,6 +153,7 @@ export async function loadTreeNodes(
       collectionId: knowledgeDocuments.collectionId,
       parentId: knowledgeDocuments.parentId,
       title: knowledgeDocuments.title,
+      docType: knowledgeDocuments.docType,
       slug: knowledgeDocuments.slug,
       rank: knowledgeDocuments.rank,
       publishedAt: knowledgeDocuments.publishedAt,
