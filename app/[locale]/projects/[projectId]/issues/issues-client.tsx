@@ -6,7 +6,14 @@ import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import type { IssueWithMeta } from "@/actions/issues";
-import { createIssue, setIssueStatus, updateIssue } from "@/actions/issues";
+import {
+  bulkDeleteIssues,
+  bulkSetStatus,
+  createIssue,
+  setIssueStatus,
+  updateIssue,
+} from "@/actions/issues";
+import { useDialog } from "@/components/dialog-provider";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -16,6 +23,7 @@ import {
   MilestoneSelect,
   type Priority,
   PrioritySelect,
+  STATUSES,
   type Status,
   StatusSelect,
   type Swimlane,
@@ -24,6 +32,7 @@ import {
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -72,9 +81,12 @@ export function IssuesClient({
   initialIssues: IssueWithMeta[];
 }) {
   const t = useTranslations("issues");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
   const router = useRouter();
+  const dialog = useDialog();
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   // Seed from server data; re-sync whenever the server component re-renders
   // (router.refresh after a mutation) so creator/assignee names resolve.
@@ -155,6 +167,54 @@ export function IssuesClient({
     () => Object.fromEntries(users.map((u) => [u.id, u.name])),
     [users]
   );
+
+  // Drop the selection whenever the underlying list changes (e.g. after a
+  // refresh), so a stale id can't linger in a bulk action.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on data change only.
+  React.useEffect(() => setSelected(new Set()), [initialIssues]);
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === visible.length
+        ? new Set()
+        : new Set(visible.map((i) => i.id))
+    );
+  }
+
+  async function onBulkStatus(status: Status) {
+    const ids = [...selected];
+    const result = await bulkSetStatus(ids, status);
+    if (!result.success) toast.error(t("updateFailed"));
+    else toast.success(t("statusUpdated"));
+    setSelected(new Set());
+    router.refresh();
+  }
+
+  async function onBulkDelete() {
+    const ids = [...selected];
+    const ok = await dialog.confirm({
+      title: t("bulkDeleteTitle"),
+      description: t("bulkDeleteDescription", { count: ids.length }),
+      confirmText: tCommon("delete"),
+      cancelText: tCommon("cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    const result = await bulkDeleteIssues(ids);
+    if (!result.success) toast.error(t("updateFailed"));
+    else toast.success(t("bulkDeleted"));
+    setSelected(new Set());
+    router.refresh();
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -264,81 +324,135 @@ export function IssuesClient({
           swimlane={swimlane}
         />
       ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">{t("columnKey")}</TableHead>
-                <TableHead>{t("columnTitle")}</TableHead>
-                <TableHead className="w-40">{t("columnStatus")}</TableHead>
-                <TableHead className="w-36">{t("columnPriority")}</TableHead>
-                <TableHead className="w-40">{t("columnEnvironment")}</TableHead>
-                <TableHead className="w-32">{t("columnAssignee")}</TableHead>
-                <TableHead className="w-32">{t("columnCreated")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((issue) => (
-                <TableRow key={issue.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    <Link
-                      href={`/project/${projectKey}/${issue.number}`}
-                      className="hover:text-foreground hover:underline"
-                    >
-                      {projectKey}-{issue.number}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-2">
-                      <TypeIcon type={issue.type as IssueType} />
+        <div className="flex flex-col gap-2">
+          {selected.size > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+              <span className="text-sm font-medium">
+                {t("selectedCount", { count: selected.size })}
+              </span>
+              <Select onValueChange={(v) => v && onBulkStatus(v as Status)}>
+                <SelectTrigger className="h-8 w-40">
+                  <SelectValue placeholder={t("bulkStatus")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {t(`status.${s}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive"
+                onClick={onBulkDelete}
+              >
+                {tCommon("delete")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelected(new Set())}
+              >
+                {t("clearSelection")}
+              </Button>
+            </div>
+          ) : null}
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={
+                        visible.length > 0 && selected.size === visible.length
+                      }
+                      onCheckedChange={toggleAll}
+                      aria-label={t("selectAll")}
+                    />
+                  </TableHead>
+                  <TableHead className="w-24">{t("columnKey")}</TableHead>
+                  <TableHead>{t("columnTitle")}</TableHead>
+                  <TableHead className="w-40">{t("columnStatus")}</TableHead>
+                  <TableHead className="w-36">{t("columnPriority")}</TableHead>
+                  <TableHead className="w-40">
+                    {t("columnEnvironment")}
+                  </TableHead>
+                  <TableHead className="w-32">{t("columnAssignee")}</TableHead>
+                  <TableHead className="w-32">{t("columnCreated")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((issue) => (
+                  <TableRow key={issue.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(issue.id)}
+                        onCheckedChange={() => toggleSelected(issue.id)}
+                        aria-label={t("selectRow")}
+                      />
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
                       <Link
                         href={`/project/${projectKey}/${issue.number}`}
-                        className="hover:underline"
+                        className="hover:text-foreground hover:underline"
                       >
-                        {issue.title}
+                        {projectKey}-{issue.number}
                       </Link>
-                      <LabelChips labels={issue.labels} />
-                      {issue.milestoneId ? (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                          {milestonesById[issue.milestoneId]}
-                        </span>
-                      ) : null}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusSelect
-                      value={issue.status as Status}
-                      onChange={(s) => onStatusChange(issue.id, s)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <PrioritySelect
-                      value={issue.priority as Priority}
-                      onChange={(p) => onPriorityChange(issue.id, p)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground truncate">
-                    {issue.environment?.name ?? (
-                      <span className="italic">{t("allEnvironments")}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <AssigneeSelect
-                      users={users}
-                      value={issue.assignee?.id ?? null}
-                      onChange={(a) => onAssigneeChange(issue.id, a)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(issue.createdAt), {
-                      addSuffix: true,
-                      locale: dateFnsLocale,
-                    })}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-2">
+                        <TypeIcon type={issue.type as IssueType} />
+                        <Link
+                          href={`/project/${projectKey}/${issue.number}`}
+                          className="hover:underline"
+                        >
+                          {issue.title}
+                        </Link>
+                        <LabelChips labels={issue.labels} />
+                        {issue.milestoneId ? (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                            {milestonesById[issue.milestoneId]}
+                          </span>
+                        ) : null}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <StatusSelect
+                        value={issue.status as Status}
+                        onChange={(s) => onStatusChange(issue.id, s)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <PrioritySelect
+                        value={issue.priority as Priority}
+                        onChange={(p) => onPriorityChange(issue.id, p)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground truncate">
+                      {issue.environment?.name ?? (
+                        <span className="italic">{t("allEnvironments")}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <AssigneeSelect
+                        users={users}
+                        value={issue.assignee?.id ?? null}
+                        onChange={(a) => onAssigneeChange(issue.id, a)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(issue.createdAt), {
+                        addSuffix: true,
+                        locale: dateFnsLocale,
+                      })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 

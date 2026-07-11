@@ -1168,7 +1168,15 @@
     "allMilestones": "所有里程碑",
     "groupNone": "不分组",
     "groupAssignee": "按负责人",
-    "groupMilestone": "按里程碑"
+    "groupMilestone": "按里程碑",
+    "selectedCount": "已选 {count} 项",
+    "bulkStatus": "设置状态",
+    "clearSelection": "清除",
+    "selectAll": "全选",
+    "selectRow": "选择行",
+    "bulkDeleteTitle": "删除问题",
+    "bulkDeleteDescription": "删除 {count} 个问题？此操作无法撤销。",
+    "bulkDeleted": "问题已删除"
   },
   "environmentKinds": {
     "qa": "测试",
