@@ -1,7 +1,7 @@
 "use server";
 
 import { unstable_cache, updateTag } from "next/cache";
-import { requireSession } from "@/lib/auth-session";
+import { requireCapability, requireSession } from "@/lib/auth-session";
 import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
@@ -120,10 +120,12 @@ export async function createDatabaseBackup(
   projectId: string,
   options: { compress?: boolean; database?: string } = {}
 ): Promise<{ runId: string }> {
-  const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
   }
+  const session = await requireCapability("ops.destructive", {
+    environmentId: projectId,
+  });
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
   const database = resolveTargetDatabase(project, options.database);
@@ -156,10 +158,12 @@ export async function restoreDatabaseBackup(
     sourceProjectId?: string;
   }
 ): Promise<{ runId: string }> {
-  const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
   }
+  const session = await requireCapability("ops.destructive", {
+    environmentId: projectId,
+  });
   const parsedFilename = backupFilenameSchema.safeParse(options.filename);
   if (!parsedFilename.success) {
     throw new Error("Invalid backup filename");

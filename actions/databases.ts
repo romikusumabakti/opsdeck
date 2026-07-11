@@ -1,7 +1,7 @@
 "use server";
 
 import { unstable_cache } from "next/cache";
-import { requireSession } from "@/lib/auth-session";
+import { requireCapability, requireSession } from "@/lib/auth-session";
 import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
@@ -141,10 +141,12 @@ export async function createDatabase(
   projectId: string,
   options: { database: string }
 ): Promise<{ runId: string }> {
-  const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
   }
+  const session = await requireCapability("ops.destructive", {
+    environmentId: projectId,
+  });
   const parsed = databaseNameSchema.safeParse(options.database);
   if (!parsed.success) {
     throw new Error("Invalid database name");
@@ -170,10 +172,12 @@ export async function dropDatabase(
   projectId: string,
   options: { database: string }
 ): Promise<{ runId: string }> {
-  const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
   }
+  const session = await requireCapability("ops.destructive", {
+    environmentId: projectId,
+  });
   const parsed = databaseNameSchema.safeParse(options.database);
   if (!parsed.success) {
     throw new Error("Invalid database name");
@@ -205,10 +209,12 @@ export async function renameDatabase(
   projectId: string,
   options: { from: string; to: string }
 ): Promise<{ runId: string }> {
-  const session = await requireSession();
   if (!projectIdSchema.safeParse(projectId).success) {
     throw new Error("Invalid project id");
   }
+  const session = await requireCapability("ops.destructive", {
+    environmentId: projectId,
+  });
   const parsedFrom = databaseNameSchema.safeParse(options.from);
   if (!parsedFrom.success) {
     throw new Error("Invalid database name");
