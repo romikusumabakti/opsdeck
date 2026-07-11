@@ -121,6 +121,31 @@ export async function getProjectById(
  * CREATE: Add a new project. Server FKs (dbServerId, backendServerId,
  * frontendServerId) must already exist — create them via createServer first.
  */
+// URL-friendly base slug from an environment name.
+function baseSlug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "env"
+  );
+}
+
+// A slug unique within the project — append -2, -3, … on collision.
+async function uniqueEnvSlug(projectId: string, name: string): Promise<string> {
+  const base = baseSlug(name);
+  const existing = await db
+    .select({ slug: environments.slug })
+    .from(environments)
+    .where(eq(environments.projectId, projectId));
+  const taken = new Set(existing.map((e) => e.slug));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
 export async function createProject(data: unknown): Promise<ActionResponse> {
   await requireAdmin();
   const parsed = projectInputSchema.safeParse(data);
@@ -128,9 +153,10 @@ export async function createProject(data: unknown): Promise<ActionResponse> {
     return { success: false, message: "Invalid project data" };
   }
   try {
+    const slug = await uniqueEnvSlug(parsed.data.projectId, parsed.data.name);
     const [insertedProject] = await db
       .insert(environments)
-      .values(parsed.data)
+      .values({ ...parsed.data, slug })
       .returning();
 
     revalidatePath("/projects");

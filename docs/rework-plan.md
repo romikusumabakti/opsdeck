@@ -15,12 +15,12 @@ Jira/TestRail clone.
 | 2 — Board + My Work | ✅ Shipped |
 | 3 — QA test management | ✅ Shipped (Option A, record-not-execute) |
 | 4 — BA requirements + Activity | ✅ Shipped |
-| 5 — Polish | 🟡 Partial (bulk actions, palette nav) |
+| 5 — Polish | 🟡 Partial (bulk, palette, keyboard-first, @mention; URL slug deferred) |
 
 **Migrations to apply before deploy** (additive, safe while running):
 `20260711070000_project_members`, `20260711080000_issue_depth`,
 `20260711090000_test_runs`, `20260711100000_kb_doc_type`,
-`20260711110000_activity_log`.
+`20260711110000_activity_log`, `20260711120000_issue_mention`.
 
 **Deferred within shipped phases:** service-control capability tuning (Phase 0);
 create-time parent picker, deep (>1-level) cycle guard, milestone filter on the
@@ -270,11 +270,41 @@ activityLog (id, actorId, scope, entityType, entityId, action, data jsonb, at)
 ## Phase 5 — Polish (cosmetic, last) — 🟡 Partial
 
 **Shipped:** bulk actions on the issue list (multi-select → set status / delete);
-command palette reaches every top-level section (Projects, Issues, Activity).
-**Deferred:** key/slug URL migration (`/CMEM/prod/...`, highest risk — touches
-many links); `@mention` in comments (needs a unique-username field; `users` only
-has a display `name` today); keyboard-first list navigation (j/k/x); destructive
+command palette reaches every top-level section (Projects, Issues, Activity);
+keyboard-first list navigation (j/k move, x select, Enter open); `@mention` in
+comments (autocomplete + notification, server resolves `@name` — no username
+scheme needed).
+**Deferred:** key/slug URL migration (`/CMEM/prod/...`, highest risk); destructive
 palette actions (a backup one keystroke away is deliberately out of scope).
+
+### URL/slug migration — staged plan (deferred, do as its own effort)
+
+This is the only large item left. It's a route refactor, not a data change, but
+it touches ~16 link sites, the whole `/projects/[projectId]/*` tree, and risks
+top-level route collisions — so stage it, don't big-bang it.
+
+Today: the logical project and issues already route by key (`/project/[key]`,
+`/project/[key]/[number]`). Only the **environment** tree still uses the env
+UUID: `/projects/[projectId]/{dashboard,services,databases,mock-time,...}`.
+
+- **Stage 1 — slug data (safe, additive).** Add `environments.slug` (lowercase),
+  `uniqueIndex(projectId, slug)`. Migration backfills from `name` with a
+  `row_number()` de-dupe per project and an `env-<id8>` fallback for empties.
+  Generate the slug in `actions/projects.ts#createProject` (env insert) via the
+  existing `slugify`; keep it stable on rename so shared links don't rot. No
+  routing change yet — pure data.
+- **Stage 2 — canonical route tree.** Add `/[locale]/[projectKey]/[envSlug]/…`
+  mirroring the current env pages; a layout resolves `(key, slug) → env id` and
+  passes it down (or 404s). Guard root collisions: keys are uppercase and a
+  reserved-word list (issues, knowledge, servers, storage, users, account,
+  activity, project, projects, api, sign-in, setup, …) is refused at create.
+- **Stage 3 — flip links + redirect.** Update the ~16 `/projects/${envId}/…`
+  link sites (grep `projects/\${`), the breadcrumb, env switcher, command
+  palette, notification `href`s, and `recordProjectAccess`. Keep the old
+  `/projects/[projectId]/*` tree as a permanent redirect to the canonical URL so
+  existing bookmarks and stored hrefs keep working.
+- **Verify:** drive each env section via the new URL; confirm old UUID URLs
+  redirect; confirm a project can't be created with a reserved key.
 
 
 - **Key/slug URLs:** `/CMEM/prod/databases` instead of `/projects/[uuid]`. Route
