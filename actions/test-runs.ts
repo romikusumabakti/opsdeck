@@ -2,6 +2,7 @@
 
 import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { runs } from "@/lib/db/schema";
@@ -55,6 +56,7 @@ export async function recordTestRun(
   const issue = await db.query.issues.findFirst({
     where: { id: input.issueId },
     columns: { environmentId: true, number: true },
+    with: { project: { columns: { key: true } } },
   });
   if (!issue) return { success: false, message: "Issue not found" };
   if (!issue.environmentId) {
@@ -74,6 +76,16 @@ export async function recordTestRun(
       output: input.note?.trim() ?? "",
       runAt: now,
       completedAt: now,
+    });
+    await recordActivity({
+      actorId: session.user.id,
+      action: "test.recorded",
+      entityType: "test",
+      entityId: input.issueId,
+      data: {
+        key: `${issue.project?.key ?? ""}-${issue.number}`,
+        result: input.passed ? "pass" : "fail",
+      },
     });
     revalidatePath("/projects", "layout");
     return { success: true };

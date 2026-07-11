@@ -2,6 +2,7 @@
 
 import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { issues, type Milestone, milestones } from "@/lib/db/schema";
@@ -52,7 +53,7 @@ export async function listMilestones(
 }
 
 export async function createMilestone(data: unknown): Promise<ActionResponse> {
-  await requireSession();
+  const session = await requireSession();
   const parsed = milestoneInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid milestone data" };
@@ -68,6 +69,13 @@ export async function createMilestone(data: unknown): Promise<ActionResponse> {
         dueAt: input.dueAt ?? null,
       })
       .returning();
+    await recordActivity({
+      actorId: session.user.id,
+      action: "milestone.created",
+      entityType: "milestone",
+      entityId: row.id,
+      data: { name: row.name },
+    });
     revalidatePath("/projects", "layout");
     return { success: true, data: row };
   } catch (error) {

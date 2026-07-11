@@ -115,7 +115,8 @@
     "storage": "التخزين",
     "issues": "المشكلات",
     "allIssues": "المشكلات",
-    "home": "الرئيسية"
+    "home": "الرئيسية",
+    "activity": "النشاط"
   },
   "header": {
     "selectProject": "اختر مشروعاً…",
@@ -1281,5 +1282,22 @@
     "deletedMsg": "تم حذف المعلم",
     "delete": "حذف",
     "errorGeneric": "حدث خطأ ما"
+  },
+  "activity": {
+    "title": "النشاط",
+    "subtitle": "أحدث الأحداث عبر مساحة العمل.",
+    "empty": "لا يوجد نشاط بعد.",
+    "someone": "شخص ما",
+    "unknown": "{actor} قام بإجراء ما",
+    "issueCreated": "أنشأ {actor} {key}",
+    "issueStatusChanged": "نقل {actor} {key} إلى {status}",
+    "memberAdded": "أضاف {actor} {user} إلى {project} بدور {role}",
+    "memberRemoved": "أزال {actor} {user} من {project}",
+    "milestoneCreated": "أنشأ {actor} معلمًا {name}",
+    "testRecorded": "سجّل {actor} اختبارًا {result} على {key}",
+    "result": {
+      "pass": "ناجح",
+      "fail": "فاشل"
+    }
   }
 }

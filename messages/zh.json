@@ -115,7 +115,8 @@
     "storage": "存储",
     "issues": "问题",
     "allIssues": "问题",
-    "home": "主页"
+    "home": "主页",
+    "activity": "动态"
   },
   "header": {
     "selectProject": "选择项目…",
@@ -1281,5 +1282,22 @@
     "deletedMsg": "里程碑已删除",
     "delete": "删除",
     "errorGeneric": "出错了"
+  },
+  "activity": {
+    "title": "动态",
+    "subtitle": "工作区内的最近事件。",
+    "empty": "暂无动态。",
+    "someone": "某人",
+    "unknown": "{actor} 执行了操作",
+    "issueCreated": "{actor} 创建了 {key}",
+    "issueStatusChanged": "{actor} 将 {key} 移动到 {status}",
+    "memberAdded": "{actor} 将 {user} 添加到 {project}，角色为 {role}",
+    "memberRemoved": "{actor} 从 {project} 移除了 {user}",
+    "milestoneCreated": "{actor} 创建了里程碑 {name}",
+    "testRecorded": "{actor} 在 {key} 上记录了一次{result}测试",
+    "result": {
+      "pass": "通过",
+      "fail": "失败"
+    }
   }
 }

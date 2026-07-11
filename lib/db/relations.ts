@@ -114,6 +114,12 @@ export const relations = defineRelations(schema, (r) => ({
     accounts: r.many.accounts(),
     invitations: r.many.invitations(),
   },
+  activityLog: {
+    actor: r.one.users({
+      from: r.activityLog.actorId,
+      to: r.users.id,
+    }),
+  },
   knowledgeCollections: {
     documents: r.many.knowledgeDocuments(),
     createdBy: r.one.users({

@@ -115,7 +115,8 @@
     "storage": "Storage",
     "issues": "Issues",
     "allIssues": "Issues",
-    "home": "Home"
+    "home": "Home",
+    "activity": "Activity"
   },
   "header": {
     "selectProject": "Select project…",
@@ -1281,5 +1282,22 @@
     "deletedMsg": "Milestone deleted",
     "delete": "Delete",
     "errorGeneric": "Something went wrong"
+  },
+  "activity": {
+    "title": "Activity",
+    "subtitle": "Recent events across the workspace.",
+    "empty": "No activity yet.",
+    "someone": "Someone",
+    "unknown": "{actor} did something",
+    "issueCreated": "{actor} created {key}",
+    "issueStatusChanged": "{actor} moved {key} to {status}",
+    "memberAdded": "{actor} added {user} to {project} as {role}",
+    "memberRemoved": "{actor} removed {user} from {project}",
+    "milestoneCreated": "{actor} created milestone {name}",
+    "testRecorded": "{actor} recorded a {result} test on {key}",
+    "result": {
+      "pass": "passing",
+      "fail": "failing"
+    }
   }
 }
