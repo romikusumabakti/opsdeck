@@ -6,6 +6,7 @@ import { getIssueDetail, listIssues } from "@/actions/issues";
 import { listLabels } from "@/actions/labels";
 import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
+import { listIssueTestRuns } from "@/actions/test-runs";
 import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -30,16 +31,25 @@ export default async function IssueDetailPage({
     notFound();
   }
 
-  const [project, users, allLabels, milestones, allIssues, attachments, t] =
-    await Promise.all([
-      getProjectWithEnvironments(issue.project.id),
-      listAssignableUsers(),
-      listLabels(),
-      listMilestones(issue.project.id),
-      listIssues(issue.project.id),
-      listIssueAttachments(issue.id),
-      getTranslations("issueDetail"),
-    ]);
+  const [
+    project,
+    users,
+    allLabels,
+    milestones,
+    allIssues,
+    attachments,
+    testRuns,
+    t,
+  ] = await Promise.all([
+    getProjectWithEnvironments(issue.project.id),
+    listAssignableUsers(),
+    listLabels(),
+    listMilestones(issue.project.id),
+    listIssues(issue.project.id),
+    listIssueAttachments(issue.id),
+    listIssueTestRuns(issue.id),
+    getTranslations("issueDetail"),
+  ]);
   const environments =
     project?.environments.map((e) => ({ id: e.id, name: e.name })) ?? [];
   // Candidate parents: every other issue in the project (self and descendants
@@ -72,6 +82,7 @@ export default async function IssueDetailPage({
         milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
         siblings={siblings}
         attachments={attachments}
+        testRuns={testRuns}
         allLabels={allLabels}
       />
     </>

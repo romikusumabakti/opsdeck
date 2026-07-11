@@ -168,6 +168,15 @@ export const runStatusEnum = pgEnum("run_status", [
   "success",
   "failed",
 ]);
+// What a run did. Null on legacy rows (kind wasn't recorded before); new runs
+// set it. `test` runs are QA results recorded against an environment and are the
+// only kind currently linked to an issue via `issueId`.
+export const runKindEnum = pgEnum("run_kind", [
+  "backup",
+  "restore",
+  "mock_time",
+  "test",
+]);
 
 export const runs = pgTable(
   "runs",
@@ -186,6 +195,12 @@ export const runs = pgTable(
     }),
     description: text("description").notNull(),
     status: runStatusEnum("status").notNull().default("started"),
+    kind: runKindEnum("kind"),
+    // Set on `test` runs to tie a QA result to the issue it verifies. set null:
+    // the run's audit record outlives the issue. Null for ops runs.
+    issueId: uuid("issue_id").references((): any => issues.id, {
+      onDelete: "set null",
+    }),
     // Streaming log appended by worker job steps via appendRunOutput. Lines are
     // separated by `\n`; the SSE endpoint emits the full snapshot on each tick.
     output: text("output").notNull().default(""),
@@ -200,6 +215,8 @@ export const runs = pgTable(
     index("runs_project_run_idx").on(t.projectId, t.runAt.desc()),
     // getActiveRuns filters status='started'.
     index("runs_status_idx").on(t.status),
+    // "Test runs for this issue" on the issue detail.
+    index("runs_issue_idx").on(t.issueId),
   ]
 );
 
