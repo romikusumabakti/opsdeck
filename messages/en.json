@@ -1155,7 +1155,8 @@
     "editProject": "Edit project",
     "noEnvironments": "No environments yet",
     "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project.",
-    "client": "Client"
+    "client": "Client",
+    "members": "Members"
   },
   "inbox": {
     "title": "Home",
@@ -1191,5 +1192,26 @@
     "notFound": "Issue not found.",
     "labels": "Labels",
     "noLabels": "No labels"
+  },
+  "projectMembers": {
+    "selectUser": "Select a user…",
+    "add": "Add",
+    "role": {
+      "viewer": "Viewer",
+      "member": "Member",
+      "maintainer": "Maintainer",
+      "admin": "Admin"
+    },
+    "colName": "User",
+    "colRole": "Role",
+    "remove": "Remove",
+    "empty": "No members yet",
+    "emptyDescription": "Add members to grant per-project access above their global role.",
+    "addedSuccess": "Member added",
+    "roleUpdatedSuccess": "Role updated",
+    "removedSuccess": "Member removed",
+    "errorInvalidInput": "Invalid input",
+    "errorInvalidRole": "Invalid role",
+    "errorAddFailed": "Failed to add member"
   }
 }

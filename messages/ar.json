@@ -1155,7 +1155,8 @@
     "editProject": "تعديل المشروع",
     "noEnvironments": "لا توجد بيئات بعد",
     "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع.",
-    "client": "العميل"
+    "client": "العميل",
+    "members": "الأعضاء"
   },
   "inbox": {
     "title": "الرئيسية",
@@ -1191,5 +1192,26 @@
     "notFound": "لم يتم العثور على المشكلة.",
     "labels": "التصنيفات",
     "noLabels": "لا تصنيفات"
+  },
+  "projectMembers": {
+    "selectUser": "اختر مستخدمًا…",
+    "add": "إضافة",
+    "role": {
+      "viewer": "مشاهد",
+      "member": "عضو",
+      "maintainer": "مشرف صيانة",
+      "admin": "مدير"
+    },
+    "colName": "المستخدم",
+    "colRole": "الدور",
+    "remove": "إزالة",
+    "empty": "لا يوجد أعضاء بعد",
+    "emptyDescription": "أضف أعضاء لمنح صلاحية على مستوى المشروع أعلى من دورهم العام.",
+    "addedSuccess": "تمت إضافة العضو",
+    "roleUpdatedSuccess": "تم تحديث الدور",
+    "removedSuccess": "تمت إزالة العضو",
+    "errorInvalidInput": "مدخل غير صالح",
+    "errorInvalidRole": "دور غير صالح",
+    "errorAddFailed": "فشل في إضافة العضو"
   }
 }
