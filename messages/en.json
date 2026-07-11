@@ -1157,7 +1157,10 @@
     "columnPriority": "Priority",
     "milestone": "Milestone",
     "noMilestone": "No milestone",
-    "allMilestones": "All milestones"
+    "allMilestones": "All milestones",
+    "groupNone": "No grouping",
+    "groupAssignee": "By assignee",
+    "groupMilestone": "By milestone"
   },
   "environmentKinds": {
     "qa": "QA",
