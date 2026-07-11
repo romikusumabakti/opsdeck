@@ -14,6 +14,7 @@ import {
   travelClock,
 } from "@/actions/mock-time";
 import { useDialog } from "@/components/dialog-provider";
+import { useCanRunOps } from "@/components/ops-capability";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
@@ -28,7 +29,11 @@ import {
   buildDuration,
 } from "./duration";
 
-export function MockTimeApi({ project }: { project: SafeEnvironmentWithServers }) {
+export function MockTimeApi({
+  project,
+}: {
+  project: SafeEnvironmentWithServers;
+}) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -222,7 +227,8 @@ export function MockTimeApi({ project }: { project: SafeEnvironmentWithServers }
     }
   }
 
-  const anyPending = pendingAction !== null;
+  const canRunOps = useCanRunOps();
+  const anyPending = pendingAction !== null || !canRunOps;
   const isFrozen = clock?.frozen === true;
   const isMocked = clock?.mocked === true;
 

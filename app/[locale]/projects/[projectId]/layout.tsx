@@ -1,5 +1,8 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getProjectById, recordProjectAccess } from "@/actions/projects";
+import { OpsCapabilityProvider } from "@/components/ops-capability";
+import { getEffectiveRole } from "@/lib/auth-session";
+import { roleHasCapability } from "@/lib/roles";
 
 export default async function Layout({
   children,
@@ -23,5 +26,17 @@ export default async function Layout({
   // nav between sibling pages, which matches "opened this project".
   await recordProjectAccess(projectId);
 
-  return <>{children}</>;
+  // `projectId` is an environment id here; resolve the effective role for its
+  // owning project so ops buttons below can disable themselves for users who
+  // lack the destructive-ops capability. Server actions enforce this regardless.
+  const canRunOps = roleHasCapability(
+    await getEffectiveRole({ environmentId: projectId }),
+    "ops.destructive"
+  );
+
+  return (
+    <OpsCapabilityProvider canRunOps={canRunOps}>
+      {children}
+    </OpsCapabilityProvider>
+  );
 }
