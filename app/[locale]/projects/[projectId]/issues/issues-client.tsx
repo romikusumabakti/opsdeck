@@ -12,6 +12,8 @@ import {
   AssigneeSelect,
   IssueBoard,
   type IssueType,
+  type MilestoneOption,
+  MilestoneSelect,
   type Priority,
   PrioritySelect,
   type Status,
@@ -57,6 +59,7 @@ export function IssuesClient({
   currentEnvironmentId,
   environments,
   users,
+  milestones,
   initialIssues,
 }: {
   projectId: string;
@@ -64,6 +67,7 @@ export function IssuesClient({
   currentEnvironmentId: string;
   environments: EnvOption[];
   users: AssignableUser[];
+  milestones: MilestoneOption[];
   initialIssues: IssueWithMeta[];
 }) {
   const t = useTranslations("issues");
@@ -79,16 +83,32 @@ export function IssuesClient({
   const [query, setQuery] = React.useState("");
   const [createOpen, setCreateOpen] = React.useState(false);
   const [view, setView] = React.useState<"table" | "board">("table");
+  // "all" | "none" (unassigned) | a milestone id
+  const [milestoneFilter, setMilestoneFilter] = React.useState("all");
+
+  const milestonesById = React.useMemo(
+    () => Object.fromEntries(milestones.map((m) => [m.id, m.name])),
+    [milestones]
+  );
 
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return issues;
-    return issues.filter(
-      (i) =>
+    return issues.filter((i) => {
+      if (milestoneFilter === "none" && i.milestoneId) return false;
+      if (
+        milestoneFilter !== "all" &&
+        milestoneFilter !== "none" &&
+        i.milestoneId !== milestoneFilter
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      return (
         i.title.toLowerCase().includes(q) ||
         `${projectKey}-${i.number}`.toLowerCase().includes(q)
-    );
-  }, [issues, query, projectKey]);
+      );
+    });
+  }, [issues, query, projectKey, milestoneFilter]);
 
   async function onStatusChange(id: string, status: Status) {
     setIssues((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
@@ -147,6 +167,25 @@ export function IssuesClient({
             aria-label={t("searchPlaceholder")}
           />
         </div>
+        {milestones.length > 0 ? (
+          <Select
+            value={milestoneFilter}
+            onValueChange={(v) => setMilestoneFilter(v ?? "all")}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("allMilestones")}</SelectItem>
+              <SelectItem value="none">{t("noMilestone")}</SelectItem>
+              {milestones.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
         <div className="flex items-center gap-2 sm:ms-auto">
           <div className="flex rounded-md border p-0.5">
             <Button
@@ -238,6 +277,11 @@ export function IssuesClient({
                         {issue.title}
                       </Link>
                       <LabelChips labels={issue.labels} />
+                      {issue.milestoneId ? (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          {milestonesById[issue.milestoneId]}
+                        </span>
+                      ) : null}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -283,6 +327,7 @@ export function IssuesClient({
         projectId={projectId}
         environments={environments}
         users={users}
+        milestones={milestones}
         defaultEnvironmentId={currentEnvironmentId}
         onCreated={() => {
           setCreateOpen(false);
@@ -299,6 +344,7 @@ function CreateIssueDialog({
   projectId,
   environments,
   users,
+  milestones,
   defaultEnvironmentId,
   onCreated,
 }: {
@@ -307,6 +353,7 @@ function CreateIssueDialog({
   projectId: string;
   environments: EnvOption[];
   users: AssignableUser[];
+  milestones: MilestoneOption[];
   defaultEnvironmentId: string;
   onCreated: () => void;
 }) {
@@ -319,6 +366,7 @@ function CreateIssueDialog({
   const [type, setType] = React.useState<IssueType>("task");
   const [priority, setPriority] = React.useState<Priority>("medium");
   const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
+  const [milestoneId, setMilestoneId] = React.useState<string | null>(null);
   // Empty default (e.g. from the project overview, which has no "current" env)
   // falls back to the "None" option.
   const [environmentId, setEnvironmentId] = React.useState(
@@ -334,6 +382,7 @@ function CreateIssueDialog({
       setType("task");
       setPriority("medium");
       setAssigneeId(null);
+      setMilestoneId(null);
       setEnvironmentId(defaultEnvironmentId || NONE);
     }
   }, [open, defaultEnvironmentId]);
@@ -349,6 +398,7 @@ function CreateIssueDialog({
       priority,
       environmentId: environmentId === NONE ? null : environmentId,
       assigneeId,
+      milestoneId,
     });
     setSaving(false);
     if (!result.success) {
@@ -426,6 +476,16 @@ function CreateIssueDialog({
               onChange={setAssigneeId}
             />
           </div>
+          {milestones.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">{t("milestone")}</span>
+              <MilestoneSelect
+                milestones={milestones}
+                value={milestoneId}
+                onChange={setMilestoneId}
+              />
+            </div>
+          ) : null}
         </div>
         <DialogFooter>
           <Button

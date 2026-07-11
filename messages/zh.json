@@ -1154,7 +1154,10 @@
     },
     "typeLabel": "类型",
     "priorityLabel": "优先级",
-    "columnPriority": "优先级"
+    "columnPriority": "优先级",
+    "milestone": "里程碑",
+    "noMilestone": "无里程碑",
+    "allMilestones": "所有里程碑"
   },
   "environmentKinds": {
     "qa": "测试",
@@ -1171,7 +1174,8 @@
     "noEnvironments": "暂无环境",
     "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
     "client": "客户",
-    "members": "成员"
+    "members": "成员",
+    "milestones": "里程碑"
   },
   "inbox": {
     "title": "主页",
@@ -1228,5 +1232,26 @@
     "errorInvalidInput": "输入无效",
     "errorInvalidRole": "角色无效",
     "errorAddFailed": "添加成员失败"
+  },
+  "milestones": {
+    "add": "添加",
+    "name": "名称",
+    "namePlaceholder": "例如：v2.0 发布",
+    "dueDate": "截止日期",
+    "noDue": "无截止日期",
+    "colName": "里程碑",
+    "colDue": "截止",
+    "colIssues": "问题",
+    "colStatus": "状态",
+    "open": "进行中",
+    "closed": "已关闭",
+    "empty": "暂无里程碑",
+    "emptyDescription": "创建里程碑以将问题归入某个发布或目标。",
+    "created": "里程碑已创建",
+    "closedMsg": "里程碑已关闭",
+    "reopenedMsg": "里程碑已重新打开",
+    "deletedMsg": "里程碑已删除",
+    "delete": "删除",
+    "errorGeneric": "出错了"
   }
 }

@@ -1154,7 +1154,10 @@
     },
     "typeLabel": "النوع",
     "priorityLabel": "الأولوية",
-    "columnPriority": "الأولوية"
+    "columnPriority": "الأولوية",
+    "milestone": "معلم",
+    "noMilestone": "بدون معلم",
+    "allMilestones": "كل المعالم"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",
@@ -1171,7 +1174,8 @@
     "noEnvironments": "لا توجد بيئات بعد",
     "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع.",
     "client": "العميل",
-    "members": "الأعضاء"
+    "members": "الأعضاء",
+    "milestones": "المعالم"
   },
   "inbox": {
     "title": "الرئيسية",
@@ -1228,5 +1232,26 @@
     "errorInvalidInput": "مدخل غير صالح",
     "errorInvalidRole": "دور غير صالح",
     "errorAddFailed": "فشل في إضافة العضو"
+  },
+  "milestones": {
+    "add": "إضافة",
+    "name": "الاسم",
+    "namePlaceholder": "مثال: إصدار v2.0",
+    "dueDate": "تاريخ الاستحقاق",
+    "noDue": "بدون تاريخ",
+    "colName": "معلم",
+    "colDue": "الاستحقاق",
+    "colIssues": "المشكلات",
+    "colStatus": "الحالة",
+    "open": "مفتوح",
+    "closed": "مغلق",
+    "empty": "لا توجد معالم بعد",
+    "emptyDescription": "أنشئ معلمًا لتجميع المشكلات نحو إصدار أو هدف.",
+    "created": "تم إنشاء المعلم",
+    "closedMsg": "تم إغلاق المعلم",
+    "reopenedMsg": "تمت إعادة فتح المعلم",
+    "deletedMsg": "تم حذف المعلم",
+    "delete": "حذف",
+    "errorGeneric": "حدث خطأ ما"
   }
 }

@@ -269,6 +269,7 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
             priority: input.priority,
             environmentId: input.environmentId ?? null,
             assigneeId: input.assigneeId ?? null,
+            milestoneId: input.milestoneId ?? null,
             createdById: session.user.id,
           })
           .returning();
