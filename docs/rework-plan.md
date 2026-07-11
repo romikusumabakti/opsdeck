@@ -1,6 +1,6 @@
 # Rework Plan: OpsDeck → 5-Role Delivery + Ops Hub
 
-**Status:** In progress (Phases 0–1 shipped) · **Last updated:** 2026-07-11
+**Status:** In progress (Phases 0–2 shipped) · **Last updated:** 2026-07-11
 
 Target: evolve OpsDeck from a DevOps-first control panel into a shared hub that
 serves five personas — PM, BA, QA, Developer, DevOps — without turning it into a
@@ -12,7 +12,7 @@ Jira/TestRail clone.
 |---|---|
 | 0 — RBAC foundation | ✅ Shipped |
 | 1 — Issue depth | ✅ Shipped |
-| 2 — Board + My Work | ⬜ Not started |
+| 2 — Board + My Work | ✅ Shipped |
 | 3 — QA test management | ⬜ Not started |
 | 4 — BA requirements + Activity | ⬜ Not started |
 | 5 — Polish | ⬜ Not started |
@@ -22,7 +22,8 @@ Jira/TestRail clone.
 
 **Deferred within shipped phases:** service-control capability tuning (Phase 0);
 create-time parent picker, deep (>1-level) cycle guard, milestone filter on the
-global view, board grouping by milestone/parent (Phase 1).
+global view (Phase 1); global-view milestone swimlane — needs a milestone name on
+`listAllIssues` (Phase 2).
 
 ## Guiding principles
 
@@ -177,7 +178,7 @@ issueAttachments                                -- 1:1 copy of knowledgeAttachme
 
 ---
 
-## Phase 2 — Board + My Work (PM + QA + Developer)
+## Phase 2 — Board + My Work (PM + QA + Developer) — ✅ Shipped
 
 **Pages**
 

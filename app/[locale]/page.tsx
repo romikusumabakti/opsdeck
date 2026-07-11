@@ -18,7 +18,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth-session";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { ROLE_MAINTAINER, ROLE_RANK, roleRank } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+
+// Ops-capable users (maintainer+) lead with infra health; everyone else leads
+// with their own work. Same four sections, reordered — one Home, role-adapted.
+// Literal order-* classes so Tailwind keeps them.
+const ORDER_OPS: Record<string, string> = {
+  needsAttention: "order-1",
+  running: "order-2",
+  assigned: "order-3",
+  jump: "order-4",
+};
+const ORDER_WORK: Record<string, string> = {
+  assigned: "order-1",
+  jump: "order-2",
+  running: "order-3",
+  needsAttention: "order-4",
+};
 
 export default async function HomePage({
   params,
@@ -45,6 +62,11 @@ export default async function HomePage({
   const ago = (d: Date) =>
     formatDistanceToNow(new Date(d), { addSuffix: true, locale: dfl });
 
+  const ord =
+    roleRank(session.user.role) >= ROLE_RANK[ROLE_MAINTAINER]
+      ? ORDER_OPS
+      : ORDER_WORK;
+
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
@@ -54,6 +76,7 @@ export default async function HomePage({
         <Section
           icon={<CircleDot className="size-4" />}
           title={t("assignedToMe")}
+          className={ord.assigned}
         >
           {assigned.length === 0 ? (
             <Empty text={t("assignedEmpty")} />
@@ -88,7 +111,11 @@ export default async function HomePage({
         </Section>
 
         {/* Running now */}
-        <Section icon={<Loader2 className="size-4" />} title={t("runningNow")}>
+        <Section
+          icon={<Loader2 className="size-4" />}
+          title={t("runningNow")}
+          className={ord.running}
+        >
           {activeRuns.length === 0 ? (
             <Empty text={t("runningEmpty")} />
           ) : (
@@ -117,6 +144,7 @@ export default async function HomePage({
         <Section
           icon={<CircleAlert className="size-4 text-destructive" />}
           title={t("needsAttention")}
+          className={ord.needsAttention}
         >
           {failedRuns.length === 0 ? (
             <Empty text={t("failedEmpty")} />
@@ -146,6 +174,7 @@ export default async function HomePage({
         <Section
           icon={<ServerCog className="size-4" />}
           title={t("jumpBackIn")}
+          className={ord.jump}
         >
           {recentEnvs.length === 0 ? (
             <Empty text={t("recentEmpty")} />
@@ -186,14 +215,16 @@ export default async function HomePage({
 function Section({
   icon,
   title,
+  className,
   children,
 }: {
   icon: React.ReactNode;
   title: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Card className="py-0 overflow-hidden">
+    <Card className={cn("py-0 overflow-hidden", className)}>
       <CardContent className="p-0">
         <div className="flex items-center gap-2 px-3 py-2.5 border-b text-sm font-medium">
           <span className="text-muted-foreground">{icon}</span>
