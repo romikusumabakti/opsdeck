@@ -26,6 +26,20 @@ export const issueStatusEnum = pgEnum("issue_status", [
   "resolved",
   "closed",
 ]);
+// Kind of work an issue represents. `epic`/`story` pair with `parentId` to nest
+// epic → story → subtask; `bug`/`task` are the leaf everyday kinds.
+export const issueTypeEnum = pgEnum("issue_type", [
+  "bug",
+  "task",
+  "story",
+  "epic",
+]);
+export const issuePriorityEnum = pgEnum("issue_priority", [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+]);
 // Why an environment exists — lets the grid/switcher label the 1..N deployments
 // of a project by purpose (a QA's own copy, a frontend dev's, a devops sandbox)
 // instead of an opaque host suffix.
@@ -255,6 +269,27 @@ export const projectMembers = pgTable(
 // Issue tracker (per project)
 // =========================
 
+// A planning bucket issues are grouped into (a release, a sprint goal, a
+// deliverable). Belongs to the LOGICAL project; `dueAt`/`closedAt` are optional
+// so a milestone can be open-ended or archived. Distinct from an environment's
+// `kind=release` — that's a deployment purpose, this is a work target.
+export const milestones = pgTable(
+  "milestones",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    dueAt: timestamp("due_at"),
+    // Null = open. Set when the milestone is completed/archived.
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("milestones_project_idx").on(t.projectId)]
+);
+
 // Issues belong to the LOGICAL project, not a deployment, so a bug tracked as
 // CMEM-42 is stable no matter which environment it was seen in. `number` is a
 // per-project sequential counter (assigned as max(number)+1 within a
@@ -272,6 +307,20 @@ export const issues = pgTable(
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
     status: issueStatusEnum("status").notNull().default("open"),
+    type: issueTypeEnum("type").notNull().default("task"),
+    priority: issuePriorityEnum("priority").notNull().default("medium"),
+    // Story points / rough size. Null = unestimated. Free integer, not a scale
+    // enum — teams pick their own convention (points, hours, t-shirt→number).
+    estimate: integer("estimate"),
+    // Parent issue for epic → story → subtask nesting. Self-FK; set null so
+    // deleting a parent re-parents children to top level instead of cascading.
+    parentId: uuid("parent_id").references((): any => issues.id, {
+      onDelete: "set null",
+    }),
+    // Planning bucket. set null: the issue outlives a milestone that's deleted.
+    milestoneId: uuid("milestone_id").references(() => milestones.id, {
+      onDelete: "set null",
+    }),
     // Which deployment the issue was observed in. set null: the issue outlives
     // any single environment. Null = not tied to a specific one.
     environmentId: uuid("environment_id").references(() => environments.id, {
@@ -291,6 +340,10 @@ export const issues = pgTable(
     uniqueIndex("issues_project_number_idx").on(t.projectId, t.number),
     // Board/list view filters by project then status.
     index("issues_project_status_idx").on(t.projectId, t.status),
+    // Children-of-parent lookup for the subtask tree.
+    index("issues_parent_idx").on(t.parentId),
+    // Milestone board / "issues in this milestone".
+    index("issues_milestone_idx").on(t.milestoneId),
   ]
 );
 
@@ -313,6 +366,30 @@ export const issueComments = pgTable(
     // The detail page lists a thread oldest-first.
     index("issue_comments_issue_idx").on(t.issueId, t.createdAt),
   ]
+);
+
+// File/image attachments on an issue. Bytes live in object storage (same bucket
+// as KB assets); this row is metadata + the stable id the download route serves.
+// Unlike KB attachments (whose markdown body is the source of truth), an issue
+// has no link-graph, so a direct `issueId` FK owns the attachment and cascades
+// on issue delete. `filename` preserves the uploader's original name for display.
+export const issueAttachments = pgTable(
+  "issue_attachments",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    issueId: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    filename: text("filename").notNull(),
+    mime: text("mime").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("issue_attachments_issue_idx").on(t.issueId)]
 );
 
 // Workspace-wide issue labels (shared across all projects so the global issue
@@ -738,6 +815,12 @@ export type NewProjectMember = InferInsertModel<typeof projectMembers>;
 
 export type Issue = InferSelectModel<typeof issues>;
 export type NewIssue = InferInsertModel<typeof issues>;
+
+export type Milestone = InferSelectModel<typeof milestones>;
+export type NewMilestone = InferInsertModel<typeof milestones>;
+
+export type IssueAttachment = InferSelectModel<typeof issueAttachments>;
+export type NewIssueAttachment = InferInsertModel<typeof issueAttachments>;
 
 export type Notification = InferSelectModel<typeof notifications>;
 export type NewNotification = InferInsertModel<typeof notifications>;

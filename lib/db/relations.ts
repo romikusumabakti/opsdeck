@@ -19,6 +19,7 @@ export const relations = defineRelations(schema, (r) => ({
   projects: {
     environments: r.many.environments(),
     issues: r.many.issues(),
+    milestones: r.many.milestones(),
   },
   environments: {
     project: r.one.projects({
@@ -57,6 +58,32 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.users.id,
     }),
     comments: r.many.issueComments(),
+    parent: r.one.issues({
+      from: r.issues.parentId,
+      to: r.issues.id,
+    }),
+    milestone: r.one.milestones({
+      from: r.issues.milestoneId,
+      to: r.milestones.id,
+    }),
+    attachments: r.many.issueAttachments(),
+  },
+  milestones: {
+    project: r.one.projects({
+      from: r.milestones.projectId,
+      to: r.projects.id,
+    }),
+    issues: r.many.issues(),
+  },
+  issueAttachments: {
+    issue: r.one.issues({
+      from: r.issueAttachments.issueId,
+      to: r.issues.id,
+    }),
+    uploadedBy: r.one.users({
+      from: r.issueAttachments.uploadedById,
+      to: r.users.id,
+    }),
   },
   issueComments: {
     issue: r.one.issues({
