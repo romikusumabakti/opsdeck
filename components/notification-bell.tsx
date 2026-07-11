@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { Bell, CircleAlert, CircleDot } from "lucide-react";
+import { AtSign, Bell, CircleAlert, CircleDot } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import {
@@ -17,7 +17,6 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Notification } from "@/lib/db/schema";
-import { cn } from "@/lib/utils";
 
 export function NotificationBell({
   initialNotifications,
@@ -110,6 +109,8 @@ export function NotificationBell({
                   <span className="mt-0.5 shrink-0 text-muted-foreground">
                     {n.type === "run_failed" ? (
                       <CircleAlert className="size-4 text-destructive" />
+                    ) : n.type === "issue_mention" ? (
+                      <AtSign className="size-4" />
                     ) : (
                       <CircleDot className="size-4" />
                     )}
@@ -117,7 +118,10 @@ export function NotificationBell({
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm leading-snug">
                       {t(
-                        n.type as "issue_assigned" | "run_failed",
+                        n.type as
+                          | "issue_assigned"
+                          | "run_failed"
+                          | "issue_mention",
                         n.data as Record<string, string | number>
                       )}
                     </span>
