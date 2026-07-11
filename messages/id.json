@@ -1139,7 +1139,22 @@
     "deleteView": "Hapus",
     "noSavedViews": "Belum ada tampilan tersimpan",
     "save": "Simpan",
-    "cancel": "Batal"
+    "cancel": "Batal",
+    "type": {
+      "bug": "Bug",
+      "task": "Tugas",
+      "story": "Story",
+      "epic": "Epic"
+    },
+    "priority": {
+      "low": "Rendah",
+      "medium": "Sedang",
+      "high": "Tinggi",
+      "urgent": "Mendesak"
+    },
+    "typeLabel": "Tipe",
+    "priorityLabel": "Prioritas",
+    "columnPriority": "Prioritas"
   },
   "environmentKinds": {
     "qa": "QA",

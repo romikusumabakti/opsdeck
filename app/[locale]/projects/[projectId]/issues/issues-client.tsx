@@ -11,8 +11,13 @@ import {
   type AssignableUser,
   AssigneeSelect,
   IssueBoard,
+  type IssueType,
+  type Priority,
+  PrioritySelect,
   type Status,
   StatusSelect,
+  TypeIcon,
+  TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
@@ -115,6 +120,15 @@ export function IssuesClient({
     router.refresh();
   }
 
+  async function onPriorityChange(id: string, priority: Priority) {
+    setIssues((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, priority } : i))
+    );
+    const result = await updateIssue(id, { priority });
+    if (!result.success) toast.error(t("updateFailed"));
+    router.refresh();
+  }
+
   const usersById = React.useMemo(
     () => Object.fromEntries(users.map((u) => [u.id, u.name])),
     [users]
@@ -180,6 +194,8 @@ export function IssuesClient({
             number: i.number,
             title: i.title,
             status: i.status as Status,
+            type: i.type as IssueType,
+            priority: i.priority as Priority,
             keyPrefix: projectKey,
             envName: i.environment?.name ?? null,
             assigneeName: i.assignee?.name ?? null,
@@ -195,6 +211,7 @@ export function IssuesClient({
                 <TableHead className="w-24">{t("columnKey")}</TableHead>
                 <TableHead>{t("columnTitle")}</TableHead>
                 <TableHead className="w-40">{t("columnStatus")}</TableHead>
+                <TableHead className="w-36">{t("columnPriority")}</TableHead>
                 <TableHead className="w-40">{t("columnEnvironment")}</TableHead>
                 <TableHead className="w-32">{t("columnAssignee")}</TableHead>
                 <TableHead className="w-32">{t("columnCreated")}</TableHead>
@@ -213,6 +230,7 @@ export function IssuesClient({
                   </TableCell>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
+                      <TypeIcon type={issue.type as IssueType} />
                       <Link
                         href={`/project/${projectKey}/${issue.number}`}
                         className="hover:underline"
@@ -226,6 +244,12 @@ export function IssuesClient({
                     <StatusSelect
                       value={issue.status as Status}
                       onChange={(s) => onStatusChange(issue.id, s)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <PrioritySelect
+                      value={issue.priority as Priority}
+                      onChange={(p) => onPriorityChange(issue.id, p)}
                     />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate">
@@ -292,6 +316,8 @@ function CreateIssueDialog({
   const NONE = "none";
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
+  const [type, setType] = React.useState<IssueType>("task");
+  const [priority, setPriority] = React.useState<Priority>("medium");
   const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
   // Empty default (e.g. from the project overview, which has no "current" env)
   // falls back to the "None" option.
@@ -305,6 +331,8 @@ function CreateIssueDialog({
     if (open) {
       setTitle("");
       setDescription("");
+      setType("task");
+      setPriority("medium");
       setAssigneeId(null);
       setEnvironmentId(defaultEnvironmentId || NONE);
     }
@@ -317,6 +345,8 @@ function CreateIssueDialog({
       projectId,
       title: title.trim(),
       description: description.trim(),
+      type,
+      priority,
       environmentId: environmentId === NONE ? null : environmentId,
       assigneeId,
     });
@@ -347,6 +377,16 @@ function CreateIssueDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("titlePlaceholder")}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">{t("typeLabel")}</span>
+              <TypeSelect value={type} onChange={setType} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">{t("priorityLabel")}</span>
+              <PrioritySelect value={priority} onChange={setPriority} />
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium" htmlFor="issue-description">

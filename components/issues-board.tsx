@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  Bookmark,
+  Bug,
+  Layers,
+  type LucideIcon,
+  SquareCheck,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LabelChips } from "@/components/label-ui";
 import {
@@ -23,12 +30,41 @@ export const STATUS_DOT: Record<Status, string> = {
   closed: "bg-muted-foreground",
 };
 
+export const ISSUE_TYPES = ["bug", "task", "story", "epic"] as const;
+export type IssueType = (typeof ISSUE_TYPES)[number];
+
+const TYPE_ICON: Record<IssueType, LucideIcon> = {
+  bug: Bug,
+  task: SquareCheck,
+  story: Bookmark,
+  epic: Layers,
+};
+const TYPE_COLOR: Record<IssueType, string> = {
+  bug: "text-destructive",
+  task: "text-blue-500",
+  story: "text-emerald-500",
+  epic: "text-violet-500",
+};
+
+export const PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+// Ascending urgency: muted → blue → amber → red.
+export const PRIORITY_DOT: Record<Priority, string> = {
+  low: "bg-muted-foreground",
+  medium: "bg-blue-500",
+  high: "bg-amber-500",
+  urgent: "bg-destructive",
+};
+
 // A minimal shape both the project-scoped and global issue lists can produce.
 export type BoardIssue = {
   id: string;
   number: number;
   title: string;
   status: Status;
+  type?: IssueType;
+  priority?: Priority;
   keyPrefix: string;
   envName?: string | null;
   assigneeName?: string | null;
@@ -64,6 +100,96 @@ export function StatusSelect({
             <span className="flex items-center gap-2">
               <span className={cn("size-2 rounded-full", STATUS_DOT[s])} />
               {t(`status.${s}`)}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// Colored type glyph for compact rows (list key cell, board card).
+export function TypeIcon({
+  type,
+  className,
+}: {
+  type: IssueType;
+  className?: string;
+}) {
+  const t = useTranslations("issues");
+  const Icon = TYPE_ICON[type];
+  return (
+    <Icon
+      className={cn("size-4 shrink-0", TYPE_COLOR[type], className)}
+      aria-label={t(`type.${type}`)}
+    />
+  );
+}
+
+// Type control, reused by the create dialog and inline cells.
+export function TypeSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: IssueType;
+  onChange: (v: IssueType) => void;
+  className?: string;
+}) {
+  const t = useTranslations("issues");
+  return (
+    <Select value={value} onValueChange={(v) => v && onChange(v as IssueType)}>
+      <SelectTrigger
+        className={cn("h-8 w-full", className)}
+        aria-label={t(`type.${value}`)}
+      >
+        <span className="flex items-center gap-2">
+          <TypeIcon type={value} />
+          <SelectValue />
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {ISSUE_TYPES.map((ty) => (
+          <SelectItem key={ty} value={ty}>
+            <span className="flex items-center gap-2">
+              <TypeIcon type={ty} />
+              {t(`type.${ty}`)}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// Priority control with an urgency dot, reused by the table, board, and dialog.
+export function PrioritySelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: Priority;
+  onChange: (v: Priority) => void;
+  className?: string;
+}) {
+  const t = useTranslations("issues");
+  return (
+    <Select value={value} onValueChange={(v) => v && onChange(v as Priority)}>
+      <SelectTrigger
+        className={cn("h-8 w-full", className)}
+        aria-label={t(`priority.${value}`)}
+      >
+        <span className="flex items-center gap-2">
+          <span className={cn("size-2 rounded-full", PRIORITY_DOT[value])} />
+          <SelectValue />
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {PRIORITIES.map((p) => (
+          <SelectItem key={p} value={p}>
+            <span className="flex items-center gap-2">
+              <span className={cn("size-2 rounded-full", PRIORITY_DOT[p])} />
+              {t(`priority.${p}`)}
             </span>
           </SelectItem>
         ))}
@@ -152,6 +278,15 @@ export function IssueBoard({
                     className="flex flex-col gap-2 rounded-md border bg-card p-2.5"
                   >
                     <div className="flex items-center gap-2">
+                      {issue.type ? <TypeIcon type={issue.type} /> : null}
+                      {issue.priority ? (
+                        <span
+                          className={cn(
+                            "size-2 rounded-full",
+                            PRIORITY_DOT[issue.priority]
+                          )}
+                        />
+                      ) : null}
                       <Link
                         href={`/project/${issue.keyPrefix}/${issue.number}`}
                         className="font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
