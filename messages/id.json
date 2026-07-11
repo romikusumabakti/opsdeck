@@ -1210,7 +1210,10 @@
     "unknownUser": "Tidak diketahui",
     "notFound": "Isu tidak ditemukan.",
     "labels": "Label",
-    "noLabels": "Tidak ada label"
+    "noLabels": "Tidak ada label",
+    "parent": "Induk",
+    "noParent": "Tanpa induk",
+    "subtasks": "Subtugas"
   },
   "projectMembers": {
     "selectUser": "Pilih pengguna…",
