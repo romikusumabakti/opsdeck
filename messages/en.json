@@ -1168,7 +1168,15 @@
     "allMilestones": "All milestones",
     "groupNone": "No grouping",
     "groupAssignee": "By assignee",
-    "groupMilestone": "By milestone"
+    "groupMilestone": "By milestone",
+    "selectedCount": "{count} selected",
+    "bulkStatus": "Set status",
+    "clearSelection": "Clear",
+    "selectAll": "Select all",
+    "selectRow": "Select row",
+    "bulkDeleteTitle": "Delete issues",
+    "bulkDeleteDescription": "Delete {count} issue(s)? This cannot be undone.",
+    "bulkDeleted": "Issues deleted"
   },
   "environmentKinds": {
     "qa": "QA",

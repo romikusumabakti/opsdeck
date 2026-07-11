@@ -16,7 +16,11 @@ import {
   projects,
 } from "@/lib/db/schema";
 import { notifyIssueAssigned } from "@/lib/notifications";
-import { issueInputSchema, issueUpdateSchema } from "@/lib/validation";
+import {
+  issueInputSchema,
+  issueStatusSchema,
+  issueUpdateSchema,
+} from "@/lib/validation";
 
 /**
  * Attach each issue's labels in one round-trip (avoids relational M2M). Returns
@@ -395,6 +399,44 @@ export async function setIssueStatus(
   status: string
 ): Promise<ActionResponse> {
   return updateIssue(id, { status });
+}
+
+/** Set the status of many issues at once (bulk triage on the list). */
+export async function bulkSetStatus(
+  ids: string[],
+  status: string
+): Promise<{ success: boolean; message?: string }> {
+  await requireSession();
+  const parsed = issueStatusSchema.safeParse(status);
+  if (!parsed.success) return { success: false, message: "Invalid status" };
+  if (ids.length === 0) return { success: true };
+  try {
+    await db
+      .update(issues)
+      .set({ status: parsed.data, updatedAt: new Date() })
+      .where(inArray(issues.id, ids));
+    revalidatePath("/projects", "layout");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to bulk-update issues:", error);
+    return { success: false, message: "Failed to update issues" };
+  }
+}
+
+/** Delete many issues at once. */
+export async function bulkDeleteIssues(
+  ids: string[]
+): Promise<{ success: boolean; message?: string }> {
+  await requireSession();
+  if (ids.length === 0) return { success: true };
+  try {
+    await db.delete(issues).where(inArray(issues.id, ids));
+    revalidatePath("/projects", "layout");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to bulk-delete issues:", error);
+    return { success: false, message: "Failed to delete issues" };
+  }
 }
 
 /** Delete an issue (creator or admin gate is enforced in the UI/route). */
