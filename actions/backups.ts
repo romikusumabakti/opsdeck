@@ -132,7 +132,7 @@ export async function createDatabaseBackup(
 
   const compress = options.compress ?? true;
   const runId = await createRun({
-    projectId: project.id,
+    environmentId: project.id,
     userId: session.user.id,
     description: compress
       ? `Backup database (${database})`
@@ -193,7 +193,7 @@ export async function restoreDatabaseBackup(
 
   const isDefault = database === project.dbName;
   const runId = await createRun({
-    projectId: project.id,
+    environmentId: project.id,
     userId: session.user.id,
     description: options.restartBackend
       ? `Restore database ${database} from ${filename} (+ restart backend)`

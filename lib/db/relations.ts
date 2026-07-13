@@ -97,7 +97,7 @@ export const relations = defineRelations(schema, (r) => ({
   },
   runs: {
     environment: r.one.environments({
-      from: r.runs.projectId,
+      from: r.runs.environmentId,
       to: r.environments.id,
     }),
     user: r.one.users({

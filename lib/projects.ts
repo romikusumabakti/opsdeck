@@ -7,6 +7,7 @@ import type {
   SafeServer,
   Server,
 } from "@/lib/db/schema";
+import { decryptNullable, decryptSecret } from "@/lib/secrets";
 
 /**
  * Load an environment (deployment) together with its three server relations —
@@ -28,7 +29,25 @@ export async function loadEnvironmentWithServers(
       frontendServer: true,
     },
   });
-  return (project as EnvironmentWithServers | undefined) ?? null;
+  if (!project) return null;
+  // SINGLE decryption boundary for environment credentials: secrets are stored
+  // encrypted at rest (lib/secrets) and handed to trusted server-side callers
+  // (SSH/DB ops, mock-time) as plaintext here. Every consumer loads through this
+  // function, so nothing downstream deals with ciphertext.
+  const env = project as EnvironmentWithServers;
+  return {
+    ...env,
+    dbPassword: decryptNullable(env.dbPassword),
+    backendMockTimeApiKey: decryptNullable(env.backendMockTimeApiKey),
+    dbServer: decryptServer(env.dbServer),
+    backendServer: decryptServer(env.backendServer),
+    frontendServer: decryptServer(env.frontendServer),
+  };
+}
+
+/** Decrypt a server's SSH password in place for server-side use. */
+function decryptServer(server: Server): Server {
+  return { ...server, password: decryptSecret(server.password) };
 }
 
 function stripServer(server: Server): SafeServer {

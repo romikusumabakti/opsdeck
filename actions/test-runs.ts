@@ -66,7 +66,7 @@ export async function recordTestRun(
   const now = new Date();
   try {
     await db.insert(runs).values({
-      projectId: issue.environmentId,
+      environmentId: issue.environmentId,
       userId: session.user.id,
       description:
         input.note?.trim() || (input.passed ? "Test passed" : "Test failed"),
