@@ -191,10 +191,8 @@ export const runs = pgTable(
   "runs",
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
-    // A run acts on ONE deployment, so this references `environments`. The
-    // column keeps its `project_id` name for continuity with the route param
-    // `[projectId]` and job payloads — historically a "project" was a deployment.
-    projectId: uuid("project_id")
+    // A run acts on ONE deployment (environment).
+    environmentId: uuid("environment_id")
       .notNull()
       .references(() => environments.id, { onDelete: "cascade" }),
     // Nullable + set null on user delete: preserve audit history even after the
@@ -219,9 +217,9 @@ export const runs = pgTable(
     completedAt: timestamp("completed_at"),
   },
   (t) => [
-    // Every run query filters by projectId and orders by runAt desc
+    // Every run query filters by environmentId and orders by runAt desc
     // (getProjectRuns, getProjectKpis, findLatestByKind, DISTINCT ON).
-    index("runs_project_run_idx").on(t.projectId, t.runAt.desc()),
+    index("runs_environment_run_idx").on(t.environmentId, t.runAt.desc()),
     // getActiveRuns filters status='started'.
     index("runs_status_idx").on(t.status),
     // "Test runs for this issue" on the issue detail.
@@ -231,24 +229,24 @@ export const runs = pgTable(
 
 // Per-user, per-environment recency. Drives the header switcher's order:
 // most-recently-opened first (MRU). One row per (user, environment); upserted on
-// each open by recordProjectAccess. Column keeps its `project_id` name for
-// continuity — the thing opened is a deployment (`environments`).
-export const projectAccess = pgTable(
-  "project_access",
+// each open by recordEnvironmentAccess. The thing opened is a deployment
+// (`environments`), so the FK is named accordingly.
+export const environmentAccess = pgTable(
+  "environment_access",
   {
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    projectId: uuid("project_id")
+    environmentId: uuid("environment_id")
       .notNull()
       .references(() => environments.id, { onDelete: "cascade" }),
     lastAccessedAt: timestamp("last_accessed_at").notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.userId, t.projectId] }),
+    primaryKey({ columns: [t.userId, t.environmentId] }),
     // getProjects orders one user's rows by lastAccessedAt desc; a covering
     // index on (userId, lastAccessedAt) serves that without a sort.
-    index("project_access_user_recency_idx").on(
+    index("environment_access_user_recency_idx").on(
       t.userId,
       t.lastAccessedAt.desc()
     ),

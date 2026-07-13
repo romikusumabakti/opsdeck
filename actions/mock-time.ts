@@ -152,7 +152,7 @@ async function recordAudit(
 ) {
   try {
     await db.insert(runs).values({
-      projectId: project.id,
+      environmentId: project.id,
       userId,
       description,
       status,
@@ -357,7 +357,7 @@ export async function mockProjectTimeLegacy(
   }
   try {
     const runId = await createRun({
-      projectId: ctx.project.id,
+      environmentId: ctx.project.id,
       userId: ctx.userId,
       description: `Mock time to ${mockedAt} (legacy)`,
     });
@@ -468,7 +468,7 @@ export async function advanceClockLegacy(
   const targetIso = new Date(baseMs + offsetMs).toISOString();
   try {
     const runId = await createRun({
-      projectId: ctx.project.id,
+      environmentId: ctx.project.id,
       userId: ctx.userId,
       description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
     });
@@ -490,7 +490,7 @@ export async function resetClockLegacy(
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   try {
     const runId = await createRun({
-      projectId: ctx.project.id,
+      environmentId: ctx.project.id,
       userId: ctx.userId,
       description: "Reset clock to real time (legacy)",
     });

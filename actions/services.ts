@@ -96,7 +96,7 @@ export async function controlService(
 
   const cfg = getServiceConfig(project, parsedRole.data);
   const runId = await createRun({
-    projectId: project.id,
+    environmentId: project.id,
     userId: session.user.id,
     description: `${actionLabel(parsedAction.data)} ${parsedRole.data} service (${cfg.serviceName})`,
   });

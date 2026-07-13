@@ -3,6 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { s3Connections, servers } from "@/lib/db/schema";
+import { decryptSecret } from "@/lib/secrets";
 import { createS3Backend } from "./s3";
 import { createSftpBackend } from "./sftp";
 import type { StorageBackend } from "./types";
@@ -28,7 +29,11 @@ export async function resolveBackend(
       .from(s3Connections)
       .where(eq(s3Connections.id, source.connectionId))
       .limit(1);
-    return conn ? createS3Backend(conn) : null;
+    if (!conn) return null;
+    return createS3Backend({
+      ...conn,
+      secretKey: decryptSecret(conn.secretKey),
+    });
   }
 
   const [server] = await db
@@ -41,7 +46,7 @@ export async function resolveBackend(
     {
       host: server.host,
       username: server.username,
-      password: server.password,
+      password: decryptSecret(server.password),
     },
     server.sftpRoot
   );

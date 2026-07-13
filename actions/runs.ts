@@ -11,7 +11,7 @@ export type RunWithUser = Run & {
 
 export type ActiveRun = Pick<
   Run,
-  "id" | "projectId" | "description" | "runAt"
+  "id" | "environmentId" | "description" | "runAt"
 > & {
   project: { id: string; name: string } | null;
 };
@@ -37,16 +37,16 @@ export async function getProjectsLastActivity(): Promise<
   await requireSession();
   try {
     const rows = await db
-      .selectDistinctOn([runs.projectId], {
-        projectId: runs.projectId,
+      .selectDistinctOn([runs.environmentId], {
+        environmentId: runs.environmentId,
         status: runs.status,
         runAt: runs.runAt,
       })
       .from(runs)
-      .orderBy(runs.projectId, desc(runs.runAt));
+      .orderBy(runs.environmentId, desc(runs.runAt));
     const map: Record<string, ProjectActivity> = {};
     for (const row of rows) {
-      map[row.projectId] = { status: row.status, runAt: row.runAt };
+      map[row.environmentId] = { status: row.status, runAt: row.runAt };
     }
     return map;
   } catch (error) {
@@ -62,7 +62,7 @@ export async function getActiveRuns(): Promise<ActiveRun[]> {
       where: { status: "started" },
       columns: {
         id: true,
-        projectId: true,
+        environmentId: true,
         description: true,
         runAt: true,
       },
@@ -92,7 +92,7 @@ export async function getProjectRuns(
   await requireSession();
   try {
     const rows = await db.query.runs.findMany({
-      where: { projectId },
+      where: { environmentId: projectId },
       with: {
         user: {
           columns: { id: true, name: true, email: true },
@@ -110,7 +110,7 @@ export async function getProjectRuns(
 export type RunSnapshot = Pick<
   Run,
   | "id"
-  | "projectId"
+  | "environmentId"
   | "description"
   | "status"
   | "output"
@@ -127,7 +127,7 @@ export async function getRunSnapshot(
     where: { id: runId },
     columns: {
       id: true,
-      projectId: true,
+      environmentId: true,
       description: true,
       status: true,
       output: true,
@@ -181,7 +181,7 @@ async function findLatestByKind(
     .from(runs)
     .where(
       and(
-        eq(runs.projectId, projectId),
+        eq(runs.environmentId, projectId),
         like(runs.description, `${KPI_PREFIX[kind]}%`)
       )
     )
@@ -207,7 +207,9 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
       db
         .select({ status: runs.status, runAt: runs.runAt })
         .from(runs)
-        .where(and(eq(runs.projectId, projectId), gte(runs.runAt, since14))),
+        .where(
+          and(eq(runs.environmentId, projectId), gte(runs.runAt, since14))
+        ),
     ]);
 
     // Bucket by UTC day-index relative to today. Day 0 = today, day 6 = a
@@ -287,7 +289,7 @@ export async function getRecentFailedRuns(limit = 8): Promise<HomeRun[]> {
       where: { status: "failed" },
       columns: {
         id: true,
-        projectId: true,
+        environmentId: true,
         description: true,
         status: true,
         runAt: true,
@@ -298,7 +300,7 @@ export async function getRecentFailedRuns(limit = 8): Promise<HomeRun[]> {
     });
     return rows.map((r) => ({
       id: r.id,
-      environmentId: r.projectId,
+      environmentId: r.environmentId,
       environmentName: r.environment?.name ?? null,
       description: r.description,
       status: r.status,

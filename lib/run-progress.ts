@@ -69,7 +69,7 @@ export async function failRun(
     const [run] = await db
       .select({
         userId: runs.userId,
-        environmentId: runs.projectId,
+        environmentId: runs.environmentId,
         description: runs.description,
       })
       .from(runs)

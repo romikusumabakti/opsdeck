@@ -156,7 +156,7 @@ export async function createDatabase(
   if (!project) throw new Error("Project not found");
 
   const runId = await createRun({
-    projectId: project.id,
+    environmentId: project.id,
     userId: session.user.id,
     description: `Create database (${database})`,
   });
@@ -193,7 +193,7 @@ export async function dropDatabase(
   }
 
   const runId = await createRun({
-    projectId: project.id,
+    environmentId: project.id,
     userId: session.user.id,
     description: `Drop database (${database})`,
   });
@@ -238,7 +238,7 @@ export async function renameDatabase(
   }
 
   const runId = await createRun({
-    projectId: project.id,
+    environmentId: project.id,
     userId: session.user.id,
     description: `Rename database (${from} → ${to})`,
   });
