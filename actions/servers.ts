@@ -12,6 +12,7 @@ import {
   type Server,
   servers,
 } from "@/lib/db/schema";
+import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
 import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
 
@@ -82,7 +83,10 @@ export async function createServer(data: NewServer): Promise<CreateResponse> {
     return { success: false, message: t("invalidInput") };
   }
   try {
-    const [created] = await db.insert(servers).values(parsed.data).returning();
+    const [created] = await db
+      .insert(servers)
+      .values({ ...parsed.data, password: encryptSecret(parsed.data.password) })
+      .returning();
     revalidatePath("/servers");
     revalidatePath("/projects/new");
     return { success: true, data: created, message: t("serverCreated") };
@@ -102,10 +106,14 @@ export async function updateServer(
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
   }
+  // Encrypt the password only when the edit actually supplies one; an omitted
+  // password means "keep the stored (already-encrypted) value".
+  const patch = { ...parsed.data };
+  if (patch.password) patch.password = encryptSecret(patch.password);
   try {
     const [updated] = await db
       .update(servers)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set({ ...patch, updatedAt: new Date() })
       .where(eq(servers.id, id))
       .returning();
     if (!updated) {
@@ -150,7 +158,7 @@ export async function testServerConnection(input: {
       .where(eq(servers.id, input.serverId))
       .limit(1);
     if (!row) return { ok: false, message: t("serverNotFound") };
-    password = row.password;
+    password = decryptSecret(row.password);
   }
 
   if (!password) {

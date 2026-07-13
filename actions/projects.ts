@@ -12,16 +12,33 @@ import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
   type Environment,
   type EnvironmentListItem,
+  environmentAccess,
   environments,
-  projectAccess,
   projects,
 } from "@/lib/db/schema";
 import { loadSafeProject } from "@/lib/projects";
+import { encryptNullable } from "@/lib/secrets";
 import {
   projectIdSchema,
   projectInputSchema,
   projectUpdateSchema,
 } from "@/lib/validation";
+
+// Encrypt the two environment secret columns (mssql `sa` password, mock-time
+// API key) at rest, only when the payload actually carries them. Mirrors the
+// decrypt boundary in lib/projects#loadEnvironmentWithServers.
+function encryptEnvSecrets<
+  T extends {
+    dbPassword?: string | null;
+    backendMockTimeApiKey?: string | null;
+  },
+>(data: T): T {
+  const out: T = { ...data };
+  if ("dbPassword" in out) out.dbPassword = encryptNullable(out.dbPassword);
+  if ("backendMockTimeApiKey" in out)
+    out.backendMockTimeApiKey = encryptNullable(out.backendMockTimeApiKey);
+  return out;
+}
 
 type ActionResponse = {
   success: boolean;
@@ -46,14 +63,14 @@ export async function getProjects(): Promise<EnvironmentListItem[]> {
       .from(environments)
       .innerJoin(projects, eq(projects.id, environments.projectId))
       .leftJoin(
-        projectAccess,
+        environmentAccess,
         and(
-          eq(projectAccess.projectId, environments.id),
-          eq(projectAccess.userId, session.user.id)
+          eq(environmentAccess.environmentId, environments.id),
+          eq(environmentAccess.userId, session.user.id)
         )
       )
       .orderBy(
-        sql`${projectAccess.lastAccessedAt} desc nulls last`,
+        sql`${environmentAccess.lastAccessedAt} desc nulls last`,
         asc(environments.name)
       );
   } catch (error) {
@@ -72,10 +89,10 @@ export async function recordProjectAccess(projectId: string): Promise<void> {
   if (!session) return;
   try {
     await db
-      .insert(projectAccess)
-      .values({ userId: session.user.id, projectId })
+      .insert(environmentAccess)
+      .values({ userId: session.user.id, environmentId: projectId })
       .onConflictDoUpdate({
-        target: [projectAccess.userId, projectAccess.projectId],
+        target: [environmentAccess.userId, environmentAccess.environmentId],
         set: { lastAccessedAt: sql`now()` },
       });
   } catch (error) {
@@ -94,11 +111,11 @@ export async function getProjectsLastOpened(): Promise<Record<string, number>> {
   try {
     const rows = await db
       .select({
-        projectId: projectAccess.projectId,
-        lastAccessedAt: projectAccess.lastAccessedAt,
+        projectId: environmentAccess.environmentId,
+        lastAccessedAt: environmentAccess.lastAccessedAt,
       })
-      .from(projectAccess)
-      .where(eq(projectAccess.userId, session.user.id));
+      .from(environmentAccess)
+      .where(eq(environmentAccess.userId, session.user.id));
     const map: Record<string, number> = {};
     for (const r of rows) map[r.projectId] = r.lastAccessedAt.getTime();
     return map;
@@ -165,7 +182,7 @@ export async function createProject(data: unknown): Promise<ActionResponse> {
     const slug = await uniqueEnvSlug(parsed.data.projectId, parsed.data.name);
     const [insertedProject] = await db
       .insert(environments)
-      .values({ ...parsed.data, slug })
+      .values(encryptEnvSecrets({ ...parsed.data, slug }))
       .returning();
 
     revalidatePath("/projects");
@@ -197,7 +214,7 @@ export async function updateProject(
   try {
     const [updatedProject] = await db
       .update(environments)
-      .set(parsed.data)
+      .set(encryptEnvSecrets(parsed.data))
       .where(eq(environments.id, id))
       .returning();
 

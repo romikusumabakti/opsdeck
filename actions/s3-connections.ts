@@ -12,6 +12,7 @@ import {
   s3Connections,
 } from "@/lib/db/schema";
 import { testS3Connection } from "@/lib/explorer/s3";
+import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import {
   s3ConnectionInputSchema,
   s3ConnectionUpdateSchema,
@@ -66,7 +67,10 @@ export async function createS3Connection(
   try {
     const [created] = await db
       .insert(s3Connections)
-      .values(parsed.data)
+      .values({
+        ...parsed.data,
+        secretKey: encryptSecret(parsed.data.secretKey),
+      })
       .returning();
     revalidatePath("/storage");
     return { success: true, data: toSafe(created), message: t("s3Created") };
@@ -88,7 +92,8 @@ export async function updateS3Connection(
   }
   // Empty/omitted secretKey means "keep the stored one" — drop it from the set.
   const patch = { ...parsed.data };
-  if (!patch.secretKey) delete patch.secretKey;
+  if (patch.secretKey) patch.secretKey = encryptSecret(patch.secretKey);
+  else delete patch.secretKey;
   try {
     const [updated] = await db
       .update(s3Connections)
@@ -142,7 +147,7 @@ export async function testS3ConnectionAction(input: {
       .where(eq(s3Connections.id, input.connectionId))
       .limit(1);
     if (!row) return { ok: false, message: t("s3NotFound") };
-    secretKey = row.secretKey;
+    secretKey = decryptSecret(row.secretKey);
   }
   if (!secretKey) {
     return { ok: false, message: t("s3SecretRequiredForTest") };
