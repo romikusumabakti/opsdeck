@@ -33,6 +33,10 @@ services:
       # Auth
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      # App-level encryption key for secrets at rest (AES-256-GCM). Required —
+      # the app throws on create/read of any secret when unset. Generate once
+      # with `openssl rand -base64 32`; keep stable (rotating orphans ciphertext).
+      SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
       # Whitelabel branding — surfaced to the client via NEXT_PUBLIC_*
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME-}
       NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME-}
