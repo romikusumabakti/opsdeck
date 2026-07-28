@@ -935,9 +935,16 @@ export type EnvironmentWithServers = Environment & {
   services: ServiceWithServer[];
 };
 
-// An environment plus its owning project's issue key, for readable-URL link
-// builders (/[key]/[slug]/…). Credential-free — safe for client components.
-export type EnvironmentListItem = Environment & { key: string };
+// List-level projection: an environment plus the two db-service fields list
+// views actually render (the engine badge and the database name). Joined from
+// the `db` service in the list query so grids/switchers never need a per-row
+// service fetch. Credential-free — safe for client components.
+export type EnvironmentSummary = Environment &
+  Pick<EnvironmentService, "dbType" | "dbName">;
+
+// An environment summary plus its owning project's issue key, for readable-URL
+// link builders (/[key]/[slug]/…). Credential-free.
+export type EnvironmentListItem = EnvironmentSummary & { key: string };
 
 // Credential-free projections handed to the client. SSH passwords, the mssql
 // `sa` password, and the mock-time API key must never cross the server/client

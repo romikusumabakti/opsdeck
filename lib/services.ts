@@ -1,8 +1,4 @@
-import type {
-  EnvironmentWithServers,
-  Server,
-  ServiceWithServer,
-} from "@/lib/db/schema";
+import type { EnvironmentWithServers, Server } from "@/lib/db/schema";
 import { shq } from "@/lib/sh";
 
 export type ServiceRole = "db" | "backend" | "frontend";
@@ -23,19 +19,70 @@ export type ServiceConfig = {
   serviceName: string;
 };
 
-// Resolve the single service of `role` in an environment, with its server. The
+// Any environment carrying its services — the full server-side shape
+// (EnvironmentWithServers) or the sanitized client one
+// (SafeEnvironmentWithServers). Generic so accessors work on both without the
+// caller having to know which it holds.
+type WithServices<S> = { id: string; services: S[] };
+
+// Resolve the single service of `role` in an environment. The
 // (environment_id, role) unique index guarantees at most one; throws if the
-// environment is missing the role (a data-integrity bug — the loader always
+// environment is missing the role (a data-integrity bug — every environment
 // materialises db/backend/frontend).
-export function getService(
-  env: EnvironmentWithServers,
+export function getService<S extends { role: string }>(
+  env: WithServices<S>,
   role: ServiceRole
-): ServiceWithServer {
+): S {
   const service = env.services.find((s) => s.role === role);
   if (!service) {
     throw new Error(`environment ${env.id} has no ${role} service`);
   }
   return service;
+}
+
+// Per-role shorthands. Prefer hoisting the result into a local when a function
+// reads several fields off the same service.
+export function dbService<S extends { role: string }>(env: WithServices<S>): S {
+  return getService(env, "db");
+}
+
+export function backendService<S extends { role: string }>(
+  env: WithServices<S>
+): S {
+  return getService(env, "backend");
+}
+
+export function frontendService<S extends { role: string }>(
+  env: WithServices<S>
+): S {
+  return getService(env, "frontend");
+}
+
+// The db service with its role-specific columns proven present. Those columns
+// are nullable in the schema because they only apply to role='db'; this is the
+// single place that assertion is made, so consumers read `dbName`/`dbType`/
+// `dbBackupPath` as plain non-null values instead of asserting at each use.
+export function dbConfig<
+  S extends {
+    role: string;
+    dbType: "postgres" | "mssql" | null;
+    dbName: string | null;
+    dbBackupPath: string | null;
+  },
+>(
+  env: WithServices<S>
+): S & { dbType: "postgres" | "mssql"; dbName: string; dbBackupPath: string } {
+  const service = getService(env, "db");
+  if (!(service.dbType && service.dbName && service.dbBackupPath)) {
+    throw new Error(
+      `db service of environment ${env.id} is missing engine config`
+    );
+  }
+  return service as S & {
+    dbType: "postgres" | "mssql";
+    dbName: string;
+    dbBackupPath: string;
+  };
 }
 
 export function getServiceConfig(

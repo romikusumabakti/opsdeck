@@ -14,30 +14,103 @@ import {
   type EnvironmentListItem,
   environmentAccess,
   environments,
+  environmentServices,
+  type NewEnvironmentService,
   projects,
 } from "@/lib/db/schema";
 import { loadSafeProject } from "@/lib/projects";
 import { encryptNullable } from "@/lib/secrets";
+import type { ProjectInput } from "@/lib/validation";
 import {
   projectIdSchema,
   projectInputSchema,
   projectUpdateSchema,
 } from "@/lib/validation";
 
-// Encrypt the two environment secret columns (mssql `sa` password, mock-time
-// API key) at rest, only when the payload actually carries them. Mirrors the
-// decrypt boundary in lib/projects#loadEnvironmentWithServers.
-function encryptEnvSecrets<
-  T extends {
-    dbPassword?: string | null;
-    backendMockTimeApiKey?: string | null;
-  },
->(data: T): T {
-  const out: T = { ...data };
-  if ("dbPassword" in out) out.dbPassword = encryptNullable(out.dbPassword);
-  if ("backendMockTimeApiKey" in out)
-    out.backendMockTimeApiKey = encryptNullable(out.backendMockTimeApiKey);
-  return out;
+// The form posts one flat payload (db*/backend*/frontend* fields); storage is
+// one `environments` row plus one `environment_services` row per role. These
+// helpers are the single place that mapping lives.
+//
+// Secret columns (mssql `sa` password, mock-time API key) are encrypted at rest
+// here, mirroring the decrypt boundary in lib/projects#loadEnvironmentWithServers.
+
+type ServiceValues = Omit<NewEnvironmentService, "environmentId">;
+
+function dbServiceValues(d: ProjectInput): ServiceValues {
+  return {
+    role: "db",
+    serverId: d.dbServerId,
+    serviceType: d.dbServiceType,
+    serviceName: d.dbServiceName,
+    dbType: d.dbType,
+    dbName: d.dbName,
+    dbPassword: encryptNullable(d.dbPassword),
+    dbBackupPath: d.dbBackupPath,
+  };
+}
+
+function backendServiceValues(d: ProjectInput): ServiceValues {
+  return {
+    role: "backend",
+    serverId: d.backendServerId,
+    serviceType: d.backendServiceType,
+    serviceName: d.backendServiceName,
+    mockTimeApiUrl: d.backendMockTimeApiUrl,
+    mockTimeApiKey: encryptNullable(d.backendMockTimeApiKey),
+  };
+}
+
+function frontendServiceValues(d: ProjectInput): ServiceValues {
+  return {
+    role: "frontend",
+    serverId: d.frontendServerId,
+    serviceType: d.frontendServiceType,
+    serviceName: d.frontendServiceName,
+  };
+}
+
+// Partial-update variants: only keys actually present in the payload are
+// carried over, so an edit that touches one field can't null out the rest.
+// `undefined` values are dropped; an explicit null still clears a column.
+function pickPresent<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(patch).filter(([, v]) => v !== undefined)
+  ) as Partial<T>;
+}
+
+type ProjectUpdate = Partial<ProjectInput>;
+
+function dbServicePatch(d: ProjectUpdate) {
+  return pickPresent({
+    serverId: d.dbServerId,
+    serviceType: d.dbServiceType,
+    serviceName: d.dbServiceName,
+    dbType: d.dbType,
+    dbName: d.dbName,
+    dbPassword: "dbPassword" in d ? encryptNullable(d.dbPassword) : undefined,
+    dbBackupPath: d.dbBackupPath,
+  });
+}
+
+function backendServicePatch(d: ProjectUpdate) {
+  return pickPresent({
+    serverId: d.backendServerId,
+    serviceType: d.backendServiceType,
+    serviceName: d.backendServiceName,
+    mockTimeApiUrl: d.backendMockTimeApiUrl,
+    mockTimeApiKey:
+      "backendMockTimeApiKey" in d
+        ? encryptNullable(d.backendMockTimeApiKey)
+        : undefined,
+  });
+}
+
+function frontendServicePatch(d: ProjectUpdate) {
+  return pickPresent({
+    serverId: d.frontendServerId,
+    serviceType: d.frontendServiceType,
+    serviceName: d.frontendServiceName,
+  });
 }
 
 type ActionResponse = {
@@ -57,11 +130,25 @@ export async function getProjects(): Promise<EnvironmentListItem[]> {
     // to name for projects they've never opened. `nulls last` keeps unvisited
     // projects below visited ones instead of Postgres' default nulls-first.
     // Joins the owning project's `key` so consumers can build readable URLs
-    // (/[key]/[slug]/…) without a second query.
+    // (/[key]/[slug]/…) without a second query, plus the `db` service's engine
+    // and database name — the two service fields list views render, joined here
+    // so the grid doesn't fetch services per row.
     return await db
-      .select({ ...getTableColumns(environments), key: projects.key })
+      .select({
+        ...getTableColumns(environments),
+        key: projects.key,
+        dbType: environmentServices.dbType,
+        dbName: environmentServices.dbName,
+      })
       .from(environments)
       .innerJoin(projects, eq(projects.id, environments.projectId))
+      .leftJoin(
+        environmentServices,
+        and(
+          eq(environmentServices.environmentId, environments.id),
+          eq(environmentServices.role, "db")
+        )
+      )
       .leftJoin(
         environmentAccess,
         and(
@@ -179,11 +266,30 @@ export async function createProject(data: unknown): Promise<ActionResponse> {
     return { success: false, message: "Invalid project data" };
   }
   try {
-    const slug = await uniqueEnvSlug(parsed.data.projectId, parsed.data.name);
-    const [insertedProject] = await db
-      .insert(environments)
-      .values(encryptEnvSecrets({ ...parsed.data, slug }))
-      .returning();
+    const input = parsed.data;
+    const slug = await uniqueEnvSlug(input.projectId, input.name);
+    // One transaction: an environment without its services is unusable, so the
+    // four inserts must land together.
+    const insertedProject = await db.transaction(async (tx) => {
+      const [env] = await tx
+        .insert(environments)
+        .values({
+          projectId: input.projectId,
+          name: input.name,
+          slug,
+          kind: input.kind,
+          owner: input.owner,
+        })
+        .returning();
+      await tx.insert(environmentServices).values(
+        [
+          dbServiceValues(input),
+          backendServiceValues(input),
+          frontendServiceValues(input),
+        ].map((s) => ({ ...s, environmentId: env.id }))
+      );
+      return env;
+    });
 
     revalidatePath("/projects");
     revalidatePath("/", "layout");
@@ -212,11 +318,44 @@ export async function updateProject(
     return { success: false, message: "Invalid project data" };
   }
   try {
-    const [updatedProject] = await db
-      .update(environments)
-      .set(encryptEnvSecrets(parsed.data))
-      .where(eq(environments.id, id))
-      .returning();
+    const input = parsed.data;
+    const envPatch = pickPresent({
+      projectId: input.projectId,
+      name: input.name,
+      kind: input.kind,
+      owner: input.owner,
+    });
+    const servicePatches = [
+      { role: "db" as const, patch: dbServicePatch(input) },
+      { role: "backend" as const, patch: backendServicePatch(input) },
+      { role: "frontend" as const, patch: frontendServicePatch(input) },
+    ].filter(({ patch }) => Object.keys(patch).length > 0);
+
+    const updatedProject = await db.transaction(async (tx) => {
+      // Always re-read the row so a services-only edit still reports "not found"
+      // for a bad id; only issue the UPDATE when the env itself changed.
+      const [env] = Object.keys(envPatch).length
+        ? await tx
+            .update(environments)
+            .set(envPatch)
+            .where(eq(environments.id, id))
+            .returning()
+        : await tx.select().from(environments).where(eq(environments.id, id));
+      if (!env) return undefined;
+
+      for (const { role, patch } of servicePatches) {
+        await tx
+          .update(environmentServices)
+          .set(patch)
+          .where(
+            and(
+              eq(environmentServices.environmentId, id),
+              eq(environmentServices.role, role)
+            )
+          );
+      }
+      return env;
+    });
 
     if (!updatedProject) {
       return { success: false, message: "Project not found" };

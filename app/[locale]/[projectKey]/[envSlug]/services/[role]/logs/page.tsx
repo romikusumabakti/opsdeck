@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import {
+  getService,
   LOG_LINE_OPTIONS,
   type LogLines,
   type ServiceRole,
@@ -23,21 +24,10 @@ const ROLE_TITLE_KEY = {
 } as const;
 
 function roleConfig(project: SafeEnvironmentWithServers, role: ServiceRole) {
-  if (role === "db") {
-    return {
-      serviceName: project.dbServiceName,
-      serverName: project.dbServer.name,
-    };
-  }
-  if (role === "backend") {
-    return {
-      serviceName: project.backendServiceName,
-      serverName: project.backendServer.name,
-    };
-  }
+  const service = getService(project, role);
   return {
-    serviceName: project.frontendServiceName,
-    serverName: project.frontendServer.name,
+    serviceName: service.serviceName,
+    serverName: service.server.name,
   };
 }
 

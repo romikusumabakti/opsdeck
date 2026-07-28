@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { EnvironmentWithServers, Server } from "@/lib/db/schema";
+import type {
+  EnvironmentWithServers,
+  Server,
+  ServiceWithServer,
+} from "@/lib/db/schema";
 import { sanitizeProject } from "@/lib/projects";
+import { backendService, dbService } from "@/lib/services";
 
 function makeServer(name: string): Server {
   return {
@@ -15,6 +20,69 @@ function makeServer(name: string): Server {
   };
 }
 
+function makeDbService(
+  overrides: Partial<ServiceWithServer> = {}
+): ServiceWithServer {
+  return {
+    id: "33333333-3333-3333-3333-333333333333",
+    environmentId: "11111111-1111-1111-1111-111111111111",
+    role: "db",
+    serverId: "db",
+    serviceType: "docker",
+    serviceName: "pg",
+    dbType: "postgres",
+    dbName: "appdb",
+    dbPassword: "db-secret",
+    dbBackupPath: "/backups",
+    mockTimeApiUrl: null,
+    mockTimeApiKey: null,
+    server: makeServer("11"),
+    ...overrides,
+  };
+}
+
+function makeBackendService(
+  overrides: Partial<ServiceWithServer> = {}
+): ServiceWithServer {
+  return {
+    id: "44444444-4444-4444-4444-444444444444",
+    environmentId: "11111111-1111-1111-1111-111111111111",
+    role: "backend",
+    serverId: "be",
+    serviceType: "systemd",
+    serviceName: "api",
+    dbType: null,
+    dbName: null,
+    dbPassword: null,
+    dbBackupPath: null,
+    mockTimeApiUrl: "https://api.example.com/clock",
+    mockTimeApiKey: "mock-time-api-key",
+    server: makeServer("22"),
+    ...overrides,
+  };
+}
+
+function makeFrontendService(
+  overrides: Partial<ServiceWithServer> = {}
+): ServiceWithServer {
+  return {
+    id: "55555555-5555-5555-5555-555555555555",
+    environmentId: "11111111-1111-1111-1111-111111111111",
+    role: "frontend",
+    serverId: "fe",
+    serviceType: "docker",
+    serviceName: "web",
+    dbType: null,
+    dbName: null,
+    dbPassword: null,
+    dbBackupPath: null,
+    mockTimeApiUrl: null,
+    mockTimeApiKey: null,
+    server: makeServer("33"),
+    ...overrides,
+  };
+}
+
 function makeProject(
   overrides: Partial<EnvironmentWithServers> = {}
 ): EnvironmentWithServers {
@@ -23,26 +91,9 @@ function makeProject(
     projectId: "22222222-2222-2222-2222-222222222222",
     name: "Demo",
     slug: "demo",
-    dbServerId: "db",
-    dbServiceType: "docker",
-    dbServiceName: "pg",
-    dbType: "postgres",
-    dbName: "appdb",
-    dbPassword: "db-secret",
-    dbBackupPath: "/backups",
-    backendServerId: "be",
-    backendServiceType: "systemd",
-    backendServiceName: "api",
-    backendMockTimeApiUrl: "https://api.example.com/clock",
-    backendMockTimeApiKey: "mock-time-api-key",
-    frontendServerId: "fe",
-    frontendServiceType: "docker",
-    frontendServiceName: "web",
     kind: null,
     owner: null,
-    dbServer: makeServer("11"),
-    backendServer: makeServer("22"),
-    frontendServer: makeServer("33"),
+    services: [makeDbService(), makeBackendService(), makeFrontendService()],
     ...overrides,
   };
 }
@@ -50,40 +101,44 @@ function makeProject(
 describe("sanitizeProject", () => {
   it("strips the password from every server", () => {
     const safe = sanitizeProject(makeProject());
-    for (const server of [
-      safe.dbServer,
-      safe.backendServer,
-      safe.frontendServer,
-    ]) {
-      expect(server).not.toHaveProperty("password");
+    for (const service of safe.services) {
+      expect(service.server).not.toHaveProperty("password");
     }
   });
 
-  it("strips dbPassword and backendMockTimeApiKey from the project", () => {
+  it("strips dbPassword and mockTimeApiKey from every service", () => {
     const safe = sanitizeProject(makeProject());
-    expect(safe).not.toHaveProperty("dbPassword");
-    expect(safe).not.toHaveProperty("backendMockTimeApiKey");
+    for (const service of safe.services) {
+      expect(service).not.toHaveProperty("dbPassword");
+      expect(service).not.toHaveProperty("mockTimeApiKey");
+    }
   });
 
   it("sets presence flags true when secrets are present", () => {
     const safe = sanitizeProject(makeProject());
-    expect(safe.hasDbPassword).toBe(true);
-    expect(safe.hasMockTimeApiKey).toBe(true);
+    expect(dbService(safe).hasDbPassword).toBe(true);
+    expect(backendService(safe).hasMockTimeApiKey).toBe(true);
   });
 
   it("sets presence flags false when secrets are absent", () => {
     const safe = sanitizeProject(
-      makeProject({ dbPassword: null, backendMockTimeApiKey: null })
+      makeProject({
+        services: [
+          makeDbService({ dbPassword: null }),
+          makeBackendService({ mockTimeApiKey: null }),
+          makeFrontendService(),
+        ],
+      })
     );
-    expect(safe.hasDbPassword).toBe(false);
-    expect(safe.hasMockTimeApiKey).toBe(false);
+    expect(dbService(safe).hasDbPassword).toBe(false);
+    expect(backendService(safe).hasMockTimeApiKey).toBe(false);
   });
 
   it("preserves non-secret fields", () => {
     const safe = sanitizeProject(makeProject());
     expect(safe.name).toBe("Demo");
-    expect(safe.dbName).toBe("appdb");
-    expect(safe.dbServer.name).toBe("server-11");
-    expect(safe.dbServer.host).toBe("11.example.com");
+    expect(dbService(safe).dbName).toBe("appdb");
+    expect(dbService(safe).server.name).toBe("server-11");
+    expect(dbService(safe).server.host).toBe("11.example.com");
   });
 });

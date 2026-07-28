@@ -36,7 +36,14 @@ import {
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
-import type { ServiceAction, ServiceRole, ServiceType } from "@/lib/services";
+import {
+  backendService,
+  dbService,
+  frontendService,
+  type ServiceAction,
+  type ServiceRole,
+  type ServiceType,
+} from "@/lib/services";
 import { cn } from "@/lib/utils";
 
 type RoleMeta = {
@@ -60,30 +67,34 @@ export function ServicesClient({
   const [statuses, setStatuses] = React.useState<StatusMap>({});
   const [loading, setLoading] = React.useState(true);
 
+  const dbSvc = dbService(project);
+  const backendSvc = backendService(project);
+  const frontendSvc = frontendService(project);
+
   const roles: RoleMeta[] = [
     {
       role: "db",
       icon: Database,
       titleKey: "database",
-      serviceType: project.dbServiceType,
-      serviceName: project.dbServiceName,
-      serverName: project.dbServer.name,
+      serviceType: dbSvc.serviceType,
+      serviceName: dbSvc.serviceName,
+      serverName: dbSvc.server.name,
     },
     {
       role: "backend",
       icon: Plug,
       titleKey: "backend",
-      serviceType: project.backendServiceType,
-      serviceName: project.backendServiceName,
-      serverName: project.backendServer.name,
+      serviceType: backendSvc.serviceType,
+      serviceName: backendSvc.serviceName,
+      serverName: backendSvc.server.name,
     },
     {
       role: "frontend",
       icon: Atom,
       titleKey: "frontend",
-      serviceType: project.frontendServiceType,
-      serviceName: project.frontendServiceName,
-      serverName: project.frontendServer.name,
+      serviceType: frontendSvc.serviceType,
+      serviceName: frontendSvc.serviceName,
+      serverName: frontendSvc.server.name,
     },
   ];
 

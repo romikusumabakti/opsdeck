@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { Environment } from "@/lib/db/schema";
+import type { EnvironmentSummary } from "@/lib/db/schema";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
@@ -37,7 +37,7 @@ export function ProjectsGrid({
   lastOpened,
   initialSort,
 }: {
-  projects: Environment[];
+  projects: EnvironmentSummary[];
   projectNameById: Record<string, string>;
   projectKeyById: Record<string, string>;
   openIssueCounts: Record<string, number>;
@@ -72,7 +72,7 @@ export function ProjectsGrid({
       ? projects.filter(
           (p) =>
             p.name.toLowerCase().includes(q) ||
-            p.dbName.toLowerCase().includes(q)
+            (p.dbName ?? "").toLowerCase().includes(q)
         )
       : projects;
     const runAt = (id: string) => {
@@ -98,7 +98,7 @@ export function ProjectsGrid({
   // preserving the within-group order from `visible`. Groups are sorted
   // alphabetically by project name.
   const groups = React.useMemo(() => {
-    const byProject = new Map<string, Environment[]>();
+    const byProject = new Map<string, EnvironmentSummary[]>();
     for (const env of visible) {
       const list = byProject.get(env.projectId);
       if (list) {
@@ -234,7 +234,7 @@ function EnvironmentCard({
   kindLabel,
   ownerLabel,
 }: {
-  project: Environment;
+  project: EnvironmentSummary;
   projectName: string;
   activity: ProjectActivity | null;
   dateFnsLocale: ReturnType<typeof getDateFnsLocale>;

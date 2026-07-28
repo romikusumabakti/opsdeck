@@ -1,13 +1,13 @@
-import type { Environment } from "@/lib/db/schema";
+import type { EnvironmentService } from "@/lib/db/schema";
 
-// The subset of environment fields that pin down where its backup files
-// physically live: the same host (dbServerId), the same service instance (type +
+// The subset of a db service's fields that pin down where its backup files
+// physically live: the same host (serverId), the same service instance (type +
 // name, so the same container/pod for docker/kubernetes), and the same engine
 // (dbType). Pure + client-safe (no server-only imports) so both the source
 // picker and the restore action/worker can share one compatibility rule.
 export type DbLocation = Pick<
-  Environment,
-  "dbServerId" | "dbServiceType" | "dbServiceName" | "dbType"
+  EnvironmentService,
+  "serverId" | "serviceType" | "serviceName" | "dbType"
 >;
 
 /**
@@ -20,9 +20,9 @@ export type DbLocation = Pick<
  */
 export function dbLocationMatches(a: DbLocation, b: DbLocation): boolean {
   return (
-    a.dbServerId === b.dbServerId &&
-    a.dbServiceType === b.dbServiceType &&
-    a.dbServiceName === b.dbServiceName &&
+    a.serverId === b.serverId &&
+    a.serviceType === b.serviceType &&
+    a.serviceName === b.serviceName &&
     a.dbType === b.dbType
   );
 }

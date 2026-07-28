@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { dbService } from "@/lib/services";
 import { cn } from "@/lib/utils";
 
 // Matches the marker emitted by lib/jobs/processor.ts after a successful dump.
@@ -46,6 +47,7 @@ export function BackupDatabase({
   const canRunOps = useCanRunOps();
   const dialog = useDialog();
   const router = useRouter();
+  const dbSvc = dbService(project);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
@@ -53,7 +55,7 @@ export function BackupDatabase({
   // is a single "Backup" click on the default DB.
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [database, setDatabase] = React.useState(
-    fixedDatabase ?? project.dbName
+    fixedDatabase ?? dbSvc.dbName ?? ""
   );
   const [submitting, startTransition] = React.useTransition();
 
@@ -150,7 +152,7 @@ export function BackupDatabase({
               </dt>
               <dd>
                 <Badge variant="secondary">
-                  {tDash(`dbTypes.${project.dbType}`)}
+                  {tDash(`dbTypes.${dbSvc.dbType ?? ""}`)}
                 </Badge>
               </dd>
             </div>
@@ -158,7 +160,7 @@ export function BackupDatabase({
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                 {tDash("server")}
               </dt>
-              <dd className="truncate">{project.dbServer.name}</dd>
+              <dd className="truncate">{dbSvc.server.name}</dd>
             </div>
             {!advancedOpen && (
               <div className="flex flex-col gap-1">
@@ -167,7 +169,7 @@ export function BackupDatabase({
                 </dt>
                 <dd className="flex items-center gap-2">
                   <code className="font-mono text-sm">{database}</code>
-                  {database === project.dbName && (
+                  {database === (dbSvc.dbName ?? "") && (
                     <span className="text-xs text-muted-foreground">
                       {t("defaultSuffix")}
                     </span>

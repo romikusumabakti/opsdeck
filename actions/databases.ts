@@ -6,7 +6,11 @@ import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
-import { buildDbShellCommand, buildSqlcmdCommand } from "@/lib/services";
+import {
+  buildDbShellCommand,
+  buildSqlcmdCommand,
+  dbConfig,
+} from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { databaseNameSchema, projectIdSchema } from "@/lib/validation";
@@ -33,9 +37,10 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
     throw new Error("Project not found");
   }
 
+  const dbSvc = dbConfig(project);
   let cmd: string;
-  if (project.dbType === "mssql") {
-    if (!project.dbPassword) {
+  if (dbSvc.dbType === "mssql") {
+    if (!dbSvc.dbPassword) {
       throw new Error("Project dbPassword is required to list MSSQL databases");
     }
     // Skip the four system databases (database_id 1-4: master, tempdb, model,
@@ -47,9 +52,9 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
       "SET NOCOUNT ON; SELECT name + '|' + CAST(CAST((SELECT SUM(mf.size) FROM sys.master_files mf WHERE mf.database_id = d.database_id) AS BIGINT) * 8192 AS VARCHAR(32)) FROM sys.databases d WHERE database_id > 4 ORDER BY name;";
     cmd = buildSqlcmdCommand(
       query,
-      project.dbPassword,
-      project.dbServiceType,
-      project.dbServiceName,
+      dbSvc.dbPassword,
+      dbSvc.serviceType,
+      dbSvc.serviceName,
       ["-h", "-1", "-W"]
     );
   } else {
@@ -59,19 +64,17 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
     const query =
       "SELECT datname || '|' || pg_database_size(datname) FROM pg_database WHERE datistemplate = false ORDER BY datname";
     const inner = `psql -U postgres -tAc ${shq(query)}`;
-    cmd = buildDbShellCommand(
-      project.dbServiceType,
-      project.dbServiceName,
-      inner,
-      { runAsUser: "postgres", sudoPassword: project.dbServer.password }
-    );
+    cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
+      runAsUser: "postgres",
+      sudoPassword: dbSvc.server.password,
+    });
   }
 
   const output = await executeRemoteCommand(
     {
-      host: project.dbServer.host,
-      username: project.dbServer.username,
-      password: project.dbServer.password,
+      host: dbSvc.server.host,
+      username: dbSvc.server.username,
+      password: dbSvc.server.password,
     },
     cmd
   );
@@ -97,12 +100,12 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
     });
   // Always surface the configured database, even if the enumeration somehow
   // missed it (permissions, race), and mark it as the default.
-  if (!entries.some((e) => e.name === project.dbName)) {
-    entries.unshift({ name: project.dbName, sizeBytes: undefined });
+  if (!entries.some((e) => e.name === dbSvc.dbName)) {
+    entries.unshift({ name: dbSvc.dbName, sizeBytes: undefined });
   }
   return entries.map((e) => ({
     ...e,
-    isDefault: e.name === project.dbName,
+    isDefault: e.name === dbSvc.dbName,
   }));
 }
 
@@ -188,7 +191,7 @@ export async function dropDatabase(
 
   // Guard the project's configured database — dropping it would break the panel
   // and every other operation that targets it. The worker re-checks too.
-  if (database === project.dbName) {
+  if (database === dbConfig(project).dbName) {
     throw new Error("Cannot drop the project's configured database");
   }
 
@@ -233,7 +236,7 @@ export async function renameDatabase(
 
   // Guard the project's configured database — renaming it would orphan the
   // panel's configured dbName. The worker re-checks too.
-  if (from === project.dbName) {
+  if (from === dbConfig(project).dbName) {
     throw new Error("Cannot rename the project's configured database");
   }
 
