@@ -1,4 +1,8 @@
-import type { EnvironmentWithServers, Server } from "@/lib/db/schema";
+import type {
+  EnvironmentWithServers,
+  Server,
+  ServiceWithServer,
+} from "@/lib/db/schema";
 import { shq } from "@/lib/sh";
 
 export type ServiceRole = "db" | "backend" | "frontend";
@@ -19,31 +23,31 @@ export type ServiceConfig = {
   serviceName: string;
 };
 
+// Resolve the single service of `role` in an environment, with its server. The
+// (environment_id, role) unique index guarantees at most one; throws if the
+// environment is missing the role (a data-integrity bug — the loader always
+// materialises db/backend/frontend).
+export function getService(
+  env: EnvironmentWithServers,
+  role: ServiceRole
+): ServiceWithServer {
+  const service = env.services.find((s) => s.role === role);
+  if (!service) {
+    throw new Error(`environment ${env.id} has no ${role} service`);
+  }
+  return service;
+}
+
 export function getServiceConfig(
-  project: EnvironmentWithServers,
+  env: EnvironmentWithServers,
   role: ServiceRole
 ): ServiceConfig {
-  if (role === "db") {
-    return {
-      role,
-      server: project.dbServer,
-      serviceType: project.dbServiceType,
-      serviceName: project.dbServiceName,
-    };
-  }
-  if (role === "backend") {
-    return {
-      role,
-      server: project.backendServer,
-      serviceType: project.backendServiceType,
-      serviceName: project.backendServiceName,
-    };
-  }
+  const service = getService(env, role);
   return {
     role,
-    server: project.frontendServer,
-    serviceType: project.frontendServiceType,
-    serviceName: project.frontendServiceName,
+    server: service.server,
+    serviceType: service.serviceType,
+    serviceName: service.serviceName,
   };
 }
 

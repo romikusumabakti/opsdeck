@@ -3,17 +3,9 @@ import * as schema from "./schema";
 
 export const relations = defineRelations(schema, (r) => ({
   servers: {
-    dbEnvironments: r.many.environments({
+    services: r.many.environmentServices({
       from: r.servers.id,
-      to: r.environments.dbServerId,
-    }),
-    backendEnvironments: r.many.environments({
-      from: r.servers.id,
-      to: r.environments.backendServerId,
-    }),
-    frontendEnvironments: r.many.environments({
-      from: r.servers.id,
-      to: r.environments.frontendServerId,
+      to: r.environmentServices.serverId,
     }),
   },
   projects: {
@@ -27,16 +19,18 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.projects.id,
     }),
     runs: r.many.runs(),
-    dbServer: r.one.servers({
-      from: r.environments.dbServerId,
-      to: r.servers.id,
+    services: r.many.environmentServices({
+      from: r.environments.id,
+      to: r.environmentServices.environmentId,
     }),
-    backendServer: r.one.servers({
-      from: r.environments.backendServerId,
-      to: r.servers.id,
+  },
+  environmentServices: {
+    environment: r.one.environments({
+      from: r.environmentServices.environmentId,
+      to: r.environments.id,
     }),
-    frontendServer: r.one.servers({
-      from: r.environments.frontendServerId,
+    server: r.one.servers({
+      from: r.environmentServices.serverId,
       to: r.servers.id,
     }),
   },

@@ -20,6 +20,18 @@ export const serviceTypeEnum = pgEnum("service_type", [
   "kubernetes",
 ]);
 export const databaseTypeEnum = pgEnum("database_type", ["postgres", "mssql"]);
+// Role a service plays within its environment. `db`/`backend`/`frontend` match
+// lib/services.ts ServiceRole; `worker`/`cache`/`gateway` are seeded so adding
+// them needs no enum migration. An environment owns 1..N services, one per
+// deployable unit — this replaces the old hardcoded db+backend+frontend triple.
+export const serviceRoleEnum = pgEnum("service_role", [
+  "db",
+  "backend",
+  "frontend",
+  "worker",
+  "cache",
+  "gateway",
+]);
 export const issueStatusEnum = pgEnum("issue_status", [
   "open",
   "in_progress",
@@ -101,51 +113,8 @@ export const environments = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-
-    // --- Database ---
-    dbServerId: uuid("db_server_id")
-      .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
-    dbServiceType: serviceTypeEnum("db_service_type").notNull(),
-    dbServiceName: text("db_service_name").notNull(),
-    dbType: databaseTypeEnum("db_type").notNull(),
-    dbName: text("db_name").notNull(),
-    // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
-    // relies on trusted local auth (`-U postgres`) inside the container.
-    dbPassword: text("db_password"),
-    // Where backup files live. Interpretation depends on dbServiceType:
-    // docker/kubernetes — path inside the container/pod (bind-mount and PVC
-    // configuration are the operator's concern); systemd — path on the host
-    // filesystem, which must be writable by the DB's OS user (postgres/mssql).
-    dbBackupPath: text("db_backup_path").notNull(),
-
-    // --- Backend ---
-    backendServerId: uuid("backend_server_id")
-      .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
-    backendServiceType: serviceTypeEnum("backend_service_type").notNull(),
-    backendServiceName: text("backend_service_name").notNull(),
-    // URL of the project's clock resource (e.g. `https://api.example.com/v1/clock`).
-    // When set, the time-mocking feature talks to this REST API
-    // (GET/DELETE the URL itself, POST to `/travel`, `/freeze`, `/advance`)
-    // per docs/time-mocking-api.md. When unset, falls back to the legacy
-    // `date -s` + service restart approach.
-    backendMockTimeApiUrl: text("backend_mock_time_api_url"),
-    // Optional API key sent as the `X-Api-Key` header on every mock-time API
-    // request. Leave null when the endpoint is unauthenticated.
-    backendMockTimeApiKey: text("backend_mock_time_api_key"),
-
-    // --- Frontend ---
-    frontendServerId: uuid("frontend_server_id")
-      .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
-    frontendServiceType: serviceTypeEnum("frontend_service_type").notNull(),
-    frontendServiceName: text("frontend_service_name").notNull(),
-
-    // URL-friendly identifier, unique within a project. Lowercase. Not routed
-    // yet — this is Stage 1 (data) of the key/slug URL migration; the readable
-    // env route (/[key]/[slug]/…) is a later stage. Kept stable across renames
-    // so a shared link doesn't rot.
+    // URL-friendly identifier, unique within a project. Lowercase. Kept stable
+    // across renames so a shared link doesn't rot. Routed as /[key]/[slug]/….
     slug: text("slug").notNull(),
 
     // --- Purpose / ownership (both optional) ---
@@ -162,13 +131,60 @@ export const environments = pgTable(
     // can't collide under one project, while different projects may reuse them).
     uniqueIndex("environments_project_name_idx").on(t.projectId, t.name),
     // The (key, slug) pair must resolve to exactly one environment for the
-    // future readable URL — unique within a project.
+    // readable URL — unique within a project.
     uniqueIndex("environments_project_slug_idx").on(t.projectId, t.slug),
-    // FK columns are filtered/joined on every server-usage lookup and the
-    // onDelete:restrict checks; index them so those don't seq-scan.
-    index("environments_db_server_idx").on(t.dbServerId),
-    index("environments_backend_server_idx").on(t.backendServerId),
-    index("environments_frontend_server_idx").on(t.frontendServerId),
+  ]
+);
+
+// One deployable unit of an environment (its database, backend, frontend, and
+// later worker/cache/gateway). Replaces the old wide triple on `environments`:
+// each service carries its own server + service type + name, plus the
+// role-specific config only that role uses. An environment owns 1..N of these.
+export const environmentServices = pgTable(
+  "environment_services",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    role: serviceRoleEnum("role").notNull(),
+    // The server this service runs on. restrict: a server backing any service
+    // can't be deleted out from under it.
+    serverId: uuid("server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    serviceType: serviceTypeEnum("service_type").notNull(),
+    serviceName: text("service_name").notNull(),
+
+    // --- db-role config (null on non-db services) ---
+    dbType: databaseTypeEnum("db_type"),
+    dbName: text("db_name"),
+    // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
+    // relies on trusted local auth (`-U postgres`) inside the container.
+    dbPassword: text("db_password"),
+    // Where backup files live. Interpretation depends on serviceType:
+    // docker/kubernetes — path inside the container/pod; systemd — path on the
+    // host filesystem, writable by the DB's OS user (postgres/mssql).
+    dbBackupPath: text("db_backup_path"),
+
+    // --- backend-role config (null on non-backend services) ---
+    // URL of the project's clock resource (e.g. `https://api.example.com/v1/clock`).
+    // When set, the time-mocking feature talks to this REST API per
+    // docs/time-mocking-api.md; unset falls back to the legacy `date -s` path.
+    mockTimeApiUrl: text("mock_time_api_url"),
+    // Optional API key sent as the `X-Api-Key` header on mock-time requests.
+    mockTimeApiKey: text("mock_time_api_key"),
+  },
+  (t) => [
+    // Exactly one service per role today (getServiceConfig resolves by role).
+    // Also serves environment_id-only lookups via the leading column. When
+    // multi-instance-per-role is needed, drop this and add a per-service slug.
+    uniqueIndex("environment_services_env_role_idx").on(
+      t.environmentId,
+      t.role
+    ),
+    // Server-usage lookups + the onDelete:restrict check scan by server_id.
+    index("environment_services_server_idx").on(t.serverId),
   ]
 );
 
@@ -906,10 +922,17 @@ export type LabelLite = Pick<Label, "id" | "name" | "color">;
 export type Environment = InferSelectModel<typeof environments>;
 export type NewEnvironment = InferInsertModel<typeof environments>;
 
+export type EnvironmentService = InferSelectModel<typeof environmentServices>;
+export type NewEnvironmentService = InferInsertModel<
+  typeof environmentServices
+>;
+
+// A service row with its server record resolved. Consumers pick a service by
+// role via lib/services#getServiceConfig.
+export type ServiceWithServer = EnvironmentService & { server: Server };
+
 export type EnvironmentWithServers = Environment & {
-  dbServer: Server;
-  backendServer: Server;
-  frontendServer: Server;
+  services: ServiceWithServer[];
 };
 
 // An environment plus its owning project's issue key, for readable-URL link
@@ -919,21 +942,24 @@ export type EnvironmentListItem = Environment & { key: string };
 // Credential-free projections handed to the client. SSH passwords, the mssql
 // `sa` password, and the mock-time API key must never cross the server/client
 // boundary (RSC payloads are visible in the browser). Server code loads the
-// full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers; anything
-// passed to a client component must be sanitized to these shapes first.
+// full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers;
+// anything passed to a client component must be sanitized to these shapes first.
 export type SafeServer = Omit<Server, "password">;
 
-export type SafeEnvironmentWithServers = Omit<
-  Environment,
-  "dbPassword" | "backendMockTimeApiKey"
+// A service stripped of its secrets, with presence flags so edit forms can show
+// a "leave blank to keep" affordance and validate mssql password requirements
+// without ever receiving the secret.
+export type SafeServiceWithServer = Omit<
+  EnvironmentService,
+  "dbPassword" | "mockTimeApiKey"
 > & {
-  dbServer: SafeServer;
-  backendServer: SafeServer;
-  frontendServer: SafeServer;
-  // Presence flags let edit forms show a "leave blank to keep" affordance and
-  // validate mssql password requirements without ever receiving the secret.
+  server: SafeServer;
   hasDbPassword: boolean;
   hasMockTimeApiKey: boolean;
+};
+
+export type SafeEnvironmentWithServers = Environment & {
+  services: SafeServiceWithServer[];
 };
 
 export type Run = InferSelectModel<typeof runs>;
