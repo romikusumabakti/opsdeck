@@ -14,7 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
-import type { ServiceRole, ServiceType } from "@/lib/services";
+import {
+  backendService,
+  dbService,
+  frontendService,
+  type ServiceRole,
+  type ServiceType,
+} from "@/lib/services";
 
 type RoleMeta = {
   role: ServiceRole;
@@ -63,20 +69,24 @@ export function ProjectStack({
     };
   }, [project, tCommon]);
 
+  const dbSvc = dbService(project);
+  const backendSvc = backendService(project);
+  const frontendSvc = frontendService(project);
+
   const roles: RoleMeta[] = [
     {
       role: "db",
       icon: Database,
       titleKey: "database",
-      serviceType: project.dbServiceType,
-      serviceName: project.dbServiceName,
-      serverName: project.dbServer.name,
+      serviceType: dbSvc.serviceType,
+      serviceName: dbSvc.serviceName,
+      serverName: dbSvc.server.name,
       extra: (
         <span className="text-xs text-muted-foreground inline-flex items-center gap-1 truncate">
           <Tag className="size-3 shrink-0" />
-          {tDash(`dbTypes.${project.dbType}`)}
+          {tDash(`dbTypes.${dbSvc.dbType ?? ""}`)}
           <span aria-hidden="true">·</span>
-          <code className="font-mono truncate">{project.dbName}</code>
+          <code className="font-mono truncate">{dbSvc.dbName ?? ""}</code>
         </span>
       ),
     },
@@ -84,17 +94,17 @@ export function ProjectStack({
       role: "backend",
       icon: Plug,
       titleKey: "backend",
-      serviceType: project.backendServiceType,
-      serviceName: project.backendServiceName,
-      serverName: project.backendServer.name,
+      serviceType: backendSvc.serviceType,
+      serviceName: backendSvc.serviceName,
+      serverName: backendSvc.server.name,
     },
     {
       role: "frontend",
       icon: Atom,
       titleKey: "frontend",
-      serviceType: project.frontendServiceType,
-      serviceName: project.frontendServiceName,
-      serverName: project.frontendServer.name,
+      serviceType: frontendSvc.serviceType,
+      serviceName: frontendSvc.serviceName,
+      serverName: frontendSvc.server.name,
     },
   ];
 

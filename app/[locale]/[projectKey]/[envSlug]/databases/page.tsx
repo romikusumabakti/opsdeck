@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
+import { dbService } from "@/lib/services";
 import { DatabasesTabs } from "./databases-tabs";
 import { DatabasesTabsSkeleton } from "./databases-tabs-skeleton";
 
@@ -77,7 +78,7 @@ async function DatabasesContent({
   ]);
   const databases = dbResult.success
     ? dbResult.data
-    : [{ name: project.dbName, isDefault: true }];
+    : [{ name: dbService(project).dbName ?? "", isDefault: true }];
   const listError = dbResult.success ? null : dbResult.error;
   const backups = backupResult.success ? backupResult.data : [];
   const backupListError = backupResult.success ? null : backupResult.error;

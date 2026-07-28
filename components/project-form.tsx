@@ -35,6 +35,7 @@ import type {
   SafeEnvironmentWithServers,
   Server,
 } from "@/lib/db/schema";
+import { backendService, dbService, frontendService } from "@/lib/services";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql"] as const;
@@ -111,7 +112,8 @@ export function ProjectForm({
       // stored password to fall back to (handled at submit time too, but
       // surface the error inline where possible).
       if (data.dbType !== "mssql") return;
-      const hasStored = mode.type === "edit" && mode.project.hasDbPassword;
+      const hasStored =
+        mode.type === "edit" && dbService(mode.project).hasDbPassword;
       if (!data.dbPassword && !hasStored) {
         ctx.addIssue({
           code: "custom",
@@ -130,6 +132,10 @@ export function ProjectForm({
         ? mode.cloneFrom
         : null;
 
+  const dbSvc = source ? dbService(source) : undefined;
+  const backendSvc = source ? backendService(source) : undefined;
+  const frontendSvc = source ? frontendService(source) : undefined;
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: source
@@ -143,21 +149,21 @@ export function ProjectForm({
               : source.name,
           kind: source.kind ?? "",
           owner: source.owner ?? "",
-          dbServerId: source.dbServerId,
-          dbServiceType: source.dbServiceType,
-          dbServiceName: source.dbServiceName,
-          dbType: source.dbType,
-          dbName: source.dbName,
+          dbServerId: dbSvc?.serverId ?? "",
+          dbServiceType: dbSvc?.serviceType ?? "docker",
+          dbServiceName: dbSvc?.serviceName ?? "",
+          dbType: dbSvc?.dbType ?? "postgres",
+          dbName: dbSvc?.dbName ?? "",
           dbPassword: "",
-          dbBackupPath: source.dbBackupPath,
-          backendServerId: source.backendServerId,
-          backendServiceType: source.backendServiceType,
-          backendServiceName: source.backendServiceName,
-          backendMockTimeApiUrl: source.backendMockTimeApiUrl ?? "",
+          dbBackupPath: dbSvc?.dbBackupPath ?? "",
+          backendServerId: backendSvc?.serverId ?? "",
+          backendServiceType: backendSvc?.serviceType ?? "docker",
+          backendServiceName: backendSvc?.serviceName ?? "",
+          backendMockTimeApiUrl: backendSvc?.mockTimeApiUrl ?? "",
           backendMockTimeApiKey: "",
-          frontendServerId: source.frontendServerId,
-          frontendServiceType: source.frontendServiceType,
-          frontendServiceName: source.frontendServiceName,
+          frontendServerId: frontendSvc?.serverId ?? "",
+          frontendServiceType: frontendSvc?.serviceType ?? "docker",
+          frontendServiceName: frontendSvc?.serviceName ?? "",
         }
       : {
           projectId: defaultProjectId ?? initialProjects[0]?.id ?? "",
@@ -538,7 +544,8 @@ export function ProjectForm({
                     <PasswordInput
                       autoComplete="new-password"
                       placeholder={
-                        mode.type === "edit" && mode.project.hasMockTimeApiKey
+                        mode.type === "edit" &&
+                        backendService(mode.project).hasMockTimeApiKey
                           ? t("mockTimeApiKeyEditPlaceholder")
                           : ""
                       }

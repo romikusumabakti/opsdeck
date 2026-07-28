@@ -7,6 +7,7 @@ import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import type { Capability } from "@/lib/roles";
 import { createRun } from "@/lib/run-progress";
+import { backendService } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
 import {
   isoDateTimeSchema,
@@ -101,7 +102,7 @@ async function describeHttpError(response: Response): Promise<string> {
 }
 
 function clockUrl(project: EnvironmentWithServers): string | null {
-  const url = project.backendMockTimeApiUrl?.trim();
+  const url = backendService(project).mockTimeApiUrl?.trim();
   return url ? url.replace(/\/+$/, "") : null;
 }
 
@@ -131,7 +132,7 @@ async function clockFetch(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  const apiKey = project.backendMockTimeApiKey?.trim();
+  const apiKey = backendService(project).mockTimeApiKey?.trim();
   if (apiKey) headers["X-Api-Key"] = apiKey;
   const init: RequestInit = {
     method: req.method,
@@ -373,10 +374,11 @@ export async function mockProjectTimeLegacy(
 }
 
 function legacyCredentials(project: EnvironmentWithServers) {
+  const backendSvc = backendService(project);
   return {
-    host: project.backendServer.host,
-    username: project.backendServer.username,
-    password: project.backendServer.password,
+    host: backendSvc.server.host,
+    username: backendSvc.server.username,
+    password: backendSvc.server.password,
   };
 }
 
