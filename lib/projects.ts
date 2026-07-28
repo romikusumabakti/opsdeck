@@ -5,18 +5,20 @@ import type {
   EnvironmentWithServers,
   SafeEnvironmentWithServers,
   SafeServer,
+  SafeServiceWithServer,
   Server,
+  ServiceWithServer,
 } from "@/lib/db/schema";
 import { decryptNullable, decryptSecret } from "@/lib/secrets";
 
 /**
- * Load an environment (deployment) together with its three server relations —
- * including SSH/DB credentials. SERVER-ONLY: the result carries plaintext
- * passwords and the mock-time API key, so it must never be returned to a client
- * component or a background-job payload. Actions take an id from the client
- * (route param `[projectId]`, historically the deployment id) and call this to
- * re-resolve the trusted record server-side; never trust an object sent up from
- * the browser.
+ * Load an environment (deployment) together with its services and each
+ * service's server — including SSH/DB credentials. SERVER-ONLY: the result
+ * carries plaintext passwords and the mock-time API key, so it must never be
+ * returned to a client component or a background-job payload. Actions take an
+ * id from the client (route param `[projectId]`, historically the deployment
+ * id) and call this to re-resolve the trusted record server-side; never trust
+ * an object sent up from the browser.
  */
 export async function loadEnvironmentWithServers(
   id: string
@@ -24,9 +26,9 @@ export async function loadEnvironmentWithServers(
   const project = await db.query.environments.findFirst({
     where: { id },
     with: {
-      dbServer: true,
-      backendServer: true,
-      frontendServer: true,
+      services: {
+        with: { server: true },
+      },
     },
   });
   if (!project) return null;
@@ -37,11 +39,17 @@ export async function loadEnvironmentWithServers(
   const env = project as EnvironmentWithServers;
   return {
     ...env,
-    dbPassword: decryptNullable(env.dbPassword),
-    backendMockTimeApiKey: decryptNullable(env.backendMockTimeApiKey),
-    dbServer: decryptServer(env.dbServer),
-    backendServer: decryptServer(env.backendServer),
-    frontendServer: decryptServer(env.frontendServer),
+    services: env.services.map(decryptService),
+  };
+}
+
+/** Decrypt a service's own secrets and its server's SSH password. */
+function decryptService(service: ServiceWithServer): ServiceWithServer {
+  return {
+    ...service,
+    dbPassword: decryptNullable(service.dbPassword),
+    mockTimeApiKey: decryptNullable(service.mockTimeApiKey),
+    server: decryptServer(service.server),
   };
 }
 
@@ -55,29 +63,33 @@ function stripServer(server: Server): SafeServer {
   return safe;
 }
 
+/** Drop a service's secrets, keeping presence flags for the edit forms. */
+function stripService(service: ServiceWithServer): SafeServiceWithServer {
+  const {
+    dbPassword,
+    mockTimeApiKey,
+    server,
+    ...rest
+  } = service;
+  return {
+    ...rest,
+    server: stripServer(server),
+    hasDbPassword: Boolean(dbPassword),
+    hasMockTimeApiKey: Boolean(mockTimeApiKey),
+  };
+}
+
 /**
  * Drop every secret from a fully-loaded project so the result is safe to send
- * to a client component (and thus serialize into the RSC payload). Strips the
- * three SSH passwords, the mssql `sa` password, and the mock-time API key.
+ * to a client component (and thus serialize into the RSC payload). Strips each
+ * service's SSH password, the mssql `sa` password, and the mock-time API key.
  */
 export function sanitizeProject(
   project: EnvironmentWithServers
 ): SafeEnvironmentWithServers {
-  const {
-    dbPassword: _dbPassword,
-    backendMockTimeApiKey: _apiKey,
-    dbServer,
-    backendServer,
-    frontendServer,
-    ...rest
-  } = project;
   return {
-    ...rest,
-    dbServer: stripServer(dbServer),
-    backendServer: stripServer(backendServer),
-    frontendServer: stripServer(frontendServer),
-    hasDbPassword: Boolean(project.dbPassword),
-    hasMockTimeApiKey: Boolean(project.backendMockTimeApiKey),
+    ...project,
+    services: project.services.map(stripService),
   };
 }
 

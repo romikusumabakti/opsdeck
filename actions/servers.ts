@@ -1,12 +1,13 @@
 "use server";
 
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
   type Environment,
+  environmentServices,
   environments,
   type NewServer,
   type Server,
@@ -25,31 +26,39 @@ export type ServerUsage = {
 
 export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
   await requireSession();
+  // The server↔environment relationship now lives on environmentServices (one
+  // row per role), not a flat FK triple on environments — join through it and
+  // fold the per-role rows back into one entry per environment.
   const rows = await db
     .select({
       id: environments.id,
       name: environments.name,
-      dbServerId: environments.dbServerId,
-      backendServerId: environments.backendServerId,
-      frontendServerId: environments.frontendServerId,
+      role: environmentServices.role,
     })
-    .from(environments)
-    .where(
-      or(
-        eq(environments.dbServerId, serverId),
-        eq(environments.backendServerId, serverId),
-        eq(environments.frontendServerId, serverId)
-      )
+    .from(environmentServices)
+    .innerJoin(
+      environments,
+      eq(environmentServices.environmentId, environments.id)
     )
+    .where(eq(environmentServices.serverId, serverId))
     .orderBy(environments.name);
 
-  return rows.map((p) => {
-    const roles: ServerUsage["roles"] = [];
-    if (p.dbServerId === serverId) roles.push("db");
-    if (p.backendServerId === serverId) roles.push("backend");
-    if (p.frontendServerId === serverId) roles.push("frontend");
-    return { project: { id: p.id, name: p.name }, roles };
-  });
+  const usageByEnvironment = new Map<string, ServerUsage>();
+  for (const row of rows) {
+    let usage = usageByEnvironment.get(row.id);
+    if (!usage) {
+      usage = { project: { id: row.id, name: row.name }, roles: [] };
+      usageByEnvironment.set(row.id, usage);
+    }
+    if (
+      row.role === "db" ||
+      row.role === "backend" ||
+      row.role === "frontend"
+    ) {
+      usage.roles.push(row.role);
+    }
+  }
+  return Array.from(usageByEnvironment.values());
 }
 
 type CreateResponse =

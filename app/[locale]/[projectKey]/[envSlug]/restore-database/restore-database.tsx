@@ -27,6 +27,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { Environment, SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { backendService, dbService } from "@/lib/services";
 import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +50,9 @@ export function RestoreDatabase({
   const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
-  const [database, setDatabase] = React.useState(project.dbName);
+  const [database, setDatabase] = React.useState(
+    dbService(project).dbName ?? ""
+  );
   const [restartBackend, setRestartBackend] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [submitting, startTransition] = React.useTransition();
@@ -387,7 +390,7 @@ export function RestoreDatabase({
               <span>{t("restartBackendLabel")}</span>
               <span className="text-xs text-muted-foreground">
                 {t("restartBackendHint", {
-                  backendName: project.backendServiceName,
+                  backendName: backendService(project).serviceName,
                 })}
               </span>
             </span>

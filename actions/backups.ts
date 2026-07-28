@@ -6,7 +6,7 @@ import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/projects";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
-import { buildDbShellCommand } from "@/lib/services";
+import { buildDbShellCommand, dbConfig } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import type { Backup } from "@/lib/types";
@@ -43,32 +43,28 @@ async function probeBackupList(projectId: string): Promise<Backup[]> {
   if (!project) {
     throw new Error("Project not found");
   }
+  const dbSvc = dbConfig(project);
   // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
   // postgres (compressed or not) and `.bak` for mssql. Anything else in the
   // folder is ignored so users can't pick an unrestoreable file from the
   // dropdown.
   const extensionPattern =
-    project.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
+    dbSvc.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
 
   // `grep -E` for the optional `.gz` alternation. Run as the DB's OS user
   // for systemd so the listing works even when the backup dir is mode 700
   // (typical for Postgres data dirs and mssql backup dirs); no-op for
   // docker/kubernetes where the exec wrapper already enters the container.
-  const inner = `ls -lt ${shq(project.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
-  const cmd = buildDbShellCommand(
-    project.dbServiceType,
-    project.dbServiceName,
-    inner,
-    {
-      runAsUser: project.dbType === "postgres" ? "postgres" : "mssql",
-      sudoPassword: project.dbServer.password,
-    }
-  );
+  const inner = `ls -lt ${shq(dbSvc.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+  const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
+    runAsUser: dbSvc.dbType === "postgres" ? "postgres" : "mssql",
+    sudoPassword: dbSvc.server.password,
+  });
   const output = await executeRemoteCommand(
     {
-      host: project.dbServer.host,
-      username: project.dbServer.username,
-      password: project.dbServer.password,
+      host: dbSvc.server.host,
+      username: dbSvc.server.username,
+      password: dbSvc.server.password,
     },
     cmd
   );
@@ -128,7 +124,7 @@ export async function createDatabaseBackup(
   });
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
-  const database = resolveTargetDatabase(project, options.database);
+  const database = resolveTargetDatabase(dbConfig(project), options.database);
 
   const compress = options.compress ?? true;
   const runId = await createRun({
@@ -171,7 +167,8 @@ export async function restoreDatabaseBackup(
   const filename = parsedFilename.data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error("Project not found");
-  const database = resolveTargetDatabase(project, options.database);
+  const dbSvc = dbConfig(project);
+  const database = resolveTargetDatabase(dbSvc, options.database);
 
   // Resolve an optional cross-project source. A source equal to (or omitting)
   // the target reads the backup from the target's own dir as before. Any other
@@ -185,13 +182,13 @@ export async function restoreDatabaseBackup(
     }
     const source = await loadEnvironmentWithServers(options.sourceProjectId);
     if (!source) throw new Error("Source project not found");
-    if (source.dbType !== project.dbType) {
+    if (dbConfig(source).dbType !== dbSvc.dbType) {
       throw new Error("Source project must have the same database type");
     }
     sourceProjectId = source.id;
   }
 
-  const isDefault = database === project.dbName;
+  const isDefault = database === dbSvc.dbName;
   const runId = await createRun({
     environmentId: project.id,
     userId: session.user.id,

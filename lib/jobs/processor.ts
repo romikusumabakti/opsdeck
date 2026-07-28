@@ -8,9 +8,11 @@ import { loadEnvironmentWithServers } from "@/lib/projects";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
+  backendService,
   buildControlCommand,
   buildDbShellCommand,
   buildSqlcmdCommand,
+  dbConfig,
   getServiceConfig,
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
@@ -70,15 +72,16 @@ async function handleCreateDatabaseBackup(
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
   const useCompression = compress ?? true;
+  const db = dbConfig(project);
   // Fall back to the project's configured database when no explicit target is
   // sent (backups of the "default database"). The action layer has already
   // validated any non-default `database` against databaseNameSchema.
-  const dbName = database ?? project.dbName;
+  const dbName = database ?? db.dbName;
 
   const credentials = {
-    host: project.dbServer.host,
-    username: project.dbServer.username,
-    password: project.dbServer.password,
+    host: db.server.host,
+    username: db.server.username,
+    password: db.server.password,
   };
 
   try {
@@ -88,11 +91,11 @@ async function handleCreateDatabaseBackup(
       // and SQL Server's BACKUP DATABASE writes the .bak file from the
       // `mssql` server process. No-op `runAsUser` for docker/kubernetes
       // — the exec wrapper already enters the container.
-      const runAsUser = project.dbType === "postgres" ? "postgres" : "mssql";
+      const runAsUser = db.dbType === "postgres" ? "postgres" : "mssql";
       const mkdirCmd = buildDbShellCommand(
-        project.dbServiceType,
-        project.dbServiceName,
-        `mkdir -p ${shq(project.dbBackupPath)}`,
+        db.serviceType,
+        db.serviceName,
+        `mkdir -p ${shq(db.dbBackupPath)}`,
         { runAsUser, sudoPassword: credentials.password }
       );
       await executeRemoteCommand(credentials, mkdirCmd);
@@ -100,10 +103,10 @@ async function handleCreateDatabaseBackup(
 
     const filename = await tracked(
       runId,
-      `Running ${project.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
+      `Running ${db.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
       async () => {
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        if (project.dbType === "mssql") {
+        if (db.dbType === "mssql") {
           return await runMssqlBackup(
             project,
             dbName,
@@ -140,8 +143,9 @@ async function runPostgresBackup(
   credentials: { host: string; username: string; password: string },
   compress: boolean
 ): Promise<string> {
+  const db = dbConfig(project);
   const fname = compress ? `${database}_${ts}.sql.gz` : `${database}_${ts}.sql`;
-  const target = `${project.dbBackupPath}/${fname}`;
+  const target = `${db.dbBackupPath}/${fname}`;
   // `--clean --if-exists` emits idempotent DROP IF EXISTS for every object
   // before the CREATE statements, so the dump can be restored into a database
   // that already has the schema (otherwise CREATE TABLE errors out on
@@ -154,12 +158,10 @@ async function runPostgresBackup(
   // `runAsUser: "postgres"` satisfies systemd-postgres peer auth (and is a
   // no-op for docker/kubernetes, which already enter the container as the
   // appropriate user).
-  const cmd = buildDbShellCommand(
-    project.dbServiceType,
-    project.dbServiceName,
-    inner,
-    { runAsUser: "postgres", sudoPassword: credentials.password }
-  );
+  const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -171,13 +173,14 @@ async function runMssqlBackup(
   credentials: { host: string; username: string; password: string },
   compress: boolean
 ): Promise<string> {
-  if (!project.dbPassword) {
+  const db = dbConfig(project);
+  if (!db.dbPassword) {
     throw new Error(
       "Project dbPassword is required for MSSQL backups (sqlcmd needs it)"
     );
   }
   const fname = `${database}_${ts}.bak`;
-  const target = `${project.dbBackupPath}/${fname}`;
+  const target = `${db.dbBackupPath}/${fname}`;
   // MSSQL .bak format is the same regardless of compression — the COMPRESSION
   // option just toggles internal block-level compression. NO_COMPRESSION is
   // the explicit opt-out (also the engine default when omitted, but explicit
@@ -194,9 +197,9 @@ async function runMssqlBackup(
   // SSH error path instead of being silently swallowed on stdout.
   const cmd = buildSqlcmdCommand(
     query,
-    project.dbPassword,
-    project.dbServiceType,
-    project.dbServiceName
+    db.dbPassword,
+    db.serviceType,
+    db.serviceName
   );
   await executeRemoteCommand(credentials, cmd);
   return fname;
@@ -208,11 +211,12 @@ async function handleMockProjectTimeLegacy(
   const { projectId, mockedAt, runId } = data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
+  const backend = backendService(project);
 
   const credentials = {
-    host: project.backendServer.host,
-    username: project.backendServer.username,
-    password: project.backendServer.password,
+    host: backend.server.host,
+    username: backend.server.username,
+    password: backend.server.password,
   };
 
   // `date -s` expects "YYYY-MM-DD HH:MM:SS"; convert from ISO so the shell
@@ -257,11 +261,11 @@ async function handleMockProjectTimeLegacy(
 
     await tracked(
       runId,
-      `Restarting backend service ${project.backendServiceName}`,
+      `Restarting backend service ${backend.serviceName}`,
       async () => {
         const cmd = buildControlCommand(
-          project.backendServiceType,
-          project.backendServiceName,
+          backend.serviceType,
+          backend.serviceName,
           "restart",
           credentials.password
         );
@@ -297,11 +301,12 @@ async function handleMockProjectTimeResetLegacy(
   const { projectId, runId } = data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
+  const backend = backendService(project);
 
   const credentials = {
-    host: project.backendServer.host,
-    username: project.backendServer.username,
-    password: project.backendServer.password,
+    host: backend.server.host,
+    username: backend.server.username,
+    password: backend.server.password,
   };
 
   const sudo = (cmd: string) =>
@@ -336,11 +341,11 @@ async function handleMockProjectTimeResetLegacy(
 
     await tracked(
       runId,
-      `Restarting backend service ${project.backendServiceName}`,
+      `Restarting backend service ${backend.serviceName}`,
       async () => {
         const cmd = buildControlCommand(
-          project.backendServiceType,
-          project.backendServiceName,
+          backend.serviceType,
+          backend.serviceName,
           "restart",
           credentials.password
         );
@@ -385,7 +390,7 @@ function credsOf(server: {
   };
 }
 
-function dbOsUser(dbType: EnvironmentWithServers["dbType"]): string {
+function dbOsUser(dbType: "postgres" | "mssql"): string {
   return dbType === "postgres" ? "postgres" : "mssql";
 }
 
@@ -408,13 +413,14 @@ function buildExtractCommand(
   filePath: string,
   hostTmp: string
 ): string {
+  const db = dbConfig(project);
   const inner = buildDbShellCommand(
-    project.dbServiceType,
-    project.dbServiceName,
+    db.serviceType,
+    db.serviceName,
     `cat ${shq(filePath)}`,
     {
-      runAsUser: dbOsUser(project.dbType),
-      sudoPassword: project.dbServer.password,
+      runAsUser: dbOsUser(db.dbType),
+      sudoPassword: db.server.password,
     }
   );
   return `${inner} > ${shq(hostTmp)}`;
@@ -427,14 +433,15 @@ function buildPlaceCommand(
   hostTmp: string,
   dst: string
 ): string {
-  const name = project.dbServiceName;
-  if (project.dbServiceType === "docker") {
+  const db = dbConfig(project);
+  const name = db.serviceName;
+  if (db.serviceType === "docker") {
     return (
       `docker cp ${shq(hostTmp)} ${shq(`${name}:${dst}`)} && ` +
       `docker exec ${shq(name)} chmod 644 ${shq(dst)}`
     );
   }
-  if (project.dbServiceType === "kubernetes") {
+  if (db.serviceType === "kubernetes") {
     // `kubectl cp` needs a pod name, not a deploy/, so stream via `exec -i`.
     const write = `cat > ${shq(dst)}`;
     return (
@@ -445,12 +452,12 @@ function buildPlaceCommand(
   // systemd: copy in as root, then hand ownership to the DB user. The password
   // only feeds sudo (the file is an argument, not stdin), so there's no stdin
   // conflict.
-  const user = dbOsUser(project.dbType);
+  const user = dbOsUser(db.dbType);
   const script =
     `cp ${shq(hostTmp)} ${shq(dst)}; ` +
     `chown ${user}:${user} ${shq(dst)}; ` +
     `chmod 644 ${shq(dst)}`;
-  return `printf '%s\\n' ${shq(project.dbServer.password)} | sudo -S bash -c ${shq(script)}`;
+  return `printf '%s\\n' ${shq(db.server.password)} | sudo -S bash -c ${shq(script)}`;
 }
 
 // Command (run on the TARGET host) removing the staged copy from the backup dir
@@ -459,14 +466,15 @@ function buildRemovePlacedCommand(
   project: EnvironmentWithServers,
   dst: string
 ): string {
-  const name = project.dbServiceName;
-  if (project.dbServiceType === "docker") {
+  const db = dbConfig(project);
+  const name = db.serviceName;
+  if (db.serviceType === "docker") {
     return `docker exec ${shq(name)} rm -f ${shq(dst)}`;
   }
-  if (project.dbServiceType === "kubernetes") {
+  if (db.serviceType === "kubernetes") {
     return `kubectl exec deploy/${shq(name)} -- rm -f ${shq(dst)}`;
   }
-  return `printf '%s\\n' ${shq(project.dbServer.password)} | sudo -S rm -f ${shq(dst)}`;
+  return `printf '%s\\n' ${shq(db.server.password)} | sudo -S rm -f ${shq(dst)}`;
 }
 
 // Stage `filename` from `sourceProject`'s backup dir into `targetProject`'s
@@ -478,23 +486,25 @@ async function transferBackupToTarget(
   filename: string,
   stamp: string
 ): Promise<() => Promise<void>> {
-  const srcCreds = credsOf(sourceProject.dbServer);
-  const dstCreds = credsOf(targetProject.dbServer);
+  const sourceDb = dbConfig(sourceProject);
+  const targetDb = dbConfig(targetProject);
+  const srcCreds = credsOf(sourceDb.server);
+  const dstCreds = credsOf(targetDb.server);
   const srcHostTmp = `/tmp/opsdeck-restore-src-${stamp}`;
   const dstHostTmp = `/tmp/opsdeck-restore-dst-${stamp}`;
   const localTmp = join(tmpdir(), `opsdeck-restore-${stamp}`);
-  const sourceFile = `${sourceProject.dbBackupPath}/${filename}`;
-  const dst = `${targetProject.dbBackupPath}/${filename}`;
+  const sourceFile = `${sourceDb.dbBackupPath}/${filename}`;
+  const dst = `${targetDb.dbBackupPath}/${filename}`;
 
   // Ensure the target backup dir exists before placing into it.
   await executeRemoteCommand(
     dstCreds,
     buildDbShellCommand(
-      targetProject.dbServiceType,
-      targetProject.dbServiceName,
-      `mkdir -p ${shq(targetProject.dbBackupPath)}`,
+      targetDb.serviceType,
+      targetDb.serviceName,
+      `mkdir -p ${shq(targetDb.dbBackupPath)}`,
       {
-        runAsUser: dbOsUser(targetProject.dbType),
+        runAsUser: dbOsUser(targetDb.dbType),
         sudoPassword: dstCreds.password,
       }
     )
@@ -546,13 +556,14 @@ async function handleRestoreDatabaseBackup(
   } = data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
+  const db = dbConfig(project);
   // Restore target — the configured database unless the picker sent another
   // one (already validated by the action layer).
-  const dbName = database ?? project.dbName;
+  const dbName = database ?? db.dbName;
   const credentials = {
-    host: project.dbServer.host,
-    username: project.dbServer.username,
-    password: project.dbServer.password,
+    host: db.server.host,
+    username: db.server.username,
+    password: db.server.password,
   };
 
   if (!filename) throw new Error("Filename is required");
@@ -563,18 +574,34 @@ async function handleRestoreDatabaseBackup(
   // - Same dbType but different server/service: physically stage the file into
   //   the target's backup dir first (see transferBackupToTarget). Re-validate
   //   the dbType match here (defence in depth — the action already checked).
-  let backupPath = project.dbBackupPath;
+  let backupPath = db.dbBackupPath;
   let cleanupTransfer: (() => Promise<void>) | null = null;
   if (sourceProjectId && sourceProjectId !== projectId) {
     const sourceProject = await loadEnvironmentWithServers(sourceProjectId);
     if (!sourceProject) {
       throw new Error(`Source project ${sourceProjectId} not found`);
     }
-    if (sourceProject.dbType !== project.dbType) {
+    const sourceDb = dbConfig(sourceProject);
+    if (sourceDb.dbType !== db.dbType) {
       throw new Error("Source project database type does not match the target");
     }
-    if (dbLocationMatches(sourceProject, project)) {
-      backupPath = sourceProject.dbBackupPath;
+    if (
+      dbLocationMatches(
+        {
+          serverId: sourceDb.serverId,
+          serviceType: sourceDb.serviceType,
+          serviceName: sourceDb.serviceName,
+          dbType: sourceDb.dbType,
+        },
+        {
+          serverId: db.serverId,
+          serviceType: db.serviceType,
+          serviceName: db.serviceName,
+          dbType: db.dbType,
+        }
+      )
+    ) {
+      backupPath = sourceDb.dbBackupPath;
     } else {
       cleanupTransfer = await tracked(
         runId,
@@ -582,13 +609,13 @@ async function handleRestoreDatabaseBackup(
         () => transferBackupToTarget(sourceProject, project, filename, runId)
       );
       // File now lives under `filename` in the target's own backup dir.
-      backupPath = project.dbBackupPath;
+      backupPath = db.dbBackupPath;
     }
   }
   const source = `${backupPath}/${filename}`;
 
   try {
-    if (project.dbType === "mssql") {
+    if (db.dbType === "mssql") {
       await tracked(runId, `Restoring ${dbName} from ${filename}`, async () => {
         await runMssqlRestore(project, dbName, source, credentials);
       });
@@ -611,18 +638,19 @@ async function handleRestoreDatabaseBackup(
     // (drops stale connections, clears in-memory caches). Runs against the
     // backend server's credentials, not the DB server's.
     if (restartBackend) {
+      const backend = backendService(project);
       await tracked(
         runId,
-        `Restarting backend ${project.backendServiceName}`,
+        `Restarting backend ${backend.serviceName}`,
         async () => {
           const backendCreds = {
-            host: project.backendServer.host,
-            username: project.backendServer.username,
-            password: project.backendServer.password,
+            host: backend.server.host,
+            username: backend.server.username,
+            password: backend.server.password,
           };
           const cmd = buildControlCommand(
-            project.backendServiceType,
-            project.backendServiceName,
+            backend.serviceType,
+            backend.serviceName,
             "restart",
             backendCreds.password
           );
@@ -658,18 +686,17 @@ async function runPostgresRecreateDatabase(
   // doesn't fail with "database is being accessed by other users". Then
   // recreate so the dump pipes into a clean DB — this lets us handle dumps
   // produced both with and without `--clean --if-exists`.
+  const dbSvc = dbConfig(data);
   const dbId = pgQuoteId(database);
   const query = `DROP DATABASE IF EXISTS ${dbId} WITH (FORCE); CREATE DATABASE ${dbId};`;
   // Pipe the query inside the inner shell so the pipeline doesn't compete
   // with sudo -S's stdin on systemd; `runAsUser: "postgres"` is a no-op for
   // docker/kubernetes.
   const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
-  const cmd = buildDbShellCommand(
-    data.dbServiceType,
-    data.dbServiceName,
-    inner,
-    { runAsUser: "postgres", sudoPassword: credentials.password }
-  );
+  const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -684,16 +711,15 @@ async function runPostgresRestore(
   // of silently continuing through a half-broken restore. Branch on the file
   // suffix so we can restore both gzipped (`.sql.gz`) and plain (`.sql`)
   // dumps produced by createDatabaseBackup.
+  const dbSvc = dbConfig(data);
   const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(database)}`;
   const inner = filename.endsWith(".gz")
     ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
     : `${psqlCmd} < ${shq(source)}`;
-  const cmd = buildDbShellCommand(
-    data.dbServiceType,
-    data.dbServiceName,
-    inner,
-    { runAsUser: "postgres", sudoPassword: credentials.password }
-  );
+  const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -762,12 +788,13 @@ async function getMssqlBackupFileList(
   source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<MssqlBackupFile[]> {
+  const dbSvc = dbConfig(data);
   const query = `RESTORE FILELISTONLY FROM DISK = N'${sqlQuoteString(source)}';`;
   const cmd = buildSqlcmdCommand(
     query,
-    data.dbPassword!,
-    data.dbServiceType,
-    data.dbServiceName,
+    dbSvc.dbPassword!,
+    dbSvc.serviceType,
+    dbSvc.serviceName,
     ["-h", "-1", "-W", "-s", "~"]
   );
   const out = await executeRemoteCommand(credentials, cmd);
@@ -821,7 +848,8 @@ async function runMssqlRestore(
   source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  if (!data.dbPassword) {
+  const dbSvc = dbConfig(data);
+  if (!dbSvc.dbPassword) {
     throw new Error(
       "Project dbPassword is required for MSSQL restores (sqlcmd needs it)"
     );
@@ -859,9 +887,9 @@ async function runMssqlRestore(
     `  ALTER DATABASE [${dbId}] SET MULTI_USER;`;
   const cmd = buildSqlcmdCommand(
     query,
-    data.dbPassword,
-    data.dbServiceType,
-    data.dbServiceName
+    dbSvc.dbPassword,
+    dbSvc.serviceType,
+    dbSvc.serviceName
   );
   await executeRemoteCommand(credentials, cmd);
 }
@@ -872,17 +900,18 @@ async function handleCreateDatabase(
   const { projectId, database, runId } = data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
+  const db = dbConfig(project);
   const credentials = {
-    host: project.dbServer.host,
-    username: project.dbServer.username,
-    password: project.dbServer.password,
+    host: db.server.host,
+    username: db.server.username,
+    password: db.server.password,
   };
 
   try {
     if (!database) throw new Error("Database name is required");
 
     await tracked(runId, `Creating database ${database}`, async () => {
-      if (project.dbType === "mssql") {
+      if (db.dbType === "mssql") {
         await runMssqlCreateDatabase(project, database, credentials);
       } else {
         await runPostgresCreateDatabase(project, database, credentials);
@@ -905,14 +934,13 @@ async function runPostgresCreateDatabase(
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
+  const db = dbConfig(project);
   const query = `CREATE DATABASE ${pgQuoteId(database)};`;
   const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
-  const cmd = buildDbShellCommand(
-    project.dbServiceType,
-    project.dbServiceName,
-    inner,
-    { runAsUser: "postgres", sudoPassword: credentials.password }
-  );
+  const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -921,7 +949,8 @@ async function runMssqlCreateDatabase(
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  if (!project.dbPassword) {
+  const db = dbConfig(project);
+  if (!db.dbPassword) {
     throw new Error(
       "Project dbPassword is required for MSSQL database creation (sqlcmd needs it)"
     );
@@ -929,9 +958,9 @@ async function runMssqlCreateDatabase(
   const query = `CREATE DATABASE [${sqlBracketId(database)}];`;
   const cmd = buildSqlcmdCommand(
     query,
-    project.dbPassword,
-    project.dbServiceType,
-    project.dbServiceName
+    db.dbPassword,
+    db.serviceType,
+    db.serviceName
   );
   await executeRemoteCommand(credentials, cmd);
 }
@@ -942,10 +971,11 @@ async function handleDropDatabase(
   const { projectId, database, runId } = data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
+  const db = dbConfig(project);
   const credentials = {
-    host: project.dbServer.host,
-    username: project.dbServer.username,
-    password: project.dbServer.password,
+    host: db.server.host,
+    username: db.server.username,
+    password: db.server.password,
   };
 
   try {
@@ -953,12 +983,12 @@ async function handleDropDatabase(
     // Defence in depth: the action layer already blocks dropping the project's
     // configured database, but re-check here so a hand-crafted event can't
     // wipe the default DB out from under the panel.
-    if (database === project.dbName) {
+    if (database === db.dbName) {
       throw new Error("Refusing to drop the project's configured database");
     }
 
     await tracked(runId, `Dropping database ${database}`, async () => {
-      if (project.dbType === "mssql") {
+      if (db.dbType === "mssql") {
         await runMssqlDropDatabase(project, database, credentials);
       } else {
         await runPostgresDropDatabase(project, database, credentials);
@@ -981,16 +1011,15 @@ async function runPostgresDropDatabase(
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
+  const db = dbConfig(project);
   // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
   // doesn't fail with "database is being accessed by other users".
   const query = `DROP DATABASE IF EXISTS ${pgQuoteId(database)} WITH (FORCE);`;
   const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
-  const cmd = buildDbShellCommand(
-    project.dbServiceType,
-    project.dbServiceName,
-    inner,
-    { runAsUser: "postgres", sudoPassword: credentials.password }
-  );
+  const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -999,7 +1028,8 @@ async function runMssqlDropDatabase(
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  if (!project.dbPassword) {
+  const db = dbConfig(project);
+  if (!db.dbPassword) {
     throw new Error(
       "Project dbPassword is required for MSSQL database drop (sqlcmd needs it)"
     );
@@ -1016,9 +1046,9 @@ async function runMssqlDropDatabase(
     `END;`;
   const cmd = buildSqlcmdCommand(
     query,
-    project.dbPassword,
-    project.dbServiceType,
-    project.dbServiceName
+    db.dbPassword,
+    db.serviceType,
+    db.serviceName
   );
   await executeRemoteCommand(credentials, cmd);
 }
@@ -1029,10 +1059,11 @@ async function handleRenameDatabase(
   const { projectId, from, to, runId } = data;
   const project = await loadEnvironmentWithServers(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
+  const db = dbConfig(project);
   const credentials = {
-    host: project.dbServer.host,
-    username: project.dbServer.username,
-    password: project.dbServer.password,
+    host: db.server.host,
+    username: db.server.username,
+    password: db.server.password,
   };
 
   try {
@@ -1041,12 +1072,12 @@ async function handleRenameDatabase(
     // Defence in depth: the action layer already blocks renaming the project's
     // configured database, but re-check here so a hand-crafted event can't
     // orphan the default DB out from under the panel.
-    if (from === project.dbName) {
+    if (from === db.dbName) {
       throw new Error("Refusing to rename the project's configured database");
     }
 
     await tracked(runId, `Renaming database ${from} → ${to}`, async () => {
-      if (project.dbType === "mssql") {
+      if (db.dbType === "mssql") {
         await runMssqlRenameDatabase(project, from, to, credentials);
       } else {
         await runPostgresRenameDatabase(project, from, to, credentials);
@@ -1070,6 +1101,7 @@ async function runPostgresRenameDatabase(
   to: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
+  const db = dbConfig(project);
   // Terminate active connections first — ALTER DATABASE ... RENAME fails while
   // other sessions hold the source DB open.
   const terminate =
@@ -1078,12 +1110,10 @@ async function runPostgresRenameDatabase(
   const rename = `ALTER DATABASE ${pgQuoteId(from)} RENAME TO ${pgQuoteId(to)};`;
   const query = `${terminate}\n${rename}`;
   const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
-  const cmd = buildDbShellCommand(
-    project.dbServiceType,
-    project.dbServiceName,
-    inner,
-    { runAsUser: "postgres", sudoPassword: credentials.password }
-  );
+  const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
 }
 
@@ -1093,7 +1123,8 @@ async function runMssqlRenameDatabase(
   to: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  if (!project.dbPassword) {
+  const db = dbConfig(project);
+  if (!db.dbPassword) {
     throw new Error(
       "Project dbPassword is required for MSSQL database rename (sqlcmd needs it)"
     );
@@ -1107,9 +1138,9 @@ async function runMssqlRenameDatabase(
     `ALTER DATABASE [${sqlBracketId(to)}] SET MULTI_USER;`;
   const cmd = buildSqlcmdCommand(
     query,
-    project.dbPassword,
-    project.dbServiceType,
-    project.dbServiceName
+    db.dbPassword,
+    db.serviceType,
+    db.serviceName
   );
   await executeRemoteCommand(credentials, cmd);
 }

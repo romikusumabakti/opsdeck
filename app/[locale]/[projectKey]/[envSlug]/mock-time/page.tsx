@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
+import { backendService } from "@/lib/services";
 import { ApiDocsSheet } from "./api-docs-sheet";
 import { MockTime } from "./mock-time";
 
@@ -50,7 +51,7 @@ export default async function Page({
     return <p>{tCommon("projectNotFound")}</p>;
   }
 
-  const hasApi = Boolean(project.backendMockTimeApiUrl?.trim());
+  const hasApi = Boolean(backendService(project).mockTimeApiUrl?.trim());
 
   return (
     <>

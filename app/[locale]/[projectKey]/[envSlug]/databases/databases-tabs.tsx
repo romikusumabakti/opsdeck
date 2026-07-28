@@ -10,7 +10,11 @@ import { useTranslations } from "next-intl";
 import type { DatabaseEntry } from "@/actions/databases";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Environment, SafeEnvironmentWithServers } from "@/lib/db/schema";
+import type {
+  EnvironmentSummary,
+  SafeEnvironmentWithServers,
+} from "@/lib/db/schema";
+import { dbService } from "@/lib/services";
 import type { Backup } from "@/lib/types";
 import { BackupDatabase } from "../backup-database/backup-database";
 import { RestoreDatabase } from "../restore-database/restore-database";
@@ -28,7 +32,7 @@ export function DatabasesTabs({
   project: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
   backups: Backup[];
-  allProjects: Environment[];
+  allProjects: EnvironmentSummary[];
   listError: string | null;
   backupListError: string | null;
   defaultTab?: "manage" | "backup" | "restore";
@@ -40,9 +44,11 @@ export function DatabasesTabs({
   // Other projects of the same DB engine — the valid sources for a cross-project
   // restore (the worker reads them in place when on the same server, otherwise
   // stages the file across hosts). When any exist, the restore tab stays
-  // reachable even with no local backups (a source may have some).
+  // reachable even with no local backups (a source may have some). `dbType` is
+  // joined into the environment list query, so this needs no per-row lookup.
+  const dbType = dbService(project).dbType;
   const sourceProjects = allProjects.filter(
-    (p) => p.id !== project.id && p.dbType === project.dbType
+    (p) => p.id !== project.id && p.dbType === dbType
   );
 
   return (

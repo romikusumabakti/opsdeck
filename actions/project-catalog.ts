@@ -6,7 +6,7 @@ import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
   type Environment,
-  environments,
+  type EnvironmentSummary,
   type Project,
   projects,
 } from "@/lib/db/schema";
@@ -33,8 +33,35 @@ export async function listProjects(): Promise<Project[]> {
 }
 
 export type ProjectWithEnvironments = Project & {
-  environments: Environment[];
+  environments: EnvironmentSummary[];
 };
+
+// The relational query loads each environment's `db` service so list views get
+// the engine + database name inline. Flattening it here keeps every consumer on
+// the same `EnvironmentSummary` shape instead of walking `services` themselves.
+const WITH_DB_SERVICE = {
+  environments: { with: { services: true } },
+} as const;
+
+type EnvironmentWithServiceRows = Environment & {
+  services: { role: string; dbType: unknown; dbName: string | null }[];
+};
+
+function flattenDbSummary(row: {
+  environments: EnvironmentWithServiceRows[];
+}): { environments: EnvironmentSummary[] } {
+  return {
+    ...row,
+    environments: row.environments.map(({ services, ...env }) => {
+      const dbSvc = services.find((s) => s.role === "db");
+      return {
+        ...env,
+        dbType: (dbSvc?.dbType ?? null) as EnvironmentSummary["dbType"],
+        dbName: dbSvc?.dbName ?? null,
+      };
+    }),
+  };
+}
 
 /**
  * Every project with its deployments nested, for the grouped projects grid and
@@ -46,10 +73,13 @@ export async function listProjectsWithEnvironments(): Promise<
   await requireSession();
   try {
     const rows = await db.query.projects.findMany({
-      with: { environments: true },
+      with: WITH_DB_SERVICE,
       orderBy: { name: "asc" },
     });
-    return rows as ProjectWithEnvironments[];
+    return rows.map((row) => ({
+      ...row,
+      ...flattenDbSummary(row as never),
+    })) as ProjectWithEnvironments[];
   } catch (error) {
     console.error("Failed to list projects with environments:", error);
     return [];
@@ -73,9 +103,10 @@ export async function getProjectWithEnvironments(
   await requireSession();
   const row = await db.query.projects.findFirst({
     where: { id },
-    with: { environments: true },
+    with: WITH_DB_SERVICE,
   });
-  return row as ProjectWithEnvironments | undefined;
+  if (!row) return undefined;
+  return { ...row, ...flattenDbSummary(row as never) } as ProjectWithEnvironments;
 }
 
 /**
@@ -89,9 +120,10 @@ export async function getProjectByKeyWithEnvironments(
   await requireSession();
   const row = await db.query.projects.findFirst({
     where: { key: key.toUpperCase() },
-    with: { environments: true },
+    with: WITH_DB_SERVICE,
   });
-  return row as ProjectWithEnvironments | undefined;
+  if (!row) return undefined;
+  return { ...row, ...flattenDbSummary(row as never) } as ProjectWithEnvironments;
 }
 
 export async function addProject(data: unknown): Promise<ActionResponse> {
