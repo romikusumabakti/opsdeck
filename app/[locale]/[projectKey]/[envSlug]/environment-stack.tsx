@@ -34,10 +34,13 @@ type RoleMeta = {
 
 type StatusMap = Partial<Record<ServiceRole, ServiceStatusResult>>;
 
-export function ProjectStack({
-  project,
+export function EnvironmentStack({
+  environment,
+  envPath,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
+  // Readable base path of the environment (`/[projectKey]/[envSlug]`).
+  envPath: string;
 }) {
   const t = useTranslations("dashboard.stack");
   const tDash = useTranslations("dashboard");
@@ -48,7 +51,7 @@ export function ProjectStack({
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getAllServiceStatuses(project.id)
+    getAllServiceStatuses(environment.id)
       .then((results) => {
         if (cancelled) return;
         const next: StatusMap = {};
@@ -67,11 +70,11 @@ export function ProjectStack({
     return () => {
       cancelled = true;
     };
-  }, [project, tCommon]);
+  }, [environment, tCommon]);
 
-  const dbSvc = dbService(project);
-  const backendSvc = backendService(project);
-  const frontendSvc = frontendService(project);
+  const dbSvc = dbService(environment);
+  const backendSvc = backendService(environment);
+  const frontendSvc = frontendService(environment);
 
   const roles: RoleMeta[] = [
     {
@@ -116,7 +119,7 @@ export function ProjectStack({
           <CardTitle className="text-base">{t("title")}</CardTitle>
         </div>
         <Link
-          href={`/projects/${project.id}/services`}
+          href={`${envPath}/services`}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
         >
           {t("manage")}
@@ -185,7 +188,7 @@ function StackRow({
   );
 }
 
-export function ProjectStackSkeleton() {
+export function EnvironmentStackSkeleton() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center gap-2 space-y-0">

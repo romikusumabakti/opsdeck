@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, ServerCog } from "lucide-react";
+import { ArrowLeft, Folder, ServerCog } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServerById, getServerUsage } from "@/actions/servers";
@@ -43,12 +43,9 @@ export default async function EditServerPage({
         title={t("title", { name: server.name })}
         subtitle={t("description")}
         action={
-          <Button
-            variant="outline"
-            render={<Link href={`/servers/${id}/files`} />}
-          >
-            <FolderOpen className="size-4" />
-            {t("browseFiles")}
+          <Button variant="outline" render={<Link href="/servers" />}>
+            <ArrowLeft className="size-4" />
+            {t("backToServers")}
           </Button>
         }
       />
@@ -88,15 +85,15 @@ export default async function EditServerPage({
               <ul className="divide-y border-t">
                 {usage.map((u) => (
                   <li
-                    key={u.project.id}
+                    key={u.environment.id}
                     className="flex items-center justify-between gap-2 px-6 py-3"
                   >
                     <Link
-                      href={`/projects/${u.project.id}`}
+                      href={`/${u.environment.projectKey}/${u.environment.slug}`}
                       className="font-medium truncate hover:underline"
-                      title={u.project.name}
+                      title={u.environment.name}
                     >
-                      {u.project.name}
+                      {u.environment.name}
                     </Link>
                     <span className="flex flex-wrap gap-1 shrink-0">
                       {u.roles.map((r) => (

@@ -106,7 +106,10 @@ export async function getProjectWithEnvironments(
     with: WITH_DB_SERVICE,
   });
   if (!row) return undefined;
-  return { ...row, ...flattenDbSummary(row as never) } as ProjectWithEnvironments;
+  return {
+    ...row,
+    ...flattenDbSummary(row as never),
+  } as ProjectWithEnvironments;
 }
 
 /**
@@ -123,7 +126,10 @@ export async function getProjectByKeyWithEnvironments(
     with: WITH_DB_SERVICE,
   });
   if (!row) return undefined;
-  return { ...row, ...flattenDbSummary(row as never) } as ProjectWithEnvironments;
+  return {
+    ...row,
+    ...flattenDbSummary(row as never),
+  } as ProjectWithEnvironments;
 }
 
 export async function addProject(data: unknown): Promise<ActionResponse> {

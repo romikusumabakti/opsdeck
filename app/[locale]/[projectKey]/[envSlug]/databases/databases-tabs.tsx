@@ -21,7 +21,7 @@ import { RestoreDatabase } from "../restore-database/restore-database";
 import { ManageDatabases } from "./manage-databases";
 
 export function DatabasesTabs({
-  project,
+  environment,
   databases,
   backups,
   allProjects,
@@ -29,7 +29,7 @@ export function DatabasesTabs({
   backupListError,
   defaultTab = "backup",
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
   backups: Backup[];
   allProjects: EnvironmentSummary[];
@@ -41,14 +41,14 @@ export function DatabasesTabs({
   const tBackup = useTranslations("backupDb");
   const tRestore = useTranslations("restoreDb");
 
-  // Other projects of the same DB engine — the valid sources for a cross-project
+  // Other projects of the same DB engine — the valid sources for a cross-environment
   // restore (the worker reads them in place when on the same server, otherwise
   // stages the file across hosts). When any exist, the restore tab stays
   // reachable even with no local backups (a source may have some). `dbType` is
   // joined into the environment list query, so this needs no per-row lookup.
-  const dbType = dbService(project).dbType;
-  const sourceProjects = allProjects.filter(
-    (p) => p.id !== project.id && p.dbType === dbType
+  const dbType = dbService(environment).dbType;
+  const sourceEnvironments = allProjects.filter(
+    (p) => p.id !== environment.id && p.dbType === dbType
   );
 
   return (
@@ -78,7 +78,7 @@ export function DatabasesTabs({
         <p className="text-sm text-muted-foreground">
           {tBackup("targetDescription")}
         </p>
-        <BackupDatabase project={project} databases={databases} />
+        <BackupDatabase environment={environment} databases={databases} />
         <p className="text-xs text-muted-foreground">{tBackup("infoNote")}</p>
       </TabsContent>
 
@@ -94,7 +94,7 @@ export function DatabasesTabs({
             <AlertTriangle className="size-4 shrink-0 mt-0.5" />
             <p>{backupListError}</p>
           </div>
-        ) : backups.length === 0 && sourceProjects.length === 0 ? (
+        ) : backups.length === 0 && sourceEnvironments.length === 0 ? (
           <EmptyState
             icon={DatabaseBackup}
             title={tRestore("backupsNotFound")}
@@ -107,10 +107,10 @@ export function DatabasesTabs({
               <p>{tRestore("dangerNote")}</p>
             </div>
             <RestoreDatabase
-              project={project}
+              environment={environment}
               backups={backups}
               databases={databases}
-              sourceProjects={sourceProjects}
+              sourceEnvironments={sourceEnvironments}
             />
           </>
         )}
@@ -126,7 +126,7 @@ export function DatabasesTabs({
             <p>{listError}</p>
           </div>
         )}
-        <ManageDatabases project={project} databases={databases} />
+        <ManageDatabases environment={environment} databases={databases} />
       </TabsContent>
     </Tabs>
   );

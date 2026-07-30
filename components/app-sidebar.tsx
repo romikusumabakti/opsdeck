@@ -61,12 +61,12 @@ type AppSidebarUser = {
 };
 
 export function AppSidebar({
-  projects,
+  environments,
   isAdmin,
   user,
   side = "left",
 }: {
-  projects: EnvironmentListItem[];
+  environments: EnvironmentListItem[];
   isAdmin: boolean;
   user: AppSidebarUser;
   side?: "left" | "right";
@@ -76,8 +76,9 @@ export function AppSidebar({
   const pathname = usePathname();
 
   const match = ENV_PATH_REGEX.exec(pathname);
-  const activeProject = match
-    ? (projects.find((p) => p.key === match[1] && p.slug === match[2]) ?? null)
+  const activeEnv = match
+    ? (environments.find((e) => e.key === match[1] && e.slug === match[2]) ??
+      null)
     : null;
 
   return (
@@ -191,17 +192,17 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {activeProject && (
+        {activeEnv && (
           <SidebarGroup>
             <SidebarGroupLabel className="truncate">
-              {activeProject.name}
+              {activeEnv.name}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {projectItems
                   .filter((item) => !item.adminOnly || isAdmin)
                   .map((item) => {
-                    const itemPath = `/${activeProject.key}/${activeProject.slug}${item.url}`;
+                    const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
                     const isActive =
                       item.url === ""
                         ? pathname === itemPath

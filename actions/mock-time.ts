@@ -3,7 +3,7 @@
 import { requireCapability, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type EnvironmentWithServers, runs } from "@/lib/db/schema";
-import { loadEnvironmentWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import type { Capability } from "@/lib/roles";
 import { createRun } from "@/lib/run-progress";
@@ -12,7 +12,7 @@ import { executeRemoteCommand } from "@/lib/ssh";
 import {
   isoDateTimeSchema,
   isoDurationSchema,
-  projectIdSchema,
+  uuidSchema,
 } from "@/lib/validation";
 
 export type ClockState = {
@@ -34,29 +34,29 @@ export type ApiResult<T = ClockState> =
 // load even when the underlying request would have succeeded.
 const API_TIMEOUT_MS = 30_000;
 
-// Validate + auth + load the project for a mock-time action in one place. The
+// Validate + auth + load the environment for a mock-time action in one place. The
 // API URL/key come from the loaded (trusted) DB record, never the client — so
 // the server-side `fetch` below can't be redirected to an attacker URL (SSRF).
-async function requireProject(
-  projectId: string,
+async function requireEnvironment(
+  environmentId: string,
   // Mutating clock actions pass "ops.destructive" (maintainer+); the read path
   // defaults to "read", which every authenticated user satisfies, so reads are
   // never blocked and skip the per-project membership lookup.
   capability: Capability = "read"
 ): Promise<
-  | { ok: true; project: EnvironmentWithServers; userId: string }
+  | { ok: true; environment: EnvironmentWithServers; userId: string }
   | { ok: false; error: string }
 > {
-  if (!projectIdSchema.safeParse(projectId).success) {
-    return { ok: false, error: "Invalid project id" };
+  if (!uuidSchema.safeParse(environmentId).success) {
+    return { ok: false, error: "Invalid environment id" };
   }
   const session =
     capability === "read"
       ? await requireSession()
-      : await requireCapability(capability, { environmentId: projectId });
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) return { ok: false, error: "Project not found" };
-  return { ok: true, project, userId: session.user.id };
+      : await requireCapability(capability, { environmentId });
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) return { ok: false, error: "Environment not found" };
+  return { ok: true, environment, userId: session.user.id };
 }
 
 // Node's fetch retries every resolved address (Happy Eyeballs). When all fail
@@ -101,8 +101,8 @@ async function describeHttpError(response: Response): Promise<string> {
   return statusLine;
 }
 
-function clockUrl(project: EnvironmentWithServers): string | null {
-  const url = backendService(project).mockTimeApiUrl?.trim();
+function clockUrl(environment: EnvironmentWithServers): string | null {
+  const url = backendService(environment).mockTimeApiUrl?.trim();
   return url ? url.replace(/\/+$/, "") : null;
 }
 
@@ -123,16 +123,16 @@ type ClockRequest = {
 };
 
 async function clockFetch(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   req: ClockRequest
 ): Promise<Response> {
-  const base = clockUrl(project);
-  if (!base) throw new Error("Project has no mock-time API URL configured");
+  const base = clockUrl(environment);
+  if (!base) throw new Error("Environment has no mock-time API URL configured");
   const url = req.path ? `${base}${req.path}` : base;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  const apiKey = backendService(project).mockTimeApiKey?.trim();
+  const apiKey = backendService(environment).mockTimeApiKey?.trim();
   if (apiKey) headers["X-Api-Key"] = apiKey;
   const init: RequestInit = {
     method: req.method,
@@ -144,7 +144,7 @@ async function clockFetch(
 }
 
 async function recordAudit(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   userId: string,
   runAt: Date,
   description: string,
@@ -153,7 +153,7 @@ async function recordAudit(
 ) {
   try {
     await db.insert(runs).values({
-      environmentId: project.id,
+      environmentId: environment.id,
       userId,
       description,
       status,
@@ -167,7 +167,7 @@ async function recordAudit(
 }
 
 async function callMutating(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   userId: string,
   req: ClockRequest,
   auditDescription: string,
@@ -176,11 +176,11 @@ async function callMutating(
   const runAt = new Date();
   let response: Response;
   try {
-    response = await clockFetch(project, req);
+    response = await clockFetch(environment, req);
   } catch (err) {
     const error = describeFetchError(err);
     await recordAudit(
-      project,
+      environment,
       userId,
       runAt,
       auditDescription,
@@ -192,7 +192,7 @@ async function callMutating(
   if (!response.ok) {
     const error = await describeHttpError(response);
     await recordAudit(
-      project,
+      environment,
       userId,
       runAt,
       auditDescription,
@@ -209,7 +209,7 @@ async function callMutating(
       if (!isClockState(parsed)) {
         const error = "Unexpected response shape from clock API";
         await recordAudit(
-          project,
+          environment,
           userId,
           runAt,
           auditDescription,
@@ -222,7 +222,7 @@ async function callMutating(
     } catch (err) {
       const error = `Invalid JSON from clock API: ${describeFetchError(err)}`;
       await recordAudit(
-        project,
+        environment,
         userId,
         runAt,
         auditDescription,
@@ -233,18 +233,18 @@ async function callMutating(
     }
   }
 
-  await recordAudit(project, userId, runAt, auditDescription, "success");
+  await recordAudit(environment, userId, runAt, auditDescription, "success");
   return { success: true, data };
 }
 
 export async function getClockState(
-  projectId: string
+  environmentId: string
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireProject(projectId);
+  const ctx = await requireEnvironment(environmentId);
   if (!ctx.ok) return { success: false, error: ctx.error };
   let response: Response;
   try {
-    response = await clockFetch(ctx.project, { method: "GET" });
+    response = await clockFetch(ctx.environment, { method: "GET" });
   } catch (err) {
     return { success: false, error: describeFetchError(err) };
   }
@@ -269,16 +269,16 @@ export async function getClockState(
 }
 
 export async function travelClock(
-  projectId: string,
+  environmentId: string,
   target: string
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, error: ctx.error };
   if (!isoDateTimeSchema.safeParse(target).success) {
     return { success: false, error: "Invalid target timestamp" };
   }
   const result = await callMutating(
-    ctx.project,
+    ctx.environment,
     ctx.userId,
     { method: "POST", path: "/travel", body: { target } },
     `Mock time: travel to ${target}`,
@@ -289,10 +289,10 @@ export async function travelClock(
 }
 
 export async function freezeClock(
-  projectId: string,
+  environmentId: string,
   at: string | null
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, error: ctx.error };
   if (at !== null && !isoDateTimeSchema.safeParse(at).success) {
     return { success: false, error: "Invalid freeze timestamp" };
@@ -302,7 +302,7 @@ export async function freezeClock(
     ? `Mock time: freeze at ${at}`
     : "Mock time: freeze at current time";
   const result = await callMutating(
-    ctx.project,
+    ctx.environment,
     ctx.userId,
     { method: "POST", path: "/freeze", body },
     description,
@@ -313,16 +313,16 @@ export async function freezeClock(
 }
 
 export async function advanceClock(
-  projectId: string,
+  environmentId: string,
   duration: string
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, error: ctx.error };
   if (!isoDurationSchema.safeParse(duration).success) {
     return { success: false, error: "Invalid duration" };
   }
   const result = await callMutating(
-    ctx.project,
+    ctx.environment,
     ctx.userId,
     { method: "POST", path: "/advance", body: { duration } },
     `Mock time: advance by ${duration}`,
@@ -332,12 +332,14 @@ export async function advanceClock(
   return { success: true, data: result.data as ClockState };
 }
 
-export async function resetClock(projectId: string): Promise<ApiResult<null>> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+export async function resetClock(
+  environmentId: string
+): Promise<ApiResult<null>> {
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, error: ctx.error };
   // DELETE /clock returns 204 No Content — don't try to parse a body.
   const result = await callMutating(
-    ctx.project,
+    ctx.environment,
     ctx.userId,
     { method: "DELETE" },
     "Mock time: reset to real time",
@@ -348,22 +350,22 @@ export async function resetClock(projectId: string): Promise<ApiResult<null>> {
 }
 
 export async function mockProjectTimeLegacy(
-  projectId: string,
+  environmentId: string,
   mockedAt: string
 ): Promise<LegacyResult> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   if (!isoDateTimeSchema.safeParse(mockedAt).success) {
     return { success: false, mode: "legacy", error: "Invalid timestamp" };
   }
   try {
     const runId = await createRun({
-      environmentId: ctx.project.id,
+      environmentId: ctx.environment.id,
       userId: ctx.userId,
       description: `Mock time to ${mockedAt} (legacy)`,
     });
-    await enqueue("project/mock-time.legacy", {
-      projectId: ctx.project.id,
+    await enqueue("environment/mock-time.legacy", {
+      environmentId: ctx.environment.id,
       mockedAt,
       runId,
     });
@@ -373,8 +375,8 @@ export async function mockProjectTimeLegacy(
   }
 }
 
-function legacyCredentials(project: EnvironmentWithServers) {
-  const backendSvc = backendService(project);
+function legacyCredentials(environment: EnvironmentWithServers) {
+  const backendSvc = backendService(environment);
   return {
     host: backendSvc.server.host,
     username: backendSvc.server.username,
@@ -408,13 +410,13 @@ function parseIsoDurationMs(duration: string): number | null {
 const LEGACY_MOCK_DRIFT_THRESHOLD_MS = 5 * 60 * 1000;
 
 export async function getClockStateLegacy(
-  projectId: string
+  environmentId: string
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireProject(projectId);
+  const ctx = await requireEnvironment(environmentId);
   if (!ctx.ok) return { success: false, error: ctx.error };
   try {
     const stdout = await executeRemoteCommand(
-      legacyCredentials(ctx.project),
+      legacyCredentials(ctx.environment),
       "date -u +%Y-%m-%dT%H:%M:%SZ"
     );
     const now = stdout.trim();
@@ -440,10 +442,10 @@ export async function getClockStateLegacy(
 }
 
 export async function advanceClockLegacy(
-  projectId: string,
+  environmentId: string,
   duration: string
 ): Promise<LegacyResult> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   const offsetMs = parseIsoDurationMs(duration);
   if (offsetMs === null) {
@@ -459,7 +461,7 @@ export async function advanceClockLegacy(
   let baseMs: number;
   try {
     const stdout = await executeRemoteCommand(
-      legacyCredentials(ctx.project),
+      legacyCredentials(ctx.environment),
       "date -u +%Y-%m-%dT%H:%M:%SZ"
     );
     const parsed = new Date(stdout.trim()).getTime();
@@ -470,12 +472,12 @@ export async function advanceClockLegacy(
   const targetIso = new Date(baseMs + offsetMs).toISOString();
   try {
     const runId = await createRun({
-      environmentId: ctx.project.id,
+      environmentId: ctx.environment.id,
       userId: ctx.userId,
       description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
     });
-    await enqueue("project/mock-time.legacy", {
-      projectId: ctx.project.id,
+    await enqueue("environment/mock-time.legacy", {
+      environmentId: ctx.environment.id,
       mockedAt: targetIso,
       runId,
     });
@@ -486,18 +488,18 @@ export async function advanceClockLegacy(
 }
 
 export async function resetClockLegacy(
-  projectId: string
+  environmentId: string
 ): Promise<LegacyResult> {
-  const ctx = await requireProject(projectId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, "ops.destructive");
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   try {
     const runId = await createRun({
-      environmentId: ctx.project.id,
+      environmentId: ctx.environment.id,
       userId: ctx.userId,
       description: "Reset clock to real time (legacy)",
     });
-    await enqueue("project/mock-time.reset-legacy", {
-      projectId: ctx.project.id,
+    await enqueue("environment/mock-time.reset-legacy", {
+      environmentId: ctx.environment.id,
       runId,
     });
     return { success: true, mode: "legacy", runId };

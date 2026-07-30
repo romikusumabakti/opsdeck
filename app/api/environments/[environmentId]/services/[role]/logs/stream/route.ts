@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
-import { loadEnvironmentWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/environments";
 import {
   buildFollowLogsCommand,
   getServiceConfig,
@@ -35,23 +35,23 @@ function parseLines(raw: string | null): LogLines {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string; role: string }> }
+  { params }: { params: Promise<{ environmentId: string; role: string }> }
 ) {
   const session = await getServerSession();
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
-  const { projectId, role } = await params;
+  const { environmentId, role } = await params;
   if (!VALID_ROLES.includes(role as ServiceRole)) {
     return new NextResponse("Invalid role", { status: 400 });
   }
 
-  // Load the full project (with credentials) server-side — the SSH password is
+  // Load the full environment (with credentials) server-side — the SSH password is
   // needed to open the log stream and must never come from the client.
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) return new NextResponse("Not found", { status: 404 });
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) return new NextResponse("Not found", { status: 404 });
 
   const lines = parseLines(req.nextUrl.searchParams.get("lines"));
-  const cfg = getServiceConfig(project, role as ServiceRole);
+  const cfg = getServiceConfig(environment, role as ServiceRole);
   const command = buildFollowLogsCommand(
     cfg.serviceType,
     cfg.serviceName,

@@ -121,7 +121,7 @@ export function ActiveRunsIndicator() {
                         {run.description}
                       </span>
                       <span className="block text-xs text-muted-foreground truncate">
-                        {run.project?.name ?? "—"} ·{" "}
+                        {run.environment?.name ?? "—"} ·{" "}
                         {formatElapsed(run.runAt, now)}
                       </span>
                     </span>

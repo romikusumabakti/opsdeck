@@ -330,69 +330,69 @@ export function FileExplorer({ source, rootLabel }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-            {entries.map((entry) => (
-              <TableRow key={entry.path}>
-                <TableCell>
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 text-left hover:underline"
-                    onClick={() => onOpen(entry)}
-                  >
-                    {entry.type === "dir" ? (
-                      <Folder className="size-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <span className="truncate">{entry.name}</span>
-                  </button>
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {entry.type === "file" && entry.sizeBytes != null
-                    ? formatBytes(entry.sizeBytes)
-                    : "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {entry.modifiedAt
-                    ? formatDistanceToNow(new Date(entry.modifiedAt), {
-                        addSuffix: true,
-                        locale: getDateFnsLocale(locale),
-                      })
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button variant="ghost" size="icon-sm">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      }
-                    />
-                    <DropdownMenuContent align="end">
-                      {entry.type === "file" ? (
-                        <DropdownMenuItem onClick={() => onOpen(entry)}>
-                          <Download className="size-4" />
-                          {t("download")}
+              {entries.map((entry) => (
+                <TableRow key={entry.path}>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-left hover:underline"
+                      onClick={() => onOpen(entry)}
+                    >
+                      {entry.type === "dir" ? (
+                        <Folder className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="truncate">{entry.name}</span>
+                    </button>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {entry.type === "file" && entry.sizeBytes != null
+                      ? formatBytes(entry.sizeBytes)
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {entry.modifiedAt
+                      ? formatDistanceToNow(new Date(entry.modifiedAt), {
+                          addSuffix: true,
+                          locale: getDateFnsLocale(locale),
+                        })
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button variant="ghost" size="icon-sm">
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        }
+                      />
+                      <DropdownMenuContent align="end">
+                        {entry.type === "file" ? (
+                          <DropdownMenuItem onClick={() => onOpen(entry)}>
+                            <Download className="size-4" />
+                            {t("download")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem onClick={() => onRename(entry)}>
+                          <Pencil className="size-4" />
+                          {t("rename")}
                         </DropdownMenuItem>
-                      ) : null}
-                      <DropdownMenuItem onClick={() => onRename(entry)}>
-                        <Pencil className="size-4" />
-                        {t("rename")}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => onDelete(entry)}
-                      >
-                        <Trash2 className="size-4" />
-                        {tCommon("delete")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => onDelete(entry)}
+                        >
+                          <Trash2 className="size-4" />
+                          {tCommon("delete")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
           </Table>
         </div>
       )}

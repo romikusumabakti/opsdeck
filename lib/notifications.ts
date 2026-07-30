@@ -28,7 +28,7 @@ export async function notifyIssueAssigned(input: {
     userId: input.assigneeId,
     type: "issue_assigned",
     data: { key: input.projectKey, number: input.number, title: input.title },
-    href: `/project/${input.projectKey}/${input.number}`,
+    href: `/${input.projectKey}/issues/${input.number}`,
   });
 }
 
@@ -45,14 +45,15 @@ export async function notifyIssueMention(input: {
     userId: input.userId,
     type: "issue_mention",
     data: { key: input.projectKey, number: input.number, title: input.title },
-    href: `/project/${input.projectKey}/${input.number}`,
+    href: `/${input.projectKey}/issues/${input.number}`,
   });
 }
 
 /** Notify the user who initiated a run when it fails. */
 export async function notifyRunFailed(input: {
   userId: string | null | undefined;
-  environmentId: string;
+  projectKey: string;
+  envSlug: string;
   environmentName: string;
   description: string;
 }): Promise<void> {
@@ -64,6 +65,6 @@ export async function notifyRunFailed(input: {
       environment: input.environmentName,
       description: input.description,
     },
-    href: `/projects/${input.environmentId}/history`,
+    href: `/${input.projectKey}/${input.envSlug}/history`,
   });
 }

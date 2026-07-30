@@ -1,78 +1,21 @@
-import { Copy, FolderPlus } from "lucide-react";
-import { getTranslations, setRequestLocale } from "next-intl/server";
-import { listProjects } from "@/actions/project-catalog";
-import { getProjectById } from "@/actions/projects";
-import { getServers } from "@/actions/servers";
-import { PageHeader } from "@/components/page-header";
-import { ProjectForm } from "@/components/project-form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { requireAdmin } from "@/lib/auth-session";
+import { redirect } from "next/navigation";
 
-export default async function NewProjectPage({
+// Creating a deployment moved to /environments/new when "project" (the old name
+// for a deployment) became "environment". Old links land here; forward them,
+// query string included, so bookmarked clone/preselect URLs keep working.
+export default async function LegacyNewEnvironmentRedirect({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ from?: string; project?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ locale }, { from, project }] = await Promise.all([
-    params,
-    searchParams,
-  ]);
-  setRequestLocale(locale);
-
-  await requireAdmin();
-
-  const t = await getTranslations("newProject");
-  const [servers, projects, cloneFrom] = await Promise.all([
-    getServers(),
-    listProjects(),
-    from ? getProjectById(from) : Promise.resolve(undefined),
-  ]);
-
-  const isCloning = Boolean(cloneFrom);
-
-  return (
-    <>
-      <PageHeader
-        title={isCloning ? t("cloneTitle") : t("title")}
-        subtitle={
-          isCloning && cloneFrom
-            ? t("cloneDescription", { name: cloneFrom.name })
-            : t("description")
-        }
-      />
-      <Card className="max-w-2xl w-full">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            {isCloning ? (
-              <Copy className="size-5 text-muted-foreground" />
-            ) : (
-              <FolderPlus className="size-5 text-muted-foreground" />
-            )}
-            <CardTitle className="text-base">
-              {isCloning ? t("cloneFormTitle") : t("formTitle")}
-            </CardTitle>
-          </div>
-          <CardDescription>
-            {isCloning ? t("cloneFormDescription") : t("formDescription")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProjectForm
-            mode={{ type: "create", cloneFrom: cloneFrom ?? undefined }}
-            servers={servers}
-            projects={projects}
-            defaultProjectId={project}
-          />
-        </CardContent>
-      </Card>
-    </>
-  );
+  const [{ locale }, search] = await Promise.all([params, searchParams]);
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(search)) {
+    if (typeof value === "string") qs.set(key, value);
+    else if (Array.isArray(value)) for (const v of value) qs.append(key, v);
+  }
+  const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+  redirect(`/${locale}/environments/new${suffix}`);
 }

@@ -1,10 +1,10 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
-import { getProjectById } from "@/actions/projects";
+import { getEnvironmentById } from "@/actions/environments";
 import { PageHeader } from "@/components/page-header";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { DashboardKpis, DashboardKpisSkeleton } from "./dashboard-kpis";
-import { ProjectStack } from "./project-stack";
+import { EnvironmentStack } from "./environment-stack";
 import { RecentActivity, RecentActivitySkeleton } from "./recent-activity";
 
 export default async function Page({
@@ -13,28 +13,29 @@ export default async function Page({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const envPath = `/${projectKey}/${envSlug}`;
   setRequestLocale(locale);
-  const project = await getProjectById(projectId);
+  const environment = await getEnvironmentById(environmentId);
   const t = await getTranslations("dashboard");
   const tCommon = await getTranslations("common");
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
   return (
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", { name: project.name })}
+        subtitle={t("subtitle", { name: environment.name })}
       />
       <Suspense fallback={<DashboardKpisSkeleton />}>
-        <DashboardKpis projectId={projectId} />
+        <DashboardKpis environmentId={environmentId} />
       </Suspense>
-      <ProjectStack project={project} />
+      <EnvironmentStack environment={environment} envPath={envPath} />
       <Suspense fallback={<RecentActivitySkeleton />}>
-        <RecentActivity projectId={projectId} />
+        <RecentActivity environmentId={environmentId} envPath={envPath} />
       </Suspense>
     </>
   );

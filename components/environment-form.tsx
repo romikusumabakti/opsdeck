@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { createProject, updateProject } from "@/actions/projects";
+import { createEnvironment, updateEnvironment } from "@/actions/environments";
 import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { ServerCreateDialog } from "@/components/server-create-dialog";
 import { Button } from "@/components/ui/button";
@@ -47,9 +47,9 @@ type ServerRole = "db" | "backend" | "frontend";
 
 type Mode =
   | { type: "create"; cloneFrom?: SafeEnvironmentWithServers }
-  | { type: "edit"; project: SafeEnvironmentWithServers };
+  | { type: "edit"; environment: SafeEnvironmentWithServers };
 
-export function ProjectForm({
+export function EnvironmentForm({
   mode,
   servers: initialServers,
   projects: initialProjects,
@@ -62,7 +62,7 @@ export function ProjectForm({
   // a project overview). Ignored on edit/clone, which take the source's project.
   defaultProjectId?: string;
 }) {
-  const t = useTranslations("projectForm");
+  const t = useTranslations("environmentForm");
   const tEnums = useTranslations("dashboard");
   const tKinds = useTranslations("environmentKinds");
   const tCommon = useTranslations("common");
@@ -113,7 +113,7 @@ export function ProjectForm({
       // surface the error inline where possible).
       if (data.dbType !== "mssql") return;
       const hasStored =
-        mode.type === "edit" && dbService(mode.project).hasDbPassword;
+        mode.type === "edit" && dbService(mode.environment).hasDbPassword;
       if (!data.dbPassword && !hasStored) {
         ctx.addIssue({
           code: "custom",
@@ -127,7 +127,7 @@ export function ProjectForm({
 
   const source =
     mode.type === "edit"
-      ? mode.project
+      ? mode.environment
       : mode.type === "create" && mode.cloneFrom
         ? mode.cloneFrom
         : null;
@@ -141,7 +141,7 @@ export function ProjectForm({
     defaultValues: source
       ? {
           projectId: source.projectId,
-          // On clone, suffix the source name to make it obvious the new project
+          // On clone, suffix the source name to make it obvious the new environment
           // is a copy and to avoid duplicate-name confusion in the picker.
           name:
             mode.type === "create"
@@ -235,8 +235,8 @@ export function ProjectForm({
           : withPassword;
     const result =
       mode.type === "create"
-        ? await createProject(payload)
-        : await updateProject(mode.project.id, payload);
+        ? await createEnvironment(payload)
+        : await updateEnvironment(mode.environment.id, payload);
 
     if (!result.success || !result.data) {
       toast.error(result.message ?? t("submitFailed"));
@@ -248,7 +248,16 @@ export function ProjectForm({
     );
 
     if (mode.type === "create") {
-      router.push(`/projects/${result.data.id}`);
+      // Land on the new environment's readable URL. The parent project's key
+      // comes from the picker's own list — the created row only carries ids.
+      const parentKey = projects.find(
+        (p) => p.id === result.data?.projectId
+      )?.key;
+      if (parentKey) {
+        router.push(`/${parentKey}/${result.data.slug}`);
+      } else {
+        router.push("/projects");
+      }
     }
     router.refresh();
   }
@@ -545,7 +554,7 @@ export function ProjectForm({
                       autoComplete="new-password"
                       placeholder={
                         mode.type === "edit" &&
-                        backendService(mode.project).hasMockTimeApiKey
+                        backendService(mode.environment).hasMockTimeApiKey
                           ? t("mockTimeApiKeyEditPlaceholder")
                           : ""
                       }

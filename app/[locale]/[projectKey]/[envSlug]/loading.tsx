@@ -1,6 +1,6 @@
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { DashboardKpisSkeleton } from "./dashboard-kpis";
-import { ProjectStackSkeleton } from "./project-stack";
+import { EnvironmentStackSkeleton } from "./environment-stack";
 import { RecentActivitySkeleton } from "./recent-activity";
 
 export default function Loading() {
@@ -8,7 +8,7 @@ export default function Loading() {
     <>
       <PageHeaderSkeleton withAction={false} />
       <DashboardKpisSkeleton />
-      <ProjectStackSkeleton />
+      <EnvironmentStackSkeleton />
       <RecentActivitySkeleton />
     </>
   );

@@ -252,7 +252,7 @@ export function IssuesClient({
         const i = cursorRef.current;
         if (i >= 0 && i < visible.length) {
           e.preventDefault();
-          router.push(`/project/${projectKey}/${visible[i].number}`);
+          router.push(`/${projectKey}/issues/${visible[i].number}`);
         }
       }
     }
@@ -442,7 +442,7 @@ export function IssuesClient({
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       <Link
-                        href={`/project/${projectKey}/${issue.number}`}
+                        href={`/${projectKey}/issues/${issue.number}`}
                         className="hover:text-foreground hover:underline"
                       >
                         {projectKey}-{issue.number}
@@ -452,7 +452,7 @@ export function IssuesClient({
                       <span className="flex items-center gap-2">
                         <TypeIcon type={issue.type as IssueType} />
                         <Link
-                          href={`/project/${projectKey}/${issue.number}`}
+                          href={`/${projectKey}/issues/${issue.number}`}
                           className="hover:underline"
                         >
                           {issue.title}

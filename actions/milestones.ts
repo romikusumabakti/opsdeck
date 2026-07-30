@@ -76,7 +76,7 @@ export async function createMilestone(data: unknown): Promise<ActionResponse> {
       entityId: row.id,
       data: { name: row.name },
     });
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true, data: row };
   } catch (error) {
     console.error("Failed to create milestone:", error);
@@ -102,7 +102,7 @@ export async function updateMilestone(
       .where(eq(milestones.id, id))
       .returning();
     if (!row) return { success: false, message: "Milestone not found" };
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true, data: row };
   } catch (error) {
     console.error(`Failed to update milestone ${id}:`, error);
@@ -123,7 +123,7 @@ export async function setMilestoneClosed(
       .where(eq(milestones.id, id))
       .returning();
     if (!row) return { success: false, message: "Milestone not found" };
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true, data: row };
   } catch (error) {
     console.error(`Failed to toggle milestone ${id}:`, error);
@@ -136,7 +136,7 @@ export async function deleteMilestone(id: string): Promise<ActionResponse> {
   await requireSession();
   try {
     await db.delete(milestones).where(and(eq(milestones.id, id)));
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete milestone ${id}:`, error);

@@ -1,10 +1,10 @@
 import { Copy } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getEnvironmentById } from "@/actions/environments";
 import { listProjects } from "@/actions/project-catalog";
-import { getProjectById } from "@/actions/projects";
 import { getServers } from "@/actions/servers";
+import { EnvironmentForm } from "@/components/environment-form";
 import { PageHeader } from "@/components/page-header";
-import { ProjectForm } from "@/components/project-form";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { requireAdmin } from "@/lib/auth-session";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
-import { DeleteProjectCard } from "./delete-project-card";
+import { DeleteEnvironmentCard } from "./delete-environment-card";
 
 export default async function ProjectSettingsPage({
   params,
@@ -25,22 +25,22 @@ export default async function ProjectSettingsPage({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
   await requireAdmin();
 
-  const [project, servers, projects] = await Promise.all([
-    getProjectById(projectId),
+  const [environment, servers, projects] = await Promise.all([
+    getEnvironmentById(environmentId),
     getServers(),
     listProjects(),
   ]);
 
-  const t = await getTranslations("projectSettings");
+  const t = await getTranslations("environmentSettings");
   const tCommon = await getTranslations("common");
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
   return (
@@ -60,8 +60,8 @@ export default async function ProjectSettingsPage({
               <CardDescription>{t("editDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ProjectForm
-                mode={{ type: "edit", project }}
+              <EnvironmentForm
+                mode={{ type: "edit", environment }}
                 servers={servers}
                 projects={projects}
               />
@@ -75,7 +75,11 @@ export default async function ProjectSettingsPage({
             </CardHeader>
             <CardContent>
               <Button
-                render={<Link href={`/projects/new?from=${project.id}`} />}
+                render={
+                  <Link
+                    href={`/${projectKey}/environments/new?from=${environment.id}`}
+                  />
+                }
                 variant="outline"
               >
                 <Copy className="size-4" />
@@ -94,7 +98,7 @@ export default async function ProjectSettingsPage({
               <CardDescription>{t("dangerZoneDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <DeleteProjectCard project={project} />
+              <DeleteEnvironmentCard environment={environment} />
             </CardContent>
           </Card>
         </TabsContent>

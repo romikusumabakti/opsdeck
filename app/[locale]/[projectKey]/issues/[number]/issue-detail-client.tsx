@@ -317,7 +317,7 @@ export function IssueDetailClient({
             {issue.children.map((c) => (
               <li key={c.id}>
                 <Link
-                  href={`/project/${projectKey}/${c.number}`}
+                  href={`/${projectKey}/issues/${c.number}`}
                   className="flex items-center gap-2 rounded-md border p-2 hover:bg-muted/50"
                 >
                   <TypeIcon type={c.type as IssueType} />

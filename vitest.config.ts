@@ -8,7 +8,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["tests/**/*.test.ts"],
-    // sanitizeProject lives in lib/projects.ts, which imports "server-only"
+    // sanitizeEnvironment lives in lib/projects.ts, which imports "server-only"
     // (a no-op outside the Next runtime) and lib/db (which constructs a
     // postgres client from DATABASE_URL at module load). Provide a dummy URL
     // so the pure functions under test can be imported without a real DB.

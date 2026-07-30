@@ -8,12 +8,12 @@ import {
   getTranslations,
   setRequestLocale,
 } from "next-intl/server";
+import { listEnvironments } from "@/actions/environments";
 import {
   getUnreadNotificationCount,
   listNotifications,
 } from "@/actions/notifications";
 import { listProjects } from "@/actions/project-catalog";
-import { getProjects } from "@/actions/projects";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
@@ -86,13 +86,13 @@ export default async function LocaleLayout({
   const rtl = isRtlLocale(locale as Parameters<typeof isRtlLocale>[0]);
 
   const session = await getServerSession();
-  const projects = session ? await getProjects() : [];
-  const logicalProjects = session ? await listProjects() : [];
+  const environments = session ? await listEnvironments() : [];
+  const projects = session ? await listProjects() : [];
   const projectNameById: Record<string, string> = Object.fromEntries(
-    logicalProjects.map((p) => [p.id, p.name])
+    projects.map((p) => [p.id, p.name])
   );
   const projectKeyById: Record<string, string> = Object.fromEntries(
-    logicalProjects.map((p) => [p.id, p.key])
+    projects.map((p) => [p.id, p.key])
   );
   const [notifications, unreadCount] = session
     ? await Promise.all([listNotifications(), getUnreadNotificationCount()])
@@ -138,7 +138,7 @@ export default async function LocaleLayout({
                       {tHeader("skipToContent")}
                     </a>
                     <AppSidebar
-                      projects={projects}
+                      environments={environments}
                       isAdmin={admin}
                       side={rtl ? "right" : "left"}
                       user={{
@@ -152,7 +152,7 @@ export default async function LocaleLayout({
                       <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
                         <SidebarTrigger className="-ms-1" />
                         <HeaderBreadcrumb
-                          projects={projects}
+                          environments={environments}
                           projectNameById={projectNameById}
                           projectKeyById={projectKeyById}
                           isAdmin={admin}
@@ -166,7 +166,10 @@ export default async function LocaleLayout({
                             initialNotifications={notifications}
                             initialUnread={unreadCount}
                           />
-                          <CommandPalette projects={projects} isAdmin={admin} />
+                          <CommandPalette
+                            environments={environments}
+                            isAdmin={admin}
+                          />
                         </div>
                       </header>
                       <main

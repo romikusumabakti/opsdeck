@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { getProjectById } from "@/actions/projects";
+import { getEnvironmentById } from "@/actions/environments";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { ServicesClient } from "./services-client";
 
@@ -9,14 +9,19 @@ export default async function Page({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
-  const project = await getProjectById(projectId);
+  const environment = await getEnvironmentById(environmentId);
   const tCommon = await getTranslations("common");
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
-  return <ServicesClient project={project} />;
+  return (
+    <ServicesClient
+      environment={environment}
+      envPath={`/${projectKey}/${envSlug}`}
+    />
+  );
 }

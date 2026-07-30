@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Suspense } from "react";
 import { getBackupList } from "@/actions/backups";
 import { getDatabaseList } from "@/actions/databases";
-import { getProjectById, getProjects } from "@/actions/projects";
+import { getEnvironmentById, listEnvironments } from "@/actions/environments";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
@@ -19,15 +19,15 @@ export default async function Page({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   const { tab } = await searchParams;
   setRequestLocale(locale);
-  const project = await getProjectById(projectId);
+  const environment = await getEnvironmentById(environmentId);
   const t = await getTranslations("databases");
   const tCommon = await getTranslations("common");
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
   const defaultTab = tab === "restore" || tab === "manage" ? tab : "backup";
@@ -50,7 +50,10 @@ export default async function Page({
               DB host; streaming them behind Suspense lets the tab shell paint
               instantly instead of blocking the whole page on remote latency. */}
           <Suspense fallback={<DatabasesTabsSkeleton />}>
-            <DatabasesContent project={project} defaultTab={defaultTab} />
+            <DatabasesContent
+              environment={environment}
+              defaultTab={defaultTab}
+            />
           </Suspense>
         </CardContent>
       </Card>
@@ -61,31 +64,31 @@ export default async function Page({
 // Async boundary: everything that awaits a remote SSH probe lives here so the
 // page shell above can render before any of it resolves.
 async function DatabasesContent({
-  project,
+  environment,
   defaultTab,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   defaultTab: "manage" | "backup" | "restore";
 }) {
   // Best-effort enumeration; both lists degrade gracefully so a single failing
   // probe never blocks the page from rendering the other tabs. `allProjects`
-  // feeds the restore tab's "source project" picker (filtered client-side to
-  // ones sharing this project's DB location).
+  // feeds the restore tab's "source environment" picker (filtered client-side to
+  // ones sharing this environment's DB location).
   const [dbResult, backupResult, allProjects] = await Promise.all([
-    getDatabaseList(project.id),
-    getBackupList(project.id),
-    getProjects(),
+    getDatabaseList(environment.id),
+    getBackupList(environment.id),
+    listEnvironments(),
   ]);
   const databases = dbResult.success
     ? dbResult.data
-    : [{ name: dbService(project).dbName ?? "", isDefault: true }];
+    : [{ name: dbService(environment).dbName ?? "", isDefault: true }];
   const listError = dbResult.success ? null : dbResult.error;
   const backups = backupResult.success ? backupResult.data : [];
   const backupListError = backupResult.success ? null : backupResult.error;
 
   return (
     <DatabasesTabs
-      project={project}
+      environment={environment}
       databases={databases}
       backups={backups}
       allProjects={allProjects}

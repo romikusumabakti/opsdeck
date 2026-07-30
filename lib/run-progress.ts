@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { environments, type NewRun, runs } from "@/lib/db/schema";
+import { environments, type NewRun, projects, runs } from "@/lib/db/schema";
 import { notifyRunFailed } from "@/lib/notifications";
 
 export type CreateRunInput = Omit<
@@ -76,17 +76,27 @@ export async function failRun(
       .where(eq(runs.id, runId))
       .limit(1);
     if (run?.userId) {
+      // The notification links to the environment's readable URL, so pull the
+      // owning project's key alongside the env slug in one join.
       const [env] = await db
-        .select({ name: environments.name })
+        .select({
+          name: environments.name,
+          slug: environments.slug,
+          projectKey: projects.key,
+        })
         .from(environments)
+        .innerJoin(projects, eq(projects.id, environments.projectId))
         .where(eq(environments.id, run.environmentId))
         .limit(1);
-      await notifyRunFailed({
-        userId: run.userId,
-        environmentId: run.environmentId,
-        environmentName: env?.name ?? "",
-        description: run.description,
-      });
+      if (env) {
+        await notifyRunFailed({
+          userId: run.userId,
+          projectKey: env.projectKey,
+          envSlug: env.slug,
+          environmentName: env.name,
+          description: run.description,
+        });
+      }
     }
   } catch (error) {
     console.error("Failed to emit run-failed notification:", error);

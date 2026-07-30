@@ -10,6 +10,7 @@ import {
   environmentServices,
   environments,
   type NewServer,
+  projects,
   type Server,
   servers,
 } from "@/lib/db/schema";
@@ -18,9 +19,11 @@ import { testSshConnection } from "@/lib/ssh";
 import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
 
 export type ServerUsage = {
-  // The deployment that uses this server. Field kept named `project` for its UI
-  // consumers; it is an `environments` row.
-  project: Pick<Environment, "id" | "name">;
+  // The environment that uses this server, with the parts needed to link to its
+  // readable URL (`/[projectKey]/[envSlug]`).
+  environment: Pick<Environment, "id" | "name" | "slug"> & {
+    projectKey: string;
+  };
   roles: ("db" | "backend" | "frontend")[];
 };
 
@@ -33,6 +36,8 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
     .select({
       id: environments.id,
       name: environments.name,
+      slug: environments.slug,
+      projectKey: projects.key,
       role: environmentServices.role,
     })
     .from(environmentServices)
@@ -40,6 +45,7 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
       environments,
       eq(environmentServices.environmentId, environments.id)
     )
+    .innerJoin(projects, eq(projects.id, environments.projectId))
     .where(eq(environmentServices.serverId, serverId))
     .orderBy(environments.name);
 
@@ -47,7 +53,15 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
   for (const row of rows) {
     let usage = usageByEnvironment.get(row.id);
     if (!usage) {
-      usage = { project: { id: row.id, name: row.name }, roles: [] };
+      usage = {
+        environment: {
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          projectKey: row.projectKey,
+        },
+        roles: [],
+      };
       usageByEnvironment.set(row.id, usage);
     }
     if (
@@ -97,7 +111,7 @@ export async function createServer(data: NewServer): Promise<CreateResponse> {
       .values({ ...parsed.data, password: encryptSecret(parsed.data.password) })
       .returning();
     revalidatePath("/servers");
-    revalidatePath("/projects/new");
+    revalidatePath("/environments/new");
     return { success: true, data: created, message: t("serverCreated") };
   } catch (error) {
     console.error("Failed to create server:", error);
@@ -130,7 +144,7 @@ export async function updateServer(
     }
     revalidatePath("/servers");
     revalidatePath(`/servers/${id}`);
-    revalidatePath("/projects/new");
+    revalidatePath("/environments/new");
     return { success: true, message: t("serverUpdated") };
   } catch (error) {
     console.error(`Failed to update server ${id}:`, error);
@@ -223,7 +237,7 @@ export async function bulkDeleteServers(
     }
   }
   revalidatePath("/servers");
-  revalidatePath("/projects/new");
+  revalidatePath("/environments/new");
   return { success: true, deleted, failed };
 }
 
@@ -233,7 +247,7 @@ export async function deleteServer(id: string): Promise<SimpleResponse> {
   try {
     await db.delete(servers).where(eq(servers.id, id));
     revalidatePath("/servers");
-    revalidatePath("/projects/new");
+    revalidatePath("/environments/new");
     return { success: true, message: t("serverDeleted") };
   } catch (error) {
     // FK violation: server is referenced by at least one project.

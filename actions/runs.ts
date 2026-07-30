@@ -13,7 +13,7 @@ export type ActiveRun = Pick<
   Run,
   "id" | "environmentId" | "description" | "runAt"
 > & {
-  project: { id: string; name: string } | null;
+  environment: { id: string; name: string } | null;
 };
 
 // Returns currently-running runs across all projects, newest first. Used by
@@ -21,18 +21,18 @@ export type ActiveRun = Pick<
 // background jobs (backup/restore/mock-time) even after dismissing the
 // per-page dialog. Capped at 10 — more than that is a system-health issue,
 // not a UX problem.
-export type ProjectActivity = {
+export type EnvironmentActivity = {
   status: Run["status"];
   runAt: Date;
 };
 
 /**
- * Returns a map of {projectId -> most recent run} so the projects list can
+ * Returns a map of {environmentId -> most recent run} so the projects list can
  * show an at-a-glance health dot per card. Uses Postgres `DISTINCT ON` —
- * cheaper than fetching the latest run per project in N round-trips.
+ * cheaper than fetching the latest run per environment in N round-trips.
  */
-export async function getProjectsLastActivity(): Promise<
-  Record<string, ProjectActivity>
+export async function getEnvironmentsLastActivity(): Promise<
+  Record<string, EnvironmentActivity>
 > {
   await requireSession();
   try {
@@ -44,13 +44,13 @@ export async function getProjectsLastActivity(): Promise<
       })
       .from(runs)
       .orderBy(runs.environmentId, desc(runs.runAt));
-    const map: Record<string, ProjectActivity> = {};
+    const map: Record<string, EnvironmentActivity> = {};
     for (const row of rows) {
       map[row.environmentId] = { status: row.status, runAt: row.runAt };
     }
     return map;
   } catch (error) {
-    console.error("Failed to fetch project last-activity:", error);
+    console.error("Failed to fetch environment last-activity:", error);
     return {};
   }
 }
@@ -74,25 +74,20 @@ export async function getActiveRuns(): Promise<ActiveRun[]> {
       orderBy: { runAt: "desc" },
       limit: 10,
     });
-    // `environment` is the run's deployment; surface it under the historical
-    // `project` field name that ActiveRun's consumers expect.
-    return rows.map(({ environment, ...run }) => ({
-      ...run,
-      project: environment,
-    })) as ActiveRun[];
+    return rows as ActiveRun[];
   } catch (error) {
     console.error("Failed to fetch running runs:", error);
     return [];
   }
 }
 
-export async function getProjectRuns(
-  projectId: string
+export async function getEnvironmentRuns(
+  environmentId: string
 ): Promise<RunWithUser[]> {
   await requireSession();
   try {
     const rows = await db.query.runs.findMany({
-      where: { environmentId: projectId },
+      where: { environmentId: environmentId },
       with: {
         user: {
           columns: { id: true, name: true, email: true },
@@ -102,7 +97,10 @@ export async function getProjectRuns(
     });
     return rows as RunWithUser[];
   } catch (error) {
-    console.error(`Failed to fetch runs for project ${projectId}:`, error);
+    console.error(
+      `Failed to fetch runs for environment ${environmentId}:`,
+      error
+    );
     return [];
   }
 }
@@ -146,7 +144,7 @@ export type KpiEntry = {
   status: Run["status"];
 } | null;
 
-export type ProjectKpis = {
+export type EnvironmentKpis = {
   lastBackup: KpiEntry;
   lastRestore: KpiEntry;
   lastMock: KpiEntry;
@@ -173,7 +171,7 @@ const KPI_PREFIX: Record<KpiKind, string> = {
 };
 
 async function findLatestByKind(
-  projectId: string,
+  environmentId: string,
   kind: KpiKind
 ): Promise<KpiEntry> {
   const [row] = await db
@@ -181,7 +179,7 @@ async function findLatestByKind(
     .from(runs)
     .where(
       and(
-        eq(runs.environmentId, projectId),
+        eq(runs.environmentId, environmentId),
         like(runs.description, `${KPI_PREFIX[kind]}%`)
       )
     )
@@ -192,7 +190,9 @@ async function findLatestByKind(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
+export async function getEnvironmentKpis(
+  environmentId: string
+): Promise<EnvironmentKpis> {
   await requireSession();
   // Pull 14 days so we can compute both the current 7d window (for the
   // existing total/success metrics + sparkline) and the prior 7d window
@@ -201,14 +201,14 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
 
   try {
     const [lastBackup, lastRestore, lastMock, recent] = await Promise.all([
-      findLatestByKind(projectId, "backup"),
-      findLatestByKind(projectId, "restore"),
-      findLatestByKind(projectId, "mock"),
+      findLatestByKind(environmentId, "backup"),
+      findLatestByKind(environmentId, "restore"),
+      findLatestByKind(environmentId, "mock"),
       db
         .select({ status: runs.status, runAt: runs.runAt })
         .from(runs)
         .where(
-          and(eq(runs.environmentId, projectId), gte(runs.runAt, since14))
+          and(eq(runs.environmentId, environmentId), gte(runs.runAt, since14))
         ),
     ]);
 
@@ -255,7 +255,10 @@ export async function getProjectKpis(projectId: string): Promise<ProjectKpis> {
       dailyRuns,
     };
   } catch (error) {
-    console.error(`Failed to load KPIs for project ${projectId}:`, error);
+    console.error(
+      `Failed to load KPIs for environment ${environmentId}:`,
+      error
+    );
     return {
       lastBackup: null,
       lastRestore: null,

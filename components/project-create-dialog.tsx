@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import type { Project } from "@/lib/db/schema";
+import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
 
 // Inline "create a logical project" dialog, opened from the environment form's
 // project picker so an admin never has to leave the flow to add the parent.
@@ -45,7 +46,13 @@ export function ProjectCreateDialog({
     key: z
       .string()
       .trim()
-      .regex(/^[A-Za-z][A-Za-z0-9]{1,9}$/, t("keyHint")),
+      .regex(/^[A-Za-z][A-Za-z0-9]{1,9}$/, t("keyHint"))
+      // The key doubles as a top-level URL segment, so mirror the server-side
+      // reserved-word check here instead of failing with a generic error.
+      .refine(
+        (key) => !RESERVED_PROJECT_KEYS.has(key.toUpperCase()),
+        t("keyReserved")
+      ),
     client: z.string().trim(),
   });
   type Values = z.infer<typeof schema>;
