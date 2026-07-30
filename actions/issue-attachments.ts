@@ -55,6 +55,6 @@ export async function deleteIssueAttachment(
     console.error(`Failed to delete attachment object for ${id}:`, error);
   }
   await db.delete(issueAttachments).where(eq(issueAttachments.id, id));
-  revalidatePath("/projects", "layout");
+  revalidatePath("/", "layout");
   return { success: true };
 }

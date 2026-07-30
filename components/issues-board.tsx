@@ -92,10 +92,9 @@ export function StatusSelect({
         className={cn("h-8 w-full", className)}
         aria-label={t(`status.${value}`)}
       >
-        <span className="flex items-center gap-2">
-          <span className={cn("size-2 rounded-full", STATUS_DOT[value])} />
-          <SelectValue />
-        </span>
+        {/* No dot here: SelectValue renders the selected item's own content
+            (dot + label) via Radix's ItemText, so adding one would double it. */}
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {STATUSES.map((s) => (
@@ -146,10 +145,8 @@ export function TypeSelect({
         className={cn("h-8 w-full", className)}
         aria-label={t(`type.${value}`)}
       >
-        <span className="flex items-center gap-2">
-          <TypeIcon type={value} />
-          <SelectValue />
-        </span>
+        {/* SelectValue already renders the selected item's icon + label. */}
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {ISSUE_TYPES.map((ty) => (
@@ -182,10 +179,8 @@ export function PrioritySelect({
         className={cn("h-8 w-full", className)}
         aria-label={t(`priority.${value}`)}
       >
-        <span className="flex items-center gap-2">
-          <span className={cn("size-2 rounded-full", PRIORITY_DOT[value])} />
-          <SelectValue />
-        </span>
+        {/* SelectValue already renders the selected item's dot + label. */}
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {PRIORITIES.map((p) => (
@@ -303,7 +298,7 @@ function IssueCard({
           />
         ) : null}
         <Link
-          href={`/project/${issue.keyPrefix}/${issue.number}`}
+          href={`/${issue.keyPrefix}/issues/${issue.number}`}
           className="font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
         >
           {issue.keyPrefix}-{issue.number}
@@ -315,7 +310,7 @@ function IssueCard({
         ) : null}
       </div>
       <Link
-        href={`/project/${issue.keyPrefix}/${issue.number}`}
+        href={`/${issue.keyPrefix}/issues/${issue.number}`}
         className="text-sm font-medium leading-snug hover:underline"
       >
         {issue.title}

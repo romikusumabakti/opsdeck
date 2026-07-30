@@ -27,10 +27,10 @@ import { formatBytes } from "@/lib/utils";
 const SEARCH_THRESHOLD = 8;
 
 export function ManageDatabases({
-  project,
+  environment,
   databases,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
 }) {
   const t = useTranslations("databases");
@@ -64,7 +64,7 @@ export function ManageDatabases({
       if (!name) return;
       startTransition(async () => {
         try {
-          const { runId } = await createDatabase(project.id, {
+          const { runId } = await createDatabase(environment.id, {
             database: name,
           });
           setTaskTitle(t("createTaskTitle"));
@@ -96,7 +96,7 @@ export function ManageDatabases({
       if (!target || target === name) return;
       startTransition(async () => {
         try {
-          const { runId } = await renameDatabase(project.id, {
+          const { runId } = await renameDatabase(environment.id, {
             from: name,
             to: target,
           });
@@ -132,7 +132,9 @@ export function ManageDatabases({
       if (!ok) return;
       startTransition(async () => {
         try {
-          const { runId } = await dropDatabase(project.id, { database: name });
+          const { runId } = await dropDatabase(environment.id, {
+            database: name,
+          });
           setTaskTitle(t("dropTaskTitle"));
           setTaskTarget(name);
           setActiveTaskId(runId);
@@ -196,7 +198,7 @@ export function ManageDatabases({
           {filtered.map((d) => (
             <li
               key={d.name}
-              className="flex items-center gap-2 px-3 py-2 text-sm"
+              className="flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted/30"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Database className="size-4 shrink-0 text-muted-foreground" />

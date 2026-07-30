@@ -8,7 +8,7 @@ type StartViewTransition = (cb: () => void) => unknown;
 /**
  * Wraps next-intl's router.push in `document.startViewTransition` when the
  * browser supports it. Falls back to a plain push otherwise. Use this for
- * navigations where a crossfade between page states adds clarity (project
+ * navigations where a crossfade between page states adds clarity (environment
  * switching, sidebar item changes) — not for every link, since the API has a
  * non-zero cost.
  */

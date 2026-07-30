@@ -30,9 +30,9 @@ import {
 } from "./duration";
 
 export function MockTimeLegacy({
-  project,
+  environment,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
@@ -78,7 +78,7 @@ export function MockTimeLegacy({
       if (!silent) setPendingAction("refresh");
       setClockLoading(true);
       setClockError(null);
-      const result = await getClockStateLegacy(project.id);
+      const result = await getClockStateLegacy(environment.id);
       setClockLoading(false);
       if (!silent) setPendingAction(null);
       if (!result.success) {
@@ -88,7 +88,7 @@ export function MockTimeLegacy({
       }
       setClock(result.data);
     },
-    [project]
+    [environment]
   );
 
   React.useEffect(() => {
@@ -106,7 +106,7 @@ export function MockTimeLegacy({
     setPendingAction("travel");
     try {
       const result = await mockProjectTimeLegacy(
-        project.id,
+        environment.id,
         combined.toISOString()
       );
       if (!result.success) {
@@ -143,7 +143,7 @@ export function MockTimeLegacy({
     if (!ok) return;
     setPendingAction("advance");
     try {
-      const result = await advanceClockLegacy(project.id, duration);
+      const result = await advanceClockLegacy(environment.id, duration);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
@@ -168,7 +168,7 @@ export function MockTimeLegacy({
     if (!ok) return;
     setPendingAction("reset");
     try {
-      const result = await resetClockLegacy(project.id);
+      const result = await resetClockLegacy(environment.id);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;

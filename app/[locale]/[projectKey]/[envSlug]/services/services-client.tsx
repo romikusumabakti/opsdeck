@@ -58,18 +58,21 @@ type RoleMeta = {
 type StatusMap = Partial<Record<ServiceRole, ServiceStatusResult>>;
 
 export function ServicesClient({
-  project,
+  environment,
+  envPath,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
+  // Readable base path of the environment (`/[projectKey]/[envSlug]`).
+  envPath: string;
 }) {
   const t = useTranslations("services");
   const tCommon = useTranslations("common");
   const [statuses, setStatuses] = React.useState<StatusMap>({});
   const [loading, setLoading] = React.useState(true);
 
-  const dbSvc = dbService(project);
-  const backendSvc = backendService(project);
-  const frontendSvc = frontendService(project);
+  const dbSvc = dbService(environment);
+  const backendSvc = backendService(environment);
+  const frontendSvc = frontendService(environment);
 
   const roles: RoleMeta[] = [
     {
@@ -101,7 +104,7 @@ export function ServicesClient({
   const refresh = React.useCallback(async () => {
     setLoading(true);
     try {
-      const results = await getAllServiceStatuses(project.id);
+      const results = await getAllServiceStatuses(environment.id);
       const next: StatusMap = {};
       for (const r of results) next[r.role] = r;
       setStatuses(next);
@@ -110,7 +113,7 @@ export function ServicesClient({
     } finally {
       setLoading(false);
     }
-  }, [project, tCommon]);
+  }, [environment, tCommon]);
 
   React.useEffect(() => {
     refresh();
@@ -120,7 +123,7 @@ export function ServicesClient({
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", { name: project.name })}
+        subtitle={t("subtitle", { name: environment.name })}
         action={
           <Button variant="outline" onClick={refresh} disabled={loading}>
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
@@ -136,7 +139,8 @@ export function ServicesClient({
         {roles.map((meta) => (
           <ServiceCard
             key={meta.role}
-            project={project}
+            environment={environment}
+            envPath={envPath}
             meta={meta}
             status={statuses[meta.role] ?? null}
             loading={loading}
@@ -149,13 +153,15 @@ export function ServicesClient({
 }
 
 function ServiceCard({
-  project,
+  environment,
+  envPath,
   meta,
   status,
   loading,
   onRefresh,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
+  envPath: string;
   meta: RoleMeta;
   status: ServiceStatusResult | null;
   loading: boolean;
@@ -193,7 +199,7 @@ function ServiceCard({
     setPendingAction(action);
     try {
       const { runId: newTaskId } = await controlService(
-        project.id,
+        environment.id,
         meta.role,
         action
       );
@@ -302,7 +308,7 @@ function ServiceCard({
             <Button
               render={
                 <Link
-                  href={`/projects/${project.id}/services/${meta.role}/logs`}
+                  href={`${envPath}/services/${meta.role}/logs`}
                   aria-label={t("actions.viewLogs")}
                 />
               }

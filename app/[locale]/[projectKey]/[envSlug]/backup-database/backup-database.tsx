@@ -31,11 +31,11 @@ function extractFilename(output: string): string | null {
 }
 
 export function BackupDatabase({
-  project,
+  environment,
   databases,
   fixedDatabase,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
   // When set (e.g. the Databases row action), this database is the fixed
   // source and the in-panel picker is hidden.
@@ -47,7 +47,7 @@ export function BackupDatabase({
   const canRunOps = useCanRunOps();
   const dialog = useDialog();
   const router = useRouter();
-  const dbSvc = dbService(project);
+  const dbSvc = dbService(environment);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
@@ -62,7 +62,7 @@ export function BackupDatabase({
   const runBackup = React.useCallback(() => {
     startTransition(async () => {
       try {
-        const { runId } = await createDatabaseBackup(project.id, {
+        const { runId } = await createDatabaseBackup(environment.id, {
           compress,
           database,
         });
@@ -76,7 +76,7 @@ export function BackupDatabase({
         );
       }
     });
-  }, [project, compress, database, t, tCommon]);
+  }, [environment, compress, database, t, tCommon]);
 
   async function onClick() {
     const ok = await dialog.confirm({
@@ -93,7 +93,7 @@ export function BackupDatabase({
     // Drop the `unstable_cache` backup listing first, then refresh: `router.refresh()`
     // alone only re-runs the server component, which still reads the stale cached
     // list — so the just-created file wouldn't appear until the 30s revalidate.
-    await revalidateBackupList(project.id);
+    await revalidateBackupList(environment.id);
     router.refresh();
     const filename = extractFilename(snapshot.output);
     if (!filename) return;

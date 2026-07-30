@@ -16,9 +16,9 @@ import { IssueDetailClient } from "./issue-detail-client";
 export default async function IssueDetailPage({
   params,
 }: {
-  params: Promise<{ locale: string; key: string; number: string }>;
+  params: Promise<{ locale: string; projectKey: string; number: string }>;
 }) {
-  const { locale, key, number } = await params;
+  const { locale, projectKey, number } = await params;
   setRequestLocale(locale);
 
   const n = Number.parseInt(number, 10);
@@ -26,7 +26,7 @@ export default async function IssueDetailPage({
     notFound();
   }
 
-  const issue = await getIssueDetail(key, n);
+  const issue = await getIssueDetail(projectKey, n);
   if (!issue) {
     notFound();
   }
@@ -68,7 +68,7 @@ export default async function IssueDetailPage({
         action={
           <Button
             variant="outline"
-            render={<Link href={`/project/${issue.project.key}`} />}
+            render={<Link href={`/${issue.project.key}`} />}
           >
             <ArrowLeft className="size-4" />
             {issue.project.name}

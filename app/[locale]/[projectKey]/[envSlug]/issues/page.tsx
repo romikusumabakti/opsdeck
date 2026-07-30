@@ -1,8 +1,8 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getEnvironmentById } from "@/actions/environments";
 import { listIssues } from "@/actions/issues";
 import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
-import { getProjectById } from "@/actions/projects";
 import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
 import { requireSession } from "@/lib/auth-session";
@@ -15,7 +15,7 @@ export default async function IssuesPage({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
   await requireSession();
 
@@ -23,9 +23,9 @@ export default async function IssuesPage({
 
   // The route param is an environment id (historically a "project"); issues
   // live on its parent logical project and are shared across its environments.
-  const env = await getProjectById(projectId);
+  const env = await getEnvironmentById(environmentId);
   if (!env) {
-    return <p>{tCommon("projectNotFound")}</p>;
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
   const [project, issues, users, milestones] = await Promise.all([

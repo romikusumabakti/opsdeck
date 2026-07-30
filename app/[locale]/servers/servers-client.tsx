@@ -2,7 +2,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import {
-  MoreHorizontal,
+  FolderOpen,
   Pencil,
   Plus,
   Server as ServerIcon,
@@ -16,14 +16,6 @@ import { bulkDeleteServers, deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
@@ -149,23 +141,22 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         id: "actions",
         enableHiding: false,
         meta: {
-          headClassName: "w-12",
-          cellClassName: "w-12",
+          headClassName: "w-32",
+          cellClassName: "w-32",
         },
         cell: ({ row }) => (
           <ServerActions
+            server={row.original}
             disabled={isPending}
-            menuLabel={tCommon("actions")}
-            triggerLabel={tCommon("openMenu")}
+            browseLabel={t("browseFiles")}
             editLabel={tCommon("edit")}
             deleteLabel={tCommon("delete")}
-            onEdit={() => router.push(`/servers/${row.original.id}`)}
             onDelete={() => onDelete(row.original)}
           />
         ),
       },
     ],
-    [t, tCommon, isPending, router, onDelete]
+    [t, tCommon, isPending, onDelete]
   );
 
   const renderCard = React.useCallback(
@@ -181,17 +172,16 @@ export function ServersClient({ servers }: { servers: Server[] }) {
           </span>
         </div>
         <ServerActions
+          server={server}
           disabled={isPending}
-          menuLabel={tCommon("actions")}
-          triggerLabel={tCommon("openMenu")}
+          browseLabel={t("browseFiles")}
           editLabel={tCommon("edit")}
           deleteLabel={tCommon("delete")}
-          onEdit={() => router.push(`/servers/${server.id}`)}
           onDelete={() => onDelete(server)}
         />
       </div>
     ),
-    [tCommon, isPending, router, onDelete]
+    [t, tCommon, isPending, onDelete]
   );
 
   if (optimisticServers.length === 0) {
@@ -238,49 +228,57 @@ export function ServersClient({ servers }: { servers: Server[] }) {
   );
 }
 
+// Actions are laid out inline instead of behind a kebab menu so every action is
+// one click away. Links keep their own navigation and are excluded from the
+// row-click handler by DataTable.
 function ServerActions({
+  server,
   disabled,
-  menuLabel,
-  triggerLabel,
+  browseLabel,
   editLabel,
   deleteLabel,
-  onEdit,
   onDelete,
 }: {
+  server: Server;
   disabled: boolean;
-  menuLabel: string;
-  triggerLabel: string;
+  browseLabel: string;
   editLabel: string;
   deleteLabel: string;
-  onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={triggerLabel}
-            disabled={disabled}
-          />
-        }
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={browseLabel}
+        title={browseLabel}
+        disabled={disabled}
+        render={<Link href={`/servers/${server.id}/files`} />}
       >
-        <MoreHorizontal className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
-        <DropdownMenuItem onClick={onEdit}>
-          <Pencil className="size-4" />
-          {editLabel}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onDelete}>
-          <Trash2 className="size-4" />
-          {deleteLabel}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <FolderOpen className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={editLabel}
+        title={editLabel}
+        disabled={disabled}
+        render={<Link href={`/servers/${server.id}`} />}
+      >
+        <Pencil className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={deleteLabel}
+        title={deleteLabel}
+        disabled={disabled}
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={onDelete}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
   );
 }

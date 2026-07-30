@@ -315,6 +315,20 @@ export function DataTable<TData, TValue>({
     [onRowClick]
   );
 
+  // Keyboard equivalent of the row-click shortcut. Only fires when the row
+  // itself holds focus — Enter/Space typed on a nested button or link belongs
+  // to that control, not to the row.
+  const handleRowKeyDown = React.useCallback(
+    (original: TData) => (e: React.KeyboardEvent) => {
+      if (!onRowClick) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      onRowClick(original);
+    },
+    [onRowClick]
+  );
+
   const filterValue = filterColumn
     ? ((table.getColumn(filterColumn)?.getFilterValue() as string) ?? "")
     : "";
@@ -437,9 +451,15 @@ export function DataTable<TData, TValue>({
                 key={row.id}
                 data-state={row.getIsSelected() ? "selected" : undefined}
                 onClick={onRowClick ? handleRowClick(row.original) : undefined}
+                onKeyDown={
+                  onRowClick ? handleRowKeyDown(row.original) : undefined
+                }
+                role={onRowClick ? "link" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
                 className={cn(
                   "rounded-lg border bg-card p-4 data-[state=selected]:border-primary data-[state=selected]:ring-1 data-[state=selected]:ring-primary",
-                  onRowClick && "cursor-pointer hover:border-primary/50"
+                  onRowClick &&
+                    "cursor-pointer hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 )}
               >
                 {bulkActions && row.getCanSelect() && (
@@ -521,7 +541,17 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   onClick={onRowClick ? handleRowClick(row.original) : undefined}
-                  className={cn(onRowClick && "cursor-pointer")}
+                  onKeyDown={
+                    onRowClick ? handleRowKeyDown(row.original) : undefined
+                  }
+                  // No role override here: a <tr> must stay a `row` for the
+                  // table's semantics to survive. Focusability + Enter/Space is
+                  // enough to make the shortcut reachable without a pointer.
+                  tabIndex={onRowClick ? 0 : undefined}
+                  className={cn(
+                    onRowClick &&
+                      "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell

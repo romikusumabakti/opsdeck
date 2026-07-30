@@ -32,17 +32,17 @@ import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function RestoreDatabase({
-  project,
+  environment,
   backups,
   databases,
-  sourceProjects,
+  sourceEnvironments,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   backups: Backup[];
   databases: DatabaseEntry[];
-  // Other projects sharing this project's DB location, offered as alternative
-  // backup sources. Empty when the project has no compatible siblings.
-  sourceProjects: Environment[];
+  // Other projects sharing this environment's DB location, offered as alternative
+  // backup sources. Empty when the environment has no compatible siblings.
+  sourceEnvironments: Environment[];
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");
@@ -51,33 +51,37 @@ export function RestoreDatabase({
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState("");
   const [database, setDatabase] = React.useState(
-    dbService(project).dbName ?? ""
+    dbService(environment).dbName ?? ""
   );
   const [restartBackend, setRestartBackend] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [submitting, startTransition] = React.useTransition();
 
-  // Backup source. Defaults to this project; the picker (shown only when
+  // Backup source. Defaults to this environment; the picker (shown only when
   // compatible siblings exist) can switch it. Switching re-fetches the chosen
-  // project's backup list and clears the selected file.
+  // environment's backup list and clears the selected file.
   const [sourceOpen, setSourceOpen] = React.useState(false);
-  // Advanced controls (restore into a non-default DB, or from another project)
+  // Advanced controls (restore into a non-default DB, or from another environment)
   // stay hidden until opened so the common path is a single backup + Restore.
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
-  const [sourceProjectId, setSourceProjectId] = React.useState(project.id);
+  const [sourceEnvironmentId, setSourceEnvironmentId] = React.useState(
+    environment.id
+  );
   const [sourceBackups, setSourceBackups] = React.useState<Backup[]>(backups);
   const [loadingBackups, setLoadingBackups] = React.useState(false);
 
-  const isCrossProject = sourceProjectId !== project.id;
-  const sourceProject = sourceProjects.find((p) => p.id === sourceProjectId);
-  const sourceName = sourceProject?.name ?? project.name;
+  const isCrossEnvironment = sourceEnvironmentId !== environment.id;
+  const sourceEnvironment = sourceEnvironments.find(
+    (p) => p.id === sourceEnvironmentId
+  );
+  const sourceName = sourceEnvironment?.name ?? environment.name;
 
   function onSourceChange(nextId: string) {
-    if (nextId === sourceProjectId) return;
-    setSourceProjectId(nextId);
+    if (nextId === sourceEnvironmentId) return;
+    setSourceEnvironmentId(nextId);
     setValue("");
-    if (nextId === project.id) {
-      // Reuse the server-rendered list for the current project — no round-trip.
+    if (nextId === environment.id) {
+      // Reuse the server-rendered list for the current environment — no round-trip.
       setSourceBackups(backups);
       return;
     }
@@ -114,11 +118,13 @@ export function RestoreDatabase({
     if (!backup) return;
     startTransition(async () => {
       try {
-        const { runId } = await restoreDatabaseBackup(project.id, {
+        const { runId } = await restoreDatabaseBackup(environment.id, {
           filename: backup.name,
           restartBackend,
           database,
-          sourceProjectId: isCrossProject ? sourceProjectId : undefined,
+          sourceEnvironmentId: isCrossEnvironment
+            ? sourceEnvironmentId
+            : undefined,
         });
         setActiveTaskId(runId);
         toast.success(t("successTitle"), {
@@ -132,11 +138,11 @@ export function RestoreDatabase({
     });
   }, [
     backup,
-    project,
+    environment,
     restartBackend,
     database,
-    isCrossProject,
-    sourceProjectId,
+    isCrossEnvironment,
+    sourceEnvironmentId,
     t,
     tCommon,
   ]);
@@ -146,8 +152,8 @@ export function RestoreDatabase({
     void (async () => {
       const ok = await dialog.confirm({
         title: t("confirmTitle"),
-        description: isCrossProject
-          ? t("confirmDescriptionCrossProject", {
+        description: isCrossEnvironment
+          ? t("confirmDescriptionCrossEnvironment", {
               filename: backup.name,
               dbName: database,
               sourceName,
@@ -183,10 +189,10 @@ export function RestoreDatabase({
       </button>
       {advancedOpen && (
         <>
-          {sourceProjects.length > 0 && (
+          {sourceEnvironments.length > 0 && (
             <>
               <Label htmlFor="restore-source-picker">
-                {t("sourceProjectLabel")}
+                {t("sourceEnvironmentLabel")}
               </Label>
               <Popover open={sourceOpen} onOpenChange={setSourceOpen}>
                 <PopoverTrigger
@@ -203,7 +209,7 @@ export function RestoreDatabase({
                 >
                   <span className="truncate">
                     {sourceName}
-                    {!isCrossProject && (
+                    {!isCrossEnvironment && (
                       <span className="text-muted-foreground">
                         {" "}
                         {t("sourceSelfSuffix")}
@@ -218,15 +224,19 @@ export function RestoreDatabase({
                 >
                   <Command>
                     <CommandInput
-                      placeholder={t("searchProject")}
+                      placeholder={t("searchEnvironment")}
                       className="h-9"
                     />
                     <CommandList>
-                      <CommandEmpty>{t("noProject")}</CommandEmpty>
+                      <CommandEmpty>{t("noEnvironment")}</CommandEmpty>
                       <CommandGroup>
                         {[
-                          { id: project.id, name: project.name, self: true },
-                          ...sourceProjects.map((p) => ({
+                          {
+                            id: environment.id,
+                            name: environment.name,
+                            self: true,
+                          },
+                          ...sourceEnvironments.map((p) => ({
                             id: p.id,
                             name: p.name,
                             self: false,
@@ -252,7 +262,7 @@ export function RestoreDatabase({
                             <Check
                               className={cn(
                                 "ml-auto",
-                                sourceProjectId === p.id
+                                sourceEnvironmentId === p.id
                                   ? "opacity-100"
                                   : "opacity-0"
                               )}
@@ -265,7 +275,7 @@ export function RestoreDatabase({
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-muted-foreground">
-                {t("sourceProjectHint")}
+                {t("sourceEnvironmentHint")}
               </p>
             </>
           )}
@@ -390,7 +400,7 @@ export function RestoreDatabase({
               <span>{t("restartBackendLabel")}</span>
               <span className="text-xs text-muted-foreground">
                 {t("restartBackendHint", {
-                  backendName: backendService(project).serviceName,
+                  backendName: backendService(environment).serviceName,
                 })}
               </span>
             </span>

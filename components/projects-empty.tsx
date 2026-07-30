@@ -1,11 +1,19 @@
+"use client";
+
 import { FolderPlus } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 
-export async function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
-  const t = await getTranslations("projectsEmpty");
+// Shown when no logical project exists yet. The first step is creating the
+// project, not a deployment — environments are added from its card afterwards.
+export function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
+  const t = useTranslations("projectsEmpty");
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex-1 flex items-center justify-center p-4">
@@ -15,11 +23,17 @@ export async function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
         description={t("description")}
         action={
           canCreate ? (
-            <Button render={<Link href="/projects/new" />}>
-              {t("create")}
-            </Button>
+            <Button onClick={() => setOpen(true)}>{t("create")}</Button>
           ) : undefined
         }
+      />
+      <ProjectCreateDialog
+        open={open}
+        onOpenChange={setOpen}
+        onCreated={() => {
+          setOpen(false);
+          router.refresh();
+        }}
       />
     </div>
   );

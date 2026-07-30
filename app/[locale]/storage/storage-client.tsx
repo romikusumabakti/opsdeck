@@ -1,14 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  FolderOpen,
-  HardDrive,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { FolderOpen, HardDrive, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
@@ -17,14 +10,6 @@ import { deleteS3Connection } from "@/actions/s3-connections";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
@@ -105,23 +90,20 @@ export function StorageClient({
       {
         id: "actions",
         enableHiding: false,
-        meta: { headClassName: "w-12", cellClassName: "w-12" },
+        meta: { headClassName: "w-32", cellClassName: "w-32" },
         cell: ({ row }) => (
           <ConnectionActions
+            connection={row.original}
             disabled={isPending}
-            menuLabel={tCommon("actions")}
-            triggerLabel={tCommon("openMenu")}
             browseLabel={t("browse")}
             editLabel={tCommon("edit")}
             deleteLabel={tCommon("delete")}
-            onBrowse={() => router.push(`/storage/${row.original.id}/files`)}
-            onEdit={() => router.push(`/storage/${row.original.id}`)}
             onDelete={() => onDelete(row.original)}
           />
         ),
       },
     ],
-    [t, tCommon, isPending, router, onDelete]
+    [t, tCommon, isPending, onDelete]
   );
 
   if (optimistic.length === 0) {
@@ -151,62 +133,62 @@ export function StorageClient({
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
       urlKey="s3"
-      onRowClick={(row) => router.push(`/storage/${row.id}/files`)}
+      onRowClick={(row) => router.push(`/storage/${row.id}`)}
     />
   );
 }
 
+// Actions are laid out inline instead of behind a kebab menu so every action is
+// one click away. Links keep their own navigation and are excluded from the
+// row-click handler by DataTable.
 function ConnectionActions({
+  connection,
   disabled,
-  menuLabel,
-  triggerLabel,
   browseLabel,
   editLabel,
   deleteLabel,
-  onBrowse,
-  onEdit,
   onDelete,
 }: {
+  connection: SafeS3Connection;
   disabled: boolean;
-  menuLabel: string;
-  triggerLabel: string;
   browseLabel: string;
   editLabel: string;
   deleteLabel: string;
-  onBrowse: () => void;
-  onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={triggerLabel}
-            disabled={disabled}
-          />
-        }
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={browseLabel}
+        title={browseLabel}
+        disabled={disabled}
+        render={<Link href={`/storage/${connection.id}/files`} />}
       >
-        <MoreHorizontal className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
-        <DropdownMenuItem onClick={onBrowse}>
-          <FolderOpen className="size-4" />
-          {browseLabel}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onEdit}>
-          <Pencil className="size-4" />
-          {editLabel}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onDelete}>
-          <Trash2 className="size-4" />
-          {deleteLabel}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <FolderOpen className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={editLabel}
+        title={editLabel}
+        disabled={disabled}
+        render={<Link href={`/storage/${connection.id}`} />}
+      >
+        <Pencil className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={deleteLabel}
+        title={deleteLabel}
+        disabled={disabled}
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={onDelete}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    </div>
   );
 }

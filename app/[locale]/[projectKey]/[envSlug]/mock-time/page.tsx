@@ -3,7 +3,7 @@ import path from "node:path";
 import { Clock, ServerCog } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { cache } from "react";
-import { getProjectById } from "@/actions/projects";
+import { getEnvironmentById } from "@/actions/environments";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,26 +38,26 @@ export default async function Page({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
-  const [project, apiDocs] = await Promise.all([
-    getProjectById(projectId),
+  const [environment, apiDocs] = await Promise.all([
+    getEnvironmentById(environmentId),
     getApiDocs(),
   ]);
   const t = await getTranslations("mockTime");
   const tCommon = await getTranslations("common");
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
-  const hasApi = Boolean(backendService(project).mockTimeApiUrl?.trim());
+  const hasApi = Boolean(backendService(environment).mockTimeApiUrl?.trim());
 
   return (
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", { name: project.name })}
+        subtitle={t("subtitle", { name: environment.name })}
         action={<ApiDocsSheet content={apiDocs} />}
       />
 
@@ -77,7 +77,7 @@ export default async function Page({
           <CardDescription>{t("formDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <MockTime project={project} />
+          <MockTime environment={environment} />
         </CardContent>
       </Card>
     </>

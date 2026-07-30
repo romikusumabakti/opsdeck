@@ -10,6 +10,5 @@ export default async function Page({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
-  await redirect(`/projects/${projectId}/databases?tab=backup`);
+  await redirect(`/${projectKey}/${envSlug}/databases?tab=backup`);
 }

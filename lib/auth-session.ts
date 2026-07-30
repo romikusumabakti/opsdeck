@@ -38,10 +38,9 @@ export function isAdmin(session: { user: { role?: string | null } }): boolean {
 type SessionUser = { user: { id: string; role?: string | null } };
 
 // Scope a capability check to a project. Ops actions (backups/databases/
-// mock-time) carry an ENVIRONMENT id in their `projectId` param — historically a
-// "project" was a deployment — so pass `{ environmentId }` and the resolver maps
-// it up to its owning project. Pass `{ projectId }` when you already hold the
-// logical project id. No scope = global role only.
+// mock-time) act on an ENVIRONMENT, so they pass `{ environmentId }` and the
+// resolver maps it up to its owning project. Pass `{ projectId }` when you
+// already hold the logical project id. No scope = global role only.
 type CapabilityScope = { projectId?: string; environmentId?: string };
 
 // Effective role = the higher of the user's global role and their membership

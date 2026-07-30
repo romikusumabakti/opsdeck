@@ -168,7 +168,7 @@ export const environmentServices = pgTable(
     dbBackupPath: text("db_backup_path"),
 
     // --- backend-role config (null on non-backend services) ---
-    // URL of the project's clock resource (e.g. `https://api.example.com/v1/clock`).
+    // URL of the environment's clock resource (e.g. `https://api.example.com/v1/clock`).
     // When set, the time-mocking feature talks to this REST API per
     // docs/time-mocking-api.md; unset falls back to the legacy `date -s` path.
     mockTimeApiUrl: text("mock_time_api_url"),
@@ -234,7 +234,7 @@ export const runs = pgTable(
   },
   (t) => [
     // Every run query filters by environmentId and orders by runAt desc
-    // (getProjectRuns, getProjectKpis, findLatestByKind, DISTINCT ON).
+    // (getEnvironmentRuns, getEnvironmentKpis, findLatestByKind, DISTINCT ON).
     index("runs_environment_run_idx").on(t.environmentId, t.runAt.desc()),
     // getActiveRuns filters status='started'.
     index("runs_status_idx").on(t.status),
@@ -260,7 +260,7 @@ export const environmentAccess = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.environmentId] }),
-    // getProjects orders one user's rows by lastAccessedAt desc; a covering
+    // listEnvironments orders one user's rows by lastAccessedAt desc; a covering
     // index on (userId, lastAccessedAt) serves that without a sort.
     index("environment_access_user_recency_idx").on(
       t.userId,

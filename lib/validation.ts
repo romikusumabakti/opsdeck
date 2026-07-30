@@ -1,10 +1,17 @@
 import { z } from "zod";
 
+import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
+
+export {
+  RESERVED_ENV_SLUGS,
+  RESERVED_PROJECT_KEYS,
+} from "@/lib/reserved-paths";
+
 // Shared input validation for server actions. Actions are POST endpoints
 // callable by any authenticated client with arbitrary payloads, so every
 // boundary parses its input here rather than trusting the TypeScript types.
 
-export const projectIdSchema = z.uuid();
+export const uuidSchema = z.uuid();
 
 export const serviceRoleSchema = z.enum(["db", "backend", "frontend"]);
 export const serviceActionSchema = z.enum(["start", "stop", "restart"]);
@@ -80,6 +87,10 @@ export const projectKeySchema = z
   .regex(
     /^[A-Z][A-Z0-9]{1,9}$/,
     "Key must be 2–10 uppercase letters/digits, starting with a letter"
+  )
+  .refine(
+    (key) => !RESERVED_PROJECT_KEYS.has(key),
+    "That key is reserved by an application route"
   );
 
 export const projectMetaInputSchema = z.object({
@@ -92,7 +103,7 @@ export const projectMetaUpdateSchema = projectMetaInputSchema.partial();
 export type ProjectMetaInput = z.infer<typeof projectMetaInputSchema>;
 
 // An environment (deployment) belongs to one logical project.
-export const projectInputSchema = z.object({
+export const environmentInputSchema = z.object({
   // The logical project this deployment belongs to (chosen via the form's
   // project picker).
   projectId: z.uuid(),
@@ -121,7 +132,7 @@ export const projectInputSchema = z.object({
   owner: z.string().trim().max(120).nullish(),
 });
 
-export const projectUpdateSchema = projectInputSchema.partial();
+export const environmentUpdateSchema = environmentInputSchema.partial();
 export const serverUpdateSchema = serverInputSchema.partial();
 
 // =========================
@@ -181,7 +192,7 @@ export const milestoneInputSchema = z.object({
 export type MilestoneInput = z.infer<typeof milestoneInputSchema>;
 
 export type ServerInput = z.infer<typeof serverInputSchema>;
-export type ProjectInput = z.infer<typeof projectInputSchema>;
+export type EnvironmentInput = z.infer<typeof environmentInputSchema>;
 
 // =========================
 // Storage explorer

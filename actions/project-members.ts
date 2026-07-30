@@ -7,7 +7,7 @@ import { requireCapability } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
 import { ROLE_RANK, type UserRole } from "@/lib/roles";
-import { projectIdSchema } from "@/lib/validation";
+import { uuidSchema } from "@/lib/validation";
 
 export type ActionResponse =
   | { success: true; message?: string }
@@ -73,8 +73,8 @@ export async function addProjectMember(input: {
   });
   const t = await getTranslations("projectMembers");
   if (
-    !projectIdSchema.safeParse(input.projectId).success ||
-    !projectIdSchema.safeParse(input.userId).success
+    !uuidSchema.safeParse(input.projectId).success ||
+    !uuidSchema.safeParse(input.userId).success
   ) {
     return { success: false, message: t("errorInvalidInput") };
   }

@@ -12,52 +12,52 @@ export const TASKS_QUEUE = "opsdeck-tasks";
 // Redis job record.
 export type JobMap = {
   "db/backup.requested": {
-    projectId: string;
+    environmentId: string;
     compress?: boolean;
     database?: string;
     runId: string;
   };
   "db/restore.requested": {
-    projectId: string;
+    environmentId: string;
     filename: string;
     runId: string;
     restartBackend?: boolean;
     database?: string;
-    // When set (and different from projectId), the backup file is read from this
-    // source project's `dbBackupPath` instead of the target's. Only ever a
-    // project sharing the target's DB location (see dbLocationMatches), so the
-    // target DB server reaches the source's backup dir without a file transfer.
-    sourceProjectId?: string;
+    // When set (and different from environmentId), the backup file is read from
+    // this source environment's `dbBackupPath` instead of the target's. Only ever
+    // an environment sharing the target's DB location (see dbLocationMatches), so
+    // the target DB server reaches the source's backup dir without a file transfer.
+    sourceEnvironmentId?: string;
   };
   "db/database.create.requested": {
-    projectId: string;
+    environmentId: string;
     database: string;
     runId: string;
   };
   "db/database.drop.requested": {
-    projectId: string;
+    environmentId: string;
     database: string;
     runId: string;
   };
   "db/database.rename.requested": {
-    projectId: string;
+    environmentId: string;
     from: string;
     to: string;
     runId: string;
   };
   "service/control.requested": {
-    projectId: string;
+    environmentId: string;
     role: ServiceRole;
     action: ServiceAction;
     runId: string;
   };
-  "project/mock-time.legacy": {
-    projectId: string;
+  "environment/mock-time.legacy": {
+    environmentId: string;
     mockedAt: string;
     runId: string;
   };
-  "project/mock-time.reset-legacy": {
-    projectId: string;
+  "environment/mock-time.reset-legacy": {
+    environmentId: string;
     runId: string;
   };
 };

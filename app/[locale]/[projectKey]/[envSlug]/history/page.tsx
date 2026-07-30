@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { getProjectById } from "@/actions/projects";
-import { getProjectRuns } from "@/actions/runs";
+import { getEnvironmentById } from "@/actions/environments";
+import { getEnvironmentRuns } from "@/actions/runs";
 import { PageHeader } from "@/components/page-header";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
 import { HistoryClient } from "./history-client";
@@ -11,18 +11,18 @@ export default async function Page({
   params: Promise<{ locale: string; projectKey: string; envSlug: string }>;
 }) {
   const { locale, projectKey, envSlug } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
-  const [project, runs, t, tCommon] = await Promise.all([
-    getProjectById(projectId),
-    getProjectRuns(projectId),
+  const [environment, runs, t, tCommon] = await Promise.all([
+    getEnvironmentById(environmentId),
+    getEnvironmentRuns(environmentId),
     getTranslations("history"),
     getTranslations("common"),
   ]);
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
   return (
