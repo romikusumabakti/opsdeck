@@ -16,7 +16,7 @@ export function NewProjectButton() {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button onClick={() => setOpen(true)}>
         <FolderPlus className="size-4" />
         {t("newProject")}
       </Button>

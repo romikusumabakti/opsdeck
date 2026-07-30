@@ -414,7 +414,7 @@ export function GlobalIssuesClient({
                 <TableRow key={issue.id}>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     <Link
-                      href={`/project/${issue.project.key}/${issue.number}`}
+                      href={`/${issue.project.key}/issues/${issue.number}`}
                       className="hover:text-foreground hover:underline"
                     >
                       {issue.project.key}-{issue.number}
@@ -424,7 +424,7 @@ export function GlobalIssuesClient({
                     <span className="flex items-center gap-2">
                       <TypeIcon type={issue.type as IssueType} />
                       <Link
-                        href={`/project/${issue.project.key}/${issue.number}`}
+                        href={`/${issue.project.key}/issues/${issue.number}`}
                         className="hover:underline"
                       >
                         {issue.title}
@@ -434,7 +434,7 @@ export function GlobalIssuesClient({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground truncate">
                     <Link
-                      href={`/project/${issue.project.key}`}
+                      href={`/${issue.project.key}`}
                       className="hover:underline"
                     >
                       {issue.project.name}

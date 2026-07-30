@@ -3,7 +3,7 @@
 import { unstable_cache } from "next/cache";
 import { requireCapability, requireSession } from "@/lib/auth-session";
 import { dbListCacheTag } from "@/lib/db-cache-tags";
-import { loadEnvironmentWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
-import { databaseNameSchema, projectIdSchema } from "@/lib/validation";
+import { databaseNameSchema, uuidSchema } from "@/lib/validation";
 
 export interface DatabaseEntry {
   name: string;
@@ -31,17 +31,21 @@ type DatabaseListResult =
 // The actual SSH probe, with no session/request state so it is safe to wrap in
 // `unstable_cache`. Throws on any failure so a transient SSH error is NOT
 // cached — only successful listings are stored (see getDatabaseList).
-async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) {
-    throw new Error("Project not found");
+async function probeDatabaseList(
+  environmentId: string
+): Promise<DatabaseEntry[]> {
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) {
+    throw new Error("Environment not found");
   }
 
-  const dbSvc = dbConfig(project);
+  const dbSvc = dbConfig(environment);
   let cmd: string;
   if (dbSvc.dbType === "mssql") {
     if (!dbSvc.dbPassword) {
-      throw new Error("Project dbPassword is required to list MSSQL databases");
+      throw new Error(
+        "Environment dbPassword is required to list MSSQL databases"
+      );
     }
     // Skip the four system databases (database_id 1-4: master, tempdb, model,
     // msdb). `-h -1` drops the header, `-W` trims trailing spaces so each line
@@ -109,62 +113,68 @@ async function probeDatabaseList(projectId: string): Promise<DatabaseEntry[]> {
   }));
 }
 
-// Enumerate the databases that live on the project's DB server, so the picker
-// can offer targets other than the project's configured "default" database.
-// Synchronous SSH (like getBackupList), so the result is cached per project for
+// Enumerate the databases that live on the environment's DB server, so the picker
+// can offer targets other than the environment's configured "default" database.
+// Synchronous SSH (like getBackupList), so the result is cached per environment for
 // a short window to keep repeat navigations off the remote host; the timeout
 // guard in executeRemoteCommand bounds a cold miss.
 export async function getDatabaseList(
-  projectId: string
+  environmentId: string
 ): Promise<DatabaseListResult> {
   await requireSession();
-  if (!projectIdSchema.safeParse(projectId).success) {
-    return { success: false, error: "Invalid project id" };
+  if (!uuidSchema.safeParse(environmentId).success) {
+    return { success: false, error: "Invalid environment id" };
   }
   try {
     const data = await unstable_cache(
-      () => probeDatabaseList(projectId),
-      ["db-list", projectId],
-      { tags: [dbListCacheTag(projectId)], revalidate: 30 }
+      () => probeDatabaseList(environmentId),
+      ["db-list", environmentId],
+      { tags: [dbListCacheTag(environmentId)], revalidate: 30 }
     )();
     return { success: true, data };
   } catch (error) {
-    // Don't surface raw SSH stderr (paths, hostnames) to the client. "Project
+    // Don't surface raw SSH stderr (paths, hostnames) to the client. "Environment
     // not found" / the mssql-password message are safe and stay verbatim.
     const message = (error as Error).message;
-    if (message === "Project not found" || message.startsWith("Project ")) {
+    if (
+      message === "Environment not found" ||
+      message.startsWith("Environment ")
+    ) {
       return { success: false, error: message };
     }
-    console.error(`Failed to list databases for project ${projectId}:`, error);
+    console.error(
+      `Failed to list databases for environment ${environmentId}:`,
+      error
+    );
     return { success: false, error: "Failed to list databases" };
   }
 }
 
 export async function createDatabase(
-  projectId: string,
+  environmentId: string,
   options: { database: string }
 ): Promise<{ runId: string }> {
-  if (!projectIdSchema.safeParse(projectId).success) {
-    throw new Error("Invalid project id");
+  if (!uuidSchema.safeParse(environmentId).success) {
+    throw new Error("Invalid environment id");
   }
   const session = await requireCapability("ops.destructive", {
-    environmentId: projectId,
+    environmentId: environmentId,
   });
   const parsed = databaseNameSchema.safeParse(options.database);
   if (!parsed.success) {
     throw new Error("Invalid database name");
   }
   const database = parsed.data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error("Project not found");
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error("Environment not found");
 
   const runId = await createRun({
-    environmentId: project.id,
+    environmentId: environment.id,
     userId: session.user.id,
     description: `Create database (${database})`,
   });
   await enqueue("db/database.create.requested", {
-    projectId: project.id,
+    environmentId: environment.id,
     database,
     runId,
   });
@@ -172,36 +182,36 @@ export async function createDatabase(
 }
 
 export async function dropDatabase(
-  projectId: string,
+  environmentId: string,
   options: { database: string }
 ): Promise<{ runId: string }> {
-  if (!projectIdSchema.safeParse(projectId).success) {
-    throw new Error("Invalid project id");
+  if (!uuidSchema.safeParse(environmentId).success) {
+    throw new Error("Invalid environment id");
   }
   const session = await requireCapability("ops.destructive", {
-    environmentId: projectId,
+    environmentId: environmentId,
   });
   const parsed = databaseNameSchema.safeParse(options.database);
   if (!parsed.success) {
     throw new Error("Invalid database name");
   }
   const database = parsed.data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error("Project not found");
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error("Environment not found");
 
-  // Guard the project's configured database — dropping it would break the panel
+  // Guard the environment's configured database — dropping it would break the panel
   // and every other operation that targets it. The worker re-checks too.
-  if (database === dbConfig(project).dbName) {
-    throw new Error("Cannot drop the project's configured database");
+  if (database === dbConfig(environment).dbName) {
+    throw new Error("Cannot drop the environment's configured database");
   }
 
   const runId = await createRun({
-    environmentId: project.id,
+    environmentId: environment.id,
     userId: session.user.id,
     description: `Drop database (${database})`,
   });
   await enqueue("db/database.drop.requested", {
-    projectId: project.id,
+    environmentId: environment.id,
     database,
     runId,
   });
@@ -209,14 +219,14 @@ export async function dropDatabase(
 }
 
 export async function renameDatabase(
-  projectId: string,
+  environmentId: string,
   options: { from: string; to: string }
 ): Promise<{ runId: string }> {
-  if (!projectIdSchema.safeParse(projectId).success) {
-    throw new Error("Invalid project id");
+  if (!uuidSchema.safeParse(environmentId).success) {
+    throw new Error("Invalid environment id");
   }
   const session = await requireCapability("ops.destructive", {
-    environmentId: projectId,
+    environmentId: environmentId,
   });
   const parsedFrom = databaseNameSchema.safeParse(options.from);
   if (!parsedFrom.success) {
@@ -231,22 +241,22 @@ export async function renameDatabase(
   if (from === to) {
     throw new Error("New name must differ from the current name");
   }
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error("Project not found");
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error("Environment not found");
 
-  // Guard the project's configured database — renaming it would orphan the
+  // Guard the environment's configured database — renaming it would orphan the
   // panel's configured dbName. The worker re-checks too.
-  if (from === dbConfig(project).dbName) {
-    throw new Error("Cannot rename the project's configured database");
+  if (from === dbConfig(environment).dbName) {
+    throw new Error("Cannot rename the environment's configured database");
   }
 
   const runId = await createRun({
-    environmentId: project.id,
+    environmentId: environment.id,
     userId: session.user.id,
     description: `Rename database (${from} → ${to})`,
   });
   await enqueue("db/database.rename.requested", {
-    projectId: project.id,
+    environmentId: environment.id,
     from,
     to,
     runId,

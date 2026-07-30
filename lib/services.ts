@@ -232,7 +232,7 @@ export function buildDbShellCommand(
 // $PATH in Microsoft's mssql images (and isn't always on $PATH on host installs
 // either) — it lives at /opt/mssql-tools18/bin (newer) or /opt/mssql-tools/bin
 // (older). Probe both before falling back to PATH lookup so we don't have to
-// know which SQL Server version each project is on. The `printf | sqlcmd`
+// know which SQL Server version each environment is on. The `printf | sqlcmd`
 // pipeline is built into the inner so it runs in the same shell context as
 // sqlcmd — that keeps stdin handling local and avoids competing with `sudo -S`
 // on systemd. sqlcmd authenticates over TCP to localhost:1433 with -U/-P, so no

@@ -4,7 +4,7 @@ import type {
   Server,
   ServiceWithServer,
 } from "@/lib/db/schema";
-import { sanitizeProject } from "@/lib/projects";
+import { sanitizeEnvironment } from "@/lib/environments";
 import { backendService, dbService } from "@/lib/services";
 
 function makeServer(name: string): Server {
@@ -98,16 +98,16 @@ function makeProject(
   };
 }
 
-describe("sanitizeProject", () => {
+describe("sanitizeEnvironment", () => {
   it("strips the password from every server", () => {
-    const safe = sanitizeProject(makeProject());
+    const safe = sanitizeEnvironment(makeProject());
     for (const service of safe.services) {
       expect(service.server).not.toHaveProperty("password");
     }
   });
 
   it("strips dbPassword and mockTimeApiKey from every service", () => {
-    const safe = sanitizeProject(makeProject());
+    const safe = sanitizeEnvironment(makeProject());
     for (const service of safe.services) {
       expect(service).not.toHaveProperty("dbPassword");
       expect(service).not.toHaveProperty("mockTimeApiKey");
@@ -115,13 +115,13 @@ describe("sanitizeProject", () => {
   });
 
   it("sets presence flags true when secrets are present", () => {
-    const safe = sanitizeProject(makeProject());
+    const safe = sanitizeEnvironment(makeProject());
     expect(dbService(safe).hasDbPassword).toBe(true);
     expect(backendService(safe).hasMockTimeApiKey).toBe(true);
   });
 
   it("sets presence flags false when secrets are absent", () => {
-    const safe = sanitizeProject(
+    const safe = sanitizeEnvironment(
       makeProject({
         services: [
           makeDbService({ dbPassword: null }),
@@ -135,7 +135,7 @@ describe("sanitizeProject", () => {
   });
 
   it("preserves non-secret fields", () => {
-    const safe = sanitizeProject(makeProject());
+    const safe = sanitizeEnvironment(makeProject());
     expect(safe.name).toBe("Demo");
     expect(dbService(safe).dbName).toBe("appdb");
     expect(dbService(safe).server.name).toBe("server-11");

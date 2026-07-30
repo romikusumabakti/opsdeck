@@ -23,7 +23,7 @@ import { decryptNullable, decryptSecret } from "@/lib/secrets";
 export async function loadEnvironmentWithServers(
   id: string
 ): Promise<EnvironmentWithServers | null> {
-  const project = await db.query.environments.findFirst({
+  const environment = await db.query.environments.findFirst({
     where: { id },
     with: {
       services: {
@@ -31,12 +31,12 @@ export async function loadEnvironmentWithServers(
       },
     },
   });
-  if (!project) return null;
+  if (!environment) return null;
   // SINGLE decryption boundary for environment credentials: secrets are stored
   // encrypted at rest (lib/secrets) and handed to trusted server-side callers
   // (SSH/DB ops, mock-time) as plaintext here. Every consumer loads through this
   // function, so nothing downstream deals with ciphertext.
-  const env = project as EnvironmentWithServers;
+  const env = environment as EnvironmentWithServers;
   return {
     ...env,
     services: env.services.map(decryptService),
@@ -65,12 +65,7 @@ function stripServer(server: Server): SafeServer {
 
 /** Drop a service's secrets, keeping presence flags for the edit forms. */
 function stripService(service: ServiceWithServer): SafeServiceWithServer {
-  const {
-    dbPassword,
-    mockTimeApiKey,
-    server,
-    ...rest
-  } = service;
+  const { dbPassword, mockTimeApiKey, server, ...rest } = service;
   return {
     ...rest,
     server: stripServer(server),
@@ -80,23 +75,23 @@ function stripService(service: ServiceWithServer): SafeServiceWithServer {
 }
 
 /**
- * Drop every secret from a fully-loaded project so the result is safe to send
+ * Drop every secret from a fully-loaded environment so the result is safe to send
  * to a client component (and thus serialize into the RSC payload). Strips each
  * service's SSH password, the mssql `sa` password, and the mock-time API key.
  */
-export function sanitizeProject(
-  project: EnvironmentWithServers
+export function sanitizeEnvironment(
+  environment: EnvironmentWithServers
 ): SafeEnvironmentWithServers {
   return {
-    ...project,
-    services: project.services.map(stripService),
+    ...environment,
+    services: environment.services.map(stripService),
   };
 }
 
-/** Load a project and sanitize it in one step for handing to the client. */
-export async function loadSafeProject(
+/** Load an environment and sanitize it in one step for handing to the client. */
+export async function loadSafeEnvironment(
   id: string
 ): Promise<SafeEnvironmentWithServers | null> {
-  const project = await loadEnvironmentWithServers(id);
-  return project ? sanitizeProject(project) : null;
+  const environment = await loadEnvironmentWithServers(id);
+  return environment ? sanitizeEnvironment(environment) : null;
 }

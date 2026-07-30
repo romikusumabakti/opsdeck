@@ -30,9 +30,9 @@ import {
 } from "./duration";
 
 export function MockTimeApi({
-  project,
+  environment,
 }: {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
@@ -75,7 +75,7 @@ export function MockTimeApi({
       if (!silent) setPendingAction("refresh");
       setClockLoading(true);
       setClockError(null);
-      const result = await getClockState(project.id);
+      const result = await getClockState(environment.id);
       setClockLoading(false);
       if (!silent) setPendingAction(null);
       if (!result.success) {
@@ -85,7 +85,7 @@ export function MockTimeApi({
       }
       setClock(result.data);
     },
-    [project]
+    [environment]
   );
 
   React.useEffect(() => {
@@ -121,7 +121,7 @@ export function MockTimeApi({
     setPendingAction("travel");
     try {
       const target = combined.toISOString();
-      const result = await travelClock(project.id, target);
+      const result = await travelClock(environment.id, target);
       handleResult(result, {
         title: t("travel.successTitle"),
         description: t("travel.successDescription", { dateTime: displayLabel }),
@@ -142,7 +142,7 @@ export function MockTimeApi({
     setPendingAction("freezeAt");
     try {
       const at = combined.toISOString();
-      const result = await freezeClock(project.id, at);
+      const result = await freezeClock(environment.id, at);
       handleResult(result, {
         title: t("freeze.successTitle"),
         description: t("freeze.successDescriptionAt", {
@@ -164,7 +164,7 @@ export function MockTimeApi({
     if (!ok) return;
     setPendingAction("freezeNow");
     try {
-      const result = await freezeClock(project.id, null);
+      const result = await freezeClock(environment.id, null);
       handleResult(result, {
         title: t("freeze.successTitle"),
         description: t("freeze.successDescriptionNow"),
@@ -185,7 +185,7 @@ export function MockTimeApi({
     setPendingAction("advance");
     try {
       const duration = buildDuration(amount, advanceUnit, advanceDirection);
-      const result = await advanceClock(project.id, duration);
+      const result = await advanceClock(environment.id, duration);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;
@@ -212,7 +212,7 @@ export function MockTimeApi({
     if (!ok) return;
     setPendingAction("reset");
     try {
-      const result = await resetClock(project.id);
+      const result = await resetClock(environment.id);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
         return;

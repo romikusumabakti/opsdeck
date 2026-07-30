@@ -3,7 +3,8 @@ import {
   backupFilenameSchema,
   databaseNameSchema,
   isoDurationSchema,
-  projectIdSchema,
+  projectKeySchema,
+  uuidSchema,
 } from "@/lib/validation";
 
 describe("backupFilenameSchema", () => {
@@ -58,14 +59,39 @@ describe("isoDurationSchema", () => {
   });
 });
 
-describe("projectIdSchema", () => {
+describe("uuidSchema", () => {
   it("accepts a valid uuid", () => {
     expect(
-      projectIdSchema.safeParse("018f3e3a-7b2c-7c3d-8e4f-1a2b3c4d5e6f").success
+      uuidSchema.safeParse("018f3e3a-7b2c-7c3d-8e4f-1a2b3c4d5e6f").success
     ).toBe(true);
   });
 
   it("rejects a non-uuid", () => {
-    expect(projectIdSchema.safeParse("not-a-uuid").success).toBe(false);
+    expect(uuidSchema.safeParse("not-a-uuid").success).toBe(false);
+  });
+});
+
+describe("projectKeySchema", () => {
+  it.each(["CMEM", "tmem", "P2SK9"])("accepts %s", (key) => {
+    expect(projectKeySchema.safeParse(key).success).toBe(true);
+  });
+
+  it("uppercases the key", () => {
+    expect(projectKeySchema.parse("cmem")).toBe("CMEM");
+  });
+
+  it.each(["A", "TOOLONGKEY1", "1ABC"])("rejects malformed %s", (key) => {
+    expect(projectKeySchema.safeParse(key).success).toBe(false);
+  });
+
+  // A project key is also a top-level URL segment (/[projectKey]/[envSlug]),
+  // so one that matches a real route would be unreachable.
+  it.each([
+    "projects",
+    "ISSUES",
+    "servers",
+    "api",
+  ])("rejects route-colliding %s", (key) => {
+    expect(projectKeySchema.safeParse(key).success).toBe(false);
   });
 });

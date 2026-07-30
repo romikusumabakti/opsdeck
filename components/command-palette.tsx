@@ -39,10 +39,10 @@ import { authClient } from "@/lib/auth-client";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 
 export function CommandPalette({
-  projects,
+  environments,
   isAdmin,
 }: {
-  projects: EnvironmentListItem[];
+  environments: EnvironmentListItem[];
   isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -181,29 +181,32 @@ export function CommandPalette({
             )}
           </CommandGroup>
 
-          {projects.length > 0 && (
+          {environments.length > 0 && (
             <>
               <CommandSeparator />
-              <CommandGroup heading={t("projects")}>
-                {projects.map((p) => (
+              <CommandGroup heading={t("environments")}>
+                {environments.map((env) => (
                   <CommandItem
-                    key={p.id}
-                    value={`project ${p.name}`}
+                    key={env.id}
+                    value={`environment ${env.name}`}
                     onSelect={() =>
-                      run(() => router.push(`/${p.key}/${p.slug}`))
+                      run(() => router.push(`/${env.key}/${env.slug}`))
                     }
                   >
                     <Folder />
-                    <span className="truncate">{p.name}</span>
+                    <span className="truncate">{env.name}</span>
                   </CommandItem>
                 ))}
                 {isAdmin && (
+                  // An environment needs a parent project, so the palette (which
+                  // has no project context) sends the user to the list, where
+                  // every project card carries the action.
                   <CommandItem
-                    value="new project create"
-                    onSelect={() => run(() => router.push("/projects/new"))}
+                    value="new environment create"
+                    onSelect={() => run(() => router.push("/projects"))}
                   >
                     <Plus />
-                    {tHeader("createProject")}
+                    {tHeader("createEnvironment")}
                   </CommandItem>
                 )}
               </CommandGroup>

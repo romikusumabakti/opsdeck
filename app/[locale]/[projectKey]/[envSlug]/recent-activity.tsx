@@ -2,7 +2,7 @@ import { formatDistanceToNow, type Locale } from "date-fns";
 import { Activity, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { getProjectRuns, type RunWithUser } from "@/actions/runs";
+import { getEnvironmentRuns, type RunWithUser } from "@/actions/runs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,10 +10,17 @@ import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 const RECENT_LIMIT = 5;
 
-export async function RecentActivity({ projectId }: { projectId: string }) {
+export async function RecentActivity({
+  environmentId,
+  envPath,
+}: {
+  environmentId: string;
+  // Readable base path of the environment (`/[projectKey]/[envSlug]`).
+  envPath: string;
+}) {
   // Re-uses the existing query so we don't multiply DB round-trips. Trimmed
-  // here rather than via SQL because the list is bounded by project scope.
-  const runs = (await getProjectRuns(projectId)).slice(0, RECENT_LIMIT);
+  // here rather than via SQL because the list is bounded by environment scope.
+  const runs = (await getEnvironmentRuns(environmentId)).slice(0, RECENT_LIMIT);
   const t = await getTranslations("dashboard.recentActivity");
   const locale = await getLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
@@ -27,7 +34,7 @@ export async function RecentActivity({ projectId }: { projectId: string }) {
         </div>
         {runs.length > 0 && (
           <Link
-            href={`/projects/${projectId}/history`}
+            href={`${envPath}/history`}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {t("viewAll")}

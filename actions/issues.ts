@@ -251,7 +251,7 @@ export async function addComment(
         }
       }
     }
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to add comment:", error);
@@ -358,7 +358,7 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
         entityId: created.id,
         data: { key: `${projectKey}-${created.number}`, title: created.title },
       });
-      revalidatePath("/projects", "layout");
+      revalidatePath("/", "layout");
       return { success: true, data: created };
     } catch (error) {
       if ((error as { code?: string })?.code === "23505") continue; // retry
@@ -412,7 +412,7 @@ export async function updateIssue(
         },
       });
     }
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true, data: updated };
   } catch (error) {
     console.error(`Failed to update issue ${id}:`, error);
@@ -442,7 +442,7 @@ export async function bulkSetStatus(
       .update(issues)
       .set({ status: parsed.data, updatedAt: new Date() })
       .where(inArray(issues.id, ids));
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to bulk-update issues:", error);
@@ -458,7 +458,7 @@ export async function bulkDeleteIssues(
   if (ids.length === 0) return { success: true };
   try {
     await db.delete(issues).where(inArray(issues.id, ids));
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to bulk-delete issues:", error);
@@ -471,7 +471,7 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
   await requireSession();
   try {
     await db.delete(issues).where(and(eq(issues.id, id)));
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete issue ${id}:`, error);

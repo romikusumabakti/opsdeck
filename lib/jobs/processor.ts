@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Job } from "bullmq";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
-import { loadEnvironmentWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/environments";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
@@ -68,12 +68,12 @@ function pgQuoteLiteral(value: string): string {
 async function handleCreateDatabaseBackup(
   data: JobMap["db/backup.requested"]
 ): Promise<{ success: true; filename: string }> {
-  const { runId, compress, projectId, database } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
+  const { runId, compress, environmentId, database } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const useCompression = compress ?? true;
-  const db = dbConfig(project);
-  // Fall back to the project's configured database when no explicit target is
+  const db = dbConfig(environment);
+  // Fall back to the environment's configured database when no explicit target is
   // sent (backups of the "default database"). The action layer has already
   // validated any non-default `database` against databaseNameSchema.
   const dbName = database ?? db.dbName;
@@ -108,7 +108,7 @@ async function handleCreateDatabaseBackup(
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
         if (db.dbType === "mssql") {
           return await runMssqlBackup(
-            project,
+            environment,
             dbName,
             ts,
             credentials,
@@ -116,7 +116,7 @@ async function handleCreateDatabaseBackup(
           );
         }
         return await runPostgresBackup(
-          project,
+          environment,
           dbName,
           ts,
           credentials,
@@ -137,13 +137,13 @@ async function handleCreateDatabaseBackup(
 }
 
 async function runPostgresBackup(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   database: string,
   ts: string,
   credentials: { host: string; username: string; password: string },
   compress: boolean
 ): Promise<string> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   const fname = compress ? `${database}_${ts}.sql.gz` : `${database}_${ts}.sql`;
   const target = `${db.dbBackupPath}/${fname}`;
   // `--clean --if-exists` emits idempotent DROP IF EXISTS for every object
@@ -167,16 +167,16 @@ async function runPostgresBackup(
 }
 
 async function runMssqlBackup(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   database: string,
   ts: string,
   credentials: { host: string; username: string; password: string },
   compress: boolean
 ): Promise<string> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   if (!db.dbPassword) {
     throw new Error(
-      "Project dbPassword is required for MSSQL backups (sqlcmd needs it)"
+      "Environment dbPassword is required for MSSQL backups (sqlcmd needs it)"
     );
   }
   const fname = `${database}_${ts}.bak`;
@@ -205,13 +205,13 @@ async function runMssqlBackup(
   return fname;
 }
 
-async function handleMockProjectTimeLegacy(
-  data: JobMap["project/mock-time.legacy"]
+async function handleMockEnvironmentTimeLegacy(
+  data: JobMap["environment/mock-time.legacy"]
 ): Promise<{ success: true; mockedAt: string }> {
-  const { projectId, mockedAt, runId } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const backend = backendService(project);
+  const { environmentId, mockedAt, runId } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const backend = backendService(environment);
 
   const credentials = {
     host: backend.server.host,
@@ -295,13 +295,13 @@ async function handleMockProjectTimeLegacy(
   }
 }
 
-async function handleMockProjectTimeResetLegacy(
-  data: JobMap["project/mock-time.reset-legacy"]
+async function handleMockEnvironmentTimeResetLegacy(
+  data: JobMap["environment/mock-time.reset-legacy"]
 ): Promise<{ success: true }> {
-  const { projectId, runId } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const backend = backendService(project);
+  const { environmentId, runId } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const backend = backendService(environment);
 
   const credentials = {
     host: backend.server.host,
@@ -409,11 +409,11 @@ async function ignoreErrors(fn: () => Promise<unknown>): Promise<void> {
 // inside the container / as the DB OS user; the `> hostTmp` redirect runs in
 // the outer SSH-user shell so the temp ends up SSH-readable for SFTP.
 function buildExtractCommand(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   filePath: string,
   hostTmp: string
 ): string {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   const inner = buildDbShellCommand(
     db.serviceType,
     db.serviceName,
@@ -429,11 +429,11 @@ function buildExtractCommand(
 // Command (run on the TARGET host) that moves the SSH-owned `hostTmp` into the
 // target's backup dir as `dst`, owned/readable by the DB process.
 function buildPlaceCommand(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   hostTmp: string,
   dst: string
 ): string {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   const name = db.serviceName;
   if (db.serviceType === "docker") {
     return (
@@ -463,10 +463,10 @@ function buildPlaceCommand(
 // Command (run on the TARGET host) removing the staged copy from the backup dir
 // once the restore has consumed it, so foreign backups don't linger.
 function buildRemovePlacedCommand(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   dst: string
 ): string {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   const name = db.serviceName;
   if (db.serviceType === "docker") {
     return `docker exec ${shq(name)} rm -f ${shq(dst)}`;
@@ -477,16 +477,16 @@ function buildRemovePlacedCommand(
   return `printf '%s\\n' ${shq(db.server.password)} | sudo -S rm -f ${shq(dst)}`;
 }
 
-// Stage `filename` from `sourceProject`'s backup dir into `targetProject`'s
+// Stage `filename` from `sourceEnvironment`'s backup dir into `targetProject`'s
 // backup dir (different host/service). Returns a cleanup that removes the placed
 // file after the restore is done. Throws (with temps cleaned up) on any failure.
 async function transferBackupToTarget(
-  sourceProject: EnvironmentWithServers,
+  sourceEnvironment: EnvironmentWithServers,
   targetProject: EnvironmentWithServers,
   filename: string,
   stamp: string
 ): Promise<() => Promise<void>> {
-  const sourceDb = dbConfig(sourceProject);
+  const sourceDb = dbConfig(sourceEnvironment);
   const targetDb = dbConfig(targetProject);
   const srcCreds = credsOf(sourceDb.server);
   const dstCreds = credsOf(targetDb.server);
@@ -512,7 +512,7 @@ async function transferBackupToTarget(
 
   await executeRemoteCommand(
     srcCreds,
-    buildExtractCommand(sourceProject, sourceFile, srcHostTmp)
+    buildExtractCommand(sourceEnvironment, sourceFile, srcHostTmp)
   );
   try {
     await downloadRemoteFile(srcCreds, srcHostTmp, localTmp);
@@ -547,16 +547,16 @@ async function handleRestoreDatabaseBackup(
   data: JobMap["db/restore.requested"]
 ): Promise<{ success: true; restored: string }> {
   const {
-    projectId,
+    environmentId,
     filename,
     runId,
     restartBackend,
     database,
-    sourceProjectId,
+    sourceEnvironmentId,
   } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const db = dbConfig(project);
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const db = dbConfig(environment);
   // Restore target — the configured database unless the picker sent another
   // one (already validated by the action layer).
   const dbName = database ?? db.dbName;
@@ -568,7 +568,7 @@ async function handleRestoreDatabaseBackup(
 
   if (!filename) throw new Error("Filename is required");
 
-  // Optional cross-project source: read the backup from another project.
+  // Optional cross-environment source: read the backup from another environment.
   // - Same DB location (server + service + type): read its `dbBackupPath`
   //   directly — the target's DB server already reaches that path.
   // - Same dbType but different server/service: physically stage the file into
@@ -576,14 +576,17 @@ async function handleRestoreDatabaseBackup(
   //   the dbType match here (defence in depth — the action already checked).
   let backupPath = db.dbBackupPath;
   let cleanupTransfer: (() => Promise<void>) | null = null;
-  if (sourceProjectId && sourceProjectId !== projectId) {
-    const sourceProject = await loadEnvironmentWithServers(sourceProjectId);
-    if (!sourceProject) {
-      throw new Error(`Source project ${sourceProjectId} not found`);
+  if (sourceEnvironmentId && sourceEnvironmentId !== environmentId) {
+    const sourceEnvironment =
+      await loadEnvironmentWithServers(sourceEnvironmentId);
+    if (!sourceEnvironment) {
+      throw new Error(`Source environment ${sourceEnvironmentId} not found`);
     }
-    const sourceDb = dbConfig(sourceProject);
+    const sourceDb = dbConfig(sourceEnvironment);
     if (sourceDb.dbType !== db.dbType) {
-      throw new Error("Source project database type does not match the target");
+      throw new Error(
+        "Source environment database type does not match the target"
+      );
     }
     if (
       dbLocationMatches(
@@ -605,8 +608,14 @@ async function handleRestoreDatabaseBackup(
     } else {
       cleanupTransfer = await tracked(
         runId,
-        `Transferring backup from ${sourceProject.name}`,
-        () => transferBackupToTarget(sourceProject, project, filename, runId)
+        `Transferring backup from ${sourceEnvironment.name}`,
+        () =>
+          transferBackupToTarget(
+            sourceEnvironment,
+            environment,
+            filename,
+            runId
+          )
       );
       // File now lives under `filename` in the target's own backup dir.
       backupPath = db.dbBackupPath;
@@ -617,15 +626,15 @@ async function handleRestoreDatabaseBackup(
   try {
     if (db.dbType === "mssql") {
       await tracked(runId, `Restoring ${dbName} from ${filename}`, async () => {
-        await runMssqlRestore(project, dbName, source, credentials);
+        await runMssqlRestore(environment, dbName, source, credentials);
       });
     } else {
       await tracked(runId, `Dropping and recreating ${dbName}`, async () => {
-        await runPostgresRecreateDatabase(project, dbName, credentials);
+        await runPostgresRecreateDatabase(environment, dbName, credentials);
       });
       await tracked(runId, `Restoring from ${filename}`, async () => {
         await runPostgresRestore(
-          project,
+          environment,
           dbName,
           filename,
           source,
@@ -638,7 +647,7 @@ async function handleRestoreDatabaseBackup(
     // (drops stale connections, clears in-memory caches). Runs against the
     // backend server's credentials, not the DB server's.
     if (restartBackend) {
-      const backend = backendService(project);
+      const backend = backendService(environment);
       await tracked(
         runId,
         `Restarting backend ${backend.serviceName}`,
@@ -726,10 +735,10 @@ async function runPostgresRestore(
 async function handleControlService(
   data: JobMap["service/control.requested"]
 ): Promise<{ success: true }> {
-  const { projectId, role, action, runId } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const cfg = getServiceConfig(project, role);
+  const { environmentId, role, action, runId } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const cfg = getServiceConfig(environment, role);
   const credentials = {
     host: cfg.server.host,
     username: cfg.server.username,
@@ -851,7 +860,7 @@ async function runMssqlRestore(
   const dbSvc = dbConfig(data);
   if (!dbSvc.dbPassword) {
     throw new Error(
-      "Project dbPassword is required for MSSQL restores (sqlcmd needs it)"
+      "Environment dbPassword is required for MSSQL restores (sqlcmd needs it)"
     );
   }
   const dbId = sqlBracketId(database);
@@ -897,10 +906,10 @@ async function runMssqlRestore(
 async function handleCreateDatabase(
   data: JobMap["db/database.create.requested"]
 ): Promise<{ success: true; database: string }> {
-  const { projectId, database, runId } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const db = dbConfig(project);
+  const { environmentId, database, runId } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const db = dbConfig(environment);
   const credentials = {
     host: db.server.host,
     username: db.server.username,
@@ -912,9 +921,9 @@ async function handleCreateDatabase(
 
     await tracked(runId, `Creating database ${database}`, async () => {
       if (db.dbType === "mssql") {
-        await runMssqlCreateDatabase(project, database, credentials);
+        await runMssqlCreateDatabase(environment, database, credentials);
       } else {
-        await runPostgresCreateDatabase(project, database, credentials);
+        await runPostgresCreateDatabase(environment, database, credentials);
       }
     });
 
@@ -930,11 +939,11 @@ async function handleCreateDatabase(
 }
 
 async function runPostgresCreateDatabase(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   const query = `CREATE DATABASE ${pgQuoteId(database)};`;
   const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
   const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
@@ -945,14 +954,14 @@ async function runPostgresCreateDatabase(
 }
 
 async function runMssqlCreateDatabase(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   if (!db.dbPassword) {
     throw new Error(
-      "Project dbPassword is required for MSSQL database creation (sqlcmd needs it)"
+      "Environment dbPassword is required for MSSQL database creation (sqlcmd needs it)"
     );
   }
   const query = `CREATE DATABASE [${sqlBracketId(database)}];`;
@@ -968,10 +977,10 @@ async function runMssqlCreateDatabase(
 async function handleDropDatabase(
   data: JobMap["db/database.drop.requested"]
 ): Promise<{ success: true; database: string }> {
-  const { projectId, database, runId } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const db = dbConfig(project);
+  const { environmentId, database, runId } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const db = dbConfig(environment);
   const credentials = {
     host: db.server.host,
     username: db.server.username,
@@ -980,18 +989,18 @@ async function handleDropDatabase(
 
   try {
     if (!database) throw new Error("Database name is required");
-    // Defence in depth: the action layer already blocks dropping the project's
+    // Defence in depth: the action layer already blocks dropping the environment's
     // configured database, but re-check here so a hand-crafted event can't
     // wipe the default DB out from under the panel.
     if (database === db.dbName) {
-      throw new Error("Refusing to drop the project's configured database");
+      throw new Error("Refusing to drop the environment's configured database");
     }
 
     await tracked(runId, `Dropping database ${database}`, async () => {
       if (db.dbType === "mssql") {
-        await runMssqlDropDatabase(project, database, credentials);
+        await runMssqlDropDatabase(environment, database, credentials);
       } else {
-        await runPostgresDropDatabase(project, database, credentials);
+        await runPostgresDropDatabase(environment, database, credentials);
       }
     });
 
@@ -1007,11 +1016,11 @@ async function handleDropDatabase(
 }
 
 async function runPostgresDropDatabase(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
   // doesn't fail with "database is being accessed by other users".
   const query = `DROP DATABASE IF EXISTS ${pgQuoteId(database)} WITH (FORCE);`;
@@ -1024,14 +1033,14 @@ async function runPostgresDropDatabase(
 }
 
 async function runMssqlDropDatabase(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   if (!db.dbPassword) {
     throw new Error(
-      "Project dbPassword is required for MSSQL database drop (sqlcmd needs it)"
+      "Environment dbPassword is required for MSSQL database drop (sqlcmd needs it)"
     );
   }
   const dbId = sqlBracketId(database);
@@ -1056,10 +1065,10 @@ async function runMssqlDropDatabase(
 async function handleRenameDatabase(
   data: JobMap["db/database.rename.requested"]
 ): Promise<{ success: true; from: string; to: string }> {
-  const { projectId, from, to, runId } = data;
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error(`Project ${projectId} not found`);
-  const db = dbConfig(project);
+  const { environmentId, from, to, runId } = data;
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error(`Environment ${environmentId} not found`);
+  const db = dbConfig(environment);
   const credentials = {
     host: db.server.host,
     username: db.server.username,
@@ -1069,18 +1078,20 @@ async function handleRenameDatabase(
   try {
     if (!from || !to) throw new Error("Source and target names are required");
     if (from === to) throw new Error("New name must differ from the old name");
-    // Defence in depth: the action layer already blocks renaming the project's
+    // Defence in depth: the action layer already blocks renaming the environment's
     // configured database, but re-check here so a hand-crafted event can't
     // orphan the default DB out from under the panel.
     if (from === db.dbName) {
-      throw new Error("Refusing to rename the project's configured database");
+      throw new Error(
+        "Refusing to rename the environment's configured database"
+      );
     }
 
     await tracked(runId, `Renaming database ${from} → ${to}`, async () => {
       if (db.dbType === "mssql") {
-        await runMssqlRenameDatabase(project, from, to, credentials);
+        await runMssqlRenameDatabase(environment, from, to, credentials);
       } else {
-        await runPostgresRenameDatabase(project, from, to, credentials);
+        await runPostgresRenameDatabase(environment, from, to, credentials);
       }
     });
 
@@ -1096,12 +1107,12 @@ async function handleRenameDatabase(
 }
 
 async function runPostgresRenameDatabase(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   from: string,
   to: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   // Terminate active connections first — ALTER DATABASE ... RENAME fails while
   // other sessions hold the source DB open.
   const terminate =
@@ -1118,15 +1129,15 @@ async function runPostgresRenameDatabase(
 }
 
 async function runMssqlRenameDatabase(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   from: string,
   to: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  const db = dbConfig(project);
+  const db = dbConfig(environment);
   if (!db.dbPassword) {
     throw new Error(
-      "Project dbPassword is required for MSSQL database rename (sqlcmd needs it)"
+      "Environment dbPassword is required for MSSQL database rename (sqlcmd needs it)"
     );
   }
   const fromId = sqlBracketId(from);
@@ -1145,28 +1156,56 @@ async function runMssqlRenameDatabase(
   await executeRemoteCommand(credentials, cmd);
 }
 
+// Job names and payload keys were renamed when "project" became "environment"
+// (`project/mock-time.*` -> `environment/mock-time.*`, `projectId` ->
+// `environmentId`). Jobs already sitting in Redis when the worker rolls out
+// still carry the old shape, so both are mapped forward here; the aliases can
+// go once no pre-rename job can be queued anymore.
+const LEGACY_JOB_NAMES: Record<string, JobName> = {
+  "project/mock-time.legacy": "environment/mock-time.legacy",
+  "project/mock-time.reset-legacy": "environment/mock-time.reset-legacy",
+};
+
+function normalizeJobName(name: string): JobName {
+  return LEGACY_JOB_NAMES[name] ?? (name as JobName);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: BullMQ hands back untyped job data.
+function normalizePayload(data: any): any {
+  if (data && typeof data === "object" && !("environmentId" in data)) {
+    const { projectId, sourceProjectId, ...rest } = data;
+    return {
+      ...rest,
+      environmentId: projectId,
+      ...(sourceProjectId ? { sourceEnvironmentId: sourceProjectId } : {}),
+    };
+  }
+  return data;
+}
+
 // Dispatches a job to its handler by name. The Worker calls this for every job;
 // a thrown error propagates to BullMQ, which (with attempts: 1) marks the job
 // failed — the handlers have already recorded the run failure in Postgres.
 export async function processJob(job: Job): Promise<unknown> {
-  const name = job.name as JobName;
+  const name = normalizeJobName(job.name);
+  const data = normalizePayload(job.data);
   switch (name) {
     case "db/backup.requested":
-      return handleCreateDatabaseBackup(job.data);
+      return handleCreateDatabaseBackup(data);
     case "db/restore.requested":
-      return handleRestoreDatabaseBackup(job.data);
+      return handleRestoreDatabaseBackup(data);
     case "db/database.create.requested":
-      return handleCreateDatabase(job.data);
+      return handleCreateDatabase(data);
     case "db/database.drop.requested":
-      return handleDropDatabase(job.data);
+      return handleDropDatabase(data);
     case "db/database.rename.requested":
-      return handleRenameDatabase(job.data);
+      return handleRenameDatabase(data);
     case "service/control.requested":
-      return handleControlService(job.data);
-    case "project/mock-time.legacy":
-      return handleMockProjectTimeLegacy(job.data);
-    case "project/mock-time.reset-legacy":
-      return handleMockProjectTimeResetLegacy(job.data);
+      return handleControlService(data);
+    case "environment/mock-time.legacy":
+      return handleMockEnvironmentTimeLegacy(data);
+    case "environment/mock-time.reset-legacy":
+      return handleMockEnvironmentTimeResetLegacy(data);
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;

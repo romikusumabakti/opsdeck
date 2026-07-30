@@ -13,9 +13,9 @@ export type DbLocation = Pick<
 /**
  * True when two projects' backups sit in the same reachable filesystem — same
  * host, same DB service, same engine. When this holds, a restore run against
- * one project's DB server can read the other project's `dbBackupPath` directly,
+ * one environment's DB server can read the other environment's `dbBackupPath` directly,
  * with no host-to-host file transfer. Used to gate the "restore from another
- * project" source picker: a cross-server source would need the backup file
+ * environment" source picker: a cross-server source would need the backup file
  * copied between hosts first, which is out of scope.
  */
 export function dbLocationMatches(a: DbLocation, b: DbLocation): boolean {

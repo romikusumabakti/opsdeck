@@ -1,7 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { getProjectById } from "@/actions/projects";
+import { getEnvironmentById } from "@/actions/environments";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
@@ -23,8 +23,11 @@ const ROLE_TITLE_KEY = {
   frontend: "frontend",
 } as const;
 
-function roleConfig(project: SafeEnvironmentWithServers, role: ServiceRole) {
-  const service = getService(project, role);
+function roleConfig(
+  environment: SafeEnvironmentWithServers,
+  role: ServiceRole
+) {
+  const service = getService(environment, role);
   return {
     serviceName: service.serviceName,
     serverName: service.server.name,
@@ -63,25 +66,25 @@ export default async function Page({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale, projectKey, envSlug, role } = await params;
-  const projectId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+  const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
   if (!VALID_ROLES.includes(role as ServiceRole)) notFound();
   const typedRole = role as ServiceRole;
 
-  const [project, sp, t, tDash, tCommon] = await Promise.all([
-    getProjectById(projectId),
+  const [environment, sp, t, tDash, tCommon] = await Promise.all([
+    getEnvironmentById(environmentId),
     searchParams,
     getTranslations("services"),
     getTranslations("dashboard"),
     getTranslations("common"),
   ]);
 
-  if (!project) {
-    return <p>{tCommon("projectNotFound")}</p>;
+  if (!environment) {
+    return <p>{tCommon("environmentNotFound")}</p>;
   }
 
-  const { serviceName, serverName } = roleConfig(project, typedRole);
+  const { serviceName, serverName } = roleConfig(environment, typedRole);
   const target = tDash(ROLE_TITLE_KEY[typedRole]);
 
   const initial: InitialLogState = {
@@ -106,7 +109,7 @@ export default async function Page({
         subtitle={t("logs.pageSubtitle", { serviceName, serverName })}
         action={
           <Button
-            render={<Link href={`/projects/${projectId}/services`} />}
+            render={<Link href={`/${projectKey}/${envSlug}/services`} />}
             variant="outline"
           >
             <ArrowLeft className="size-4" />
@@ -115,7 +118,7 @@ export default async function Page({
         }
       />
       <LogsClient
-        project={project}
+        environment={environment}
         role={typedRole}
         serviceName={serviceName}
         initial={initial}

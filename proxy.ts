@@ -2,6 +2,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
+import { canonicalProjectPath } from "./lib/canonical-path";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -41,6 +42,14 @@ export function proxy(req: NextRequest) {
       url.searchParams.set("redirect", stripped || "/");
       return NextResponse.redirect(url);
     }
+  }
+
+  const canonical = canonicalProjectPath(stripped);
+  if (canonical) {
+    const localeMatch = pathname.match(LOCALE_PREFIX_REGEX);
+    const url = req.nextUrl.clone();
+    url.pathname = `${localeMatch ? `/${localeMatch[1]}` : ""}${canonical}`;
+    return NextResponse.redirect(url, 308);
   }
 
   return intlMiddleware(req);

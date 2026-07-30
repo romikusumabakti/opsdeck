@@ -32,7 +32,7 @@ export async function setIssueLabels(
           .values(labelIds.map((labelId) => ({ issueId, labelId })));
       }
     });
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to set issue labels:", error);

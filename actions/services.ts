@@ -2,7 +2,7 @@
 
 import { requireSession } from "@/lib/auth-session";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
-import { loadEnvironmentWithServers } from "@/lib/projects";
+import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import {
@@ -15,9 +15,9 @@ import {
 } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
 import {
-  projectIdSchema,
   serviceActionSchema,
   serviceRoleSchema,
+  uuidSchema,
 } from "@/lib/validation";
 
 export type ServiceStatusResult = {
@@ -27,12 +27,12 @@ export type ServiceStatusResult = {
   error?: string;
 };
 
-// Internal: probe one service against an already-loaded (trusted) project.
+// Internal: probe one service against an already-loaded (trusted) environment.
 async function probeServiceStatus(
-  project: EnvironmentWithServers,
+  environment: EnvironmentWithServers,
   role: ServiceRole
 ): Promise<ServiceStatusResult> {
-  const cfg = getServiceConfig(project, role);
+  const cfg = getServiceConfig(environment, role);
   try {
     const output = await executeRemoteCommand(
       {
@@ -61,23 +61,23 @@ async function probeServiceStatus(
 // Probe all three services in parallel — each runs against its own server's
 // SSH credentials, so there's no cross-server interference.
 export async function getAllServiceStatuses(
-  projectId: string
+  environmentId: string
 ): Promise<ServiceStatusResult[]> {
   await requireSession();
-  if (!projectIdSchema.safeParse(projectId).success) {
+  if (!uuidSchema.safeParse(environmentId).success) {
     return [];
   }
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) return [];
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) return [];
   return Promise.all([
-    probeServiceStatus(project, "db"),
-    probeServiceStatus(project, "backend"),
-    probeServiceStatus(project, "frontend"),
+    probeServiceStatus(environment, "db"),
+    probeServiceStatus(environment, "backend"),
+    probeServiceStatus(environment, "frontend"),
   ]);
 }
 
 export async function controlService(
-  projectId: string,
+  environmentId: string,
   role: ServiceRole,
   action: ServiceAction
 ): Promise<{ runId: string }> {
@@ -85,23 +85,23 @@ export async function controlService(
   const parsedRole = serviceRoleSchema.safeParse(role);
   const parsedAction = serviceActionSchema.safeParse(action);
   if (
-    !projectIdSchema.safeParse(projectId).success ||
+    !uuidSchema.safeParse(environmentId).success ||
     !parsedRole.success ||
     !parsedAction.success
   ) {
     throw new Error("Invalid request");
   }
-  const project = await loadEnvironmentWithServers(projectId);
-  if (!project) throw new Error("Project not found");
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment) throw new Error("Environment not found");
 
-  const cfg = getServiceConfig(project, parsedRole.data);
+  const cfg = getServiceConfig(environment, parsedRole.data);
   const runId = await createRun({
-    environmentId: project.id,
+    environmentId: environment.id,
     userId: session.user.id,
     description: `${actionLabel(parsedAction.data)} ${parsedRole.data} service (${cfg.serviceName})`,
   });
   await enqueue("service/control.requested", {
-    projectId: project.id,
+    environmentId: environment.id,
     role: parsedRole.data,
     action: parsedAction.data,
     runId,

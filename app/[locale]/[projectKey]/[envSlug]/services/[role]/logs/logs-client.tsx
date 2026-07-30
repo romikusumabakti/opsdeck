@@ -18,7 +18,7 @@ export type InitialLogState = {
 };
 
 type Props = {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   role: ServiceRole;
   serviceName: string;
   initial: InitialLogState;
@@ -28,7 +28,7 @@ type Props = {
 // (replace, not push — scrubbing a filter shouldn't pile up history entries)
 // so a filtered view is shareable, bookmarkable, and survives a reload. Only
 // non-default values are written to keep the query string clean.
-export function LogsClient({ project, role, serviceName, initial }: Props) {
+export function LogsClient({ environment, role, serviceName, initial }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -47,7 +47,7 @@ export function LogsClient({ project, role, serviceName, initial }: Props) {
 
   return (
     <LogViewer
-      project={project}
+      environment={environment}
       role={role}
       serviceName={serviceName}
       initial={initial}

@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   Mail,
-  MoreHorizontal,
   Pencil,
   Send,
   ShieldCheck,
@@ -42,14 +41,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Form,
   FormControl,
   FormField,
@@ -65,12 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/roles";
 
 const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
@@ -417,48 +403,52 @@ export function UsersClient({
       const isSelf = user.id === currentUserId;
       const isAdmin = user.role === ROLE_ADMIN;
       const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
+      const renameLabel = t("renameAction");
+      const roleLabel = t(`roleChangeTo.${nextRole}`);
+      const deleteLabel = tCommon("delete");
+      // Inline instead of a kebab menu so every action is one click away. Role
+      // change and delete both still route through a confirm dialog, so a
+      // stray click can't act on a user unattended. Actions barred on your own
+      // row render disabled rather than absent, so the icon columns stay
+      // aligned down the table and the title says why they're unavailable.
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={tCommon("openMenu")}
-                disabled={isPending}
-              />
-            }
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={renameLabel}
+            title={renameLabel}
+            disabled={isPending}
+            onClick={() => onRename(user)}
           >
-            <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onRename(user)}>
-              <Pencil className="size-4" />
-              {t("renameAction")}
-            </DropdownMenuItem>
-            {!isSelf && (
-              <DropdownMenuItem onClick={() => onChangeRole(user, nextRole)}>
-                {isAdmin ? (
-                  <UserCog className="size-4" />
-                ) : (
-                  <ShieldCheck className="size-4" />
-                )}
-                {t(`roleChangeTo.${nextRole}`)}
-              </DropdownMenuItem>
+            <Pencil className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={isSelf ? t("cannotChangeOwnRole") : roleLabel}
+            title={isSelf ? t("cannotChangeOwnRole") : roleLabel}
+            disabled={isPending || isSelf}
+            onClick={() => onChangeRole(user, nextRole)}
+          >
+            {isAdmin ? (
+              <UserCog className="size-4" />
+            ) : (
+              <ShieldCheck className="size-4" />
             )}
-            {!isSelf && <DropdownMenuSeparator />}
-            {!isSelf && (
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => onDelete(user)}
-              >
-                <Trash2 className="size-4" />
-                {tCommon("delete")}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={isSelf ? t("cannotDeleteSelf") : deleteLabel}
+            title={isSelf ? t("cannotDeleteSelf") : deleteLabel}
+            disabled={isPending || isSelf}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => onDelete(user)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
       );
     },
     [currentUserId, t, tCommon, isPending, onDelete, onChangeRole, onRename]
@@ -552,7 +542,7 @@ export function UsersClient({
       {
         id: "actions",
         enableHiding: false,
-        meta: { headClassName: "w-12", cellClassName: "w-12" },
+        meta: { headClassName: "w-32", cellClassName: "w-32" },
         cell: ({ row }) => renderUserActions(row.original),
       },
     ],
@@ -614,44 +604,38 @@ export function UsersClient({
       {
         id: "actions",
         enableHiding: false,
-        meta: { headClassName: "w-12", cellClassName: "w-12" },
+        meta: { headClassName: "w-24", cellClassName: "w-24" },
         cell: ({ row }) => {
           const inv = row.original;
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={tCommon("openMenu")}
-                    disabled={isPending}
-                  />
-                }
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("resend")}
+                title={t("resend")}
+                disabled={isPending}
+                onClick={() => onResend(inv)}
               >
-                <MoreHorizontal className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>{tCommon("actions")}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => onResend(inv)}>
-                  <Send className="size-4" />
-                  {t("resend")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => onRevoke(inv)}
-                >
-                  <Trash2 className="size-4" />
-                  {t("revoke")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Send className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("revoke")}
+                title={t("revoke")}
+                disabled={isPending}
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => onRevoke(inv)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
           );
         },
       },
     ],
-    [t, tCommon, isPending, onRevoke, onResend, format]
+    [t, isPending, onRevoke, onResend, format]
   );
 
   // Split invitations by lifecycle so the "Pending" heading never lies: a link
@@ -773,10 +757,7 @@ export function UsersClient({
           single table own the viewport and scroll its own body (fixed header +
           footer) — stacking them as cards can't keep every header/footer
           visible at once. Invitation tabs only appear when they have rows. */}
-      <Tabs
-        defaultValue="users"
-        className="flex flex-1 min-h-0 flex-col gap-4"
-      >
+      <Tabs defaultValue="users" className="flex flex-1 min-h-0 flex-col gap-4">
         <TabsList className="shrink-0">
           <TabsTrigger value="users">
             {t("listCardTitle")}
@@ -829,10 +810,7 @@ export function UsersClient({
         </TabsContent>
 
         {pendingInvitations.length > 0 && (
-          <TabsContent
-            value="pending"
-            className="flex flex-1 min-h-0 flex-col"
-          >
+          <TabsContent value="pending" className="flex flex-1 min-h-0 flex-col">
             <DataTable
               fillHeight
               columns={invitationColumns}
@@ -858,10 +836,7 @@ export function UsersClient({
         )}
 
         {expiredInvitations.length > 0 && (
-          <TabsContent
-            value="expired"
-            className="flex flex-1 min-h-0 flex-col"
-          >
+          <TabsContent value="expired" className="flex flex-1 min-h-0 flex-col">
             <DataTable
               fillHeight
               columns={invitationColumns}

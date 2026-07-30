@@ -8,7 +8,7 @@ import * as React from "react";
  * only re-renders this component — not the parent, which would otherwise close
  * an open date-picker dropdown every second.
  *
- * Anchors on the server's mocked `now` rather than `new Date()`; the project
+ * Anchors on the server's mocked `now` rather than `new Date()`; the environment
  * clock may be time-traveled. Pauses when `frozen`.
  */
 export function LiveClock({

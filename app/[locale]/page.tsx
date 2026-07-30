@@ -7,9 +7,9 @@ import {
   ServerCog,
 } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { listEnvironments } from "@/actions/environments";
 import { listAssignedIssues } from "@/actions/issues";
 import { listProjects } from "@/actions/project-catalog";
-import { getProjects } from "@/actions/projects";
 import { getActiveRuns, getRecentFailedRuns } from "@/actions/runs";
 import { STATUS_DOT, type Status } from "@/components/issues-board";
 import { PageHeader } from "@/components/page-header";
@@ -46,18 +46,24 @@ export default async function HomePage({
   setRequestLocale(locale);
   const session = await requireSession();
 
-  const [assigned, activeRuns, failedRuns, recentEnvs, logicalProjects, t] =
+  const [assigned, activeRuns, failedRuns, recentEnvs, projects, t] =
     await Promise.all([
       listAssignedIssues(session.user.id),
       getActiveRuns(),
       getRecentFailedRuns(6),
-      getProjects(),
+      listEnvironments(),
       listProjects(),
       getTranslations("inbox"),
     ]);
   const dfl = getDateFnsLocale(locale);
   const projectNameById: Record<string, string> = Object.fromEntries(
-    logicalProjects.map((p) => [p.id, p.name])
+    projects.map((p) => [p.id, p.name])
+  );
+  // Runs only carry an environment id; the recent-environments list already
+  // holds the readable `/[projectKey]/[envSlug]` parts, so reuse it for links
+  // instead of hitting the legacy /projects/[id] redirect.
+  const envPathById: Record<string, string> = Object.fromEntries(
+    recentEnvs.map((env) => [env.id, `/${env.key}/${env.slug}`])
   );
   const ago = (d: Date) =>
     formatDistanceToNow(new Date(d), { addSuffix: true, locale: dfl });
@@ -85,7 +91,7 @@ export default async function HomePage({
               {assigned.map((i) => (
                 <li key={i.id}>
                   <Link
-                    href={`/project/${i.project.key}/${i.number}`}
+                    href={`/${i.project.key}/issues/${i.number}`}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 transition-colors"
                   >
                     <span
@@ -123,7 +129,7 @@ export default async function HomePage({
               {activeRuns.map((r) => (
                 <li key={r.id}>
                   <Link
-                    href={`/projects/${r.environmentId}/history`}
+                    href={`${envPathById[r.environmentId] ?? ""}/history`}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 transition-colors"
                   >
                     <Loader2 className="size-3.5 text-primary animate-spin shrink-0" />
@@ -131,7 +137,7 @@ export default async function HomePage({
                       {r.description}
                     </span>
                     <span className="text-xs text-muted-foreground shrink-0 truncate max-w-[40%]">
-                      {r.project?.name}
+                      {r.environment?.name}
                     </span>
                   </Link>
                 </li>
@@ -153,7 +159,7 @@ export default async function HomePage({
               {failedRuns.map((r) => (
                 <li key={r.id}>
                   <Link
-                    href={`/projects/${r.environmentId}/history`}
+                    href={`${envPathById[r.environmentId] ?? ""}/history`}
                     className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 transition-colors"
                   >
                     <CircleAlert className="size-3.5 text-destructive shrink-0" />

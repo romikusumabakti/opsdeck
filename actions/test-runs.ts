@@ -87,7 +87,7 @@ export async function recordTestRun(
         result: input.passed ? "pass" : "fail",
       },
     });
-    revalidatePath("/projects", "layout");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to record test run:", error);

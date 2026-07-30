@@ -78,7 +78,7 @@ const BOTTOM_THRESHOLD_PX = 16;
 const STATE_SYNC_DEBOUNCE_MS = 350;
 
 type Props = {
-  project: SafeEnvironmentWithServers;
+  environment: SafeEnvironmentWithServers;
   role: ServiceRole;
   serviceName: string;
   // Seed view state (defaults: tail=200, q="", level="all", view="pretty").
@@ -93,7 +93,7 @@ type Props = {
 };
 
 export function LogViewer({
-  project,
+  environment,
   role,
   serviceName,
   initial,
@@ -145,7 +145,7 @@ export function LogViewer({
       setStreamError(null);
       setStreamState("connecting");
 
-      const url = `/api/projects/${project.id}/services/${role}/logs/stream?lines=${linesToTail}`;
+      const url = `/api/environments/${environment.id}/services/${role}/logs/stream?lines=${linesToTail}`;
       const es = new EventSource(url);
       esRef.current = es;
       // Local to this connect() invocation — survives across renders without
@@ -233,7 +233,7 @@ export function LogViewer({
         }, 5000);
       };
     },
-    [project.id, role, t, closeStream]
+    [environment.id, role, t, closeStream]
   );
 
   // Connect on mount, tear down on unmount. Parents that need a fresh stream

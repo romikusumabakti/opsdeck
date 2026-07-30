@@ -12,7 +12,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
-import { getProjectKpis, type KpiEntry } from "@/actions/runs";
+import { getEnvironmentKpis, type KpiEntry } from "@/actions/runs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
@@ -20,9 +20,13 @@ import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Run } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 
-export async function DashboardKpis({ projectId }: { projectId: string }) {
+export async function DashboardKpis({
+  environmentId,
+}: {
+  environmentId: string;
+}) {
   const [kpis, t, locale, format] = await Promise.all([
-    getProjectKpis(projectId),
+    getEnvironmentKpis(environmentId),
     getTranslations("dashboard.kpis"),
     getLocale(),
     getFormatter(),
