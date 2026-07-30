@@ -1,35 +1,25 @@
 import "server-only";
 
 import type { Readable } from "node:stream";
-import { NodeSSH } from "node-ssh";
 import type { SFTPWrapper, Stats } from "ssh2";
 import { basename, confineSftpPath } from "./path";
+import { openSftp, type SshCreds, withPooledSftp } from "./sftp-pool";
 import type { DownloadTarget, ExplorerEntry, StorageBackend } from "./types";
 
-export type SshCreds = { host: string; username: string; password: string };
+export type { SshCreds };
 
 // SFTP-over-SSH backend. Reuses the existing `servers` credentials — SFTP is an
 // SSH subsystem, no separate auth. `root` confines every path (defence in depth
 // on top of the action-layer zod gate): the client can browse anywhere under
 // root but never escape it.
 //
-// Connection lifecycle: a fresh NodeSSH per *operation* (same rationale as
-// lib/ssh.ts — a shared client races concurrent callers). Streaming ops keep the
-// connection alive until the stream ends, then dispose.
+// Connection lifecycle: metadata operations share a pooled, idle-expiring
+// connection (see ./sftp-pool — the SSH handshake dominated their latency).
+// Bulk transfers dial their own, because a multi-GB stream saturates the SSH
+// channel window and would stall every listing sharing it.
 export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
-  // Run a one-shot op on a fresh connection, disposing afterwards.
-  async function withSftp<T>(
-    fn: (sftp: SFTPWrapper) => Promise<T>
-  ): Promise<T> {
-    const ssh = new NodeSSH();
-    try {
-      await ssh.connect({ ...creds, readyTimeout: 5000 });
-      const sftp = await ssh.requestSFTP();
-      return await fn(sftp);
-    } finally {
-      ssh.dispose();
-    }
-  }
+  const withSftp = <T>(fn: (sftp: SFTPWrapper) => Promise<T>) =>
+    withPooledSftp(creds, fn);
 
   const abs = (p: string) => confineSftpPath(root, p);
 
@@ -100,28 +90,34 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
       const p = abs(pathInput);
       // The connection must outlive the stream. Open it, hand back the read
       // stream, and dispose once the stream closes/errors.
-      const ssh = new NodeSSH();
-      await ssh.connect({ ...creds, readyTimeout: 5000 });
-      const sftp = await ssh.requestSFTP();
-      const stream = sftp.createReadStream(p);
-      const dispose = () => ssh.dispose();
-      stream.once("close", dispose);
-      stream.once("error", dispose);
-      return stream as unknown as Readable;
+      const conn = await openSftp(creds);
+      try {
+        const stream = conn.sftp.createReadStream(p);
+        stream.once("close", conn.dispose);
+        stream.once("error", conn.dispose);
+        return stream as unknown as Readable;
+      } catch (error) {
+        // createReadStream threw before any event could fire — without this the
+        // connection would leak for the lifetime of the process.
+        conn.dispose();
+        throw error;
+      }
     },
 
     async writeStream(pathInput, body) {
       const p = abs(pathInput);
-      await withSftp(
-        (sftp) =>
-          new Promise<void>((resolve, reject) => {
-            const out = sftp.createWriteStream(p);
-            out.once("close", resolve);
-            out.once("error", reject);
-            body.once("error", reject);
-            body.pipe(out);
-          })
-      );
+      const conn = await openSftp(creds);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const out = conn.sftp.createWriteStream(p);
+          out.once("close", resolve);
+          out.once("error", reject);
+          body.once("error", reject);
+          body.pipe(out);
+        });
+      } finally {
+        conn.dispose();
+      }
     },
 
     // SFTP has no credentialed URL; the caller proxies bytes through a route.
