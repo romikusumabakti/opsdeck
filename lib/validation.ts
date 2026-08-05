@@ -231,6 +231,26 @@ export const explorerPathSchema = z
   .max(4096)
   .refine((p) => !p.includes("\0"), "Path must not contain NUL");
 
+// Editing a file loads it whole into the browser and posts it back whole, so
+// the size is capped. Lives here (not in lib/explorer, which is server-only) so
+// the client editor can show the same limit it will be judged against.
+export const MAX_EDITABLE_BYTES = 512 * 1024;
+
+// How the file terminates its lines, remembered on read so a CRLF file doesn't
+// get rewritten to LF by the editor. See lib/explorer/text.ts.
+export const explorerEolSchema = z.enum(["lf", "crlf"]);
+
+// Edited file content. UTF-8 bytes are the real limit; `length` (UTF-16 units)
+// is never larger than the byte count, so it is a cheap pre-filter that avoids
+// encoding a hostile multi-megabyte payload just to reject it.
+export const explorerTextSchema = z
+  .string()
+  .max(MAX_EDITABLE_BYTES)
+  .refine(
+    (s) => new TextEncoder().encode(s).length <= MAX_EDITABLE_BYTES,
+    "File is too large to edit"
+  );
+
 // A single path segment (folder/file name) typed for mkdir/rename. No slashes,
 // no traversal, no control chars — the caller joins it onto a validated parent.
 export const explorerNameSchema = z
