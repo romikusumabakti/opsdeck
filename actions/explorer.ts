@@ -8,10 +8,13 @@ import {
   resolveBackend,
 } from "@/lib/explorer";
 import { PathError } from "@/lib/explorer/path";
+import { type Eol, readTextFile, writeTextFile } from "@/lib/explorer/text";
 import {
+  explorerEolSchema,
   explorerNameSchema,
   explorerPathSchema,
   explorerSourceSchema,
+  explorerTextSchema,
 } from "@/lib/validation";
 
 // Storage explorer actions. Filesystem/bucket access is powerful (SFTP runs as
@@ -101,6 +104,72 @@ export async function getDownloadTarget(
   try {
     const target = await opened.backend.downloadTarget(parsedPath.data);
     return { success: true, target };
+  } catch (error) {
+    return { success: false, message: explain(error, t) };
+  }
+}
+
+// Editing reads/writes the whole file through the action layer instead of the
+// streaming upload route: the payload is bounded (MAX_EDITABLE_BYTES) and this
+// keeps the mutation on the same admin-gated, path-validated path as the rest.
+type ReadTextResult =
+  | { success: true; content: string; eol: Eol }
+  | { success: false; message: string };
+
+export async function readFileText(
+  source: unknown,
+  path: unknown
+): Promise<ReadTextResult> {
+  await requireAdmin();
+  const t = await getTranslations("actionErrors");
+  const opened = await open(source, t);
+  if (!opened.ok) return { success: false, message: opened.message };
+  const parsedPath = explorerPathSchema.safeParse(path);
+  if (!parsedPath.success || !parsedPath.data) {
+    return { success: false, message: t("invalidPath") };
+  }
+  try {
+    const result = await readTextFile(opened.backend, parsedPath.data);
+    if (!result.ok) {
+      return {
+        success: false,
+        message:
+          result.reason === "too-large" ? t("fileTooLarge") : t("fileNotText"),
+      };
+    }
+    return { success: true, content: result.content, eol: result.eol };
+  } catch (error) {
+    return { success: false, message: explain(error, t) };
+  }
+}
+
+export async function saveFileText(
+  source: unknown,
+  path: unknown,
+  content: unknown,
+  eol: unknown
+): Promise<SimpleResult> {
+  await requireAdmin();
+  const t = await getTranslations("actionErrors");
+  const opened = await open(source, t);
+  if (!opened.ok) return { success: false, message: opened.message };
+  const parsedPath = explorerPathSchema.safeParse(path);
+  const parsedContent = explorerTextSchema.safeParse(content);
+  const parsedEol = explorerEolSchema.safeParse(eol);
+  if (!parsedPath.success || !parsedPath.data || !parsedEol.success) {
+    return { success: false, message: t("invalidInput") };
+  }
+  if (!parsedContent.success) {
+    return { success: false, message: t("fileTooLarge") };
+  }
+  try {
+    await writeTextFile(
+      opened.backend,
+      parsedPath.data,
+      parsedContent.data,
+      parsedEol.data
+    );
+    return { success: true, message: t("fileSaved") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
   }
