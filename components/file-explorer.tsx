@@ -10,9 +10,11 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  SquarePen,
   Trash2,
   Upload,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
@@ -45,6 +47,12 @@ import {
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { ExplorerEntry, ExplorerSource } from "@/lib/explorer";
 import { formatBytes } from "@/lib/utils";
+
+// The editor drags in CodeMirror and its lazily-loaded language modes. Split it
+// out so browsing and downloading don't pay for a bundle most visits never use.
+const FileEditorDialog = dynamic(
+  () => import("@/components/file-editor-dialog")
+);
 
 type Props = {
   source: ExplorerSource;
@@ -79,6 +87,8 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // The file currently open in the editor; null when the editor is closed.
+  const [editing, setEditing] = React.useState<ExplorerEntry | null>(null);
   const fileInput = React.useRef<HTMLInputElement>(null);
 
   const refresh = React.useCallback(async () => {
@@ -370,10 +380,16 @@ export function FileExplorer({ source, rootLabel }: Props) {
                       />
                       <DropdownMenuContent align="end">
                         {entry.type === "file" ? (
-                          <DropdownMenuItem onClick={() => onOpen(entry)}>
-                            <Download className="size-4" />
-                            {t("download")}
-                          </DropdownMenuItem>
+                          <>
+                            <DropdownMenuItem onClick={() => setEditing(entry)}>
+                              <SquarePen className="size-4" />
+                              {t("edit")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onOpen(entry)}>
+                              <Download className="size-4" />
+                              {t("download")}
+                            </DropdownMenuItem>
+                          </>
                         ) : null}
                         <DropdownMenuItem onClick={() => onRename(entry)}>
                           <Pencil className="size-4" />
@@ -396,6 +412,15 @@ export function FileExplorer({ source, rootLabel }: Props) {
           </Table>
         </div>
       )}
+
+      {editing ? (
+        <FileEditorDialog
+          source={source}
+          entry={editing}
+          onClose={() => setEditing(null)}
+          onSaved={refresh}
+        />
+      ) : null}
     </div>
   );
 }
