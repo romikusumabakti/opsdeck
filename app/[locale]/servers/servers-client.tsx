@@ -17,14 +17,13 @@ import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
 
 export function ServersClient({ servers }: { servers: Server[] }) {
   const t = useTranslations("servers");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   // Optimistic removal: drop the row(s) from the table immediately so the user
@@ -212,7 +211,6 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       getRowId={(row) => row.id}
       urlKey="srv"
       renderCard={renderCard}
-      onRowClick={(row) => router.push(`/servers/${row.id}`)}
       bulkActions={(ids, clearSelection) => (
         <Button
           variant="destructive"
@@ -229,8 +227,8 @@ export function ServersClient({ servers }: { servers: Server[] }) {
 }
 
 // Actions are laid out inline instead of behind a kebab menu so every action is
-// one click away. Links keep their own navigation and are excluded from the
-// row-click handler by DataTable.
+// one click away. Rows are not clickable; navigation happens only through these
+// action controls.
 function ServerActions({
   server,
   disabled,

@@ -11,7 +11,7 @@ import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
 
 export function StorageClient({
@@ -22,7 +22,6 @@ export function StorageClient({
   const t = useTranslations("storage");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [optimistic, removeOptimistic] = useOptimistic<
@@ -133,14 +132,13 @@ export function StorageClient({
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
       urlKey="s3"
-      onRowClick={(row) => router.push(`/storage/${row.id}`)}
     />
   );
 }
 
 // Actions are laid out inline instead of behind a kebab menu so every action is
-// one click away. Links keep their own navigation and are excluded from the
-// row-click handler by DataTable.
+// one click away. Rows are not clickable; navigation happens only through these
+// action controls.
 function ConnectionActions({
   connection,
   disabled,
