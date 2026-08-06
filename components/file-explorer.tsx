@@ -129,6 +129,33 @@ export function FileExplorer({ source, rootLabel }: Props) {
     window.open(url, "_blank");
   }
 
+  // The whole row is the click target. Clicks that land on a nested control
+  // (the row-actions menu and anything it renders) belong to that control, so
+  // they never reach onOpen.
+  function onRowClick(entry: ExplorerEntry) {
+    return (e: React.MouseEvent) => {
+      if (
+        (e.target as HTMLElement).closest(
+          'button, a, input, label, [role="menu"], [role="menuitem"]'
+        )
+      ) {
+        return;
+      }
+      onOpen(entry);
+    };
+  }
+
+  // Keyboard equivalent. Only fires when the row itself holds focus — Enter or
+  // Space typed on a nested button belongs to that button.
+  function onRowKeyDown(entry: ExplorerEntry) {
+    return (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      onOpen(entry);
+    };
+  }
+
   async function onNewFolder() {
     const name = await dialog.prompt({
       title: t("newFolder"),
@@ -341,20 +368,25 @@ export function FileExplorer({ source, rootLabel }: Props) {
             </TableHeader>
             <TableBody>
               {entries.map((entry) => (
-                <TableRow key={entry.path}>
+                <TableRow
+                  key={entry.path}
+                  onClick={onRowClick(entry)}
+                  onKeyDown={onRowKeyDown(entry)}
+                  // No role override: a <tr> must stay a `row` for the table's
+                  // semantics to survive. Focusability + Enter/Space is enough
+                  // to make the row reachable without a pointer.
+                  tabIndex={0}
+                  className="cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                >
                   <TableCell>
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 text-left hover:underline"
-                      onClick={() => onOpen(entry)}
-                    >
+                    <div className="flex items-center gap-2 text-left">
                       {entry.type === "dir" ? (
                         <Folder className="size-4 shrink-0 text-muted-foreground" />
                       ) : (
                         <FileIcon className="size-4 shrink-0 text-muted-foreground" />
                       )}
                       <span className="truncate">{entry.name}</span>
-                    </button>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {entry.type === "file" && entry.sizeBytes != null
