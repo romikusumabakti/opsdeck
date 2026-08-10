@@ -258,6 +258,16 @@ export function EnvironmentForm({
       } else {
         router.push("/projects");
       }
+    } else {
+      // Edit stays on this page, so re-baseline the form: without a reset
+      // `isDirty` never clears and the unsaved-changes guard keeps prompting
+      // after a successful save. Secrets go back to blank — same
+      // "blank = keep stored value" contract the payload above uses.
+      form.reset({
+        ...values,
+        dbPassword: "",
+        backendMockTimeApiKey: "",
+      });
     }
     router.refresh();
   }
