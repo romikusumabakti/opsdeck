@@ -268,7 +268,7 @@ export function GlobalIssuesClient({
           </Link>
         ),
         enableHiding: false,
-        meta: { headClassName: "w-28", label: t("columnKey") },
+        meta: { headClassName: "w-24", label: t("columnKey") },
       },
       {
         id: "title",
@@ -302,7 +302,7 @@ export function GlobalIssuesClient({
             {row.original.project.name}
           </Link>
         ),
-        meta: { headClassName: "w-44", label: t("columnProject") },
+        meta: { headClassName: "w-36", label: t("columnProject") },
       },
       {
         id: "status",
@@ -312,11 +312,12 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <StatusSelect
+            className="h-7"
             value={row.original.status}
             onChange={(s) => onStatusChange(row.original.id, s)}
           />
         ),
-        meta: { headClassName: "w-40", label: t("columnStatus") },
+        meta: { headClassName: "w-32", label: t("columnStatus") },
       },
       {
         id: "priority",
@@ -326,11 +327,12 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <PrioritySelect
+            className="h-7"
             value={row.original.priority}
             onChange={(p) => onPriorityChange(row.original.id, p)}
           />
         ),
-        meta: { headClassName: "w-36", label: t("columnPriority") },
+        meta: { headClassName: "w-28", label: t("columnPriority") },
       },
       {
         id: "assignee",
@@ -340,12 +342,13 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <AssigneeSelect
+            className="h-7"
             users={users}
             value={row.original.assignee?.id ?? null}
             onChange={(a) => onAssigneeChange(row.original.id, a)}
           />
         ),
-        meta: { headClassName: "w-36", label: t("columnAssignee") },
+        meta: { headClassName: "w-32", label: t("columnAssignee") },
       },
       {
         id: "createdAt",
@@ -361,7 +364,7 @@ export function GlobalIssuesClient({
             })}
           </span>
         ),
-        meta: { headClassName: "w-32", label: t("columnCreated") },
+        meta: { headClassName: "w-24", label: t("columnCreated") },
       },
       {
         id: "updatedAt",
@@ -377,7 +380,7 @@ export function GlobalIssuesClient({
             })}
           </span>
         ),
-        meta: { headClassName: "w-32", label: t("columnUpdated") },
+        meta: { headClassName: "w-24", label: t("columnUpdated") },
       },
     ],
     [
@@ -400,21 +403,32 @@ export function GlobalIssuesClient({
   const isBoard = filters.view === "board";
   const boardTruncated = isBoard && total > BOARD_LIMIT;
 
+  // In the table view this goes into the table's own toolbar row, so the
+  // filters and the columns menu share one line instead of stacking two bars
+  // above the rows. The board has no such row and wraps it itself.
+  const filterBar = (
+    <IssuesFilterBar
+      filters={filters}
+      onChange={setParams}
+      projects={projects}
+      labels={allLabels}
+      leading={
+        <IssuesSavedViews
+          views={savedViews}
+          currentParams={currentParams}
+          onApply={applyView}
+        />
+      }
+    />
+  );
+
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-4">
-      <IssuesFilterBar
-        filters={filters}
-        onChange={setParams}
-        projects={projects}
-        labels={allLabels}
-        leading={
-          <IssuesSavedViews
-            views={savedViews}
-            currentParams={currentParams}
-            onApply={applyView}
-          />
-        }
-      />
+    <div className="flex flex-1 min-h-0 flex-col gap-3">
+      {isBoard && (
+        <div className="shrink-0 flex flex-wrap items-center gap-2">
+          {filterBar}
+        </div>
+      )}
 
       {boardTruncated && (
         <p
@@ -460,8 +474,13 @@ export function GlobalIssuesClient({
       ) : (
         <DataTable
           fillHeight
+          dense
+          toolbar={filterBar}
           label={t("globalTitle")}
           columns={columns}
+          // Two relative timestamps in a row is one too many: "Updated" is the
+          // default sort, so "Created" starts hidden and stays one click away.
+          initialColumnVisibility={{ createdAt: false }}
           data={rows}
           getRowId={(i) => i.id}
           urlKey={TABLE_URL_KEY}
