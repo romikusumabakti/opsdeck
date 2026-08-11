@@ -123,6 +123,30 @@ type DataTableProps<TData, TValue> = {
    * for tables that should grow with their content and let the page scroll.
    */
   fillHeight?: boolean;
+  /**
+   * Server-driven mode. Set to the total number of rows matching the current
+   * filter and pass only the current page as `data`; the table then reports its
+   * own state (sort/page) through `urlKey` and trusts the server to have
+   * sorted, filtered and sliced. Leave unset for the default client-side mode,
+   * where the table owns the full data set.
+   */
+  manualRowCount?: number;
+  /**
+   * True while a re-fetch triggered by the table's own state is in flight. Fades
+   * the current page instead of blanking it, so paging doesn't flash empty.
+   */
+  isPending?: boolean;
+  /**
+   * Sort to assume when the URL carries none — set it to whatever order the
+   * data already arrives in, so the header shows the real state instead of
+   * "unsorted".
+   */
+  initialSorting?: SortingState;
+  /**
+   * Accessible name for the table element. Without it a screen reader announces
+   * an unlabeled table, which is ambiguous on any page holding more than one.
+   */
+  label?: string;
 };
 
 export function DataTable<TData, TValue>({
@@ -140,7 +164,12 @@ export function DataTable<TData, TValue>({
   onRowClick,
   emptyState,
   fillHeight,
+  manualRowCount,
+  isPending,
+  initialSorting,
+  label,
 }: DataTableProps<TData, TValue>) {
+  const isManual = manualRowCount != null;
   const t = useTranslations("dataTable");
   // Card layout is chosen with CSS (md: breakpoint), not a JS width hook, so the
   // correct layout renders on the first paint — no hydration flash or layout
@@ -152,10 +181,10 @@ export function DataTable<TData, TValue>({
   const searchParams = useSearchParams();
 
   // Lazy initializers read once from the URL on mount when urlKey is set so
-  // the table mirrors a shared/reloaded link. After mount the state is
-  // controlled internally; the effect below writes it back to the URL.
-  const [sorting, setSorting] = React.useState<SortingState>(() =>
-    readSortingFromParams(searchParams, urlKey)
+  // the table mirrors a shared/reloaded link. After mount the two effects below
+  // keep state and URL in step in both directions.
+  const [sorting, setSorting] = React.useState<SortingState>(
+    () => readSortingFromParams(searchParams, urlKey) ?? initialSorting ?? []
   );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     () => readFiltersFromParams(searchParams, urlKey, filterColumn)
@@ -204,9 +233,16 @@ export function DataTable<TData, TValue>({
     data,
     columns: columnsWithSelect,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // In server-driven mode the row models are the server's job: running them
+    // here would sort and slice the current page a second time, hiding rows the
+    // server deliberately included.
+    getSortedRowModel: isManual ? undefined : getSortedRowModel(),
+    getFilteredRowModel: isManual ? undefined : getFilteredRowModel(),
+    getPaginationRowModel: isManual ? undefined : getPaginationRowModel(),
+    manualSorting: isManual,
+    manualFiltering: isManual,
+    manualPagination: isManual,
+    rowCount: manualRowCount,
     onSortingChange: setSorting,
     onColumnFiltersChange: (updater) => {
       setColumnFilters(updater);
@@ -239,9 +275,41 @@ export function DataTable<TData, TValue>({
     },
   });
 
+  // Sync URL -> state. The URL wins whenever it changes underneath the table:
+  // the browser's back button, a saved view, or a sibling control that resets
+  // the page because its filter changed. Without this the table would keep
+  // rendering "page 3" while the server had already returned page 1.
+  const paramsKey = searchParams.toString();
+  const urlState = React.useMemo(() => {
+    const params = new URLSearchParams(paramsKey);
+    return {
+      sorting: readSortingFromParams(params, urlKey),
+      pagination: readPaginationFromParams(params, urlKey, initialPageSize),
+      filters: readFiltersFromParams(params, urlKey, filterColumn),
+    };
+  }, [paramsKey, urlKey, initialPageSize, filterColumn]);
+  React.useEffect(() => {
+    if (!urlKey) return;
+    const nextSorting = urlState.sorting ?? initialSorting ?? [];
+    // Compared by value, replaced only on a real difference — so this never
+    // ping-pongs with the state -> URL effect below.
+    setSorting((prev) => (sameJson(prev, nextSorting) ? prev : nextSorting));
+    setPagination((prev) =>
+      sameJson(prev, urlState.pagination) ? prev : urlState.pagination
+    );
+    setColumnFilters((prev) =>
+      sameJson(prev, urlState.filters) ? prev : urlState.filters
+    );
+  }, [urlKey, urlState, initialSorting]);
+
   // Sync state -> URL. Skipped on the first run because lazy initializers
   // already populated state from the URL; running it on mount would clobber
   // the existing query string with default values.
+  //
+  // The navigation runs inside a transition so that in server-driven mode the
+  // table can fade the outgoing page while the new one is fetched, instead of
+  // freezing on a click with no feedback.
+  const [syncPending, startSync] = React.useTransition();
   const firstSyncRun = React.useRef(true);
   React.useEffect(() => {
     if (!urlKey) return;
@@ -279,7 +347,9 @@ export function DataTable<TData, TValue>({
     const next = params.toString();
     const current = window.location.search.replace(/^\?/, "");
     if (next === current) return;
-    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    startSync(() => {
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    });
   }, [
     urlKey,
     filterColumn,
@@ -365,7 +435,11 @@ export function DataTable<TData, TValue>({
     .getAllColumns()
     .some((c) => c.getCanHide());
 
-  const filteredCount = table.getFilteredRowModel().rows.length;
+  // Either source of latency dims the rows: the caller's own mutation, or the
+  // table's URL-sync navigation.
+  const busy = isPending || syncPending;
+  const filteredCount =
+    manualRowCount ?? table.getFilteredRowModel().rows.length;
   const fromIdx =
     filteredCount === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
   const toIdx = Math.min(
@@ -375,7 +449,10 @@ export function DataTable<TData, TValue>({
   const showFooter = filteredCount > 0;
 
   return (
-    <div className={cn("flex flex-col gap-3", fillHeight && "flex-1 min-h-0")}>
+    <div
+      aria-busy={busy || undefined}
+      className={cn("flex flex-col gap-3", fillHeight && "flex-1 min-h-0")}
+    >
       {bulkActions && selectedIds.length > 0 && (
         <div className="shrink-0 flex items-center gap-2 justify-between rounded-md border bg-muted/40 px-3 py-2">
           <span className="text-sm font-medium">
@@ -441,8 +518,9 @@ export function DataTable<TData, TValue>({
       {hasCardLayout && (
         <div
           className={cn(
-            "flex flex-col gap-3 md:hidden",
-            fillHeight && "flex-1 min-h-0 overflow-y-auto"
+            "flex flex-col gap-3 md:hidden transition-opacity",
+            fillHeight && "flex-1 min-h-0 overflow-y-auto",
+            busy && "opacity-60"
           )}
         >
           {hasRows ? (
@@ -483,7 +561,8 @@ export function DataTable<TData, TValue>({
       )}
       <div
         className={cn(
-          "rounded-md border",
+          "rounded-md border transition-opacity",
+          busy && "opacity-60",
           hasCardLayout && "hidden md:block",
           // A defined surface so the sticky header (bg-card) reads seamlessly
           // with the rows scrolling under it, whether the table sits on the
@@ -495,7 +574,10 @@ export function DataTable<TData, TValue>({
               : "flex flex-col flex-1 min-h-0 overflow-hidden")
         )}
       >
-        <Table containerClassName={cn(fillHeight && "flex-1 min-h-0")}>
+        <Table
+          aria-label={label}
+          containerClassName={cn(fillHeight && "flex-1 min-h-0")}
+        >
           <TableHeader
             className={cn(
               // Single-<table> layout: pinning the header while the body
@@ -723,13 +805,14 @@ export function DataTableColumnHeader<TData, TValue>({
   );
 }
 
+/** `null` = the URL says nothing about sorting, so a default may apply. */
 function readSortingFromParams(
   params: URLSearchParams,
   urlKey: string | undefined
-): SortingState {
-  if (!urlKey) return [];
+): SortingState | null {
+  if (!urlKey) return null;
   const id = params.get(`${urlKey}_s`);
-  if (!id) return [];
+  if (!id) return null;
   const desc = params.get(`${urlKey}_d`) === "desc";
   return [{ id, desc }];
 }
@@ -757,6 +840,11 @@ function readPaginationFromParams(
   const pageSize =
     Number.isFinite(parsedSize) && parsedSize > 0 ? parsedSize : fallbackPageSize;
   return { pageIndex, pageSize };
+}
+
+/** Value equality for the small, JSON-safe table state objects. */
+function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function writeParam(

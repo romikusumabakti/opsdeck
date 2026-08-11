@@ -1,11 +1,26 @@
 "use server";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  getTableColumns,
+  ilike,
+  inArray,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
+  environments,
   type Issue,
   type IssueComment,
   issueComments,
@@ -16,12 +31,40 @@ import {
   projects,
   users as userTable,
 } from "@/lib/db/schema";
+import type { IssueSort } from "@/lib/issue-query";
 import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
 import {
   issueInputSchema,
+  issuePrioritySchema,
   issueStatusSchema,
   issueUpdateSchema,
 } from "@/lib/validation";
+
+/**
+ * Every route whose rendered output depends on issue rows. These are *route
+ * patterns*, not concrete URLs: `revalidatePath(pattern, "page")` invalidates
+ * every instance of the route, which is the only way to reach locale-prefixed
+ * (`/[locale]/…`) and project-scoped paths without enumerating each locale and
+ * each project key.
+ *
+ * Deliberately not `revalidatePath("/", "layout")` — that drops the cache for
+ * the whole app (servers, storage, knowledge, users, runs…) on every status
+ * flip.
+ */
+const ISSUE_ROUTES = [
+  "/[locale]", // home — "assigned to me" feed
+  "/[locale]/issues", // global list
+  "/[locale]/projects", // open-issue badges on the project grid
+  "/[locale]/activity", // activity log
+  "/[locale]/[projectKey]", // project overview counts
+  "/[locale]/[projectKey]/[envSlug]/issues", // project-scoped list
+  "/[locale]/[projectKey]/issues/[number]", // issue detail
+] as const;
+
+/** Invalidate exactly the routes that render issues. */
+function revalidateIssues(): void {
+  for (const route of ISSUE_ROUTES) revalidatePath(route, "page");
+}
 
 /**
  * Attach each issue's labels in one round-trip (avoids relational M2M). Returns
@@ -251,7 +294,7 @@ export async function addComment(
         }
       }
     }
-    revalidatePath("/", "layout");
+    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error("Failed to add comment:", error);
@@ -259,24 +302,181 @@ export async function addComment(
   }
 }
 
-/** Every issue across all projects, newest-updated first — the global view. */
-export async function listAllIssues(): Promise<GlobalIssue[]> {
+/** Filter/sort/page state of the global issue list — mirrors the URL query. */
+export type IssueQuery = {
+  /** Free text over the title and the human key (`CMEM-42`). */
+  q?: string;
+  status?: string;
+  projectId?: string;
+  labelId?: string;
+  priority?: string;
+  /** Restrict to one assignee — the "assigned to me" toggle. */
+  assigneeId?: string;
+  sort?: IssueSort;
+  desc?: boolean;
+  offset?: number;
+  limit?: number;
+};
+
+export type IssuePage = {
+  rows: GlobalIssue[];
+  /** Rows matching the filter *before* limit/offset — drives the pager. */
+  total: number;
+};
+
+// Hard ceiling on one page so a crafted `?ps=100000` can't ask the database for
+// the whole table.
+const MAX_PAGE_SIZE = 200;
+
+/**
+ * One page of issues across all projects.
+ *
+ * Filtering, searching, sorting and paging all happen in SQL: the list is
+ * unbounded by nature (every project, forever), so pulling it into memory to
+ * filter client-side stops working long before the product does.
+ *
+ * Written with the core query builder rather than the relational API because it
+ * needs a search predicate spanning `projects.key`, an EXISTS sub-query for the
+ * label filter, and a matching COUNT — none of which the relational `where`
+ * shorthand expresses.
+ */
+export async function listAllIssues(
+  query: IssueQuery = {}
+): Promise<IssuePage> {
   await requireSession();
+
+  const assigneeUser = alias(userTable, "assignee_user");
+  const creatorUser = alias(userTable, "creator_user");
+
+  const conditions: SQL[] = [];
+  const q = query.q?.trim();
+  if (q) {
+    const pattern = `%${q}%`;
+    const search = or(
+      ilike(issues.title, pattern),
+      // Bug reports bury the searchable detail (an error string, a route, a
+      // ticket ref) in the body, so the description is part of the haystack.
+      ilike(issues.description, pattern),
+      // The key the user sees ("CMEM-42") exists only as a composite, so match
+      // it as one — searching "CMEM-42" should find exactly that issue.
+      sql`(${projects.key} || '-' || ${issues.number}) ILIKE ${pattern}`
+    );
+    if (search) conditions.push(search);
+  }
+  // Every filter value arrives from the URL: validate before it reaches SQL so
+  // a junk enum value is ignored rather than throwing a 22P02 from Postgres.
+  const status = issueStatusSchema.safeParse(query.status);
+  if (status.success) conditions.push(eq(issues.status, status.data));
+  const priority = issuePrioritySchema.safeParse(query.priority);
+  if (priority.success) conditions.push(eq(issues.priority, priority.data));
+  if (isUuid(query.projectId)) {
+    conditions.push(eq(issues.projectId, query.projectId));
+  }
+  if (isUuid(query.assigneeId)) {
+    conditions.push(eq(issues.assigneeId, query.assigneeId));
+  }
+  if (isUuid(query.labelId)) {
+    // EXISTS, not a join: a join through the M2M table would multiply rows and
+    // corrupt both the COUNT and the page size.
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(issueLabels)
+          .where(
+            and(
+              eq(issueLabels.issueId, issues.id),
+              eq(issueLabels.labelId, query.labelId)
+            )
+          )
+      )
+    );
+  }
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const ascending = query.desc === false;
+  const dir = ascending ? asc : desc;
+  const orderBy: SQL[] = {
+    key: [dir(projects.key), dir(issues.number)],
+    title: [dir(issues.title)],
+    project: [dir(projects.name)],
+    status: [dir(issues.status)],
+    // Enum columns order by their declaration order (low → urgent), which is
+    // the urgency ranking users expect — not alphabetical.
+    priority: [dir(issues.priority)],
+    // Unassigned rows sort last in both directions — an empty cell is never the
+    // most interesting row on the page.
+    assignee: [
+      ascending
+        ? sql`${assigneeUser.name} ASC NULLS LAST`
+        : sql`${assigneeUser.name} DESC NULLS LAST`,
+    ],
+    createdAt: [dir(issues.createdAt)],
+    updatedAt: [dir(issues.updatedAt)],
+  }[query.sort ?? "updatedAt"];
+
+  const limit = Math.min(Math.max(1, query.limit ?? 25), MAX_PAGE_SIZE);
+  const offset = Math.max(0, query.offset ?? 0);
+
   try {
-    const rows = await db.query.issues.findMany({
-      with: {
-        project: { columns: { id: true, name: true, key: true } },
-        createdBy: { columns: { id: true, name: true } },
-        assignee: { columns: { id: true, name: true } },
-        environment: { columns: { id: true, name: true } },
+    const [rows, [counted]] = await Promise.all([
+      db
+        .select({
+          issue: getTableColumns(issues),
+          projectName: projects.name,
+          projectKey: projects.key,
+          assigneeName: assigneeUser.name,
+          creatorName: creatorUser.name,
+          environmentName: environments.name,
+        })
+        .from(issues)
+        .innerJoin(projects, eq(projects.id, issues.projectId))
+        .leftJoin(assigneeUser, eq(assigneeUser.id, issues.assigneeId))
+        .leftJoin(creatorUser, eq(creatorUser.id, issues.createdById))
+        .leftJoin(environments, eq(environments.id, issues.environmentId))
+        .where(where)
+        // `id` last so the order is total: without it, rows sharing the sort
+        // key can swap between pages and appear twice (or never).
+        .orderBy(...orderBy, asc(issues.id))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(issues)
+        .innerJoin(projects, eq(projects.id, issues.projectId))
+        .where(where),
+    ]);
+
+    const shaped = rows.map((r) => ({
+      ...r.issue,
+      project: {
+        id: r.issue.projectId,
+        name: r.projectName,
+        key: r.projectKey,
       },
-      orderBy: { updatedAt: "desc" },
-    });
-    return (await attachLabels(rows)) as unknown as GlobalIssue[];
+      assignee: r.issue.assigneeId
+        ? { id: r.issue.assigneeId, name: r.assigneeName ?? "" }
+        : null,
+      createdBy: r.issue.createdById
+        ? { id: r.issue.createdById, name: r.creatorName ?? "" }
+        : null,
+      environment: r.issue.environmentId
+        ? { id: r.issue.environmentId, name: r.environmentName ?? "" }
+        : null,
+    }));
+
+    return {
+      rows: await attachLabels(shaped),
+      total: Number(counted?.count ?? 0),
+    };
   } catch (error) {
     console.error("Failed to list all issues:", error);
-    return [];
+    return { rows: [], total: 0 };
   }
+}
+
+function isUuid(value: string | undefined): value is string {
+  return !!value && z.uuid().safeParse(value).success;
 }
 
 type ActionResponse = { success: boolean; message?: string; data?: Issue };
@@ -358,7 +558,7 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
         entityId: created.id,
         data: { key: `${projectKey}-${created.number}`, title: created.title },
       });
-      revalidatePath("/", "layout");
+      revalidateIssues();
       return { success: true, data: created };
     } catch (error) {
       if ((error as { code?: string })?.code === "23505") continue; // retry
@@ -412,7 +612,7 @@ export async function updateIssue(
         },
       });
     }
-    revalidatePath("/", "layout");
+    revalidateIssues();
     return { success: true, data: updated };
   } catch (error) {
     console.error(`Failed to update issue ${id}:`, error);
@@ -442,7 +642,7 @@ export async function bulkSetStatus(
       .update(issues)
       .set({ status: parsed.data, updatedAt: new Date() })
       .where(inArray(issues.id, ids));
-    revalidatePath("/", "layout");
+    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error("Failed to bulk-update issues:", error);
@@ -458,7 +658,7 @@ export async function bulkDeleteIssues(
   if (ids.length === 0) return { success: true };
   try {
     await db.delete(issues).where(inArray(issues.id, ids));
-    revalidatePath("/", "layout");
+    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error("Failed to bulk-delete issues:", error);
@@ -471,7 +671,7 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
   await requireSession();
   try {
     await db.delete(issues).where(and(eq(issues.id, id)));
-    revalidatePath("/", "layout");
+    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete issue ${id}:`, error);

@@ -1196,7 +1196,18 @@
     "selectRow": "Select row",
     "bulkDeleteTitle": "Delete issues",
     "bulkDeleteDescription": "Delete {count} issue(s)? This cannot be undone.",
-    "bulkDeleted": "Issues deleted"
+    "bulkDeleted": "Issues deleted",
+    "allPriorities": "All priorities",
+    "columnUpdated": "Updated",
+    "boardTruncated": "Showing the first {shown} of {total} issues. Narrow the filter to see the rest.",
+    "manageViews": "Saved views",
+    "saveViewDescription": "Save the current filters as a view, or remove one you no longer need.",
+    "viewSaveFailed": "Failed to save view",
+    "viewDeleted": "View deleted",
+    "viewDeleteFailed": "Failed to delete view",
+    "deleteViewTitle": "Delete view",
+    "deleteViewDescription": "Delete the view “{name}”? This cannot be undone.",
+    "groupBy": "Group by"
   },
   "environmentKinds": {
     "qa": "QA",

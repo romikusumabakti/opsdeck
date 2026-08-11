@@ -1,500 +1,539 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
-import {
-  Bookmark,
-  ChevronDown,
-  CircleDot,
-  LayoutGrid,
-  List,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { CircleDot, Trash2 } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import type { GlobalIssue } from "@/actions/issues";
-import { setIssueStatus, updateIssue } from "@/actions/issues";
-import { createSavedView, deleteSavedView } from "@/actions/saved-views";
+import {
+  bulkDeleteIssues,
+  bulkSetStatus,
+  setIssueStatus,
+  updateIssue,
+} from "@/actions/issues";
+import { useDialog } from "@/components/dialog-provider";
 import {
   type AssignableUser,
   AssigneeSelect,
   IssueBoard,
-  type IssueType,
   type Priority,
   PrioritySelect,
+  STATUSES,
   type Status,
   StatusSelect,
   type Swimlane,
   TypeIcon,
 } from "@/components/issues-board";
+import {
+  type FilterOption,
+  type FilterPatch,
+  IssuesFilterBar,
+} from "@/components/issues-filter-bar";
+import {
+  IssuesSavedViews,
+  type SavedViewItem,
+} from "@/components/issues-saved-views";
 import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { BOARD_LIMIT, TABLE_URL_KEY } from "@/lib/issue-query";
 
-const ALL = "all";
+/**
+ * One page of issues, patched in place. `remove` covers a bulk delete: the rows
+ * disappear the moment the action starts instead of after the round-trip.
+ */
+type OptimisticAction =
+  | { type: "patch"; ids: string[]; changes: Partial<GlobalIssue> }
+  | { type: "remove"; ids: string[] };
+
+/**
+ * What the server sorts by when the URL says nothing — kept module-level so the
+ * table sees a stable reference.
+ */
+const DEFAULT_SORTING = [{ id: "updatedAt", desc: true }];
+
+/** Issue detail lives under the project key, not under the global list. */
+const issueHref = (issue: GlobalIssue) =>
+  `/${issue.project.key}/issues/${issue.number}`;
 
 export function GlobalIssuesClient({
-  initialIssues,
-  currentUserId,
+  issues,
+  total,
   users,
   allLabels,
-  initialFilters,
+  projects,
   savedViews,
+  filters,
+  pageSize,
 }: {
-  initialIssues: GlobalIssue[];
-  currentUserId: string;
+  /** The current page, already filtered/sorted/sliced by the server. */
+  issues: GlobalIssue[];
+  /** Rows matching the filter across all pages — drives the pager. */
+  total: number;
   users: AssignableUser[];
-  allLabels: { id: string; name: string; color: string }[];
-  initialFilters: Record<string, string>;
-  savedViews: { id: string; name: string; params: Record<string, string> }[];
+  allLabels: FilterOption[];
+  projects: FilterOption[];
+  savedViews: SavedViewItem[];
+  filters: Record<string, string>;
+  pageSize: number;
 }) {
   const t = useTranslations("issues");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
+  const dialog = useDialog();
+  // next/navigation (not the localized wrapper): these calls rewrite the query
+  // of the path we are already on, which is locale-prefixed already. The
+  // localized `Link` is still used for hrefs that need the prefix added.
   const router = useRouter();
-
-  const [issues, setIssues] = React.useState(initialIssues);
-  React.useEffect(() => setIssues(initialIssues), [initialIssues]);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = React.useTransition();
 
   const usersById = React.useMemo(
     () => Object.fromEntries(users.map((u) => [u.id, u.name])),
     [users]
   );
 
-  const [query, setQuery] = React.useState("");
-  const [status, setStatus] = React.useState<string>(
-    initialFilters.status ?? ALL
+  // Inline edits show instantly and roll back on their own: when the action
+  // fails, the transition ends without new server data and React drops the
+  // optimistic layer. On success `router.refresh()` (inside the same
+  // transition) supplies the real row before the layer is dropped, so there is
+  // no flash of stale values in either direction.
+  const [rows, applyOptimistic] = React.useOptimistic(
+    issues,
+    (state: GlobalIssue[], action: OptimisticAction) =>
+      action.type === "remove"
+        ? state.filter((i) => !action.ids.includes(i.id))
+        : state.map((i) =>
+            action.ids.includes(i.id) ? { ...i, ...action.changes } : i
+          )
   );
-  const [projectId, setProjectId] = React.useState<string>(
-    initialFilters.project ?? ALL
-  );
-  const [labelId, setLabelId] = React.useState<string>(
-    initialFilters.label ?? ALL
-  );
-  const [mineOnly, setMineOnly] = React.useState(initialFilters.mine === "1");
-  const [view, setView] = React.useState<"table" | "board">(
-    initialFilters.view === "board" ? "board" : "table"
-  );
-  const [swimlane, setSwimlane] = React.useState<Swimlane>("none");
 
-  // The filter dimensions as a flat map (defaults omitted) — this is both the
-  // URL query and what a saved view stores.
-  const currentParams = React.useCallback((): Record<string, string> => {
-    const p: Record<string, string> = {};
-    if (status !== ALL) p.status = status;
-    if (projectId !== ALL) p.project = projectId;
-    if (labelId !== ALL) p.label = labelId;
-    if (mineOnly) p.mine = "1";
-    if (view === "board") p.view = "board";
-    return p;
-  }, [status, projectId, labelId, mineOnly, view]);
-
-  // Reflect filters in the URL so a view is shareable/bookmarkable. `query` is
-  // transient search — deliberately not synced.
-  React.useEffect(() => {
-    const qs = new URLSearchParams(currentParams()).toString();
-    router.replace(qs ? `/issues?${qs}` : "/issues", { scroll: false });
-  }, [currentParams, router]);
-
-  function applyParams(p: Record<string, string>) {
-    setStatus(p.status ?? ALL);
-    setProjectId(p.project ?? ALL);
-    setLabelId(p.label ?? ALL);
-    setMineOnly(p.mine === "1");
-    setView(p.view === "board" ? "board" : "table");
-  }
-
-  const [saveOpen, setSaveOpen] = React.useState(false);
-  const [viewName, setViewName] = React.useState("");
-
-  async function onSaveView() {
-    const name = viewName.trim();
-    if (!name) return;
-    const result = await createSavedView(name, currentParams());
-    if (result.success) {
-      toast.success(t("viewSaved"));
-      setViewName("");
-      setSaveOpen(false);
-      router.refresh();
-    }
-  }
-
-  async function onDeleteView(id: string) {
-    await deleteSavedView(id);
-    router.refresh();
-  }
-
-  // Distinct projects present, for the project filter.
-  const projectOptions = React.useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of issues) map.set(i.project.id, i.project.name);
-    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [issues]);
-
-  const visible = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return issues.filter((i) => {
-      if (status !== ALL && i.status !== status) return false;
-      if (projectId !== ALL && i.project.id !== projectId) return false;
-      if (labelId !== ALL && !i.labels.some((l) => l.id === labelId))
-        return false;
-      if (mineOnly && i.assignee?.id !== currentUserId) return false;
-      if (
-        q &&
-        !i.title.toLowerCase().includes(q) &&
-        !`${i.project.key}-${i.number}`.toLowerCase().includes(q)
-      ) {
-        return false;
+  /**
+   * Apply a patch to the URL query — the single entry point for every filter,
+   * because the query string is what the server reads to build the page.
+   */
+  const setParams = React.useCallback(
+    (patch: FilterPatch) => {
+      const next = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null || value === "") next.delete(key);
+        else next.set(key, value);
       }
-      return true;
-    });
-  }, [issues, query, status, projectId, labelId, mineOnly, currentUserId]);
+      // A changed filter makes the current page number meaningless — page 4 of
+      // the old result set is rarely page 4 of the new one.
+      next.delete(`${TABLE_URL_KEY}_p`);
+      const qs = next.toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
+    },
+    [pathname, router, searchParams]
+  );
 
-  async function onStatusChange(id: string, next: Status) {
-    setIssues((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: next } : i))
-    );
-    const result = await setIssueStatus(id, next);
-    if (!result.success) {
-      toast.error(t("updateFailed"));
-    } else {
-      toast.success(t("statusUpdated"));
-    }
-    router.refresh();
-  }
+  const applyView = React.useCallback(
+    (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
+    },
+    [pathname, router]
+  );
 
-  async function onAssigneeChange(id: string, assigneeId: string | null) {
-    setIssues((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              assignee: assigneeId
-                ? { id: assigneeId, name: usersById[assigneeId] ?? "" }
-                : null,
-            }
-          : i
-      )
-    );
-    const result = await updateIssue(id, { assigneeId });
-    if (!result.success) toast.error(t("updateFailed"));
-    router.refresh();
-  }
+  const currentParams = React.useMemo(
+    () => Object.fromEntries(searchParams.entries()),
+    [searchParams]
+  );
 
-  async function onPriorityChange(id: string, priority: Priority) {
-    setIssues((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, priority } : i))
-    );
-    const result = await updateIssue(id, { priority });
-    if (!result.success) toast.error(t("updateFailed"));
-    router.refresh();
-  }
+  /**
+   * Run a mutation with its optimistic patch. Everything happens inside one
+   * transition so the optimistic state survives until the refreshed server data
+   * (or the failure) lands.
+   */
+  const mutate = React.useCallback(
+    (
+      action: OptimisticAction,
+      run: () => Promise<{ success: boolean }>,
+      successMessage?: string
+    ) => {
+      startTransition(async () => {
+        applyOptimistic(action);
+        const result = await run();
+        if (!result.success) {
+          toast.error(t("updateFailed"));
+          return;
+        }
+        if (successMessage) toast.success(successMessage);
+        router.refresh();
+      });
+    },
+    [applyOptimistic, router, t]
+  );
+
+  const onStatusChange = React.useCallback(
+    (id: string, status: Status) =>
+      mutate(
+        { type: "patch", ids: [id], changes: { status } },
+        () => setIssueStatus(id, status),
+        t("statusUpdated")
+      ),
+    [mutate, t]
+  );
+
+  const onPriorityChange = React.useCallback(
+    (id: string, priority: Priority) =>
+      mutate({ type: "patch", ids: [id], changes: { priority } }, () =>
+        updateIssue(id, { priority })
+      ),
+    [mutate]
+  );
+
+  const onAssigneeChange = React.useCallback(
+    (id: string, assigneeId: string | null) =>
+      mutate(
+        {
+          type: "patch",
+          ids: [id],
+          changes: {
+            assigneeId,
+            assignee: assigneeId
+              ? { id: assigneeId, name: usersById[assigneeId] ?? "" }
+              : null,
+          },
+        },
+        () => updateIssue(id, { assigneeId })
+      ),
+    [mutate, usersById]
+  );
+
+  const onBulkStatus = React.useCallback(
+    (ids: string[], status: Status, clearSelection: () => void) => {
+      clearSelection();
+      mutate(
+        { type: "patch", ids, changes: { status } },
+        () => bulkSetStatus(ids, status),
+        t("statusUpdated")
+      );
+    },
+    [mutate, t]
+  );
+
+  const onBulkDelete = React.useCallback(
+    async (ids: string[], clearSelection: () => void) => {
+      const ok = await dialog.confirm({
+        title: t("bulkDeleteTitle"),
+        description: t("bulkDeleteDescription", { count: ids.length }),
+        confirmText: tCommon("delete"),
+        cancelText: tCommon("cancel"),
+        destructive: true,
+      });
+      if (!ok) return;
+      clearSelection();
+      mutate(
+        { type: "remove", ids },
+        () => bulkDeleteIssues(ids),
+        t("bulkDeleted")
+      );
+    },
+    [dialog, mutate, t, tCommon]
+  );
+
+  const columns = React.useMemo<ColumnDef<GlobalIssue>[]>(
+    () => [
+      {
+        id: "key",
+        accessorFn: (i) => `${i.project.key}-${i.number}`,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnKey")} />
+        ),
+        cell: ({ row }) => (
+          <Link
+            href={issueHref(row.original)}
+            className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            {row.original.project.key}-{row.original.number}
+          </Link>
+        ),
+        enableHiding: false,
+        meta: { headClassName: "w-28", label: t("columnKey") },
+      },
+      {
+        id: "title",
+        accessorKey: "title",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnTitle")} />
+        ),
+        cell: ({ row }) => (
+          <span className="flex items-center gap-2 font-medium">
+            <TypeIcon type={row.original.type} />
+            <Link href={issueHref(row.original)} className="hover:underline">
+              {row.original.title}
+            </Link>
+            <LabelChips labels={row.original.labels} />
+          </span>
+        ),
+        enableHiding: false,
+        meta: { label: t("columnTitle") },
+      },
+      {
+        id: "project",
+        accessorFn: (i) => i.project.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnProject")} />
+        ),
+        cell: ({ row }) => (
+          <Link
+            href={`/${row.original.project.key}`}
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            {row.original.project.name}
+          </Link>
+        ),
+        meta: { headClassName: "w-44", label: t("columnProject") },
+      },
+      {
+        id: "status",
+        accessorKey: "status",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnStatus")} />
+        ),
+        cell: ({ row }) => (
+          <StatusSelect
+            value={row.original.status}
+            onChange={(s) => onStatusChange(row.original.id, s)}
+          />
+        ),
+        meta: { headClassName: "w-40", label: t("columnStatus") },
+      },
+      {
+        id: "priority",
+        accessorKey: "priority",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnPriority")} />
+        ),
+        cell: ({ row }) => (
+          <PrioritySelect
+            value={row.original.priority}
+            onChange={(p) => onPriorityChange(row.original.id, p)}
+          />
+        ),
+        meta: { headClassName: "w-36", label: t("columnPriority") },
+      },
+      {
+        id: "assignee",
+        accessorFn: (i) => i.assignee?.name ?? "",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnAssignee")} />
+        ),
+        cell: ({ row }) => (
+          <AssigneeSelect
+            users={users}
+            value={row.original.assignee?.id ?? null}
+            onChange={(a) => onAssigneeChange(row.original.id, a)}
+          />
+        ),
+        meta: { headClassName: "w-36", label: t("columnAssignee") },
+      },
+      {
+        id: "createdAt",
+        accessorKey: "createdAt",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnCreated")} />
+        ),
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(row.original.createdAt), {
+              addSuffix: true,
+              locale: dateFnsLocale,
+            })}
+          </span>
+        ),
+        meta: { headClassName: "w-32", label: t("columnCreated") },
+      },
+      {
+        id: "updatedAt",
+        accessorKey: "updatedAt",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("columnUpdated")} />
+        ),
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(row.original.updatedAt), {
+              addSuffix: true,
+              locale: dateFnsLocale,
+            })}
+          </span>
+        ),
+        meta: { headClassName: "w-32", label: t("columnUpdated") },
+      },
+    ],
+    [
+      dateFnsLocale,
+      onAssigneeChange,
+      onPriorityChange,
+      onStatusChange,
+      t,
+      users,
+    ]
+  );
+
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
+      <CircleDot className="size-6 text-muted-foreground" />
+      <p className="text-sm text-muted-foreground">{t("empty")}</p>
+    </div>
+  );
+
+  const isBoard = filters.view === "board";
+  const boardTruncated = isBoard && total > BOARD_LIMIT;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="outline" className="gap-1.5">
-                <Bookmark className="size-4" />
-                {t("views")}
-                <ChevronDown className="size-3.5 opacity-60" />
-              </Button>
-            }
+    <div className="flex flex-1 min-h-0 flex-col gap-4">
+      <IssuesFilterBar
+        filters={filters}
+        onChange={setParams}
+        projects={projects}
+        labels={allLabels}
+        leading={
+          <IssuesSavedViews
+            views={savedViews}
+            currentParams={currentParams}
+            onApply={applyView}
           />
-          <DropdownMenuContent align="start" className="w-56">
-            {savedViews.length === 0 ? (
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                {t("noSavedViews")}
-              </DropdownMenuLabel>
-            ) : (
-              savedViews.map((v) => (
-                <DropdownMenuItem
-                  key={v.id}
-                  onClick={() => applyParams(v.params)}
-                  className="justify-between gap-2"
-                >
-                  <span className="truncate">{v.name}</span>
-                  <button
-                    type="button"
-                    aria-label={t("deleteView")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteView(v.id);
-                    }}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </DropdownMenuItem>
-              ))
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setSaveOpen(true)}>
-              <Bookmark className="size-4" />
-              {t("saveView")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="relative min-w-52 flex-1">
-          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="ps-9"
-            aria-label={t("searchPlaceholder")}
-          />
-        </div>
-        <Select value={status} onValueChange={(v) => setStatus(v ?? ALL)}>
-          <SelectTrigger className="w-40" aria-label={t("filterStatus")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allStatuses")}</SelectItem>
-            {(["open", "in_progress", "resolved", "closed"] as const).map(
-              (s) => (
-                <SelectItem key={s} value={s}>
-                  {t(`status.${s}`)}
-                </SelectItem>
-              )
-            )}
-          </SelectContent>
-        </Select>
-        <Select value={projectId} onValueChange={(v) => setProjectId(v ?? ALL)}>
-          <SelectTrigger className="w-44" aria-label={t("project")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allProjects")}</SelectItem>
-            {projectOptions.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={labelId} onValueChange={(v) => setLabelId(v ?? ALL)}>
-          <SelectTrigger className="w-40" aria-label={t("filterLabel")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allLabels")}</SelectItem>
-            {allLabels.map((l) => (
-              <SelectItem key={l.id} value={l.id}>
-                <span className="flex items-center gap-2">
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ backgroundColor: l.color }}
-                  />
-                  {l.name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          variant={mineOnly ? "secondary" : "outline"}
-          onClick={() => setMineOnly((v) => !v)}
-        >
-          {t("assignedToMe")}
-        </Button>
-        {view === "board" ? (
-          <Select
-            value={swimlane}
-            onValueChange={(v) => setSwimlane((v ?? "none") as Swimlane)}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("groupNone")}</SelectItem>
-              <SelectItem value="assignee">{t("groupAssignee")}</SelectItem>
-            </SelectContent>
-          </Select>
-        ) : null}
-        <div className="flex rounded-md border p-0.5">
-          <Button
-            type="button"
-            variant={view === "table" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 px-2"
-            onClick={() => setView("table")}
-            aria-label={t("viewTable")}
-          >
-            <List className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant={view === "board" ? "secondary" : "ghost"}
-            size="sm"
-            className="h-7 px-2"
-            onClick={() => setView("board")}
-            aria-label={t("viewBoard")}
-          >
-            <LayoutGrid className="size-4" />
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
-          <CircleDot className="size-6 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">{t("empty")}</p>
-        </div>
-      ) : view === "board" ? (
-        <IssueBoard
-          showProject
-          issues={visible.map((i) => ({
-            id: i.id,
-            number: i.number,
-            title: i.title,
-            status: i.status as Status,
-            type: i.type as IssueType,
-            priority: i.priority as Priority,
-            keyPrefix: i.project.key,
-            projectName: i.project.name,
-            envName: i.environment?.name ?? null,
-            assigneeName: i.assignee?.name ?? null,
-            labels: i.labels,
-          }))}
-          onStatusChange={onStatusChange}
-          swimlane={swimlane}
-        />
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">{t("columnKey")}</TableHead>
-                <TableHead>{t("columnTitle")}</TableHead>
-                <TableHead className="w-44">{t("columnProject")}</TableHead>
-                <TableHead className="w-40">{t("columnStatus")}</TableHead>
-                <TableHead className="w-36">{t("columnPriority")}</TableHead>
-                <TableHead className="w-32">{t("columnAssignee")}</TableHead>
-                <TableHead className="w-32">{t("columnCreated")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.map((issue) => (
-                <TableRow key={issue.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    <Link
-                      href={`/${issue.project.key}/issues/${issue.number}`}
-                      className="hover:text-foreground hover:underline"
-                    >
-                      {issue.project.key}-{issue.number}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-2">
-                      <TypeIcon type={issue.type as IssueType} />
-                      <Link
-                        href={`/${issue.project.key}/issues/${issue.number}`}
-                        className="hover:underline"
-                      >
-                        {issue.title}
-                      </Link>
-                      <LabelChips labels={issue.labels} />
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground truncate">
-                    <Link
-                      href={`/${issue.project.key}`}
-                      className="hover:underline"
-                    >
-                      {issue.project.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <StatusSelect
-                      value={issue.status as Status}
-                      onChange={(s) => onStatusChange(issue.id, s)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <PrioritySelect
-                      value={issue.priority as Priority}
-                      onChange={(p) => onPriorityChange(issue.id, p)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <AssigneeSelect
-                      users={users}
-                      value={issue.assignee?.id ?? null}
-                      onChange={(a) => onAssigneeChange(issue.id, a)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(issue.createdAt), {
-                      addSuffix: true,
-                      locale: dateFnsLocale,
-                    })}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+      {boardTruncated && (
+        <p
+          role="status"
+          className="shrink-0 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground"
+        >
+          {t("boardTruncated", { shown: BOARD_LIMIT, total })}
+        </p>
       )}
 
-      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("saveView")}</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={viewName}
-            onChange={(e) => setViewName(e.target.value)}
-            placeholder={t("viewNamePlaceholder")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onSaveView();
-            }}
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setSaveOpen(false)}>
-              {t("cancel")}
-            </Button>
-            <Button onClick={onSaveView} disabled={!viewName.trim()}>
-              {t("save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isBoard ? (
+        // The board has no bounded height of its own, so it gets the scroll
+        // container here; columns grow and this wrapper scrolls.
+        <div
+          aria-busy={isPending || undefined}
+          className={`flex-1 min-h-0 overflow-y-auto transition-opacity ${
+            isPending ? "opacity-60" : ""
+          }`}
+        >
+          {rows.length === 0 ? (
+            <div className="rounded-lg border border-dashed">{emptyState}</div>
+          ) : (
+            <IssueBoard
+              showProject
+              issues={rows.map((i) => ({
+                id: i.id,
+                number: i.number,
+                title: i.title,
+                status: i.status,
+                type: i.type,
+                priority: i.priority,
+                keyPrefix: i.project.key,
+                projectName: i.project.name,
+                envName: i.environment?.name ?? null,
+                assigneeName: i.assignee?.name ?? null,
+                labels: i.labels,
+              }))}
+              onStatusChange={onStatusChange}
+              swimlane={(filters.group as Swimlane) ?? "none"}
+            />
+          )}
+        </div>
+      ) : (
+        <DataTable
+          fillHeight
+          label={t("globalTitle")}
+          columns={columns}
+          data={rows}
+          getRowId={(i) => i.id}
+          urlKey={TABLE_URL_KEY}
+          initialPageSize={pageSize}
+          initialSorting={DEFAULT_SORTING}
+          manualRowCount={total}
+          isPending={isPending}
+          emptyState={emptyState}
+          renderCard={(issue) => (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <TypeIcon type={issue.type} />
+                <Link
+                  href={issueHref(issue)}
+                  className="font-mono text-xs text-muted-foreground"
+                >
+                  {issue.project.key}-{issue.number}
+                </Link>
+              </div>
+              <Link href={issueHref(issue)} className="font-medium">
+                {issue.title}
+              </Link>
+              <LabelChips labels={issue.labels} />
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusSelect
+                  value={issue.status}
+                  onChange={(s) => onStatusChange(issue.id, s)}
+                />
+                <PrioritySelect
+                  value={issue.priority}
+                  onChange={(p) => onPriorityChange(issue.id, p)}
+                />
+                <AssigneeSelect
+                  users={users}
+                  value={issue.assignee?.id ?? null}
+                  onChange={(a) => onAssigneeChange(issue.id, a)}
+                />
+              </div>
+            </div>
+          )}
+          bulkActions={(ids, clearSelection) => (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button variant="outline" size="sm" />}
+                >
+                  {t("bulkStatus")}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {STATUSES.map((s) => (
+                    <DropdownMenuItem
+                      key={s}
+                      onClick={() => onBulkStatus(ids, s, clearSelection)}
+                    >
+                      {t(`status.${s}`)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive"
+                onClick={() => onBulkDelete(ids, clearSelection)}
+              >
+                <Trash2 className="size-4" />
+                {tCommon("delete")}
+              </Button>
+            </>
+          )}
+        />
+      )}
     </div>
   );
 }
