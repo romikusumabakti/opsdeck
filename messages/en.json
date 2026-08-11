@@ -1095,18 +1095,27 @@
   },
   "projectCreateDialog": {
     "title": "New project",
-    "description": "Group deployments (QA, dev, devops) under one project.",
+    "description": "Group deployments (QA, dev, devops) under one project."
+  },
+  "projectForm": {
     "name": "Project name",
     "namePlaceholder": "e.g. Common Membership",
     "key": "Key",
     "keyPlaceholder": "e.g. CMEM",
     "keyHint": "Short uppercase prefix for issue keys (CMEM-42). 2–10 letters/digits.",
+    "keyEditHint": "Changing the key changes this project's URL and its issue keys. Existing links will break.",
     "client": "Client (optional)",
     "clientPlaceholder": "e.g. DPLK",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "What this project covers",
     "submit": "Create project",
     "submitting": "Creating…",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
     "created": "Project created",
+    "saved": "Project updated",
     "createFailed": "Failed to create project",
+    "saveFailed": "Failed to update project",
     "keyTaken": "That key is already in use",
     "keyReserved": "That key is reserved by an application route"
   },
@@ -1229,6 +1238,20 @@
     "client": "Client",
     "members": "Members",
     "milestones": "Milestones"
+  },
+  "projectSettings": {
+    "title": "Project settings",
+    "subtitle": "Edit {name}'s details or delete the project entirely.",
+    "tabDetails": "Details",
+    "tabDanger": "Danger zone",
+    "editTitle": "Project details",
+    "editDescription": "Update the project's name, key, client, and description.",
+    "dangerZoneTitle": "Danger zone",
+    "dangerZoneDescription": "Deleting a project also deletes its environments, their task history, and its issues. This cannot be undone.",
+    "deleteButton": "Delete project",
+    "deleteTitle": "Delete project",
+    "deleteDescription": "Delete project {name}? This also deletes {count, plural, =0 {no environments} one {# environment} other {# environments}} and every issue in it. This action cannot be undone.",
+    "deletedSuccess": "Project {name} deleted"
   },
   "inbox": {
     "title": "Home",

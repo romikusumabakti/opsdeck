@@ -1095,18 +1095,27 @@
   },
   "projectCreateDialog": {
     "title": "مشروع جديد",
-    "description": "اجمع عمليات النشر (اختبار الجودة، التطوير، DevOps) ضمن مشروع واحد.",
+    "description": "اجمع عمليات النشر (اختبار الجودة، التطوير، DevOps) ضمن مشروع واحد."
+  },
+  "projectForm": {
     "name": "اسم المشروع",
     "namePlaceholder": "مثال: Common Membership",
     "key": "الرمز",
     "keyPlaceholder": "مثال: CMEM",
     "keyHint": "بادئة بأحرف كبيرة لرموز المشكلات (CMEM-42). من 2 إلى 10 أحرف/أرقام.",
+    "keyEditHint": "تغيير الرمز يغيّر رابط المشروع ورموز مشكلاته. ستتوقف الروابط الحالية عن العمل.",
     "client": "العميل (اختياري)",
     "clientPlaceholder": "مثال: DPLK",
+    "description": "الوصف (اختياري)",
+    "descriptionPlaceholder": "ما الذي يغطيه هذا المشروع",
     "submit": "إنشاء المشروع",
     "submitting": "جارٍ الإنشاء…",
+    "saveChanges": "حفظ التغييرات",
+    "saving": "جارٍ الحفظ…",
     "created": "تم إنشاء المشروع",
+    "saved": "تم تحديث المشروع",
     "createFailed": "فشل إنشاء المشروع",
+    "saveFailed": "فشل تحديث المشروع",
     "keyTaken": "هذا الرمز مستخدم بالفعل",
     "keyReserved": "هذا المفتاح محجوز لمسار في التطبيق"
   },
@@ -1229,6 +1238,20 @@
     "client": "العميل",
     "members": "الأعضاء",
     "milestones": "المعالم"
+  },
+  "projectSettings": {
+    "title": "إعدادات المشروع",
+    "subtitle": "عدّل تفاصيل {name} أو احذف المشروع بالكامل.",
+    "tabDetails": "التفاصيل",
+    "tabDanger": "منطقة الخطر",
+    "editTitle": "تفاصيل المشروع",
+    "editDescription": "حدّث اسم المشروع ورمزه والعميل والوصف.",
+    "dangerZoneTitle": "منطقة الخطر",
+    "dangerZoneDescription": "حذف المشروع يحذف أيضًا بيئاته وسجل مهامها وكل مشكلاته. لا يمكن التراجع عن هذا.",
+    "deleteButton": "حذف المشروع",
+    "deleteTitle": "حذف المشروع",
+    "deleteDescription": "هل تريد حذف المشروع {name}؟ سيؤدي هذا أيضًا إلى حذف {count, plural, other {# بيئة}} وكل المشكلات فيه. لا يمكن التراجع عن هذا الإجراء.",
+    "deletedSuccess": "تم حذف المشروع {name}"
   },
   "inbox": {
     "title": "الرئيسية",
