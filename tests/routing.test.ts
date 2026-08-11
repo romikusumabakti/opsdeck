@@ -37,6 +37,10 @@ describe("canonicalProjectPath", () => {
     "/sign-in",
     "/environments/new",
     "/project/TMEM",
+    "/admin",
+    "/admin/users",
+    "/admin/jira/new",
+    "/admin/activity",
   ])("ignores route %s", (path) => {
     expect(canonicalProjectPath(path)).toBeNull();
   });

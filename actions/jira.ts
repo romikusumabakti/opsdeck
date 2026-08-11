@@ -118,7 +118,7 @@ export async function createJiraConnection(
         webhookSecret: randomBytes(24).toString("base64url"),
       })
       .returning();
-    revalidatePath("/jira");
+    revalidatePath("/admin/jira");
     return { success: true, data: toSafe(created), message: t("jiraCreated") };
   } catch (error) {
     console.error("Failed to create Jira connection:", error);
@@ -154,8 +154,8 @@ export async function updateJiraConnection(
       .where(eq(jiraConnections.id, id))
       .returning();
     if (!updated) return { success: false, message: t("jiraNotFound") };
-    revalidatePath("/jira");
-    revalidatePath(`/jira/${id}`);
+    revalidatePath("/admin/jira");
+    revalidatePath(`/admin/jira/${id}`);
     return { success: true, message: t("jiraUpdated") };
   } catch (error) {
     console.error(`Failed to update Jira connection ${id}:`, error);
@@ -190,7 +190,7 @@ export async function deleteJiraConnection(
       console.error("Failed to unschedule the Jira sweep:", error);
     }
   }
-  revalidatePath("/jira");
+  revalidatePath("/admin/jira");
   return { success: true, message: t("jiraDeleted") };
 }
 

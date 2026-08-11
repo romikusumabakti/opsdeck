@@ -77,7 +77,8 @@
     "loading": "Memuat…",
     "security": "Keamanan",
     "sessions": "Sesi",
-    "issues": "Isu"
+    "issues": "Isu",
+    "jira": "Jira"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -119,7 +120,8 @@
     "allIssues": "Isu",
     "home": "Beranda",
     "activity": "Aktivitas",
-    "jira": "Jira"
+    "jira": "Jira",
+    "admin": "Admin"
   },
   "header": {
     "searchEnvironment": "Cari environment…",

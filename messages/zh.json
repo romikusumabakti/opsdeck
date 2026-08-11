@@ -77,7 +77,8 @@
     "loading": "加载中…",
     "security": "安全",
     "sessions": "会话",
-    "issues": "问题"
+    "issues": "问题",
+    "jira": "Jira"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",
@@ -119,7 +120,8 @@
     "allIssues": "问题",
     "home": "主页",
     "activity": "动态",
-    "jira": "Jira"
+    "jira": "Jira",
+    "admin": "管理员"
   },
   "header": {
     "searchEnvironment": "搜索环境…",

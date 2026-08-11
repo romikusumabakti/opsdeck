@@ -3,7 +3,6 @@ import { Activity } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { type ActivityRow, listActivity } from "@/actions/activity";
 import { PageHeader } from "@/components/page-header";
-import { requireSession } from "@/lib/auth-session";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 // Render one event to a localized sentence. `data` is the denormalized params
@@ -66,7 +65,6 @@ export default async function ActivityPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireSession();
 
   const [events, t, tIssues] = await Promise.all([
     listActivity(100),
