@@ -1095,18 +1095,27 @@
   },
   "projectCreateDialog": {
     "title": "新建项目",
-    "description": "将多个部署（QA、开发、运维）归入同一个项目。",
+    "description": "将多个部署（QA、开发、运维）归入同一个项目。"
+  },
+  "projectForm": {
     "name": "项目名称",
     "namePlaceholder": "例如 Common Membership",
     "key": "标识",
     "keyPlaceholder": "例如 CMEM",
     "keyHint": "用于问题编号的大写前缀（CMEM-42），2–10 位字母/数字。",
+    "keyEditHint": "修改标识会改变该项目的网址和问题编号，现有链接将失效。",
     "client": "客户（可选）",
     "clientPlaceholder": "例如 DPLK",
+    "description": "描述（可选）",
+    "descriptionPlaceholder": "该项目涵盖的内容",
     "submit": "创建项目",
     "submitting": "创建中…",
+    "saveChanges": "保存更改",
+    "saving": "保存中…",
     "created": "项目已创建",
+    "saved": "项目已更新",
     "createFailed": "创建项目失败",
+    "saveFailed": "更新项目失败",
     "keyTaken": "该标识已被使用",
     "keyReserved": "该 Key 与应用路由冲突"
   },
@@ -1229,6 +1238,20 @@
     "client": "客户",
     "members": "成员",
     "milestones": "里程碑"
+  },
+  "projectSettings": {
+    "title": "项目设置",
+    "subtitle": "编辑 {name} 的信息，或删除整个项目。",
+    "tabDetails": "详情",
+    "tabDanger": "危险区域",
+    "editTitle": "项目详情",
+    "editDescription": "更新项目的名称、标识、客户和描述。",
+    "dangerZoneTitle": "危险区域",
+    "dangerZoneDescription": "删除项目会同时删除其环境、任务历史以及全部问题。此操作无法撤销。",
+    "deleteButton": "删除项目",
+    "deleteTitle": "删除项目",
+    "deleteDescription": "确定删除项目 {name}？这也会删除 {count, plural, other {# 个环境}} 及其中的全部问题。此操作无法撤销。",
+    "deletedSuccess": "项目 {name} 已删除"
   },
   "inbox": {
     "title": "主页",

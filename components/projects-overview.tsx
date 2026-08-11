@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Settings,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
@@ -209,6 +210,7 @@ function ProjectCard({
   canCreate: boolean;
 }) {
   const t = useTranslations("home");
+  const tOv = useTranslations("projectOverview");
   const environments = [...project.environments].sort(
     (a, b) =>
       (KIND_ORDER[a.kind ?? ""] ?? 99) - (KIND_ORDER[b.kind ?? ""] ?? 99) ||
@@ -249,15 +251,24 @@ function ProjectCard({
             </div>
           </div>
           {canCreate ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0"
-              render={<Link href={`/${project.key}/environments/new`} />}
-            >
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">{t("newEnvironment")}</span>
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                render={<Link href={`/${project.key}/environments/new`} />}
+              >
+                <Plus className="size-4" />
+                <span className="hidden sm:inline">{t("newEnvironment")}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={tOv("editProject")}
+                render={<Link href={`/${project.key}/settings`} />}
+              >
+                <Settings className="size-4" />
+              </Button>
+            </div>
           ) : null}
         </div>
 
