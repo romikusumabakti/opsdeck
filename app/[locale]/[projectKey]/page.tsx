@@ -150,8 +150,10 @@ export default async function ProjectOverviewPage({
             </div>
           ) : (
             // The card grid is the scroll box — there is nothing above it in
-            // this panel to keep pinned.
-            <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+            // this panel to keep pinned. `content-start` because a grid that is
+            // taller than its rows stretches them by default, which would blow
+            // up the cards to fill the panel when there are only a few.
+            <div className="grid content-start flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
               {environments.map((env) => {
                 const activity = lastActivity[env.id] ?? null;
                 return (
