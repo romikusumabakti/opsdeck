@@ -11,6 +11,12 @@ import { cn } from "@/lib/utils";
 
 type DataTableSkeletonProps = {
   columns: number;
+  /**
+   * Placeholder row count. Leave unset: a `fillHeight` table is bounded by the
+   * viewport, so how many rows the user sees depends on their window, not on
+   * the page — the default overfills and the box clips the remainder, which is
+   * right at any height. Only set it for a table that sizes to its content.
+   */
   rows?: number;
   withFilter?: boolean;
   // Mirror the DataTable `fillHeight` layout so the loading state occupies the
@@ -18,12 +24,17 @@ type DataTableSkeletonProps = {
   fillHeight?: boolean;
 };
 
+// Enough to run past the bottom of a tall window; the container clips them.
+const FILL_ROWS = 14;
+const CONTENT_ROWS = 6;
+
 export function DataTableSkeleton({
   columns,
-  rows = 6,
+  rows,
   withFilter = true,
   fillHeight,
 }: DataTableSkeletonProps) {
+  const rowCount = rows ?? (fillHeight ? FILL_ROWS : CONTENT_ROWS);
   return (
     <div className={cn("flex flex-col gap-3", fillHeight && "flex-1 min-h-0")}>
       {withFilter && (
@@ -38,7 +49,11 @@ export function DataTableSkeleton({
           fillHeight && "bg-card flex flex-col flex-1 min-h-0 overflow-hidden"
         )}
       >
-        <Table containerClassName={cn(fillHeight && "flex-1 min-h-0")}>
+        <Table
+          containerClassName={cn(
+            fillHeight && "flex-1 min-h-0 overflow-hidden"
+          )}
+        >
           <TableHeader>
             <TableRow>
               {Array.from({ length: columns }, (_, i) => (
@@ -49,7 +64,7 @@ export function DataTableSkeleton({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {Array.from({ length: rows }, (_, r) => (
+            {Array.from({ length: rowCount }, (_, r) => (
               <TableRow key={`tr-${r}`}>
                 {Array.from({ length: columns }, (_, c) => (
                   <TableCell key={`td-${r}-${c}`}>
