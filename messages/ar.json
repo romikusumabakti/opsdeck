@@ -722,11 +722,12 @@
   },
   "signIn": {
     "title": "تسجيل الدخول",
-    "description": "سجّل الدخول ببريدك الإلكتروني المهني @{{EMAIL_DOMAIN}}",
+    "description": "استخدم حساب العمل الخاص بك للمتابعة",
     "email": "البريد الإلكتروني",
     "emailPlaceholder": "you@{{EMAIL_DOMAIN}}",
     "password": "كلمة المرور",
     "forgotPassword": "نسيت كلمة المرور؟",
+    "emailInstead": "تسجيل الدخول بالبريد الإلكتروني",
     "submit": "تسجيل الدخول",
     "submitting": "جارٍ تسجيل الدخول…",
     "errorInvalid": "البريد الإلكتروني أو كلمة المرور غير صحيحة",

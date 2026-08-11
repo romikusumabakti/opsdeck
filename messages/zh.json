@@ -722,11 +722,12 @@
   },
   "signIn": {
     "title": "登录",
-    "description": "使用您的 @{{EMAIL_DOMAIN}} 工作邮箱登录",
+    "description": "使用您的工作账户继续",
     "email": "邮箱",
     "emailPlaceholder": "you@{{EMAIL_DOMAIN}}",
     "password": "密码",
     "forgotPassword": "忘记密码？",
+    "emailInstead": "使用邮箱登录",
     "submit": "登录",
     "submitting": "登录中…",
     "errorInvalid": "邮箱或密码无效",

@@ -49,6 +49,8 @@ export function AcceptInviteForm({
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { password: "", confirm: "" },
+    mode: "onTouched",
+    reValidateMode: "onChange",
   });
 
   useUnsavedChanges(form.formState.isDirty && !form.formState.isSubmitting);
