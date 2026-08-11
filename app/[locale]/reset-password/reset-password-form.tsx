@@ -41,6 +41,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { password: "", confirm: "" },
+    mode: "onTouched",
+    reValidateMode: "onChange",
   });
 
   async function onSubmit(values: z.infer<typeof schema>) {

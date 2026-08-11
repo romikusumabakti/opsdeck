@@ -6,10 +6,11 @@ import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const options = [
@@ -23,8 +24,8 @@ export function ThemeToggle() {
   const t = useTranslations("themeSwitcher");
 
   return (
-    <Popover>
-      <PopoverTrigger
+    <DropdownMenu>
+      <DropdownMenuTrigger
         render={
           <Button
             variant="ghost"
@@ -36,23 +37,21 @@ export function ThemeToggle() {
       >
         <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
         <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-36 p-1">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
         {options.map(({ value, icon: Icon }) => (
-          <button
+          <DropdownMenuItem
             key={value}
-            type="button"
             onClick={() => setTheme(value)}
             className={cn(
-              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
               theme === value && "bg-accent text-accent-foreground"
             )}
           >
-            <Icon className="size-4" />
-            <span>{t(value)}</span>
-          </button>
+            <Icon />
+            {t(value)}
+          </DropdownMenuItem>
         ))}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

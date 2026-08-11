@@ -5,10 +5,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
@@ -29,8 +31,8 @@ export function LocaleSwitcher() {
   }
 
   return (
-    <Popover>
-      <PopoverTrigger
+    <DropdownMenu>
+      <DropdownMenuTrigger
         render={
           <Button
             variant="ghost"
@@ -41,25 +43,23 @@ export function LocaleSwitcher() {
         }
       >
         <Languages className="size-4" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
         {locales.map((locale) => (
-          <button
+          <DropdownMenuItem
             key={locale}
-            type="button"
             onClick={() => onSelect(locale)}
             className={cn(
-              "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
               current === locale && "bg-accent text-accent-foreground"
             )}
           >
-            <span>{localeLabels[locale]}</span>
-            <span className="text-xs uppercase text-muted-foreground">
+            {localeLabels[locale]}
+            <DropdownMenuShortcut className="uppercase tracking-normal">
               {locale}
-            </span>
-          </button>
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
         ))}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

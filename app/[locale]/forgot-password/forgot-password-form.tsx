@@ -34,6 +34,8 @@ export function ForgotPasswordForm() {
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { email: "" },
+    mode: "onTouched",
+    reValidateMode: "onChange",
   });
 
   async function onSubmit(values: z.infer<typeof schema>) {
