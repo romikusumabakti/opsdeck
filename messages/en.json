@@ -118,7 +118,8 @@
     "issues": "Issues",
     "allIssues": "Issues",
     "home": "Home",
-    "activity": "Activity"
+    "activity": "Activity",
+    "jira": "Jira"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -914,7 +915,24 @@
     "s3UpdateFailed": "Failed to update S3 connection",
     "s3Deleted": "S3 connection deleted",
     "s3DeleteFailed": "Failed to delete S3 connection",
-    "s3SecretRequiredForTest": "Secret key is required to test the connection"
+    "s3SecretRequiredForTest": "Secret key is required to test the connection",
+    "jiraCreated": "Jira site added",
+    "jiraCreateFailed": "Failed to add Jira site",
+    "jiraNotFound": "Jira site not found",
+    "jiraUpdated": "Jira site updated",
+    "jiraUpdateFailed": "Failed to update Jira site",
+    "jiraDeleted": "Jira site deleted",
+    "jiraDeleteFailed": "Failed to delete Jira site",
+    "jiraTokenRequiredForTest": "Enter the token to test the connection",
+    "jiraAuthFailed": "Jira rejected these credentials",
+    "jiraProjectNotFound": "No Jira project with that key is visible to these credentials",
+    "jiraProjectCheckFailed": "Could not verify the Jira project key",
+    "jiraLinkSaved": "Jira link saved",
+    "jiraLinkSaveFailed": "Failed to save the Jira link",
+    "jiraUnlinked": "Jira link removed",
+    "jiraUnlinkFailed": "Failed to remove the Jira link",
+    "jiraNotLinked": "This project is not linked to Jira",
+    "jiraSyncQueued": "Sync queued"
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1251,7 +1269,10 @@
     "deleteButton": "Delete project",
     "deleteTitle": "Delete project",
     "deleteDescription": "Delete project {name}? This also deletes {count, plural, =0 {no environments} one {# environment} other {# environments}} and every issue in it. This action cannot be undone.",
-    "deletedSuccess": "Project {name} deleted"
+    "deletedSuccess": "Project {name} deleted",
+    "tabJira": "Jira",
+    "jiraTitle": "Jira sync",
+    "jiraDescription": "Mirror a Jira project into this project's issue tracker."
   },
   "inbox": {
     "title": "Home",
@@ -1363,6 +1384,89 @@
     "result": {
       "pass": "passing",
       "fail": "failing"
-    }
+    },
+    "issueJiraConflict": "{key} was changed in Jira first — the local edit to {fields} was discarded",
+    "issueJiraPushFailed": "Could not write {field} back to Jira"
+  },
+  "jira": {
+    "title": "Jira",
+    "subtitle": "Jira sites this workspace can sync issues with.",
+    "addConnection": "Add connection",
+    "colName": "Name",
+    "colBaseUrl": "Site URL",
+    "colFlavor": "Type",
+    "flavorCloud": "Cloud",
+    "flavorDatacenter": "Data Center",
+    "emptyTitle": "No Jira sites",
+    "empty": "Connect a Jira site, then link it to a project from that project's settings.",
+    "searchPlaceholder": "Search sites…",
+    "deleteTitle": "Delete Jira site",
+    "deleteDescription": "Delete “{name}”? Projects linked to it stop syncing. Mirrored issues are kept."
+  },
+  "newJira": {
+    "title": "New Jira site",
+    "description": "Connect a Jira Cloud or Data Center site.",
+    "formTitle": "Site details",
+    "formDescription": "The API token is encrypted at rest and never sent to the browser."
+  },
+  "editJira": {
+    "title": "Edit {name}",
+    "description": "Update site details and webhook setup.",
+    "formTitle": "Site details",
+    "formDescription": "Leave the token blank to keep the stored one.",
+    "webhookTitle": "Webhook",
+    "webhookDescription": "Register this URL in Jira so changes arrive within seconds. Without it, projects still sync — just on the 15-minute sweep instead. Treat the URL as a secret.",
+    "webhookStep1": "In Jira, go to Settings → System → WebHooks → Create a WebHook.",
+    "webhookStep2": "Paste the URL above and select the issue and comment events.",
+    "webhookStep3": "Save. Deliveries are verified and re-fetched server-side."
+  },
+  "jiraForm": {
+    "name": "Name",
+    "namePlaceholder": "Acme Jira",
+    "baseUrl": "Site URL",
+    "baseUrlInvalid": "Must be a valid URL",
+    "baseUrlDescription": "The site root, without a trailing path.",
+    "flavor": "Deployment",
+    "flavorCloud": "Jira Cloud",
+    "flavorDatacenter": "Jira Data Center / Server",
+    "flavorDescription": "Cloud authenticates with an email and API token; Data Center uses a personal access token.",
+    "email": "Account email",
+    "emailDescription": "The account the API token belongs to. Use a service account, not a person's.",
+    "apiToken": "API token",
+    "apiTokenDescription": "Create one at id.atlassian.com → Security → API tokens. Scope it to the minimum the sync needs.",
+    "apiTokenEditPlaceholder": "Leave blank to keep current",
+    "pat": "Personal access token",
+    "patDescription": "Created from your Jira profile → Personal Access Tokens.",
+    "testConnection": "Test connection",
+    "testSuccess": "Connected as {account}",
+    "testFailed": "Connection failed",
+    "submitting": "Saving…",
+    "saveChanges": "Save changes",
+    "create": "Create"
+  },
+  "jiraLink": {
+    "connection": "Jira site",
+    "connectionPlaceholder": "Select a site",
+    "projectKey": "Jira project key",
+    "projectKeyDescription": "The key of the remote project to mirror. It does not have to match this project's key.",
+    "keyInvalid": "Letters, digits, and underscores only, starting with a letter",
+    "jqlFilter": "Extra JQL filter",
+    "jqlFilterDescription": "Optional. AND-ed onto every sync, so you can mirror a slice of a large Jira project.",
+    "enabled": "Sync enabled",
+    "enabledDescription": "Pull issues, comments, and labels from Jira every 15 minutes, plus on every webhook.",
+    "pushEnabled": "Write changes back to Jira",
+    "pushEnabledDescription": "Push title, description, status, priority, assignee, and new comments. Jira wins on conflict.",
+    "syncNow": "Sync now",
+    "fullResync": "Full re-import",
+    "unlink": "Unlink",
+    "unlinkTitle": "Unlink Jira",
+    "unlinkDescription": "Stop syncing this project. Mirrored issues stay — only the link is removed, so relinking later re-imports cleanly.",
+    "save": "Save",
+    "link": "Link project",
+    "noConnections": "No Jira sites are configured yet. An admin can add one under Jira in the sidebar.",
+    "status_ok": "Last sync succeeded",
+    "status_partial": "Last sync partially applied",
+    "status_failed": "Last sync failed",
+    "status_pending": "Not synced yet"
   }
 }

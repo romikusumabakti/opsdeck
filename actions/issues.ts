@@ -32,7 +32,9 @@ import {
   users as userTable,
 } from "@/lib/db/schema";
 import type { IssueSort } from "@/lib/issue-query";
+import type { PushableField } from "@/lib/jira/push";
 import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
+import { enqueue, type JobMap } from "@/lib/queue";
 import {
   issueInputSchema,
   issuePrioritySchema,
@@ -64,6 +66,36 @@ const ISSUE_ROUTES = [
 /** Invalidate exactly the routes that render issues. */
 function revalidateIssues(): void {
   for (const route of ISSUE_ROUTES) revalidatePath(route, "page");
+}
+
+/**
+ * Which local field edits are mirrored to Jira, and under which name.
+ * Everything absent from this map (type, milestone, parent, environment) is
+ * OpsDeck-only by design — see lib/jira/push.ts for why the allowlist is small.
+ */
+const JIRA_PUSHABLE: Record<string, PushableField> = {
+  title: "title",
+  description: "description",
+  status: "status",
+  priority: "priority",
+  assigneeId: "assignee",
+};
+
+/**
+ * Queue a write-back. Deliberately fire-and-forget from the action's point of
+ * view: the handler re-checks that the project is linked and has `pushEnabled`,
+ * so an unlinked project just costs one no-op job rather than a lookup on every
+ * issue edit. A Redis outage must not fail the edit that already committed, so
+ * the enqueue swallows its own errors — the reconcile sweep is the backstop.
+ */
+async function enqueueJiraPush<
+  N extends "jira/push.issue" | "jira/push.comment",
+>(name: N, data: JobMap[N]): Promise<void> {
+  try {
+    await enqueue(name, data, { attempts: 3, backoffMs: 5_000 });
+  } catch (error) {
+    console.error("Failed to enqueue Jira push:", error);
+  }
 }
 
 /**
@@ -263,11 +295,19 @@ export async function addComment(
     return { success: false, message: "Comment too long" };
   }
   try {
-    await db.insert(issueComments).values({
-      issueId,
-      authorId: session.user.id,
-      body: trimmed,
-    });
+    const [created] = await db
+      .insert(issueComments)
+      .values({
+        issueId,
+        authorId: session.user.id,
+        body: trimmed,
+      })
+      .returning({ id: issueComments.id });
+    // Mirror it to Jira if the project is linked with push on. The job itself
+    // re-checks the link and skips comments that already carry a remote id, so
+    // enqueuing unconditionally is safe and keeps this action free of Jira
+    // knowledge.
+    await enqueueJiraPush("jira/push.comment", { commentId: created.id });
     // Notify mentioned users. The comment box inserts exact display names after
     // `@`, so a plain `@${name}` substring scan resolves mentions without a
     // username scheme. Ambiguous only if two users share a display name — rare
@@ -599,6 +639,17 @@ export async function updateIssue(
         number: updated.number,
         title: updated.title,
       });
+    }
+    if (updated.jiraIssueId) {
+      const fields = Object.keys(parsed.data)
+        .map((column) => JIRA_PUSHABLE[column])
+        .filter((field): field is PushableField => field !== undefined);
+      if (fields.length > 0) {
+        await enqueueJiraPush("jira/push.issue", {
+          issueId: updated.id,
+          fields,
+        });
+      }
     }
     if (parsed.data.status) {
       await recordActivity({

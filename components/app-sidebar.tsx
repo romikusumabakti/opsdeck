@@ -4,6 +4,7 @@ import {
   Activity,
   Aperture,
   BookOpen,
+  Cable,
   CircleDot,
   Clock,
   DatabaseZap,
@@ -174,6 +175,16 @@ export function AppSidebar({
                     >
                       <HardDrive />
                       <span>{tNav("storage")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/jira" />}
+                      isActive={pathname.startsWith("/jira")}
+                      tooltip={tNav("jira")}
+                    >
+                      <Cable />
+                      <span>{tNav("jira")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

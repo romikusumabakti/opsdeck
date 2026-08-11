@@ -118,7 +118,8 @@
     "issues": "المشكلات",
     "allIssues": "المشكلات",
     "home": "الرئيسية",
-    "activity": "النشاط"
+    "activity": "النشاط",
+    "jira": "Jira"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -914,7 +915,24 @@
     "s3UpdateFailed": "فشل تحديث اتصال S3",
     "s3Deleted": "تم حذف اتصال S3",
     "s3DeleteFailed": "فشل حذف اتصال S3",
-    "s3SecretRequiredForTest": "المفتاح السري مطلوب لاختبار الاتصال"
+    "s3SecretRequiredForTest": "المفتاح السري مطلوب لاختبار الاتصال",
+    "jiraCreated": "تمت إضافة موقع Jira",
+    "jiraCreateFailed": "تعذّرت إضافة موقع Jira",
+    "jiraNotFound": "لم يُعثر على موقع Jira",
+    "jiraUpdated": "تم تحديث موقع Jira",
+    "jiraUpdateFailed": "تعذّر تحديث موقع Jira",
+    "jiraDeleted": "تم حذف موقع Jira",
+    "jiraDeleteFailed": "تعذّر حذف موقع Jira",
+    "jiraTokenRequiredForTest": "أدخل الرمز لاختبار الاتصال",
+    "jiraAuthFailed": "رفضت Jira بيانات الاعتماد هذه",
+    "jiraProjectNotFound": "لا يوجد مشروع Jira بهذا المفتاح ظاهر لبيانات الاعتماد هذه",
+    "jiraProjectCheckFailed": "تعذّر التحقق من مفتاح مشروع Jira",
+    "jiraLinkSaved": "تم حفظ ربط Jira",
+    "jiraLinkSaveFailed": "تعذّر حفظ ربط Jira",
+    "jiraUnlinked": "تم حذف ربط Jira",
+    "jiraUnlinkFailed": "تعذّر حذف ربط Jira",
+    "jiraNotLinked": "هذا المشروع غير مرتبط بـ Jira",
+    "jiraSyncQueued": "تمت جدولة المزامنة"
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1251,7 +1269,10 @@
     "deleteButton": "حذف المشروع",
     "deleteTitle": "حذف المشروع",
     "deleteDescription": "هل تريد حذف المشروع {name}؟ سيؤدي هذا أيضًا إلى حذف {count, plural, other {# بيئة}} وكل المشكلات فيه. لا يمكن التراجع عن هذا الإجراء.",
-    "deletedSuccess": "تم حذف المشروع {name}"
+    "deletedSuccess": "تم حذف المشروع {name}",
+    "tabJira": "Jira",
+    "jiraTitle": "مزامنة Jira",
+    "jiraDescription": "انسخ مشروع Jira إلى متتبّع المهام في هذا المشروع."
   },
   "inbox": {
     "title": "الرئيسية",
@@ -1363,6 +1384,89 @@
     "result": {
       "pass": "ناجح",
       "fail": "فاشل"
-    }
+    },
+    "issueJiraConflict": "تغيّرت {key} في Jira أولًا — أُهمل التعديل المحلي على {fields}",
+    "issueJiraPushFailed": "تعذّرت كتابة {field} إلى Jira"
+  },
+  "jira": {
+    "title": "Jira",
+    "subtitle": "مواقع Jira التي يمكن لمساحة العمل هذه مزامنة المهام معها.",
+    "addConnection": "إضافة اتصال",
+    "colName": "الاسم",
+    "colBaseUrl": "رابط الموقع",
+    "colFlavor": "النوع",
+    "flavorCloud": "السحابة",
+    "flavorDatacenter": "مركز البيانات",
+    "emptyTitle": "لا توجد مواقع Jira",
+    "empty": "اربط موقع Jira، ثم اربطه بمشروع من إعدادات ذلك المشروع.",
+    "searchPlaceholder": "بحث في المواقع…",
+    "deleteTitle": "حذف موقع Jira",
+    "deleteDescription": "حذف «{name}»؟ ستتوقف مزامنة المشاريع المرتبطة به، وتبقى المهام المنسوخة."
+  },
+  "newJira": {
+    "title": "موقع Jira جديد",
+    "description": "اربط موقع Jira Cloud أو Data Center.",
+    "formTitle": "بيانات الموقع",
+    "formDescription": "يُخزَّن رمز الواجهة مشفّرًا ولا يُرسل إلى المتصفح أبدًا."
+  },
+  "editJira": {
+    "title": "تعديل {name}",
+    "description": "تحديث بيانات الموقع وإعداد الـ webhook.",
+    "formTitle": "بيانات الموقع",
+    "formDescription": "اترك الرمز فارغًا للإبقاء على المخزَّن.",
+    "webhookTitle": "Webhook",
+    "webhookDescription": "سجّل هذا الرابط في Jira لتصل التغييرات خلال ثوانٍ. بدونه تبقى المزامنة تعمل عبر المسح كل ١٥ دقيقة. تعامل مع الرابط كسر.",
+    "webhookStep1": "في Jira افتح Settings ← System ← WebHooks ← Create a WebHook.",
+    "webhookStep2": "الصق الرابط أعلاه واختر أحداث المهام والتعليقات.",
+    "webhookStep3": "احفظ. يتم التحقق من كل استدعاء وإعادة الجلب من الخادم."
+  },
+  "jiraForm": {
+    "name": "الاسم",
+    "namePlaceholder": "Jira الخاص بنا",
+    "baseUrl": "رابط الموقع",
+    "baseUrlInvalid": "يجب أن يكون رابطًا صحيحًا",
+    "baseUrlDescription": "جذر الموقع، دون مسار في نهايته.",
+    "flavor": "نوع النشر",
+    "flavorCloud": "Jira Cloud",
+    "flavorDatacenter": "Jira Data Center / Server",
+    "flavorDescription": "السحابة تستخدم البريد ورمز الواجهة؛ ومركز البيانات يستخدم رمز وصول شخصي.",
+    "email": "بريد الحساب",
+    "emailDescription": "الحساب المالك لرمز الواجهة. استخدم حساب خدمة لا حسابًا شخصيًا.",
+    "apiToken": "رمز الواجهة (API)",
+    "apiTokenDescription": "أنشئه من id.atlassian.com ← Security ← API tokens بأقل صلاحيات تكفي للمزامنة.",
+    "apiTokenEditPlaceholder": "اتركه فارغًا للإبقاء على الحالي",
+    "pat": "رمز وصول شخصي",
+    "patDescription": "يُنشأ من ملفك في Jira ← Personal Access Tokens.",
+    "testConnection": "اختبار الاتصال",
+    "testSuccess": "متصل باسم {account}",
+    "testFailed": "فشل الاتصال",
+    "submitting": "جارٍ الحفظ…",
+    "saveChanges": "حفظ التغييرات",
+    "create": "إنشاء"
+  },
+  "jiraLink": {
+    "connection": "موقع Jira",
+    "connectionPlaceholder": "اختر موقعًا",
+    "projectKey": "مفتاح مشروع Jira",
+    "projectKeyDescription": "مفتاح المشروع البعيد المراد نسخه. لا يلزم أن يطابق مفتاح هذا المشروع.",
+    "keyInvalid": "حروف وأرقام وشرطة سفلية فقط، ويبدأ بحرف",
+    "jqlFilter": "مرشّح JQL إضافي",
+    "jqlFilterDescription": "اختياري. يُضاف بـ AND في كل مزامنة، لنسخ جزء من مشروع Jira كبير.",
+    "enabled": "المزامنة مفعّلة",
+    "enabledDescription": "سحب المهام والتعليقات والوسوم من Jira كل ١٥ دقيقة، وعند كل webhook.",
+    "pushEnabled": "كتابة التغييرات إلى Jira",
+    "pushEnabledDescription": "إرسال العنوان والوصف والحالة والأولوية والمسؤول والتعليقات الجديدة. عند التعارض تفوز Jira.",
+    "syncNow": "مزامنة الآن",
+    "fullResync": "استيراد كامل",
+    "unlink": "فك الربط",
+    "unlinkTitle": "فك ربط Jira",
+    "unlinkDescription": "إيقاف مزامنة هذا المشروع. تبقى المهام المنسوخة — يُحذف الربط فقط، لذا يمكن إعادة الربط لاحقًا واستيرادها بنظافة.",
+    "save": "حفظ",
+    "link": "ربط المشروع",
+    "noConnections": "لا توجد مواقع Jira مهيّأة بعد. يمكن للمشرف إضافة واحد من قسم Jira في الشريط الجانبي.",
+    "status_ok": "نجحت آخر مزامنة",
+    "status_partial": "طُبِّقت آخر مزامنة جزئيًا",
+    "status_failed": "فشلت آخر مزامنة",
+    "status_pending": "لم تتم المزامنة بعد"
   }
 }

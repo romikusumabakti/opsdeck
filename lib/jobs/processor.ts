@@ -5,6 +5,8 @@ import type { Job } from "bullmq";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
 import { loadEnvironmentWithServers } from "@/lib/environments";
+import { pushComment, pushIssue } from "@/lib/jira/push";
+import { pullProject, syncIssueById } from "@/lib/jira/sync";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
@@ -1171,7 +1173,11 @@ function normalizeJobName(name: string): JobName {
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: BullMQ hands back untyped job data.
-function normalizePayload(data: any): any {
+function normalizePayload(name: JobName, data: any): any {
+  // The rename shim rewrites a bare `projectId` into `environmentId`. Jira jobs
+  // legitimately carry a `projectId` that means the LOGICAL project, so they
+  // must skip it — otherwise the sweep would lose its only argument.
+  if (name.startsWith("jira/")) return data;
   if (data && typeof data === "object" && !("environmentId" in data)) {
     const { projectId, sourceProjectId, ...rest } = data;
     return {
@@ -1188,7 +1194,7 @@ function normalizePayload(data: any): any {
 // failed — the handlers have already recorded the run failure in Postgres.
 export async function processJob(job: Job): Promise<unknown> {
   const name = normalizeJobName(job.name);
-  const data = normalizePayload(job.data);
+  const data = normalizePayload(name, job.data);
   switch (name) {
     case "db/backup.requested":
       return handleCreateDatabaseBackup(data);
@@ -1206,6 +1212,14 @@ export async function processJob(job: Job): Promise<unknown> {
       return handleMockEnvironmentTimeLegacy(data);
     case "environment/mock-time.reset-legacy":
       return handleMockEnvironmentTimeResetLegacy(data);
+    case "jira/sync.project":
+      return pullProject(data.projectId, { full: data.full });
+    case "jira/issue.changed":
+      return syncIssueById(data.connectionId, data.jiraIssueId);
+    case "jira/push.issue":
+      return pushIssue(data.issueId, data.fields);
+    case "jira/push.comment":
+      return pushComment(data.commentId);
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;

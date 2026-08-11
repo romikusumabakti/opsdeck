@@ -118,7 +118,8 @@
     "issues": "Isu",
     "allIssues": "Isu",
     "home": "Beranda",
-    "activity": "Aktivitas"
+    "activity": "Aktivitas",
+    "jira": "Jira"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -914,7 +915,24 @@
     "s3UpdateFailed": "Gagal memperbarui koneksi S3",
     "s3Deleted": "Koneksi S3 dihapus",
     "s3DeleteFailed": "Gagal menghapus koneksi S3",
-    "s3SecretRequiredForTest": "Secret key diperlukan untuk menguji koneksi"
+    "s3SecretRequiredForTest": "Secret key diperlukan untuk menguji koneksi",
+    "jiraCreated": "Situs Jira ditambahkan",
+    "jiraCreateFailed": "Gagal menambahkan situs Jira",
+    "jiraNotFound": "Situs Jira tidak ditemukan",
+    "jiraUpdated": "Situs Jira diperbarui",
+    "jiraUpdateFailed": "Gagal memperbarui situs Jira",
+    "jiraDeleted": "Situs Jira dihapus",
+    "jiraDeleteFailed": "Gagal menghapus situs Jira",
+    "jiraTokenRequiredForTest": "Masukkan token untuk menguji koneksi",
+    "jiraAuthFailed": "Jira menolak kredensial ini",
+    "jiraProjectNotFound": "Tidak ada proyek Jira dengan key itu yang terlihat oleh kredensial ini",
+    "jiraProjectCheckFailed": "Tidak bisa memverifikasi key proyek Jira",
+    "jiraLinkSaved": "Tautan Jira disimpan",
+    "jiraLinkSaveFailed": "Gagal menyimpan tautan Jira",
+    "jiraUnlinked": "Tautan Jira dihapus",
+    "jiraUnlinkFailed": "Gagal menghapus tautan Jira",
+    "jiraNotLinked": "Proyek ini belum tertaut ke Jira",
+    "jiraSyncQueued": "Sinkronisasi diantrikan"
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1251,7 +1269,10 @@
     "deleteButton": "Hapus proyek",
     "deleteTitle": "Hapus proyek",
     "deleteDescription": "Hapus proyek {name}? Ini juga menghapus {count, plural, other {# environment}} dan semua isu di dalamnya. Tindakan ini tidak bisa dibatalkan.",
-    "deletedSuccess": "Proyek {name} dihapus"
+    "deletedSuccess": "Proyek {name} dihapus",
+    "tabJira": "Jira",
+    "jiraTitle": "Sinkronisasi Jira",
+    "jiraDescription": "Mirror sebuah proyek Jira ke pelacak isu proyek ini."
   },
   "inbox": {
     "title": "Beranda",
@@ -1363,6 +1384,89 @@
     "result": {
       "pass": "lulus",
       "fail": "gagal"
-    }
+    },
+    "issueJiraConflict": "{key} lebih dulu berubah di Jira — perubahan lokal pada {fields} dibuang",
+    "issueJiraPushFailed": "Gagal menulis {field} kembali ke Jira"
+  },
+  "jira": {
+    "title": "Jira",
+    "subtitle": "Situs Jira yang bisa disinkronkan dengan workspace ini.",
+    "addConnection": "Tambah koneksi",
+    "colName": "Nama",
+    "colBaseUrl": "URL situs",
+    "colFlavor": "Tipe",
+    "flavorCloud": "Cloud",
+    "flavorDatacenter": "Data Center",
+    "emptyTitle": "Belum ada situs Jira",
+    "empty": "Hubungkan situs Jira, lalu tautkan ke proyek dari pengaturan proyek tersebut.",
+    "searchPlaceholder": "Cari situs…",
+    "deleteTitle": "Hapus situs Jira",
+    "deleteDescription": "Hapus “{name}”? Proyek yang tertaut berhenti sinkron. Isu hasil mirror tetap disimpan."
+  },
+  "newJira": {
+    "title": "Situs Jira baru",
+    "description": "Hubungkan situs Jira Cloud atau Data Center.",
+    "formTitle": "Detail situs",
+    "formDescription": "Token API dienkripsi saat disimpan dan tidak pernah dikirim ke browser."
+  },
+  "editJira": {
+    "title": "Ubah {name}",
+    "description": "Perbarui detail situs dan pengaturan webhook.",
+    "formTitle": "Detail situs",
+    "formDescription": "Kosongkan token untuk tetap memakai yang tersimpan.",
+    "webhookTitle": "Webhook",
+    "webhookDescription": "Daftarkan URL ini di Jira agar perubahan masuk dalam hitungan detik. Tanpa itu proyek tetap sinkron, hanya lewat sapuan 15 menit. Perlakukan URL ini sebagai rahasia.",
+    "webhookStep1": "Di Jira, buka Settings → System → WebHooks → Create a WebHook.",
+    "webhookStep2": "Tempel URL di atas dan pilih event issue serta comment.",
+    "webhookStep3": "Simpan. Kiriman diverifikasi dan diambil ulang di sisi server."
+  },
+  "jiraForm": {
+    "name": "Nama",
+    "namePlaceholder": "Jira Acme",
+    "baseUrl": "URL situs",
+    "baseUrlInvalid": "URL tidak valid",
+    "baseUrlDescription": "Akar situs, tanpa path di belakang.",
+    "flavor": "Jenis deployment",
+    "flavorCloud": "Jira Cloud",
+    "flavorDatacenter": "Jira Data Center / Server",
+    "flavorDescription": "Cloud memakai email dan token API; Data Center memakai personal access token.",
+    "email": "Email akun",
+    "emailDescription": "Akun pemilik token API. Gunakan akun layanan, bukan akun pribadi.",
+    "apiToken": "Token API",
+    "apiTokenDescription": "Buat di id.atlassian.com → Security → API tokens. Beri cakupan seminimal mungkin.",
+    "apiTokenEditPlaceholder": "Kosongkan untuk tetap memakai yang lama",
+    "pat": "Personal access token",
+    "patDescription": "Dibuat dari profil Jira → Personal Access Tokens.",
+    "testConnection": "Uji koneksi",
+    "testSuccess": "Terhubung sebagai {account}",
+    "testFailed": "Koneksi gagal",
+    "submitting": "Menyimpan…",
+    "saveChanges": "Simpan perubahan",
+    "create": "Buat"
+  },
+  "jiraLink": {
+    "connection": "Situs Jira",
+    "connectionPlaceholder": "Pilih situs",
+    "projectKey": "Key proyek Jira",
+    "projectKeyDescription": "Key proyek Jira yang akan di-mirror. Tidak harus sama dengan key proyek ini.",
+    "keyInvalid": "Hanya huruf, angka, dan garis bawah, diawali huruf",
+    "jqlFilter": "Filter JQL tambahan",
+    "jqlFilterDescription": "Opsional. Digabung dengan AND pada setiap sinkronisasi, untuk memirror sebagian proyek Jira yang besar.",
+    "enabled": "Sinkronisasi aktif",
+    "enabledDescription": "Tarik isu, komentar, dan label dari Jira tiap 15 menit, plus setiap kali webhook masuk.",
+    "pushEnabled": "Tulis perubahan kembali ke Jira",
+    "pushEnabledDescription": "Kirim judul, deskripsi, status, prioritas, assignee, dan komentar baru. Saat konflik, Jira menang.",
+    "syncNow": "Sinkron sekarang",
+    "fullResync": "Impor ulang penuh",
+    "unlink": "Lepas tautan",
+    "unlinkTitle": "Lepas tautan Jira",
+    "unlinkDescription": "Hentikan sinkronisasi proyek ini. Isu hasil mirror tetap ada — hanya tautannya yang dihapus, jadi menautkan ulang nanti akan mengimpor dengan bersih.",
+    "save": "Simpan",
+    "link": "Tautkan proyek",
+    "noConnections": "Belum ada situs Jira yang dikonfigurasi. Admin bisa menambahkannya di menu Jira pada sidebar.",
+    "status_ok": "Sinkronisasi terakhir berhasil",
+    "status_partial": "Sinkronisasi terakhir sebagian",
+    "status_failed": "Sinkronisasi terakhir gagal",
+    "status_pending": "Belum pernah disinkronkan"
   }
 }

@@ -1,6 +1,13 @@
 import { Worker } from "bullmq";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { jiraProjectLinks } from "@/lib/db/schema";
 import { processJob } from "@/lib/jobs/processor";
-import { createRedisConnection, TASKS_QUEUE } from "@/lib/queue";
+import {
+  createRedisConnection,
+  scheduleJiraSweep,
+  TASKS_QUEUE,
+} from "@/lib/queue";
 
 // Concurrency cap. Handlers mostly wait on remote SSH/SQL round-trips, so a
 // handful can run in parallel without straining the app container. The old
@@ -47,6 +54,22 @@ export function startWorker(): Worker | null {
   process.once("SIGTERM", shutdown);
   process.once("SIGINT", shutdown);
 
+  // Job schedulers live in Redis, so they normally survive a restart — but a
+  // flushed Redis, a fresh deploy, or a link created while the worker was down
+  // would leave a project unswept. Re-upserting every enabled link on boot is
+  // idempotent (same scheduler key) and makes the DB the source of truth.
+  restoreJiraSweeps().catch((error) => {
+    console.error("Failed to restore Jira sweep schedules:", error);
+  });
+
   globalForWorker.__tasksWorker = worker;
   return worker;
+}
+
+async function restoreJiraSweeps(): Promise<void> {
+  const links = await db
+    .select({ projectId: jiraProjectLinks.projectId })
+    .from(jiraProjectLinks)
+    .where(eq(jiraProjectLinks.enabled, true));
+  for (const link of links) await scheduleJiraSweep(link.projectId);
 }
