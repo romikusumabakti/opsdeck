@@ -25,14 +25,65 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { Separator } from "@/components/ui/separator";
 import { Link, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 
-export function SignInForm({ redirectTo }: { redirectTo?: string }) {
+/**
+ * Microsoft's brand mark. Lucide ships no vendor logos, and the guidelines
+ * require the four-square glyph next to the "Sign in with Microsoft" label.
+ */
+function MicrosoftLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 21 21" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+    </svg>
+  );
+}
+
+/**
+ * Map the error codes better-auth appends to `errorCallbackURL` onto our own
+ * message keys. Anything unrecognised falls back to a generic message so a raw
+ * slug never reaches the user.
+ */
+function oauthErrorKey(code: string) {
+  switch (code) {
+    case "signup_disabled":
+      return "errorMicrosoftNoAccount" as const;
+    case "account_not_linked":
+    case "unable_to_link_account":
+    case "email_doesn't_match":
+    case "account_already_linked_to_different_user":
+      return "errorMicrosoftNotLinked" as const;
+    case "email_not_found":
+      return "errorMicrosoftNoEmail" as const;
+    default:
+      return "errorMicrosoft" as const;
+  }
+}
+
+export function SignInForm({
+  redirectTo,
+  microsoftEnabled,
+  oauthError,
+}: {
+  redirectTo?: string;
+  microsoftEnabled?: boolean;
+  oauthError?: string;
+}) {
   const t = useTranslations("signIn");
   const tApp = useTranslations("app");
   const router = useRouter();
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [microsoftPending, setMicrosoftPending] = useState(false);
+
+  // better-auth bounces failed OAuth callbacks back here with `?error=<code>`,
+  // so the initial error can come from the URL rather than a form submit.
+  const [submitError, setSubmitError] = useState<string | null>(
+    oauthError ? t(oauthErrorKey(oauthError)) : null
+  );
 
   const tCommon = useTranslations("common");
 
@@ -57,6 +108,26 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
 
     router.push(redirectTo || "/");
     router.refresh();
+  }
+
+  async function onMicrosoftSignIn() {
+    setSubmitError(null);
+    setMicrosoftPending(true);
+
+    // Both URLs are plain browser redirects handled outside the i18n router,
+    // so they carry no locale prefix — the proxy re-adds the user's locale.
+    const { error } = await authClient.signIn.social({
+      provider: "microsoft",
+      callbackURL: redirectTo || "/",
+      errorCallbackURL: "/sign-in",
+    });
+
+    // On success the browser navigates away, so only the failure path needs to
+    // clear the pending flag.
+    if (error) {
+      setSubmitError(error.message ?? t("errorMicrosoft"));
+      setMicrosoftPending(false);
+    }
   }
 
   return (
@@ -131,11 +202,38 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+            <Button
+              type="submit"
+              disabled={form.formState.isSubmitting || microsoftPending}
+            >
               {form.formState.isSubmitting ? t("submitting") : t("submit")}
             </Button>
           </form>
         </Form>
+
+        {microsoftEnabled && (
+          <>
+            <div className="flex items-center gap-3 my-4">
+              <Separator className="flex-1" />
+              <span className="text-xs uppercase text-muted-foreground">
+                {t("or")}
+              </span>
+              <Separator className="flex-1" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={onMicrosoftSignIn}
+              disabled={microsoftPending || form.formState.isSubmitting}
+            >
+              <MicrosoftLogo className="size-4" />
+              {microsoftPending
+                ? t("microsoftSubmitting")
+                : t("microsoftSubmit")}
+            </Button>
+          </>
+        )}
       </CardContent>
     </Card>
   );

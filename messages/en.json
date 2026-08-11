@@ -729,7 +729,14 @@
     "forgotPassword": "Forgot password?",
     "submit": "Sign in",
     "submitting": "Signing in…",
-    "errorInvalid": "Invalid email or password"
+    "errorInvalid": "Invalid email or password",
+    "or": "or",
+    "microsoftSubmit": "Sign in with Microsoft",
+    "microsoftSubmitting": "Redirecting to Microsoft…",
+    "errorMicrosoft": "Microsoft sign-in failed. Please try again.",
+    "errorMicrosoftNoAccount": "That Microsoft account has no {{APP_NAME}} user. Ask an administrator for an invitation.",
+    "errorMicrosoftNotLinked": "That Microsoft account could not be linked to an existing user. Sign in with your email and password, or contact an administrator.",
+    "errorMicrosoftNoEmail": "Microsoft did not return an email address for that account. Contact an administrator."
   },
   "forgotPassword": {
     "title": "Forgot password",

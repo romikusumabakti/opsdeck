@@ -33,6 +33,12 @@ services:
       # Auth
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      # Sign in with Microsoft (Entra ID) — optional; the button is hidden when
+      # unset. All three must be set together, or the app throws at boot (a
+      # missing tenant id would let any Microsoft account reach the callback).
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET-}
       # App-level encryption key for secrets at rest (AES-256-GCM). Required —
       # the app throws on create/read of any secret when unset. Generate once
       # with `openssl rand -base64 32`; keep stable (rotating orphans ciphertext).
