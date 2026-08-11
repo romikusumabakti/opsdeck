@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus, Settings } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
@@ -84,10 +84,21 @@ export default async function ProjectOverviewPage({
         subtitle={project.client ?? undefined}
         action={
           admin ? (
-            <Button render={<Link href={`/${project.key}/environments/new`} />}>
-              <Plus className="size-4" />
-              {tOv("newEnvironment")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                render={<Link href={`/${project.key}/settings`} />}
+              >
+                <Settings className="size-4" />
+                <span className="hidden sm:inline">{tOv("editProject")}</span>
+              </Button>
+              <Button
+                render={<Link href={`/${project.key}/environments/new`} />}
+              >
+                <Plus className="size-4" />
+                {tOv("newEnvironment")}
+              </Button>
+            </div>
           ) : undefined
         }
       />

@@ -1095,18 +1095,27 @@
   },
   "projectCreateDialog": {
     "title": "Proyek baru",
-    "description": "Kelompokkan deployment (QA, dev, devops) dalam satu proyek.",
+    "description": "Kelompokkan deployment (QA, dev, devops) dalam satu proyek."
+  },
+  "projectForm": {
     "name": "Nama proyek",
     "namePlaceholder": "mis. Common Membership",
     "key": "Kunci",
     "keyPlaceholder": "mis. CMEM",
     "keyHint": "Prefix huruf besar untuk kunci isu (CMEM-42). 2–10 huruf/angka.",
+    "keyEditHint": "Mengubah kunci akan mengubah URL proyek dan kunci isunya. Tautan lama akan rusak.",
     "client": "Klien (opsional)",
     "clientPlaceholder": "mis. DPLK",
+    "description": "Deskripsi (opsional)",
+    "descriptionPlaceholder": "Cakupan proyek ini",
     "submit": "Buat proyek",
     "submitting": "Membuat…",
+    "saveChanges": "Simpan perubahan",
+    "saving": "Menyimpan…",
     "created": "Proyek dibuat",
+    "saved": "Proyek diperbarui",
     "createFailed": "Gagal membuat proyek",
+    "saveFailed": "Gagal memperbarui proyek",
     "keyTaken": "Kunci sudah dipakai",
     "keyReserved": "Key itu dipakai route aplikasi"
   },
@@ -1229,6 +1238,20 @@
     "client": "Klien",
     "members": "Anggota",
     "milestones": "Milestone"
+  },
+  "projectSettings": {
+    "title": "Pengaturan proyek",
+    "subtitle": "Ubah detail {name} atau hapus proyeknya.",
+    "tabDetails": "Detail",
+    "tabDanger": "Zona berbahaya",
+    "editTitle": "Detail proyek",
+    "editDescription": "Perbarui nama, kunci, klien, dan deskripsi proyek.",
+    "dangerZoneTitle": "Zona berbahaya",
+    "dangerZoneDescription": "Menghapus proyek juga menghapus environment-nya, riwayat tugasnya, dan semua isunya. Tindakan ini tidak bisa dibatalkan.",
+    "deleteButton": "Hapus proyek",
+    "deleteTitle": "Hapus proyek",
+    "deleteDescription": "Hapus proyek {name}? Ini juga menghapus {count, plural, other {# environment}} dan semua isu di dalamnya. Tindakan ini tidak bisa dibatalkan.",
+    "deletedSuccess": "Proyek {name} dihapus"
   },
   "inbox": {
     "title": "Beranda",
