@@ -16,6 +16,7 @@ import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { invitations, sessions, users as userTable } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
+import { isAssignableRole } from "@/lib/roles";
 
 export type ActionResponse =
   | { success: true; message?: string }
@@ -276,7 +277,14 @@ export async function updateUserRole(input: {
     return { success: false, message: t("cannotChangeOwnRole") };
   }
 
-  const role: UserRole = input.role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
+  // Validate against the known ladder rather than clamping to admin/member —
+  // `viewer` (where Microsoft sign-in lands new users) and `maintainer` are
+  // both assignable. An unrecognised string is rejected outright instead of
+  // being silently rewritten, so a bad client can't quietly change a role.
+  if (!isAssignableRole(input.role)) {
+    return { success: false, message: t("invalidInput") };
+  }
+  const role: UserRole = input.role;
 
   // Direct Drizzle update: the admin plugin's `setRole` API only accepts its
   // built-in role names in TypeScript types, but our `member` role is custom.

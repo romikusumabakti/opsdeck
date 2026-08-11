@@ -736,7 +736,8 @@
     "errorMicrosoft": "Microsoft sign-in failed. Please try again.",
     "errorMicrosoftNoAccount": "That Microsoft account has no {{APP_NAME}} user. Ask an administrator for an invitation.",
     "errorMicrosoftNotLinked": "That Microsoft account could not be linked to an existing user. Sign in with your email and password, or contact an administrator.",
-    "errorMicrosoftNoEmail": "Microsoft did not return an email address for that account. Contact an administrator."
+    "errorMicrosoftNoEmail": "Microsoft did not return an email address for that account. Contact an administrator.",
+    "errorMicrosoftDomain": "Only @{{EMAIL_DOMAIN}} accounts can sign in."
   },
   "forgotPassword": {
     "title": "Forgot password",
@@ -798,12 +799,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "Role",
     "role": {
-      "admin": "Admin",
-      "member": "Member"
-    },
-    "roleChangeTo": {
-      "admin": "Promote to admin",
-      "member": "Demote to member"
+      "viewer": "Viewer",
+      "member": "Member",
+      "maintainer": "Maintainer",
+      "admin": "Admin"
     },
     "roleChangeTitle": "Change role",
     "roleChangeDescription": "Change {name}'s role to {role}?",

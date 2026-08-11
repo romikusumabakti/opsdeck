@@ -51,6 +51,8 @@ function MicrosoftLogo({ className }: { className?: string }) {
  */
 function oauthErrorKey(code: string) {
   switch (code) {
+    case "domain_not_allowed":
+      return "errorMicrosoftDomain" as const;
     case "signup_disabled":
       return "errorMicrosoftNoAccount" as const;
     case "account_not_linked":

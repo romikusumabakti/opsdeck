@@ -736,7 +736,8 @@
     "errorMicrosoft": "Gagal masuk dengan Microsoft. Silakan coba lagi.",
     "errorMicrosoftNoAccount": "Akun Microsoft tersebut belum punya pengguna {{APP_NAME}}. Minta undangan ke administrator.",
     "errorMicrosoftNotLinked": "Akun Microsoft tersebut tidak dapat ditautkan ke pengguna yang ada. Masuk dengan email dan password, atau hubungi administrator.",
-    "errorMicrosoftNoEmail": "Microsoft tidak mengembalikan alamat email untuk akun tersebut. Hubungi administrator."
+    "errorMicrosoftNoEmail": "Microsoft tidak mengembalikan alamat email untuk akun tersebut. Hubungi administrator.",
+    "errorMicrosoftDomain": "Hanya akun @{{EMAIL_DOMAIN}} yang bisa masuk."
   },
   "forgotPassword": {
     "title": "Lupa kata sandi",
@@ -798,12 +799,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "Peran",
     "role": {
-      "admin": "Admin",
-      "member": "Anggota"
-    },
-    "roleChangeTo": {
-      "admin": "Jadikan admin",
-      "member": "Turunkan jadi anggota"
+      "viewer": "Pengamat",
+      "member": "Anggota",
+      "maintainer": "Maintainer",
+      "admin": "Admin"
     },
     "roleChangeTitle": "Ubah peran",
     "roleChangeDescription": "Ubah peran {name} menjadi {role}?",

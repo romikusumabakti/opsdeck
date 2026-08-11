@@ -2,15 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  Mail,
-  Pencil,
-  Send,
-  ShieldCheck,
-  Trash2,
-  UserCog,
-  UserPlus,
-} from "lucide-react";
+import { Mail, Pencil, Send, Trash2, UserCog, UserPlus } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
@@ -41,6 +33,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Form,
   FormControl,
   FormField,
@@ -57,7 +55,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "@/lib/roles";
+import {
+  ASSIGNABLE_ROLES,
+  isAssignableRole,
+  ROLE_ADMIN,
+  ROLE_MEMBER,
+  type UserRole,
+} from "@/lib/roles";
 
 const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
 
@@ -401,10 +405,8 @@ export function UsersClient({
   const renderUserActions = React.useCallback(
     (user: UserRow) => {
       const isSelf = user.id === currentUserId;
-      const isAdmin = user.role === ROLE_ADMIN;
-      const nextRole: UserRole = isAdmin ? ROLE_MEMBER : ROLE_ADMIN;
       const renameLabel = t("renameAction");
-      const roleLabel = t(`roleChangeTo.${nextRole}`);
+      const roleLabel = t("roleChangeTitle");
       const deleteLabel = tCommon("delete");
       // Inline instead of a kebab menu so every action is one click away. Role
       // change and delete both still route through a confirm dialog, so a
@@ -423,20 +425,36 @@ export function UsersClient({
           >
             <Pencil className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={isSelf ? t("cannotChangeOwnRole") : roleLabel}
-            title={isSelf ? t("cannotChangeOwnRole") : roleLabel}
-            disabled={isPending || isSelf}
-            onClick={() => onChangeRole(user, nextRole)}
-          >
-            {isAdmin ? (
+          {/* A menu rather than an admin/member toggle: there are four roles,
+              and users who sign in with Microsoft start at `viewer`, so the
+              common promotion is viewer → member — a toggle would jump them
+              straight to admin. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={isSelf ? t("cannotChangeOwnRole") : roleLabel}
+                  title={isSelf ? t("cannotChangeOwnRole") : roleLabel}
+                  disabled={isPending || isSelf}
+                />
+              }
+            >
               <UserCog className="size-4" />
-            ) : (
-              <ShieldCheck className="size-4" />
-            )}
-          </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {ASSIGNABLE_ROLES.map((r) => (
+                <DropdownMenuItem
+                  key={r}
+                  disabled={r === user.role}
+                  onClick={() => onChangeRole(user, r)}
+                >
+                  {t(`role.${r}`)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -866,7 +884,9 @@ export function UsersClient({
 }
 
 function RoleBadge({ role, t }: { role: string; t: (key: string) => string }) {
-  const known = role === ROLE_ADMIN || role === ROLE_MEMBER;
+  // Unknown/legacy role strings render verbatim rather than blowing up on a
+  // missing translation key — matches how roleRank() floors them to viewer.
+  const known = isAssignableRole(role);
   const label = known ? t(`role.${role}`) : role;
   return (
     <Badge
