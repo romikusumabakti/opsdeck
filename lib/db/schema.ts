@@ -52,6 +52,18 @@ export const issuePriorityEnum = pgEnum("issue_priority", [
   "high",
   "urgent",
 ]);
+// Which Jira deployment a connection points at. Only the auth scheme and a few
+// endpoint paths differ, so one client covers both: `cloud` authenticates with
+// HTTP Basic (email + API token), `datacenter` with a Bearer PAT.
+export const jiraFlavorEnum = pgEnum("jira_flavor", ["cloud", "datacenter"]);
+// Outcome of the last sync sweep for a linked project. `partial` = some issues
+// applied and at least one failed; the sweep cursor only advances past issues
+// that actually applied, so the next sweep retries the rest.
+export const jiraSyncStatusEnum = pgEnum("jira_sync_status", [
+  "ok",
+  "partial",
+  "failed",
+]);
 // Why an environment exists — lets the grid/switcher label the 1..N deployments
 // of a project by purpose (a QA's own copy, a frontend dev's, a devops sandbox)
 // instead of an opaque host suffix.
@@ -374,10 +386,27 @@ export const issues = pgTable(
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+
+    // --- Jira mirror (null on issues that were never linked) ---
+    // Jira's own numeric issue id. THIS is the join key, not `jiraKey`: a key
+    // changes when an issue is moved between Jira projects, the id never does.
+    jiraIssueId: text("jira_issue_id"),
+    // Display key ("CMEM-42" in Jira's numbering, which is unrelated to ours).
+    jiraKey: text("jira_key"),
+    // The remote `fields.updated` of the last revision we applied. Guards
+    // replay (webhook re-delivery, sweep overlap) and recognizes the echo of
+    // our own push, both as `remote.updated <= jiraUpdatedAt -> skip`.
+    jiraUpdatedAt: timestamp("jira_updated_at"),
+    jiraSyncedAt: timestamp("jira_synced_at"),
   },
   (t) => [
     // The human issue key CMEM-42 must resolve to exactly one row.
     uniqueIndex("issues_project_number_idx").on(t.projectId, t.number),
+    // One OpsDeck issue per remote issue. Partial so the (many) unlinked rows
+    // don't collide on NULL and don't sit in the index.
+    uniqueIndex("issues_jira_issue_id_idx")
+      .on(t.jiraIssueId)
+      .where(sql`${t.jiraIssueId} is not null`),
     // Board/list view filters by project then status.
     index("issues_project_status_idx").on(t.projectId, t.status),
     // Default order of the cross-project list (newest activity first). Paging
@@ -407,10 +436,17 @@ export const issueComments = pgTable(
     }),
     body: text("body").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // Remote comment id, when this comment mirrors (or was pushed to) Jira.
+    jiraCommentId: text("jira_comment_id"),
   },
   (t) => [
     // The detail page lists a thread oldest-first.
     index("issue_comments_issue_idx").on(t.issueId, t.createdAt),
+    // Comment sync is an upsert keyed on the remote id. Partial for the same
+    // reason as issues_jira_issue_id_idx.
+    uniqueIndex("issue_comments_jira_id_idx")
+      .on(t.jiraCommentId)
+      .where(sql`${t.jiraCommentId} is not null`),
   ]
 );
 
@@ -560,6 +596,10 @@ export const users = pgTable("users", {
   banned: boolean("banned").notNull().default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
+  // Atlassian account id, so a Jira assignee resolves to an OpsDeck user. Seeded
+  // by email match on first sync; an admin can correct it. Not unique — a stale
+  // duplicate must not be able to block a user row from saving.
+  jiraAccountId: text("jira_account_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -679,6 +719,81 @@ export const s3Connections = pgTable("s3_connections", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// =========================
+// Jira integration
+// =========================
+
+// A Jira site OpsDeck can talk to, managed by admins like `servers` and
+// `s3Connections`. Workspace-level rather than per-project because one site
+// hosts many Jira projects — a project points at a connection, it doesn't own
+// credentials.
+export const jiraConnections = pgTable("jira_connections", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  name: text("name").notNull(),
+  // Site root, no trailing slash (e.g. https://acme.atlassian.net).
+  baseUrl: text("base_url").notNull(),
+  flavor: jiraFlavorEnum("flavor").notNull().default("cloud"),
+  // Cloud: the account the API token belongs to (Basic auth username).
+  // Data Center: null — a PAT is a Bearer token with no paired username.
+  email: text("email"),
+  // Encrypted at rest via lib/secrets.ts, stripped before any row reaches the
+  // client (see SafeJiraConnection).
+  apiToken: text("api_token").notNull(),
+  // Random token embedded in the webhook URL path. Jira Cloud's system webhooks
+  // cannot sign a request body, so an unguessable path compared in constant
+  // time is the available guard — and the receiver re-fetches the issue from
+  // the API rather than trusting the delivered payload.
+  webhookSecret: text("webhook_secret").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Binds one OpsDeck project to one Jira project. Primary-keyed on `projectId`:
+// a project mirrors at most one Jira project, which keeps "where does this
+// issue come from" a single lookup with no ambiguity.
+export const jiraProjectLinks = pgTable(
+  "jira_project_links",
+  {
+    projectId: uuid("project_id")
+      .primaryKey()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => jiraConnections.id, { onDelete: "cascade" }),
+    // Remote project key ("CMEM"). Unrelated to projects.key — a project may
+    // mirror a Jira project with a different prefix.
+    jiraProjectKey: text("jira_project_key").notNull(),
+    // Extra JQL AND-ed onto every sweep (e.g. `labels = opsdeck`), so a team can
+    // mirror a slice of a large Jira project instead of all of it.
+    jqlFilter: text("jql_filter"),
+    enabled: boolean("enabled").notNull().default(true),
+    // Off by default: pull-only. On = the small allowlist of fields in
+    // lib/jira/push.ts is written back when an OpsDeck user edits an issue.
+    pushEnabled: boolean("push_enabled").notNull().default(false),
+    // Per-link overrides layered on the defaults in lib/jira/mapping.ts. Jira
+    // workflows differ per project, but not enough to justify a mapping table
+    // and an editor — a jsonb patch keeps it one column.
+    mappingOverrides: jsonb("mapping_overrides").$type<JiraMappingOverrides>(),
+    // High-water mark: the greatest remote `updated` we have applied. The next
+    // sweep queries `updated >= lastSyncAt - overlap` (see lib/jira/sync.ts).
+    lastSyncAt: timestamp("last_sync_at"),
+    lastSyncStatus: jiraSyncStatusEnum("last_sync_status"),
+    lastSyncError: text("last_sync_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Two OpsDeck projects mirroring the same Jira project would fight over the
+    // same remote issues (which are globally unique by `jiraIssueId`).
+    uniqueIndex("jira_links_connection_key_idx").on(
+      t.connectionId,
+      t.jiraProjectKey
+    ),
+    // The sweep scheduler walks every enabled link.
+    index("jira_links_connection_idx").on(t.connectionId),
+  ]
+);
 
 // =========================
 // Team Knowledge Base
@@ -994,4 +1109,43 @@ export type NewS3Connection = InferInsertModel<typeof s3Connections>;
 // affordance without ever receiving the secret.
 export type SafeS3Connection = Omit<S3Connection, "secretKey"> & {
   hasSecret: boolean;
+};
+
+export type IssueStatus = (typeof issueStatusEnum.enumValues)[number];
+export type IssueType = (typeof issueTypeEnum.enumValues)[number];
+export type IssuePriority = (typeof issuePriorityEnum.enumValues)[number];
+
+export type JiraConnection = InferSelectModel<typeof jiraConnections>;
+export type NewJiraConnection = InferInsertModel<typeof jiraConnections>;
+
+export type JiraProjectLink = InferSelectModel<typeof jiraProjectLinks>;
+export type NewJiraProjectLink = InferInsertModel<typeof jiraProjectLinks>;
+
+/**
+ * Per-link overrides layered on the defaults in lib/jira/mapping.ts.
+ *
+ * `status` is keyed by the remote status NAME (lowercased) rather than its
+ * category, because the whole reason to override is a workflow whose names
+ * carry meaning the three Jira categories flatten away — "Ready for QA" and
+ * "In Progress" are both `indeterminate`, but only one of them is `resolved`
+ * here. `type`/`priority` are keyed by remote name for the same reason.
+ */
+export type JiraMappingOverrides = {
+  status?: Record<string, IssueStatus>;
+  type?: Record<string, IssueType>;
+  priority?: Record<string, IssuePriority>;
+};
+
+// Credential-free projection handed to the client. Neither `apiToken` (a live
+// Jira credential) nor `webhookSecret` (which authenticates inbound deliveries)
+// may cross the server/client boundary — RSC payloads are readable in the
+// browser. `hasToken` lets the edit form offer "leave blank to keep".
+export type SafeJiraConnection = Omit<
+  JiraConnection,
+  "apiToken" | "webhookSecret"
+> & { hasToken: boolean };
+
+// A project's link plus the connection fields the settings card renders.
+export type JiraLinkWithConnection = JiraProjectLink & {
+  connection: Pick<JiraConnection, "id" | "name" | "baseUrl">;
 };

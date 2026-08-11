@@ -1,7 +1,21 @@
 # Jira Integration Plan (OpsDeck ⇄ Jira)
 
-**Status:** Draft · **Written:** 2026-08-11 · **Scope:** the existing project issue
-tracker (`issues`, `issueComments`, `issueLabels`, `milestones`).
+**Status:** Phases 0–3 implemented, not yet deployed · **Written:** 2026-08-11 ·
+**Scope:** the existing project issue tracker (`issues`, `issueComments`,
+`issueLabels`, `milestones`).
+
+Three things changed during implementation; the sections below reflect the code
+as built:
+
+1. **Webhook registration is manual.** Jira Cloud's `POST /rest/api/3/webhook`
+   only works for a Connect/Forge app — an API token over Basic auth gets 403.
+   So the app *shows* the URL to paste into Jira's admin UI instead of
+   registering it, and there is no 30-day refresh job (admin-UI webhooks don't
+   expire). Data Center is the same, which makes the flow uniform.
+2. **Unlink keeps the `jira*` columns on issues.** Clearing them would make a
+   later relink insert duplicates, because matching is by `jiraIssueId`.
+3. **Comment mirroring is capped** at the latest 100 per issue, and prunes local
+   mirrors only when the whole thread fit in one page.
 
 Goal: let a project mirror a Jira project so an issue tracked as `CMEM-42` in
 OpsDeck is the same work item as `CMEM-42` in Jira, without turning OpsDeck into
@@ -225,11 +239,11 @@ Each phase ships and is useful alone.
     immediately (Jira retries slowly and disables noisy endpoints);
   - the worker **re-fetches** the issue and runs the same `applyRemoteIssue()`.
     Deleted-issue events set `status: closed` + a note — never hard-delete.
-- Register the webhook once per connection from `testConnection`'s sibling
-  action (`POST /rest/api/3/webhook`), scoped to
-  `jira:issue_created|updated|deleted`, `comment_created|updated|deleted`.
-  Also document the manual UI path, since Cloud dynamic webhooks expire after
-  30 days and need refreshing — a **weekly repeatable job** re-registers them.
+- The connection's edit page renders the URL plus the three steps to register it
+  in Jira (Settings → System → WebHooks), scoped to
+  `jira:issue_created|updated|deleted` and `comment_created|updated|deleted`.
+  Registering it over REST is not possible with an API token (see the note at
+  the top), and admin-UI webhooks don't expire, so there is nothing to refresh.
 - Reconcile sweep: BullMQ repeatable `jira/sync.project` every 15 min per enabled
   link, with the cursor rewound **5 minutes** from `lastSyncAt` (JQL `updated`
   resolves to the minute, and a clock skew between sites is normal). The
@@ -261,13 +275,14 @@ Only these fields, only when `pushEnabled`:
 - Issue-create push is **out of scope** — new work is created in Jira. (Revisit
   only if teams actually file in OpsDeck first.)
 
-### Phase 4 — Polish
+### Phase 4 — Polish (not implemented)
 
 - User-mapping table in the Jira admin page (unmatched Jira accounts → OpsDeck
   users), seeded by email match.
 - Mapping-override editor: read the project's real statuses from
   `/rest/api/3/project/{key}/statuses` and let an admin repoint each one.
-- Unlink flow: keep the rows, clear `jira*` columns, one confirm dialog.
+- (Unlink shipped in Phase 1 — it drops the link row and the sweep schedule and
+  keeps the `jira*` columns, so relinking rematches by `jiraIssueId` in place.)
 - `issues` list filter: "linked / not linked to Jira".
 
 ---

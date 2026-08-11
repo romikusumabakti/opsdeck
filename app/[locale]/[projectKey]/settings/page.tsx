@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getJiraConnections, getJiraLink } from "@/actions/jira";
 import { getProjectByKeyWithEnvironments } from "@/actions/project-catalog";
+import { JiraLinkCard } from "@/components/jira-link-card";
 import { PageHeader } from "@/components/page-header";
 import { ProjectForm } from "@/components/project-form";
 import {
@@ -32,6 +34,10 @@ export default async function ProjectSettingsPage({
   }
 
   const t = await getTranslations("projectSettings");
+  const [jiraConnections, jiraLink] = await Promise.all([
+    getJiraConnections(),
+    getJiraLink(project.id),
+  ]);
 
   return (
     <>
@@ -43,6 +49,7 @@ export default async function ProjectSettingsPage({
       <Tabs defaultValue="details" className="max-w-2xl w-full">
         <TabsList>
           <TabsTrigger value="details">{t("tabDetails")}</TabsTrigger>
+          <TabsTrigger value="jira">{t("tabJira")}</TabsTrigger>
           <TabsTrigger value="danger">{t("tabDanger")}</TabsTrigger>
         </TabsList>
 
@@ -54,6 +61,22 @@ export default async function ProjectSettingsPage({
             </CardHeader>
             <CardContent>
               <ProjectForm mode={{ type: "edit", project }} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="jira">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("jiraTitle")}</CardTitle>
+              <CardDescription>{t("jiraDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <JiraLinkCard
+                projectId={project.id}
+                connections={jiraConnections}
+                link={jiraLink}
+              />
             </CardContent>
           </Card>
         </TabsContent>

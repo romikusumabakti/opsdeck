@@ -216,6 +216,69 @@ export const s3ConnectionUpdateSchema = s3ConnectionInputSchema
 
 export type S3ConnectionInput = z.infer<typeof s3ConnectionInputSchema>;
 
+// --- Jira integration ---
+
+export const jiraFlavorSchema = z.enum(["cloud", "datacenter"]);
+
+export const jiraConnectionInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    baseUrl: z.url().max(2048),
+    flavor: jiraFlavorSchema,
+    // Cloud authenticates as email:token over Basic; Data Center uses a bearer
+    // PAT with no username, so the field is only required for cloud.
+    email: z.email().max(320).nullish(),
+    apiToken: z.string().min(1).max(2048),
+  })
+  .refine((v) => v.flavor !== "cloud" || !!v.email, {
+    message: "Email is required for Jira Cloud",
+    path: ["email"],
+  });
+
+// Update allows omitting apiToken ("leave blank to keep"). Not derived from the
+// input schema with .partial(): a ZodEffects (the .refine above) can't be made
+// partial, and a partial update has nothing to cross-validate anyway.
+export const jiraConnectionUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  baseUrl: z.url().max(2048).optional(),
+  flavor: jiraFlavorSchema.optional(),
+  email: z.email().max(320).nullish(),
+  apiToken: z.string().min(1).max(2048).optional(),
+});
+
+// A Jira project key: uppercase letters/digits, starting with a letter. Bounded
+// because it is interpolated into the JQL the sweep builds.
+export const jiraProjectKeySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(
+    /^[A-Z][A-Z0-9_]{1,50}$/,
+    "Jira project key must start with a letter and contain only letters, digits, or underscores"
+  );
+
+export const jiraProjectLinkSchema = z.object({
+  projectId: z.uuid(),
+  connectionId: z.uuid(),
+  jiraProjectKey: jiraProjectKeySchema,
+  // AND-ed into the sweep's JQL verbatim. Bounded, and NUL-free so it can't
+  // truncate the query — Jira parses and rejects anything else itself, and it
+  // is admin-entered config, not user input.
+  jqlFilter: z
+    .string()
+    .trim()
+    .max(1000)
+    .refine((v) => !v.includes("\0"), "Filter must not contain NUL")
+    .nullish(),
+  enabled: z.boolean(),
+  pushEnabled: z.boolean(),
+  // Free-form; normalized and validated against the enums in lib/jira/mapping.
+  mappingOverrides: z.unknown().nullish(),
+});
+
+export type JiraConnectionInput = z.infer<typeof jiraConnectionInputSchema>;
+export type JiraProjectLinkInput = z.infer<typeof jiraProjectLinkSchema>;
+
 // A browsed location. `kind` selects the backend; the id names the connection
 // or server. Credentials are NEVER part of this — the action layer loads them.
 export const explorerSourceSchema = z.discriminatedUnion("kind", [
