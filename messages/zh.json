@@ -736,7 +736,8 @@
     "errorMicrosoft": "Microsoft 登录失败，请重试。",
     "errorMicrosoftNoAccount": "该 Microsoft 账户没有对应的 {{APP_NAME}} 用户。请向管理员索取邀请。",
     "errorMicrosoftNotLinked": "无法将该 Microsoft 账户关联到现有用户。请使用邮箱和密码登录，或联系管理员。",
-    "errorMicrosoftNoEmail": "Microsoft 未返回该账户的邮箱地址。请联系管理员。"
+    "errorMicrosoftNoEmail": "Microsoft 未返回该账户的邮箱地址。请联系管理员。",
+    "errorMicrosoftDomain": "仅 @{{EMAIL_DOMAIN}} 账户可以登录。"
   },
   "forgotPassword": {
     "title": "忘记密码",
@@ -798,12 +799,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "角色",
     "role": {
-      "admin": "管理员",
-      "member": "成员"
-    },
-    "roleChangeTo": {
-      "admin": "提升为管理员",
-      "member": "降级为成员"
+      "viewer": "只读",
+      "member": "成员",
+      "maintainer": "维护者",
+      "admin": "管理员"
     },
     "roleChangeTitle": "更改角色",
     "roleChangeDescription": "将 {name} 的角色更改为 {role}？",
