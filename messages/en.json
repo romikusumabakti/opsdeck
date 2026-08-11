@@ -722,11 +722,12 @@
   },
   "signIn": {
     "title": "Sign in",
-    "description": "Sign in with your @{{EMAIL_DOMAIN}} work email",
+    "description": "Use your work account to continue",
     "email": "Email",
     "emailPlaceholder": "you@{{EMAIL_DOMAIN}}",
     "password": "Password",
     "forgotPassword": "Forgot password?",
+    "emailInstead": "Sign in with email",
     "submit": "Sign in",
     "submitting": "Signing in…",
     "errorInvalid": "Invalid email or password",

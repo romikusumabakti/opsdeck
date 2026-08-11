@@ -722,11 +722,12 @@
   },
   "signIn": {
     "title": "Masuk",
-    "description": "Masuk dengan email kantor @{{EMAIL_DOMAIN}} Anda",
+    "description": "Gunakan akun kantor Anda untuk melanjutkan",
     "email": "Email",
     "emailPlaceholder": "anda@{{EMAIL_DOMAIN}}",
     "password": "Password",
     "forgotPassword": "Lupa kata sandi?",
+    "emailInstead": "Masuk dengan email",
     "submit": "Masuk",
     "submitting": "Memproses…",
     "errorInvalid": "Email atau password salah",

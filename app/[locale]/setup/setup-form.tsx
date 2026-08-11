@@ -42,6 +42,10 @@ export function SetupForm() {
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", email: "", password: "", confirm: "" },
+    // Match the rest of the unauthenticated forms: validate a field on blur,
+    // then keep it live while the user corrects it.
+    mode: "onTouched",
+    reValidateMode: "onChange",
   });
 
   useUnsavedChanges(form.formState.isDirty && !form.formState.isSubmitting);

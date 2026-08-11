@@ -17,6 +17,7 @@ import { listProjects } from "@/actions/project-catalog";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
+import { Copyright } from "@/components/copyright";
 import { DialogProvider } from "@/components/dialog-provider";
 import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
@@ -184,14 +185,28 @@ export default async function LocaleLayout({
                     <KeyboardShortcuts />
                   </SidebarProvider>
                 ) : (
-                  <div className="flex flex-col min-h-screen">
-                    <div className="fixed top-3 right-4 z-50 flex items-center gap-1">
-                      <LocaleSwitcher />
-                      <ThemeToggle />
-                    </div>
-                    <div className="flex-1 min-h-0 flex flex-col">
-                      {children}
-                    </div>
+                  <div className="flex flex-col min-h-dvh bg-muted dark:bg-background">
+                    {/* No `min-h-0`: the content must be allowed to push the
+                        page taller than the viewport on short screens rather
+                        than being clipped under the footer. */}
+                    <div className="flex-1 flex flex-col">{children}</div>
+                    {/* One footer row for every page outside the app shell.
+                        The two spacers keep the copyright optically centred
+                        while the controls sit at the inline end without
+                        overlapping it — `end` keeps that mirrored for RTL. */}
+                    <footer className="flex items-center gap-2 px-4 py-4">
+                      <div className="flex-1" />
+                      <Copyright className="shrink-0" />
+                      <div className="flex-1 flex justify-end">
+                        {/* Grouped into a bordered pill so the two icon
+                            buttons read as a deliberate control rather than
+                            glyphs floating loose. */}
+                        <div className="flex items-center gap-0.5 rounded-full border bg-card/80 p-0.5 shadow-sm [&_button]:size-8 [&_button]:rounded-full">
+                          <LocaleSwitcher />
+                          <ThemeToggle />
+                        </div>
+                      </div>
+                    </footer>
                   </div>
                 )}
                 <Toaster />

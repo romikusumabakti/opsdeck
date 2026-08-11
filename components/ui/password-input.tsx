@@ -51,7 +51,6 @@ function PasswordInput({
           disabled={disabled}
           aria-label={visible ? t("hidePassword") : t("showPassword")}
           aria-pressed={visible}
-          tabIndex={-1}
           className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
         >
           <Icon className="size-4" aria-hidden="true" />
