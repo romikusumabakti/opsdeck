@@ -99,7 +99,7 @@ export function IssuesSavedViews({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="outline" className="gap-1.5">
+            <Button variant="outline" size="sm" className="gap-1.5">
               <Bookmark className="size-4" />
               {t("views")}
               <ChevronDown className="size-3.5 opacity-60" />

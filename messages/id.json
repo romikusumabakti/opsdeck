@@ -1207,7 +1207,10 @@
     "viewDeleteFailed": "Gagal menghapus tampilan",
     "deleteViewTitle": "Hapus tampilan",
     "deleteViewDescription": "Hapus tampilan “{name}”? Tindakan ini tak bisa dibatalkan.",
-    "groupBy": "Kelompokkan"
+    "groupBy": "Kelompokkan",
+    "filter": "Filter",
+    "clearFilterAria": "Hapus filter {name}",
+    "me": "Saya"
   },
   "environmentKinds": {
     "qa": "QA",

@@ -1207,7 +1207,10 @@
     "viewDeleteFailed": "删除视图失败",
     "deleteViewTitle": "删除视图",
     "deleteViewDescription": "删除视图“{name}”？此操作无法撤销。",
-    "groupBy": "分组方式"
+    "groupBy": "分组方式",
+    "filter": "筛选",
+    "clearFilterAria": "清除{name}筛选",
+    "me": "我"
   },
   "environmentKinds": {
     "qa": "测试",

@@ -1207,7 +1207,10 @@
     "viewDeleteFailed": "Failed to delete view",
     "deleteViewTitle": "Delete view",
     "deleteViewDescription": "Delete the view “{name}”? This cannot be undone.",
-    "groupBy": "Group by"
+    "groupBy": "Group by",
+    "filter": "Filter",
+    "clearFilterAria": "Clear {name} filter",
+    "me": "Me"
   },
   "environmentKinds": {
     "qa": "QA",

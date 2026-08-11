@@ -147,6 +147,22 @@ type DataTableProps<TData, TValue> = {
    * an unlabeled table, which is ambiguous on any page holding more than one.
    */
   label?: string;
+  /**
+   * Caller-owned controls (filters, view switches) rendered in the table's own
+   * toolbar row, ahead of the column-visibility menu. Passing them here instead
+   * of stacking a separate bar above the table keeps the page chrome to a
+   * single wrapping row.
+   */
+  toolbar?: React.ReactNode;
+  /**
+   * Tighter rows for list-heavy tables: shorter cells and a shorter header, so
+   * more rows fit on screen. Row height only — the type scale, cell padding and
+   * toolbar spacing stay on the shared rhythm so a dense table still reads as
+   * the same component as every other page's.
+   */
+  dense?: boolean;
+  /** Columns hidden until the user turns them on in the columns menu. */
+  initialColumnVisibility?: VisibilityState;
 };
 
 export function DataTable<TData, TValue>({
@@ -168,6 +184,9 @@ export function DataTable<TData, TValue>({
   isPending,
   initialSorting,
   label,
+  toolbar,
+  dense,
+  initialColumnVisibility,
 }: DataTableProps<TData, TValue>) {
   const isManual = manualRowCount != null;
   const t = useTranslations("dataTable");
@@ -189,8 +208,9 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     () => readFiltersFromParams(searchParams, urlKey, filterColumn)
   );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
+    () => initialColumnVisibility ?? {}
+  );
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [pagination, setPagination] = React.useState<PaginationState>(() =>
     readPaginationFromParams(searchParams, urlKey, initialPageSize)
@@ -466,8 +486,9 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       )}
-      {(filterColumn || hasHideableColumns) && (
-        <div className="shrink-0 flex items-center gap-2">
+      {(toolbar || filterColumn || hasHideableColumns) && (
+        <div className="shrink-0 flex flex-wrap items-center gap-3">
+          {toolbar}
           {filterColumn && (
             <Input
               placeholder={filterPlaceholder ?? t("searchPlaceholder")}
@@ -576,6 +597,9 @@ export function DataTable<TData, TValue>({
       >
         <Table
           aria-label={label}
+          className={cn(
+            dense && "[&_td]:h-9 [&_td]:py-1 [&_th]:h-8"
+          )}
           containerClassName={cn(fillHeight && "flex-1 min-h-0")}
         >
           <TableHeader
