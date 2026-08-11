@@ -17,8 +17,9 @@ all over SSH against your own infrastructure.
 - **Knowledge base** — collections of rich-text documents (Tiptap) with
   full-text search, revisions, internal linking, image attachments (Garage
   object storage), breadcrumbs, and a scroll-spy table of contents.
-- **Auth & teams** — email/password via [better-auth](https://better-auth.com),
-  `admin`/`member` roles, invitations, and optional email-domain whitelisting.
+- **Auth & teams** — email/password and optional Microsoft (Entra ID) sign-in
+  via [better-auth](https://better-auth.com), `admin`/`member` roles,
+  invitations, and optional email-domain whitelisting.
 - **Background jobs** — long-running operations run through
   [BullMQ](https://bullmq.io/) on Valkey/Redis (backups, restores, service
   control, database lifecycle). An in-process worker drains the queue.
@@ -65,6 +66,30 @@ admin account.
 | `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`| no       | Restrict sign-up to one email domain             |
 | `RESEND_API_KEY`                  | no       | Enables transactional email                      |
 | `EMAIL_FROM`                      | no       | From address (derived from branding if unset)    |
+| `MICROSOFT_CLIENT_ID`             | no       | Entra ID app registration — enables Microsoft sign-in |
+| `MICROSOFT_TENANT_ID`             | no       | Entra directory (tenant) ID — pins sign-in to your directory |
+| `MICROSOFT_CLIENT_SECRET`         | no       | Entra client secret value                        |
+
+### Sign in with Microsoft (Entra ID)
+
+Optional. Set all three `MICROSOFT_*` variables to show a "Sign in with
+Microsoft" button on the sign-in page; leave them all blank to hide it. Setting
+only some of them is a startup error — without a tenant ID, better-auth falls
+back to the `common` authority and would accept any Microsoft account.
+
+In the Azure portal, under **Entra ID → App registrations → your app**:
+
+1. Copy the **Application (client) ID** and **Directory (tenant) ID**.
+2. **Certificates & secrets → New client secret** — copy the *Value* (not the
+   Secret ID). Client secrets expire; note the expiry date.
+3. **Authentication → Add a platform → Web**, redirect URI
+   `<BETTER_AUTH_URL>/api/auth/callback/microsoft`.
+4. If your directory users have no `mail` attribute, add the optional `email`
+   claim under **Token configuration** — sign-in fails without an email claim.
+
+There is no public sign-up over OAuth either: a Microsoft identity can only
+sign in when a user with the same email already exists (created via `/setup` or
+an invitation), and it is linked to that existing account on first use.
 
 ## Scripts
 

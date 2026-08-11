@@ -729,7 +729,14 @@
     "forgotPassword": "Lupa kata sandi?",
     "submit": "Masuk",
     "submitting": "Memproses…",
-    "errorInvalid": "Email atau password salah"
+    "errorInvalid": "Email atau password salah",
+    "or": "atau",
+    "microsoftSubmit": "Masuk dengan Microsoft",
+    "microsoftSubmitting": "Mengalihkan ke Microsoft…",
+    "errorMicrosoft": "Gagal masuk dengan Microsoft. Silakan coba lagi.",
+    "errorMicrosoftNoAccount": "Akun Microsoft tersebut belum punya pengguna {{APP_NAME}}. Minta undangan ke administrator.",
+    "errorMicrosoftNotLinked": "Akun Microsoft tersebut tidak dapat ditautkan ke pengguna yang ada. Masuk dengan email dan password, atau hubungi administrator.",
+    "errorMicrosoftNoEmail": "Microsoft tidak mengembalikan alamat email untuk akun tersebut. Hubungi administrator."
   },
   "forgotPassword": {
     "title": "Lupa kata sandi",

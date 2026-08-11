@@ -729,7 +729,14 @@
     "forgotPassword": "نسيت كلمة المرور؟",
     "submit": "تسجيل الدخول",
     "submitting": "جارٍ تسجيل الدخول…",
-    "errorInvalid": "البريد الإلكتروني أو كلمة المرور غير صحيحة"
+    "errorInvalid": "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+    "or": "أو",
+    "microsoftSubmit": "تسجيل الدخول باستخدام Microsoft",
+    "microsoftSubmitting": "جارٍ التحويل إلى Microsoft…",
+    "errorMicrosoft": "فشل تسجيل الدخول باستخدام Microsoft. يرجى المحاولة مرة أخرى.",
+    "errorMicrosoftNoAccount": "لا يوجد مستخدم في {{APP_NAME}} لحساب Microsoft هذا. اطلب دعوة من المسؤول.",
+    "errorMicrosoftNotLinked": "تعذر ربط حساب Microsoft هذا بمستخدم موجود. سجّل الدخول ببريدك الإلكتروني وكلمة المرور، أو تواصل مع المسؤول.",
+    "errorMicrosoftNoEmail": "لم ترجع Microsoft عنوان بريد إلكتروني لهذا الحساب. تواصل مع المسؤول."
   },
   "forgotPassword": {
     "title": "نسيت كلمة المرور",
