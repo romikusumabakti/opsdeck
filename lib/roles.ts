@@ -15,6 +15,21 @@ export type UserRole =
   | typeof ROLE_MAINTAINER
   | typeof ROLE_ADMIN;
 
+// Every role an admin may move an existing user to, low → high. Shared by the
+// Users page menu and the server action behind it so they can't drift. Wider
+// than the invitation form's choices because `viewer` is where Microsoft
+// sign-in drops self-provisioned users and has to be reachable both ways.
+export const ASSIGNABLE_ROLES: readonly UserRole[] = [
+  ROLE_VIEWER,
+  ROLE_MEMBER,
+  ROLE_MAINTAINER,
+  ROLE_ADMIN,
+] as const;
+
+export function isAssignableRole(role: string): role is UserRole {
+  return (ASSIGNABLE_ROLES as readonly string[]).includes(role);
+}
+
 // Capability ladder, low → high. Comparison is by rank so "effective role"
 // (max of global + per-project membership) resolves with a single number.
 export const ROLE_RANK: Record<UserRole, number> = {

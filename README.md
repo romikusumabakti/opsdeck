@@ -18,8 +18,8 @@ all over SSH against your own infrastructure.
   full-text search, revisions, internal linking, image attachments (Garage
   object storage), breadcrumbs, and a scroll-spy table of contents.
 - **Auth & teams** — email/password and optional Microsoft (Entra ID) sign-in
-  via [better-auth](https://better-auth.com), `admin`/`member` roles,
-  invitations, and optional email-domain whitelisting.
+  via [better-auth](https://better-auth.com), `viewer`/`member`/`maintainer`/
+  `admin` roles, invitations, and optional email-domain whitelisting.
 - **Background jobs** — long-running operations run through
   [BullMQ](https://bullmq.io/) on Valkey/Redis (backups, restores, service
   control, database lifecycle). An in-process worker drains the queue.
@@ -63,7 +63,7 @@ admin account.
 | `REDIS_URL`                       | no       | Valkey/Redis URL for BullMQ (worker off if unset)|
 | `NEXT_PUBLIC_APP_NAME`            | no       | Whitelabel app name (defaults to `OpsDeck`)      |
 | `NEXT_PUBLIC_COMPANY_NAME`        | no       | Whitelabel company name                          |
-| `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`| no       | Restrict sign-up to one email domain             |
+| `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`| no       | Only this email domain may hold an account       |
 | `RESEND_API_KEY`                  | no       | Enables transactional email                      |
 | `EMAIL_FROM`                      | no       | From address (derived from branding if unset)    |
 | `MICROSOFT_CLIENT_ID`             | no       | Entra ID app registration — enables Microsoft sign-in |
@@ -82,14 +82,22 @@ In the Azure portal, under **Entra ID → App registrations → your app**:
 1. Copy the **Application (client) ID** and **Directory (tenant) ID**.
 2. **Certificates & secrets → New client secret** — copy the *Value* (not the
    Secret ID). Client secrets expire; note the expiry date.
-3. **Authentication → Add a platform → Web**, redirect URI
+3. **Enterprise applications → Properties → Assignment required = Yes**, then
+   assign the group that should have access. This is the gate — see below.
+4. **App registrations → Authentication → Add a platform → Web**, redirect URI
    `<BETTER_AUTH_URL>/api/auth/callback/microsoft`.
-4. If your directory users have no `mail` attribute, add the optional `email`
+5. If your directory users have no `mail` attribute, add the optional `email`
    claim under **Token configuration** — sign-in fails without an email claim.
 
-There is no public sign-up over OAuth either: a Microsoft identity can only
-sign in when a user with the same email already exists (created via `/setup` or
-an invitation), and it is linked to that existing account on first use.
+Microsoft sign-in **self-provisions**: whoever Entra lets through gets an
+account on first sign-in, with no invitation. Access is governed in Entra so
+offboarding there also revokes panel access. Two app-side limits back that up —
+users outside `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` are rejected outright, and new
+users land on the read-only `viewer` role until an admin promotes them.
+Invitations remain for anyone who needs a higher role up front, and
+email/password sign-up stays disabled.
+
+Full setup guide, error codes, and secret rotation: [`docs/microsoft-sign-in.md`](docs/microsoft-sign-in.md).
 
 ## Scripts
 

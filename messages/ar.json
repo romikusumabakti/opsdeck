@@ -736,7 +736,8 @@
     "errorMicrosoft": "فشل تسجيل الدخول باستخدام Microsoft. يرجى المحاولة مرة أخرى.",
     "errorMicrosoftNoAccount": "لا يوجد مستخدم في {{APP_NAME}} لحساب Microsoft هذا. اطلب دعوة من المسؤول.",
     "errorMicrosoftNotLinked": "تعذر ربط حساب Microsoft هذا بمستخدم موجود. سجّل الدخول ببريدك الإلكتروني وكلمة المرور، أو تواصل مع المسؤول.",
-    "errorMicrosoftNoEmail": "لم ترجع Microsoft عنوان بريد إلكتروني لهذا الحساب. تواصل مع المسؤول."
+    "errorMicrosoftNoEmail": "لم ترجع Microsoft عنوان بريد إلكتروني لهذا الحساب. تواصل مع المسؤول.",
+    "errorMicrosoftDomain": "لا يمكن تسجيل الدخول إلا بحسابات @{{EMAIL_DOMAIN}}."
   },
   "forgotPassword": {
     "title": "نسيت كلمة المرور",
@@ -798,12 +799,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "الدور",
     "role": {
-      "admin": "مشرف",
-      "member": "عضو"
-    },
-    "roleChangeTo": {
-      "admin": "ترقية إلى مشرف",
-      "member": "تخفيض إلى عضو"
+      "viewer": "مشاهد",
+      "member": "عضو",
+      "maintainer": "مشرف صيانة",
+      "admin": "مشرف"
     },
     "roleChangeTitle": "تغيير الدور",
     "roleChangeDescription": "تغيير دور {name} إلى {role}؟",

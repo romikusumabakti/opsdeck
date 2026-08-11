@@ -1,13 +1,14 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { v7 as uuidv7 } from "uuid";
-import { APP_NAME } from "./branding";
+import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
 import { accounts, sessions, users, verifications } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
-import { ROLE_ADMIN, ROLE_MEMBER } from "./roles";
+import { ROLE_ADMIN, ROLE_VIEWER } from "./roles";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
@@ -92,12 +93,18 @@ export const auth = betterAuth({
           clientId: microsoftClientId as string,
           clientSecret: microsoftClientSecret as string,
           tenantId: microsoftTenantId as string,
-          // Same rule as email/password: no public sign-up. A Microsoft
-          // identity can only sign in when a user with that email already
-          // exists (created via /setup or an invitation); it is linked to that
-          // user and never creates one. Unknown emails get redirected back to
-          // /sign-in with `error=signup_disabled`.
-          disableSignUp: true,
+          // Unlike email/password, Microsoft sign-in DOES provision users:
+          // whoever Entra lets through gets an account on first sign-in. The
+          // access decision lives in Entra ("User assignment required" plus a
+          // group), so we don't maintain a second list of who may enter.
+          //
+          // Two things keep that from being a hole:
+          //   - the `databaseHooks` guard below rejects any email outside
+          //     ALLOWED_EMAIL_DOMAIN, and
+          //   - new users land on `defaultRole` (viewer — read-only), never
+          //     with write or ops rights.
+          // Invitations still exist for anyone who needs a higher role up front.
+          disableSignUp: false,
           // Entra hands back a Microsoft Graph photo URL that needs a bearer
           // token to fetch, so we can't render it in an <img>. Skip the call.
           disableProfilePhoto: true,
@@ -140,6 +147,30 @@ export const auth = betterAuth({
       "/reset-password": { window: 60, max: 5 },
     },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        // Last line of defence on who may exist at all. Runs for every user
+        // creation path — /setup, invitation acceptance, and Microsoft
+        // sign-in — so an Entra identity outside our email domain (a B2B
+        // guest, or a second verified domain in the tenant) can never be
+        // provisioned even if the Azure-side app assignment is misconfigured.
+        //
+        // Throwing (rather than returning false) is deliberate: better-auth
+        // turns an APIError message into the `?error=` code on the OAuth
+        // callback redirect, so the sign-in page can explain what happened
+        // instead of showing a generic "unable to create user".
+        before: async (user) => {
+          if (!isAllowedEmail(user.email)) {
+            throw APIError.from("FORBIDDEN", {
+              message: "domain not allowed",
+              code: "DOMAIN_NOT_ALLOWED",
+            });
+          }
+        },
+      },
+    },
+  },
   // Generate UUIDv7 for user/session/account/verification IDs so they are
   // time-ordered and friendly to B-tree indexes (matches our own tables).
   advanced: {
@@ -149,7 +180,14 @@ export const auth = betterAuth({
   },
   plugins: [
     admin({
-      defaultRole: ROLE_MEMBER,
+      // The role for users nobody assigned one to — in practice only the
+      // Microsoft sign-in path, which self-provisions. Read-only by design: a
+      // fresh Entra identity can look around but cannot edit issues or KB
+      // pages, let alone run ops. An admin promotes from the Users page.
+      // Both server-action paths (/setup, invitation acceptance) pass an
+      // explicit role, and the admin plugin's own hook spreads the incoming
+      // user last, so this default never overrides them.
+      defaultRole: ROLE_VIEWER,
       adminRoles: [ROLE_ADMIN],
     }),
     nextCookies(),
