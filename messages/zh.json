@@ -118,7 +118,8 @@
     "issues": "问题",
     "allIssues": "问题",
     "home": "主页",
-    "activity": "动态"
+    "activity": "动态",
+    "jira": "Jira"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -914,7 +915,24 @@
     "s3UpdateFailed": "更新 S3 连接失败",
     "s3Deleted": "已删除 S3 连接",
     "s3DeleteFailed": "删除 S3 连接失败",
-    "s3SecretRequiredForTest": "测试连接需要密钥"
+    "s3SecretRequiredForTest": "测试连接需要密钥",
+    "jiraCreated": "已添加 Jira 站点",
+    "jiraCreateFailed": "添加 Jira 站点失败",
+    "jiraNotFound": "未找到 Jira 站点",
+    "jiraUpdated": "已更新 Jira 站点",
+    "jiraUpdateFailed": "更新 Jira 站点失败",
+    "jiraDeleted": "已删除 Jira 站点",
+    "jiraDeleteFailed": "删除 Jira 站点失败",
+    "jiraTokenRequiredForTest": "请输入令牌以测试连接",
+    "jiraAuthFailed": "Jira 拒绝了这组凭据",
+    "jiraProjectNotFound": "该凭据看不到使用此 Key 的 Jira 项目",
+    "jiraProjectCheckFailed": "无法校验 Jira 项目 Key",
+    "jiraLinkSaved": "已保存 Jira 关联",
+    "jiraLinkSaveFailed": "保存 Jira 关联失败",
+    "jiraUnlinked": "已移除 Jira 关联",
+    "jiraUnlinkFailed": "移除 Jira 关联失败",
+    "jiraNotLinked": "本项目尚未关联 Jira",
+    "jiraSyncQueued": "同步已加入队列"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1251,7 +1269,10 @@
     "deleteButton": "删除项目",
     "deleteTitle": "删除项目",
     "deleteDescription": "确定删除项目 {name}？这也会删除 {count, plural, other {# 个环境}} 及其中的全部问题。此操作无法撤销。",
-    "deletedSuccess": "项目 {name} 已删除"
+    "deletedSuccess": "项目 {name} 已删除",
+    "tabJira": "Jira",
+    "jiraTitle": "Jira 同步",
+    "jiraDescription": "把一个 Jira 项目镜像到本项目的问题跟踪中。"
   },
   "inbox": {
     "title": "主页",
@@ -1363,6 +1384,89 @@
     "result": {
       "pass": "通过",
       "fail": "失败"
-    }
+    },
+    "issueJiraConflict": "{key} 在 Jira 中先被修改——本地对 {fields} 的修改已被丢弃",
+    "issueJiraPushFailed": "无法把 {field} 写回 Jira"
+  },
+  "jira": {
+    "title": "Jira",
+    "subtitle": "本工作区可与之同步问题的 Jira 站点。",
+    "addConnection": "添加连接",
+    "colName": "名称",
+    "colBaseUrl": "站点地址",
+    "colFlavor": "类型",
+    "flavorCloud": "云版",
+    "flavorDatacenter": "数据中心版",
+    "emptyTitle": "暂无 Jira 站点",
+    "empty": "先连接一个 Jira 站点，然后在项目设置中把它关联到项目。",
+    "searchPlaceholder": "搜索站点…",
+    "deleteTitle": "删除 Jira 站点",
+    "deleteDescription": "删除“{name}”？关联到它的项目将停止同步，已镜像的问题会保留。"
+  },
+  "newJira": {
+    "title": "新建 Jira 站点",
+    "description": "连接一个 Jira 云版或数据中心版站点。",
+    "formTitle": "站点信息",
+    "formDescription": "API 令牌加密存储，绝不会发送到浏览器。"
+  },
+  "editJira": {
+    "title": "编辑 {name}",
+    "description": "更新站点信息与 Webhook 配置。",
+    "formTitle": "站点信息",
+    "formDescription": "令牌留空则保留已保存的那个。",
+    "webhookTitle": "Webhook",
+    "webhookDescription": "在 Jira 中注册此地址，改动可在数秒内同步过来。不配置也能同步，只是改走 15 分钟一次的轮询。请将该地址视为机密。",
+    "webhookStep1": "在 Jira 中进入 Settings → System → WebHooks → Create a WebHook。",
+    "webhookStep2": "粘贴上面的地址，并勾选 issue 与 comment 事件。",
+    "webhookStep3": "保存。每次投递都会在服务端校验并重新拉取。"
+  },
+  "jiraForm": {
+    "name": "名称",
+    "namePlaceholder": "Acme Jira",
+    "baseUrl": "站点地址",
+    "baseUrlInvalid": "必须是有效的 URL",
+    "baseUrlDescription": "站点根地址，末尾不要带路径。",
+    "flavor": "部署类型",
+    "flavorCloud": "Jira 云版",
+    "flavorDatacenter": "Jira 数据中心版 / 服务器版",
+    "flavorDescription": "云版使用邮箱加 API 令牌认证；数据中心版使用个人访问令牌。",
+    "email": "账号邮箱",
+    "emailDescription": "API 令牌所属的账号。请使用服务账号，而非个人账号。",
+    "apiToken": "API 令牌",
+    "apiTokenDescription": "在 id.atlassian.com → Security → API tokens 创建，权限范围取同步所需的最小集。",
+    "apiTokenEditPlaceholder": "留空则保留当前令牌",
+    "pat": "个人访问令牌",
+    "patDescription": "在 Jira 个人资料 → Personal Access Tokens 中创建。",
+    "testConnection": "测试连接",
+    "testSuccess": "已连接为 {account}",
+    "testFailed": "连接失败",
+    "submitting": "保存中…",
+    "saveChanges": "保存更改",
+    "create": "创建"
+  },
+  "jiraLink": {
+    "connection": "Jira 站点",
+    "connectionPlaceholder": "选择站点",
+    "projectKey": "Jira 项目 Key",
+    "projectKeyDescription": "要镜像的远端项目 Key，不必与本项目的 Key 相同。",
+    "keyInvalid": "只能包含字母、数字和下划线，且以字母开头",
+    "jqlFilter": "附加 JQL 过滤",
+    "jqlFilterDescription": "可选。每次同步都会以 AND 拼接，可只镜像大型 Jira 项目中的一部分。",
+    "enabled": "启用同步",
+    "enabledDescription": "每 15 分钟从 Jira 拉取问题、评论和标签，收到 Webhook 时也会立即拉取。",
+    "pushEnabled": "把改动写回 Jira",
+    "pushEnabledDescription": "推送标题、描述、状态、优先级、指派人和新评论。发生冲突时以 Jira 为准。",
+    "syncNow": "立即同步",
+    "fullResync": "全量重新导入",
+    "unlink": "解除关联",
+    "unlinkTitle": "解除 Jira 关联",
+    "unlinkDescription": "停止同步本项目。已镜像的问题会保留，只移除关联，之后重新关联可以干净地重新导入。",
+    "save": "保存",
+    "link": "关联项目",
+    "noConnections": "尚未配置 Jira 站点。管理员可在侧边栏的 Jira 中添加。",
+    "status_ok": "上次同步成功",
+    "status_partial": "上次同步部分成功",
+    "status_failed": "上次同步失败",
+    "status_pending": "尚未同步"
   }
 }

@@ -1,8 +1,9 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssueAttachments } from "@/actions/issue-attachments";
 import { getIssueDetail, listIssues } from "@/actions/issues";
+import { getJiraLink } from "@/actions/jira";
 import { listLabels } from "@/actions/labels";
 import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
@@ -39,6 +40,7 @@ export default async function IssueDetailPage({
     allIssues,
     attachments,
     testRuns,
+    jiraLink,
     t,
   ] = await Promise.all([
     getProjectWithEnvironments(issue.project.id),
@@ -48,8 +50,15 @@ export default async function IssueDetailPage({
     listIssues(issue.project.id),
     listIssueAttachments(issue.id),
     listIssueTestRuns(issue.id),
+    getJiraLink(issue.project.id),
     getTranslations("issueDetail"),
   ]);
+  // Only rendered when this specific issue is mirrored — a linked project can
+  // still hold issues that were created here and never pushed.
+  const jiraUrl =
+    issue.jiraKey && jiraLink
+      ? `${jiraLink.connection.baseUrl}/browse/${issue.jiraKey}`
+      : null;
   const environments =
     project?.environments.map((e) => ({ id: e.id, name: e.name })) ?? [];
   // Candidate parents: every other issue in the project (self and descendants
@@ -66,13 +75,26 @@ export default async function IssueDetailPage({
           name: issue.createdBy?.name ?? t("unknownUser"),
         })}
         action={
-          <Button
-            variant="outline"
-            render={<Link href={`/${issue.project.key}`} />}
-          >
-            <ArrowLeft className="size-4" />
-            {issue.project.name}
-          </Button>
+          <div className="flex items-center gap-2">
+            {jiraUrl && (
+              <Button
+                variant="outline"
+                render={
+                  <a href={jiraUrl} target="_blank" rel="noreferrer noopener" />
+                }
+              >
+                <ExternalLink className="size-4" />
+                {issue.jiraKey}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              render={<Link href={`/${issue.project.key}`} />}
+            >
+              <ArrowLeft className="size-4" />
+              {issue.project.name}
+            </Button>
+          </div>
         }
       />
       <IssueDetailClient
