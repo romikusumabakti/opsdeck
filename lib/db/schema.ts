@@ -380,6 +380,12 @@ export const issues = pgTable(
     uniqueIndex("issues_project_number_idx").on(t.projectId, t.number),
     // Board/list view filters by project then status.
     index("issues_project_status_idx").on(t.projectId, t.status),
+    // Default order of the cross-project list (newest activity first). Paging
+    // without it means a full sort of the table on every page.
+    index("issues_updated_at_idx").on(t.updatedAt.desc()),
+    // Cross-project filters: "assigned to me" and the status dropdown.
+    index("issues_assignee_idx").on(t.assigneeId),
+    index("issues_status_idx").on(t.status),
     // Children-of-parent lookup for the subtask tree.
     index("issues_parent_idx").on(t.parentId),
     // Milestone board / "issues in this milestone".

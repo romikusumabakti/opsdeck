@@ -1196,7 +1196,18 @@
     "selectRow": "选择行",
     "bulkDeleteTitle": "删除问题",
     "bulkDeleteDescription": "删除 {count} 个问题？此操作无法撤销。",
-    "bulkDeleted": "问题已删除"
+    "bulkDeleted": "问题已删除",
+    "allPriorities": "全部优先级",
+    "columnUpdated": "更新时间",
+    "boardTruncated": "仅显示前 {shown} 个问题，共 {total} 个。请缩小筛选范围以查看其余内容。",
+    "manageViews": "已保存视图",
+    "saveViewDescription": "将当前筛选保存为视图，或删除不再需要的视图。",
+    "viewSaveFailed": "保存视图失败",
+    "viewDeleted": "视图已删除",
+    "viewDeleteFailed": "删除视图失败",
+    "deleteViewTitle": "删除视图",
+    "deleteViewDescription": "删除视图“{name}”？此操作无法撤销。",
+    "groupBy": "分组方式"
   },
   "environmentKinds": {
     "qa": "测试",

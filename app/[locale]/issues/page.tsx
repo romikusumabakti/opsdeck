@@ -1,13 +1,13 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listAllIssues } from "@/actions/issues";
 import { listLabels } from "@/actions/labels";
+import { listProjects } from "@/actions/project-catalog";
 import { listSavedViews } from "@/actions/saved-views";
 import { listAssignableUsers } from "@/actions/users";
 import { GlobalIssuesClient } from "@/components/global-issues-client";
 import { PageHeader } from "@/components/page-header";
 import { requireSession } from "@/lib/auth-session";
-
-const FILTER_KEYS = ["status", "project", "label", "mine", "view"] as const;
+import { BOARD_LIMIT, parseIssueParams } from "@/lib/issue-query";
 
 export default async function GlobalIssuesPage({
   params,
@@ -19,18 +19,31 @@ export default async function GlobalIssuesPage({
   const [{ locale }, sp] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
 
-  const initialFilters: Record<string, string> = {};
-  for (const k of FILTER_KEYS) {
-    const v = sp[k];
-    if (typeof v === "string" && v) initialFilters[k] = v;
-  }
+  const { filters, sort, desc, pageIndex, pageSize } = parseIssueParams(sp);
+  // The board draws every matching issue in status columns, so it can't page —
+  // it takes a capped slice instead and says so when the cap bites.
+  const isBoard = filters.view === "board";
 
   const session = await requireSession();
-  const [issues, users, allLabels, savedViews, t] = await Promise.all([
-    listAllIssues(),
+  const [page, users, allLabels, savedViews, projects, t] = await Promise.all([
+    listAllIssues({
+      q: filters.q,
+      status: filters.status,
+      projectId: filters.project,
+      labelId: filters.label,
+      priority: filters.priority,
+      assigneeId: filters.mine === "1" ? session.user.id : undefined,
+      sort,
+      desc,
+      offset: isBoard ? 0 : pageIndex * pageSize,
+      limit: isBoard ? BOARD_LIMIT : pageSize,
+    }),
     listAssignableUsers(),
     listLabels(),
     listSavedViews(),
+    // From the project table, not from the loaded issues: a project with no
+    // issue on the current page must still be selectable in the filter.
+    listProjects(),
     getTranslations("issues"),
   ]);
 
@@ -38,12 +51,14 @@ export default async function GlobalIssuesPage({
     <>
       <PageHeader title={t("globalTitle")} subtitle={t("globalSubtitle")} />
       <GlobalIssuesClient
-        initialIssues={issues}
-        currentUserId={session.user.id}
+        issues={page.rows}
+        total={page.total}
         users={users}
         allLabels={allLabels}
-        initialFilters={initialFilters}
+        projects={projects.map((p) => ({ id: p.id, name: p.name }))}
         savedViews={savedViews}
+        filters={filters}
+        pageSize={pageSize}
       />
     </>
   );
