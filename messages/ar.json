@@ -1207,7 +1207,10 @@
     "viewDeleteFailed": "تعذّر حذف العرض",
     "deleteViewTitle": "حذف العرض",
     "deleteViewDescription": "حذف العرض «{name}»؟ لا يمكن التراجع.",
-    "groupBy": "التجميع حسب"
+    "groupBy": "التجميع حسب",
+    "filter": "تصفية",
+    "clearFilterAria": "إزالة تصفية {name}",
+    "me": "أنا"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",
