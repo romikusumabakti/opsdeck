@@ -32,7 +32,8 @@ export async function createSavedView(
     await db
       .insert(savedViews)
       .values({ userId: session.user.id, name: trimmed, params });
-    revalidatePath("/issues");
+    // Route pattern, not a URL: the page lives under the `[locale]` segment.
+    revalidatePath("/[locale]/issues", "page");
     return { success: true };
   } catch (error) {
     console.error("Failed to create saved view:", error);
@@ -50,7 +51,8 @@ export async function deleteSavedView(
       .where(
         and(eq(savedViews.id, id), eq(savedViews.userId, session.user.id))
       );
-    revalidatePath("/issues");
+    // Route pattern, not a URL: the page lives under the `[locale]` segment.
+    revalidatePath("/[locale]/issues", "page");
     return { success: true };
   } catch (error) {
     console.error("Failed to delete saved view:", error);

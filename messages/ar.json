@@ -1196,7 +1196,18 @@
     "selectRow": "تحديد الصف",
     "bulkDeleteTitle": "حذف المشكلات",
     "bulkDeleteDescription": "حذف {count} مشكلة؟ لا يمكن التراجع.",
-    "bulkDeleted": "تم حذف المشكلات"
+    "bulkDeleted": "تم حذف المشكلات",
+    "allPriorities": "كل الأولويات",
+    "columnUpdated": "آخر تحديث",
+    "boardTruncated": "يتم عرض أول {shown} من {total} مشكلة. ضيّق التصفية لعرض الباقي.",
+    "manageViews": "العروض المحفوظة",
+    "saveViewDescription": "احفظ عوامل التصفية الحالية كعرض، أو احذف ما لم تعد بحاجة إليه.",
+    "viewSaveFailed": "تعذّر حفظ العرض",
+    "viewDeleted": "تم حذف العرض",
+    "viewDeleteFailed": "تعذّر حذف العرض",
+    "deleteViewTitle": "حذف العرض",
+    "deleteViewDescription": "حذف العرض «{name}»؟ لا يمكن التراجع.",
+    "groupBy": "التجميع حسب"
   },
   "environmentKinds": {
     "qa": "اختبار الجودة",

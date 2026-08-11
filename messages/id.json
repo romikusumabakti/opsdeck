@@ -1196,7 +1196,18 @@
     "selectRow": "Pilih baris",
     "bulkDeleteTitle": "Hapus isu",
     "bulkDeleteDescription": "Hapus {count} isu? Tindakan ini tak bisa dibatalkan.",
-    "bulkDeleted": "Isu dihapus"
+    "bulkDeleted": "Isu dihapus",
+    "allPriorities": "Semua prioritas",
+    "columnUpdated": "Diperbarui",
+    "boardTruncated": "Menampilkan {shown} isu pertama dari {total}. Persempit filter untuk melihat sisanya.",
+    "manageViews": "Tampilan tersimpan",
+    "saveViewDescription": "Simpan filter saat ini sebagai tampilan, atau hapus yang tak lagi dipakai.",
+    "viewSaveFailed": "Gagal menyimpan tampilan",
+    "viewDeleted": "Tampilan dihapus",
+    "viewDeleteFailed": "Gagal menghapus tampilan",
+    "deleteViewTitle": "Hapus tampilan",
+    "deleteViewDescription": "Hapus tampilan “{name}”? Tindakan ini tak bisa dibatalkan.",
+    "groupBy": "Kelompokkan"
   },
   "environmentKinds": {
     "qa": "QA",
