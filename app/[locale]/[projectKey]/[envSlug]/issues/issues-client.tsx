@@ -57,9 +57,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager } from "@/components/ui/table-pager";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
 
 type EnvOption = { id: string; name: string };
 
@@ -103,6 +105,11 @@ export function IssuesClient({
   const [swimlane, setSwimlane] = React.useState<Swimlane>("none");
   // "all" | "none" (unassigned) | a milestone id
   const [milestoneFilter, setMilestoneFilter] = React.useState("all");
+  // Paging is client-side: the project's issues are already in memory, so a
+  // page is a slice. It exists to bound what the browser has to lay out and
+  // what the reader has to scan, not to save a round-trip.
+  const [pageIndex, setPageIndex] = React.useState(0);
+  const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
 
   const milestonesById = React.useMemo(
     () => Object.fromEntries(milestones.map((m) => [m.id, m.name])),
@@ -127,6 +134,20 @@ export function IssuesClient({
       );
     });
   }, [issues, query, projectKey, milestoneFilter]);
+
+  // Any change to the filtered set invalidates the page number — page 4 of the
+  // old result set is rarely page 4 of the new one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on filter change.
+  React.useEffect(() => setPageIndex(0), [query, milestoneFilter, pageSize]);
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const currentPage = Math.min(pageIndex, pageCount - 1);
+  // The board draws every column at once, so it shows the whole filtered set;
+  // only the table pages.
+  const pageRows = React.useMemo(
+    () => visible.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
+    [visible, currentPage, pageSize]
+  );
 
   async function onStatusChange(id: string, status: Status) {
     setIssues((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
@@ -186,11 +207,13 @@ export function IssuesClient({
     });
   }
 
+  // "Select all" means the rows on screen — the header checkbox can't promise
+  // anything about rows the user hasn't paged to.
   function toggleAll() {
     setSelected((prev) =>
-      prev.size === visible.length
+      prev.size === pageRows.length
         ? new Set()
-        : new Set(visible.map((i) => i.id))
+        : new Set(pageRows.map((i) => i.id))
     );
   }
 
@@ -235,34 +258,36 @@ export function IssuesClient({
       ) {
         return;
       }
-      if (visible.length === 0) return;
+      if (pageRows.length === 0) return;
       if (e.key === "j") {
         e.preventDefault();
-        setCursor((c) => Math.min((c < 0 ? -1 : c) + 1, visible.length - 1));
+        setCursor((c) => Math.min((c < 0 ? -1 : c) + 1, pageRows.length - 1));
       } else if (e.key === "k") {
         e.preventDefault();
-        setCursor((c) => Math.max((c < 0 ? visible.length : c) - 1, 0));
+        setCursor((c) => Math.max((c < 0 ? pageRows.length : c) - 1, 0));
       } else if (e.key === "x") {
         const i = cursorRef.current;
-        if (i >= 0 && i < visible.length) {
+        if (i >= 0 && i < pageRows.length) {
           e.preventDefault();
-          toggleSelected(visible[i].id);
+          toggleSelected(pageRows[i].id);
         }
       } else if (e.key === "Enter") {
         const i = cursorRef.current;
-        if (i >= 0 && i < visible.length) {
+        if (i >= 0 && i < pageRows.length) {
           e.preventDefault();
-          router.push(`/${projectKey}/issues/${visible[i].number}`);
+          router.push(`/${projectKey}/issues/${pageRows[i].number}`);
         }
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [view, visible, projectKey, router]);
+  }, [view, pageRows, projectKey, router]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+    // `flex-1 min-h-0` so the list scrolls inside this panel instead of growing
+    // the page — the toolbar and the pager stay put while the rows move.
+    <div className="flex flex-1 min-h-0 flex-col gap-4">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center gap-2">
         <div className="relative max-w-sm flex-1">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -338,7 +363,7 @@ export function IssuesClient({
       </div>
 
       {visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
+        <div className="shrink-0 flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
           <CircleDot className="size-6 text-muted-foreground" />
           <div>
             <p className="font-medium">{t("empty")}</p>
@@ -348,27 +373,31 @@ export function IssuesClient({
           </div>
         </div>
       ) : view === "board" ? (
-        <IssueBoard
-          issues={visible.map((i) => ({
-            id: i.id,
-            number: i.number,
-            title: i.title,
-            status: i.status as Status,
-            type: i.type as IssueType,
-            priority: i.priority as Priority,
-            keyPrefix: projectKey,
-            envName: i.environment?.name ?? null,
-            assigneeName: i.assignee?.name ?? null,
-            milestoneName: i.milestoneId
-              ? (milestonesById[i.milestoneId] ?? null)
-              : null,
-            labels: i.labels,
-          }))}
-          onStatusChange={onStatusChange}
-          swimlane={swimlane}
-        />
+        // The board has no bounded height of its own, so it gets the scroll
+        // container here; columns grow and this wrapper scrolls.
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <IssueBoard
+            issues={visible.map((i) => ({
+              id: i.id,
+              number: i.number,
+              title: i.title,
+              status: i.status as Status,
+              type: i.type as IssueType,
+              priority: i.priority as Priority,
+              keyPrefix: projectKey,
+              envName: i.environment?.name ?? null,
+              assigneeName: i.assignee?.name ?? null,
+              milestoneName: i.milestoneId
+                ? (milestonesById[i.milestoneId] ?? null)
+                : null,
+              labels: i.labels,
+            }))}
+            onStatusChange={onStatusChange}
+            swimlane={swimlane}
+          />
+        </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-1 min-h-0 flex-col gap-2">
           {selected.size > 0 ? (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
               <span className="text-sm font-medium">
@@ -403,14 +432,16 @@ export function IssuesClient({
               </Button>
             </div>
           ) : null}
-          <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+            {/* The table container is the scroll box (`flex-1 min-h-0`), so the
+                `sticky` header pins to it while rows scroll underneath. */}
+            <Table containerClassName="flex-1 min-h-0">
+              <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
                       checked={
-                        visible.length > 0 && selected.size === visible.length
+                        pageRows.length > 0 && selected.size === pageRows.length
                       }
                       onCheckedChange={toggleAll}
                       aria-label={t("selectAll")}
@@ -428,7 +459,7 @@ export function IssuesClient({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((issue, idx) => (
+                {pageRows.map((issue, idx) => (
                   <TableRow
                     key={issue.id}
                     className={cursor === idx ? "bg-accent/60" : undefined}
@@ -500,6 +531,13 @@ export function IssuesClient({
               </TableBody>
             </Table>
           </div>
+          <TablePager
+            pageIndex={currentPage}
+            pageSize={pageSize}
+            total={visible.length}
+            onPageIndexChange={setPageIndex}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

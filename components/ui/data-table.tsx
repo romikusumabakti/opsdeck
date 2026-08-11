@@ -14,17 +14,7 @@ import {
   useReactTable,
   type VisibilityState,
 } from "@tanstack/react-table";
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronsUpDown,
-  Settings2,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Settings2 } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import {
@@ -41,11 +31,10 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { TablePager } from "@/components/ui/table-pager";
 import {
   Table,
   TableBody,
@@ -54,8 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const PAGE_SIZES = [10, 25, 50, 100] as const;
 
 type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[];
@@ -683,100 +670,13 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
       {showFooter && (
-        <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 px-1">
-          <div className="text-sm text-muted-foreground">
-            {t("showingRange", {
-              from: fromIdx,
-              to: toIdx,
-              total: filteredCount,
-            })}
-          </div>
-          <div
-            className={cn(
-              "flex items-center gap-3 flex-wrap",
-              // Nothing to control when everything fits on one page: no page to
-              // switch to, and no reason to shrink the page size. Drop the whole
-              // cluster so the footer is just the "showing X of Y" count.
-              table.getPageCount() <= 1 && "hidden"
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                {t("rowsPerPage")}
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button variant="outline" size="sm" className="h-8 gap-1" />
-                  }
-                >
-                  {pagination.pageSize}
-                  <ChevronDown className="size-3.5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuRadioGroup
-                    value={String(pagination.pageSize)}
-                    onValueChange={(v) => table.setPageSize(Number(v))}
-                  >
-                    {PAGE_SIZES.map((size) => (
-                      <DropdownMenuRadioItem key={size} value={String(size)}>
-                        {size}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {table.getPageCount() > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  {t("pageOf", {
-                    current: pagination.pageIndex + 1,
-                    total: table.getPageCount(),
-                  })}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={() => table.firstPage()}
-                  disabled={!table.getCanPreviousPage()}
-                  aria-label={t("first")}
-                  className="hidden sm:inline-flex"
-                >
-                  <ChevronsLeft className="size-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={() => table.previousPage()}
-                  disabled={!table.getCanPreviousPage()}
-                  aria-label={t("previous")}
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={() => table.nextPage()}
-                  disabled={!table.getCanNextPage()}
-                  aria-label={t("next")}
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={() => table.lastPage()}
-                  disabled={!table.getCanNextPage()}
-                  aria-label={t("last")}
-                  className="hidden sm:inline-flex"
-                >
-                  <ChevronsRight className="size-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+        <TablePager
+          pageIndex={pagination.pageIndex}
+          pageSize={pagination.pageSize}
+          total={filteredCount}
+          onPageIndexChange={(index) => table.setPageIndex(index)}
+          onPageSizeChange={(size) => table.setPageSize(size)}
+        />
       )}
     </div>
   );

@@ -92,14 +92,23 @@ export default async function ProjectOverviewPage({
         }
       />
 
-      <div className="flex items-center gap-2 -mt-2">
+      <div className="shrink-0 flex items-center gap-2 -mt-2">
         <Badge variant="secondary" className="font-mono text-xs">
           {project.key}
         </Badge>
       </div>
 
-      <Tabs defaultValue="environments" className="w-full">
-        <TabsList>
+      {/* The tab strip stays put and each panel scrolls inside the page shell,
+          so switching tabs never moves the strip out from under the cursor and
+          a long list can't push the pager off-screen. */}
+      <Tabs
+        defaultValue="environments"
+        // `gap-4`, matching the other full-height tab layouts (users,
+        // databases) — the primitive's `gap-2` default sits a panel too close
+        // under its own tab strip.
+        className="flex w-full flex-1 min-h-0 flex-col gap-4"
+      >
+        <TabsList className="shrink-0">
           <TabsTrigger value="environments">
             {tOv("environments")}
             <span className="ms-1.5 text-muted-foreground">
@@ -128,16 +137,21 @@ export default async function ProjectOverviewPage({
           ) : null}
         </TabsList>
 
-        <TabsContent value="environments" className="flex flex-col gap-4">
+        <TabsContent
+          value="environments"
+          className="flex flex-1 min-h-0 flex-col gap-4"
+        >
           {environments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center">
+            <div className="shrink-0 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center">
               <p className="font-medium">{tOv("noEnvironments")}</p>
               <p className="text-sm text-muted-foreground">
                 {tOv("noEnvironmentsDescription")}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            // The card grid is the scroll box — there is nothing above it in
+            // this panel to keep pinned.
+            <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
               {environments.map((env) => {
                 const activity = lastActivity[env.id] ?? null;
                 return (
@@ -197,7 +211,9 @@ export default async function ProjectOverviewPage({
           )}
         </TabsContent>
 
-        <TabsContent value="issues">
+        {/* The issues list bounds and scrolls itself (sticky header, pager
+            pinned below), so this panel only has to hand it the height. */}
+        <TabsContent value="issues" className="flex flex-1 min-h-0 flex-col">
           <IssuesClient
             projectId={project.id}
             projectKey={project.key}
@@ -209,7 +225,10 @@ export default async function ProjectOverviewPage({
           />
         </TabsContent>
 
-        <TabsContent value="milestones">
+        <TabsContent
+          value="milestones"
+          className="flex flex-1 min-h-0 flex-col"
+        >
           <MilestonesClient
             projectId={project.id}
             initialMilestones={milestones}
@@ -217,7 +236,7 @@ export default async function ProjectOverviewPage({
         </TabsContent>
 
         {canManageMembers ? (
-          <TabsContent value="members">
+          <TabsContent value="members" className="flex flex-1 min-h-0 flex-col">
             <ProjectMembersClient
               projectId={project.id}
               initialMembers={members}

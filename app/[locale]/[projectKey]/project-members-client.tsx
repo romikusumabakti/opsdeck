@@ -77,9 +77,10 @@ export function ProjectMembersClient({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // The add-member row stays put; only the roster scrolls.
+    <div className="flex flex-1 min-h-0 flex-col gap-4">
       {/* Add member */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+      <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg border p-3">
         <Select
           value={addUserId}
           onValueChange={(v) => setAddUserId(v ?? "")}
@@ -129,10 +130,14 @@ export function ProjectMembersClient({
 
       {/* Members table */}
       {initialMembers.length === 0 ? (
-        <EmptyState title={t("empty")} description={t("emptyDescription")} />
+        <div className="shrink-0">
+          <EmptyState title={t("empty")} description={t("emptyDescription")} />
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
+        // The table container is the scroll box, so the `sticky` header pins to
+        // it while rows scroll underneath.
+        <Table containerClassName="flex-1 min-h-0">
+          <TableHeader className="sticky top-0 z-10 [&_th]:bg-background [&_th]:border-b">
             <TableRow>
               <TableHead>{t("colName")}</TableHead>
               <TableHead>{t("colRole")}</TableHead>

@@ -53,9 +53,10 @@ export function MilestonesClient({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // The create row stays put; only the milestone list scrolls.
+    <div className="flex flex-1 min-h-0 flex-col gap-4">
       {/* Create */}
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+      <div className="shrink-0 flex flex-wrap items-end gap-2 rounded-lg border p-3">
         <div className="flex min-w-52 flex-1 flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             {t("name")}
@@ -100,10 +101,14 @@ export function MilestonesClient({
 
       {/* List */}
       {initialMilestones.length === 0 ? (
-        <EmptyState title={t("empty")} description={t("emptyDescription")} />
+        <div className="shrink-0">
+          <EmptyState title={t("empty")} description={t("emptyDescription")} />
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
+        // The table container is the scroll box, so the `sticky` header pins to
+        // it while rows scroll underneath.
+        <Table containerClassName="flex-1 min-h-0">
+          <TableHeader className="sticky top-0 z-10 [&_th]:bg-background [&_th]:border-b">
             <TableRow>
               <TableHead>{t("colName")}</TableHead>
               <TableHead className="w-40">{t("colDue")}</TableHead>
