@@ -26,7 +26,7 @@ export default async function JiraPage({
         title={t("title")}
         subtitle={t("subtitle")}
         action={
-          <Button render={<Link href="/jira/new" />}>
+          <Button render={<Link href="/admin/jira/new" />}>
             <Plus className="size-4" />
             {t("addConnection")}
           </Button>

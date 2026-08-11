@@ -7,6 +7,9 @@
 // Keep in sync with app/[locale]/*.
 export const RESERVED_PROJECT_KEYS = new Set([
   "ACCOUNT",
+  "ADMIN",
+  // ACTIVITY/JIRA/USERS moved under /admin but stay reserved: next.config
+  // redirects the old top-level paths, so they are still part of the URL space.
   "ACTIVITY",
   "API",
   "ENVIRONMENTS",

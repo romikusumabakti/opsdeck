@@ -16,6 +16,7 @@ import {
   Server,
   ServerCog,
   Settings,
+  ShieldUser,
   Users,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -54,6 +55,14 @@ const projectItems = [
   { key: "settings", url: "/settings", icon: Settings, adminOnly: true },
 ] as const;
 
+// Sections of the /admin area, shown as their own sidebar group while the
+// user is inside it. Gated server-side by app/[locale]/admin/layout.tsx.
+const adminItems = [
+  { key: "activity", url: "/admin/activity", icon: Activity },
+  { key: "jira", url: "/admin/jira", icon: Cable },
+  { key: "users", url: "/admin/users", icon: Users },
+] as const;
+
 type AppSidebarUser = {
   id: string;
   name: string;
@@ -75,6 +84,9 @@ export function AppSidebar({
   const tApp = useTranslations("app");
   const tNav = useTranslations("nav");
   const pathname = usePathname();
+
+  const inAdmin =
+    isAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));
 
   const match = ENV_PATH_REGEX.exec(pathname);
   const activeEnv = match
@@ -145,16 +157,6 @@ export function AppSidebar({
                   <span>{tNav("knowledge")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/activity" />}
-                  isActive={pathname.startsWith("/activity")}
-                  tooltip={tNav("activity")}
-                >
-                  <Activity />
-                  <span>{tNav("activity")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {isAdmin && (
                 <>
                   <SidebarMenuItem>
@@ -179,22 +181,12 @@ export function AppSidebar({
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      render={<Link href="/jira" />}
-                      isActive={pathname.startsWith("/jira")}
-                      tooltip={tNav("jira")}
+                      render={<Link href="/admin" />}
+                      isActive={inAdmin}
+                      tooltip={tNav("admin")}
                     >
-                      <Cable />
-                      <span>{tNav("jira")}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/users" />}
-                      isActive={pathname.startsWith("/users")}
-                      tooltip={tNav("users")}
-                    >
-                      <Users />
-                      <span>{tNav("users")}</span>
+                      <ShieldUser />
+                      <span>{tNav("admin")}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>
@@ -202,6 +194,30 @@ export function AppSidebar({
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* The admin sections only appear once you're inside /admin, the same
+            way the environment sections appear inside an environment. */}
+        {inAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>{tNav("admin")}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.key}>
+                    <SidebarMenuButton
+                      render={<Link href={item.url} />}
+                      isActive={pathname.startsWith(item.url)}
+                      tooltip={tNav(item.key)}
+                    >
+                      <item.icon />
+                      <span>{tNav(item.key)}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {activeEnv && (
           <SidebarGroup>

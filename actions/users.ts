@@ -233,7 +233,7 @@ export async function inviteUser(input: {
     return { success: false, message: t("emailSendFailed") };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
 }
 
@@ -262,7 +262,7 @@ export async function updateUserName(input: {
     return { success: false, message: t("errorGeneric") };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, message: t("nameUpdated") };
 }
 
@@ -300,7 +300,7 @@ export async function updateUserRole(input: {
     return { success: false, message: t("errorGeneric") };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, message: t("roleUpdated") };
 }
 
@@ -315,7 +315,7 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
   const ctx = await auth.$context;
   await ctx.internalAdapter.deleteUser(userId);
 
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, message: t("userDeleted") };
 }
 
@@ -325,7 +325,7 @@ export async function revokeInvitation(
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   await db.delete(invitations).where(eq(invitations.id, invitationId));
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, message: t("invitationRevoked") };
 }
 
@@ -381,7 +381,7 @@ export async function resendInvitation(
     return { success: false, message: t("emailSendFailed") };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
 }
 
@@ -408,7 +408,7 @@ export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
   const skippedSelf = targets.length !== ids.length;
 
   if (targets.length === 0) {
-    revalidatePath("/users");
+    revalidatePath("/admin/users");
     return { success: true, deleted: 0, skippedSelf, failed: [] };
   }
 
@@ -424,7 +424,7 @@ export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
       failed.push({ id, message: t("errorGeneric") });
     }
   }
-  revalidatePath("/users");
+  revalidatePath("/admin/users");
   return { success: true, deleted, skippedSelf, failed };
 }
 
@@ -445,7 +445,7 @@ export async function bulkRevokeInvitations(
       .delete(invitations)
       .where(inArray(invitations.id, ids))
       .returning({ id: invitations.id });
-    revalidatePath("/users");
+    revalidatePath("/admin/users");
     return { success: true, revoked: result.length };
   } catch (error) {
     console.error("Failed to bulk-revoke invitations:", error);

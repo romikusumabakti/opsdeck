@@ -77,7 +77,8 @@
     "loading": "Loading…",
     "security": "Security",
     "sessions": "Sessions",
-    "issues": "Issues"
+    "issues": "Issues",
+    "jira": "Jira"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",
@@ -119,7 +120,8 @@
     "allIssues": "Issues",
     "home": "Home",
     "activity": "Activity",
-    "jira": "Jira"
+    "jira": "Jira",
+    "admin": "Admin"
   },
   "header": {
     "searchEnvironment": "Search environment…",
