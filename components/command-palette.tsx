@@ -3,6 +3,7 @@
 import {
   Activity,
   BookOpen,
+  Cable,
   CircleDot,
   Folder,
   FolderKanban,
@@ -154,13 +155,6 @@ export function CommandPalette({
               <BookOpen />
               {tNav("knowledge")}
             </CommandItem>
-            <CommandItem
-              value="activity audit feed events"
-              onSelect={() => run(() => router.push("/activity"))}
-            >
-              <Activity />
-              {tNav("activity")}
-            </CommandItem>
             {isAdmin && (
               <>
                 <CommandItem
@@ -171,8 +165,22 @@ export function CommandPalette({
                   {tUserMenu("servers")}
                 </CommandItem>
                 <CommandItem
+                  value="activity audit feed events"
+                  onSelect={() => run(() => router.push("/admin/activity"))}
+                >
+                  <Activity />
+                  {tNav("activity")}
+                </CommandItem>
+                <CommandItem
+                  value="jira integration connections"
+                  onSelect={() => run(() => router.push("/admin/jira"))}
+                >
+                  <Cable />
+                  {tNav("jira")}
+                </CommandItem>
+                <CommandItem
                   value="users"
-                  onSelect={() => run(() => router.push("/users"))}
+                  onSelect={() => run(() => router.push("/admin/users"))}
                 >
                   <Users />
                   {tUserMenu("users")}

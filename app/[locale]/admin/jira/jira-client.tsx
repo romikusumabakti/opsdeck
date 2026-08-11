@@ -101,7 +101,7 @@ export function JiraClient({
               aria-label={tCommon("edit")}
               title={tCommon("edit")}
               disabled={isPending}
-              render={<Link href={`/jira/${row.original.id}`} />}
+              render={<Link href={`/admin/jira/${row.original.id}`} />}
             >
               <Pencil className="size-4" />
             </Button>
@@ -130,7 +130,7 @@ export function JiraClient({
           title={t("emptyTitle")}
           description={t("empty")}
           action={
-            <Button render={<Link href="/jira/new" />}>
+            <Button render={<Link href="/admin/jira/new" />}>
               <Plus className="size-4" />
               {t("addConnection")}
             </Button>

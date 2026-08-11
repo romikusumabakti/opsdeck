@@ -134,7 +134,7 @@ export function UserMenu({
         </DropdownMenuItem>
         {isAdmin && (
           <>
-            <DropdownMenuItem onClick={() => router.push("/users")}>
+            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
               <Users />
               {t("users")}
             </DropdownMenuItem>

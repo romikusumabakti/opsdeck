@@ -120,7 +120,7 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
         return;
       }
       toast.success(result.message ?? "");
-      router.push("/jira");
+      router.push("/admin/jira");
       router.refresh();
       return;
     }
@@ -134,7 +134,7 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
       return;
     }
     toast.success(result.message ?? "");
-    router.push("/jira");
+    router.push("/admin/jira");
     router.refresh();
   }
 
@@ -291,7 +291,7 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
           <Button
             type="button"
             variant="ghost"
-            onClick={() => router.push("/jira")}
+            onClick={() => router.push("/admin/jira")}
             disabled={loading}
           >
             {tCommon("cancel")}

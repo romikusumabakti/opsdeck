@@ -81,6 +81,20 @@ function getStaticSegments(pathname: string): StaticSegment[] {
       { kind: "static", labelKey: "breadcrumbs.edit" },
     ];
   }
+  // /admin/jira/new
+  if (pathname === "/admin/jira/new") {
+    return [
+      { kind: "static", href: "/admin/jira", labelKey: "breadcrumbs.jira" },
+      { kind: "static", labelKey: "breadcrumbs.new" },
+    ];
+  }
+  // /admin/jira/[id] — edit view
+  if (pathname.startsWith("/admin/jira/")) {
+    return [
+      { kind: "static", href: "/admin/jira", labelKey: "breadcrumbs.jira" },
+      { kind: "static", labelKey: "breadcrumbs.edit" },
+    ];
+  }
   // /account/change-password
   if (pathname === "/account/change-password") {
     return [

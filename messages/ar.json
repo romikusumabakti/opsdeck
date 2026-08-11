@@ -77,7 +77,8 @@
     "loading": "جارٍ التحميل…",
     "security": "الأمان",
     "sessions": "الجلسات",
-    "issues": "المشكلات"
+    "issues": "المشكلات",
+    "jira": "Jira"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",
@@ -119,7 +120,8 @@
     "allIssues": "المشكلات",
     "home": "الرئيسية",
     "activity": "النشاط",
-    "jira": "Jira"
+    "jira": "Jira",
+    "admin": "المشرف"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",

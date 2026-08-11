@@ -1,7 +1,7 @@
 "use server";
 
 import { desc, eq } from "drizzle-orm";
-import { requireSession } from "@/lib/auth-session";
+import { requireAdmin } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { activityLog, users } from "@/lib/db/schema";
 
@@ -15,7 +15,7 @@ export type ActivityRow = {
 
 /** The org-wide activity feed, newest first. */
 export async function listActivity(limit = 100): Promise<ActivityRow[]> {
-  await requireSession();
+  await requireAdmin();
   try {
     const rows = await db
       .select({
