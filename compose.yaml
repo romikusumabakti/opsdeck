@@ -9,7 +9,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-opsdeck}
       TZ: Asia/Jakarta
     ports:
-      - "5432:5432"
+      # Loopback only: the app reaches Postgres over the compose network, so the
+      # published port exists purely for local psql/admin access on the host.
+      # Binding to 0.0.0.0 exposed it to the whole 192.168.56.0/24 LAN.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -104,7 +107,11 @@ services:
       # Hostname Caddy serves (Caddyfile reads {$SITE_ADDRESS}). Defaults to localhost.
       SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
     ports:
-      - "80:80"
+      # Loopback only: cloudflared runs on the host and dials http://localhost:80,
+      # so nothing outside the box needs to reach Caddy directly. Binding to
+      # 0.0.0.0 let anyone on the LAN hit the panel by IP, bypassing Cloudflare
+      # (no TLS, no Access, no logs) — which defeated the point of the tunnel.
+      - "127.0.0.1:80:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
