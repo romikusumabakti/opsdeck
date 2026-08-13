@@ -361,6 +361,11 @@ async function syncComments(
       .values({ issueId, authorId, body, createdAt, jiraCommentId: comment.id })
       .onConflictDoUpdate({
         target: issueComments.jiraCommentId,
+        // The unique index is partial, so Postgres only infers it as the
+        // arbiter when the conflict target repeats its predicate — without
+        // this the insert fails with 42P10 ("no unique or exclusion
+        // constraint matching the ON CONFLICT specification").
+        targetWhere: isNotNull(issueComments.jiraCommentId),
         set: { body, authorId },
       });
   }
