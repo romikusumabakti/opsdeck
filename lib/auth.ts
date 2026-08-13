@@ -15,24 +15,16 @@ import {
   verifications,
 } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
+import { MICROSOFT_AUTH_ENABLED } from "./env";
 import { ROLE_ADMIN, ROLE_VIEWER } from "./roles";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
-// Fail fast in production rather than letting better-auth fall back to an
-// ephemeral/insecure secret — that would silently invalidate every session on
-// restart and weaken token signing. Skip during `next build`: page-data
-// collection evaluates this module with NODE_ENV=production but no runtime env,
-// and the secret is only needed when actually serving requests.
-if (
-  process.env.NEXT_PHASE !== "phase-production-build" &&
-  process.env.NODE_ENV === "production" &&
-  !process.env.BETTER_AUTH_SECRET
-) {
-  throw new Error("BETTER_AUTH_SECRET must be set in production");
-}
-
 export { ALLOWED_EMAIL_DOMAIN, isAllowedEmail } from "./branding";
+// Re-exported so the sign-in page keeps importing it from here; the flag and
+// the "all three or none" rule that protects it now live in lib/env, which
+// checks them at boot alongside every other var (see validateEnv).
+export { MICROSOFT_AUTH_ENABLED } from "./env";
 export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
 
 const BASE_URL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -48,31 +40,6 @@ const { hostname: RP_ID, origin: RP_ORIGIN } = new URL(BASE_URL);
 const microsoftClientId = process.env.MICROSOFT_CLIENT_ID;
 const microsoftClientSecret = process.env.MICROSOFT_CLIENT_SECRET;
 const microsoftTenantId = process.env.MICROSOFT_TENANT_ID;
-
-/**
- * Whether "Sign in with Microsoft" is wired up. Read this on the server (e.g.
- * the sign-in page) and pass it down — the credentials are server-only, so
- * there is no `NEXT_PUBLIC_` flag to check on the client.
- */
-export const MICROSOFT_AUTH_ENABLED = Boolean(
-  microsoftClientId && microsoftClientSecret && microsoftTenantId
-);
-
-// A tenant id is mandatory, not optional. Without it better-auth defaults to
-// the "common" authority, which accepts ANY Microsoft account — and because we
-// treat Microsoft as a trusted provider for account linking, a stranger whose
-// personal Microsoft account happens to carry an invited user's email address
-// could then link to (and sign in as) that user. Pinning the tenant restricts
-// the flow to identities in our own directory.
-if (
-  process.env.NEXT_PHASE !== "phase-production-build" &&
-  (microsoftClientId || microsoftClientSecret) &&
-  !MICROSOFT_AUTH_ENABLED
-) {
-  throw new Error(
-    "Microsoft sign-in is partially configured: MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET and MICROSOFT_TENANT_ID must all be set"
-  );
-}
 
 export const auth = betterAuth({
   appName: APP_NAME,

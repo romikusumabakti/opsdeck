@@ -87,17 +87,29 @@ export default async function LocaleLayout({
   const rtl = isRtlLocale(locale as Parameters<typeof isRtlLocale>[0]);
 
   const session = await getServerSession();
-  const environments = session ? await listEnvironments() : [];
-  const projects = session ? await listProjects() : [];
+  // All four are independent reads for the shell (sidebar, breadcrumb, bell).
+  // Awaited together — serially they stacked four round-trips into the render
+  // of every page. The tuple is annotated so the signed-out branch's empty
+  // literals don't widen the destructured types.
+  const [environments, projects, notifications, unreadCount]: [
+    Awaited<ReturnType<typeof listEnvironments>>,
+    Awaited<ReturnType<typeof listProjects>>,
+    Awaited<ReturnType<typeof listNotifications>>,
+    number,
+  ] = session
+    ? await Promise.all([
+        listEnvironments(),
+        listProjects(),
+        listNotifications(),
+        getUnreadNotificationCount(),
+      ])
+    : [[], [], [], 0];
   const projectNameById: Record<string, string> = Object.fromEntries(
     projects.map((p) => [p.id, p.name])
   );
   const projectKeyById: Record<string, string> = Object.fromEntries(
     projects.map((p) => [p.id, p.key])
   );
-  const [notifications, unreadCount] = session
-    ? await Promise.all([listNotifications(), getUnreadNotificationCount()])
-    : [[], 0];
   const admin = session ? isAdmin(session) : false;
   const messages = await getMessages({ locale });
   const tHeader = await getTranslations({ locale, namespace: "header" });
