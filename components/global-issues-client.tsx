@@ -285,7 +285,11 @@ export function GlobalIssuesClient({
             <Link href={issueHref(row.original)} className="hover:underline">
               {row.original.title}
             </Link>
-            <LabelChips labels={row.original.labels} />
+            <LabelChips
+              labels={row.original.labels}
+              max={2}
+              className="inline-flex shrink-0 items-center gap-1"
+            />
           </span>
         ),
         enableHiding: false,
@@ -506,7 +510,7 @@ export function GlobalIssuesClient({
               <Link href={issueHref(issue)} className="font-medium">
                 {issue.title}
               </Link>
-              <LabelChips labels={issue.labels} />
+              <LabelChips labels={issue.labels} max={3} />
               <div className="flex flex-wrap items-center gap-2">
                 <StatusSelect
                   value={issue.status}

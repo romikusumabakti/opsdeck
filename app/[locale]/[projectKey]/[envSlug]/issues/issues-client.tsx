@@ -490,9 +490,13 @@ export function IssuesClient({
                         >
                           {issue.title}
                         </Link>
-                        <LabelChips labels={issue.labels} />
+                        <LabelChips
+                          labels={issue.labels}
+                          max={2}
+                          className="inline-flex shrink-0 items-center gap-1"
+                        />
                         {issue.milestoneId ? (
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                             {milestonesById[issue.milestoneId]}
                           </span>
                         ) : null}
