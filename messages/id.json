@@ -121,7 +121,9 @@
     "home": "Beranda",
     "activity": "Aktivitas",
     "jira": "Jira",
-    "admin": "Admin"
+    "admin": "Admin",
+    "badgeAssignedIssues": "{count, plural, other {# isu ditugaskan ke Anda}}",
+    "badgeActiveRuns": "{count, plural, other {# tugas sedang berjalan}}"
   },
   "header": {
     "searchEnvironment": "Cari environment…",

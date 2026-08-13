@@ -121,7 +121,9 @@
     "home": "الرئيسية",
     "activity": "النشاط",
     "jira": "Jira",
-    "admin": "المشرف"
+    "admin": "المشرف",
+    "badgeAssignedIssues": "{count, plural, zero {لا مشكلات مسندة إليك} one {مشكلة واحدة مسندة إليك} two {مشكلتان مسندتان إليك} few {# مشكلات مسندة إليك} many {# مشكلة مسندة إليك} other {# مشكلة مسندة إليك}}",
+    "badgeActiveRuns": "{count, plural, zero {لا مهام قيد التشغيل} one {مهمة واحدة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمة قيد التشغيل} other {# مهمة قيد التشغيل}}"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
