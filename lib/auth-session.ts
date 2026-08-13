@@ -7,10 +7,8 @@ import { db } from "./db";
 import { environments, projectMembers } from "./db/schema";
 import {
   type Capability,
-  higherRole,
-  normalizeRole,
+  effectiveRole,
   ROLE_ADMIN,
-  ROLE_MEMBER,
   roleHasCapability,
   type UserRole,
 } from "./roles";
@@ -90,30 +88,29 @@ const membershipRoleOf = cache(async (projectId: string, userId: string) => {
   return membership?.role;
 });
 
-// Effective role = the higher of the user's global role and their membership
-// role on the scoped project. Unknown/legacy strings floor to viewer via
-// normalizeRole, so a bad value can never grant more than the global role does.
-// The combining rule itself lives in lib/roles (higherRole) so it can be tested
-// without a database; everything here is the lookup around it.
+// Resolve the scope to a project, look the membership up, and hand both roles
+// to lib/roles#effectiveRole — which owns the combining rule (including the
+// legacy no-role default) and is unit-tested without a database. Everything
+// here is the lookup around it.
+//
+// An unresolvable scope — an environment id that matches no row — falls through
+// to the global role rather than erroring: the caller is about to 404 on the
+// same id anyway, and failing here would turn a missing page into a redirect
+// home.
 async function resolveEffectiveRole(
   session: SessionUser,
   scope?: CapabilityScope
 ): Promise<UserRole> {
-  // A user row with no role predates the admin plugin's defaultRole, so treat
-  // it as `member` — not viewer — to match how those accounts already behave.
-  const globalRole = normalizeRole(session.user.role ?? ROLE_MEMBER);
-  if (!scope) return globalRole;
+  if (!scope) return effectiveRole(session.user.role, null);
 
   let projectId = scope.projectId;
   if (!projectId && scope.environmentId) {
     projectId = await projectIdOfEnvironment(scope.environmentId);
   }
-  if (!projectId) return globalRole;
+  if (!projectId) return effectiveRole(session.user.role, null);
 
   const membershipRole = await membershipRoleOf(projectId, session.user.id);
-  if (!membershipRole) return globalRole;
-
-  return higherRole(membershipRole, globalRole);
+  return effectiveRole(session.user.role, membershipRole);
 }
 
 /**

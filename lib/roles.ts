@@ -77,6 +77,36 @@ export function higherRole(
   return ROLE_RANK[left] >= ROLE_RANK[right] ? left : right;
 }
 
+/**
+ * The role that actually applies to a user on one project: their global role,
+ * raised (never lowered) by any membership role they hold there.
+ *
+ * The two arguments come straight from the database — `users.role` and
+ * `projectMembers.role` — so both are arbitrary strings as far as this function
+ * is concerned. Lives here rather than in lib/auth-session so the whole rule is
+ * testable without a database; auth-session keeps only the two lookups.
+ *
+ * `globalRole` distinguishes ABSENT from UNKNOWN, and they mean different
+ * things:
+ *   - null/undefined — a user row written before the admin plugin's
+ *     `defaultRole` existed. Those accounts have always behaved as members, so
+ *     they stay members; flooring them to viewer would silently revoke edit
+ *     rights from every pre-existing user.
+ *   - any other unrecognised string — a stale, hand-edited or forged value.
+ *     Floors to viewer, per normalizeRole's safe-deny rule.
+ *
+ * A missing membership is just "no membership": pass null and the global role
+ * stands.
+ */
+export function effectiveRole(
+  globalRole: string | null | undefined,
+  membershipRole: string | null | undefined
+): UserRole {
+  const global = normalizeRole(globalRole ?? ROLE_MEMBER);
+  if (!membershipRole) return global;
+  return higherRole(membershipRole, global);
+}
+
 // The actions a role may perform. Deliberately coarse — a static map, not a
 // per-permission matrix builder (see docs/rework-plan.md anti-overengineering).
 //   read             — view issues, knowledge, dashboards
