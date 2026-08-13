@@ -359,11 +359,10 @@ export function KnowledgeTree({
       .filter((c) => c.id !== dragId)
       .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0));
     const idx = sibs.findIndex((c) => c.id === targetId);
-    if (idx < 0) return;
-    const prev =
-      edge === "before" ? (sibs[idx - 1]?.rank ?? null) : sibs[idx].rank;
-    const next =
-      edge === "before" ? sibs[idx].rank : (sibs[idx + 1]?.rank ?? null);
+    const at = sibs[idx];
+    if (idx < 0 || !at) return;
+    const prev = edge === "before" ? (sibs[idx - 1]?.rank ?? null) : at.rank;
+    const next = edge === "before" ? at.rank : (sibs[idx + 1]?.rank ?? null);
     let rank: string;
     try {
       rank = generateKeyBetween(prev, next);

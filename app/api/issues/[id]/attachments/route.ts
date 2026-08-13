@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import { issueAttachments } from "@/lib/db/schema";
 import { putObject } from "@/lib/storage";
 import { ISSUE_ATTACHMENT_MAX_BYTES, issueIdSchema } from "@/lib/validation";
@@ -63,17 +64,20 @@ export async function POST(
     return NextResponse.json({ error: "storage" }, { status: 502 });
   }
 
-  const [row] = await db
-    .insert(issueAttachments)
-    .values({
-      issueId: id,
-      storageKey,
-      filename,
-      mime,
-      sizeBytes: bytes.byteLength,
-      uploadedById: session.user.id,
-    })
-    .returning({ id: issueAttachments.id });
+  const row = one(
+    await db
+      .insert(issueAttachments)
+      .values({
+        issueId: id,
+        storageKey,
+        filename,
+        mime,
+        sizeBytes: bytes.byteLength,
+        uploadedById: session.user.id,
+      })
+      .returning({ id: issueAttachments.id }),
+    "issue attachment"
+  );
 
   return NextResponse.json({
     id: row.id,

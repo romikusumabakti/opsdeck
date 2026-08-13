@@ -44,7 +44,7 @@ export function TimeInput({
       onChange={(e) => {
         const v = e.target.value;
         if (!v) return;
-        const [h, m] = v.split(":").map(Number);
+        const [h = Number.NaN, m = Number.NaN] = v.split(":").map(Number);
         if (Number.isFinite(h) && Number.isFinite(m)) onChange(h, m);
       }}
     />

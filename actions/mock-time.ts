@@ -72,9 +72,11 @@ function describeFetchError(err: unknown): string {
       ).errors;
       if (Array.isArray(errors) && errors.length > 0) {
         const first = errors[0];
-        return first.code
-          ? `${first.code}: ${first.message ?? ""}`
-          : (first.message ?? err.message);
+        if (first) {
+          return first.code
+            ? `${first.code}: ${first.message ?? ""}`
+            : (first.message ?? err.message);
+        }
       }
       const code = (cause as { code?: string }).code;
       if (code) return code;

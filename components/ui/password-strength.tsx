@@ -39,7 +39,10 @@ export function PasswordStrength({
   const score = scorePassword(value);
   // Map 0–4 score to a 1–4 level index so any non-empty value shows progress.
   const levelIndex = Math.max(0, Math.min(score, 4) - 1);
-  const level = LEVELS[levelIndex];
+  // levelIndex is clamped to 0–3 and LEVELS has exactly four entries, so the
+  // fallback is unreachable; it keeps the clamp and the table from having to
+  // agree by assertion.
+  const level = LEVELS[levelIndex] ?? LEVELS[0];
   const filled = levelIndex + 1;
 
   return (

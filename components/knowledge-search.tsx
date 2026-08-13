@@ -37,7 +37,7 @@ function HighlightedSnippet({ snippet }: { snippet: string }) {
     if (i === 0) return [{ text: chunk, hl: false }];
     const [hit, ...rest] = chunk.split(HL_STOP);
     return [
-      { text: hit, hl: true },
+      { text: hit ?? "", hl: true },
       { text: rest.join(HL_STOP), hl: false },
     ];
   });

@@ -245,7 +245,8 @@ export function HeaderBreadcrumb({
       }
     }
   } else if (projectSub) {
-    const [, key, section] = projectSub;
+    const [, matchedKey, section] = projectSub;
+    const key = matchedKey ?? "";
     trailing = [
       { kind: "static", href: `/${key}`, label: projectNameByKey[key] ?? key },
       {

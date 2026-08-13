@@ -2,9 +2,18 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // Imports must say `import type` when they mean a type. The Biome rule
+    // useImportType already asks for this; this makes the compiler enforce it,
+    // so an accidental value import can't drag a server-only module (and its
+    // postgres driver) into a client bundle.
+    "verbatimModuleSyntax": true,
+    // `arr[i]` and `record[key]` are typed `T | undefined`. Costs a check at
+    // every genuinely-unbounded lookup (parsing remote Jira payloads, indexing
+    // by user input) and is why lib/db/one.ts exists for the cases where a row
+    // really is guaranteed.
+    "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -20,7 +29,11 @@
     ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    // Owned by Next, not by us: `next build` rewrites this key back in on every
+    // run, so removing it is churn even though postcss.config.mjs is the only
+    // non-TS file and `include` doesn't match it.
+    "allowJs": true
   },
   "include": [
     "next-env.d.ts",

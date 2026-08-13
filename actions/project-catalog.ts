@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   type Environment,
   type EnvironmentSummary,
@@ -136,7 +137,10 @@ export async function addProject(
     return { success: false, message: "Invalid project data" };
   }
   try {
-    const [created] = await db.insert(projects).values(parsed.data).returning();
+    const created = one(
+      await db.insert(projects).values(parsed.data).returning(),
+      "project"
+    );
     revalidatePath("/projects");
     revalidatePath("/", "layout");
     return { success: true, data: created };

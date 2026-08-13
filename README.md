@@ -9,8 +9,8 @@ all over SSH against your own infrastructure.
 ## Features
 
 - **Servers** — register hosts and run operations over SSH (`node-ssh`).
-- **Projects & tasks** — group infrastructure work; long-running operations are
-  tracked as tasks with live status and streamed logs.
+- **Projects & runs** — group infrastructure work; long-running operations are
+  tracked as runs with live status and streamed logs.
 - **Databases** — create, rename, and drop databases on PostgreSQL and SQL
   Server, plus backup and restore (including cross-database file relocation).
 - **Services** — control `docker`, `systemd`, and `kubernetes` services.
@@ -32,7 +32,7 @@ all over SSH against your own infrastructure.
 | Layer        | Choice                                              |
 | ------------ | --------------------------------------------------- |
 | Framework    | Next.js 16 (App Router) · React 19                  |
-| Language     | TypeScript 6 · Node 24                              |
+| Language     | TypeScript 7 · Bun runtime (Node 24 for builds only) |
 | Database     | PostgreSQL 18 · Drizzle ORM (UUIDv7 keys)           |
 | Auth         | better-auth                                         |
 | Jobs / queue | BullMQ · Valkey/Redis                               |
@@ -170,7 +170,7 @@ share the same values.
 ## Project layout
 
 ```
-actions/      Server actions (servers, databases, backups, services, tasks, knowledge, …)
+actions/      Server actions (servers, databases, backups, services, runs, knowledge, …)
 app/          Next.js App Router — [locale] pages + /api routes
 components/    UI components (shadcn / Base UI-based)
 lib/          Core libs — db, auth, ssh, email, branding, validation, queue + jobs/

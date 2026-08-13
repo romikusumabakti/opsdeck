@@ -237,14 +237,14 @@ describe("markdownToAdf", () => {
   });
 
   it("parses bullet and ordered lists into their ADF shapes", () => {
-    expect(markdownToAdf("- a\n- b").content?.[0].type).toBe("bulletList");
-    expect(markdownToAdf("1. a\n2. b").content?.[0].type).toBe("orderedList");
-    expect(markdownToAdf("- a\n- b").content?.[0].content).toHaveLength(2);
+    expect(markdownToAdf("- a\n- b").content?.[0]?.type).toBe("bulletList");
+    expect(markdownToAdf("1. a\n2. b").content?.[0]?.type).toBe("orderedList");
+    expect(markdownToAdf("- a\n- b").content?.[0]?.content).toHaveLength(2);
   });
 
   it("parses inline marks, longest delimiter first", () => {
     const result = markdownToAdf("**bold** and *it* and `code`");
-    expect(result.content?.[0].content).toEqual([
+    expect(result.content?.[0]?.content).toEqual([
       { type: "text", text: "bold", marks: [{ type: "strong" }] },
       { type: "text", text: " and " },
       { type: "text", text: "it", marks: [{ type: "em" }] },
@@ -255,7 +255,7 @@ describe("markdownToAdf", () => {
 
   it("parses a link into a text node with a link mark", () => {
     const result = markdownToAdf("see [docs](https://x.test/a)");
-    expect(result.content?.[0].content?.[1]).toEqual({
+    expect(result.content?.[0]?.content?.[1]).toEqual({
       type: "text",
       text: "docs",
       marks: [{ type: "link", attrs: { href: "https://x.test/a" } }],
@@ -264,13 +264,13 @@ describe("markdownToAdf", () => {
 
   it("parses a horizontal rule and a blockquote", () => {
     expect(markdownToAdf("---").content?.[0]).toEqual({ type: "rule" });
-    expect(markdownToAdf("> quoted").content?.[0].type).toBe("blockquote");
+    expect(markdownToAdf("> quoted").content?.[0]?.type).toBe("blockquote");
   });
 
   it("leaves unrecognized syntax as paragraph text rather than dropping it", () => {
     const result = markdownToAdf("| a | b |");
-    expect(result.content?.[0].type).toBe("paragraph");
-    expect(result.content?.[0].content?.[0].text).toBe("| a | b |");
+    expect(result.content?.[0]?.type).toBe("paragraph");
+    expect(result.content?.[0]?.content?.[0]?.text).toBe("| a | b |");
   });
 });
 

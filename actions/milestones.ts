@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import { issues, type Milestone, milestones } from "@/lib/db/schema";
 import type { ActionResponse } from "@/lib/types";
 import { milestoneInputSchema } from "@/lib/validation";
@@ -57,15 +58,18 @@ export async function createMilestone(
   }
   const input = parsed.data;
   try {
-    const [row] = await db
-      .insert(milestones)
-      .values({
-        projectId: input.projectId,
-        name: input.name,
-        description: input.description || null,
-        dueAt: input.dueAt ?? null,
-      })
-      .returning();
+    const row = one(
+      await db
+        .insert(milestones)
+        .values({
+          projectId: input.projectId,
+          name: input.name,
+          description: input.description || null,
+          dueAt: input.dueAt ?? null,
+        })
+        .returning(),
+      "milestone"
+    );
     await recordActivity({
       actorId: session.user.id,
       action: "milestone.created",
@@ -93,11 +97,14 @@ export async function updateMilestone(
   // projectId is immutable — a milestone can't move between projects.
   const { projectId: _ignored, ...fields } = parsed.data;
   try {
-    const [row] = await db
-      .update(milestones)
-      .set(fields)
-      .where(eq(milestones.id, id))
-      .returning();
+    const row = one(
+      await db
+        .update(milestones)
+        .set(fields)
+        .where(eq(milestones.id, id))
+        .returning(),
+      "milestone"
+    );
     if (!row) return { success: false, message: "Milestone not found" };
     revalidatePath("/", "layout");
     return { success: true, data: row };
@@ -114,11 +121,14 @@ export async function setMilestoneClosed(
 ): Promise<ActionResponse<Milestone>> {
   await requireSession();
   try {
-    const [row] = await db
-      .update(milestones)
-      .set({ closedAt: closed ? new Date() : null })
-      .where(eq(milestones.id, id))
-      .returning();
+    const row = one(
+      await db
+        .update(milestones)
+        .set({ closedAt: closed ? new Date() : null })
+        .where(eq(milestones.id, id))
+        .returning(),
+      "milestone"
+    );
     if (!row) return { success: false, message: "Milestone not found" };
     revalidatePath("/", "layout");
     return { success: true, data: row };

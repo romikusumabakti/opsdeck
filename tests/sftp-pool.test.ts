@@ -13,6 +13,18 @@ import { EventEmitter } from "node:events";
 // Each FakeSSH instance records one dial; the tests assert on how many were made.
 const dials: FakeSSH[] = [];
 
+// The tests read AND mutate the dial log (kill(), connected = false), so
+// optional chaining isn't available. Every call site has just exercised the
+// path that records the dial, so a missing entry is a broken test, not a
+// condition to tolerate — fail loudly rather than assert against undefined.
+function dial(index: number): FakeSSH {
+  const entry = dials[index];
+  if (!entry) {
+    throw new Error(`expected a dial at index ${index}, got ${dials.length}`);
+  }
+  return entry;
+}
+
 class FakeSSH {
   connection = new EventEmitter();
   connected = true;
@@ -123,23 +135,23 @@ describe("sftp connection pool", () => {
 
     // A leaked lease would pin the connection open forever.
     vi.advanceTimersByTime(60_000);
-    expect(dials[0].disposed).toBe(true);
+    expect(dial(0).disposed).toBe(true);
   });
 
   it("re-dials after the pooled connection dies", async () => {
     await withPooledSftp(creds, async () => null);
-    dials[0].kill();
+    dial(0).kill();
 
     await withPooledSftp(creds, async () => null);
 
     expect(dials).toHaveLength(2);
-    expect(dials[1].disposed).toBe(false);
+    expect(dial(1).disposed).toBe(false);
   });
 
   it("re-dials when the connection died without emitting close", async () => {
     await withPooledSftp(creds, async () => null);
     // Half-open socket: still cached, but isConnected() is already false.
-    dials[0].connected = false;
+    dial(0).connected = false;
 
     await withPooledSftp(creds, async () => null);
 
@@ -149,10 +161,10 @@ describe("sftp connection pool", () => {
   it("closes an idle connection after the TTL and dials again on next use", async () => {
     vi.useFakeTimers();
     await withPooledSftp(creds, async () => null);
-    expect(dials[0].disposed).toBe(false);
+    expect(dial(0).disposed).toBe(false);
 
     vi.advanceTimersByTime(60_000);
-    expect(dials[0].disposed).toBe(true);
+    expect(dial(0).disposed).toBe(true);
 
     vi.useRealTimers();
     await withPooledSftp(creds, async () => null);
@@ -164,11 +176,11 @@ describe("sftp connection pool", () => {
     const lease = await leaseSftp(creds);
 
     vi.advanceTimersByTime(120_000);
-    expect(dials[0].disposed).toBe(false);
+    expect(dial(0).disposed).toBe(false);
 
     lease.release();
     vi.advanceTimersByTime(60_000);
-    expect(dials[0].disposed).toBe(true);
+    expect(dial(0).disposed).toBe(true);
   });
 
   it("treats release as idempotent", async () => {
@@ -182,11 +194,11 @@ describe("sftp connection pool", () => {
     held.release();
 
     vi.advanceTimersByTime(60_000);
-    expect(dials[0].disposed).toBe(false);
+    expect(dial(0).disposed).toBe(false);
 
     other.release();
     vi.advanceTimersByTime(60_000);
-    expect(dials[0].disposed).toBe(true);
+    expect(dial(0).disposed).toBe(true);
   });
 
   it("does not cache a failed dial", async () => {
@@ -204,7 +216,7 @@ describe("sftp connection pool", () => {
   it("bounds the handshake and enables keepalive", async () => {
     await withPooledSftp(creds, async () => null);
 
-    expect(dials[0].connectOptions).toMatchObject({
+    expect(dial(0).connectOptions).toMatchObject({
       readyTimeout: 5000,
       keepaliveInterval: 15_000,
     });
