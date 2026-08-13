@@ -15,10 +15,8 @@ import {
   deleteDocument,
   updateDocument,
 } from "@/actions/knowledge";
-import {
-  KnowledgeEditor,
-  type LinkableDoc,
-} from "@/components/knowledge-editor";
+import type { LinkableDoc } from "@/components/knowledge-editor";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -313,57 +311,11 @@ export function DocumentForm({
 
           <div className="flex flex-col gap-1.5">
             <Label>{t("content")}</Label>
-            <KnowledgeEditor
+            <MarkdownEditor
               value={content}
               onChange={setContent}
               placeholder={t("contentPlaceholder")}
               linkableDocs={linkableDocs}
-              linkLabels={{
-                title: t("linkDocument"),
-                search: t("searchPlaceholder"),
-                empty: t("searchNoResults"),
-              }}
-              linkInputLabels={{
-                label: t("linkUrl"),
-                placeholder: t("linkUrlPlaceholder"),
-                apply: t("linkApply"),
-                remove: t("linkRemove"),
-              }}
-              uploadLabels={{
-                button: t("insertImage"),
-                uploading: t("imageUploading"),
-                tooLarge: t("imageTooLarge"),
-                failed: t("imageUploadFailed"),
-              }}
-              tableLabels={{
-                addRow: t("tableAddRow"),
-                deleteRow: t("tableDeleteRow"),
-                addColumn: t("tableAddColumn"),
-                deleteColumn: t("tableDeleteColumn"),
-                deleteTable: t("tableDelete"),
-              }}
-              imageAltLabels={{
-                edit: t("imageAltEdit"),
-                placeholder: t("imageAltPlaceholder"),
-                apply: t("linkApply"),
-              }}
-              toolbarLabels={{
-                toolbar: t("editorToolbar"),
-                undo: t("editorUndo"),
-                redo: t("editorRedo"),
-                bold: t("editorBold"),
-                italic: t("editorItalic"),
-                strikethrough: t("editorStrikethrough"),
-                heading2: t("editorHeading2"),
-                heading3: t("editorHeading3"),
-                bulletList: t("editorBulletList"),
-                orderedList: t("editorOrderedList"),
-                taskList: t("editorTaskList"),
-                code: t("editorInlineCode"),
-                codeBlock: t("editorCodeBlock"),
-                quote: t("editorQuote"),
-                insertTable: t("editorInsertTable"),
-              }}
             />
           </div>
         </div>

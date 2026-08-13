@@ -169,6 +169,7 @@ export function KnowledgeEditor({
   tableLabels,
   imageAltLabels,
   toolbarLabels,
+  contentClassName,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
@@ -180,6 +181,9 @@ export function KnowledgeEditor({
   toolbarLabels?: ToolbarLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
+  // Extra classes on the editing surface — merged last, so a min-h/height
+  // utility here overrides the default (twMerge dedupes conflicting classes).
+  contentClassName?: string;
 }) {
   // Paste/drop handlers live inside the editor config (set once on mount) but
   // need the latest upload closure — route through a ref reassigned each render.
@@ -270,7 +274,8 @@ export function KnowledgeEditor({
           "[&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-1",
           "[&_ul[data-type=taskList]_li]:flex [&_ul[data-type=taskList]_li]:items-start [&_ul[data-type=taskList]_li]:gap-2",
           "[&_ul[data-type=taskList]_li_>_label]:mt-0.5 [&_ul[data-type=taskList]_li_>_div_>_p]:my-0",
-          "[&_ul[data-type=taskList]_input]:accent-primary"
+          "[&_ul[data-type=taskList]_input]:accent-primary",
+          contentClassName
         ),
       },
       // Upload images pasted from the clipboard or dropped into the editor.

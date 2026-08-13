@@ -33,6 +33,7 @@ import {
   TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips, LabelPicker } from "@/components/label-ui";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { formatBytes } from "@/lib/utils";
@@ -459,11 +459,13 @@ export function IssueDetailClient({
       {/* Description */}
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium">{t("description")}</span>
-        <Textarea
+        {/* Same markdown editor as the knowledge document form. The shorter
+            min-height keeps the description from dominating the issue page. */}
+        <MarkdownEditor
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           placeholder={t("descriptionPlaceholder")}
-          rows={5}
+          contentClassName="min-h-[12rem]"
         />
         {description !== issue.description ? (
           <div className="flex gap-2">
