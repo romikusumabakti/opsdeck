@@ -41,8 +41,12 @@ all over SSH against your own infrastructure.
 
 ## Getting started
 
-Requirements: **Bun ≥ 1.3**, and a **PostgreSQL** instance. Bun is both the
-package manager and the runtime — there is no Node.js dependency.
+Requirements: **Bun ≥ 1.3**, **Node.js ≥ 20** on `PATH`, and a **PostgreSQL**
+instance. Bun is the package manager, the test runner, and the server runtime.
+Node is never used to run the app — it is only needed for `next build`, because
+Turbopack's plugin runtime evaluates PostCSS/loaders in child `node` processes.
+Point those at Bun (as the `oven/bun` images do, where `node` is a symlink to
+`bun`) and the build segfaults on teardown after producing correct output.
 
 ```bash
 bun install

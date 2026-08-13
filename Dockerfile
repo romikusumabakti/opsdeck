@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.3.14-slim AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -9,8 +9,23 @@ COPY package.json bun.lock ./
 # so an image can never be built from an out-of-date dependency graph.
 RUN bun install --frozen-lockfile
 
-# Rebuild the source code only when needed
-FROM base AS builder
+# Rebuild the source code only when needed.
+#
+# This stage needs a REAL `node` on PATH. Next 16 builds with Turbopack, whose
+# default plugin runtime (experimental.turbopackPluginRuntimeStrategy:
+# "childProcesses") evaluates PostCSS/loaders in a pool of child `node`
+# processes. The oven/bun images do put a `node` on PATH — but it's
+# /usr/local/bun-node-fallback-bin/node, a symlink to bun — so the pool spawns
+# Bun, and tearing it down segfaults the build (SIGSEGV, exit 139) *after* it
+# has already written complete, correct output. Same crash on alpine and slim,
+# baseline and AVX2 builds, any worker count. A real node fixes it.
+#
+# So: node image as the base with Bun copied in, and `bun run build` as before.
+# Node exists only in this throwaway stage — the runtime image below is Bun-only.
+# `base` must stay Debian (not alpine) for this COPY: a musl-linked bun binary
+# would not run here. Matching trixie keeps them on the same glibc.
+FROM node:24-trixie-slim AS builder
+COPY --from=base /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -30,8 +45,9 @@ ENV NODE_ENV=production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Debian's useradd/groupadd — oven/bun:slim has no busybox addgroup/adduser.
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 --gid nodejs nextjs
 
 COPY --from=builder /app/public ./public
 
