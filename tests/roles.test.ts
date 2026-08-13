@@ -3,6 +3,7 @@ import {
   ASSIGNABLE_ROLES,
   CAPABILITIES,
   type Capability,
+  effectiveRole,
   higherRole,
   isAssignableRole,
   normalizeRole,
@@ -137,6 +138,100 @@ describe("higherRole", () => {
   it("only ever raises, never lowers", () => {
     expect(higherRole(ROLE_MAINTAINER, ROLE_VIEWER)).toBe(ROLE_MAINTAINER);
     expect(higherRole(ROLE_VIEWER, ROLE_ADMIN)).toBe(ROLE_ADMIN);
+  });
+});
+
+// The rule lib/auth-session applies once it has both roles out of the database.
+// The lookups around it (environment → project, then the membership row) are
+// not covered here — they are two indexed reads with no branching worth mocking
+// drizzle for. What IS covered is every way the two role values combine.
+describe("effectiveRole", () => {
+  it("returns the global role when there is no membership", () => {
+    for (const role of ASSIGNABLE_ROLES) {
+      expect(effectiveRole(role, null)).toBe(role);
+      expect(effectiveRole(role, undefined)).toBe(role);
+      expect(effectiveRole(role, "")).toBe(role);
+    }
+  });
+
+  it("raises the global role to a higher membership role", () => {
+    expect(effectiveRole(ROLE_VIEWER, ROLE_MAINTAINER)).toBe(ROLE_MAINTAINER);
+    expect(effectiveRole(ROLE_MEMBER, ROLE_ADMIN)).toBe(ROLE_ADMIN);
+  });
+
+  it("never lets a lower membership role cut the global role", () => {
+    // An admin added to a project as a viewer is still an admin there.
+    expect(effectiveRole(ROLE_ADMIN, ROLE_VIEWER)).toBe(ROLE_ADMIN);
+    expect(effectiveRole(ROLE_MAINTAINER, ROLE_MEMBER)).toBe(ROLE_MAINTAINER);
+  });
+
+  it("resolves every global × membership pair to the higher rank", () => {
+    for (const global of ASSIGNABLE_ROLES) {
+      for (const membership of ASSIGNABLE_ROLES) {
+        const expected =
+          ROLE_RANK[global] >= ROLE_RANK[membership] ? global : membership;
+        expect(effectiveRole(global, membership)).toBe(expected);
+      }
+    }
+  });
+
+  // ABSENT and UNKNOWN are deliberately different. A user row predating the
+  // admin plugin's defaultRole has no role at all and has always behaved as a
+  // member; flooring those to viewer would silently revoke edit rights from
+  // every pre-existing account. Any other unrecognised string is a stale or
+  // forged value and must fail closed.
+  describe("the legacy no-role default", () => {
+    it("treats an absent global role as member, not viewer", () => {
+      expect(effectiveRole(null, null)).toBe(ROLE_MEMBER);
+      expect(effectiveRole(undefined, null)).toBe(ROLE_MEMBER);
+    });
+
+    it("lets a legacy user keep issue and KB edit rights", () => {
+      const role = effectiveRole(null, null);
+      expect(roleHasCapability(role, "issue.edit")).toBe(true);
+      expect(roleHasCapability(role, "kb.edit")).toBe(true);
+    });
+
+    it("still denies a legacy user ops and admin", () => {
+      const role = effectiveRole(null, null);
+      expect(roleHasCapability(role, "ops.destructive")).toBe(false);
+      expect(roleHasCapability(role, "admin")).toBe(false);
+    });
+
+    it("floors an unrecognised global role to viewer, not member", () => {
+      for (const junk of JUNK_ROLES.filter(
+        (r) => r !== null && r !== undefined
+      )) {
+        expect(effectiveRole(junk, null)).toBe(ROLE_VIEWER);
+      }
+    });
+
+    it("does not apply the default when a membership already raises the user", () => {
+      expect(effectiveRole(null, ROLE_ADMIN)).toBe(ROLE_ADMIN);
+      // …and never lets the default lower a membership either.
+      expect(effectiveRole(null, ROLE_VIEWER)).toBe(ROLE_MEMBER);
+    });
+  });
+
+  it.each(JUNK_ROLES)(
+    "never lets a junk membership role (%p) raise a real global role",
+    (junk) => {
+      for (const global of ASSIGNABLE_ROLES) {
+        expect(effectiveRole(global, junk)).toBe(global);
+      }
+    }
+  );
+
+  it("never grants admin unless one of the two roles is admin", () => {
+    const inputs = [...ASSIGNABLE_ROLES, ...JUNK_ROLES];
+    for (const global of inputs) {
+      for (const membership of inputs) {
+        const isAdmin = effectiveRole(global, membership) === ROLE_ADMIN;
+        expect(isAdmin).toBe(
+          global === ROLE_ADMIN || membership === ROLE_ADMIN
+        );
+      }
+    }
   });
 });
 

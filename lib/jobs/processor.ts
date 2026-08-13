@@ -7,6 +7,29 @@ import { dbLocationMatches } from "@/lib/db-location";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { pushComment, pushIssue } from "@/lib/jira/push";
 import { pullProject, syncIssueById } from "@/lib/jira/sync";
+import type { MssqlBackupFile } from "@/lib/jobs/commands";
+import {
+  buildExtractCommand,
+  buildMssqlMoveClauses,
+  buildPlaceCommand,
+  buildRemovePlacedCommand,
+  dbOsUser,
+  MSSQL_FILE_LIST_FLAGS,
+  mssqlBackupQuery,
+  mssqlCreateDatabaseQuery,
+  mssqlDropDatabaseQuery,
+  mssqlFileListQuery,
+  mssqlRenameDatabaseQuery,
+  mssqlRestoreQuery,
+  parseMssqlFileList,
+  pgBackupPipeline,
+  pgCreateDatabaseQuery,
+  pgDropDatabaseQuery,
+  pgPsqlPipeline,
+  pgRecreateDatabaseQuery,
+  pgRenameDatabaseQuery,
+  pgRestorePipeline,
+} from "@/lib/jobs/commands";
 import { parseJobPayload } from "@/lib/jobs/payloads";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
@@ -42,30 +65,6 @@ async function tracked<T>(
     await appendRunOutput(runId, `✗ ${label} — ${message}`);
     throw err;
   }
-}
-
-// Escape a value used inside a T-SQL single-quoted string literal (e.g. file
-// paths in `N'...'`). SQL standard: a single quote is doubled.
-function sqlQuoteString(value: string): string {
-  return value.replace(/'/g, "''");
-}
-
-// Escape a SQL Server identifier wrapped in [brackets]. A literal `]` must be
-// doubled to `]]`.
-function sqlBracketId(value: string): string {
-  return value.replace(/]/g, "]]");
-}
-
-// Escape a Postgres identifier wrapped in "double quotes". A literal `"` must
-// be doubled to `""`.
-function pgQuoteId(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-// Escape a value used inside a Postgres 'single-quoted' string literal (e.g. a
-// datname compared in WHERE). A single quote is doubled.
-function pgQuoteLiteral(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
 }
 
 async function handleCreateDatabaseBackup(
@@ -149,15 +148,7 @@ async function runPostgresBackup(
   const db = dbConfig(environment);
   const fname = compress ? `${database}_${ts}.sql.gz` : `${database}_${ts}.sql`;
   const target = `${db.dbBackupPath}/${fname}`;
-  // `--clean --if-exists` emits idempotent DROP IF EXISTS for every object
-  // before the CREATE statements, so the dump can be restored into a database
-  // that already has the schema (otherwise CREATE TABLE errors out on
-  // re-restore). When piping through gzip, `set -o pipefail` so pg_dump
-  // failures bubble up instead of getting masked by gzip's exit 0.
-  const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(database)}`;
-  const inner = compress
-    ? `set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`
-    : `${dumpCmd} > ${shq(target)}`;
+  const inner = pgBackupPipeline(database, target, compress);
   // `runAsUser: "postgres"` satisfies systemd-postgres peer auth (and is a
   // no-op for docker/kubernetes, which already enter the container as the
   // appropriate user).
@@ -184,15 +175,7 @@ async function runMssqlBackup(
   }
   const fname = `${database}_${ts}.bak`;
   const target = `${db.dbBackupPath}/${fname}`;
-  // MSSQL .bak format is the same regardless of compression — the COMPRESSION
-  // option just toggles internal block-level compression. NO_COMPRESSION is
-  // the explicit opt-out (also the engine default when omitted, but explicit
-  // is clearer in the audit log).
-  const compressionClause = compress ? "COMPRESSION" : "NO_COMPRESSION";
-  const query =
-    `BACKUP DATABASE [${sqlBracketId(database)}] ` +
-    `TO DISK = N'${sqlQuoteString(target)}' ` +
-    `WITH FORMAT, INIT, ${compressionClause}, STATS = 5`;
+  const query = mssqlBackupQuery(database, target, compress);
   // Pipe the SQL into sqlcmd via stdin so the query (which contains quotes and
   // brackets) doesn't have to survive shell parsing. `-C` trusts the server
   // cert (required by mssql-tools18 against the default self-signed cert).
@@ -393,10 +376,6 @@ function credsOf(server: {
   };
 }
 
-function dbOsUser(dbType: "postgres" | "mssql"): string {
-  return dbType === "postgres" ? "postgres" : "mssql";
-}
-
 // Best-effort side effect (temp cleanup) — logs and swallows so a failed
 // cleanup never masks the real restore outcome.
 async function ignoreErrors(fn: () => Promise<unknown>): Promise<void> {
@@ -405,79 +384,6 @@ async function ignoreErrors(fn: () => Promise<unknown>): Promise<void> {
   } catch (err) {
     console.error("Restore transfer cleanup failed:", err);
   }
-}
-
-// Command (run on the SOURCE host as the SSH user) that writes the backup file
-// to `hostTmp`, an SSH-owned path. The db-shell wrapper `cat`s the file from
-// inside the container / as the DB OS user; the `> hostTmp` redirect runs in
-// the outer SSH-user shell so the temp ends up SSH-readable for SFTP.
-function buildExtractCommand(
-  environment: EnvironmentWithServers,
-  filePath: string,
-  hostTmp: string
-): string {
-  const db = dbConfig(environment);
-  const inner = buildDbShellCommand(
-    db.serviceType,
-    db.serviceName,
-    `cat ${shq(filePath)}`,
-    {
-      runAsUser: dbOsUser(db.dbType),
-      sudoPassword: db.server.password,
-    }
-  );
-  return `${inner} > ${shq(hostTmp)}`;
-}
-
-// Command (run on the TARGET host) that moves the SSH-owned `hostTmp` into the
-// target's backup dir as `dst`, owned/readable by the DB process.
-function buildPlaceCommand(
-  environment: EnvironmentWithServers,
-  hostTmp: string,
-  dst: string
-): string {
-  const db = dbConfig(environment);
-  const name = db.serviceName;
-  if (db.serviceType === "docker") {
-    return (
-      `docker cp ${shq(hostTmp)} ${shq(`${name}:${dst}`)} && ` +
-      `docker exec ${shq(name)} chmod 644 ${shq(dst)}`
-    );
-  }
-  if (db.serviceType === "kubernetes") {
-    // `kubectl cp` needs a pod name, not a deploy/, so stream via `exec -i`.
-    const write = `cat > ${shq(dst)}`;
-    return (
-      `kubectl exec -i deploy/${shq(name)} -- bash -c ${shq(write)} < ${shq(hostTmp)} && ` +
-      `kubectl exec deploy/${shq(name)} -- chmod 644 ${shq(dst)}`
-    );
-  }
-  // systemd: copy in as root, then hand ownership to the DB user. The password
-  // only feeds sudo (the file is an argument, not stdin), so there's no stdin
-  // conflict.
-  const user = dbOsUser(db.dbType);
-  const script =
-    `cp ${shq(hostTmp)} ${shq(dst)}; ` +
-    `chown ${user}:${user} ${shq(dst)}; ` +
-    `chmod 644 ${shq(dst)}`;
-  return `printf '%s\\n' ${shq(db.server.password)} | sudo -S bash -c ${shq(script)}`;
-}
-
-// Command (run on the TARGET host) removing the staged copy from the backup dir
-// once the restore has consumed it, so foreign backups don't linger.
-function buildRemovePlacedCommand(
-  environment: EnvironmentWithServers,
-  dst: string
-): string {
-  const db = dbConfig(environment);
-  const name = db.serviceName;
-  if (db.serviceType === "docker") {
-    return `docker exec ${shq(name)} rm -f ${shq(dst)}`;
-  }
-  if (db.serviceType === "kubernetes") {
-    return `kubectl exec deploy/${shq(name)} -- rm -f ${shq(dst)}`;
-  }
-  return `printf '%s\\n' ${shq(db.server.password)} | sudo -S rm -f ${shq(dst)}`;
 }
 
 // Stage `filename` from `sourceEnvironment`'s backup dir into `targetProject`'s
@@ -694,17 +600,9 @@ async function runPostgresRecreateDatabase(
   database: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
-  // doesn't fail with "database is being accessed by other users". Then
-  // recreate so the dump pipes into a clean DB — this lets us handle dumps
-  // produced both with and without `--clean --if-exists`.
   const dbSvc = dbConfig(data);
-  const dbId = pgQuoteId(database);
-  const query = `DROP DATABASE IF EXISTS ${dbId} WITH (FORCE); CREATE DATABASE ${dbId};`;
-  // Pipe the query inside the inner shell so the pipeline doesn't compete
-  // with sudo -S's stdin on systemd; `runAsUser: "postgres"` is a no-op for
-  // docker/kubernetes.
-  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  // `runAsUser: "postgres"` is a no-op for docker/kubernetes.
+  const inner = pgPsqlPipeline(pgRecreateDatabaseQuery(database));
   const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: "postgres",
     sudoPassword: credentials.password,
@@ -719,15 +617,8 @@ async function runPostgresRestore(
   source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
-  // `-v ON_ERROR_STOP=on` aborts psql at the first failing statement instead
-  // of silently continuing through a half-broken restore. Branch on the file
-  // suffix so we can restore both gzipped (`.sql.gz`) and plain (`.sql`)
-  // dumps produced by createDatabaseBackup.
   const dbSvc = dbConfig(data);
-  const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(database)}`;
-  const inner = filename.endsWith(".gz")
-    ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
-    : `${psqlCmd} < ${shq(source)}`;
+  const inner = pgRestorePipeline(database, source, filename.endsWith(".gz"));
   const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: "postgres",
     sudoPassword: credentials.password,
@@ -778,85 +669,29 @@ async function handleControlService(
   }
 }
 
-// A logical file inside a SQL Server `.bak`, as reported by RESTORE
-// FILELISTONLY. `type`: D = data, L = log, S = FILESTREAM, F = full-text.
-type MssqlBackupFile = { logical: string; physical: string; type: string };
-
-// POSIX dirname for the physical paths SQL Server reports (always `/`-style
-// inside the Linux container). Keeps a file in the same directory it was
-// backed up from when we relocate it.
-function posixDirname(p: string): string {
-  const i = p.lastIndexOf("/");
-  return i <= 0 ? "/" : p.slice(0, i);
-}
-
 // Read the logical file layout of a backup so we can build WITH MOVE clauses.
-// Output is forced parseable: `-h -1` drops headers, `-W` trims padding, and
-// `-s ~` separates columns with a char that won't appear in a path/logical
-// name. We only keep rows whose 3rd column is a known file type, which also
-// filters sqlcmd's trailing "(N rows affected)" line.
+// The statement, the sqlcmd flags that force parseable output, and the parser
+// all live in lib/jobs/commands; this is only the round-trip.
 async function getMssqlBackupFileList(
   data: EnvironmentWithServers,
   source: string,
   credentials: { host: string; username: string; password: string }
 ): Promise<MssqlBackupFile[]> {
   const dbSvc = dbConfig(data);
-  const query = `RESTORE FILELISTONLY FROM DISK = N'${sqlQuoteString(source)}';`;
   const cmd = buildSqlcmdCommand(
-    query,
+    mssqlFileListQuery(source),
     dbSvc.dbPassword!,
     dbSvc.serviceType,
     dbSvc.serviceName,
-    ["-h", "-1", "-W", "-s", "~"]
+    MSSQL_FILE_LIST_FLAGS
   );
-  const out = await executeRemoteCommand(credentials, cmd);
-  const files: MssqlBackupFile[] = [];
-  for (const line of out.split("\n")) {
-    const parts = line.split("~");
-    if (parts.length < 3) continue;
-    const type = parts[2]?.trim().toUpperCase();
-    if (type !== "D" && type !== "L" && type !== "S" && type !== "F") continue;
-    // `parts.length < 3` was skipped above, so 0 and 1 are present.
-    files.push({
-      logical: parts[0]?.trim() ?? "",
-      physical: parts[1]?.trim() ?? "",
-      type,
-    });
-  }
+  const files = parseMssqlFileList(
+    await executeRemoteCommand(credentials, cmd)
+  );
   if (files.length === 0) {
     throw new Error(`Could not read file list from backup: ${source}`);
   }
   return files;
-}
-
-// Map each logical file in the backup to a fresh physical path named after the
-// TARGET database. Without this, restoring one DB's backup into a differently
-// named DB (e.g. car2's .bak into car3) fails with Msg 1834/3156 because the
-// backup's stored paths point at the source DB's live, in-use files. First
-// data file → .mdf, extra data files → .ndf, logs → .ldf, all kept in their
-// original directory.
-function buildMssqlMoveClauses(
-  files: MssqlBackupFile[],
-  database: string
-): string[] {
-  let dataIdx = 0;
-  let logIdx = 0;
-  return files.map((f) => {
-    const dir = posixDirname(f.physical);
-    let name: string;
-    if (f.type === "L") {
-      name = `${database}_log${logIdx ? `_${logIdx}` : ""}.ldf`;
-      logIdx++;
-    } else if (dataIdx === 0) {
-      name = `${database}.mdf`;
-      dataIdx++;
-    } else {
-      name = `${database}_${dataIdx}.ndf`;
-      dataIdx++;
-    }
-    const newPath = `${dir}/${name}`;
-    return `  MOVE N'${sqlQuoteString(f.logical)}' TO N'${sqlQuoteString(newPath)}'`;
-  });
 }
 
 async function runMssqlRestore(
@@ -871,37 +706,15 @@ async function runMssqlRestore(
       "Environment dbPassword is required for MSSQL restores (sqlcmd needs it)"
     );
   }
-  const dbId = sqlBracketId(database);
-  const dbLit = sqlQuoteString(database);
-
   // Relocate the backup's logical files onto the target DB's own paths so a
   // cross-database restore (backup of DB A into DB B) doesn't collide with the
   // source DB's in-use files.
   const files = await getMssqlBackupFileList(data, source, credentials);
-  const moves = buildMssqlMoveClauses(files, database);
-  const restoreOptions = ["REPLACE", ...moves].join(",\n  ");
-
-  // Kill connections by flipping to SINGLE_USER, then restore. TRY/CATCH so a
-  // failed restore still flips back to MULTI_USER instead of leaving the DB
-  // wedged. The DB_ID guard handles a target that doesn't exist yet (fresh
-  // restore). THROW surfaces the real SQL error number + message to sqlcmd's
-  // non-zero exit instead of the generic "terminating abnormally".
-  const query =
-    `IF DB_ID(N'${dbLit}') IS NOT NULL\n` +
-    `  ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
-    `BEGIN TRY\n` +
-    `  RESTORE DATABASE [${dbId}] FROM DISK = N'${sqlQuoteString(source)}' WITH\n  ${restoreOptions};\n` +
-    `END TRY\n` +
-    `BEGIN CATCH\n` +
-    `  DECLARE @err NVARCHAR(MAX) = ERROR_MESSAGE();\n` +
-    `  DECLARE @num INT = ERROR_NUMBER();\n` +
-    `  IF DB_ID(N'${dbLit}') IS NOT NULL\n` +
-    `    ALTER DATABASE [${dbId}] SET MULTI_USER;\n` +
-    `  DECLARE @msg NVARCHAR(2048) = CONCAT('Restore failed (Msg ', @num, '): ', @err);\n` +
-    `  THROW 50000, @msg, 1;\n` +
-    `END CATCH;\n` +
-    `IF DB_ID(N'${dbLit}') IS NOT NULL\n` +
-    `  ALTER DATABASE [${dbId}] SET MULTI_USER;`;
+  const query = mssqlRestoreQuery(
+    database,
+    source,
+    buildMssqlMoveClauses(files, database)
+  );
   const cmd = buildSqlcmdCommand(
     query,
     dbSvc.dbPassword,
@@ -952,8 +765,7 @@ async function runPostgresCreateDatabase(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const db = dbConfig(environment);
-  const query = `CREATE DATABASE ${pgQuoteId(database)};`;
-  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const inner = pgPsqlPipeline(pgCreateDatabaseQuery(database));
   const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
     runAsUser: "postgres",
     sudoPassword: credentials.password,
@@ -972,7 +784,7 @@ async function runMssqlCreateDatabase(
       "Environment dbPassword is required for MSSQL database creation (sqlcmd needs it)"
     );
   }
-  const query = `CREATE DATABASE [${sqlBracketId(database)}];`;
+  const query = mssqlCreateDatabaseQuery(database);
   const cmd = buildSqlcmdCommand(
     query,
     db.dbPassword,
@@ -1031,8 +843,7 @@ async function runPostgresDropDatabase(
   const db = dbConfig(environment);
   // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
   // doesn't fail with "database is being accessed by other users".
-  const query = `DROP DATABASE IF EXISTS ${pgQuoteId(database)} WITH (FORCE);`;
-  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const inner = pgPsqlPipeline(pgDropDatabaseQuery(database));
   const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
     runAsUser: "postgres",
     sudoPassword: credentials.password,
@@ -1051,16 +862,7 @@ async function runMssqlDropDatabase(
       "Environment dbPassword is required for MSSQL database drop (sqlcmd needs it)"
     );
   }
-  const dbId = sqlBracketId(database);
-  // Flip to SINGLE_USER WITH ROLLBACK IMMEDIATE to kill active connections,
-  // then drop. Guard the ALTER with an existence check so dropping a missing
-  // DB is a no-op rather than a hard error.
-  const query =
-    `IF DB_ID(N'${sqlQuoteString(database)}') IS NOT NULL\n` +
-    `BEGIN\n` +
-    `  ALTER DATABASE [${dbId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
-    `  DROP DATABASE [${dbId}];\n` +
-    `END;`;
+  const query = mssqlDropDatabaseQuery(database);
   const cmd = buildSqlcmdCommand(
     query,
     db.dbPassword,
@@ -1121,14 +923,7 @@ async function runPostgresRenameDatabase(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const db = dbConfig(environment);
-  // Terminate active connections first — ALTER DATABASE ... RENAME fails while
-  // other sessions hold the source DB open.
-  const terminate =
-    `SELECT pg_terminate_backend(pid) FROM pg_stat_activity ` +
-    `WHERE datname = ${pgQuoteLiteral(from)} AND pid <> pg_backend_pid();`;
-  const rename = `ALTER DATABASE ${pgQuoteId(from)} RENAME TO ${pgQuoteId(to)};`;
-  const query = `${terminate}\n${rename}`;
-  const inner = `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const inner = pgPsqlPipeline(pgRenameDatabaseQuery(from, to));
   const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
     runAsUser: "postgres",
     sudoPassword: credentials.password,
@@ -1148,13 +943,7 @@ async function runMssqlRenameDatabase(
       "Environment dbPassword is required for MSSQL database rename (sqlcmd needs it)"
     );
   }
-  const fromId = sqlBracketId(from);
-  // Flip to SINGLE_USER WITH ROLLBACK IMMEDIATE to kill active connections so
-  // MODIFY NAME doesn't fail, rename, then return to MULTI_USER.
-  const query =
-    `ALTER DATABASE [${fromId}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;\n` +
-    `ALTER DATABASE [${fromId}] MODIFY NAME = [${sqlBracketId(to)}];\n` +
-    `ALTER DATABASE [${sqlBracketId(to)}] SET MULTI_USER;`;
+  const query = mssqlRenameDatabaseQuery(from, to);
   const cmd = buildSqlcmdCommand(
     query,
     db.dbPassword,
