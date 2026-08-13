@@ -1,3 +1,4 @@
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -6,7 +7,13 @@ import { admin } from "better-auth/plugins/admin";
 import { v7 as uuidv7 } from "uuid";
 import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
-import { accounts, sessions, users, verifications } from "./db/schema";
+import {
+  accounts,
+  passkeys,
+  sessions,
+  users,
+  verifications,
+} from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
 import { ROLE_ADMIN, ROLE_VIEWER } from "./roles";
 
@@ -27,6 +34,16 @@ if (
 
 export { ALLOWED_EMAIL_DOMAIN, isAllowedEmail } from "./branding";
 export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
+
+const BASE_URL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+
+// WebAuthn pins every credential to one Relying Party ID and one origin, and
+// the browser refuses a ceremony whose rpID is not a registrable suffix of the
+// page it runs on. Both are derived from BETTER_AUTH_URL instead of being
+// separate env vars: an extra knob can only drift from the URL the app is
+// actually served on, and the failure is quiet — registration succeeds and the
+// credential is then never offered at sign-in.
+const { hostname: RP_ID, origin: RP_ORIGIN } = new URL(BASE_URL);
 
 const microsoftClientId = process.env.MICROSOFT_CLIENT_ID;
 const microsoftClientSecret = process.env.MICROSOFT_CLIENT_SECRET;
@@ -59,7 +76,7 @@ if (
 
 export const auth = betterAuth({
   appName: APP_NAME,
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  baseURL: BASE_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -69,6 +86,7 @@ export const auth = betterAuth({
       sessions,
       accounts,
       verifications,
+      passkeys,
     },
   }),
   emailAndPassword: {
@@ -145,6 +163,13 @@ export const auth = betterAuth({
       "/forget-password": { window: 60, max: 3 },
       "/request-password-reset": { window: 60, max: 3 },
       "/reset-password": { window: 60, max: 5 },
+      // A passkey ceremony is two requests (challenge, then verification) and
+      // users retry after a cancelled prompt, so these sit above the password
+      // limits — they still cap how fast a stolen credential id can be probed.
+      "/passkey/generate-authenticate-options": { window: 60, max: 20 },
+      "/passkey/verify-authentication": { window: 60, max: 20 },
+      "/passkey/generate-register-options": { window: 60, max: 10 },
+      "/passkey/verify-registration": { window: 60, max: 10 },
     },
   },
   databaseHooks: {
@@ -189,6 +214,25 @@ export const auth = betterAuth({
       // user last, so this default never overrides them.
       defaultRole: ROLE_VIEWER,
       adminRoles: [ROLE_ADMIN],
+    }),
+    // Passkeys are an additional factor a user enrols from their account page —
+    // never a sign-up path. Registration keeps the plugin's default of
+    // requiring a session, so a passkey can only ever attach to a user who
+    // already exists, and the domain and ban rules above therefore still hold:
+    // the admin plugin's `session.create` hook rejects a banned user on the
+    // passkey sign-in path exactly as it does on the password one.
+    passkey({
+      rpID: RP_ID,
+      rpName: APP_NAME,
+      origin: RP_ORIGIN,
+      // Discoverable credentials, so sign-in works without typing an email
+      // first — that is the whole point of the passkey button on /sign-in.
+      // "preferred", not "required", so a security key with no room left for a
+      // resident credential can still be enrolled as a second device.
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "preferred",
+      },
     }),
     nextCookies(),
   ],
