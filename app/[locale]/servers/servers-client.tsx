@@ -1,6 +1,5 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
 import {
   FolderOpen,
   Pencil,
@@ -15,7 +14,11 @@ import { toast } from "sonner";
 import { bulkDeleteServers, deleteServer } from "@/actions/servers";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
-import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  DataTableColumnHeader,
+} from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
@@ -104,7 +107,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
     [dialog, t, tCommon, removeOptimistic, servers]
   );
 
-  const columns = React.useMemo<ColumnDef<Server>[]>(
+  const columns = React.useMemo<DataTableColumnDef<Server>[]>(
     () => [
       {
         accessorKey: "name",

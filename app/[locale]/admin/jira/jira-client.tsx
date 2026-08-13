@@ -1,6 +1,5 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
 import { Cable, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -10,7 +9,11 @@ import { deleteJiraConnection } from "@/actions/jira";
 import { useDialog } from "@/components/dialog-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  DataTableColumnHeader,
+} from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { SafeJiraConnection } from "@/lib/db/schema";
@@ -55,7 +58,7 @@ export function JiraClient({
     [dialog, t, tCommon, removeOptimistic]
   );
 
-  const columns = React.useMemo<ColumnDef<SafeJiraConnection>[]>(
+  const columns = React.useMemo<DataTableColumnDef<SafeJiraConnection>[]>(
     () => [
       {
         accessorKey: "name",
