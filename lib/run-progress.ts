@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import { environments, type NewRun, projects, runs } from "@/lib/db/schema";
 import { notifyRunFailed } from "@/lib/notifications";
 
@@ -9,15 +10,18 @@ export type CreateRunInput = Omit<
 > & { runAt?: Date };
 
 export async function createRun(input: CreateRunInput): Promise<string> {
-  const [row] = await db
-    .insert(runs)
-    .values({
-      ...input,
-      runAt: input.runAt ?? new Date(),
-      status: "started",
-      output: "",
-    })
-    .returning({ id: runs.id });
+  const row = one(
+    await db
+      .insert(runs)
+      .values({
+        ...input,
+        runAt: input.runAt ?? new Date(),
+        status: "started",
+        output: "",
+      })
+      .returning({ id: runs.id }),
+    "run"
+  );
   return row.id;
 }
 

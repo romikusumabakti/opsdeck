@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   type IssuePriority,
   type IssueStatus,
@@ -230,6 +231,12 @@ async function resolveLabel(ctx: SyncContext, name: string): Promise<string> {
       .from(labels)
       .where(eq(labels.name, name))
       .limit(1);
+    // The insert hit onConflictDoNothing, so the row existed a moment ago.
+    // Gone now means a concurrent delete raced this sweep — throw rather than
+    // cache an undefined id, and let the job's retry re-run the insert cleanly.
+    if (!existing) {
+      throw new Error(`Label "${name}" vanished between insert and lookup`);
+    }
     id = existing.id;
   }
   ctx.labelIds.set(name, id);
@@ -252,10 +259,13 @@ async function resolveMilestone(
     .limit(1);
   let id = existing?.id;
   if (!id) {
-    const [created] = await db
-      .insert(milestones)
-      .values({ projectId: ctx.projectId, name })
-      .returning({ id: milestones.id });
+    const created = one(
+      await db
+        .insert(milestones)
+        .values({ projectId: ctx.projectId, name })
+        .returning({ id: milestones.id }),
+      "issue"
+    );
     id = created.id;
   }
   ctx.milestoneIds.set(name, id);
@@ -461,21 +471,26 @@ async function insertMirroredIssue(
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await db.transaction(async (tx) => {
-        const [{ max }] = await tx
+        const [highest] = await tx
           .select({ max: sql<number>`coalesce(max(${issues.number}), 0)` })
           .from(issues)
           .where(eq(issues.projectId, ctx.projectId));
-        const [row] = await tx
-          .insert(issues)
-          .values({
-            ...values,
-            projectId: ctx.projectId,
-            number: Number(max) + 1,
-            createdAt: remote.fields.created
-              ? new Date(remote.fields.created)
-              : new Date(),
-          } as typeof issues.$inferInsert)
-          .returning({ id: issues.id });
+        // See createIssue: aggregate row is guaranteed, coalesce supplies 0.
+        const max = highest?.max ?? 0;
+        const row = one(
+          await tx
+            .insert(issues)
+            .values({
+              ...values,
+              projectId: ctx.projectId,
+              number: Number(max) + 1,
+              createdAt: remote.fields.created
+                ? new Date(remote.fields.created)
+                : new Date(),
+            } as typeof issues.$inferInsert)
+            .returning({ id: issues.id }),
+          "issue"
+        );
         return row.id;
       });
     } catch (error) {
@@ -619,7 +634,7 @@ export async function syncIssueById(
 
   // Which local project owns it is decided by the remote key's prefix, so an
   // issue moved into a linked project starts mirroring on its next event.
-  const remoteProjectKey = remote.key.split("-")[0];
+  const remoteProjectKey = remote.key.split("-")[0] ?? remote.key;
   const [link] = await db
     .select()
     .from(jiraProjectLinks)

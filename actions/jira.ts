@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   type JiraConnection,
   type JiraLinkWithConnection,
@@ -96,21 +97,24 @@ export async function createJiraConnection(
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
   try {
-    const [created] = await db
-      .insert(jiraConnections)
-      .values({
-        name: parsed.data.name,
-        baseUrl: normalizeBaseUrl(parsed.data.baseUrl),
-        flavor: parsed.data.flavor,
-        email:
-          parsed.data.flavor === "cloud" ? (parsed.data.email ?? null) : null,
-        apiToken: encryptSecret(parsed.data.apiToken),
-        // 32 bytes of URL-safe randomness — the shared secret in the webhook
-        // path. Generated once and never rotated automatically, since rotating
-        // it silently breaks an already-configured Jira webhook.
-        webhookSecret: randomBytes(24).toString("base64url"),
-      })
-      .returning();
+    const created = one(
+      await db
+        .insert(jiraConnections)
+        .values({
+          name: parsed.data.name,
+          baseUrl: normalizeBaseUrl(parsed.data.baseUrl),
+          flavor: parsed.data.flavor,
+          email:
+            parsed.data.flavor === "cloud" ? (parsed.data.email ?? null) : null,
+          apiToken: encryptSecret(parsed.data.apiToken),
+          // 32 bytes of URL-safe randomness — the shared secret in the webhook
+          // path. Generated once and never rotated automatically, since rotating
+          // it silently breaks an already-configured Jira webhook.
+          webhookSecret: randomBytes(24).toString("base64url"),
+        })
+        .returning(),
+      "Jira connection"
+    );
     revalidatePath("/admin/jira");
     return { success: true, data: toSafe(created), message: t("jiraCreated") };
   } catch (error) {

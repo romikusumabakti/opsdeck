@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   type NewS3Connection,
   type S3Connection,
@@ -58,13 +59,16 @@ export async function createS3Connection(
     return { success: false, message: t("invalidInput") };
   }
   try {
-    const [created] = await db
-      .insert(s3Connections)
-      .values({
-        ...parsed.data,
-        secretKey: encryptSecret(parsed.data.secretKey),
-      })
-      .returning();
+    const created = one(
+      await db
+        .insert(s3Connections)
+        .values({
+          ...parsed.data,
+          secretKey: encryptSecret(parsed.data.secretKey),
+        })
+        .returning(),
+      "S3 connection"
+    );
     revalidatePath("/storage");
     return { success: true, data: toSafe(created), message: t("s3Created") };
   } catch (error) {

@@ -9,7 +9,7 @@ export default async function LegacyProjectSubRedirect({
   params: Promise<{ locale: string; key: string; rest: string[] }>;
 }) {
   const { locale, key, rest } = await params;
-  const tail = /^\d+$/.test(rest[0])
+  const tail = /^\d+$/.test(rest[0] ?? "")
     ? `issues/${rest.join("/")}`
     : rest.join("/");
   redirect(`/${locale}/${key.toUpperCase()}/${tail}`);

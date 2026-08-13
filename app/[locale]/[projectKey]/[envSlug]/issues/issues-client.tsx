@@ -266,16 +266,18 @@ export function IssuesClient({
         e.preventDefault();
         setCursor((c) => Math.max((c < 0 ? pageRows.length : c) - 1, 0));
       } else if (e.key === "x") {
-        const i = cursorRef.current;
-        if (i >= 0 && i < pageRows.length) {
+        // A cursor of -1 (nothing focused) indexes to undefined, which is the
+        // same "do nothing" the explicit bounds check used to spell out.
+        const row = pageRows[cursorRef.current];
+        if (row) {
           e.preventDefault();
-          toggleSelected(pageRows[i].id);
+          toggleSelected(row.id);
         }
       } else if (e.key === "Enter") {
-        const i = cursorRef.current;
-        if (i >= 0 && i < pageRows.length) {
+        const row = pageRows[cursorRef.current];
+        if (row) {
           e.preventDefault();
-          router.push(`/${projectKey}/issues/${pageRows[i].number}`);
+          router.push(`/${projectKey}/issues/${row.number}`);
         }
       }
     }

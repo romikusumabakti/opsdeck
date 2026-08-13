@@ -63,12 +63,11 @@ export function Sparkline({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      <circle
-        cx={lastPoint.x}
-        cy={lastPoint.y}
-        r={2}
-        fill="currentColor"
-      />
+      {/* `data.length === 0` returned above, so there is always a last point —
+          rendering it conditionally beats asserting one exists. */}
+      {lastPoint && (
+        <circle cx={lastPoint.x} cy={lastPoint.y} r={2} fill="currentColor" />
+      )}
     </svg>
   );
 }

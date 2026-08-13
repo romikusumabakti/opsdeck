@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import { knowledgeAttachments } from "@/lib/db/schema";
 import { putObject } from "@/lib/storage";
 import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
@@ -75,15 +76,18 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "storage" }, { status: 502 });
   }
 
-  const [row] = await db
-    .insert(knowledgeAttachments)
-    .values({
-      storageKey,
-      mime: kind.mime,
-      sizeBytes: bytes.byteLength,
-      uploadedById: session.user.id,
-    })
-    .returning({ id: knowledgeAttachments.id });
+  const row = one(
+    await db
+      .insert(knowledgeAttachments)
+      .values({
+        storageKey,
+        mime: kind.mime,
+        sizeBytes: bytes.byteLength,
+        uploadedById: session.user.id,
+      })
+      .returning({ id: knowledgeAttachments.id }),
+    "knowledge attachment"
+  );
 
   return NextResponse.json({
     id: row.id,
