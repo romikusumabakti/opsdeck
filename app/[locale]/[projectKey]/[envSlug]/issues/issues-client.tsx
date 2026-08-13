@@ -31,6 +31,7 @@ import {
   TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -58,7 +59,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePager } from "@/components/ui/table-pager";
-import { Textarea } from "@/components/ui/textarea";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
@@ -637,12 +637,19 @@ function CreateIssueDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Capped to the viewport with the fields scrolling inside: the markdown
+          editor's toolbar plus its writing surface make this form taller than a
+          short screen, and without the cap the header and the Create button are
+          the parts that fall off. The wider breakpoint keeps the toolbar on one
+          row. */}
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-2xl max-h-[calc(100dvh-4rem)]">
         <DialogHeader>
           <DialogTitle>{t("createTitle")}</DialogTitle>
           <DialogDescription>{t("createDescription")}</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
+        {/* px/py + the negative margin keep focus rings from being clipped by
+            the scroll container's edges. */}
+        <div className="-mx-1 flex flex-col gap-4 overflow-y-auto px-1 py-1">
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium" htmlFor="issue-title">
               {t("titleLabel")}
@@ -665,14 +672,15 @@ function CreateIssueDialog({
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" htmlFor="issue-description">
-              {t("descriptionLabel")}
-            </label>
-            <Textarea
-              id="issue-description"
+            <span className="text-sm font-medium">{t("descriptionLabel")}</span>
+            {/* Same markdown editor as the issue detail page, so what is typed
+                here round-trips through the same parse/serialize. Shorter than
+                the default surface — it sits in a dialog and grows as you
+                type. */}
+            <MarkdownEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={5}
+              onChange={setDescription}
+              contentClassName="min-h-[6rem]"
             />
           </div>
           <div className="flex flex-col gap-2">
