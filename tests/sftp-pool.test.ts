@@ -1,5 +1,13 @@
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  vi,
+} from "bun:test";
 import { EventEmitter } from "node:events";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The pool dials node-ssh directly, so the fake lives at the module boundary.
 // Each FakeSSH instance records one dial; the tests assert on how many were made.
@@ -44,7 +52,7 @@ class FakeSSH {
   }
 }
 
-vi.mock("node-ssh", () => ({ NodeSSH: FakeSSH }));
+mock.module("node-ssh", () => ({ NodeSSH: FakeSSH }));
 
 const creds = { host: "10.0.0.1", username: "root", password: "s3cret" };
 

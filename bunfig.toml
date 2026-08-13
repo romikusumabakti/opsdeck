@@ -1,0 +1,4 @@
+[test]
+# Runs before any test file. Replaces what vitest.config.ts used to set up:
+# the "server-only" stub, a dummy DATABASE_URL, and a DOM for the editor tests.
+preload = ["./tests/preload.ts"]

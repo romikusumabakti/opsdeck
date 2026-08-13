@@ -220,7 +220,7 @@ export function RestoreDatabase({
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="w-[var(--radix-popper-anchor-width)] p-0"
+                  className="w-(--anchor-width) p-0"
                 >
                   <Command>
                     <CommandInput
@@ -324,10 +324,7 @@ export function RestoreDatabase({
             )}
             <ChevronsUpDown className="opacity-50 shrink-0" />
           </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            className="w-[var(--radix-popper-anchor-width)] p-0"
-          >
+          <PopoverContent align="start" className="w-(--anchor-width) p-0">
             <Command>
               <CommandInput placeholder={t("searchBackup")} className="h-9" />
               <CommandList>
@@ -339,7 +336,7 @@ export function RestoreDatabase({
                       value={b.name}
                       onSelect={(currentValue) => {
                         setValue(currentValue === value ? "" : currentValue);
-                        // Defer close past the click event so Radix Popover's
+                        // Defer close past the click event so Base UI Popover's
                         // dismiss + focus-restore doesn't race the same tick
                         // (causes a brief reopen flicker on slower envs).
                         requestAnimationFrame(() => setOpen(false));

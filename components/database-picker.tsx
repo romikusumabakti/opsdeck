@@ -70,10 +70,7 @@ export function DatabasePicker({
         )}
         <ChevronsUpDown className="opacity-50 shrink-0" />
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[var(--radix-popper-anchor-width)] p-0"
-      >
+      <PopoverContent align="start" className="w-(--anchor-width) p-0">
         <Command>
           <CommandInput placeholder={searchPlaceholder} className="h-9" />
           <CommandList>
@@ -85,7 +82,7 @@ export function DatabasePicker({
                   value={d.name}
                   onSelect={(currentValue) => {
                     onChange(currentValue);
-                    // Defer close past the click so Radix's dismiss + focus
+                    // Defer close past the click so Base UI's dismiss + focus
                     // restore doesn't race the same tick (reopen flicker).
                     requestAnimationFrame(() => setOpen(false));
                   }}
