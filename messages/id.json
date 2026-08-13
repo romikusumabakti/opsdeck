@@ -642,6 +642,31 @@
       "title": "Password",
       "description": "Perbarui password untuk menjaga keamanan akun."
     },
+    "passkeys": {
+      "title": "Passkey",
+      "description": "Masuk dengan sidik jari, wajah, atau kunci keamanan tanpa mengetik password.",
+      "add": "Tambah passkey",
+      "addTitle": "Tambah passkey",
+      "addDescription": "Beri nama passkey ini agar mudah dikenali, lalu ikuti petunjuk dari browser Anda.",
+      "defaultName": "Perangkat ini",
+      "namePlaceholder": "mis. Laptop kantor",
+      "addedSuccess": "Passkey ditambahkan",
+      "rename": "Ganti nama",
+      "renameTitle": "Ganti nama passkey",
+      "renameDescription": "Pilih nama yang menunjukkan perangkat mana ini.",
+      "renamedSuccess": "Nama passkey diperbarui",
+      "deleteTitle": "Hapus passkey",
+      "deleteDescription": "Perangkat ini tidak lagi bisa masuk dengan passkey tersebut. Hapus juga dari pengelola sandi di perangkatnya.",
+      "deletedSuccess": "Passkey dihapus",
+      "emptyTitle": "Belum ada passkey",
+      "emptyDescription": "Tambahkan satu agar bisa masuk tanpa mengetik password.",
+      "unsupportedTitle": "Passkey tidak tersedia di sini",
+      "unsupportedDescription": "Browser ini tidak mendukung passkey. Coba versi terbaru Chrome, Safari, Edge, atau Firefox.",
+      "unnamed": "Passkey tanpa nama",
+      "synced": "Tersinkron",
+      "addedAt": "Ditambahkan {date}",
+      "errorNotFresh": "Demi keamanan, masuk lagi sebelum menambahkan passkey."
+    },
     "sessions": {
       "title": "Sesi aktif",
       "description": "Perangkat yang sedang masuk ke akun Anda.",
@@ -741,7 +766,11 @@
     "errorMicrosoftNoAccount": "Akun Microsoft tersebut belum punya pengguna {{APP_NAME}}. Minta undangan ke administrator.",
     "errorMicrosoftNotLinked": "Akun Microsoft tersebut tidak dapat ditautkan ke pengguna yang ada. Masuk dengan email dan password, atau hubungi administrator.",
     "errorMicrosoftNoEmail": "Microsoft tidak mengembalikan alamat email untuk akun tersebut. Hubungi administrator.",
-    "errorMicrosoftDomain": "Hanya akun @{{EMAIL_DOMAIN}} yang bisa masuk."
+    "errorMicrosoftDomain": "Hanya akun @{{EMAIL_DOMAIN}} yang bisa masuk.",
+    "passkeySubmit": "Masuk dengan passkey",
+    "passkeySubmitting": "Menunggu passkey Anda…",
+    "errorPasskey": "Masuk dengan passkey gagal. Silakan coba lagi.",
+    "errorPasskeyNotFound": "Passkey itu belum terdaftar untuk akun ini. Masuk dengan cara lain, lalu tambahkan dari halaman akun Anda."
   },
   "forgotPassword": {
     "title": "Lupa kata sandi",

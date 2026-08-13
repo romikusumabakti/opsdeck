@@ -1,9 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CircleAlert, Loader2 } from "lucide-react";
+import { CircleAlert, Fingerprint, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,7 +20,11 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
 import { Link, useRouter } from "@/i18n/navigation";
-import { authClient } from "@/lib/auth-client";
+import {
+  authClient,
+  isPasskeyAutofillSupported,
+  isPasskeySupported,
+} from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 /**
@@ -69,6 +73,16 @@ function oauthErrorKey(code: string) {
   }
 }
 
+/**
+ * Codes a passkey ceremony reports when the user simply walked away — they
+ * dismissed the browser sheet, or it was aborted because another ceremony
+ * started. There is nothing to tell them, so these never surface as an error.
+ */
+const PASSKEY_CANCELLED_CODES = new Set([
+  "AUTH_CANCELLED",
+  "ERROR_CEREMONY_ABORTED",
+]);
+
 export function SignInForm({
   redirectTo,
   microsoftEnabled,
@@ -81,6 +95,16 @@ export function SignInForm({
   const t = useTranslations("signIn");
   const router = useRouter();
   const [microsoftPending, setMicrosoftPending] = useState(false);
+  const [passkeyPending, setPasskeyPending] = useState(false);
+
+  // Whether this browser does WebAuthn at all. Resolved after mount, never
+  // during render: the server has no `window`, so deciding on the server would
+  // either mismatch on hydration or render a button that then vanishes.
+  const [passkeySupported, setPasskeySupported] = useState(false);
+
+  // One conditional ceremony per page load. Guards against React's development
+  // double-invoke of effects starting a second one that aborts the first.
+  const autofillStarted = useRef(false);
 
   // Microsoft is the primary route for a single-domain internal panel, so the
   // password form starts collapsed behind a link. It is expanded up-front when
@@ -120,7 +144,34 @@ export function SignInForm({
     reValidateMode: "onChange",
   });
 
-  const busy = form.formState.isSubmitting || microsoftPending;
+  const busy =
+    form.formState.isSubmitting || microsoftPending || passkeyPending;
+
+  useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+  }, []);
+
+  // Conditional UI ("passkey autofill"): the browser offers this site's
+  // passkeys from the email field's own autofill dropdown, so a returning user
+  // signs in without touching the password. The ceremony must be started while
+  // that field is on screen, hence the dependency on the disclosure state. It
+  // settles only when the user picks a passkey — or never, if they type a
+  // password instead — so every failure here is silent by design.
+  useEffect(() => {
+    if (!emailExpanded || autofillStarted.current) return;
+    let cancelled = false;
+    (async () => {
+      if (!(await isPasskeyAutofillSupported()) || cancelled) return;
+      autofillStarted.current = true;
+      const { error } = await authClient.signIn.passkey({ autoFill: true });
+      if (cancelled || error) return;
+      router.push(redirectTo || "/");
+      router.refresh();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [emailExpanded, redirectTo, router]);
 
   async function onSubmit(values: z.infer<typeof schema>) {
     setSubmitError(null);
@@ -133,6 +184,33 @@ export function SignInForm({
 
     router.push(redirectTo || "/");
     router.refresh();
+  }
+
+  async function onPasskeySignIn() {
+    setSubmitError(null);
+    setPasskeyPending(true);
+
+    // Starting this ceremony aborts the conditional one waiting on the email
+    // field — @simplewebauthn cancels any in-flight request before opening a
+    // new one — so the two entry points cannot collide.
+    const { error } = await authClient.signIn.passkey();
+    setPasskeyPending(false);
+
+    if (!error) {
+      router.push(redirectTo || "/");
+      router.refresh();
+      return;
+    }
+
+    // `error.message` from the server is not localised, so map the one code
+    // worth explaining and fall back to a generic line for the rest.
+    const code = "code" in error ? error.code : undefined;
+    if (code && PASSKEY_CANCELLED_CODES.has(code)) return;
+    setSubmitError(
+      code === "PASSKEY_NOT_FOUND"
+        ? t("errorPasskeyNotFound")
+        : t("errorPasskey")
+    );
   }
 
   async function onMicrosoftSignIn() {
@@ -194,7 +272,28 @@ export function SignInForm({
         </Button>
       )}
 
-      {microsoftEnabled && emailExpanded && (
+      {passkeySupported && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={onPasskeySignIn}
+          disabled={busy}
+          aria-busy={passkeyPending}
+        >
+          {passkeyPending ? (
+            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Fingerprint className="size-5" aria-hidden="true" />
+          )}
+          {t("passkeySubmit")}
+          {passkeyPending && (
+            <span className="sr-only">{t("passkeySubmitting")}</span>
+          )}
+        </Button>
+      )}
+
+      {(microsoftEnabled || passkeySupported) && emailExpanded && (
         <div className={cn("flex items-center gap-3", revealAnimation)}>
           <Separator className="flex-1" />
           <span className="text-xs uppercase text-muted-foreground">
@@ -220,7 +319,10 @@ export function SignInForm({
                     <Input
                       type="email"
                       inputMode="email"
-                      autoComplete="email"
+                      // The `webauthn` token is what lets the browser list this
+                      // site's passkeys in the field's autofill dropdown; the
+                      // effect above starts the ceremony that fills it.
+                      autoComplete="email webauthn"
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}

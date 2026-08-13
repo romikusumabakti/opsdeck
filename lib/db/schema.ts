@@ -664,6 +664,45 @@ export const verifications = pgTable("verifications", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// WebAuthn credentials, owned by the better-auth passkey plugin. One row per
+// registered authenticator, so a user normally has several (laptop biometrics,
+// phone, a hardware key). Field names must match the plugin's model exactly —
+// the drizzle adapter maps `model: "passkey"` to this table by key, not by
+// column name, so `credentialID` cannot be renamed to `credentialId`.
+export const passkeys = pgTable(
+  "passkeys",
+  {
+    id: uuid("id").primaryKey(),
+    // User-facing label. The client sends one on registration; when it doesn't,
+    // the plugin falls back to the authenticator model resolved from `aaguid`.
+    name: text("name"),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Base64url values from the authenticator, not UUID-shaped.
+    credentialID: text("credential_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    // Signature counter for clone detection; bumped on every authentication.
+    counter: integer("counter").notNull().default(0),
+    // "singleDevice" | "multiDevice" — whether the credential syncs.
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull().default(false),
+    // Comma-joined WebAuthn transport hints, e.g. "internal,hybrid".
+    transports: text("transports"),
+    // Authenticator model id, used only to label the passkey in the UI. Apple
+    // and other privacy-preserving platforms report an all-zero value.
+    aaguid: text("aaguid"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Listing a user's passkeys, and building `excludeCredentials` on register.
+    index("passkeys_user_idx").on(t.userId),
+    // Sign-in resolves the credential the browser returned, before any user is
+    // known. Unique because a credential id identifies exactly one credential.
+    uniqueIndex("passkeys_credential_id_idx").on(t.credentialID),
+  ]
+);
+
 // =========================
 // Custom: invitations
 // =========================
@@ -1095,6 +1134,8 @@ export type NewRun = InferInsertModel<typeof runs>;
 
 export type User = InferSelectModel<typeof users>;
 export type NewUser = InferInsertModel<typeof users>;
+
+export type Passkey = InferSelectModel<typeof passkeys>;
 
 export type Invitation = InferSelectModel<typeof invitations>;
 export type NewInvitation = InferInsertModel<typeof invitations>;

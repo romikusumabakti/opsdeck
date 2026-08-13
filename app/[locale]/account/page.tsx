@@ -13,6 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { redirect } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth-session";
+import { PasskeysList } from "./passkeys-list";
 import { ProfileCard } from "./profile-card";
 import { SessionsList } from "./sessions-list";
 
@@ -34,6 +35,7 @@ export default async function AccountPage({
 
   const t = await getTranslations("account");
   const tNotif = await getTranslations("notifications");
+  const tPasskeys = await getTranslations("account.passkeys");
 
   const defaultTab = tab === "security" || tab === "sessions" ? tab : "profile";
 
@@ -78,7 +80,16 @@ export default async function AccountPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="security">
+        <TabsContent value="security" className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{tPasskeys("title")}</CardTitle>
+              <CardDescription>{tPasskeys("description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PasskeysList />
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>{t("security.title")}</CardTitle>
