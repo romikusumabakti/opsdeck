@@ -15,31 +15,47 @@ import type { Label, LabelLite } from "@/lib/db/schema";
 export function LabelChip({ label }: { label: LabelLite }) {
   return (
     <span
-      className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none"
+      className="inline-flex max-w-28 shrink-0 items-center overflow-hidden rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none whitespace-nowrap"
+      title={label.name}
       style={{
         color: label.color,
         borderColor: `${label.color}66`,
         backgroundColor: `${label.color}1a`,
       }}
     >
-      {label.name}
+      <span className="truncate">{label.name}</span>
     </span>
   );
 }
 
+// `max` caps how many chips render; the rest collapse into a `+N` chip that
+// lists them on hover. Dense rows (table cells) pass a small max so a heavily
+// labelled issue can't wrap the row into three lines.
 export function LabelChips({
   labels,
   className,
+  max,
 }: {
   labels: LabelLite[];
   className?: string;
+  max?: number;
 }) {
   if (labels.length === 0) return null;
+  const shown = max === undefined ? labels : labels.slice(0, max);
+  const rest = labels.slice(shown.length);
   return (
-    <span className={className ?? "inline-flex flex-wrap gap-1"}>
-      {labels.map((l) => (
+    <span className={className ?? "inline-flex flex-wrap items-center gap-1"}>
+      {shown.map((l) => (
         <LabelChip key={l.id} label={l} />
       ))}
+      {rest.length > 0 ? (
+        <span
+          className="inline-flex shrink-0 items-center rounded-full border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground"
+          title={rest.map((l) => l.name).join(", ")}
+        >
+          +{rest.length}
+        </span>
+      ) : null}
     </span>
   );
 }
