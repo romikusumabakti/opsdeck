@@ -1,6 +1,5 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
 import {
   ArrowUpDown,
   CheckCircle2,
@@ -13,7 +12,10 @@ import * as React from "react";
 import type { RunWithUser } from "@/actions/runs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+} from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 
 function formatDuration(ms: number): string {
@@ -38,7 +40,7 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
     return () => clearInterval(id);
   }, [runs]);
 
-  const columns = React.useMemo<ColumnDef<RunWithUser>[]>(
+  const columns = React.useMemo<DataTableColumnDef<RunWithUser>[]>(
     () => [
       {
         id: "status",

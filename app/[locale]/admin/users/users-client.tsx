@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { ColumnDef } from "@tanstack/react-table";
 import { Mail, Pencil, Send, Trash2, UserCog, UserPlus } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
@@ -23,7 +22,11 @@ import { useDialog } from "@/components/dialog-provider";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  DataTableColumnHeader,
+} from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
@@ -517,7 +520,7 @@ export function UsersClient({
     [renderUserIdentity, renderUserActions, t, format]
   );
 
-  const userColumns = React.useMemo<ColumnDef<UserRow>[]>(
+  const userColumns = React.useMemo<DataTableColumnDef<UserRow>[]>(
     () => [
       {
         accessorKey: "name",
@@ -567,7 +570,7 @@ export function UsersClient({
     [t, format, renderUserIdentity, renderUserActions]
   );
 
-  const invitationColumns = React.useMemo<ColumnDef<InvitationRow>[]>(
+  const invitationColumns = React.useMemo<DataTableColumnDef<InvitationRow>[]>(
     () => [
       {
         accessorKey: "name",

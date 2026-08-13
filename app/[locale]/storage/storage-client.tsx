@@ -1,6 +1,5 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
 import { FolderOpen, HardDrive, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
@@ -9,7 +8,11 @@ import { toast } from "sonner";
 import { deleteS3Connection } from "@/actions/s3-connections";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
-import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  DataTableColumnHeader,
+} from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
@@ -54,7 +57,7 @@ export function StorageClient({
     [dialog, t, tCommon, removeOptimistic]
   );
 
-  const columns = React.useMemo<ColumnDef<SafeS3Connection>[]>(
+  const columns = React.useMemo<DataTableColumnDef<SafeS3Connection>[]>(
     () => [
       {
         accessorKey: "name",
