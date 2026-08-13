@@ -38,13 +38,18 @@ export async function GET(req: NextRequest) {
   try {
     const stream = await backend.readStream(parsedPath.data);
     const filename = basename(parsedPath.data);
-    return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
-      headers: {
-        "Content-Type": "application/octet-stream",
-        // RFC 5987 encoding so non-ASCII names survive the header.
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
-      },
-    });
+    // node:stream/web's ReadableStream and the global one are the same object
+    // at runtime but structurally distinct types, so the cast goes via unknown.
+    return new NextResponse(
+      Readable.toWeb(stream) as unknown as ReadableStream,
+      {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          // RFC 5987 encoding so non-ASCII names survive the header.
+          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        },
+      }
+    );
   } catch (error) {
     if (error instanceof PathError) {
       return new NextResponse("Invalid path", { status: 400 });

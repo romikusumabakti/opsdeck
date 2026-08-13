@@ -17,6 +17,8 @@ import { z } from "zod";
  */
 export type AdfNode = {
   type: string;
+  // Only the top-level "doc" node carries this; markdownToAdf emits version 1.
+  version?: number;
   text?: string;
   content?: AdfNode[];
   attrs?: Record<string, unknown>;

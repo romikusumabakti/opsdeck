@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalProjectPath } from "@/lib/canonical-path";
 
 // Projects own the root namespace, so the proxy has to tell a project key

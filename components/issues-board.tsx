@@ -93,7 +93,7 @@ export function StatusSelect({
         aria-label={t(`status.${value}`)}
       >
         {/* No dot here: SelectValue renders the selected item's own content
-            (dot + label) via Radix's ItemText, so adding one would double it. */}
+            (dot + label) via Base UI's ItemText, so adding one would double it. */}
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

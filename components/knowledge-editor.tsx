@@ -119,7 +119,7 @@ function imageFiles(list: FileList | null | undefined): File[] {
 }
 
 // Toolbar control: a ghost icon button that flips to `secondary` when its mark
-// is active. Avoids pulling in @radix-ui/react-toggle for a one-off toolbar.
+// is active. Avoids pulling in Base UI's Toggle/Toolbar for a one-off toolbar.
 function ToolbarButton({
   active,
   disabled,

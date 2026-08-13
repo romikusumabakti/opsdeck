@@ -79,11 +79,12 @@ services:
       IMGPROXY_KEY: ${IMGPROXY_KEY:?IMGPROXY_KEY is required}
       IMGPROXY_SALT: ${IMGPROXY_SALT:?IMGPROXY_SALT is required}
     healthcheck:
-      # Use Node's built-in fetch — `curl`/`wget` aren't in node:24-alpine.
+      # Use Bun's built-in fetch — `curl` isn't in oven/bun:alpine, and there is
+      # no `node` binary in the image at all.
       test:
         [
           "CMD",
-          "node",
+          "bun",
           "-e",
           "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]

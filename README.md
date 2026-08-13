@@ -36,18 +36,19 @@ all over SSH against your own infrastructure.
 | Database     | PostgreSQL 18 · Drizzle ORM (UUIDv7 keys)           |
 | Auth         | better-auth                                         |
 | Jobs / queue | BullMQ · Valkey/Redis                               |
-| UI           | Tailwind CSS 4 · Radix UI / shadcn · Tiptap         |
-| Tooling      | pnpm · Biome · Vitest                               |
+| UI           | Tailwind CSS 4 · Base UI / shadcn · Tiptap          |
+| Tooling      | Bun · Biome · `bun test`                            |
 
 ## Getting started
 
-Requirements: **Node ≥ 24**, **pnpm**, and a **PostgreSQL** instance.
+Requirements: **Bun ≥ 1.3**, and a **PostgreSQL** instance. Bun is both the
+package manager and the runtime — there is no Node.js dependency.
 
 ```bash
-pnpm install
+bun install
 cp .env.example .env   # then fill in the values below
-pnpm db:migrate        # apply schema migrations
-pnpm dev               # http://localhost:3000
+bun run db:migrate     # apply schema migrations
+bun run dev            # http://localhost:3000
 ```
 
 On first run, open the app and complete the `/setup` flow to create the initial
@@ -101,17 +102,18 @@ Full setup guide, error codes, and secret rotation: [`docs/microsoft-sign-in.md`
 
 ## Scripts
 
-| Command            | Description                                |
-| ------------------ | ------------------------------------------ |
-| `pnpm dev`         | Start the dev server                       |
-| `pnpm build`       | Production build                           |
-| `pnpm start`       | Run the production build                   |
-| `pnpm lint`        | Lint with Biome                            |
-| `pnpm check`       | Format + lint, write fixes                 |
-| `pnpm test`        | Run the Vitest suite                       |
-| `pnpm db:generate` | Generate a Drizzle migration               |
-| `pnpm db:migrate`  | Apply pending migrations                   |
-| `pnpm db:studio`   | Open Drizzle Studio                        |
+| Command                | Description                            |
+| ---------------------- | -------------------------------------- |
+| `bun run dev`          | Start the dev server                   |
+| `bun run build`        | Production build                       |
+| `bun run start`        | Run the production build               |
+| `bun run lint`         | Lint with Biome                        |
+| `bun run check`        | Format + lint, write fixes             |
+| `bun run typecheck`    | Typecheck with `tsc --noEmit`          |
+| `bun test`             | Run the test suite                     |
+| `bun run db:generate`  | Generate a Drizzle migration           |
+| `bun run db:migrate`   | Apply pending migrations               |
+| `bun run db:studio`    | Open Drizzle Studio                    |
 
 ## Docker
 
@@ -166,11 +168,11 @@ share the same values.
 ```
 actions/      Server actions (servers, databases, backups, services, tasks, knowledge, …)
 app/          Next.js App Router — [locale] pages + /api routes
-components/    UI components (shadcn / Radix-based)
+components/    UI components (shadcn / Base UI-based)
 lib/          Core libs — db, auth, ssh, email, branding, validation, queue + jobs/
 drizzle/      Migrations + generated artifacts
 messages/     i18n message catalogs (ar/en/id/zh)
-tests/        Vitest tests
+tests/        `bun test` suite + preload (DOM, stubs, test env)
 ```
 
 ## License
