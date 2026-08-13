@@ -97,7 +97,9 @@ function renderTable(node: AdfNode): string {
   // promoted — losing a border beats emitting an unparseable table.
   const [header, ...body] = cells;
   return [
-    pad(header),
+    // `cells` is non-empty (rows.length === 0 returned above), so the fallback
+    // is unreachable — it just spares the assertion.
+    pad(header ?? []),
     `| ${Array.from({ length: width }, () => "---").join(" | ")} |`,
     ...body.map(pad),
   ].join("\n");
@@ -306,8 +308,12 @@ export function markdownToAdf(markdown: string): AdfNode {
     paragraphBuffer = [];
   };
 
+  // Every `lines[i]` below sits behind an `i < lines.length` bound, so the
+  // `?? ""` fallbacks never fire. They stand in for assertions: an empty line
+  // is already this parser's "nothing here" value, so if a future edit does
+  // walk off the end the result is a lost blank line, not a crash mid-sync.
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i] ?? "";
 
     if (line.trim().length === 0) {
       flushParagraph();
@@ -319,8 +325,10 @@ export function markdownToAdf(markdown: string): AdfNode {
       flushParagraph();
       const body: string[] = [];
       i++;
-      while (i < lines.length && !/^```/.test(lines[i])) {
-        body.push(lines[i]);
+      while (i < lines.length) {
+        const next = lines[i] ?? "";
+        if (/^```/.test(next)) break;
+        body.push(next);
         i++;
       }
       content.push({
@@ -345,8 +353,10 @@ export function markdownToAdf(markdown: string): AdfNode {
       flushParagraph();
       content.push({
         type: "heading",
-        attrs: { level: heading[1].length },
-        content: parseInline(heading[2]),
+        // Both groups in HEADING are unconditional, so these fall back only if
+        // the pattern itself changes. Level 1 is the safest such default.
+        attrs: { level: heading[1]?.length ?? 1 },
+        content: parseInline(heading[2] ?? ""),
       });
       continue;
     }
@@ -355,9 +365,9 @@ export function markdownToAdf(markdown: string): AdfNode {
       flushParagraph();
       const quoted: string[] = [];
       while (i < lines.length) {
-        const q = QUOTE.exec(lines[i]);
+        const q = QUOTE.exec(lines[i] ?? "");
         if (!q) break;
-        quoted.push(q[1]);
+        quoted.push(q[1] ?? "");
         i++;
       }
       i--;
@@ -373,11 +383,12 @@ export function markdownToAdf(markdown: string): AdfNode {
       const ordered = ORDERED.test(line);
       const items: AdfNode[] = [];
       while (i < lines.length) {
-        const m = ordered ? ORDERED.exec(lines[i]) : BULLET.exec(lines[i]);
+        const candidate = lines[i] ?? "";
+        const m = ordered ? ORDERED.exec(candidate) : BULLET.exec(candidate);
         if (!m) break;
         items.push({
           type: "listItem",
-          content: [paragraph(m[2])],
+          content: [paragraph(m[2] ?? "")],
         });
         i++;
       }

@@ -135,6 +135,9 @@ function pick(
   for (const alias of aliases) {
     if (alias.includes(".")) {
       const [head, tail] = alias.split(".");
+      // A malformed alias ("a.", ".b") can't name a nested field; skipping it
+      // matches what the lookup below did anyway when the half was empty.
+      if (!head || !tail) continue;
       const realHead = idx.get(head);
       if (realHead) {
         const nested = obj[realHead];

@@ -815,7 +815,12 @@ async function getMssqlBackupFileList(
     if (parts.length < 3) continue;
     const type = parts[2]?.trim().toUpperCase();
     if (type !== "D" && type !== "L" && type !== "S" && type !== "F") continue;
-    files.push({ logical: parts[0].trim(), physical: parts[1].trim(), type });
+    // `parts.length < 3` was skipped above, so 0 and 1 are present.
+    files.push({
+      logical: parts[0]?.trim() ?? "",
+      physical: parts[1]?.trim() ?? "",
+      type,
+    });
   }
   if (files.length === 0) {
     throw new Error(`Could not read file list from backup: ${source}`);

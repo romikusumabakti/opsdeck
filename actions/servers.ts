@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   type Environment,
   environmentServices,
@@ -101,10 +102,16 @@ export async function createServer(
     return { success: false, message: t("invalidInput") };
   }
   try {
-    const [created] = await db
-      .insert(servers)
-      .values({ ...parsed.data, password: encryptSecret(parsed.data.password) })
-      .returning();
+    const created = one(
+      await db
+        .insert(servers)
+        .values({
+          ...parsed.data,
+          password: encryptSecret(parsed.data.password),
+        })
+        .returning(),
+      "server"
+    );
     revalidatePath("/servers");
     revalidatePath("/environments/new");
     return { success: true, data: created, message: t("serverCreated") };

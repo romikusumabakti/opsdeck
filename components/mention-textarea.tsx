@@ -37,7 +37,7 @@ export function MentionTextarea({
   function detect(el: HTMLTextAreaElement) {
     const before = el.value.slice(0, el.selectionStart);
     const m = before.match(/@([^\n@]{0,40})$/);
-    setQuery(m ? m[1] : null);
+    setQuery(m?.[1] ?? null);
     setActive(0);
   }
 
@@ -69,8 +69,10 @@ export function MentionTextarea({
       e.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter") {
+      const chosen = matches[active];
+      if (!chosen) return;
       e.preventDefault();
-      insert(matches[active].name);
+      insert(chosen.name);
     } else if (e.key === "Escape") {
       setQuery(null);
     }

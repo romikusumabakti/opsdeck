@@ -111,5 +111,5 @@ export function findUploadPlaceholder(
   const found = uploadPlaceholderKey
     .getState(state)
     ?.find(undefined, undefined, (spec) => spec.id === id);
-  return found?.length ? found[0].from : null;
+  return found?.[0]?.from ?? null;
 }

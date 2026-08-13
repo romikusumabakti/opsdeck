@@ -124,7 +124,7 @@ export function extractLinkedSlugs(markdown: string): string[] {
   let m: RegExpExecArray | null;
   // biome-ignore lint/suspicious/noAssignInExpressions: standard regex iteration
   while ((m = re.exec(body)) !== null) {
-    slugs.add(m[1]);
+    if (m[1]) slugs.add(m[1]);
   }
   return [...slugs];
 }

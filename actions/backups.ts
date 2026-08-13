@@ -74,8 +74,9 @@ async function probeBackupList(environmentId: string): Promise<Backup[]> {
     .filter(Boolean)
     .map((line) => {
       const [size, name] = line.trim().split(/\s+/);
-      return { name, size };
-    });
+      return size && name ? { name, size } : null;
+    })
+    .filter((entry) => entry !== null);
 }
 
 export async function getBackupList(

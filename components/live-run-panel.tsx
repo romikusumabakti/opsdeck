@@ -46,7 +46,7 @@ function lastStep(output: string | undefined): string | null {
   if (!output) return null;
   const lines = output.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim();
+    const line = lines[i]?.trim();
     if (line) return line.replace(/^\[[^\]]*\]\s*/, "");
   }
   return null;

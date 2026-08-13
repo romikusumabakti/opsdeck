@@ -19,6 +19,7 @@ import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   environments,
   type Issue,
@@ -296,14 +297,17 @@ export async function addComment(
     return { success: false, message: "Comment too long" };
   }
   try {
-    const [created] = await db
-      .insert(issueComments)
-      .values({
-        issueId,
-        authorId: session.user.id,
-        body: trimmed,
-      })
-      .returning({ id: issueComments.id });
+    const created = one(
+      await db
+        .insert(issueComments)
+        .values({
+          issueId,
+          authorId: session.user.id,
+          body: trimmed,
+        })
+        .returning({ id: issueComments.id }),
+      "issue comment"
+    );
     // Mirror it to Jira if the project is linked with push on. The job itself
     // re-checks the link and skips comments that already carry a remote id, so
     // enqueuing unconditionally is safe and keeps this action free of Jira
@@ -558,28 +562,34 @@ export async function createIssue(
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const created = await db.transaction(async (tx) => {
-        const [{ max }] = await tx
+        const [highest] = await tx
           .select({
             max: sql<number>`coalesce(max(${issues.number}), 0)`,
           })
           .from(issues)
           .where(eq(issues.projectId, input.projectId));
-        const [row] = await tx
-          .insert(issues)
-          .values({
-            projectId: input.projectId,
-            number: Number(max) + 1,
-            title: input.title,
-            description: input.description ?? "",
-            type: input.type,
-            priority: input.priority,
-            environmentId: input.environmentId ?? null,
-            assigneeId: input.assigneeId ?? null,
-            milestoneId: input.milestoneId ?? null,
-            parentId: input.parentId ?? null,
-            createdById: session.user.id,
-          })
-          .returning();
+        // A bare aggregate always yields one row, and the coalesce already
+        // makes it 0 for an empty project — so the fallback is that same 0.
+        const max = highest?.max ?? 0;
+        const row = one(
+          await tx
+            .insert(issues)
+            .values({
+              projectId: input.projectId,
+              number: Number(max) + 1,
+              title: input.title,
+              description: input.description ?? "",
+              type: input.type,
+              priority: input.priority,
+              environmentId: input.environmentId ?? null,
+              assigneeId: input.assigneeId ?? null,
+              milestoneId: input.milestoneId ?? null,
+              parentId: input.parentId ?? null,
+              createdById: session.user.id,
+            })
+            .returning(),
+          "issue"
+        );
         return row;
       });
       const projectKey = await projectKeyOf(input.projectId);

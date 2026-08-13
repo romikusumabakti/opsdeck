@@ -27,7 +27,7 @@ const FILENAME_MARKER = /✓ Backup file created:\s*(.+?)\s*$/m;
 
 function extractFilename(output: string): string | null {
   const match = output.match(FILENAME_MARKER);
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 export function BackupDatabase({

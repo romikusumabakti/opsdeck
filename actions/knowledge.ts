@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   type KnowledgeCollection,
   type KnowledgeDocument,
@@ -54,14 +55,17 @@ export async function createCollection(
     return { success: false, message: "Invalid collection data" };
   }
   try {
-    const [created] = await db
-      .insert(knowledgeCollections)
-      .values({
-        ...parsed.data,
-        rank: await appendCollectionRank(),
-        createdById: session.user.id,
-      })
-      .returning();
+    const created = one(
+      await db
+        .insert(knowledgeCollections)
+        .values({
+          ...parsed.data,
+          rank: await appendCollectionRank(),
+          createdById: session.user.id,
+        })
+        .returning(),
+      "knowledge collection"
+    );
     revalidatePath(KNOWLEDGE_PATH);
     return { success: true, data: created };
   } catch (error) {
@@ -190,23 +194,26 @@ export async function createDocument(
     const slug = await ensureUniqueSlug(slugify(title));
     const rank = await appendDocumentRank(collectionId, parentId ?? null);
     const created = await db.transaction(async (tx) => {
-      const [doc] = await tx
-        .insert(knowledgeDocuments)
-        .values({
-          collectionId,
-          parentId: parentId ?? null,
-          title,
-          docType,
-          slug,
-          content,
-          contentText: markdownToPlainText(content),
-          rank,
-          projectId: projectId ?? null,
-          publishedAt: publishedAt ? new Date(publishedAt) : null,
-          createdById: session.user.id,
-          updatedById: session.user.id,
-        })
-        .returning();
+      const doc = one(
+        await tx
+          .insert(knowledgeDocuments)
+          .values({
+            collectionId,
+            parentId: parentId ?? null,
+            title,
+            docType,
+            slug,
+            content,
+            contentText: markdownToPlainText(content),
+            rank,
+            projectId: projectId ?? null,
+            publishedAt: publishedAt ? new Date(publishedAt) : null,
+            createdById: session.user.id,
+            updatedById: session.user.id,
+          })
+          .returning(),
+        "knowledge document"
+      );
       await rebuildLinks(tx, doc.id, content);
       return doc;
     });
@@ -279,11 +286,10 @@ export async function updateDocument(
             )
           : eq(knowledgeDocuments.id, id);
 
-      const [doc] = await tx
-        .update(knowledgeDocuments)
-        .set(set)
-        .where(guard)
-        .returning();
+      const doc = one(
+        await tx.update(knowledgeDocuments).set(set).where(guard).returning(),
+        "knowledge document"
+      );
       if (!doc) return { kind: "stale" } as const;
 
       // Snapshot the PRIOR state now that the write succeeded so history is
@@ -464,18 +470,21 @@ export async function restoreRevision(
         editedById: session.user.id,
       });
 
-      const [doc] = await tx
-        .update(knowledgeDocuments)
-        .set({
-          title: rev.title,
-          content: rev.content,
-          contentText: markdownToPlainText(rev.content),
-          version: existing.version + 1,
-          updatedById: session.user.id,
-          updatedAt: new Date(),
-        })
-        .where(eq(knowledgeDocuments.id, documentId))
-        .returning();
+      const doc = one(
+        await tx
+          .update(knowledgeDocuments)
+          .set({
+            title: rev.title,
+            content: rev.content,
+            contentText: markdownToPlainText(rev.content),
+            version: existing.version + 1,
+            updatedById: session.user.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(knowledgeDocuments.id, documentId))
+          .returning(),
+        "knowledge document"
+      );
       await rebuildLinks(tx, documentId, rev.content);
       return doc;
     });

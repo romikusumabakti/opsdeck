@@ -8,6 +8,7 @@ import {
   requireSession,
 } from "@/lib/auth-session";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
   type Environment,
@@ -280,16 +281,19 @@ export async function createEnvironment(
     // One transaction: an environment without its services is unusable, so the
     // four inserts must land together.
     const insertedEnvironment = await db.transaction(async (tx) => {
-      const [env] = await tx
-        .insert(environments)
-        .values({
-          projectId: input.projectId,
-          name: input.name,
-          slug,
-          kind: input.kind,
-          owner: input.owner,
-        })
-        .returning();
+      const env = one(
+        await tx
+          .insert(environments)
+          .values({
+            projectId: input.projectId,
+            name: input.name,
+            slug,
+            kind: input.kind,
+            owner: input.owner,
+          })
+          .returning(),
+        "environment"
+      );
       await tx
         .insert(environmentServices)
         .values(
