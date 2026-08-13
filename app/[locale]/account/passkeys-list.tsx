@@ -112,7 +112,9 @@ export function PasskeysList() {
     if (!ok) return;
 
     setPendingId(passkey.id);
-    const { error } = await authClient.passkey.deletePasskey({ id: passkey.id });
+    const { error } = await authClient.passkey.deletePasskey({
+      id: passkey.id,
+    });
     setPendingId(null);
 
     if (error) {

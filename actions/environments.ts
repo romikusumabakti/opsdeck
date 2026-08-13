@@ -21,6 +21,7 @@ import {
 import { loadSafeEnvironment } from "@/lib/environments";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
+import type { ActionResponse } from "@/lib/types";
 import type { EnvironmentInput } from "@/lib/validation";
 import {
   environmentInputSchema,
@@ -114,12 +115,6 @@ function frontendServicePatch(d: EnvironmentUpdate) {
     serviceName: d.frontendServiceName,
   });
 }
-
-type ActionResponse = {
-  success: boolean;
-  message?: string;
-  data?: Environment;
-};
 
 /**
  * GET: Fetch every environment (without server details — used for the header
@@ -273,7 +268,7 @@ async function uniqueEnvSlug(projectId: string, name: string): Promise<string> {
 
 export async function createEnvironment(
   data: unknown
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Environment>> {
   await requireAdmin();
   const parsed = environmentInputSchema.safeParse(data);
   if (!parsed.success) {
@@ -324,7 +319,7 @@ export async function createEnvironment(
 export async function updateEnvironment(
   id: string,
   data: unknown
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Environment>> {
   await requireAdmin();
   if (!uuidSchema.safeParse(id).success) {
     return { success: false, message: "Invalid environment id" };

@@ -25,6 +25,7 @@ import {
   searchDocuments,
   slugify,
 } from "@/lib/knowledge";
+import type { ActionResponse } from "@/lib/types";
 import {
   collectionInputSchema,
   collectionMoveSchema,
@@ -35,12 +36,6 @@ import {
   knowledgeIdSchema,
   knowledgeSearchSchema,
 } from "@/lib/validation";
-
-type ActionResponse<T> = {
-  success: boolean;
-  message?: string;
-  data?: T;
-};
 
 // The transaction handle passed to db.transaction's callback — same query API
 // as `db`, so helpers below take it instead of the top-level connection.

@@ -12,10 +12,7 @@ import * as React from "react";
 import type { RunWithUser } from "@/actions/runs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DataTable,
-  type DataTableColumnDef,
-} from "@/components/ui/data-table";
+import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 
 function formatDuration(ms: number): string {

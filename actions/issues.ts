@@ -35,6 +35,7 @@ import type { IssueSort } from "@/lib/issue-query";
 import type { PushableField } from "@/lib/jira/push";
 import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
 import { enqueue, type JobMap } from "@/lib/queue";
+import type { ActionResponse } from "@/lib/types";
 import {
   issueInputSchema,
   issuePrioritySchema,
@@ -519,8 +520,6 @@ function isUuid(value: string | undefined): value is string {
   return !!value && z.uuid().safeParse(value).success;
 }
 
-type ActionResponse = { success: boolean; message?: string; data?: Issue };
-
 /** All issues for a logical project, newest first. */
 export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
   await requireSession();
@@ -546,7 +545,9 @@ export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
  * max(number)+1 inside a transaction; a concurrent create can still collide on
  * the unique (project_id, number) index, so retry a few times on 23505.
  */
-export async function createIssue(data: unknown): Promise<ActionResponse> {
+export async function createIssue(
+  data: unknown
+): Promise<ActionResponse<Issue>> {
   const session = await requireSession();
   const parsed = issueInputSchema.safeParse(data);
   if (!parsed.success) {
@@ -612,7 +613,7 @@ export async function createIssue(data: unknown): Promise<ActionResponse> {
 export async function updateIssue(
   id: string,
   data: unknown
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Issue>> {
   const session = await requireSession();
   const parsed = issueUpdateSchema.safeParse(data);
   if (!parsed.success) {
@@ -675,7 +676,7 @@ export async function updateIssue(
 export async function setIssueStatus(
   id: string,
   status: string
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Issue>> {
   return updateIssue(id, { status });
 }
 

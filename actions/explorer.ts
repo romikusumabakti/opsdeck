@@ -9,6 +9,7 @@ import {
 } from "@/lib/explorer";
 import { PathError } from "@/lib/explorer/path";
 import { type Eol, readTextFile, writeTextFile } from "@/lib/explorer/text";
+import type { ActionResponse } from "@/lib/types";
 import {
   explorerEolSchema,
   explorerNameSchema,
@@ -23,13 +24,7 @@ import {
 // never in a payload: the client sends a source descriptor of ids, and
 // resolveBackend loads creds server-side.
 
-type ListResult =
-  | { success: true; data: ExplorerEntry[] }
-  | { success: false; message: string };
-
-type SimpleResult =
-  | { success: true; message?: string }
-  | { success: false; message: string };
+type ListResult = ActionResponse<ExplorerEntry[]>;
 
 // Parse+authorize the common preamble. Returns the resolved backend or a
 // typed error so each action can early-return.
@@ -148,7 +143,7 @@ export async function saveFileText(
   path: unknown,
   content: unknown,
   eol: unknown
-): Promise<SimpleResult> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
@@ -179,7 +174,7 @@ export async function createFolder(
   source: unknown,
   parentPath: unknown,
   name: unknown
-): Promise<SimpleResult> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
@@ -202,7 +197,7 @@ export async function createFolder(
 export async function deleteEntry(
   source: unknown,
   path: unknown
-): Promise<SimpleResult> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
@@ -223,7 +218,7 @@ export async function renameEntry(
   source: unknown,
   path: unknown,
   newName: unknown
-): Promise<SimpleResult> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);

@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema";
 import { testS3Connection } from "@/lib/explorer/s3";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import type { ActionResponse } from "@/lib/types";
 import {
   s3ConnectionInputSchema,
   s3ConnectionUpdateSchema,
@@ -25,14 +26,6 @@ function toSafe(row: S3Connection): SafeS3Connection {
   const { secretKey, ...rest } = row;
   return { ...rest, hasSecret: secretKey.length > 0 };
 }
-
-type CreateResponse =
-  | { success: true; data: SafeS3Connection; message?: string }
-  | { success: false; message: string };
-
-type SimpleResponse =
-  | { success: true; message?: string }
-  | { success: false; message: string };
 
 export async function getS3Connections(): Promise<SafeS3Connection[]> {
   await requireSession();
@@ -57,7 +50,7 @@ export async function getS3Connection(
 
 export async function createS3Connection(
   data: NewS3Connection
-): Promise<CreateResponse> {
+): Promise<ActionResponse<SafeS3Connection>> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = s3ConnectionInputSchema.safeParse(data);
@@ -83,7 +76,7 @@ export async function createS3Connection(
 export async function updateS3Connection(
   id: string,
   data: Partial<NewS3Connection>
-): Promise<SimpleResponse> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = s3ConnectionUpdateSchema.safeParse(data);
@@ -112,7 +105,7 @@ export async function updateS3Connection(
   }
 }
 
-export async function deleteS3Connection(id: string): Promise<SimpleResponse> {
+export async function deleteS3Connection(id: string): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   try {
