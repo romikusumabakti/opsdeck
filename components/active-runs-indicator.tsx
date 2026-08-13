@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
-import type { ActiveRun } from "@/actions/runs";
+import { useActiveRuns } from "@/components/active-runs-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,9 @@ function formatElapsed(from: Date | string, now: number): string {
 
 export function ActiveRunsIndicator() {
   const t = useTranslations("activeTasks");
-  const [runs, setTasks] = React.useState<ActiveRun[]>([]);
+  // Shared with the sidebar History badge via ActiveRunsProvider — one SSE
+  // connection feeds both.
+  const runs = useActiveRuns();
   const [open, setOpen] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => Date.now());
@@ -39,27 +41,6 @@ export function ActiveRunsIndicator() {
     titleSuccess: t("notifyTitleSuccess"),
     titleFailed: t("notifyTitleFailed"),
   });
-
-  // Subscribe to a server-sent stream of the running-run list. The server
-  // polls the DB and pushes diffs, so we get fresh state without each client
-  // hammering the DB on its own timer. EventSource auto-reconnects on
-  // transient errors and after the server's 10-minute max-duration close.
-  React.useEffect(() => {
-    const es = new EventSource("/api/runs/running/stream");
-
-    es.addEventListener("snapshot", (ev) => {
-      try {
-        const data = JSON.parse((ev as MessageEvent).data) as ActiveRun[];
-        setTasks(data);
-      } catch {
-        /* ignore malformed frame */
-      }
-    });
-
-    return () => {
-      es.close();
-    };
-  }, []);
 
   // Tick the elapsed display once a second only while something is running.
   React.useEffect(() => {

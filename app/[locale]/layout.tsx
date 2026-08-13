@@ -9,12 +9,14 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 import { listEnvironments } from "@/actions/environments";
+import { getAssignedIssueCounts } from "@/actions/issues";
 import {
   getUnreadNotificationCount,
   listNotifications,
 } from "@/actions/notifications";
 import { listProjects } from "@/actions/project-catalog";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
+import { ActiveRunsProvider } from "@/components/active-runs-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { Copyright } from "@/components/copyright";
@@ -87,23 +89,25 @@ export default async function LocaleLayout({
   const rtl = isRtlLocale(locale as Parameters<typeof isRtlLocale>[0]);
 
   const session = await getServerSession();
-  // All four are independent reads for the shell (sidebar, breadcrumb, bell).
-  // Awaited together — serially they stacked four round-trips into the render
+  // All five are independent reads for the shell (sidebar, breadcrumb, bell).
+  // Awaited together — serially they stacked five round-trips into the render
   // of every page. The tuple is annotated so the signed-out branch's empty
   // literals don't widen the destructured types.
-  const [environments, projects, notifications, unreadCount]: [
+  const [environments, projects, notifications, unreadCount, issueCounts]: [
     Awaited<ReturnType<typeof listEnvironments>>,
     Awaited<ReturnType<typeof listProjects>>,
     Awaited<ReturnType<typeof listNotifications>>,
     number,
+    Awaited<ReturnType<typeof getAssignedIssueCounts>>,
   ] = session
     ? await Promise.all([
         listEnvironments(),
         listProjects(),
         listNotifications(),
         getUnreadNotificationCount(),
+        getAssignedIssueCounts(),
       ])
-    : [[], [], [], 0];
+    : [[], [], [], 0, { total: 0, byProject: {} }];
   const projectNameById: Record<string, string> = Object.fromEntries(
     projects.map((p) => [p.id, p.name])
   );
@@ -143,59 +147,64 @@ export default async function LocaleLayout({
             <DialogProvider>
               <NavigationGuardProvider>
                 {session ? (
-                  <SidebarProvider defaultOpen={sidebarDefaultOpen}>
-                    <a
-                      href="#main-content"
-                      className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    >
-                      {tHeader("skipToContent")}
-                    </a>
-                    <AppSidebar
-                      environments={environments}
-                      isAdmin={admin}
-                      side={rtl ? "right" : "left"}
-                      user={{
-                        id: session.user.id,
-                        name: session.user.name,
-                        email: session.user.email,
-                        image: session.user.image ?? null,
-                      }}
-                    />
-                    <SidebarInset className="min-w-0">
-                      <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
-                        <SidebarTrigger className="-ms-1" />
-                        <HeaderBreadcrumb
-                          environments={environments}
-                          projectNameById={projectNameById}
-                          projectKeyById={projectKeyById}
-                          isAdmin={admin}
-                        />
-                        <div className="ms-auto flex items-center gap-2">
-                          <ActiveRunsIndicator />
-                          <div className="hidden md:flex items-center gap-2 pe-1">
-                            <ServerTime timeZone={APP_TIMEZONE} />
-                          </div>
-                          <NotificationBell
-                            initialNotifications={notifications}
-                            initialUnread={unreadCount}
-                          />
-                          <CommandPalette
+                  // One run stream for the whole shell — the header indicator
+                  // and the sidebar History badge both read it.
+                  <ActiveRunsProvider>
+                    <SidebarProvider defaultOpen={sidebarDefaultOpen}>
+                      <a
+                        href="#main-content"
+                        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      >
+                        {tHeader("skipToContent")}
+                      </a>
+                      <AppSidebar
+                        environments={environments}
+                        isAdmin={admin}
+                        issueCounts={issueCounts}
+                        side={rtl ? "right" : "left"}
+                        user={{
+                          id: session.user.id,
+                          name: session.user.name,
+                          email: session.user.email,
+                          image: session.user.image ?? null,
+                        }}
+                      />
+                      <SidebarInset className="min-w-0">
+                        <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
+                          <SidebarTrigger className="-ms-1" />
+                          <HeaderBreadcrumb
                             environments={environments}
+                            projectNameById={projectNameById}
+                            projectKeyById={projectKeyById}
                             isAdmin={admin}
                           />
-                        </div>
-                      </header>
-                      <main
-                        id="main-content"
-                        tabIndex={-1}
-                        data-scroll-shadow
-                        className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
-                      >
-                        {children}
-                      </main>
-                    </SidebarInset>
-                    <KeyboardShortcuts />
-                  </SidebarProvider>
+                          <div className="ms-auto flex items-center gap-2">
+                            <ActiveRunsIndicator />
+                            <div className="hidden md:flex items-center gap-2 pe-1">
+                              <ServerTime timeZone={APP_TIMEZONE} />
+                            </div>
+                            <NotificationBell
+                              initialNotifications={notifications}
+                              initialUnread={unreadCount}
+                            />
+                            <CommandPalette
+                              environments={environments}
+                              isAdmin={admin}
+                            />
+                          </div>
+                        </header>
+                        <main
+                          id="main-content"
+                          tabIndex={-1}
+                          data-scroll-shadow
+                          className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
+                        >
+                          {children}
+                        </main>
+                      </SidebarInset>
+                      <KeyboardShortcuts />
+                    </SidebarProvider>
+                  </ActiveRunsProvider>
                 ) : (
                   <div className="flex flex-col min-h-dvh bg-muted dark:bg-background">
                     {/* No `min-h-0`: the content must be allowed to push the

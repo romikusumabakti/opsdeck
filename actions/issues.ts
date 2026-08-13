@@ -179,6 +179,51 @@ export async function getOpenIssueCounts(): Promise<Record<string, number>> {
   }
 }
 
+/** Assigned-and-unresolved counts for the sidebar badges. */
+export type AssignedIssueCounts = {
+  /** Across every project — the global "Issues" badge. */
+  total: number;
+  /** projectId → count, for the environment group's "Issues" badge. */
+  byProject: Record<string, number>;
+};
+
+/**
+ * Counts the caller's own unresolved issues, grouped by project. Deliberately
+ * *assigned to me* rather than "all open": the sidebar badge has to mean "you
+ * owe work here", and a total-open count would light up permanently on any
+ * project with a backlog. One grouped query serves both badges — the total is
+ * summed client-side rather than costing a second round-trip.
+ */
+export async function getAssignedIssueCounts(): Promise<AssignedIssueCounts> {
+  const session = await requireSession();
+  try {
+    const rows = await db
+      .select({
+        projectId: issues.projectId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.assigneeId, session.user.id),
+          inArray(issues.status, [...OPEN_STATUSES])
+        )
+      )
+      .groupBy(issues.projectId);
+    const byProject: Record<string, number> = {};
+    let total = 0;
+    for (const r of rows) {
+      const n = Number(r.count);
+      byProject[r.projectId] = n;
+      total += n;
+    }
+    return { total, byProject };
+  } catch (error) {
+    console.error("Failed to count assigned issues:", error);
+    return { total: 0, byProject: {} };
+  }
+}
+
 /**
  * Not-yet-resolved issues assigned to one user, newest-updated first — the
  * "assigned to me" feed on Home.

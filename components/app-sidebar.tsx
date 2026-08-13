@@ -20,6 +20,9 @@ import {
   Users,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { AssignedIssueCounts } from "@/actions/issues";
+import { useActiveRunCount } from "@/components/active-runs-provider";
+import { SidebarCountBadge } from "@/components/sidebar-count-badge";
 import {
   Sidebar,
   SidebarContent,
@@ -73,11 +76,13 @@ type AppSidebarUser = {
 export function AppSidebar({
   environments,
   isAdmin,
+  issueCounts,
   user,
   side = "left",
 }: {
   environments: EnvironmentListItem[];
   isAdmin: boolean;
+  issueCounts: AssignedIssueCounts;
   user: AppSidebarUser;
   side?: "left" | "right";
 }) {
@@ -93,6 +98,15 @@ export function AppSidebar({
     ? (environments.find((e) => e.key === match[1] && e.slug === match[2]) ??
       null)
     : null;
+
+  // Issues live on the environment's parent project, so the group badge counts
+  // that project — the same set the env's Issues page lists.
+  const envIssueCount = activeEnv
+    ? (issueCounts.byProject[activeEnv.projectId] ?? 0)
+    : 0;
+  // Live from the shared run stream: the History badge is "something is
+  // happening right now", not a stored count.
+  const envRunCount = useActiveRunCount(activeEnv?.id ?? null);
 
   return (
     <Sidebar collapsible="icon" side={side}>
@@ -146,6 +160,12 @@ export function AppSidebar({
                   <CircleDot />
                   <span>{tNav("allIssues")}</span>
                 </SidebarMenuButton>
+                <SidebarCountBadge
+                  count={issueCounts.total}
+                  label={tNav("badgeAssignedIssues", {
+                    count: issueCounts.total,
+                  })}
+                />
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -244,6 +264,23 @@ export function AppSidebar({
                           <item.icon />
                           <span>{tNav(item.key)}</span>
                         </SidebarMenuButton>
+                        {item.key === "issues" && (
+                          <SidebarCountBadge
+                            count={envIssueCount}
+                            label={tNav("badgeAssignedIssues", {
+                              count: envIssueCount,
+                            })}
+                          />
+                        )}
+                        {item.key === "history" && (
+                          <SidebarCountBadge
+                            count={envRunCount}
+                            variant="active"
+                            label={tNav("badgeActiveRuns", {
+                              count: envRunCount,
+                            })}
+                          />
+                        )}
                       </SidebarMenuItem>
                     );
                   })}
