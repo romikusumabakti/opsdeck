@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
+import type { ActionResponse } from "@/lib/types";
 import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
 
 export type ServerUsage = {
@@ -75,14 +76,6 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
   return Array.from(usageByEnvironment.values());
 }
 
-type CreateResponse =
-  | { success: true; data: Server; message?: string }
-  | { success: false; message: string };
-
-type SimpleResponse =
-  | { success: true; message?: string }
-  | { success: false; message: string };
-
 export async function getServers(): Promise<Server[]> {
   await requireSession();
   return db.select().from(servers).orderBy(servers.name);
@@ -98,7 +91,9 @@ export async function getServerById(id: string): Promise<Server | undefined> {
   return row;
 }
 
-export async function createServer(data: NewServer): Promise<CreateResponse> {
+export async function createServer(
+  data: NewServer
+): Promise<ActionResponse<Server>> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = serverInputSchema.safeParse(data);
@@ -122,7 +117,7 @@ export async function createServer(data: NewServer): Promise<CreateResponse> {
 export async function updateServer(
   id: string,
   data: Partial<NewServer>
-): Promise<SimpleResponse> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = serverUpdateSchema.safeParse(data);
@@ -241,7 +236,7 @@ export async function bulkDeleteServers(
   return { success: true, deleted, failed };
 }
 
-export async function deleteServer(id: string): Promise<SimpleResponse> {
+export async function deleteServer(id: string): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   try {

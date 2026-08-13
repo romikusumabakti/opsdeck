@@ -17,10 +17,7 @@ import { db } from "@/lib/db";
 import { invitations, sessions, users as userTable } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
 import { isAssignableRole } from "@/lib/roles";
-
-export type ActionResponse =
-  | { success: true; message?: string }
-  | { success: false; message: string };
+import type { ActionResponse } from "@/lib/types";
 
 const INVITE_EXPIRES_HOURS = 48;
 

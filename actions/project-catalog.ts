@@ -10,16 +10,11 @@ import {
   type Project,
   projects,
 } from "@/lib/db/schema";
+import type { ActionResponse } from "@/lib/types";
 import {
   projectMetaInputSchema,
   projectMetaUpdateSchema,
 } from "@/lib/validation";
-
-type ActionResponse = {
-  success: boolean;
-  message?: string;
-  data?: Project;
-};
 
 /** All logical projects, name-ordered. Used by the environment-form picker. */
 export async function listProjects(): Promise<Project[]> {
@@ -132,7 +127,9 @@ export async function getProjectByKeyWithEnvironments(
   } as ProjectWithEnvironments;
 }
 
-export async function addProject(data: unknown): Promise<ActionResponse> {
+export async function addProject(
+  data: unknown
+): Promise<ActionResponse<Project>> {
   await requireAdmin();
   const parsed = projectMetaInputSchema.safeParse(data);
   if (!parsed.success) {
@@ -156,7 +153,7 @@ export async function addProject(data: unknown): Promise<ActionResponse> {
 export async function editProject(
   id: string,
   data: unknown
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Project>> {
   await requireAdmin();
   const parsed = projectMetaUpdateSchema.safeParse(data);
   if (!parsed.success) {

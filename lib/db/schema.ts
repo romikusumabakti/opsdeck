@@ -1,5 +1,11 @@
-import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
 import {
+  type InferInsertModel,
+  type InferSelectModel,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import {
+  type AnyPgColumn,
   boolean,
   customType,
   index,
@@ -233,7 +239,7 @@ export const runs = pgTable(
     kind: runKindEnum("kind"),
     // Set on `test` runs to tie a QA result to the issue it verifies. set null:
     // the run's audit record outlives the issue. Null for ops runs.
-    issueId: uuid("issue_id").references((): any => issues.id, {
+    issueId: uuid("issue_id").references((): AnyPgColumn => issues.id, {
       onDelete: "set null",
     }),
     // Streaming log appended by worker job steps via appendRunOutput. Lines are
@@ -366,7 +372,7 @@ export const issues = pgTable(
     estimate: integer("estimate"),
     // Parent issue for epic → story → subtask nesting. Self-FK; set null so
     // deleting a parent re-parents children to top level instead of cascading.
-    parentId: uuid("parent_id").references((): any => issues.id, {
+    parentId: uuid("parent_id").references((): AnyPgColumn => issues.id, {
       onDelete: "set null",
     }),
     // Planning bucket. set null: the issue outlives a milestone that's deleted.
@@ -886,9 +892,12 @@ export const knowledgeDocuments = pgTable(
     // Self-reference builds the nesting tree. set null (not cascade) so deleting
     // a parent re-parents children to the collection root instead of nuking the
     // whole subtree — the actions layer decides reparent vs cascade explicitly.
-    parentId: uuid("parent_id").references((): any => knowledgeDocuments.id, {
-      onDelete: "set null",
-    }),
+    parentId: uuid("parent_id").references(
+      (): AnyPgColumn => knowledgeDocuments.id,
+      {
+        onDelete: "set null",
+      }
+    ),
     title: text("title").notNull(),
     docType: knowledgeDocTypeEnum("doc_type").notNull().default("doc"),
     // URL-friendly identifier, unique within a collection. Routed as
@@ -903,7 +912,7 @@ export const knowledgeDocuments = pgTable(
     // Generated full-text vector: title weighted 'A', body 'B'. STORED so the
     // GIN index covers it without a trigger. Recomputed by Postgres on write.
     searchVector: tsvector("search_vector").generatedAlwaysAs(
-      (): any =>
+      (): SQL =>
         sql`setweight(to_tsvector('simple', coalesce(${knowledgeDocuments.title}, '')), 'A') || setweight(to_tsvector('simple', coalesce(${knowledgeDocuments.contentText}, '')), 'B')`
     ),
     // Sibling ordering within the same parent via a fractional-index rank
