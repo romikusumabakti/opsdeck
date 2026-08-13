@@ -129,7 +129,7 @@ Kalau Azure menawarkan untuk menambahkan Microsoft Graph permission
 
 ## 5. Isi environment variable
 
-Host (`pnpm dev`) → `.env.local`. Docker Compose → `.env`.
+Host (`bun run dev`) → `.env.local`. Docker Compose → `.env`.
 
 ```bash
 MICROSOFT_CLIENT_ID=<Application (client) ID>

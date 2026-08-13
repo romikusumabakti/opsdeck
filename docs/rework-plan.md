@@ -107,7 +107,7 @@ projectMembers {
 }
 ```
 Membership attaches to `projects` (logical), inherited by all its environments —
-no environment-level granularity. Then `pnpm drizzle-kit generate`.
+no environment-level granularity. Then `bun run db:generate`.
 
 **0.3 — Capability resolver (core)** · `lib/auth-session.ts`
 ```

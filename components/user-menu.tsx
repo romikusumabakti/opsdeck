@@ -215,7 +215,7 @@ const SidebarUserTrigger = React.forwardRef<
       ref={ref}
       size="lg"
       aria-label={label}
-      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+      className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
       {...props}
     >
       <span className="size-8 rounded-md bg-muted flex items-center justify-center text-xs font-semibold shrink-0">

@@ -1,5 +1,5 @@
+import { describe, expect, it } from "bun:test";
 import { Readable } from "node:stream";
-import { describe, expect, it } from "vitest";
 import { readTextFile, writeTextFile } from "@/lib/explorer/text";
 import type { ExplorerEntry, StorageBackend } from "@/lib/explorer/types";
 import { MAX_EDITABLE_BYTES } from "@/lib/validation";
