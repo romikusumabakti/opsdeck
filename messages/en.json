@@ -121,7 +121,9 @@
     "home": "Home",
     "activity": "Activity",
     "jira": "Jira",
-    "admin": "Admin"
+    "admin": "Admin",
+    "badgeAssignedIssues": "{count, plural, one {# issue assigned to you} other {# issues assigned to you}}",
+    "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}"
   },
   "header": {
     "searchEnvironment": "Search environment…",

@@ -121,7 +121,9 @@
     "home": "主页",
     "activity": "动态",
     "jira": "Jira",
-    "admin": "管理员"
+    "admin": "管理员",
+    "badgeAssignedIssues": "{count, plural, other {分配给你的 # 个问题}}",
+    "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
