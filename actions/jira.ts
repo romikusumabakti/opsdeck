@@ -18,6 +18,7 @@ import { normalizeOverrides } from "@/lib/jira/mapping";
 import { credentialsFor, ENUM_VALUES } from "@/lib/jira/sync";
 import { enqueue, scheduleJiraSweep, unscheduleJiraSweep } from "@/lib/queue";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import type { ActionResponse } from "@/lib/types";
 import {
   jiraConnectionInputSchema,
   jiraConnectionUpdateSchema,
@@ -32,14 +33,6 @@ import {
  * happens inline — these actions only enqueue, so a slow or rate-limited Jira
  * can't hold a request open.
  */
-
-type SimpleResponse =
-  | { success: true; message?: string }
-  | { success: false; message: string };
-
-type CreateResponse =
-  | { success: true; data: SafeJiraConnection; message?: string }
-  | { success: false; message: string };
 
 function toSafe(row: JiraConnection): SafeJiraConnection {
   const { apiToken, webhookSecret, ...rest } = row;
@@ -96,7 +89,7 @@ export async function getJiraWebhookUrl(
 
 export async function createJiraConnection(
   data: unknown
-): Promise<CreateResponse> {
+): Promise<ActionResponse<SafeJiraConnection>> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = jiraConnectionInputSchema.safeParse(data);
@@ -129,7 +122,7 @@ export async function createJiraConnection(
 export async function updateJiraConnection(
   id: string,
   data: unknown
-): Promise<SimpleResponse> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = jiraConnectionUpdateSchema.safeParse(data);
@@ -165,7 +158,7 @@ export async function updateJiraConnection(
 
 export async function deleteJiraConnection(
   id: string
-): Promise<SimpleResponse> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   let orphaned: { projectId: string }[] = [];
@@ -276,7 +269,7 @@ export async function getJiraLink(
  * with an opaque error. Enabling the link (re)registers the reconcile schedule
  * and kicks off an immediate incremental sweep.
  */
-export async function saveJiraLink(data: unknown): Promise<SimpleResponse> {
+export async function saveJiraLink(data: unknown): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = jiraProjectLinkSchema.safeParse(data);
@@ -359,7 +352,7 @@ export async function saveJiraLink(data: unknown): Promise<SimpleResponse> {
  */
 export async function unlinkJiraProject(
   projectId: string
-): Promise<SimpleResponse> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   try {
@@ -386,7 +379,7 @@ export async function unlinkJiraProject(
 export async function syncJiraProjectNow(
   projectId: string,
   full = false
-): Promise<SimpleResponse> {
+): Promise<ActionResponse> {
   await requireAdmin();
   const t = await getTranslations("actionErrors");
   const [link] = await db

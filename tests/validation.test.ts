@@ -18,16 +18,12 @@ describe("backupFilenameSchema", () => {
 });
 
 describe("databaseNameSchema", () => {
-  it.each([
-    "mydb",
-    "my_db",
-    "db1",
-    "_internal",
-    "app-prod",
-    " a_b ",
-  ])("accepts %s", (name) => {
-    expect(databaseNameSchema.safeParse(name).success).toBe(true);
-  });
+  it.each(["mydb", "my_db", "db1", "_internal", "app-prod", " a_b "])(
+    "accepts %s",
+    (name) => {
+      expect(databaseNameSchema.safeParse(name).success).toBe(true);
+    }
+  );
 
   it.each([
     "",
@@ -86,12 +82,10 @@ describe("projectKeySchema", () => {
 
   // A project key is also a top-level URL segment (/[projectKey]/[envSlug]),
   // so one that matches a real route would be unreachable.
-  it.each([
-    "projects",
-    "ISSUES",
-    "servers",
-    "api",
-  ])("rejects route-colliding %s", (key) => {
-    expect(projectKeySchema.safeParse(key).success).toBe(false);
-  });
+  it.each(["projects", "ISSUES", "servers", "api"])(
+    "rejects route-colliding %s",
+    (key) => {
+      expect(projectKeySchema.safeParse(key).success).toBe(false);
+    }
+  );
 });

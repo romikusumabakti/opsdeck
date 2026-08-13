@@ -7,11 +7,8 @@ import { requireCapability } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
 import { ROLE_RANK, type UserRole } from "@/lib/roles";
+import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
-
-export type ActionResponse =
-  | { success: true; message?: string }
-  | { success: false; message: string };
 
 export type ProjectMemberRow = {
   userId: string;

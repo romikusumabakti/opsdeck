@@ -6,13 +6,8 @@ import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { issues, type Milestone, milestones } from "@/lib/db/schema";
+import type { ActionResponse } from "@/lib/types";
 import { milestoneInputSchema } from "@/lib/validation";
-
-export type ActionResponse = {
-  success: boolean;
-  message?: string;
-  data?: Milestone;
-};
 
 // A milestone plus how many issues point at it — the count drives the
 // management list and warns before deleting a non-empty one.
@@ -52,7 +47,9 @@ export async function listMilestones(
   }
 }
 
-export async function createMilestone(data: unknown): Promise<ActionResponse> {
+export async function createMilestone(
+  data: unknown
+): Promise<ActionResponse<Milestone>> {
   const session = await requireSession();
   const parsed = milestoneInputSchema.safeParse(data);
   if (!parsed.success) {
@@ -87,7 +84,7 @@ export async function createMilestone(data: unknown): Promise<ActionResponse> {
 export async function updateMilestone(
   id: string,
   data: unknown
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Milestone>> {
   await requireSession();
   const parsed = milestoneInputSchema.partial().safeParse(data);
   if (!parsed.success) {
@@ -114,7 +111,7 @@ export async function updateMilestone(
 export async function setMilestoneClosed(
   id: string,
   closed: boolean
-): Promise<ActionResponse> {
+): Promise<ActionResponse<Milestone>> {
   await requireSession();
   try {
     const [row] = await db
