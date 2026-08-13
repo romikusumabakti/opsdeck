@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import { requireEnv } from "@/lib/env";
 
 // Build signed imgproxy URLs. imgproxy (a dedicated, internal-only container)
 // pulls the original object straight from Garage (s3://…), re-renders it on the
@@ -12,12 +13,6 @@ import { createHmac } from "node:crypto";
 // URL the app didn't mint. Auth itself stays at the app: the /api/knowledge/
 // asset/<id> route checks the session, then fetches a freshly-signed URL from
 // imgproxy server-side, so imgproxy is never exposed to the browser.
-
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set`);
-  return value;
-}
 
 const hex = (s: string) => Buffer.from(s, "hex");
 
@@ -31,14 +26,14 @@ export function imgproxyUrl(
   storageKey: string,
   { width = 1600, quality = 82 } = {}
 ): string {
-  const source = `s3://${env("S3_BUCKET")}/${storageKey}`;
+  const source = `s3://${requireEnv("S3_BUCKET")}/${storageKey}`;
   const encoded = Buffer.from(source).toString("base64url");
   const path = `/rs:fit:${width}:0/q:${quality}/${encoded}`;
 
-  const signature = createHmac("sha256", hex(env("IMGPROXY_KEY")))
-    .update(hex(env("IMGPROXY_SALT")))
+  const signature = createHmac("sha256", hex(requireEnv("IMGPROXY_KEY")))
+    .update(hex(requireEnv("IMGPROXY_SALT")))
     .update(path)
     .digest("base64url");
 
-  return `${env("IMGPROXY_URL")}/${signature}${path}`;
+  return `${requireEnv("IMGPROXY_URL")}/${signature}${path}`;
 }

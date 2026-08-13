@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
+import { cache } from "react";
 import { redirect } from "@/i18n/navigation";
 import { auth } from "./auth";
 import { db } from "./db";
@@ -14,11 +15,27 @@ import {
   type UserRole,
 } from "./roles";
 
-export async function getServerSession() {
+/**
+ * The current session, memoized for the lifetime of one request.
+ *
+ * `auth.api.getSession` re-parses the cookie and re-reads the `sessions` row on
+ * every call, and this is called from ~180 sites — a single page render fans out
+ * through the layout, its nested layouts, and every server action or data
+ * helper it awaits, each of which calls `requireSession()` on its own. Without
+ * this wrapper that is a fresh round-trip per call for an answer that cannot
+ * change mid-request. React's `cache` scopes the memo to the request, so
+ * concurrent requests never share a session.
+ *
+ * NOT the same thing as better-auth's `session.cookieCache`, which is
+ * deliberately left off: that caches across requests in a signed cookie, so a
+ * revoked session (account > sessions) or a ban would keep working until the
+ * cookie's TTL expired. This wrapper has no such window.
+ */
+export const getServerSession = cache(async () => {
   return auth.api.getSession({
     headers: await headers(),
   });
-}
+});
 
 export async function requireSession() {
   const session = await getServerSession();
@@ -44,6 +61,35 @@ type SessionUser = { user: { id: string; role?: string | null } };
 // already hold the logical project id. No scope = global role only.
 type CapabilityScope = { projectId?: string; environmentId?: string };
 
+// Both lookups below are memoized per request for the same reason
+// `getServerSession` is: a page that calls `requireCapability` to gate the
+// render and then `getEffectiveRole` to gate the buttons asks the identical
+// question twice, and nested layouts multiply that. Keyed on primitives, so
+// React's argument comparison actually hits — do NOT fold these back into
+// `resolveEffectiveRole`, whose object argument would never match by identity.
+const projectIdOfEnvironment = cache(async (environmentId: string) => {
+  const [env] = await db
+    .select({ projectId: environments.projectId })
+    .from(environments)
+    .where(eq(environments.id, environmentId))
+    .limit(1);
+  return env?.projectId;
+});
+
+const membershipRoleOf = cache(async (projectId: string, userId: string) => {
+  const [membership] = await db
+    .select({ role: projectMembers.role })
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, projectId),
+        eq(projectMembers.userId, userId)
+      )
+    )
+    .limit(1);
+  return membership?.role;
+});
+
 // Effective role = the higher of the user's global role and their membership
 // role on the scoped project. Unknown/legacy strings floor to viewer via
 // normalizeRole, so a bad value can never grant more than the global role does.
@@ -60,28 +106,14 @@ async function resolveEffectiveRole(
 
   let projectId = scope.projectId;
   if (!projectId && scope.environmentId) {
-    const [env] = await db
-      .select({ projectId: environments.projectId })
-      .from(environments)
-      .where(eq(environments.id, scope.environmentId))
-      .limit(1);
-    projectId = env?.projectId;
+    projectId = await projectIdOfEnvironment(scope.environmentId);
   }
   if (!projectId) return globalRole;
 
-  const [membership] = await db
-    .select({ role: projectMembers.role })
-    .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, session.user.id)
-      )
-    )
-    .limit(1);
-  if (!membership) return globalRole;
+  const membershipRole = await membershipRoleOf(projectId, session.user.id);
+  if (!membershipRole) return globalRole;
 
-  return higherRole(membership.role, globalRole);
+  return higherRole(membershipRole, globalRole);
 }
 
 /**

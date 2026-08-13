@@ -7,6 +7,7 @@ import { dbLocationMatches } from "@/lib/db-location";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { pushComment, pushIssue } from "@/lib/jira/push";
 import { pullProject, syncIssueById } from "@/lib/jira/sync";
+import { parseJobPayload } from "@/lib/jobs/payloads";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
@@ -1177,14 +1178,20 @@ function normalizeJobName(name: string): JobName {
   return LEGACY_JOB_NAMES[name] ?? (name as JobName);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: BullMQ hands back untyped job data.
-function normalizePayload(name: JobName, data: any): any {
-  // The rename shim rewrites a bare `projectId` into `environmentId`. Jira jobs
-  // legitimately carry a `projectId` that means the LOGICAL project, so they
-  // must skip it — otherwise the sweep would lose its only argument.
+/**
+ * Rewrite a pre-rename payload into the current key names. Runs BEFORE schema
+ * validation, so an in-flight legacy job is migrated rather than rejected.
+ *
+ * Jira jobs legitimately carry a `projectId` that means the LOGICAL project, so
+ * they skip the shim — otherwise the sweep would lose its only argument.
+ */
+function migrateLegacyPayload(name: JobName, data: unknown): unknown {
   if (name.startsWith("jira/")) return data;
   if (data && typeof data === "object" && !("environmentId" in data)) {
-    const { projectId, sourceProjectId, ...rest } = data;
+    const { projectId, sourceProjectId, ...rest } = data as Record<
+      string,
+      unknown
+    >;
     return {
       ...rest,
       environmentId: projectId,
@@ -1197,34 +1204,44 @@ function normalizePayload(name: JobName, data: any): any {
 // Dispatches a job to its handler by name. The Worker calls this for every job;
 // a thrown error propagates to BullMQ, which (with attempts: 1) marks the job
 // failed — the handlers have already recorded the run failure in Postgres.
+//
+// Every branch parses `job.data` against the payload contract in
+// lib/jobs/payloads before the handler sees it: BullMQ data is untyped JSON out
+// of Redis, and these handlers build shell pipelines and SQL DDL from it.
 export async function processJob(job: Job): Promise<unknown> {
   const name = normalizeJobName(job.name);
-  const data = normalizePayload(name, job.data);
+  const raw = migrateLegacyPayload(name, job.data);
   switch (name) {
     case "db/backup.requested":
-      return handleCreateDatabaseBackup(data);
+      return handleCreateDatabaseBackup(parseJobPayload(name, raw));
     case "db/restore.requested":
-      return handleRestoreDatabaseBackup(data);
+      return handleRestoreDatabaseBackup(parseJobPayload(name, raw));
     case "db/database.create.requested":
-      return handleCreateDatabase(data);
+      return handleCreateDatabase(parseJobPayload(name, raw));
     case "db/database.drop.requested":
-      return handleDropDatabase(data);
+      return handleDropDatabase(parseJobPayload(name, raw));
     case "db/database.rename.requested":
-      return handleRenameDatabase(data);
+      return handleRenameDatabase(parseJobPayload(name, raw));
     case "service/control.requested":
-      return handleControlService(data);
+      return handleControlService(parseJobPayload(name, raw));
     case "environment/mock-time.legacy":
-      return handleMockEnvironmentTimeLegacy(data);
+      return handleMockEnvironmentTimeLegacy(parseJobPayload(name, raw));
     case "environment/mock-time.reset-legacy":
-      return handleMockEnvironmentTimeResetLegacy(data);
-    case "jira/sync.project":
+      return handleMockEnvironmentTimeResetLegacy(parseJobPayload(name, raw));
+    case "jira/sync.project": {
+      const data = parseJobPayload(name, raw);
       return pullProject(data.projectId, { full: data.full });
-    case "jira/issue.changed":
+    }
+    case "jira/issue.changed": {
+      const data = parseJobPayload(name, raw);
       return syncIssueById(data.connectionId, data.jiraIssueId);
-    case "jira/push.issue":
+    }
+    case "jira/push.issue": {
+      const data = parseJobPayload(name, raw);
       return pushIssue(data.issueId, data.fields);
+    }
     case "jira/push.comment":
-      return pushComment(data.commentId);
+      return pushComment(parseJobPayload(name, raw).commentId);
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;
