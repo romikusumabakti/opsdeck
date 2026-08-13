@@ -316,7 +316,7 @@ function IssueCard({
         {issue.title}
       </Link>
       {issue.labels && issue.labels.length > 0 ? (
-        <LabelChips labels={issue.labels} />
+        <LabelChips labels={issue.labels} max={3} />
       ) : null}
       {issue.envName || issue.assigneeName ? (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
