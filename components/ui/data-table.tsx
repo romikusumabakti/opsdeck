@@ -2,17 +2,25 @@
 
 import {
   type ColumnDef,
+  columnFilteringFeature,
   type ColumnFiltersState,
+  columnVisibilityFeature,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  createSortedRowModel,
+  filterFns,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   type PaginationState,
+  type RowData,
+  rowPaginationFeature,
+  rowSelectionFeature,
   type RowSelectionState,
+  rowSortingFeature,
+  sortFns,
   type SortingState,
-  useReactTable,
-  type VisibilityState,
+  tableFeatures,
+  useTable,
+  type ColumnVisibilityState as VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Settings2 } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
@@ -44,8 +52,45 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type DataTableProps<TData, TValue> = {
-  columns: ColumnDef<TData, TValue>[];
+// v9 requires every feature the table touches to be registered up front (row
+// models included) — nothing is bundled implicitly any more. This is the one
+// registration for every table in the app, so consumers never assemble their
+// own. The built-in `filterFns`/`sortFns` registries are passed whole to keep
+// the v8 "auto" filter/sort resolution behaviour that the column defs rely on.
+export const dataTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  filterFns,
+  sortFns,
+});
+
+export type DataTableFeatures = typeof dataTableFeatures;
+
+/**
+ * Column definition for `DataTable`. v9 threads the feature set through every
+ * public type, so callers use this alias instead of importing `ColumnDef`
+ * straight from `@tanstack/react-table` and re-stating the features generic.
+ */
+export type DataTableColumnDef<
+  TData extends RowData,
+  TValue = unknown,
+> = ColumnDef<DataTableFeatures, TData, TValue>;
+
+/** Column instance as handed to a `header`/`cell` renderer. See `DataTableColumnDef`. */
+export type DataTableColumn<TData extends RowData, TValue = unknown> = Column<
+  DataTableFeatures,
+  TData,
+  TValue
+>;
+
+type DataTableProps<TData extends RowData> = {
+  columns: DataTableColumnDef<TData>[];
   data: TData[];
   filterColumn?: string;
   filterPlaceholder?: string;
@@ -152,7 +197,7 @@ type DataTableProps<TData, TValue> = {
   initialColumnVisibility?: VisibilityState;
 };
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   filterColumn,
@@ -174,7 +219,7 @@ export function DataTable<TData, TValue>({
   toolbar,
   dense,
   initialColumnVisibility,
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const isManual = manualRowCount != null;
   const t = useTranslations("dataTable");
   // Card layout is chosen with CSS (md: breakpoint), not a JS width hook, so the
@@ -203,9 +248,11 @@ export function DataTable<TData, TValue>({
     readPaginationFromParams(searchParams, urlKey, initialPageSize)
   );
 
-  const columnsWithSelect = React.useMemo<ColumnDef<TData, TValue>[]>(() => {
+  const columnsWithSelect = React.useMemo<
+    DataTableColumnDef<TData>[]
+  >(() => {
     if (!bulkActions) return columns;
-    const selectColumn: ColumnDef<TData, TValue> = {
+    const selectColumn: DataTableColumnDef<TData> = {
       id: "__select",
       header: ({ table }) => {
         const all = table.getIsAllPageRowsSelected();
@@ -236,16 +283,15 @@ export function DataTable<TData, TValue>({
     return [selectColumn, ...columns];
   }, [bulkActions, columns, t]);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data,
     columns: columnsWithSelect,
-    getCoreRowModel: getCoreRowModel(),
     // In server-driven mode the row models are the server's job: running them
     // here would sort and slice the current page a second time, hiding rows the
-    // server deliberately included.
-    getSortedRowModel: isManual ? undefined : getSortedRowModel(),
-    getFilteredRowModel: isManual ? undefined : getFilteredRowModel(),
-    getPaginationRowModel: isManual ? undefined : getPaginationRowModel(),
+    // server deliberately included. The row models are registered once on
+    // `dataTableFeatures`, so the manual flags below are what switches them
+    // off — v9 skips a row model whenever its `manual*` option is set.
     manualSorting: isManual,
     manualFiltering: isManual,
     manualPagination: isManual,
@@ -683,8 +729,8 @@ export function DataTable<TData, TValue>({
 }
 
 declare module "@tanstack/react-table" {
-  // biome-ignore lint/correctness/noUnusedVariables: Module augmentation requires both type parameters even when unused
-  interface ColumnMeta<TData extends unknown, TValue> {
+  // biome-ignore lint/correctness/noUnusedVariables: Module augmentation requires every type parameter even when unused
+  interface ColumnMeta<TFeatures, TData, TValue> {
     headClassName?: string;
     cellClassName?: string;
     /**
@@ -702,11 +748,11 @@ declare module "@tanstack/react-table" {
  * direction is visible, not just announced via `aria-sort`. Use in a column's
  * `header` render: `header: ({ column }) => <DataTableColumnHeader column={column} title={t("colName")} />`.
  */
-export function DataTableColumnHeader<TData, TValue>({
+export function DataTableColumnHeader<TData extends RowData, TValue>({
   column,
   title,
 }: {
-  column: Column<TData, TValue>;
+  column: DataTableColumn<TData, TValue>;
   title: string;
 }) {
   if (!column.getCanSort()) {

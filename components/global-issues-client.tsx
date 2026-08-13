@@ -1,6 +1,5 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
 import { CircleDot, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -38,7 +37,11 @@ import {
 } from "@/components/issues-saved-views";
 import { LabelChips } from "@/components/label-ui";
 import { Button } from "@/components/ui/button";
-import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  DataTableColumnHeader,
+} from "@/components/ui/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -251,7 +254,7 @@ export function GlobalIssuesClient({
     [dialog, mutate, t, tCommon]
   );
 
-  const columns = React.useMemo<ColumnDef<GlobalIssue>[]>(
+  const columns = React.useMemo<DataTableColumnDef<GlobalIssue>[]>(
     () => [
       {
         id: "key",
