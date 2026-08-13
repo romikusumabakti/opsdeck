@@ -6,6 +6,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { requireEnv } from "@/lib/env";
 
 // Object storage for knowledge-base attachments. Coded against the S3 API so
 // the backing store is swappable — the project ships Garage (self-hosted,
@@ -16,28 +17,22 @@ import {
 
 const globalForS3 = globalThis as unknown as { __s3Client?: S3Client };
 
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set`);
-  return value;
-}
-
 function getClient(): S3Client {
   if (globalForS3.__s3Client) return globalForS3.__s3Client;
   const client = new S3Client({
-    endpoint: env("S3_ENDPOINT"),
+    endpoint: requireEnv("S3_ENDPOINT"),
     region: process.env.S3_REGION ?? "garage",
     forcePathStyle: true,
     credentials: {
-      accessKeyId: env("S3_ACCESS_KEY"),
-      secretAccessKey: env("S3_SECRET_KEY"),
+      accessKeyId: requireEnv("S3_ACCESS_KEY"),
+      secretAccessKey: requireEnv("S3_SECRET_KEY"),
     },
   });
   globalForS3.__s3Client = client;
   return client;
 }
 
-const bucket = () => env("S3_BUCKET");
+const bucket = () => requireEnv("S3_BUCKET");
 
 /** Store an object. `key` is caller-generated (a uuid path) — never user input. */
 export async function putObject(
