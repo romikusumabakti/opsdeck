@@ -642,6 +642,31 @@
       "title": "密码",
       "description": "更新您的密码以保护账户安全。"
     },
+    "passkeys": {
+      "title": "通行密钥",
+      "description": "使用指纹、面容或安全密钥登录，无需输入密码。",
+      "add": "添加通行密钥",
+      "addTitle": "添加通行密钥",
+      "addDescription": "为该通行密钥命名以便日后识别，然后按浏览器提示操作。",
+      "defaultName": "本设备",
+      "namePlaceholder": "例如：办公笔记本",
+      "addedSuccess": "通行密钥已添加",
+      "rename": "重命名",
+      "renameTitle": "重命名通行密钥",
+      "renameDescription": "取一个能看出是哪台设备的名字。",
+      "renamedSuccess": "通行密钥已重命名",
+      "deleteTitle": "删除通行密钥",
+      "deleteDescription": "该设备将无法再用此通行密钥登录。也请在设备的密码管理器中一并删除。",
+      "deletedSuccess": "通行密钥已删除",
+      "emptyTitle": "尚无通行密钥",
+      "emptyDescription": "添加一个即可免密登录。",
+      "unsupportedTitle": "此处无法使用通行密钥",
+      "unsupportedDescription": "当前浏览器不支持通行密钥。请使用较新版本的 Chrome、Safari、Edge 或 Firefox。",
+      "unnamed": "未命名的通行密钥",
+      "synced": "已同步",
+      "addedAt": "添加于 {date}",
+      "errorNotFresh": "为了安全，请重新登录后再添加通行密钥。"
+    },
     "sessions": {
       "title": "活跃会话",
       "description": "当前登录您账户的设备。",
@@ -741,7 +766,11 @@
     "errorMicrosoftNoAccount": "该 Microsoft 账户没有对应的 {{APP_NAME}} 用户。请向管理员索取邀请。",
     "errorMicrosoftNotLinked": "无法将该 Microsoft 账户关联到现有用户。请使用邮箱和密码登录，或联系管理员。",
     "errorMicrosoftNoEmail": "Microsoft 未返回该账户的邮箱地址。请联系管理员。",
-    "errorMicrosoftDomain": "仅 @{{EMAIL_DOMAIN}} 账户可以登录。"
+    "errorMicrosoftDomain": "仅 @{{EMAIL_DOMAIN}} 账户可以登录。",
+    "passkeySubmit": "使用通行密钥登录",
+    "passkeySubmitting": "正在等待通行密钥…",
+    "errorPasskey": "通行密钥登录失败，请重试。",
+    "errorPasskeyNotFound": "该通行密钥未在此账户注册。请用其他方式登录，然后在账户页面中添加。"
   },
   "forgotPassword": {
     "title": "忘记密码",
