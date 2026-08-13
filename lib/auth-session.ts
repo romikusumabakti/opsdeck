@@ -6,10 +6,11 @@ import { db } from "./db";
 import { environments, projectMembers } from "./db/schema";
 import {
   type Capability,
+  higherRole,
+  normalizeRole,
   ROLE_ADMIN,
   ROLE_MEMBER,
   roleHasCapability,
-  roleRank,
   type UserRole,
 } from "./roles";
 
@@ -45,12 +46,16 @@ type CapabilityScope = { projectId?: string; environmentId?: string };
 
 // Effective role = the higher of the user's global role and their membership
 // role on the scoped project. Unknown/legacy strings floor to viewer via
-// roleRank, so a bad value can never grant more than the global role does.
+// normalizeRole, so a bad value can never grant more than the global role does.
+// The combining rule itself lives in lib/roles (higherRole) so it can be tested
+// without a database; everything here is the lookup around it.
 async function resolveEffectiveRole(
   session: SessionUser,
   scope?: CapabilityScope
-): Promise<string> {
-  const globalRole = session.user.role ?? ROLE_MEMBER;
+): Promise<UserRole> {
+  // A user row with no role predates the admin plugin's defaultRole, so treat
+  // it as `member` — not viewer — to match how those accounts already behave.
+  const globalRole = normalizeRole(session.user.role ?? ROLE_MEMBER);
   if (!scope) return globalRole;
 
   let projectId = scope.projectId;
@@ -76,9 +81,7 @@ async function resolveEffectiveRole(
     .limit(1);
   if (!membership) return globalRole;
 
-  return roleRank(membership.role) > roleRank(globalRole)
-    ? membership.role
-    : globalRole;
+  return higherRole(membership.role, globalRole);
 }
 
 /**
@@ -108,7 +111,7 @@ export async function getEffectiveRole(
   scope?: CapabilityScope
 ): Promise<UserRole> {
   const session = await requireSession();
-  return (await resolveEffectiveRole(session, scope)) as UserRole;
+  return resolveEffectiveRole(session, scope);
 }
 
 /**

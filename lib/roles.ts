@@ -41,8 +41,40 @@ export const ROLE_RANK: Record<UserRole, number> = {
 
 // Unknown / null / legacy role strings floor to viewer (safe-deny) rather than
 // throwing, so a stale role value can never accidentally grant more than read.
+//
+// Goes through normalizeRole rather than indexing ROLE_RANK directly: a plain
+// object literal inherits Object.prototype, so `ROLE_RANK["toString"]` used to
+// return a *function* — truthy, so the `?? 0` fallback never fired and this
+// returned a non-number. It failed closed (a function compares false against
+// every rank), but the contract was still a lie. normalizeRole tests
+// membership against the ASSIGNABLE_ROLES array, which has no such holes.
 export function roleRank(role: string | null | undefined): number {
-  return ROLE_RANK[(role ?? "") as UserRole] ?? 0;
+  return ROLE_RANK[normalizeRole(role)];
+}
+
+// Narrow an arbitrary stored string to a real role, flooring anything unknown
+// to viewer. Same safe-deny rule as roleRank, but returning the role itself so
+// callers can hand a UserRole onward without an unchecked cast.
+export function normalizeRole(role: string | null | undefined): UserRole {
+  const value = role ?? "";
+  return isAssignableRole(value) ? value : ROLE_VIEWER;
+}
+
+/**
+ * The higher-ranked of two roles — how a user's global role and their
+ * membership role on one project combine into the role that actually applies
+ * there. Extracted from lib/auth-session so the rule is unit-testable without
+ * a database: it decides every authorization outcome in the app.
+ *
+ * Ties return the first argument, which is the same role by rank either way.
+ */
+export function higherRole(
+  a: string | null | undefined,
+  b: string | null | undefined
+): UserRole {
+  const left = normalizeRole(a);
+  const right = normalizeRole(b);
+  return ROLE_RANK[left] >= ROLE_RANK[right] ? left : right;
 }
 
 // The actions a role may perform. Deliberately coarse — a static map, not a
