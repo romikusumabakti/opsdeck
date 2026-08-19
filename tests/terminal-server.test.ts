@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import ssh2 from "ssh2";
 import { mintTicket } from "@/lib/terminal/protocol";
 import { createTerminalHandlers } from "@/lib/terminal/server";
+import { DEFAULT_LIMITS, SessionRegistry } from "@/lib/terminal/session";
 import { openSshShell } from "@/lib/terminal/ssh-shell";
 
 // A throwaway sshd in this process. It accepts one password and answers a shell
@@ -66,7 +67,14 @@ afterAll(() => {
   sshd.close();
 });
 
-function handlers() {
+function handlers(
+  options: {
+    // Collected in place rather than returned, so callers who only need the
+    // default (discard) behaviour can keep calling handlers() with no args.
+    audited?: Record<string, unknown>[];
+    registry?: SessionRegistry;
+  } = {}
+) {
   return createTerminalHandlers({
     allowedOrigin: null,
     loadServer: async (id) =>
@@ -81,7 +89,10 @@ function handlers() {
           }
         : null,
     openShell: (target, opts) => openSshShell(target, opts),
-    audit: () => {},
+    audit: (event) => {
+      options.audited?.push(event as unknown as Record<string, unknown>);
+    },
+    ...(options.registry ? { registry: options.registry } : {}),
   });
 }
 
@@ -281,5 +292,140 @@ describe("terminal sidecar", () => {
       client.ws.send(new TextEncoder().encode("quit"));
       await client.until(() => client.control.some((m) => m.t === "exit"));
     });
+  });
+
+  it("reattaching over a still-open socket does not arm a stray grace timer", async () => {
+    // A short graceMs makes the close-then-assign bug manifest inside the
+    // test's timeout instead of requiring a real 60s wait: if the displaced-
+    // socket guard in the close handler ever detaches a session that is
+    // actually still attached (via its NEW sink), the resulting grace timer
+    // fires fast enough here to destroy the session before the assertions
+    // run. Against the old ordering this test fails; against the fix it
+    // doesn't, because no grace timer is ever armed for a live reattach.
+    const registry = new SessionRegistry({
+      limits: { ...DEFAULT_LIMITS, graceMs: 50 },
+    });
+    const { fetch, websocket } = handlers({ registry });
+    const server = Bun.serve({ port: 0, fetch, websocket });
+    try {
+      const url = `ws://127.0.0.1:${server.port}/ws/terminal`;
+      const first = connect(url);
+      await first.open;
+      first.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+        })
+      );
+      await first.until(() => first.control.some((m) => m.t === "ready"));
+      const ready = first.control.find((m) => m.t === "ready") as {
+        sessionId: string;
+      };
+      await first.until(() => first.output().includes("banner"));
+
+      // Reattach WITHOUT closing the first socket — the primary path per the
+      // review: Bun's idleTimeout is 120s, so a dropped client's old socket
+      // is almost always still open when the reconnect arrives.
+      const second = connect(url);
+      await second.open;
+      second.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+          sessionId: ready.sessionId,
+        })
+      );
+      await second.until(() => second.control.some((m) => m.t === "ready"));
+
+      // Long enough for the (buggy) 50ms grace timer to have fired, if one
+      // was wrongly armed by the reattach above.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(registry.get(ready.sessionId)).toBeDefined();
+      second.ws.send(new TextEncoder().encode("still-here"));
+      await second.until(() => second.output().includes("echo:still-here"));
+
+      first.ws.close();
+      second.ws.close();
+    } finally {
+      registry.destroyAll();
+      server.stop(true);
+    }
+  });
+
+  it("refuses a reattach with a different uid", async () => {
+    await withServer(async (url) => {
+      const owner = connect(url);
+      await owner.open;
+      owner.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+        })
+      );
+      await owner.until(() => owner.control.some((m) => m.t === "ready"));
+      const ready = owner.control.find((m) => m.t === "ready") as {
+        sessionId: string;
+      };
+      owner.ws.close();
+
+      const intruder = connect(url);
+      await intruder.open;
+      intruder.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u2", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+          sessionId: ready.sessionId,
+        })
+      );
+      await intruder.until(() => intruder.control.some((m) => m.t === "ready"));
+      const resumed = intruder.control.find((m) => m.t === "ready") as {
+        sessionId: string;
+      };
+      // A fresh session, not the owner's — ownership mismatch is refused
+      // silently (as "gone"), same as a session that no longer exists.
+      expect(resumed.sessionId).not.toBe(ready.sessionId);
+      intruder.ws.close();
+    });
+  });
+
+  it("audits open and denied events with the documented action kinds", async () => {
+    const audited: Record<string, unknown>[] = [];
+    const { fetch, websocket, registry } = handlers({ audited });
+    const server = Bun.serve({ port: 0, fetch, websocket });
+    try {
+      const url = `ws://127.0.0.1:${server.port}/ws/terminal`;
+      const ticket = mintTicket({ uid: "u1", sid: "server-1", cwd: "" });
+
+      const client = connect(url);
+      await client.open;
+      client.ws.send(
+        JSON.stringify({ t: "hello", ticket, cols: 80, rows: 24 })
+      );
+      await client.until(() => client.control.some((m) => m.t === "ready"));
+      expect(audited.some((e) => e.kind === "open")).toBe(true);
+
+      const replay = connect(url);
+      await replay.open;
+      replay.ws.send(
+        JSON.stringify({ t: "hello", ticket, cols: 80, rows: 24 })
+      );
+      await replay.until(() => replay.control.some((m) => m.t === "error"));
+      expect(audited.some((e) => e.kind === "denied")).toBe(true);
+
+      client.ws.close();
+      replay.ws.close();
+    } finally {
+      registry.destroyAll();
+      server.stop(true);
+    }
   });
 });

@@ -82,8 +82,16 @@ export function openSshShell(
               client.end();
             },
             setFlowing(flowing) {
-              if (flowing) stream.resume();
-              else stream.pause();
+              // stderr as well: on a server that splits it from stdout, an
+              // unpaused stderr walks straight past the 1 MB threshold that
+              // exists to stop an unbounded write buffer.
+              if (flowing) {
+                stream.resume();
+                stream.stderr?.resume();
+              } else {
+                stream.pause();
+                stream.stderr?.pause();
+              }
             },
             onData(cb) {
               stream.on("data", (chunk: Buffer) => cb(new Uint8Array(chunk)));
