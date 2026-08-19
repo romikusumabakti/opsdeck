@@ -1841,6 +1841,7 @@ import {
   type DestroyReason,
   type Session,
   SessionRegistry,
+  type Sink,
   TooManySessionsError,
 } from "@/lib/terminal/session";
 
@@ -1875,6 +1876,9 @@ type SocketData = {
   session: Session | null;
   target: TerminalTarget | null;
   userId: string | null;
+  // This socket's own sink, so the close handler can tell "I am still the
+  // session's connection" from "a newer socket displaced me".
+  sink: Sink | null;
   // Guards against a second hello on the same socket.
   greeted: boolean;
 };
@@ -1939,13 +1943,14 @@ export function createTerminalHandlers(deps: TerminalDeps) {
     ws.data.userId = uid;
     ws.data.target = target;
 
-    const sink = {
+    const sink: Sink = {
       send: (data: Uint8Array | string) => {
         ws.send(data);
       },
       close: () => ws.close(1000, "session ended"),
       bufferedAmount: () => ws.getBufferedAmount(),
     };
+    ws.data.sink = sink;
 
     // Reattach path: an existing session whose socket died inside the grace
     // window. Ownership is checked by the registry against both ids.
@@ -2012,7 +2017,13 @@ export function createTerminalHandlers(deps: TerminalDeps) {
       }
 
       const upgraded = server.upgrade(req, {
-        data: { session: null, target: null, userId: null, greeted: false },
+          data: {
+          session: null,
+          target: null,
+          userId: null,
+          sink: null,
+          greeted: false,
+        },
       });
       return upgraded
         ? undefined
@@ -2070,6 +2081,11 @@ export function createTerminalHandlers(deps: TerminalDeps) {
       close(ws: Socket) {
         const session = ws.data.session;
         if (!session) return;
+        // Only the session's CURRENT socket may detach it. A reattach closes
+        // the socket it displaced, and that close arrives here — without this
+        // guard it would arm a 60s grace timer against a session that is very
+        // much alive on its new connection.
+        if (session.sink !== ws.data.sink) return;
         // Detach, don't destroy: the shell stays alive for the grace window so
         // a reload or a dropped connection can pick it back up.
         registry.detach(session);
