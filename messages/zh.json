@@ -1468,6 +1468,8 @@
     "milestoneCreated": "{actor} 创建了里程碑 {name}",
     "terminalOpened": "{actor} 在 {server} 上打开了终端",
     "terminalClosed": "{actor} 在 {server} 上关闭了终端，持续 {seconds} 秒",
+    "terminalDenied": "{actor} 被拒绝在 {server} 上打开终端（{reason}）",
+    "terminalDeniedUnknownServer": "{actor} 被拒绝打开终端（{reason}）",
     "testRecorded": "{actor} 在 {key} 上记录了一次{result}测试",
     "result": {
       "pass": "通过",
@@ -1560,7 +1562,6 @@
   "terminal": {
     "title": "终端 — {name}",
     "subtitle": "通过 SSH 连接 {username}@{host}",
-    "openTerminal": "打开终端",
     "reconnect": "重新连接",
     "sessionEnded": "会话已结束。",
     "ticketFailed": "无法授权会话。",

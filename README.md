@@ -30,6 +30,8 @@ all over SSH against your own infrastructure.
   server list or from the file explorer at the folder being browsed. Admin-only;
   each session's open and close is written to the activity log (never its
   contents). Runs in its own container so a redeploy cannot kill a live shell.
+  Under `next dev`, `bun run terminal` alone isn't reachable — the client
+  dials the page's own origin, so the sidecar needs Caddy in front of it.
 
 ## Tech stack
 

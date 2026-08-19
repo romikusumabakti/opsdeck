@@ -36,10 +36,14 @@ export type AuditEvent =
   // `serverId` is null when the ticket itself could not be verified: there is
   // no trustworthy server id to attribute the attempt to, and the audit sink
   // writes this into a uuid column that rejects an empty string.
+  // `serverName` is set only on the paths where the server row was actually
+  // loaded before the denial (ssh-failed, too-many-sessions) — everywhere
+  // else the target is never fetched, so there is no name to give.
   | {
       kind: "denied";
       userId: string | null;
       serverId: string | null;
+      serverName: string | null;
       reason: string;
     };
 
@@ -118,6 +122,7 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         kind: "denied",
         userId: null,
         serverId: null,
+        serverName: null,
         reason: `ticket-${verified.reason}`,
       });
       fail(ws, `Ticket ${verified.reason}`);
@@ -132,6 +137,7 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         kind: "denied",
         userId: uid,
         serverId: sid,
+        serverName: null,
         reason: "replay",
       });
       fail(ws, "Ticket already used");
@@ -144,6 +150,7 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         kind: "denied",
         userId: uid,
         serverId: sid,
+        serverName: null,
         reason: "unknown-server",
       });
       fail(ws, "Server not found");
@@ -219,6 +226,7 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         kind: "denied",
         userId: uid,
         serverId: sid,
+        serverName: target.name,
         reason: "ssh-failed",
       });
       fail(
@@ -234,6 +242,13 @@ export function createTerminalHandlers(deps: TerminalDeps) {
     } catch (error) {
       shell.close();
       if (error instanceof TooManySessionsError) {
+        deps.audit({
+          kind: "denied",
+          userId: uid,
+          serverId: sid,
+          serverName: target.name,
+          reason: "too-many-sessions",
+        });
         fail(ws, "Too many open terminals");
         return;
       }
@@ -283,11 +298,18 @@ export function createTerminalHandlers(deps: TerminalDeps) {
 
       // A cross-origin page must not be able to open a socket with a stolen
       // cookie-free ticket, and the browser sends Origin on every upgrade.
-      if (
-        deps.allowedOrigin &&
-        req.headers.get("origin") !== deps.allowedOrigin
-      ) {
-        return new Response("Forbidden", { status: 403 });
+      if (deps.allowedOrigin) {
+        const origin = req.headers.get("origin");
+        if (origin !== deps.allowedOrigin) {
+          // A misconfigured BETTER_AUTH_URL (the usual first-run mistake) makes
+          // this fire on every single connection, and the WebSocket API hides
+          // the 403 from the browser entirely — this line is the only place
+          // the mismatch is ever visible.
+          console.error(
+            `terminal: rejected WebSocket upgrade — origin "${origin}" !== expected "${deps.allowedOrigin}"`
+          );
+          return new Response("Forbidden", { status: 403 });
+        }
       }
 
       const upgraded = server.upgrade(req, {

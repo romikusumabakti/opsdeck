@@ -46,6 +46,19 @@ function message(
         server: String(d.server),
         seconds: String(d.seconds),
       });
+    case "terminal.denied":
+      // A denial from an unverifiable ticket names no server — there is no
+      // trustworthy id to attribute it to (see lib/terminal/server.ts).
+      return d.server
+        ? t("terminalDenied", {
+            actor,
+            server: String(d.server),
+            reason: String(d.reason),
+          })
+        : t("terminalDeniedUnknownServer", {
+            actor,
+            reason: String(d.reason),
+          });
     // Jira sync events have no actor — they are written by the worker, so the
     // sentence is about the issue rather than a person.
     case "issue.jira_conflict":

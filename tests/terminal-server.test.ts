@@ -429,6 +429,57 @@ describe("terminal sidecar", () => {
     }
   });
 
+  it("audits a per-user session cap denial with the server name attached", async () => {
+    // The only denial path with a loaded target (registry.create runs after
+    // openShell), so it's the one place `serverName` should reach the audit
+    // event rather than staying null like the other denial reasons.
+    const audited: Record<string, unknown>[] = [];
+    const registry = new SessionRegistry({
+      limits: { ...DEFAULT_LIMITS, maxPerUser: 1 },
+    });
+    const { fetch, websocket } = handlers({ audited, registry });
+    const server = Bun.serve({ port: 0, fetch, websocket });
+    try {
+      const url = `ws://127.0.0.1:${server.port}/ws/terminal`;
+
+      const first = connect(url);
+      await first.open;
+      first.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+        })
+      );
+      await first.until(() => first.control.some((m) => m.t === "ready"));
+
+      const second = connect(url);
+      await second.open;
+      second.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+        })
+      );
+      await second.until(() => second.control.some((m) => m.t === "error"));
+
+      const denial = audited.find(
+        (e) => e.kind === "denied" && e.reason === "too-many-sessions"
+      );
+      expect(denial).toBeDefined();
+      expect(denial?.serverName).toBe("Test");
+
+      first.ws.close();
+      second.ws.close();
+    } finally {
+      registry.destroyAll();
+      server.stop(true);
+    }
+  });
+
   it("detaches instead of stranding a reattach whose client left during loadServer", async () => {
     // Gate the SECOND loadServer call only (the first hello, which creates
     // the session, must resolve immediately) so the test can close the
