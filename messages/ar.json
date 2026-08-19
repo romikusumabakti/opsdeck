@@ -1468,6 +1468,8 @@
     "milestoneCreated": "أنشأ {actor} معلمًا {name}",
     "terminalOpened": "{actor} فتح طرفية على {server}",
     "terminalClosed": "{actor} أغلق طرفية على {server} بعد {seconds} ثانية",
+    "terminalDenied": "رُفض لـ {actor} فتح طرفية على {server} ({reason})",
+    "terminalDeniedUnknownServer": "رُفض لـ {actor} فتح طرفية ({reason})",
     "testRecorded": "سجّل {actor} اختبارًا {result} على {key}",
     "result": {
       "pass": "ناجح",
@@ -1560,7 +1562,6 @@
   "terminal": {
     "title": "الطرفية — {name}",
     "subtitle": "{username}@{host} عبر SSH",
-    "openTerminal": "فتح الطرفية",
     "reconnect": "إعادة الاتصال",
     "sessionEnded": "انتهت الجلسة.",
     "ticketFailed": "تعذّر تفويض الجلسة.",

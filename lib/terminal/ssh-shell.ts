@@ -68,7 +68,13 @@ export function openSshShell(
 
           const handle: ShellSession = {
             write(data) {
-              stream.write(Buffer.from(data));
+              try {
+                stream.write(Buffer.from(data));
+              } catch {
+                // A stdin frame that lands after the remote channel already
+                // ended (ERR_STREAM_WRITE_AFTER_END). The exit/close handlers
+                // already drive teardown; there is nothing left to report.
+              }
             },
             resize(cols, rows) {
               stream.setWindow(rows, cols, rows * 16, cols * 8);
@@ -100,6 +106,13 @@ export function openSshShell(
               stream.stderr?.on("data", (chunk: Buffer) =>
                 cb(new Uint8Array(chunk))
               );
+              // ClientChannel is a Node Duplex: an unlistened "error" throws,
+              // and an uncaught throw here would take down every other user's
+              // live shell in this process. The exit/close handlers already
+              // drive teardown, so a stream error after the channel is gone
+              // carries nothing the user needs.
+              stream.on("error", () => {});
+              stream.stderr?.on("error", () => {});
             },
             onExit(cb) {
               let reported = false;
