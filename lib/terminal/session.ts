@@ -218,16 +218,22 @@ export class SessionRegistry {
 
     this.clearTimer(session.graceTimer);
     session.graceTimer = null;
-    // A racing reconnect (a second tab resuming the same session) must not
-    // leave the displaced socket attached and unaware it was replaced.
-    if (session.sink) {
+    // Assign BEFORE closing the displaced sink. Bun dispatches a socket's
+    // close handler synchronously from inside `close()`, and that handler asks
+    // "am I still this session's sink?" to decide whether to detach. Closing
+    // first would have it run while `session.sink` was still the OLD sink — it
+    // would answer yes, detach a live session, and arm a 60s grace timer that
+    // nothing clears. Sixty seconds later the shell dies under a user who is
+    // actively typing.
+    const displaced = session.sink;
+    session.sink = sink;
+    if (displaced) {
       try {
-        session.sink.close();
+        displaced.close();
       } catch {
         // Already gone.
       }
     }
-    session.sink = sink;
 
     const backlog = session.ring.read();
     if (backlog.length > 0) sink.send(backlog);
