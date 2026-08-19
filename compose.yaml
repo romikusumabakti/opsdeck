@@ -22,6 +22,7 @@ services:
   app:
     build:
       context: .
+    image: opsdeck-app:local
     container_name: opsdeck-app
     # No published port: the app is internal. Caddy (below) is the only public
     # surface — it terminates TLS and forwards with X-Forwarded-* headers so
@@ -98,6 +99,42 @@ services:
         condition: service_started
       imgproxy:
         condition: service_started
+
+  terminal:
+    # Same image as `app` (declaring both build+image means compose builds it
+    # once and reuses it), different entrypoint: this process owns the
+    # WebSocket terminal sessions. Next 16 can't serve WebSockets from a route
+    # handler, and keeping the sockets out of the app process means a redeploy
+    # or a recompile can't kill a live root shell.
+    build:
+      context: .
+    image: opsdeck-app:local
+    container_name: opsdeck-terminal
+    restart: always
+    command: ["bun", "terminal-server.js"]
+    # Internal only. Caddy is the single public surface.
+    expose:
+      - "3001"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Ticket signatures are derived from this — it MUST be the same value the
+      # app uses, or every ticket is rejected.
+      SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
+      # Origin allowed to open a socket (the app's public URL).
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      TERMINAL_WS_PORT: ${TERMINAL_WS_PORT:-3001}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3001/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   caddy:
     image: caddy:2-alpine
