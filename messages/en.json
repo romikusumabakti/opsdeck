@@ -689,6 +689,7 @@
     "subtitle": "Manage SSH-accessible servers used by environments.",
     "addServer": "Add server",
     "browseFiles": "Browse files",
+    "openTerminal": "Open terminal",
     "emptyTitle": "No servers yet",
     "empty": "Add a server to start registering environments.",
     "editAriaLabel": "Edit server",
@@ -1094,6 +1095,7 @@
     "archiveNamePlaceholder": "Archive name",
     "properties": "Properties",
     "columns": "Columns",
+    "openInTerminal": "Open in terminal",
     "noSubfolders": "No subfolders here",
     "kind": "Kind",
     "kindFolder": "Folder",
@@ -1464,6 +1466,8 @@
     "memberAdded": "{actor} added {user} to {project} as {role}",
     "memberRemoved": "{actor} removed {user} from {project}",
     "milestoneCreated": "{actor} created milestone {name}",
+    "terminalOpened": "{actor} opened a terminal on {server}",
+    "terminalClosed": "{actor} closed a terminal on {server} after {seconds}s",
     "testRecorded": "{actor} recorded a {result} test on {key}",
     "result": {
       "pass": "passing",
@@ -1552,5 +1556,19 @@
     "status_partial": "Last sync partially applied",
     "status_failed": "Last sync failed",
     "status_pending": "Not synced yet"
+  },
+  "terminal": {
+    "title": "Terminal — {name}",
+    "subtitle": "{username}@{host} over SSH",
+    "openTerminal": "Open terminal",
+    "reconnect": "Reconnect",
+    "sessionEnded": "Session ended.",
+    "ticketFailed": "Could not authorize the session.",
+    "status": {
+      "connecting": "Connecting…",
+      "connected": "Connected",
+      "reconnecting": "Reconnecting…",
+      "closed": "Disconnected"
+    }
   }
 }

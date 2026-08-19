@@ -6,6 +6,7 @@ import {
   Pencil,
   Plus,
   Server as ServerIcon,
+  SquareTerminal,
   Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -159,6 +160,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
             server={row.original}
             disabled={isPending}
             browseLabel={t("browseFiles")}
+            terminalLabel={t("openTerminal")}
             menuLabel={tCommon("openMenu")}
             editLabel={tCommon("edit")}
             deleteLabel={tCommon("delete")}
@@ -186,6 +188,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
           server={server}
           disabled={isPending}
           browseLabel={t("browseFiles")}
+          terminalLabel={t("openTerminal")}
           menuLabel={tCommon("openMenu")}
           editLabel={tCommon("edit")}
           deleteLabel={tCommon("delete")}
@@ -247,6 +250,7 @@ function ServerActions({
   server,
   disabled,
   browseLabel,
+  terminalLabel,
   menuLabel,
   editLabel,
   deleteLabel,
@@ -255,6 +259,7 @@ function ServerActions({
   server: Server;
   disabled: boolean;
   browseLabel: string;
+  terminalLabel: string;
   menuLabel: string;
   editLabel: string;
   deleteLabel: string;
@@ -287,6 +292,12 @@ function ServerActions({
           }
         />
         <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            render={<Link href={`/servers/${server.id}/terminal`} />}
+          >
+            <SquareTerminal className="size-4" />
+            {terminalLabel}
+          </DropdownMenuItem>
           <DropdownMenuItem render={<Link href={`/servers/${server.id}`} />}>
             <Pencil className="size-4" />
             {editLabel}

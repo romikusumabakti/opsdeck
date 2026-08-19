@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Scissors,
   SquarePen,
+  SquareTerminal,
   Trash2,
   Upload,
   X,
@@ -70,6 +71,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Link } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { ExplorerEntry, ExplorerSource } from "@/lib/explorer";
 import {
@@ -1477,6 +1479,21 @@ export function FileExplorer({ source, rootLabel }: Props) {
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {source.kind === "sftp" && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              render={
+                <Link
+                  href={`/servers/${source.serverId}/terminal?cwd=${encodeURIComponent(path)}`}
+                />
+              }
+            >
+              <SquareTerminal className="size-4" />
+              {t("openInTerminal")}
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
