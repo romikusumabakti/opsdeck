@@ -428,4 +428,92 @@ describe("terminal sidecar", () => {
       server.stop(true);
     }
   });
+
+  it("detaches instead of stranding a reattach whose client left during loadServer", async () => {
+    // Gate the SECOND loadServer call only (the first hello, which creates
+    // the session, must resolve immediately) so the test can close the
+    // reattaching socket while onHello is still parked on the `await`,
+    // mirroring a client that gives up mid-reconnect.
+    const registry = new SessionRegistry();
+    let calls = 0;
+    let releaseSecondLoad: (() => void) | undefined;
+    const { fetch, websocket } = createTerminalHandlers({
+      allowedOrigin: null,
+      registry,
+      loadServer: async (id) => {
+        calls++;
+        if (calls === 2) {
+          await new Promise<void>((resolve) => {
+            releaseSecondLoad = resolve;
+          });
+        }
+        return id === "server-1"
+          ? {
+              id: "server-1",
+              name: "Test",
+              host: "127.0.0.1",
+              port: sshdPort,
+              username: "tester",
+              password: "correct-horse",
+            }
+          : null;
+      },
+      openShell: (target, opts) => openSshShell(target, opts),
+      audit: () => {},
+    });
+    const server = Bun.serve({ port: 0, fetch, websocket });
+    try {
+      const url = `ws://127.0.0.1:${server.port}/ws/terminal`;
+      const first = connect(url);
+      await first.open;
+      first.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+        })
+      );
+      await first.until(() => first.control.some((m) => m.t === "ready"));
+      const ready = first.control.find((m) => m.t === "ready") as {
+        sessionId: string;
+      };
+
+      const second = connect(url);
+      await second.open;
+      second.ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: mintTicket({ uid: "u1", sid: "server-1", cwd: "" }),
+          cols: 80,
+          rows: 24,
+          sessionId: ready.sessionId,
+        })
+      );
+
+      // Wait for the reattach's loadServer call to be parked on the gate,
+      // then close the client before it resolves.
+      await Bun.sleep(50);
+      expect(releaseSecondLoad).toBeDefined();
+      second.ws.close();
+      await Bun.sleep(50);
+      releaseSecondLoad?.();
+
+      // Give onHello's continuation a moment to run attach() and the
+      // readyState guard after it.
+      await Bun.sleep(100);
+
+      const session = registry.get(ready.sessionId);
+      expect(session).toBeDefined();
+      // Detached, not left attached to the dead socket: sink is null, and
+      // (unlike a fresh-open abandonment) the session survives rather than
+      // being destroyed, so a genuine reconnect still finds it.
+      expect(session?.sink).toBeNull();
+
+      first.ws.close();
+    } finally {
+      registry.destroyAll();
+      server.stop(true);
+    }
+  });
 });
