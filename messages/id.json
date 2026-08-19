@@ -1078,6 +1078,8 @@
     }
   },
   "explorer": {
+    "listView": "Tampilan daftar",
+    "gridView": "Tampilan petak",
     "cut": "Potong",
     "paste": "Tempel",
     "pasteCount": "Tempel {count} item",

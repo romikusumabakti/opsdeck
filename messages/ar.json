@@ -1078,6 +1078,8 @@
     }
   },
   "explorer": {
+    "listView": "عرض القائمة",
+    "gridView": "عرض الشبكة",
     "cut": "قص",
     "paste": "لصق",
     "pasteCount": "لصق {count} عنصر",

@@ -16,6 +16,8 @@ import {
   FolderPlus,
   FolderUp,
   Info,
+  LayoutGrid,
+  List,
   ListChecks,
   Loader2,
   MoreHorizontal,
@@ -108,6 +110,11 @@ const EntryPropertiesDialog = dynamic(
 type Columns = { size: boolean; modified: boolean };
 const DEFAULT_COLUMNS: Columns = { size: true, modified: true };
 const COLUMNS_KEY = "opsdeck.explorer.columns";
+
+// List or grid. The column choices apply to both: in grid they decide what the
+// tile caption says, so turning "Size" off is one preference, not two.
+type View = "list" | "grid";
+const VIEW_KEY = "opsdeck.explorer.view";
 
 // Custom drag type marking a drag that started inside the explorer. Only the
 // type list (not the value) is readable during dragover, which is where the
@@ -223,6 +230,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
     null
   );
   const [columns, setColumns] = React.useState<Columns>(DEFAULT_COLUMNS);
+  const [view, setView] = React.useState<View>("list");
   const [dragging, setDragging] = React.useState<string[] | null>(null);
   const [dropTarget, setDropTarget] = React.useState<string | null>(null);
   // Whether an OS file drag is hovering the panel, for the drop overlay.
@@ -271,10 +279,21 @@ export function FileExplorer({ source, rootLabel }: Props) {
     try {
       const stored = localStorage.getItem(COLUMNS_KEY);
       if (stored) setColumns({ ...DEFAULT_COLUMNS, ...JSON.parse(stored) });
+      const storedView = localStorage.getItem(VIEW_KEY);
+      if (storedView === "grid" || storedView === "list") setView(storedView);
     } catch {
       // Unreadable or malformed — the defaults are a fine answer.
     }
   }, []);
+
+  function chooseView(next: View) {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Private mode / quota. The choice still applies for this session.
+    }
+  }
 
   function toggleColumn(key: keyof Columns) {
     setColumns((cur) => {
@@ -828,12 +847,12 @@ export function FileExplorer({ source, rootLabel }: Props) {
         onClip(key === "x" ? "cut" : "copy", selectedEntries);
       }
     },
-    // Clicking past the last row is the canonical "deselect everything" — but
-    // not when the click belongs to a row or to the floating selection bar.
+    // Clicking past the last entry is the canonical "deselect everything" — but
+    // not when the click belongs to an entry (row or tile, hence the shared
+    // data-entry marker) or to the floating selection bar.
     onClick: (e: React.MouseEvent) => {
-      if (fromControl(e.target) || (e.target as HTMLElement).closest("tr")) {
-        return;
-      }
+      const target = e.target as HTMLElement;
+      if (fromControl(target) || target.closest("[data-entry]")) return;
       clearSelection();
     },
   };
@@ -947,6 +966,130 @@ export function FileExplorer({ source, rootLabel }: Props) {
     return actions;
   }
 
+  // Everything a selectable entry needs, whichever shape it renders in: the
+  // selection gestures, activation, drag, and the marker the panel uses to tell
+  // "clicked an entry" from "clicked the background".
+  function entryProps(entry: ExplorerEntry) {
+    return {
+      "data-entry": "",
+      // Focusability + Enter/Space is what makes an entry reachable without a
+      // pointer. No role override in the table: a <tr> must stay a `row` for
+      // the table's semantics to survive.
+      tabIndex: 0,
+      "aria-selected": selected.has(entry.path),
+      onClick: onRowClick(entry),
+      onDoubleClick: onRowDoubleClick(entry),
+      onKeyDown: onRowKeyDown(entry),
+      // Right-clicking outside the selection moves the selection onto that
+      // entry, so the menu that opens can never act on something that isn't
+      // highlighted.
+      onContextMenu: () => {
+        if (!selected.has(entry.path)) selectOnly(entry.path);
+      },
+      ...rowDragProps(entry),
+    };
+  }
+
+  // Shared visual state: which entry is selected, being dragged, or waiting on
+  // a paste. The two views differ only in how they paint it.
+  function entryState(entry: ExplorerEntry) {
+    return {
+      selected: selected.has(entry.path),
+      dragging: dragging?.includes(entry.path) === true,
+      cut: clipboard?.mode === "cut" && clipboard.paths.includes(entry.path),
+      dropping: dropTarget === entry.path,
+    };
+  }
+
+  // The ⋯ control owns its own menu, so a right-click on it must not also open
+  // the entry's context menu. preventDefault as well as stopPropagation:
+  // without it the browser's own menu would take over that one spot, which
+  // reads as broken next to everything around it.
+  const stopContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  // The ⋯ menu, in both views. Controlled by path so only one is ever open.
+  function entryMenu(entry: ExplorerEntry) {
+    return (
+      <DropdownMenu
+        open={rowMenuOpen === entry.path}
+        onOpenChange={(open) => setRowMenuOpen(open ? entry.path : null)}
+      >
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onContextMenu={stopContextMenu}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          {rowActions(entry).map((item) => (
+            <DropdownMenuItem key={item.key} onClick={item.run}>
+              {item.icon}
+              {item.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() =>
+              inMultiSelection(entry) ? onDeleteSelected() : onDelete(entry)
+            }
+          >
+            <Trash2 className="size-4" />
+            {tCommon("delete")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  function entryContextItems(entry: ExplorerEntry) {
+    return (
+      <>
+        {rowActions(entry).map((item) => (
+          <ContextMenuItem key={item.key} onClick={item.run}>
+            {item.icon}
+            {item.label}
+          </ContextMenuItem>
+        ))}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          onClick={() =>
+            inMultiSelection(entry) ? onDeleteSelected() : onDelete(entry)
+          }
+        >
+          <Trash2 className="size-4" />
+          {tCommon("delete")}
+        </ContextMenuItem>
+      </>
+    );
+  }
+
+  // A tile has no columns, so the column choices become its caption instead.
+  function tileCaption(entry: ExplorerEntry): string {
+    return [
+      columns.size && entry.type === "file" && entry.sizeBytes != null
+        ? formatBytes(entry.sizeBytes)
+        : null,
+      columns.modified && entry.modifiedAt
+        ? formatDistanceToNow(new Date(entry.modifiedAt), {
+            addSuffix: true,
+            locale: getDateFnsLocale(locale),
+          })
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
   const trail = crumbs(path);
 
   const header = (
@@ -963,6 +1106,159 @@ export function FileExplorer({ source, rootLabel }: Props) {
       </TableRow>
     </TableHeader>
   );
+
+  // Body scrolls inside the bounded bg-card panel; the header row pins via
+  // sticky (single-<table> layout, same approach as DataTable).
+  function listBody() {
+    return (
+      <Table containerClassName="flex-1 min-h-0">
+        {header}
+        <TableBody>
+          {entries.map((entry) => {
+            const state = entryState(entry);
+            return (
+              <ContextMenu
+                key={entry.path}
+                onOpenChange={(open) => {
+                  if (open) setRowMenuOpen(null);
+                }}
+              >
+                <ContextMenuTrigger
+                  render={
+                    <TableRow
+                      className={cn(
+                        // select-none: a double click to open must not leave
+                        // the filename highlighted behind the dialog, and a
+                        // Shift-click must extend the selection rather than
+                        // sweep text.
+                        "cursor-pointer select-none hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        // The palette is neutral, so a surface tint alone reads
+                        // as "merely hovered". The inset bar down the leading
+                        // edge is what makes a selected row obvious; box-shadow
+                        // has no logical-property form, hence the mirrored rtl
+                        // variant.
+                        state.selected &&
+                          "bg-muted hover:bg-muted shadow-[inset_3px_0_0_var(--primary)] rtl:shadow-[inset_-3px_0_0_var(--primary)]",
+                        state.dragging && "opacity-40",
+                        // A cut entry stays in place until it is pasted; the
+                        // dimming is the only sign that it is spoken for.
+                        state.cut && "opacity-50",
+                        state.dropping &&
+                          "bg-primary/10 ring-1 ring-primary/40 ring-inset"
+                      )}
+                      {...entryProps(entry)}
+                    />
+                  }
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-left">
+                      {entry.type === "dir" ? (
+                        <Folder className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="truncate">{entry.name}</span>
+                    </div>
+                  </TableCell>
+                  {columns.size ? (
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {entry.type === "file" && entry.sizeBytes != null
+                        ? formatBytes(entry.sizeBytes)
+                        : "—"}
+                    </TableCell>
+                  ) : null}
+                  {columns.modified ? (
+                    <TableCell className="text-muted-foreground">
+                      {entry.modifiedAt
+                        ? formatDistanceToNow(new Date(entry.modifiedAt), {
+                            addSuffix: true,
+                            locale: getDateFnsLocale(locale),
+                          })
+                        : "—"}
+                    </TableCell>
+                  ) : null}
+                  <TableCell onContextMenu={stopContextMenu}>
+                    {entryMenu(entry)}
+                  </TableCell>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {entryContextItems(entry)}
+                </ContextMenuContent>
+              </ContextMenu>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  // Grid view. The same entries and the same gestures — a tile is a row in a
+  // different shape, which is why both go through entryProps/entryMenu — with
+  // the column choices reduced to a caption under the name.
+  function gridBody() {
+    return (
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2">
+          {entries.map((entry) => {
+            const state = entryState(entry);
+            const caption = tileCaption(entry);
+            return (
+              <ContextMenu
+                key={entry.path}
+                onOpenChange={(open) => {
+                  if (open) setRowMenuOpen(null);
+                }}
+              >
+                <ContextMenuTrigger
+                  render={
+                    <div
+                      className={cn(
+                        "group relative flex cursor-pointer select-none flex-col items-center gap-1.5 rounded-lg border border-transparent p-3 text-center hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        state.selected &&
+                          "border-primary bg-muted hover:bg-muted",
+                        state.dragging && "opacity-40",
+                        state.cut && "opacity-50",
+                        state.dropping && "border-primary/40 bg-primary/10"
+                      )}
+                      {...entryProps(entry)}
+                    />
+                  }
+                >
+                  {entry.type === "dir" ? (
+                    <Folder className="size-10 text-muted-foreground" />
+                  ) : (
+                    <FileIcon className="size-10 text-muted-foreground" />
+                  )}
+                  {/* title: the tile is narrower than most names, and truncation
+                      without a way to read the rest is a dead end. */}
+                  <span className="w-full truncate text-sm" title={entry.name}>
+                    {entry.name}
+                  </span>
+                  {caption ? (
+                    <span className="w-full truncate text-xs text-muted-foreground">
+                      {caption}
+                    </span>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "absolute end-1 top-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+                      (state.selected || rowMenuOpen === entry.path) &&
+                        "opacity-100"
+                    )}
+                  >
+                    {entryMenu(entry)}
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {entryContextItems(entry)}
+                </ContextMenuContent>
+              </ContextMenu>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   // Wraps the browsing area: right-click anywhere that isn't a row acts on the
   // folder being browsed, and OS files dropped anywhere in it upload here.
@@ -1133,6 +1429,30 @@ export function FileExplorer({ source, rootLabel }: Props) {
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          {/* View toggle. Two buttons rather than one that flips: which view is
+              active has to be readable without first decoding the icon. */}
+          <div className="flex items-center gap-0.5 rounded-md border p-0.5">
+            <Button
+              type="button"
+              variant={view === "list" ? "secondary" : "ghost"}
+              size="icon-sm"
+              aria-pressed={view === "list"}
+              aria-label={t("listView")}
+              onClick={() => chooseView("list")}
+            >
+              <List className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={view === "grid" ? "secondary" : "ghost"}
+              size="icon-sm"
+              aria-pressed={view === "grid"}
+              aria-label={t("gridView")}
+              onClick={() => chooseView("grid")}
+            >
+              <LayoutGrid className="size-4" />
+            </Button>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -1222,37 +1542,51 @@ export function FileExplorer({ source, rootLabel }: Props) {
           />
         </div>
       ) : loading ? (
-        // Skeleton mirrors the real table below (same panel, header, columns)
-        // so there's no layout shift when entries arrive.
+        // Skeleton mirrors whichever view is active (same panel, same shape) so
+        // there's no layout shift when entries arrive.
         <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-md border bg-card">
-          <Table containerClassName="flex-1 min-h-0">
-            {header}
-            <TableBody>
-              {Array.from({ length: 8 }, (_, i) => (
-                <TableRow key={`sk-${i}`}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="size-4 shrink-0 rounded-sm" />
-                      <Skeleton className="h-4 w-40" />
-                    </div>
-                  </TableCell>
-                  {columns.size ? (
-                    <TableCell className="text-right">
-                      <Skeleton className="ml-auto h-4 w-12" />
-                    </TableCell>
-                  ) : null}
-                  {columns.modified ? (
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                  ) : null}
-                  <TableCell>
-                    <Skeleton className="size-8 rounded-md" />
-                  </TableCell>
-                </TableRow>
+          {view === "grid" ? (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2 p-3">
+              {Array.from({ length: 12 }, (_, i) => (
+                <div
+                  key={`sk-${i}`}
+                  className="flex flex-col items-center gap-2 p-3"
+                >
+                  <Skeleton className="size-10 rounded-md" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ) : (
+            <Table containerClassName="flex-1 min-h-0">
+              {header}
+              <TableBody>
+                {Array.from({ length: 8 }, (_, i) => (
+                  <TableRow key={`sk-${i}`}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="size-4 shrink-0 rounded-sm" />
+                        <Skeleton className="h-4 w-40" />
+                      </div>
+                    </TableCell>
+                    {columns.size ? (
+                      <TableCell className="text-right">
+                        <Skeleton className="ml-auto h-4 w-12" />
+                      </TableCell>
+                    ) : null}
+                    {columns.modified ? (
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                    ) : null}
+                    <TableCell>
+                      <Skeleton className="size-8 rounded-md" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       ) : entries.length === 0 ? (
         panel(
@@ -1265,162 +1599,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
           </div>
         )
       ) : (
-        // Body scrolls inside this bounded bg-card panel; the header row pins
-        // via sticky (single-<table> layout, same approach as DataTable).
-        panel(
-          <Table containerClassName="flex-1 min-h-0">
-            {header}
-            <TableBody>
-              {entries.map((entry) => (
-                <ContextMenu
-                  key={entry.path}
-                  onOpenChange={(open) => {
-                    if (open) setRowMenuOpen(null);
-                  }}
-                >
-                  <ContextMenuTrigger
-                    render={
-                      <TableRow
-                        onClick={onRowClick(entry)}
-                        onDoubleClick={onRowDoubleClick(entry)}
-                        onKeyDown={onRowKeyDown(entry)}
-                        // Right-clicking outside the selection moves the
-                        // selection onto that row, so the menu that opens can
-                        // never act on something that isn't highlighted.
-                        onContextMenu={() => {
-                          if (!selected.has(entry.path)) selectOnly(entry.path);
-                        }}
-                        // No role override: a <tr> must stay a `row` for the
-                        // table's semantics to survive. Focusability +
-                        // Enter/Space is enough to make the row reachable
-                        // without a pointer.
-                        tabIndex={0}
-                        aria-selected={selected.has(entry.path)}
-                        className={cn(
-                          // select-none: a double click to open must not leave
-                          // the filename highlighted behind the dialog, and a
-                          // Shift-click must extend the selection rather than
-                          // sweep text.
-                          "cursor-pointer select-none hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                          // The palette is neutral, so a surface tint alone
-                          // reads as "merely hovered". The inset bar down the
-                          // leading edge is what makes a selected row obvious;
-                          // box-shadow has no logical-property form, hence the
-                          // mirrored rtl variant.
-                          selected.has(entry.path) &&
-                            "bg-muted hover:bg-muted shadow-[inset_3px_0_0_var(--primary)] rtl:shadow-[inset_-3px_0_0_var(--primary)]",
-                          dragging?.includes(entry.path) && "opacity-40",
-                          // A cut entry stays in place until it is pasted; the
-                          // dimming is the only sign that it is spoken for.
-                          clipboard?.mode === "cut" &&
-                            clipboard.paths.includes(entry.path) &&
-                            "opacity-50",
-                          dropTarget === entry.path &&
-                            "bg-primary/10 ring-1 ring-primary/40 ring-inset"
-                        )}
-                        {...rowDragProps(entry)}
-                      />
-                    }
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-left">
-                        {entry.type === "dir" ? (
-                          <Folder className="size-4 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-                        )}
-                        <span className="truncate">{entry.name}</span>
-                      </div>
-                    </TableCell>
-                    {columns.size ? (
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {entry.type === "file" && entry.sizeBytes != null
-                          ? formatBytes(entry.sizeBytes)
-                          : "—"}
-                      </TableCell>
-                    ) : null}
-                    {columns.modified ? (
-                      <TableCell className="text-muted-foreground">
-                        {entry.modifiedAt
-                          ? formatDistanceToNow(new Date(entry.modifiedAt), {
-                              addSuffix: true,
-                              locale: getDateFnsLocale(locale),
-                            })
-                          : "—"}
-                      </TableCell>
-                    ) : null}
-                    <TableCell
-                      // The ⋯ control owns its own menu, so a right-click here
-                      // must not also open the row's context menu. preventDefault
-                      // as well as stopPropagation: without it the browser's own
-                      // menu would take over this one cell, which reads as broken
-                      // next to every other cell in the row.
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                    >
-                      <DropdownMenu
-                        open={rowMenuOpen === entry.path}
-                        onOpenChange={(open) =>
-                          setRowMenuOpen(open ? entry.path : null)
-                        }
-                      >
-                        <DropdownMenuTrigger
-                          render={
-                            <Button variant="ghost" size="icon-sm">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end">
-                          {rowActions(entry).map((item) => (
-                            <DropdownMenuItem key={item.key} onClick={item.run}>
-                              {item.icon}
-                              {item.label}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() =>
-                              inMultiSelection(entry)
-                                ? onDeleteSelected()
-                                : onDelete(entry)
-                            }
-                          >
-                            <Trash2 className="size-4" />
-                            {tCommon("delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    {rowActions(entry).map((item) => (
-                      <ContextMenuItem key={item.key} onClick={item.run}>
-                        {item.icon}
-                        {item.label}
-                      </ContextMenuItem>
-                    ))}
-                    <ContextMenuSeparator />
-                    <ContextMenuItem
-                      variant="destructive"
-                      onClick={() =>
-                        inMultiSelection(entry)
-                          ? onDeleteSelected()
-                          : onDelete(entry)
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                      {tCommon("delete")}
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
-              ))}
-            </TableBody>
-          </Table>
-        )
+        panel(view === "grid" ? gridBody() : listBody())
       )}
 
       {editing ? (
