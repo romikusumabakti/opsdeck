@@ -1,6 +1,13 @@
 "use client";
 
-import { FolderOpen, HardDrive, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  FolderOpen,
+  HardDrive,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
@@ -13,6 +20,13 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
@@ -92,12 +106,13 @@ export function StorageClient({
       {
         id: "actions",
         enableHiding: false,
-        meta: { headClassName: "w-32", cellClassName: "w-32" },
+        meta: { headClassName: "w-24", cellClassName: "w-24" },
         cell: ({ row }) => (
           <ConnectionActions
             connection={row.original}
             disabled={isPending}
             browseLabel={t("browse")}
+            menuLabel={tCommon("openMenu")}
             editLabel={tCommon("edit")}
             deleteLabel={tCommon("delete")}
             onDelete={() => onDelete(row.original)}
@@ -139,13 +154,15 @@ export function StorageClient({
   );
 }
 
-// Actions are laid out inline instead of behind a kebab menu so every action is
-// one click away. Rows are not clickable; navigation happens only through these
-// action controls.
+// Browsing is the row's primary action, so it stays a button; edit and delete
+// live behind the ⋯ menu, which keeps a destructive control from sitting one
+// stray click away from it. Rows are not clickable; navigation happens only
+// through these action controls.
 function ConnectionActions({
   connection,
   disabled,
   browseLabel,
+  menuLabel,
   editLabel,
   deleteLabel,
   onDelete,
@@ -153,6 +170,7 @@ function ConnectionActions({
   connection: SafeS3Connection;
   disabled: boolean;
   browseLabel: string;
+  menuLabel: string;
   editLabel: string;
   deleteLabel: string;
   onDelete: () => void;
@@ -169,27 +187,34 @@ function ConnectionActions({
       >
         <FolderOpen className="size-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={editLabel}
-        title={editLabel}
-        disabled={disabled}
-        render={<Link href={`/storage/${connection.id}`} />}
-      >
-        <Pencil className="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={deleteLabel}
-        title={deleteLabel}
-        disabled={disabled}
-        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-        onClick={onDelete}
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={menuLabel}
+              title={menuLabel}
+              disabled={disabled}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            render={<Link href={`/storage/${connection.id}`} />}
+          >
+            <Pencil className="size-4" />
+            {editLabel}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>
+            <Trash2 className="size-4" />
+            {deleteLabel}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

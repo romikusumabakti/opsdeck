@@ -2,6 +2,7 @@
 
 import {
   FolderOpen,
+  MoreHorizontal,
   Pencil,
   Plus,
   Server as ServerIcon,
@@ -19,6 +20,13 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
@@ -143,14 +151,15 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         id: "actions",
         enableHiding: false,
         meta: {
-          headClassName: "w-32",
-          cellClassName: "w-32",
+          headClassName: "w-24",
+          cellClassName: "w-24",
         },
         cell: ({ row }) => (
           <ServerActions
             server={row.original}
             disabled={isPending}
             browseLabel={t("browseFiles")}
+            menuLabel={tCommon("openMenu")}
             editLabel={tCommon("edit")}
             deleteLabel={tCommon("delete")}
             onDelete={() => onDelete(row.original)}
@@ -177,6 +186,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
           server={server}
           disabled={isPending}
           browseLabel={t("browseFiles")}
+          menuLabel={tCommon("openMenu")}
           editLabel={tCommon("edit")}
           deleteLabel={tCommon("delete")}
           onDelete={() => onDelete(server)}
@@ -229,13 +239,15 @@ export function ServersClient({ servers }: { servers: Server[] }) {
   );
 }
 
-// Actions are laid out inline instead of behind a kebab menu so every action is
-// one click away. Rows are not clickable; navigation happens only through these
-// action controls.
+// Browsing is the row's primary action, so it stays a button; edit and delete
+// live behind the ⋯ menu, which keeps a destructive control from sitting one
+// stray click away from it. Rows are not clickable; navigation happens only
+// through these action controls.
 function ServerActions({
   server,
   disabled,
   browseLabel,
+  menuLabel,
   editLabel,
   deleteLabel,
   onDelete,
@@ -243,6 +255,7 @@ function ServerActions({
   server: Server;
   disabled: boolean;
   browseLabel: string;
+  menuLabel: string;
   editLabel: string;
   deleteLabel: string;
   onDelete: () => void;
@@ -259,27 +272,32 @@ function ServerActions({
       >
         <FolderOpen className="size-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={editLabel}
-        title={editLabel}
-        disabled={disabled}
-        render={<Link href={`/servers/${server.id}`} />}
-      >
-        <Pencil className="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={deleteLabel}
-        title={deleteLabel}
-        disabled={disabled}
-        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-        onClick={onDelete}
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={menuLabel}
+              title={menuLabel}
+              disabled={disabled}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem render={<Link href={`/servers/${server.id}`} />}>
+            <Pencil className="size-4" />
+            {editLabel}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>
+            <Trash2 className="size-4" />
+            {deleteLabel}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
