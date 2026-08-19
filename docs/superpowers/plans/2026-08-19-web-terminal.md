@@ -1874,7 +1874,15 @@ export type AuditEvent =
       durationMs: number;
       reason: DestroyReason;
     }
-  | { kind: "denied"; userId: string | null; serverId: string; reason: string };
+  // `serverId` is null when the ticket itself could not be verified: there is
+  // no trustworthy server id to attribute the attempt to, and the audit sink
+  // writes this into a uuid column that rejects an empty string.
+  | {
+      kind: "denied";
+      userId: string | null;
+      serverId: string | null;
+      reason: string;
+    };
 
 export type TerminalDeps = {
   loadServer(serverId: string): Promise<TerminalTarget | null>;
@@ -1901,6 +1909,13 @@ type Socket = ServerWebSocket<SocketData>;
 
 function send(ws: Socket, message: ServerMessage): void {
   ws.send(JSON.stringify(message));
+}
+
+// Same, but to a session's CURRENT sink rather than a specific socket. Typed
+// against ServerMessage for the same reason `send` is: a hand-rolled
+// JSON.stringify at the call site would not be checked against the protocol.
+function sendTo(sink: Sink, message: ServerMessage): void {
+  sink.send(JSON.stringify(message));
 }
 
 function fail(ws: Socket, message: string): void {
@@ -1940,7 +1955,7 @@ export function createTerminalHandlers(deps: TerminalDeps) {
       deps.audit({
         kind: "denied",
         userId: null,
-        serverId: "",
+        serverId: null,
         reason: `ticket-${verified.reason}`,
       });
       fail(ws, `Ticket ${verified.reason}`);
@@ -1980,6 +1995,14 @@ export function createTerminalHandlers(deps: TerminalDeps) {
     if (msg.sessionId) {
       const resumed = registry.attach(msg.sessionId, uid, sid, sink);
       if (resumed) {
+        // Same hole as on the fresh path: a client that left during the
+        // `loadServer` await never detached, because it had no session when it
+        // closed. Attaching would bind a live shell to a dead socket AND clear
+        // its grace timer, leaving nothing but the 30-minute idle reaper.
+        if (ws.readyState !== WebSocket.OPEN) {
+          registry.detach(resumed);
+          return;
+        }
         ws.data.session = resumed;
         resumed.shell.resize(msg.cols, msg.rows);
         send(ws, { t: "ready", sessionId: resumed.id });
@@ -2034,7 +2057,8 @@ export function createTerminalHandlers(deps: TerminalDeps) {
       // session's connection is a different socket, and writing the exit frame
       // to the old one drops it silently — the user sees a disconnect instead
       // of a clean exit, and loses the exit code.
-      session.sink?.send(JSON.stringify({ t: "exit", ...info }));
+      const sink = session.sink;
+      if (sink) sendTo(sink, { t: "exit", ...info });
       registry.destroy(session, "exit");
     });
 
@@ -2213,7 +2237,11 @@ const { fetch, websocket, registry } = createTerminalHandlers({
       actorId: event.userId,
       action: "terminal.denied",
       entityType: "server",
-      entityId: event.serverId,
+      // `entityId` lands in a uuid column: an unverifiable ticket names no
+      // server, and undefined stores NULL where "" would be rejected outright
+      // — and recordActivity swallows its own errors, so the row would simply
+      // never appear.
+      entityId: event.serverId ?? undefined,
       data: { reason: event.reason },
     });
   },
