@@ -2,10 +2,12 @@ import { Readable } from "node:stream";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession, isAdmin } from "@/lib/auth-session";
 import { type ExplorerSource, resolveBackend } from "@/lib/explorer";
-import { PathError } from "@/lib/explorer/path";
+import { ensureDir } from "@/lib/explorer/ops";
+import { dirname, joinPath, PathError } from "@/lib/explorer/path";
 import {
   explorerNameSchema,
   explorerPathSchema,
+  explorerRelativePathSchema,
   explorerSourceSchema,
 } from "@/lib/validation";
 
@@ -34,28 +36,48 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Invalid source", { status: 400 });
   }
   const parsedDir = explorerPathSchema.safeParse(form.get("path") ?? "");
-  // The stored filename comes from the client; validate it as a single segment
-  // so it can't inject path separators or traversal into the destination key.
-  const parsedName = explorerNameSchema.safeParse(file.name);
-  if (!parsedDir.success || !parsedName.success) {
+  // Where the file lands under the destination directory. A folder upload sends
+  // the browser's relative path ("dist/assets/app.js"); a plain file upload
+  // sends nothing and the stored name is the file's own. Both are client-
+  // supplied, so both are validated segment by segment before the join.
+  const rawRelative = form.get("relativePath");
+  const parsedRelative =
+    typeof rawRelative === "string" && rawRelative.length > 0
+      ? explorerRelativePathSchema.safeParse(rawRelative)
+      : explorerNameSchema.safeParse(file.name);
+  if (!parsedDir.success || !parsedRelative.success) {
     return new NextResponse("Invalid path", { status: 400 });
   }
 
   const backend = await resolveBackend(source);
   if (!backend) return new NextResponse("Not found", { status: 404 });
 
-  const base = parsedDir.data.replace(/\/+$/, "");
-  const dest = base ? `${base}/${parsedName.data}` : parsedName.data;
+  const dest = joinPath(parsedDir.data, parsedRelative.data);
 
   try {
-    const body = Readable.fromWeb(file.stream() as never);
-    await backend.writeStream(dest, body);
-    return NextResponse.json({ ok: true });
+    // Blob.stream() hands out a fresh stream per call, so the retry below can
+    // re-read the body after the first attempt consumed it.
+    await backend.writeStream(dest, Readable.fromWeb(file.stream() as never));
   } catch (error) {
     if (error instanceof PathError) {
       return new NextResponse("Invalid path", { status: 400 });
     }
-    console.error("Explorer upload failed:", error);
-    return new NextResponse("Upload failed", { status: 500 });
+    // A folder upload sends its files in whatever order the browser queued
+    // them, so the parent directory may not exist yet on a backend with real
+    // directories (SFTP). Creating it up front would cost a mkdir round trip
+    // per file; creating it only after a write fails costs nothing in the
+    // common case.
+    if (!parsedRelative.data.includes("/")) {
+      console.error("Explorer upload failed:", error);
+      return new NextResponse("Upload failed", { status: 500 });
+    }
+    try {
+      await ensureDir(backend, dirname(dest));
+      await backend.writeStream(dest, Readable.fromWeb(file.stream() as never));
+    } catch (retryError) {
+      console.error("Explorer upload failed:", retryError);
+      return new NextResponse("Upload failed", { status: 500 });
+    }
   }
+  return NextResponse.json({ ok: true });
 }
