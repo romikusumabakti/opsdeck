@@ -26,6 +26,10 @@ all over SSH against your own infrastructure.
 - **Internationalization** — `en`, `id`, `ar`, `zh` via `next-intl`.
 - **Email** — transactional mail via [Resend](https://resend.com) + React Email
   (optional; disabled when unconfigured).
+- **Web terminal** — an interactive SSH shell in the browser, opened from the
+  server list or from the file explorer at the folder being browsed. Admin-only;
+  each session's open and close is written to the activity log (never its
+  contents). Runs in its own container so a redeploy cannot kill a live shell.
 
 ## Tech stack
 
@@ -122,8 +126,11 @@ Full setup guide, error codes, and secret rotation: [`docs/microsoft-sign-in.md`
 ## Docker
 
 `compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, a Garage
-object store, and an imgproxy image server. Set the required secrets in `.env`,
-then:
+object store, an imgproxy image server, and:
+
+- `terminal` — WebSocket terminal sessions (same image as `app`, different entrypoint)
+
+Set the required secrets in `.env`, then:
 
 ```bash
 docker compose up -d --build
