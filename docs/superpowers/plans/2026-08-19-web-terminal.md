@@ -1046,16 +1046,22 @@ export class SessionRegistry {
     this.clearTimer(session.graceTimer);
     session.graceTimer = null;
 
-    // A racing reconnect (a second tab resuming the same session) must not
-    // leave the displaced socket attached and unaware it was replaced.
-    if (session.sink) {
+    // Assign BEFORE closing the displaced sink. Bun dispatches a socket's
+    // close handler synchronously from inside `close()`, and that handler asks
+    // "am I still this session's sink?" to decide whether to detach. Closing
+    // first would have it run while `session.sink` was still the OLD sink — it
+    // would answer yes, detach a live session, and arm a 60s grace timer that
+    // nothing clears. Sixty seconds later the shell dies under a user who is
+    // actively typing.
+    const displaced = session.sink;
+    session.sink = sink;
+    if (displaced) {
       try {
-        session.sink.close();
+        displaced.close();
       } catch {
         // Already gone.
       }
     }
-    session.sink = sink;
 
     const backlog = session.ring.read();
     if (backlog.length > 0) sink.send(backlog);
@@ -1775,8 +1781,16 @@ export function openSshShell(
               client.end();
             },
             setFlowing(flowing) {
-              if (flowing) stream.resume();
-              else stream.pause();
+              // stderr as well: on a server that splits it from stdout, an
+              // unpaused stderr walks straight past the 1 MB threshold that
+              // exists to stop an unbounded write buffer.
+              if (flowing) {
+                stream.resume();
+                stream.stderr?.resume();
+              } else {
+                stream.pause();
+                stream.stderr?.pause();
+              }
             },
             onData(cb) {
               stream.on("data", (chunk: Buffer) => cb(new Uint8Array(chunk)));
@@ -1920,6 +1934,15 @@ export function createTerminalHandlers(deps: TerminalDeps) {
   ): Promise<void> {
     const verified = verifyTicket(msg.ticket);
     if (!verified.ok) {
+      // Audited without an actor: an unverifiable ticket has no trustworthy
+      // uid to attribute it to, but a forged or expired ticket arriving at
+      // this port is the most security-relevant denial there is.
+      deps.audit({
+        kind: "denied",
+        userId: null,
+        serverId: "",
+        reason: `ticket-${verified.reason}`,
+      });
       fail(ws, `Ticket ${verified.reason}`);
       return;
     }
@@ -1962,8 +1985,12 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         send(ws, { t: "ready", sessionId: resumed.id });
         return;
       }
-      // Fall through: the session is gone, so open a fresh one rather than
-      // erroring — from the user's side this is just "the shell restarted".
+      // `attach` only returns null for a session that is gone or not ours,
+      // and the reattach branch is entered only when it is neither — so this
+      // is unreachable. Assert it rather than falling through: the fresh-open
+      // path below would send a SECOND `ready` with a different session id.
+      fail(ws, "Session could not be resumed");
+      return;
     }
 
     let shell: ShellSession;
@@ -1991,9 +2018,23 @@ export function createTerminalHandlers(deps: TerminalDeps) {
       throw error;
     }
 
+    // The SSH handshake can take seconds; a client that gave up in the
+    // meantime never triggers the close handler's detach path, because it had
+    // no session to detach when it closed. Without this the shell would sit
+    // attached to a dead socket — no grace timer, just the 30-minute idle
+    // reaper — holding one of the user's four slots and a live root shell.
+    if (ws.readyState !== WebSocket.OPEN) {
+      registry.destroy(session, "exit");
+      return;
+    }
+
     shell.onData((chunk) => registry.onOutput(session, chunk));
     shell.onExit((info) => {
-      if (session.sink) send(ws, { t: "exit", ...info });
+      // Through `session.sink`, not the captured `ws`: after a reattach the
+      // session's connection is a different socket, and writing the exit frame
+      // to the old one drops it silently — the user sees a disconnect instead
+      // of a clean exit, and loses the exit code.
+      session.sink?.send(JSON.stringify({ t: "exit", ...info }));
       registry.destroy(session, "exit");
     });
 
