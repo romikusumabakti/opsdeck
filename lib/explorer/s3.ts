@@ -112,6 +112,20 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     }
   };
 
+  // Copy one key, or every key under a prefix. Sequential on purpose: a folder
+  // copy is a background-ish operation and firing thousands of concurrent
+  // CopyObject calls only invites throttling. Bytes never leave the store.
+  const copyTree = async (from: string, to: string): Promise<void> => {
+    if (!from.endsWith("/")) {
+      await copyKey(from, to);
+      return;
+    }
+    const keys = await allKeys(from);
+    for (const key of keys) {
+      await copyKey(key, `${to}${key.slice(from.length)}`);
+    }
+  };
+
   const copyKey = async (from: string, to: string): Promise<void> => {
     await client.send(
       new CopyObjectCommand({
@@ -235,19 +249,20 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
       const from = normalizeS3Key(fromInput, true);
       const to = normalizeS3Key(toInput, true);
       // No native rename: copy then delete.
+      await copyTree(from, to);
       if (!from.endsWith("/")) {
-        await copyKey(from, to);
         await client.send(new DeleteObjectCommand({ Bucket, Key: from }));
         return;
       }
-      // Renaming/moving a prefix rewrites every key beneath it. Copies run
-      // sequentially: a folder move is a background-ish operation and firing
-      // thousands of concurrent CopyObject calls only invites throttling.
       const keys = await allKeys(from);
-      for (const key of keys) {
-        await copyKey(key, `${to}${key.slice(from.length)}`);
-      }
       if (keys.length > 0) await deleteKeys(keys);
+    },
+
+    async copy(fromInput, toInput) {
+      await copyTree(
+        normalizeS3Key(fromInput, true),
+        normalizeS3Key(toInput, true)
+      );
     },
   };
 }

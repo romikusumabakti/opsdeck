@@ -1,6 +1,6 @@
 import "server-only";
 
-import { joinPath } from "./path";
+import { basename, joinPath } from "./path";
 import type { ExplorerEntry, StorageBackend } from "./types";
 
 // Backend-neutral operations composed from the StorageBackend primitives. They
@@ -77,6 +77,81 @@ export async function collectTree(
   }
 
   return { files, emptyDirs };
+}
+
+// A path in a selection that no longer exists. Distinct from a generic failure
+// so callers can say "gone" instead of "storage error".
+export class MissingEntryError extends Error {}
+
+// Fold a selection of paths — files, folders, or a mix — into one archive-shaped
+// tree. `flat` keeps a lone directory's contents at the root (the "download this
+// folder" shape); otherwise every target is nested under its own name, which is
+// also what stops a mixed selection from colliding.
+export async function collectSelection(
+  backend: StorageBackend,
+  targets: string[],
+  flat: boolean
+): Promise<Tree> {
+  const tree: Tree = { files: [], emptyDirs: [] };
+  for (const target of targets) {
+    const prefix = flat ? "" : basename(target);
+    if (target === "" || target.endsWith("/")) {
+      const sub = await collectTree(backend, target);
+      for (const file of sub.files) {
+        tree.files.push({
+          ...file,
+          relPath: prefix ? `${prefix}/${file.relPath}` : file.relPath,
+        });
+      }
+      for (const empty of sub.emptyDirs) {
+        tree.emptyDirs.push(prefix ? `${prefix}/${empty}` : empty);
+      }
+      // A selected folder that holds nothing still belongs in the archive;
+      // collectTree only reports empty dirs it finds *below* its own root.
+      if (prefix && sub.files.length === 0 && sub.emptyDirs.length === 0) {
+        tree.emptyDirs.push(`${prefix}/`);
+      }
+    } else {
+      const info = await backend.stat(target);
+      if (!info) throw new MissingEntryError(target);
+      tree.files.push({
+        path: target,
+        relPath: prefix,
+        sizeBytes: info.sizeBytes,
+        modifiedAt: info.modifiedAt,
+      });
+    }
+    // collectTree bounds each walk on its own; the selection as a whole needs
+    // the same ceiling applied across all of them.
+    if (tree.files.length > MAX_TREE_ENTRIES) {
+      throw new TreeTooLargeError(`Tree exceeds ${MAX_TREE_ENTRIES} entries`);
+    }
+  }
+  return tree;
+}
+
+// A name that is free inside `destDir`. Copying an entry next to itself is the
+// common case, so the fallbacks read like a file manager's: "notes (copy).txt",
+// then "notes (copy 2).txt". Bounded — past that, the caller gets the last try
+// and the backend decides.
+export async function uniqueName(
+  backend: StorageBackend,
+  destDir: string,
+  name: string,
+  isDir: boolean
+): Promise<string> {
+  const taken = new Set((await backend.list(destDir)).map((e) => e.name));
+  if (!taken.has(name)) return name;
+  // Only files carry a meaningful extension; a dot in a folder name is part of
+  // the name, not a suffix.
+  const dot = isDir ? -1 : name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  for (let i = 1; i < 100; i++) {
+    const candidate = `${stem} (copy${i > 1 ? ` ${i}` : ""})${ext}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${stem} (copy 100)${ext}`;
 }
 
 // mkdir -p. Each level is attempted and failures are swallowed: the only reason

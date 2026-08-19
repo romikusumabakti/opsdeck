@@ -3,16 +3,25 @@
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronRight,
+  ClipboardPaste,
+  Columns3,
+  Copy,
   Download,
+  FileArchive,
   File as FileIcon,
   FileUp,
   Folder,
+  FolderInput,
+  FolderOutput,
   FolderPlus,
   FolderUp,
+  Info,
+  ListChecks,
   Loader2,
   MoreHorizontal,
   Pencil,
   RefreshCw,
+  Scissors,
   SquarePen,
   Trash2,
   Upload,
@@ -23,6 +32,8 @@ import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import {
+  compressEntries,
+  copyEntry,
   createFolder,
   deleteEntry,
   getDownloadTarget,
@@ -41,6 +52,7 @@ import {
 } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -78,6 +90,24 @@ const FileEditorDialog = dynamic(
   () => import("@/components/file-editor-dialog"),
   { loading: () => null }
 );
+
+// Both open on demand and neither is on the browsing path, so they follow the
+// editor's pattern: lazy, with their own Suspense boundary.
+const FolderPickerDialog = dynamic(
+  () => import("@/components/folder-picker-dialog"),
+  { loading: () => null }
+);
+const EntryPropertiesDialog = dynamic(
+  () => import("@/components/entry-properties-dialog"),
+  { loading: () => null }
+);
+
+// Which optional columns the table shows. Name is not in here — a listing
+// without it would be unusable. Adding a column later means one entry here plus
+// its cell; the stored shape tolerates unknown/missing keys either way.
+type Columns = { size: boolean; modified: boolean };
+const DEFAULT_COLUMNS: Columns = { size: true, modified: true };
+const COLUMNS_KEY = "opsdeck.explorer.columns";
 
 // Custom drag type marking a drag that started inside the explorer. Only the
 // type list (not the value) is readable during dragover, which is where the
@@ -174,6 +204,25 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const anchor = React.useRef<string | null>(null);
   // Paths being dragged inside the explorer, and the directory currently
   // highlighted as their drop target ("" = the current folder).
+  // Cut/copy holds paths, not entries: what matters at paste time is where they
+  // live now. Scoped to this explorer — the clipboard is component state, so it
+  // follows folder navigation and dies with the page, which is what keeps paste
+  // from ever addressing a different backend than the one it was filled from.
+  const [clipboard, setClipboard] = React.useState<{
+    mode: "cut" | "copy";
+    paths: string[];
+  } | null>(null);
+  // A pending "Move to…"/"Copy to…": the mode and the entries it will act on,
+  // held while the destination picker is open.
+  const [transfer, setTransfer] = React.useState<{
+    mode: "move" | "copy";
+    paths: string[];
+  } | null>(null);
+  // The entry whose properties dialog is open.
+  const [inspecting, setInspecting] = React.useState<ExplorerEntry | null>(
+    null
+  );
+  const [columns, setColumns] = React.useState<Columns>(DEFAULT_COLUMNS);
   const [dragging, setDragging] = React.useState<string[] | null>(null);
   const [dropTarget, setDropTarget] = React.useState<string | null>(null);
   // Whether an OS file drag is hovering the panel, for the drop overlay.
@@ -214,6 +263,30 @@ export function FileExplorer({ source, rootLabel }: Props) {
       return alive.size === cur.size ? cur : alive;
     });
   }, [entries]);
+
+  // Column choices are a per-browser preference, so they load after mount:
+  // reading localStorage during render would make the server and client markup
+  // disagree.
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem(COLUMNS_KEY);
+      if (stored) setColumns({ ...DEFAULT_COLUMNS, ...JSON.parse(stored) });
+    } catch {
+      // Unreadable or malformed — the defaults are a fine answer.
+    }
+  }, []);
+
+  function toggleColumn(key: keyof Columns) {
+    setColumns((cur) => {
+      const next = { ...cur, [key]: !cur[key] };
+      try {
+        localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
+      } catch {
+        // Private mode / quota. The choice still applies for this session.
+      }
+      return next;
+    });
+  }
 
   const selectedEntries = React.useMemo(
     () => entries.filter((e) => selected.has(e.path)),
@@ -421,6 +494,32 @@ export function FileExplorer({ source, rootLabel }: Props) {
     refresh();
   }
 
+  // Every batch mutation runs the same way: sequentially (over SFTP these share
+  // one pooled connection, and a burst of parallel calls buys nothing but a
+  // noisier failure mode), then reports once for the whole batch.
+  async function runBatch(
+    paths: string[],
+    run: (path: string) => Promise<{ success: boolean; message?: string }>,
+    done: (count: number, lastMessage?: string) => void
+  ) {
+    if (paths.length === 0) return;
+    setBusy(true);
+    let failed = 0;
+    let lastMessage: string | undefined;
+    for (const p of paths) {
+      const result = await run(p);
+      if (result.success) lastMessage = result.message;
+      else failed++;
+    }
+    setBusy(false);
+    if (failed > 0) {
+      toast.error(t("actionPartial", { failed, total: paths.length }));
+    } else {
+      done(paths.length, lastMessage);
+    }
+    refresh();
+  }
+
   // Bulk delete. One entry falls through to the single-entry flow so the
   // confirmation still names it; past that, only a count can be shown.
   async function onDeleteSelected() {
@@ -439,22 +538,12 @@ export function FileExplorer({ source, rootLabel }: Props) {
       destructive: true,
     });
     if (!ok) return;
-    setBusy(true);
-    // Sequential on purpose: over SFTP these share one pooled connection, and a
-    // burst of parallel removes buys nothing but a noisier failure mode.
-    let failed = 0;
-    for (const item of items) {
-      const result = await deleteEntry(source, item.path);
-      if (!result.success) failed++;
-    }
-    setBusy(false);
-    if (failed > 0) {
-      toast.error(t("actionPartial", { failed, total: items.length }));
-    } else {
-      toast.success(t("deletedCount", { count: items.length }));
-    }
+    await runBatch(
+      items.map((item) => item.path),
+      (p) => deleteEntry(source, p),
+      (count) => toast.success(t("deletedCount", { count }))
+    );
     clearSelection();
-    refresh();
   }
 
   // Bulk download. A lone file keeps its own bytes and its own name; anything
@@ -516,24 +605,85 @@ export function FileExplorer({ source, rootLabel }: Props) {
   }
 
   async function onMove(from: string[], destDir: string) {
-    if (from.length === 0) return;
+    await runBatch(
+      from,
+      (p) => moveEntry(source, p, destDir),
+      (count, lastMessage) => {
+        if (count > 1) toast.success(t("movedCount", { count }));
+        else if (lastMessage) toast.success(lastMessage);
+      }
+    );
+  }
+
+  async function onCopyInto(from: string[], destDir: string) {
+    await runBatch(
+      from,
+      (p) => copyEntry(source, p, destDir),
+      (count, lastMessage) => {
+        if (count > 1) toast.success(t("copiedCount", { count }));
+        else if (lastMessage) toast.success(lastMessage);
+      }
+    );
+  }
+
+  // Cut and copy only record intent; the storage call happens on paste, which
+  // is what lets the user navigate to the destination in between.
+  function onClip(mode: "cut" | "copy", items: ExplorerEntry[]) {
+    if (items.length === 0) return;
+    setClipboard({ mode, paths: items.map((item) => item.path) });
+  }
+
+  async function onPaste() {
+    if (!clipboard) return;
+    const { mode, paths } = clipboard;
+    // A cut is spent once pasted; a copy stays on the clipboard so it can be
+    // pasted into several folders, the way every file manager behaves.
+    if (mode === "cut") setClipboard(null);
+    if (mode === "cut") await onMove(paths, path);
+    else await onCopyInto(paths, path);
+  }
+
+  // "Move to…" / "Copy to…" — same operations as drag-and-drop and paste, but
+  // with a destination chosen in a picker instead of a drop target.
+  async function onTransferPick(dest: string) {
+    const pending = transfer;
+    setTransfer(null);
+    if (!pending) return;
+    if (pending.mode === "move") await onMove(pending.paths, dest);
+    else await onCopyInto(pending.paths, dest);
+  }
+
+  // Zip a selection into the folder being browsed. The name is asked for
+  // up-front because an archive lands next to its sources and inherits their
+  // namespace — an implicit "archive.zip" would be a guess at what to overwrite.
+  async function onCompress(items: ExplorerEntry[]) {
+    if (items.length === 0) return;
+    const only = items.length === 1 ? items[0] : null;
+    const suggested = only
+      ? only.name.replace(/\.[^./]+$/, "")
+      : path.replace(/\/+$/, "").split("/").pop() || rootLabel;
+    const name = await dialog.prompt({
+      title: t("compressTitle"),
+      description: t("compressDescription", { count: items.length }),
+      defaultValue: `${suggested}.zip`,
+      placeholder: t("archiveNamePlaceholder"),
+      confirmText: t("compress"),
+      cancelText: tCommon("cancel"),
+    });
+    if (!name) return;
     setBusy(true);
-    // Sequential, for the same reason bulk delete is.
-    let failed = 0;
-    let lastMessage: string | undefined;
-    for (const p of from) {
-      const result = await moveEntry(source, p, destDir);
-      if (result.success) lastMessage = result.message;
-      else failed++;
-    }
+    const result = await compressEntries(
+      source,
+      items.map((item) => item.path),
+      path,
+      name
+    );
     setBusy(false);
-    if (failed > 0) {
-      toast.error(t("actionPartial", { failed, total: from.length }));
-    } else if (from.length > 1) {
-      toast.success(t("movedCount", { count: from.length }));
-    } else if (lastMessage) {
-      toast.success(lastMessage);
+    if (!result.success) {
+      toast.error(result.message);
+      return;
     }
+    toast.success(result.message ?? "");
     refresh();
   }
 
@@ -641,8 +791,14 @@ export function FileExplorer({ source, rootLabel }: Props) {
     };
   }
 
+  function selectAll() {
+    anchor.current = entries[0]?.path ?? null;
+    setSelected(new Set(entries.map((entry) => entry.path)));
+  }
+
   // Keys handled for the browsing area as a whole. Only fires while focus is
-  // inside it, so neither shortcut fights the rest of the page.
+  // inside it, so none of these shortcuts fight the rest of the page — and
+  // rows are select-none, so ⌘C here can't be a text copy either.
   const panelKeyProps = {
     onKeyDown: (e: React.KeyboardEvent) => {
       if (e.key === "Escape" && selected.size > 0) {
@@ -650,10 +806,26 @@ export function FileExplorer({ source, rootLabel }: Props) {
         clearSelection();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+      if (e.key === "Delete" && selected.size > 0) {
         e.preventDefault();
-        anchor.current = entries[0]?.path ?? null;
-        setSelected(new Set(entries.map((entry) => entry.path)));
+        onDeleteSelected();
+        return;
+      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "a") {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+      if (key === "v") {
+        e.preventDefault();
+        onPaste();
+        return;
+      }
+      if ((key === "x" || key === "c") && selected.size > 0) {
+        e.preventDefault();
+        onClip(key === "x" ? "cut" : "copy", selectedEntries);
       }
     },
     // Clicking past the last row is the canonical "deselect everything" — but
@@ -676,6 +848,49 @@ export function FileExplorer({ source, rootLabel }: Props) {
   // the list is declared once and rendered through whichever menu is in play.
   // Delete is appended separately by each menu, behind a separator.
   function rowActions(entry: ExplorerEntry): RowAction[] {
+    // What the menu will act on: the whole selection when the row is part of
+    // one, otherwise just this row.
+    const targets = inMultiSelection(entry) ? selectedEntries : [entry];
+    const shared: RowAction[] = [
+      {
+        key: "cut",
+        icon: <Scissors className="size-4" />,
+        label: t("cut"),
+        run: () => onClip("cut", targets),
+      },
+      {
+        key: "copy",
+        icon: <Copy className="size-4" />,
+        label: tCommon("copy"),
+        run: () => onClip("copy", targets),
+      },
+      {
+        key: "move-to",
+        icon: <FolderInput className="size-4" />,
+        label: t("moveTo"),
+        run: () =>
+          setTransfer({
+            mode: "move",
+            paths: targets.map((item) => item.path),
+          }),
+      },
+      {
+        key: "copy-to",
+        icon: <FolderOutput className="size-4" />,
+        label: t("copyTo"),
+        run: () =>
+          setTransfer({
+            mode: "copy",
+            paths: targets.map((item) => item.path),
+          }),
+      },
+      {
+        key: "compress",
+        icon: <FileArchive className="size-4" />,
+        label: t("compress"),
+        run: () => onCompress(targets),
+      },
+    ];
     if (inMultiSelection(entry)) {
       return [
         {
@@ -684,6 +899,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
           label: t("downloadZip"),
           run: onDownloadSelected,
         },
+        ...shared,
       ];
     }
     const actions: RowAction[] =
@@ -716,11 +932,17 @@ export function FileExplorer({ source, rootLabel }: Props) {
               run: () => window.open(archiveUrl(entry.path), "_blank"),
             },
           ];
-    actions.push({
+    actions.push(...shared, {
       key: "rename",
       icon: <Pencil className="size-4" />,
       label: t("rename"),
       run: () => onRename(entry),
+    });
+    actions.push({
+      key: "properties",
+      icon: <Info className="size-4" />,
+      label: t("properties"),
+      run: () => setInspecting(entry),
     });
     return actions;
   }
@@ -731,8 +953,12 @@ export function FileExplorer({ source, rootLabel }: Props) {
     <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
       <TableRow>
         <TableHead>{t("name")}</TableHead>
-        <TableHead className="w-32 text-right">{t("size")}</TableHead>
-        <TableHead className="w-48">{t("modified")}</TableHead>
+        {columns.size ? (
+          <TableHead className="w-32 text-right">{t("size")}</TableHead>
+        ) : null}
+        {columns.modified ? (
+          <TableHead className="w-48">{t("modified")}</TableHead>
+        ) : null}
         <TableHead className="w-12" />
       </TableRow>
     </TableHeader>
@@ -836,6 +1062,17 @@ export function FileExplorer({ source, rootLabel }: Props) {
             <FolderPlus className="size-4" />
             {t("newFolder")}
           </ContextMenuItem>
+          <ContextMenuItem disabled={!clipboard} onClick={onPaste}>
+            <ClipboardPaste className="size-4" />
+            {clipboard
+              ? t("pasteCount", { count: clipboard.paths.length })
+              : t("paste")}
+          </ContextMenuItem>
+          <ContextMenuItem disabled={entries.length === 0} onClick={selectAll}>
+            <ListChecks className="size-4" />
+            {t("selectAll")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           <ContextMenuItem onClick={() => fileInput.current?.click()}>
             <FileUp className="size-4" />
             {t("uploadFiles")}
@@ -896,6 +1133,30 @@ export function FileExplorer({ source, rootLabel }: Props) {
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button type="button" variant="outline" size="sm">
+                  <Columns3 className="size-4" />
+                  {t("columns")}
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuCheckboxItem
+                checked={columns.size}
+                onCheckedChange={() => toggleColumn("size")}
+              >
+                {t("size")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={columns.modified}
+                onCheckedChange={() => toggleColumn("modified")}
+              >
+                {t("modified")}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="outline"
@@ -975,12 +1236,16 @@ export function FileExplorer({ source, rootLabel }: Props) {
                       <Skeleton className="h-4 w-40" />
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Skeleton className="ml-auto h-4 w-12" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
+                  {columns.size ? (
+                    <TableCell className="text-right">
+                      <Skeleton className="ml-auto h-4 w-12" />
+                    </TableCell>
+                  ) : null}
+                  {columns.modified ? (
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     <Skeleton className="size-8 rounded-md" />
                   </TableCell>
@@ -1045,6 +1310,11 @@ export function FileExplorer({ source, rootLabel }: Props) {
                           selected.has(entry.path) &&
                             "bg-muted hover:bg-muted shadow-[inset_3px_0_0_var(--primary)] rtl:shadow-[inset_-3px_0_0_var(--primary)]",
                           dragging?.includes(entry.path) && "opacity-40",
+                          // A cut entry stays in place until it is pasted; the
+                          // dimming is the only sign that it is spoken for.
+                          clipboard?.mode === "cut" &&
+                            clipboard.paths.includes(entry.path) &&
+                            "opacity-50",
                           dropTarget === entry.path &&
                             "bg-primary/10 ring-1 ring-primary/40 ring-inset"
                         )}
@@ -1062,19 +1332,23 @@ export function FileExplorer({ source, rootLabel }: Props) {
                         <span className="truncate">{entry.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {entry.type === "file" && entry.sizeBytes != null
-                        ? formatBytes(entry.sizeBytes)
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {entry.modifiedAt
-                        ? formatDistanceToNow(new Date(entry.modifiedAt), {
-                            addSuffix: true,
-                            locale: getDateFnsLocale(locale),
-                          })
-                        : "—"}
-                    </TableCell>
+                    {columns.size ? (
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {entry.type === "file" && entry.sizeBytes != null
+                          ? formatBytes(entry.sizeBytes)
+                          : "—"}
+                      </TableCell>
+                    ) : null}
+                    {columns.modified ? (
+                      <TableCell className="text-muted-foreground">
+                        {entry.modifiedAt
+                          ? formatDistanceToNow(new Date(entry.modifiedAt), {
+                              addSuffix: true,
+                              locale: getDateFnsLocale(locale),
+                            })
+                          : "—"}
+                      </TableCell>
+                    ) : null}
                     <TableCell
                       // The ⋯ control owns its own menu, so a right-click here
                       // must not also open the row's context menu. preventDefault
@@ -1155,6 +1429,30 @@ export function FileExplorer({ source, rootLabel }: Props) {
           entry={editing}
           onClose={() => setEditing(null)}
           onSaved={refresh}
+        />
+      ) : null}
+
+      {transfer ? (
+        <FolderPickerDialog
+          source={source}
+          rootLabel={rootLabel}
+          initialPath={path}
+          title={transfer.mode === "move" ? t("moveTo") : t("copyTo")}
+          confirmText={transfer.mode === "move" ? t("moveHere") : t("copyHere")}
+          // A folder can't receive itself or its own subtree; the actions
+          // enforce this too, but a disabled row explains it better than a
+          // toast after the fact.
+          blocked={transfer.paths.filter((p) => p.endsWith("/"))}
+          onClose={() => setTransfer(null)}
+          onPick={onTransferPick}
+        />
+      ) : null}
+
+      {inspecting ? (
+        <EntryPropertiesDialog
+          source={source}
+          entry={inspecting}
+          onClose={() => setInspecting(null)}
         />
       ) : null}
     </div>
