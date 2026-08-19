@@ -1078,6 +1078,8 @@
     }
   },
   "explorer": {
+    "listView": "List view",
+    "gridView": "Grid view",
     "cut": "Cut",
     "paste": "Paste",
     "pasteCount": "Paste {count} items",
