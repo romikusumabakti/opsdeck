@@ -2,15 +2,24 @@ import type { Readable } from "node:stream";
 import { Readable as NodeReadable } from "node:stream";
 import { type NextRequest, NextResponse } from "next/server";
 import { ZipFile } from "yazl";
+import { z } from "zod";
 import { getServerSession, isAdmin } from "@/lib/auth-session";
 import { type ExplorerSource, resolveBackend } from "@/lib/explorer";
-import { collectTree, TreeTooLargeError } from "@/lib/explorer/ops";
-import { basename, PathError } from "@/lib/explorer/path";
+import {
+  collectTree,
+  MAX_TREE_ENTRIES,
+  type Tree,
+  TreeTooLargeError,
+} from "@/lib/explorer/ops";
+import { basename, dirname, PathError } from "@/lib/explorer/path";
 import { explorerPathSchema, explorerSourceSchema } from "@/lib/validation";
 
 // Folder download: walks the tree and streams it back as a ZIP. Admin-gated,
 // same bar as every other explorer entry point. Node runtime for the ssh2
 // socket and the zip stream.
+//
+// `path` may be repeated: one directory (the folder download) or a selection of
+// files and folders, which are archived side by side under their own names.
 //
 // Nothing is buffered: yazl's addReadStreamLazy opens each file only when the
 // archive reaches that entry, so exactly one backend read stream is live at a
@@ -38,25 +47,62 @@ export async function GET(req: NextRequest) {
   } catch {
     return new NextResponse("Invalid source", { status: 400 });
   }
-  const parsedPath = explorerPathSchema.safeParse(
-    req.nextUrl.searchParams.get("path") ?? ""
-  );
-  // "" is the root; anything else must be a directory, which the whole explorer
-  // marks with a trailing slash.
-  if (
-    !parsedPath.success ||
-    (parsedPath.data && !parsedPath.data.endsWith("/"))
-  ) {
+  // No `path` at all means the root folder, which is also the empty string.
+  const requested = req.nextUrl.searchParams.getAll("path");
+  const parsedPaths = z
+    .array(explorerPathSchema)
+    .nonempty()
+    .safeParse(requested.length > 0 ? requested : [""]);
+  if (!parsedPaths.success) {
     return new NextResponse("Invalid path", { status: 400 });
   }
-  const dir = parsedPath.data;
+  const targets = parsedPaths.data;
+  // One directory on its own is the "download this folder" case: its contents
+  // sit at the archive root, so unzipping doesn't produce a doubled folder.
+  // Every other shape (a selection, or a single file) is nested under its own
+  // name, which is also what keeps a mixed selection from colliding.
+  const first = targets[0] ?? "";
+  const flat = targets.length === 1 && (first === "" || first.endsWith("/"));
 
   const backend = await resolveBackend(source);
   if (!backend) return new NextResponse("Not found", { status: 404 });
 
-  let tree: Awaited<ReturnType<typeof collectTree>>;
+  const tree: Tree = { files: [], emptyDirs: [] };
   try {
-    tree = await collectTree(backend, dir);
+    for (const target of targets) {
+      const prefix = flat ? "" : basename(target);
+      if (target === "" || target.endsWith("/")) {
+        const sub = await collectTree(backend, target);
+        for (const file of sub.files) {
+          tree.files.push({
+            ...file,
+            relPath: prefix ? `${prefix}/${file.relPath}` : file.relPath,
+          });
+        }
+        for (const empty of sub.emptyDirs) {
+          tree.emptyDirs.push(prefix ? `${prefix}/${empty}` : empty);
+        }
+        // A selected folder that holds nothing still belongs in the archive;
+        // collectTree only reports empty dirs it finds *below* its own root.
+        if (prefix && sub.files.length === 0 && sub.emptyDirs.length === 0) {
+          tree.emptyDirs.push(`${prefix}/`);
+        }
+      } else {
+        const info = await backend.stat(target);
+        if (!info) return new NextResponse("Not found", { status: 404 });
+        tree.files.push({
+          path: target,
+          relPath: prefix,
+          sizeBytes: info.sizeBytes,
+          modifiedAt: info.modifiedAt,
+        });
+      }
+      // collectTree bounds each walk on its own; the selection as a whole needs
+      // the same ceiling applied across all of them.
+      if (tree.files.length > MAX_TREE_ENTRIES) {
+        throw new TreeTooLargeError(`Tree exceeds ${MAX_TREE_ENTRIES} entries`);
+      }
+    }
   } catch (error) {
     if (error instanceof TreeTooLargeError) {
       return new NextResponse("Folder is too large to download", {
@@ -101,7 +147,11 @@ export async function GET(req: NextRequest) {
   // the last one has been pumped.
   zip.end();
 
-  const name = `${basename(dir) || "archive"}.zip`;
+  // One target names itself; a selection is named after the folder it came from.
+  const name = `${
+    (targets.length === 1 ? basename(first) : basename(dirname(first))) ||
+    "archive"
+  }.zip`;
   return new NextResponse(
     NodeReadable.toWeb(
       zip.outputStream as Readable
