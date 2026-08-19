@@ -2176,7 +2176,15 @@ import { openSshShell } from "@/lib/terminal/ssh-shell";
 // lib/db, lib/secrets and lib/activity to its empty stub — so this process
 // reuses the app's data layer verbatim instead of duplicating it.
 
+// Validated here rather than in lib/env.ts: `validateEnv()` runs only in the
+// Next app process (from instrumentation.ts), which never reads this variable.
+// A check there would be dead code; this is the process that would break.
 const port = Number(process.env.TERMINAL_WS_PORT ?? 3001);
+if (!Number.isInteger(port) || port <= 0 || port >= 65_536) {
+  throw new Error(
+    `TERMINAL_WS_PORT must be a TCP port number (1-65535), got ${process.env.TERMINAL_WS_PORT}`
+  );
+}
 
 // The browser's origin is the app's public URL, which the app already knows as
 // BETTER_AUTH_URL. Unset (local dev over plain `bun run terminal`) skips the
@@ -2342,7 +2350,11 @@ const THEMES = {
   light: { background: "#ffffff", foreground: "#171717", cursor: "#171717" },
 } as const;
 
-const WS_PATH = process.env.NEXT_PUBLIC_TERMINAL_WS_PATH ?? "/ws/terminal";
+// Must match the `handle /ws/terminal*` route in the Caddyfile. Deliberately a
+// constant and not an env var: NEXT_PUBLIC_* values are inlined into the client
+// bundle at BUILD time, so a runtime override would silently do nothing — a
+// knob that looks configurable and isn't is worse than a documented constant.
+const WS_PATH = "/ws/terminal";
 // 1s, 2s, 4s, 8s, then give up and let the user retry by hand — past the 60s
 // grace window there is nothing left to reattach to anyway.
 const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
@@ -3007,33 +3019,20 @@ Replace the `reverse_proxy app:3000 { … }` block in `Caddyfile` with:
 	}
 ```
 
-- [ ] **Step 4: Validate the new env vars at boot**
+- [ ] **Step 4: Leave `lib/env.ts` alone — and know why**
 
-In `lib/env.ts`, add this field schema next to the others:
+Do NOT add terminal variables to `lib/env.ts`. `validateEnv()` is called only
+from `instrumentation.ts`, which runs in the Next app process; that process
+reads neither `TERMINAL_WS_PORT` (only the sidecar does) nor any terminal path.
+A `checkOptional` here would be dead code that reads as coverage.
 
-```ts
-const portSchema = z
-  .string()
-  .refine((v) => {
-    const n = Number(v);
-    return Number.isInteger(n) && n > 0 && n < 65_536;
-  }, "must be a TCP port number (1-65535)");
+`TERMINAL_WS_PORT` is validated in `lib/terminal/main.ts` instead — the process
+that actually reads it, and the one that breaks if it is malformed.
 
-// The path Caddy routes to the terminal sidecar. Must start with a slash and
-// carry no scheme or host — the client derives ws:// or wss:// from the page.
-const wsPathSchema = z
-  .string()
-  .regex(/^\/[\w\-/]*$/, "must be an absolute path, e.g. /ws/terminal");
-```
-
-And inside `collectFindings()`, after the `checkOptional("APP_TIMEZONE", …)` line:
-
-```ts
-  // Terminal sidecar. Both have working defaults (3001 and /ws/terminal), so a
-  // deployment that never touches them is fine — a malformed override is not.
-  checkOptional("TERMINAL_WS_PORT", portSchema, findings);
-  checkOptional("NEXT_PUBLIC_TERMINAL_WS_PATH", wsPathSchema, findings);
-```
+There is no `NEXT_PUBLIC_TERMINAL_WS_PATH`. The client's WS path is a constant
+in `components/server-terminal.tsx` that must match the Caddyfile route, because
+`NEXT_PUBLIC_*` is inlined at build time and a runtime override would silently
+do nothing.
 
 - [ ] **Step 5: Document the vars**
 
@@ -3046,11 +3045,13 @@ Append to `.env.example`:
 # its own: session tickets are minted by the app and verified here using a key
 # derived from SECRETS_KEY, so both services MUST share that value.
 #
-# Port the sidecar listens on inside the compose network. Optional.
+# Port the sidecar listens on inside the compose network. Optional; the sidecar
+# validates it at startup and refuses to boot on a malformed value.
+#
+# The URL path itself (/ws/terminal) is NOT configurable: it is a constant in
+# components/server-terminal.tsx and a route in the Caddyfile, and the client
+# half is inlined at build time. Changing it means editing both, on purpose.
 TERMINAL_WS_PORT=3001
-# Path Caddy routes to the sidecar, and the path the browser dials. Change both
-# together or the terminal will not connect. Optional.
-NEXT_PUBLIC_TERMINAL_WS_PATH=/ws/terminal
 ```
 
 - [ ] **Step 6: Document the feature**
