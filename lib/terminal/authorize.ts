@@ -24,6 +24,11 @@ export function resolveTerminalCwd(
     // Explorer dir paths carry a trailing slash; `cd` does not care, but the
     // audit log and the ticket read better without it. Keep "/" intact.
     const cwd = confined.length > 1 ? confined.replace(/\/+$/, "") : confined;
+    // The pre-check above covers the untrusted half of the input; this one
+    // covers what actually ships. `sftpRoot` is admin-configured and its own
+    // validation (lib/validation.ts) permits quotes and newlines, so the
+    // joined result can carry a byte `requested` never contained.
+    if (UNSAFE_CWD.test(cwd)) return { ok: false };
     return { ok: true, cwd };
   } catch (error) {
     if (error instanceof PathError) return { ok: false };
