@@ -75,7 +75,11 @@ const { fetch, websocket, registry } = createTerminalHandlers({
       actorId: event.userId,
       action: "terminal.denied",
       entityType: "server",
-      entityId: event.serverId,
+      // `entityId` lands in a uuid column: an unverifiable ticket names no
+      // server, and undefined stores NULL where "" would be rejected outright
+      // — and recordActivity swallows its own errors, so the row would simply
+      // never appear.
+      entityId: event.serverId ?? undefined,
       data: { reason: event.reason },
     });
   },
