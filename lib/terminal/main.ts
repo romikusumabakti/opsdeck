@@ -88,7 +88,10 @@ const { fetch, websocket, registry } = createTerminalHandlers({
       // — and recordActivity swallows its own errors, so the row would simply
       // never appear.
       entityId: event.serverId ?? undefined,
-      data: { reason: event.reason },
+      data: {
+        reason: event.reason,
+        ...(event.serverName ? { server: event.serverName } : {}),
+      },
     });
   },
 });
@@ -96,11 +99,24 @@ const { fetch, websocket, registry } = createTerminalHandlers({
 const server = Bun.serve({ port, hostname: "0.0.0.0", fetch, websocket });
 console.log(`terminal sidecar listening on :${server.port}`);
 
+// A single session's stray error must never take down the sidecar — every
+// other user's live root shell is in this process.
+process.on("uncaughtException", (error) => {
+  console.error("terminal sidecar uncaught exception:", error);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("terminal sidecar unhandled rejection:", reason);
+});
+
 // Close the shells rather than letting the container's SIGKILL orphan them.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     registry.destroyAll("shutdown");
     server.stop(true);
-    process.exit(0);
+    // Don't exit immediately: destroyAll's close-audit inserts are
+    // fire-and-forget, and exiting here loses every one of them on a redeploy.
+    // The loop drains on its own (timers are unref'd, the listener is closed);
+    // this is only a backstop against a wedged insert.
+    setTimeout(() => process.exit(0), 1000).unref();
   });
 }
