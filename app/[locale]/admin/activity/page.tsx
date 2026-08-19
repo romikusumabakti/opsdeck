@@ -38,6 +38,14 @@ function message(
       });
     case "milestone.created":
       return t("milestoneCreated", { actor, name: String(d.name) });
+    case "terminal.open":
+      return t("terminalOpened", { actor, server: String(d.server) });
+    case "terminal.close":
+      return t("terminalClosed", {
+        actor,
+        server: String(d.server),
+        seconds: String(d.seconds),
+      });
     // Jira sync events have no actor — they are written by the worker, so the
     // sentence is about the issue rather than a person.
     case "issue.jira_conflict":

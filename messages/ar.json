@@ -689,6 +689,7 @@
     "subtitle": "إدارة الخوادم التي يمكن الوصول إليها عبر SSH وتستخدمها البيئات.",
     "addServer": "إضافة خادم",
     "browseFiles": "تصفح الملفات",
+    "openTerminal": "فتح الطرفية",
     "emptyTitle": "لا توجد خوادم بعد",
     "empty": "أضف خادماً لبدء تسجيل البيئات.",
     "editAriaLabel": "تعديل الخادم",
@@ -1094,6 +1095,7 @@
     "archiveNamePlaceholder": "اسم الأرشيف",
     "properties": "الخصائص",
     "columns": "الأعمدة",
+    "openInTerminal": "فتح في الطرفية",
     "noSubfolders": "لا توجد مجلدات فرعية",
     "kind": "النوع",
     "kindFolder": "مجلد",
@@ -1464,6 +1466,8 @@
     "memberAdded": "أضاف {actor} {user} إلى {project} بدور {role}",
     "memberRemoved": "أزال {actor} {user} من {project}",
     "milestoneCreated": "أنشأ {actor} معلمًا {name}",
+    "terminalOpened": "{actor} فتح طرفية على {server}",
+    "terminalClosed": "{actor} أغلق طرفية على {server} بعد {seconds} ثانية",
     "testRecorded": "سجّل {actor} اختبارًا {result} على {key}",
     "result": {
       "pass": "ناجح",
@@ -1552,5 +1556,19 @@
     "status_partial": "طُبِّقت آخر مزامنة جزئيًا",
     "status_failed": "فشلت آخر مزامنة",
     "status_pending": "لم تتم المزامنة بعد"
+  },
+  "terminal": {
+    "title": "الطرفية — {name}",
+    "subtitle": "{username}@{host} عبر SSH",
+    "openTerminal": "فتح الطرفية",
+    "reconnect": "إعادة الاتصال",
+    "sessionEnded": "انتهت الجلسة.",
+    "ticketFailed": "تعذّر تفويض الجلسة.",
+    "status": {
+      "connecting": "جارٍ الاتصال…",
+      "connected": "متصل",
+      "reconnecting": "جارٍ إعادة الاتصال…",
+      "closed": "غير متصل"
+    }
   }
 }
