@@ -14,7 +14,15 @@ import { openSshShell } from "@/lib/terminal/ssh-shell";
 // lib/db, lib/secrets and lib/activity to its empty stub — so this process
 // reuses the app's data layer verbatim instead of duplicating it.
 
+// Validated here rather than in lib/env.ts: `validateEnv()` runs only in the
+// Next app process (from instrumentation.ts), which never reads this variable.
+// A check there would be dead code; this is the process that would break.
 const port = Number(process.env.TERMINAL_WS_PORT ?? 3001);
+if (!Number.isInteger(port) || port <= 0 || port >= 65_536) {
+  throw new Error(
+    `TERMINAL_WS_PORT must be a TCP port number (1-65535), got ${process.env.TERMINAL_WS_PORT}`
+  );
+}
 
 // The browser's origin is the app's public URL, which the app already knows as
 // BETTER_AUTH_URL. Unset (local dev over plain `bun run terminal`) skips the

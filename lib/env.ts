@@ -82,17 +82,6 @@ const timezoneSchema = z.string().refine((v) => {
   }
 }, "must be a valid IANA timezone name (e.g. Asia/Jakarta)");
 
-const portSchema = z.string().refine((v) => {
-  const n = Number(v);
-  return Number.isInteger(n) && n > 0 && n < 65_536;
-}, "must be a TCP port number (1-65535)");
-
-// The path Caddy routes to the terminal sidecar. Must start with a slash and
-// carry no scheme or host — the client derives ws:// or wss:// from the page.
-const wsPathSchema = z
-  .string()
-  .regex(/^\/[\w\-/]*$/, "must be an absolute path, e.g. /ws/terminal");
-
 // --- Group definitions -----------------------------------------------------
 
 type Finding = { level: "error" | "warn"; message: string };
@@ -207,11 +196,6 @@ function collectFindings(): Finding[] {
   checkOptional("BETTER_AUTH_URL", urlSchema, findings);
 
   checkOptional("APP_TIMEZONE", timezoneSchema, findings);
-
-  // Terminal sidecar. Both have working defaults (3001 and /ws/terminal), so a
-  // deployment that never touches them is fine — a malformed override is not.
-  checkOptional("TERMINAL_WS_PORT", portSchema, findings);
-  checkOptional("NEXT_PUBLIC_TERMINAL_WS_PATH", wsPathSchema, findings);
 
   checkGroup(
     "Microsoft sign-in",
