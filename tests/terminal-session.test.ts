@@ -11,10 +11,15 @@ import {
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
 
-function fakeShell(): ShellHandle & { written: string[]; closed: boolean } {
+function fakeShell(): ShellHandle & {
+  written: string[];
+  closed: boolean;
+  flowing: boolean;
+} {
   return {
     written: [],
     closed: false,
+    flowing: true,
     write(data) {
       this.written.push(text(data));
     },
@@ -22,14 +27,21 @@ function fakeShell(): ShellHandle & { written: string[]; closed: boolean } {
     close() {
       this.closed = true;
     },
-    setFlowing() {},
+    setFlowing(f) {
+      this.flowing = f;
+    },
   };
 }
 
-function fakeSink(): Sink & { sent: (string | Uint8Array)[]; closed: boolean } {
+function fakeSink(): Sink & {
+  sent: (string | Uint8Array)[];
+  closed: boolean;
+  buffered: number;
+} {
   return {
     sent: [],
     closed: false,
+    buffered: 0,
     send(data) {
       this.sent.push(data);
     },
@@ -37,7 +49,7 @@ function fakeSink(): Sink & { sent: (string | Uint8Array)[]; closed: boolean } {
       this.closed = true;
     },
     bufferedAmount() {
-      return 0;
+      return this.buffered;
     },
   };
 }
@@ -263,5 +275,93 @@ describe("SessionRegistry", () => {
     registry.destroy(session, "grace");
     clock.advance(DEFAULT_LIMITS.maxLifetimeMs);
     expect(destroyed).toEqual([`${session.id}:exit`]);
+  });
+
+  it("pauses the shell when the socket buffer exceeds the cap", () => {
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const sink = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink,
+    });
+
+    sink.buffered = DEFAULT_LIMITS.pauseAboveBytes + 1;
+    registry.onOutput(session, bytes("flood"));
+    expect(shell.flowing).toBe(false);
+  });
+
+  it("resumes a paused shell once the socket drains", () => {
+    // Regression: the resume check used to live only in onOutput, which stops
+    // being called the moment the stream is paused — so a paused session could
+    // never recover. checkFlow is the drain-side entry point.
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const sink = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink,
+    });
+
+    sink.buffered = DEFAULT_LIMITS.pauseAboveBytes + 1;
+    registry.onOutput(session, bytes("flood"));
+    expect(shell.flowing).toBe(false);
+
+    sink.buffered = DEFAULT_LIMITS.resumeBelowBytes - 1;
+    registry.checkFlow(session);
+    expect(shell.flowing).toBe(true);
+  });
+
+  it("holds the pause while the buffer sits between the two thresholds", () => {
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const sink = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink,
+    });
+
+    sink.buffered = DEFAULT_LIMITS.pauseAboveBytes + 1;
+    registry.onOutput(session, bytes("flood"));
+    // Hysteresis: below the pause threshold but not yet below the resume one.
+    sink.buffered = DEFAULT_LIMITS.resumeBelowBytes + 1;
+    registry.checkFlow(session);
+    expect(shell.flowing).toBe(false);
+  });
+
+  it("ignores flow checks on a detached or destroyed session", () => {
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink: fakeSink(),
+    });
+    registry.detach(session);
+    expect(() => registry.checkFlow(session)).not.toThrow();
+    registry.destroy(session, "exit");
+    expect(() => registry.checkFlow(session)).not.toThrow();
+  });
+
+  it("closes the displaced sink when a session is reattached over a live one", () => {
+    const { registry } = makeRegistry();
+    const first = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell: fakeShell(),
+      sink: first,
+    });
+    const second = fakeSink();
+    registry.attach(session.id, "u1", "s1", second);
+    expect(first.closed).toBe(true);
+    expect(session.sink).toBe(second);
   });
 });
