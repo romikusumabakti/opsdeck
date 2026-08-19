@@ -68,8 +68,15 @@ import { cn, formatBytes } from "@/lib/utils";
 
 // The editor drags in CodeMirror and its lazily-loaded language modes. Split it
 // out so browsing and downloading don't pay for a bundle most visits never use.
+//
+// `loading` is what gives the import its own Suspense boundary: without one,
+// next/dynamic wraps the lazy component in a Fragment, so the very first open
+// suspends all the way up to the route segment's loading.tsx and replaces the
+// explorer behind the dialog with the page skeleton. Null fallback — the dialog
+// is the only thing that should appear, and only once it can render.
 const FileEditorDialog = dynamic(
-  () => import("@/components/file-editor-dialog")
+  () => import("@/components/file-editor-dialog"),
+  { loading: () => null }
 );
 
 // Custom drag type marking a drag that started inside the explorer. Only the
@@ -231,13 +238,9 @@ export function FileExplorer({ source, rootLabel }: Props) {
     [source]
   );
 
-  async function onOpen(entry: ExplorerEntry) {
-    if (entry.type === "dir") {
-      setPath(entry.path);
-      return;
-    }
-    // File: resolve a download target and hand it to the browser. Presigned
-    // URLs (S3) open directly; proxy targets (SFTP) go through the route.
+  // Resolve a download target for a file and hand it to the browser. Presigned
+  // URLs (S3) open directly; proxy targets (SFTP) go through the route.
+  async function onDownload(entry: ExplorerEntry) {
     const result = await getDownloadTarget(source, entry.path);
     if (!result.success) {
       toast.error(result.message);
@@ -312,23 +315,35 @@ export function FileExplorer({ source, rootLabel }: Props) {
     };
   }
 
+  // What a double click (or Enter) does to a row: folders navigate, files open
+  // in the editor. Reading a file is the common case; downloading its bytes
+  // stays an explicit menu action, and the editor shows its own "can't edit
+  // this" state for anything it won't render as text.
+  function onActivate(entry: ExplorerEntry) {
+    if (entry.type === "dir") {
+      setPath(entry.path);
+      return;
+    }
+    setEditing(entry);
+  }
+
   function onRowDoubleClick(entry: ExplorerEntry) {
     return (e: React.MouseEvent) => {
       // A modified double-click is still a selection gesture, not an open.
       if (fromControl(e.target) || e.shiftKey || e.metaKey || e.ctrlKey) return;
-      onOpen(entry);
+      onActivate(entry);
     };
   }
 
-  // Keyboard equivalent: Enter opens, Space toggles selection. Only fires when
-  // the row itself holds focus — a key typed on a nested button belongs to that
-  // button.
+  // Keyboard equivalent: Enter activates, Space toggles selection. Only fires
+  // when the row itself holds focus — a key typed on a nested button belongs to
+  // that button.
   function onRowKeyDown(entry: ExplorerEntry) {
     return (e: React.KeyboardEvent) => {
       if (e.target !== e.currentTarget) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        onOpen(entry);
+        onActivate(entry);
         return;
       }
       if (e.key !== " ") return;
@@ -449,7 +464,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
     const only = items.length === 1 ? items[0] : null;
     if (items.length === 0) return;
     if (only?.type === "file") {
-      onOpen(only);
+      onDownload(only);
       return;
     }
     window.open(archiveUrl(items.map((item) => item.path)), "_blank");
@@ -684,7 +699,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
               key: "download",
               icon: <Download className="size-4" />,
               label: t("download"),
-              run: () => onOpen(entry),
+              run: () => onDownload(entry),
             },
           ]
         : [
@@ -692,7 +707,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
               key: "open",
               icon: <Folder className="size-4" />,
               label: t("open"),
-              run: () => onOpen(entry),
+              run: () => onActivate(entry),
             },
             {
               key: "zip",
