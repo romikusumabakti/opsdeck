@@ -1078,6 +1078,8 @@
     }
   },
   "explorer": {
+    "listView": "列表视图",
+    "gridView": "网格视图",
     "cut": "剪切",
     "paste": "粘贴",
     "pasteCount": "粘贴 {count} 项",
