@@ -689,6 +689,7 @@
     "subtitle": "Kelola server yang dapat diakses via SSH dan digunakan oleh environment.",
     "addServer": "Tambah server",
     "browseFiles": "Jelajahi berkas",
+    "openTerminal": "Buka terminal",
     "emptyTitle": "Belum ada server",
     "empty": "Tambahkan server untuk mulai mendaftarkan environment.",
     "editAriaLabel": "Edit server",
@@ -1094,6 +1095,7 @@
     "archiveNamePlaceholder": "Nama arsip",
     "properties": "Properti",
     "columns": "Kolom",
+    "openInTerminal": "Buka di terminal",
     "noSubfolders": "Tidak ada subfolder",
     "kind": "Jenis",
     "kindFolder": "Folder",
@@ -1464,6 +1466,8 @@
     "memberAdded": "{actor} menambahkan {user} ke {project} sebagai {role}",
     "memberRemoved": "{actor} menghapus {user} dari {project}",
     "milestoneCreated": "{actor} membuat milestone {name}",
+    "terminalOpened": "{actor} membuka terminal di {server}",
+    "terminalClosed": "{actor} menutup terminal di {server} setelah {seconds} detik",
     "testRecorded": "{actor} mencatat uji {result} pada {key}",
     "result": {
       "pass": "lulus",
@@ -1552,5 +1556,19 @@
     "status_partial": "Sinkronisasi terakhir sebagian",
     "status_failed": "Sinkronisasi terakhir gagal",
     "status_pending": "Belum pernah disinkronkan"
+  },
+  "terminal": {
+    "title": "Terminal — {name}",
+    "subtitle": "{username}@{host} melalui SSH",
+    "openTerminal": "Buka terminal",
+    "reconnect": "Sambungkan ulang",
+    "sessionEnded": "Sesi berakhir.",
+    "ticketFailed": "Tidak dapat mengotorisasi sesi.",
+    "status": {
+      "connecting": "Menyambungkan…",
+      "connected": "Tersambung",
+      "reconnecting": "Menyambungkan ulang…",
+      "closed": "Terputus"
+    }
   }
 }
