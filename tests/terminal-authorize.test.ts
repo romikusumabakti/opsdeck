@@ -35,4 +35,11 @@ describe("resolveTerminalCwd", () => {
     });
     expect(resolveTerminalCwd("/", "a\nwhoami")).toEqual({ ok: false });
   });
+
+  it("rejects a cwd made unsafe by the server's own sftp root", () => {
+    // sftpRoot is admin-configured and its validation permits quotes, so the
+    // joined path can carry a metacharacter the requested path never had.
+    expect(resolveTerminalCwd("/home/dep'loy", "app/")).toEqual({ ok: false });
+    expect(resolveTerminalCwd("/srv\nevil", "app/")).toEqual({ ok: false });
+  });
 });
