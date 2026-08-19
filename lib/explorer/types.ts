@@ -39,4 +39,9 @@ export interface StorageBackend {
   remove(path: string): Promise<void>;
   mkdir(path: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
+  // Duplicate a file or a whole directory tree to `to`. Native where the
+  // backend has one (S3 CopyObject never moves bytes through this process);
+  // otherwise the implementation streams, which is why it lives on the backend
+  // rather than in ops.ts.
+  copy(from: string, to: string): Promise<void>;
 }
