@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   backupFilenameSchema,
   databaseNameSchema,
+  explorerRelativePathSchema,
   isoDurationSchema,
   projectKeySchema,
   uuidSchema,
@@ -88,4 +89,28 @@ describe("projectKeySchema", () => {
       expect(projectKeySchema.safeParse(key).success).toBe(false);
     }
   );
+});
+
+describe("explorerRelativePathSchema", () => {
+  it("normalizes a folder-upload path", () => {
+    expect(explorerRelativePathSchema.parse("dist/assets/app.js")).toBe(
+      "dist/assets/app.js"
+    );
+    // Windows separators and redundant slashes collapse.
+    expect(explorerRelativePathSchema.parse("dist\\assets//app.js")).toBe(
+      "dist/assets/app.js"
+    );
+  });
+
+  it.each(["../etc/passwd", "a/../b", "a/./b", "", "/", "a/\u0000/b"])(
+    "rejects %j",
+    (input) => {
+      expect(explorerRelativePathSchema.safeParse(input).success).toBe(false);
+    }
+  );
+
+  it("rejects a path deeper than the segment limit", () => {
+    const deep = Array.from({ length: 65 }, (_, i) => `d${i}`).join("/");
+    expect(explorerRelativePathSchema.safeParse(deep).success).toBe(false);
+  });
 });

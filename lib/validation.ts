@@ -314,15 +314,44 @@ export const explorerTextSchema = z
     "File is too large to edit"
   );
 
-// A single path segment (folder/file name) typed for mkdir/rename. No slashes,
-// no traversal, no control chars — the caller joins it onto a validated parent.
+// A single path segment (folder/file name) typed for mkdir/rename or carried by
+// an upload. No slashes and no traversal, so the caller can join it onto a
+// validated parent. C0/C1 control characters (NUL included) are rejected too:
+// they are legal in neither an S3 key nor a POSIX filename, and a NUL in
+// particular truncates the path at the C layer underneath ssh2.
 export const explorerNameSchema = z
   .string()
   .trim()
   .min(1)
   .max(255)
-  .regex(/^[^/\\\r\n\t]+$/, "Name must not contain path separators")
+  .regex(
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
+    /^[^/\\\u0000-\u001f\u007f-\u009f]+$/,
+    "Name must not contain path separators or control characters"
+  )
   .refine((n) => n !== "." && n !== "..", "Reserved name");
+
+// A path relative to the upload destination, e.g. "src/lib/util.ts" for a file
+// picked as part of a folder upload. Every segment must clear the same bar as a
+// typed name, so a browser-supplied webkitRelativePath can't smuggle traversal
+// or separators past the destination join.
+export const explorerRelativePathSchema = z
+  .string()
+  .max(4096)
+  .transform((s) => s.replace(/\\/g, "/").split("/").filter(Boolean))
+  // Depth bound: a hostile client shouldn't be able to make the server mkdir a
+  // thousand nested levels before the write.
+  .refine((segments) => segments.length > 0 && segments.length <= 64, {
+    message: "Relative path is empty or too deep",
+  })
+  .refine(
+    (segments) =>
+      segments.every((s) => explorerNameSchema.safeParse(s).success),
+    { message: "Relative path contains an invalid segment" }
+  )
+  .transform((segments) =>
+    segments.map((s) => explorerNameSchema.parse(s)).join("/")
+  );
 
 // =========================
 // Team Knowledge Base
