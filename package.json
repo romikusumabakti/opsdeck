@@ -11,6 +11,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "terminal": "bun run lib/terminal/main.ts",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check --write .",
