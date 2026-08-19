@@ -16,6 +16,7 @@ import {
   SquarePen,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useLocale, useTranslations } from "next-intl";
@@ -115,13 +116,28 @@ function isMoveDrag(e: React.DragEvent): boolean {
   return e.dataTransfer.types.includes(MOVE_MIME);
 }
 
-// Whether a dragged entry can land in `dirPath`. Rejects a folder dropped on
-// itself or anywhere inside its own subtree; the server enforces the same rule.
-function canMove(from: string | null, dirPath: string): boolean {
-  if (!from) return false;
-  if (from === dirPath) return false;
-  if (from.endsWith("/") && dirPath.startsWith(from)) return false;
-  return true;
+// Whether a dragged selection can land in `dirPath`. Rejects a folder dropped
+// on itself or anywhere inside its own subtree; the server enforces the same
+// rule. All-or-nothing: a drag that would half-succeed is refused outright
+// rather than silently moving part of what the user picked up.
+function canMove(from: string[] | null, dirPath: string): boolean {
+  if (!from || from.length === 0) return false;
+  return from.every(
+    (p) => p !== dirPath && !(p.endsWith("/") && dirPath.startsWith(p))
+  );
+}
+
+// The dragged paths travel as JSON so a multi-row drag stays one payload.
+function parseMove(raw: string): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((p) => typeof p === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export function FileExplorer({ source, rootLabel }: Props) {
@@ -142,9 +158,16 @@ export function FileExplorer({ source, rootLabel }: Props) {
   // time. Controlled so that opening a context menu anywhere closes it: at most
   // one menu is ever on screen, whatever route the pointer took to get there.
   const [rowMenuOpen, setRowMenuOpen] = React.useState<string | null>(null);
-  // Path of the entry being dragged inside the explorer, and the directory
-  // currently highlighted as its drop target ("" = the current folder).
-  const [dragging, setDragging] = React.useState<string | null>(null);
+  // Paths of the currently selected entries. Selection is by row click (single
+  // click selects, double click opens), with ⌘/Ctrl to toggle one and Shift to
+  // extend from the anchor — the row that started the current run.
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  const anchor = React.useRef<string | null>(null);
+  // Paths being dragged inside the explorer, and the directory currently
+  // highlighted as their drop target ("" = the current folder).
+  const [dragging, setDragging] = React.useState<string[] | null>(null);
   const [dropTarget, setDropTarget] = React.useState<string | null>(null);
   // Whether an OS file drag is hovering the panel, for the drop overlay.
   const [fileDrag, setFileDrag] = React.useState(false);
@@ -172,13 +195,39 @@ export function FileExplorer({ source, rootLabel }: Props) {
     refresh();
   }, [refresh]);
 
+  // Every listing change (navigation, refresh, a delete landing) can retire the
+  // paths that were selected. Drop the ones that no longer exist rather than
+  // letting a bulk action address something that is already gone.
+  React.useEffect(() => {
+    setSelected((cur) => {
+      if (cur.size === 0) return cur;
+      const alive = new Set(
+        entries.filter((e) => cur.has(e.path)).map((e) => e.path)
+      );
+      return alive.size === cur.size ? cur : alive;
+    });
+  }, [entries]);
+
+  const selectedEntries = React.useMemo(
+    () => entries.filter((e) => selected.has(e.path)),
+    [entries, selected]
+  );
+
+  const clearSelection = React.useCallback(() => {
+    anchor.current = null;
+    setSelected((cur) => (cur.size === 0 ? cur : new Set()));
+  }, []);
+
   // A GET the browser can follow straight into a download: the route streams the
-  // folder as a ZIP under the caller's own session cookie.
+  // paths as a single ZIP under the caller's own session cookie.
   const archiveUrl = React.useCallback(
-    (dirPath: string) =>
-      `/api/explorer/archive?source=${encodeURIComponent(
-        JSON.stringify(source)
-      )}&path=${encodeURIComponent(dirPath)}`,
+    (paths: string | string[]) => {
+      const params = new URLSearchParams({ source: JSON.stringify(source) });
+      for (const p of Array.isArray(paths) ? paths : [paths]) {
+        params.append("path", p);
+      }
+      return `/api/explorer/archive?${params}`;
+    },
     [source]
   );
 
@@ -203,30 +252,92 @@ export function FileExplorer({ source, rootLabel }: Props) {
     window.open(url, "_blank");
   }
 
-  // The whole row is the click target. Clicks that land on a nested control
-  // (the row-actions menu and anything it renders) belong to that control, so
-  // they never reach onOpen.
+  // Clicks that land on a nested control (the row-actions menu and anything it
+  // renders) belong to that control and must not touch the selection.
+  function fromControl(target: EventTarget | null): boolean {
+    return Boolean(
+      (target as HTMLElement | null)?.closest(
+        'button, a, input, label, [role="menu"], [role="menuitem"]'
+      )
+    );
+  }
+
+  // Replace the selection with a single row, and make it the anchor a later
+  // Shift-click extends from.
+  const selectOnly = React.useCallback((path: string) => {
+    anchor.current = path;
+    setSelected(new Set([path]));
+  }, []);
+
+  // ⌘/Ctrl-click: add or remove one row without disturbing the rest.
+  const toggleSelection = React.useCallback((path: string) => {
+    anchor.current = path;
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(path)) next.add(path);
+      return next;
+    });
+  }, []);
+
+  // Shift-click selects everything between the anchor and the clicked row, in
+  // listing order. With no anchor yet the clicked row becomes one.
+  function selectRange(to: string) {
+    const paths = entries.map((e) => e.path);
+    const end = paths.indexOf(to);
+    if (end < 0) return;
+    const start = anchor.current ? paths.indexOf(anchor.current) : -1;
+    if (start < 0) {
+      selectOnly(to);
+      return;
+    }
+    const [lo, hi] = start <= end ? [start, end] : [end, start];
+    setSelected(new Set(paths.slice(lo, hi + 1)));
+  }
+
+  // The whole row is the selection target: a plain click selects it alone,
+  // ⌘/Ctrl toggles it, Shift extends. Opening is a double-click, which is what
+  // frees the single click to mean "select".
   function onRowClick(entry: ExplorerEntry) {
     return (e: React.MouseEvent) => {
-      if (
-        (e.target as HTMLElement).closest(
-          'button, a, input, label, [role="menu"], [role="menuitem"]'
-        )
-      ) {
+      if (fromControl(e.target)) return;
+      if (e.shiftKey) {
+        selectRange(entry.path);
         return;
       }
+      if (e.metaKey || e.ctrlKey) {
+        toggleSelection(entry.path);
+        return;
+      }
+      selectOnly(entry.path);
+    };
+  }
+
+  function onRowDoubleClick(entry: ExplorerEntry) {
+    return (e: React.MouseEvent) => {
+      // A modified double-click is still a selection gesture, not an open.
+      if (fromControl(e.target) || e.shiftKey || e.metaKey || e.ctrlKey) return;
       onOpen(entry);
     };
   }
 
-  // Keyboard equivalent. Only fires when the row itself holds focus — Enter or
-  // Space typed on a nested button belongs to that button.
+  // Keyboard equivalent: Enter opens, Space toggles selection. Only fires when
+  // the row itself holds focus — a key typed on a nested button belongs to that
+  // button.
   function onRowKeyDown(entry: ExplorerEntry) {
     return (e: React.KeyboardEvent) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
       if (e.target !== e.currentTarget) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onOpen(entry);
+        return;
+      }
+      if (e.key !== " ") return;
       e.preventDefault();
-      onOpen(entry);
+      if (e.shiftKey) {
+        selectRange(entry.path);
+        return;
+      }
+      toggleSelection(entry.path);
     };
   }
 
@@ -295,6 +406,55 @@ export function FileExplorer({ source, rootLabel }: Props) {
     refresh();
   }
 
+  // Bulk delete. One entry falls through to the single-entry flow so the
+  // confirmation still names it; past that, only a count can be shown.
+  async function onDeleteSelected() {
+    const items = selectedEntries;
+    const only = items.length === 1 ? items[0] : null;
+    if (items.length === 0) return;
+    if (only) {
+      await onDelete(only);
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: t("deleteSelectedTitle"),
+      description: t("deleteSelectedDescription", { count: items.length }),
+      confirmText: tCommon("delete"),
+      cancelText: tCommon("cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    // Sequential on purpose: over SFTP these share one pooled connection, and a
+    // burst of parallel removes buys nothing but a noisier failure mode.
+    let failed = 0;
+    for (const item of items) {
+      const result = await deleteEntry(source, item.path);
+      if (!result.success) failed++;
+    }
+    setBusy(false);
+    if (failed > 0) {
+      toast.error(t("actionPartial", { failed, total: items.length }));
+    } else {
+      toast.success(t("deletedCount", { count: items.length }));
+    }
+    clearSelection();
+    refresh();
+  }
+
+  // Bulk download. A lone file keeps its own bytes and its own name; anything
+  // else (several entries, or a folder) is zipped by the archive route.
+  function onDownloadSelected() {
+    const items = selectedEntries;
+    const only = items.length === 1 ? items[0] : null;
+    if (items.length === 0) return;
+    if (only?.type === "file") {
+      onOpen(only);
+      return;
+    }
+    window.open(archiveUrl(items.map((item) => item.path)), "_blank");
+  }
+
   // Shared by the toolbar pickers and every drop that carries OS files.
   const upload = React.useCallback(
     async (items: PendingUpload[], destDir: string) => {
@@ -340,15 +500,25 @@ export function FileExplorer({ source, rootLabel }: Props) {
     upload(items, path);
   }
 
-  async function onMove(from: string, destDir: string) {
+  async function onMove(from: string[], destDir: string) {
+    if (from.length === 0) return;
     setBusy(true);
-    const result = await moveEntry(source, from, destDir);
-    setBusy(false);
-    if (!result.success) {
-      toast.error(result.message);
-      return;
+    // Sequential, for the same reason bulk delete is.
+    let failed = 0;
+    let lastMessage: string | undefined;
+    for (const p of from) {
+      const result = await moveEntry(source, p, destDir);
+      if (result.success) lastMessage = result.message;
+      else failed++;
     }
-    if (result.message) toast.success(result.message);
+    setBusy(false);
+    if (failed > 0) {
+      toast.error(t("actionPartial", { failed, total: from.length }));
+    } else if (from.length > 1) {
+      toast.success(t("movedCount", { count: from.length }));
+    } else if (lastMessage) {
+      toast.success(lastMessage);
+    }
     refresh();
   }
 
@@ -388,10 +558,10 @@ export function FileExplorer({ source, rootLabel }: Props) {
         if (!(isMoveDrag(e) || isFileDrag(e))) return;
         e.preventDefault();
         e.stopPropagation();
-        const from = e.dataTransfer.getData(MOVE_MIME);
+        const from = parseMove(e.dataTransfer.getData(MOVE_MIME));
         const dataTransfer = e.dataTransfer;
         endDrag();
-        if (from) {
+        if (from.length > 0) {
           if (canMove(from, dirPath)) onMove(from, dirPath);
           return;
         }
@@ -435,22 +605,72 @@ export function FileExplorer({ source, rootLabel }: Props) {
     return {
       draggable: true,
       onDragStart: (e: React.DragEvent) => {
-        e.dataTransfer.setData(MOVE_MIME, entry.path);
+        // Dragging a selected row carries the whole selection; dragging an
+        // unselected one takes over the selection first, so what moves is
+        // always exactly what is highlighted.
+        const dragged = selected.has(entry.path) ? selectedEntries : [entry];
+        if (!selected.has(entry.path)) selectOnly(entry.path);
+        const paths = dragged.map((item) => item.path);
+        e.dataTransfer.setData(MOVE_MIME, JSON.stringify(paths));
         // A plain-text flavour so dragging out to another app degrades to the
-        // entry name instead of an empty payload.
-        e.dataTransfer.setData("text/plain", entry.name);
+        // entry names instead of an empty payload.
+        e.dataTransfer.setData(
+          "text/plain",
+          dragged.map((item) => item.name).join("\n")
+        );
         e.dataTransfer.effectAllowed = "move";
-        setDragging(entry.path);
+        setDragging(paths);
       },
       onDragEnd: endDrag,
       ...(entry.type === "dir" ? dirDropProps(entry.path) : {}),
     };
   }
 
+  // Keys handled for the browsing area as a whole. Only fires while focus is
+  // inside it, so neither shortcut fights the rest of the page.
+  const panelKeyProps = {
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Escape" && selected.size > 0) {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        anchor.current = entries[0]?.path ?? null;
+        setSelected(new Set(entries.map((entry) => entry.path)));
+      }
+    },
+    // Clicking past the last row is the canonical "deselect everything" — but
+    // not when the click belongs to a row or to the floating selection bar.
+    onClick: (e: React.MouseEvent) => {
+      if (fromControl(e.target) || (e.target as HTMLElement).closest("tr")) {
+        return;
+      }
+      clearSelection();
+    },
+  };
+
+  // A menu opened on a row that is part of a multi-selection acts on the whole
+  // selection: the highlight is the promise of what the action will touch.
+  function inMultiSelection(entry: ExplorerEntry): boolean {
+    return selected.size > 1 && selected.has(entry.path);
+  }
+
   // The ⋯ button and the right-click menu offer exactly the same actions, so
   // the list is declared once and rendered through whichever menu is in play.
   // Delete is appended separately by each menu, behind a separator.
   function rowActions(entry: ExplorerEntry): RowAction[] {
+    if (inMultiSelection(entry)) {
+      return [
+        {
+          key: "download-selected",
+          icon: <Download className="size-4" />,
+          label: t("downloadZip"),
+          run: onDownloadSelected,
+        },
+      ];
+    }
     const actions: RowAction[] =
       entry.type === "file"
         ? [
@@ -518,6 +738,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
                 fileDrag && "border-primary/60 bg-primary/5"
               )}
               {...panelDropProps}
+              {...panelKeyProps}
             />
           }
         >
@@ -530,6 +751,67 @@ export function FileExplorer({ source, rootLabel }: Props) {
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center">
               <div className="rounded-md border border-primary border-dashed bg-background/95 px-3 py-1.5 text-sm font-medium shadow-sm">
                 {t("dropToUpload")}
+              </div>
+            </div>
+          ) : null}
+          {selected.size > 1 && !fileDrag ? (
+            // Only for a real multi-selection: one row already has every one of
+            // these actions in its own ⋯ menu, and a bar that appeared on every
+            // single click would be noise over the listing.
+            //
+            // Floats over the listing rather than sitting above it: a bar in
+            // the flow would appear on the first click of a double click and
+            // shove the row the user is aiming at out from under the pointer.
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
+              <div
+                // A toolbar in its own right: the role is what lets it carry
+                // handlers, and what tells a screen reader these controls act
+                // on the selection rather than on the row behind them.
+                role="toolbar"
+                aria-label={tCommon("actions")}
+                className="pointer-events-auto flex items-center gap-2 rounded-full border bg-popover py-1.5 pe-1.5 ps-4 shadow-lg"
+                // The bar is its own surface: a right-click on it must not
+                // open the menu that belongs to the folder behind it.
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                <span className="text-sm font-medium">
+                  {t("selectedCount", { count: selected.size })}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={onDownloadSelected}
+                  disabled={busy}
+                >
+                  <Download className="size-4" />
+                  {t("download")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={onDeleteSelected}
+                  disabled={busy}
+                >
+                  <Trash2 className="size-4" />
+                  {tCommon("delete")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="rounded-full"
+                  onClick={clearSelection}
+                  aria-label={t("clearSelection")}
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
             </div>
           ) : null}
@@ -720,15 +1002,34 @@ export function FileExplorer({ source, rootLabel }: Props) {
                     render={
                       <TableRow
                         onClick={onRowClick(entry)}
+                        onDoubleClick={onRowDoubleClick(entry)}
                         onKeyDown={onRowKeyDown(entry)}
+                        // Right-clicking outside the selection moves the
+                        // selection onto that row, so the menu that opens can
+                        // never act on something that isn't highlighted.
+                        onContextMenu={() => {
+                          if (!selected.has(entry.path)) selectOnly(entry.path);
+                        }}
                         // No role override: a <tr> must stay a `row` for the
                         // table's semantics to survive. Focusability +
                         // Enter/Space is enough to make the row reachable
                         // without a pointer.
                         tabIndex={0}
+                        aria-selected={selected.has(entry.path)}
                         className={cn(
-                          "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                          dragging === entry.path && "opacity-40",
+                          // select-none: a double click to open must not leave
+                          // the filename highlighted behind the dialog, and a
+                          // Shift-click must extend the selection rather than
+                          // sweep text.
+                          "cursor-pointer select-none hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                          // The palette is neutral, so a surface tint alone
+                          // reads as "merely hovered". The inset bar down the
+                          // leading edge is what makes a selected row obvious;
+                          // box-shadow has no logical-property form, hence the
+                          // mirrored rtl variant.
+                          selected.has(entry.path) &&
+                            "bg-muted hover:bg-muted shadow-[inset_3px_0_0_var(--primary)] rtl:shadow-[inset_-3px_0_0_var(--primary)]",
+                          dragging?.includes(entry.path) && "opacity-40",
                           dropTarget === entry.path &&
                             "bg-primary/10 ring-1 ring-primary/40 ring-inset"
                         )}
@@ -793,7 +1094,11 @@ export function FileExplorer({ source, rootLabel }: Props) {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
-                            onClick={() => onDelete(entry)}
+                            onClick={() =>
+                              inMultiSelection(entry)
+                                ? onDeleteSelected()
+                                : onDelete(entry)
+                            }
                           >
                             <Trash2 className="size-4" />
                             {tCommon("delete")}
@@ -812,7 +1117,11 @@ export function FileExplorer({ source, rootLabel }: Props) {
                     <ContextMenuSeparator />
                     <ContextMenuItem
                       variant="destructive"
-                      onClick={() => onDelete(entry)}
+                      onClick={() =>
+                        inMultiSelection(entry)
+                          ? onDeleteSelected()
+                          : onDelete(entry)
+                      }
                     >
                       <Trash2 className="size-4" />
                       {tCommon("delete")}
