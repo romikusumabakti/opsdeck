@@ -96,6 +96,15 @@ export function createTerminalHandlers(deps: TerminalDeps) {
   ): Promise<void> {
     const verified = verifyTicket(msg.ticket);
     if (!verified.ok) {
+      // Audited without an actor: an unverifiable ticket has no trustworthy
+      // uid to attribute it to, but a forged or expired ticket arriving at
+      // this port is the most security-relevant denial there is.
+      deps.audit({
+        kind: "denied",
+        userId: null,
+        serverId: "",
+        reason: `ticket-${verified.reason}`,
+      });
       fail(ws, `Ticket ${verified.reason}`);
       return;
     }
@@ -161,6 +170,13 @@ export function createTerminalHandlers(deps: TerminalDeps) {
           resumed.shell.resize(msg.cols, msg.rows);
           return;
         }
+        // `attach` only returns null for a session that is gone or not ours,
+        // and the reattach branch is entered only when it is neither — so
+        // this is unreachable. Assert it rather than falling through: the
+        // fresh-open path below would send a SECOND `ready` with a different
+        // session id.
+        fail(ws, "Session could not be resumed");
+        return;
       }
       // Fall through: the session is gone, so open a fresh one rather than
       // erroring — from the user's side this is just "the shell restarted".
@@ -201,13 +217,31 @@ export function createTerminalHandlers(deps: TerminalDeps) {
 
     shell.onData((chunk) => registry.onOutput(session, chunk));
     shell.onExit((info) => {
-      if (session.sink) send(ws, { t: "exit", ...info });
+      // Through `session.sink`, not the captured `ws`: after a reattach the
+      // session's connection is a different socket, and writing the exit
+      // frame to the old one drops it silently — the user sees a disconnect
+      // instead of a clean exit, and loses the exit code.
+      session.sink?.send(JSON.stringify({ t: "exit", ...info }));
       registry.destroy(session, "exit");
     });
 
     ws.data.session = session;
     audited.set(session.id, { userId: uid, target });
     deps.audit({ kind: "open", userId: uid, target });
+
+    // The SSH handshake can take seconds; a client that gave up in the
+    // meantime never triggers the close handler's detach path, because it had
+    // no session to detach when it closed. Without this the shell would sit
+    // attached to a dead socket — no grace timer, just the 30-minute idle
+    // reaper — holding one of the user's four slots and a live root shell.
+    // Checked after the audit above so an open that never really had a
+    // client still produces a matching open/close pair instead of vanishing
+    // from the log.
+    if (ws.readyState !== WebSocket.OPEN) {
+      registry.destroy(session, "exit");
+      return;
+    }
+
     send(ws, { t: "ready", sessionId: session.id });
   }
 
