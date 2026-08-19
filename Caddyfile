@@ -12,10 +12,18 @@
 # The `http://` prefix disables Caddy's automatic HTTPS (no TLS, no 80->443
 # redirect); Caddy listens on :80 only.
 http://{$SITE_ADDRESS:localhost} {
-	reverse_proxy app:3000 {
-		# Next standalone doesn't trust X-Forwarded-* for nextUrl, so next-intl's
-		# absolute locale redirects leak the internal listen port (:3000) into the
-		# Location header. Strip it on the way back out.
-		header_down Location ":3000/" "/"
+	# WebSocket terminal sessions live in their own process (see compose.yaml).
+	# Caddy proxies WebSockets natively — no special upgrade config needed.
+	handle /ws/terminal* {
+		reverse_proxy terminal:3001
+	}
+
+	handle {
+		reverse_proxy app:3000 {
+			# Next standalone doesn't trust X-Forwarded-* for nextUrl, so next-intl's
+			# absolute locale redirects leak the internal listen port (:3000) into the
+			# Location header. Strip it on the way back out.
+			header_down Location ":3000/" "/"
+		}
 	}
 }
