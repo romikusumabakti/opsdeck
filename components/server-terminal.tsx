@@ -57,6 +57,8 @@ export function ServerTerminal({
 
   const theme = resolvedTheme === "light" ? THEMES.light : THEMES.dark;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(theme): read once for the terminal's initial colours; live changes are applied by the theme effect below, which is the whole point of not re-running this one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies(attempt): `attempt` is not read in the body — bumping it is how "Reconnect" forces a full teardown and re-dial, so it must stay in the list.
   React.useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -247,9 +249,6 @@ export function ServerTerminal({
       socket?.close();
       for (const cleanup of cleanups.splice(0)) cleanup();
     };
-    // `theme` is deliberately NOT a dependency: it is applied by the effect
-    // below, so switching light/dark restyles the terminal in place instead of
-    // tearing down a live shell.
   }, [serverId, cwd, attempt, t]);
 
   // Restyle in place on a theme switch. xterm applies a new theme object to a
