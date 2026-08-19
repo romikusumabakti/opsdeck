@@ -31,6 +31,7 @@ function fakeBackend(bytes: Buffer, reportedSize = bytes.length) {
     remove: unused,
     mkdir: unused,
     rename: unused,
+    copy: unused,
   };
   return { backend, written: () => Buffer.concat(written) };
 }

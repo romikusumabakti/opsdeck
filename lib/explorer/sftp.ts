@@ -23,7 +23,9 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
 
   const abs = (p: string) => confineSftpPath(root, p);
 
-  return {
+  // Named rather than returned inline so the recursive copy below can reach the
+  // other primitives instead of restating readdir/stream handling.
+  const backend: StorageBackend = {
     async list(pathInput) {
       const dir = abs(pathInput);
       // Client-facing paths are ROOT-RELATIVE (same convention as the S3
@@ -162,7 +164,31 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
           })
       );
     },
+
+    async copy(fromInput, toInput) {
+      // SFTP has no server-side copy, so a file's bytes stream out and back in
+      // through this process. One file at a time: a folder copy would otherwise
+      // open a connection per entry.
+      if (!fromInput.endsWith("/")) {
+        await backend.writeStream(toInput, await backend.readStream(fromInput));
+        return;
+      }
+      try {
+        await backend.mkdir(toInput);
+      } catch {
+        // Already there — the walk below is what actually has to succeed.
+      }
+      const base = toInput.replace(/\/+$/, "");
+      for (const entry of await backend.list(fromInput)) {
+        await backend.copy(
+          entry.path,
+          `${base}/${entry.name}${entry.type === "dir" ? "/" : ""}`
+        );
+      }
+    },
   };
+
+  return backend;
 }
 
 // Depth-first delete of a directory and everything under it, on one channel.
