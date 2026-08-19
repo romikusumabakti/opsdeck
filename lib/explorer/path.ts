@@ -52,3 +52,35 @@ export function basename(p: string): string {
   const idx = trimmed.lastIndexOf("/");
   return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
 }
+
+// Join a directory path (with or without a trailing slash, "" = root) onto a
+// relative path. The caller is responsible for validating both halves.
+export function joinPath(dir: string, rel: string): string {
+  const base = dir.replace(/\/+$/, "");
+  return base ? `${base}/${rel}` : rel;
+}
+
+// The parent directory of a path, with a trailing slash. "" when the path sits
+// at the root.
+export function dirname(p: string): string {
+  const trimmed = p.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx >= 0 ? trimmed.slice(0, idx + 1) : "";
+}
+
+// Where a drag-and-drop move lands: the source's final segment placed inside
+// `destDir`. Folder-ness (the trailing slash the backends key off) survives.
+export function moveDestination(from: string, destDir: string): string {
+  const isDir = from.endsWith("/");
+  return `${joinPath(destDir, basename(from))}${isDir ? "/" : ""}`;
+}
+
+// True when `p` is `dir` itself or lives underneath it. Used to reject dropping
+// a folder onto itself or one of its own descendants, which would otherwise ask
+// the backend to copy a tree into itself.
+export function isWithin(p: string, dir: string): boolean {
+  const child = p.replace(/\/+$/, "");
+  const parent = dir.replace(/\/+$/, "");
+  if (!parent) return false;
+  return child === parent || child.startsWith(`${parent}/`);
+}

@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Readable } from "node:stream";
-import type { SFTPWrapper, Stats } from "ssh2";
+import type { FileEntryWithStats, SFTPWrapper, Stats } from "ssh2";
 import { basename, confineSftpPath } from "./path";
 import { openSftp, type SshCreds, withPooledSftp } from "./sftp-pool";
 import type { DownloadTarget, ExplorerEntry, StorageBackend } from "./types";
@@ -127,15 +127,19 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
 
     async remove(pathInput) {
       const p = abs(pathInput);
-      await withSftp(
-        (sftp) =>
-          new Promise<void>((resolve, reject) => {
-            // Directory paths end with "/"; rmdir them, unlink files.
-            const isDir = pathInput.endsWith("/");
-            const op = isDir ? sftp.rmdir.bind(sftp) : sftp.unlink.bind(sftp);
-            op(p, (err) => (err ? reject(err) : resolve()));
-          })
-      );
+      // Directory paths end with "/". SFTP's rmdir only removes an EMPTY
+      // directory, so a folder is emptied depth-first first — the whole walk
+      // shares one pooled channel instead of dialing per entry.
+      if (!pathInput.endsWith("/")) {
+        await withSftp(
+          (sftp) =>
+            new Promise<void>((resolve, reject) => {
+              sftp.unlink(p, (err) => (err ? reject(err) : resolve()));
+            })
+        );
+        return;
+      }
+      await withSftp((sftp) => removeDirRecursive(sftp, p));
     },
 
     async mkdir(pathInput) {
@@ -159,4 +163,32 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
       );
     },
   };
+}
+
+// Depth-first delete of a directory and everything under it, on one channel.
+// Symlinks are unlinked rather than followed: a link pointing outside the
+// confined root must never make the walk delete the target's contents.
+async function removeDirRecursive(
+  sftp: SFTPWrapper,
+  dir: string
+): Promise<void> {
+  const files = await new Promise<FileEntryWithStats[]>((resolve, reject) => {
+    sftp.readdir(dir, (err, list) =>
+      err ? reject(err) : resolve(list as FileEntryWithStats[])
+    );
+  });
+  for (const file of files) {
+    if (file.filename === "." || file.filename === "..") continue;
+    const child = `${dir.replace(/\/+$/, "")}/${file.filename}`;
+    if (file.attrs.isDirectory()) {
+      await removeDirRecursive(sftp, child);
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        sftp.unlink(child, (err) => (err ? reject(err) : resolve()));
+      });
+    }
+  }
+  await new Promise<void>((resolve, reject) => {
+    sftp.rmdir(dir, (err) => (err ? reject(err) : resolve()));
+  });
 }

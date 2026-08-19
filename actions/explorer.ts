@@ -7,7 +7,7 @@ import {
   type ExplorerSource,
   resolveBackend,
 } from "@/lib/explorer";
-import { PathError } from "@/lib/explorer/path";
+import { isWithin, moveDestination, PathError } from "@/lib/explorer/path";
 import { type Eol, readTextFile, writeTextFile } from "@/lib/explorer/text";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -238,6 +238,41 @@ export async function renameEntry(
   try {
     await opened.backend.rename(parsedPath.data, dest);
     return { success: true, message: t("entryRenamed") };
+  } catch (error) {
+    return { success: false, message: explain(error, t) };
+  }
+}
+
+// Drag-and-drop move: relocate an entry under `destDir` keeping its own name.
+// Backed by the same rename primitive as the rename action — on SFTP that is a
+// native rename, on S3 a prefix rewrite.
+export async function moveEntry(
+  source: unknown,
+  path: unknown,
+  destDir: unknown
+): Promise<ActionResponse> {
+  await requireAdmin();
+  const t = await getTranslations("actionErrors");
+  const opened = await open(source, t);
+  if (!opened.ok) return { success: false, message: opened.message };
+  const parsedPath = explorerPathSchema.safeParse(path);
+  const parsedDest = explorerPathSchema.safeParse(destDir ?? "");
+  if (!parsedPath.success || !parsedPath.data || !parsedDest.success) {
+    return { success: false, message: t("invalidPath") };
+  }
+  const from = parsedPath.data;
+  const dest = parsedDest.data;
+  // Dropping a folder on itself or on something inside it would ask the backend
+  // to copy a tree into its own subtree.
+  if (from.endsWith("/") && isWithin(dest, from)) {
+    return { success: false, message: t("moveIntoSelf") };
+  }
+  const target = moveDestination(from, dest);
+  // Dropped back where it already is — nothing to do, and no error either.
+  if (target === from) return { success: true };
+  try {
+    await opened.backend.rename(from, target);
+    return { success: true, message: t("entryMoved") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
   }

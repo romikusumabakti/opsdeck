@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
@@ -75,6 +76,51 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
   const dirPrefix = (p: string): string => {
     const key = normalizeS3Key(p, true).replace(/\/+$/, "");
     return key.length > 0 ? `${key}/` : "";
+  };
+
+  // Every key under a prefix, paginated and WITHOUT a delimiter so the whole
+  // subtree comes back flat. Used by the recursive folder operations below.
+  const allKeys = async (Prefix: string): Promise<string[]> => {
+    const keys: string[] = [];
+    let ContinuationToken: string | undefined;
+    do {
+      const res = await client.send(
+        new ListObjectsV2Command({ Bucket, Prefix, ContinuationToken })
+      );
+      for (const obj of res.Contents ?? []) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+      ContinuationToken = res.IsTruncated
+        ? res.NextContinuationToken
+        : undefined;
+    } while (ContinuationToken);
+    return keys;
+  };
+
+  // DeleteObjects caps at 1000 keys per call.
+  const deleteKeys = async (keys: string[]): Promise<void> => {
+    for (let i = 0; i < keys.length; i += 1000) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket,
+          Delete: {
+            Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })),
+            Quiet: true,
+          },
+        })
+      );
+    }
+  };
+
+  const copyKey = async (from: string, to: string): Promise<void> => {
+    await client.send(
+      new CopyObjectCommand({
+        Bucket,
+        // CopySource must be URL-encoded and bucket-prefixed.
+        CopySource: `${Bucket}/${encodeURIComponent(from)}`,
+        Key: to,
+      })
+    );
   };
 
   return {
@@ -167,7 +213,14 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
 
     async remove(pathInput) {
       const Key = normalizeS3Key(pathInput, true);
-      await client.send(new DeleteObjectCommand({ Bucket, Key }));
+      if (!Key.endsWith("/")) {
+        await client.send(new DeleteObjectCommand({ Bucket, Key }));
+        return;
+      }
+      // A "folder" is just a key prefix, so deleting one means deleting every
+      // key beneath it (the zero-byte marker included — it shares the prefix).
+      const keys = await allKeys(Key);
+      if (keys.length > 0) await deleteKeys(keys);
     },
 
     async mkdir(pathInput) {
@@ -181,16 +234,20 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     async rename(fromInput, toInput) {
       const from = normalizeS3Key(fromInput, true);
       const to = normalizeS3Key(toInput, true);
-      // No native rename: copy then delete. CopySource must be URL-encoded and
-      // bucket-prefixed.
-      await client.send(
-        new CopyObjectCommand({
-          Bucket,
-          CopySource: `${Bucket}/${encodeURIComponent(from)}`,
-          Key: to,
-        })
-      );
-      await client.send(new DeleteObjectCommand({ Bucket, Key: from }));
+      // No native rename: copy then delete.
+      if (!from.endsWith("/")) {
+        await copyKey(from, to);
+        await client.send(new DeleteObjectCommand({ Bucket, Key: from }));
+        return;
+      }
+      // Renaming/moving a prefix rewrites every key beneath it. Copies run
+      // sequentially: a folder move is a background-ish operation and firing
+      // thousands of concurrent CopyObject calls only invites throttling.
+      const keys = await allKeys(from);
+      for (const key of keys) {
+        await copyKey(key, `${to}${key.slice(from.length)}`);
+      }
+      if (keys.length > 0) await deleteKeys(keys);
     },
   };
 }
