@@ -126,11 +126,9 @@ Full setup guide, error codes, and secret rotation: [`docs/microsoft-sign-in.md`
 ## Docker
 
 `compose.yaml` brings up the full stack — app, PostgreSQL, Valkey, a Garage
-object store, an imgproxy image server, and:
-
-- `terminal` — WebSocket terminal sessions (same image as `app`, different entrypoint)
-
-Set the required secrets in `.env`, then:
+object store, an imgproxy image server, and `terminal` (WebSocket terminal
+sessions — same image as `app`, different entrypoint). Set the required
+secrets in `.env`, then:
 
 ```bash
 docker compose up -d --build
