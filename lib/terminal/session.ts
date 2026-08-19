@@ -218,10 +218,22 @@ export class SessionRegistry {
 
     this.clearTimer(session.graceTimer);
     session.graceTimer = null;
+    // A racing reconnect (a second tab resuming the same session) must not
+    // leave the displaced socket attached and unaware it was replaced.
+    if (session.sink) {
+      try {
+        session.sink.close();
+      } catch {
+        // Already gone.
+      }
+    }
     session.sink = sink;
 
     const backlog = session.ring.read();
     if (backlog.length > 0) sink.send(backlog);
+    // The new socket starts with an empty buffer, so a stream paused against
+    // the old one must be let go again.
+    this.checkFlow(session);
     return session;
   }
 
@@ -244,7 +256,19 @@ export class SessionRegistry {
     const sink = session.sink;
     if (!sink) return;
     sink.send(chunk);
+    this.checkFlow(session);
+  }
 
+  // Re-evaluate flow control against the sink's CURRENT buffer.
+  //
+  // Public because `onOutput` alone cannot resume a paused stream: pausing is
+  // what stops output arriving, so nothing would ever call back in. The
+  // socket layer calls this from its drain event, which is the only moment
+  // the buffer is known to have shrunk.
+  checkFlow(session: Session): void {
+    if (session.destroyed) return;
+    const sink = session.sink;
+    if (!sink) return;
     const buffered = sink.bufferedAmount();
     if (session.flowing && buffered > this.limits.pauseAboveBytes) {
       session.flowing = false;
