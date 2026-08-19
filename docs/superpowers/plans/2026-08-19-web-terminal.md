@@ -439,7 +439,7 @@ Everything about a live shell's lifetime, with no knowledge of sockets or SSH. T
   - `type Sink = { send(data: Uint8Array | string): void; close(): void; bufferedAmount(): number }`
   - `type Session = { id: string; userId: string; serverId: string; shell: ShellHandle; sink: Sink | null; openedAt: number }`
   - `type SessionLimits` and `DEFAULT_LIMITS`
-  - `class SessionRegistry` with `create`, `attach`, `detach`, `onOutput`, `touch`, `destroy`, `get`, `countFor`, `size`
+  - `class SessionRegistry` with `create`, `attach`, `detach`, `onOutput`, `checkFlow`, `touch`, `destroy`, `destroyAll`, `onDestroy`, `get`, `countFor`, `size`
   - `class TooManySessionsError extends Error`
 
 - [ ] **Step 1: Write the failing test**
@@ -460,10 +460,15 @@ import {
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
 
-function fakeShell(): ShellHandle & { written: string[]; closed: boolean } {
+function fakeShell(): ShellHandle & {
+  written: string[];
+  closed: boolean;
+  flowing: boolean;
+} {
   return {
     written: [],
     closed: false,
+    flowing: true,
     write(data) {
       this.written.push(text(data));
     },
@@ -471,14 +476,24 @@ function fakeShell(): ShellHandle & { written: string[]; closed: boolean } {
     close() {
       this.closed = true;
     },
-    setFlowing() {},
+    setFlowing(flowing) {
+      this.flowing = flowing;
+    },
   };
 }
 
-function fakeSink(): Sink & { sent: (string | Uint8Array)[]; closed: boolean } {
+// `buffered` is writable so a test can simulate a socket whose send buffer is
+// full — otherwise the flow-control thresholds are never reached and the
+// pause/resume logic goes untested.
+function fakeSink(): Sink & {
+  sent: (string | Uint8Array)[];
+  closed: boolean;
+  buffered: number;
+} {
   return {
     sent: [],
     closed: false,
+    buffered: 0,
     send(data) {
       this.sent.push(data);
     },
@@ -486,7 +501,7 @@ function fakeSink(): Sink & { sent: (string | Uint8Array)[]; closed: boolean } {
       this.closed = true;
     },
     bufferedAmount() {
-      return 0;
+      return this.buffered;
     },
   };
 }
@@ -710,6 +725,93 @@ describe("SessionRegistry", () => {
     registry.destroy(session, "grace");
     clock.advance(DEFAULT_LIMITS.maxLifetimeMs);
     expect(destroyed).toEqual([`${session.id}:exit`]);
+  });
+
+  it("pauses the shell when the socket buffer exceeds the cap", () => {
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const sink = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink,
+    });
+
+    sink.buffered = DEFAULT_LIMITS.pauseAboveBytes + 1;
+    registry.onOutput(session, bytes("flood"));
+    expect(shell.flowing).toBe(false);
+  });
+
+  it("resumes a paused shell once the socket drains", () => {
+    // Regression: the resume check used to live only in onOutput, which stops
+    // being called the moment the stream is paused — so a paused session could
+    // never recover. checkFlow is the drain-side entry point.
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const sink = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink,
+    });
+
+    sink.buffered = DEFAULT_LIMITS.pauseAboveBytes + 1;
+    registry.onOutput(session, bytes("flood"));
+    expect(shell.flowing).toBe(false);
+
+    sink.buffered = DEFAULT_LIMITS.resumeBelowBytes - 1;
+    registry.checkFlow(session);
+    expect(shell.flowing).toBe(true);
+  });
+
+  it("holds the pause while the buffer sits between the two thresholds", () => {
+    const { registry } = makeRegistry();
+    const shell = fakeShell();
+    const sink = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell,
+      sink,
+    });
+
+    sink.buffered = DEFAULT_LIMITS.pauseAboveBytes + 1;
+    registry.onOutput(session, bytes("flood"));
+    // Hysteresis: below the pause threshold but not yet below the resume one.
+    sink.buffered = DEFAULT_LIMITS.resumeBelowBytes + 1;
+    registry.checkFlow(session);
+    expect(shell.flowing).toBe(false);
+  });
+
+  it("ignores flow checks on a detached or destroyed session", () => {
+    const { registry } = makeRegistry();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell: fakeShell(),
+      sink: fakeSink(),
+    });
+    registry.detach(session);
+    expect(() => registry.checkFlow(session)).not.toThrow();
+    registry.destroy(session, "exit");
+    expect(() => registry.checkFlow(session)).not.toThrow();
+  });
+
+  it("closes the displaced sink when a session is reattached over a live one", () => {
+    const { registry } = makeRegistry();
+    const first = fakeSink();
+    const session = registry.create({
+      userId: "u1",
+      serverId: "s1",
+      shell: fakeShell(),
+      sink: first,
+    });
+    const second = fakeSink();
+    registry.attach(session.id, "u1", "s1", second);
+    expect(first.closed).toBe(true);
+    expect(session.sink).toBe(second);
   });
 });
 ```
@@ -943,10 +1045,23 @@ export class SessionRegistry {
 
     this.clearTimer(session.graceTimer);
     session.graceTimer = null;
+
+    // A racing reconnect (a second tab resuming the same session) must not
+    // leave the displaced socket attached and unaware it was replaced.
+    if (session.sink) {
+      try {
+        session.sink.close();
+      } catch {
+        // Already gone.
+      }
+    }
     session.sink = sink;
 
     const backlog = session.ring.read();
     if (backlog.length > 0) sink.send(backlog);
+    // The new socket starts with an empty buffer, so a stream paused against
+    // the old one must be let go again.
+    this.checkFlow(session);
     return session;
   }
 
@@ -969,7 +1084,19 @@ export class SessionRegistry {
     const sink = session.sink;
     if (!sink) return;
     sink.send(chunk);
+    this.checkFlow(session);
+  }
 
+  // Re-evaluate flow control against the sink's CURRENT buffer.
+  //
+  // Public because `onOutput` alone cannot resume a paused stream: pausing is
+  // what stops output arriving, so nothing would ever call back in. The socket
+  // layer calls this from its drain event, which is the only moment the buffer
+  // is known to have shrunk.
+  checkFlow(session: Session): void {
+    if (session.destroyed) return;
+    const sink = session.sink;
+    if (!sink) return;
     const buffered = sink.bufferedAmount();
     if (session.flowing && buffered > this.limits.pauseAboveBytes) {
       session.flowing = false;
@@ -1918,6 +2045,14 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         if (msg.t === "resize") {
           ws.data.session?.shell.resize(msg.cols, msg.rows);
         }
+      },
+
+      // The socket's send buffer drained. This is the ONLY moment a paused
+      // stream can learn it may resume: pausing stops output, which stops
+      // onOutput, which is where the pause was decided.
+      drain(ws: Socket) {
+        const session = ws.data.session;
+        if (session) registry.checkFlow(session);
       },
 
       close(ws: Socket) {
