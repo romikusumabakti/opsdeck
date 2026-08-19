@@ -1468,6 +1468,8 @@
     "milestoneCreated": "{actor} membuat milestone {name}",
     "terminalOpened": "{actor} membuka terminal di {server}",
     "terminalClosed": "{actor} menutup terminal di {server} setelah {seconds} detik",
+    "terminalDenied": "{actor} ditolak membuka terminal di {server} ({reason})",
+    "terminalDeniedUnknownServer": "{actor} ditolak membuka terminal ({reason})",
     "testRecorded": "{actor} mencatat uji {result} pada {key}",
     "result": {
       "pass": "lulus",
@@ -1560,7 +1562,6 @@
   "terminal": {
     "title": "Terminal — {name}",
     "subtitle": "{username}@{host} melalui SSH",
-    "openTerminal": "Buka terminal",
     "reconnect": "Sambungkan ulang",
     "sessionEnded": "Sesi berakhir.",
     "ticketFailed": "Tidak dapat mengotorisasi sesi.",

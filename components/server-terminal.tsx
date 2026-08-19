@@ -71,6 +71,11 @@ export function ServerTerminal({
     let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retries = 0;
+    // The effect's own copy of "the shell exited cleanly". Reading this back
+    // out of React state meant deciding the reconnect inside a setStatus
+    // updater — which StrictMode double-invokes in development, scheduling
+    // two reconnects, two tickets and two sessions per drop.
+    let ended = false;
     const cleanups: (() => void)[] = [];
 
     (async () => {
@@ -207,10 +212,16 @@ export function ServerTerminal({
             term.write(new Uint8Array(event.data as ArrayBuffer));
             return;
           }
-          const msg = JSON.parse(event.data) as
+          let msg:
             | { t: "ready"; sessionId: string }
             | { t: "exit"; code: number | null; signal: string | null }
             | { t: "error"; message: string };
+          try {
+            msg = JSON.parse(event.data);
+          } catch {
+            // Not a frame this protocol sends; ignore rather than throw.
+            return;
+          }
           if (msg.t === "ready") {
             sessionIdRef.current = msg.sessionId;
             retries = 0;
@@ -221,6 +232,7 @@ export function ServerTerminal({
           if (msg.t === "exit") {
             // The remote shell ended on purpose; reattaching would be wrong.
             sessionIdRef.current = null;
+            ended = true;
             setStatus("closed");
             term.write(`\r\n\x1b[2m${t("sessionEnded")}\x1b[0m\r\n`);
             return;
@@ -231,16 +243,18 @@ export function ServerTerminal({
         ws.onclose = () => {
           if (disposed) return;
           socket = null;
-          // A clean exit already set "closed"; don't reconnect into a shell
-          // that is gone.
-          setStatus((current) => {
-            if (current === "closed") return current;
-            const delay = RETRY_DELAYS_MS[retries];
-            if (delay === undefined) return "closed";
-            retries++;
-            retryTimer = setTimeout(() => void connect(), delay);
-            return "reconnecting";
-          });
+          if (ended) {
+            setStatus("closed");
+            return;
+          }
+          const delay = RETRY_DELAYS_MS[retries];
+          if (delay === undefined) {
+            setStatus("closed");
+            return;
+          }
+          retries++;
+          retryTimer = setTimeout(() => void connect(), delay);
+          setStatus("reconnecting");
         };
       };
 
@@ -265,6 +279,9 @@ export function ServerTerminal({
     <div className="flex flex-col gap-2">
       <div
         ref={hostRef}
+        // xterm's rows are absolutely positioned and don't survive RTL — force
+        // the host LTR regardless of the page's own direction under /ar.
+        dir="ltr"
         className="h-[70vh] w-full overflow-hidden rounded-lg border bg-background p-2"
       />
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">

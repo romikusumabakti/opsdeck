@@ -1484,9 +1484,10 @@ export function FileExplorer({ source, rootLabel }: Props) {
               type="button"
               variant="outline"
               size="sm"
+              disabled={busy}
               render={
                 <Link
-                  href={`/servers/${source.serverId}/terminal?cwd=${encodeURIComponent(path)}`}
+                  href={`/servers/${source.serverId}/terminal?cwd=${encodeURIComponent(path || "/")}`}
                 />
               }
             >

@@ -1468,6 +1468,8 @@
     "milestoneCreated": "{actor} created milestone {name}",
     "terminalOpened": "{actor} opened a terminal on {server}",
     "terminalClosed": "{actor} closed a terminal on {server} after {seconds}s",
+    "terminalDenied": "{actor} was refused a terminal on {server} ({reason})",
+    "terminalDeniedUnknownServer": "{actor} was refused a terminal ({reason})",
     "testRecorded": "{actor} recorded a {result} test on {key}",
     "result": {
       "pass": "passing",
@@ -1560,7 +1562,6 @@
   "terminal": {
     "title": "Terminal — {name}",
     "subtitle": "{username}@{host} over SSH",
-    "openTerminal": "Open terminal",
     "reconnect": "Reconnect",
     "sessionEnded": "Session ended.",
     "ticketFailed": "Could not authorize the session.",
