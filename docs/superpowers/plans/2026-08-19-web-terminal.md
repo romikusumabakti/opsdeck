@@ -2300,6 +2300,10 @@ export function ServerTerminal({
   // Survives reconnects within the effect's lifetime so a dropped socket
   // reattaches to the same remote shell instead of opening a second one.
   const sessionIdRef = React.useRef<string | null>(null);
+  // The live terminal, so a theme change can restyle it without tearing down
+  // the shell. Typed loosely to avoid importing xterm at module scope — the
+  // library is loaded inside the effect precisely to keep it off other pages.
+  const termRef = React.useRef<{ options: { theme: unknown } } | null>(null);
 
   const theme = resolvedTheme === "light" ? THEMES.light : THEMES.dark;
 
@@ -2341,6 +2345,14 @@ export function ServerTerminal({
       term.loadAddon(unicode);
       term.unicode.activeVersion = "11";
       term.open(host);
+      // Registered BEFORE the next await: an unmount while the webgl import is
+      // in flight would otherwise run a cleanup list that doesn't yet know
+      // about a terminal that is already open (and already blinking a cursor).
+      termRef.current = term;
+      cleanups.push(() => {
+        termRef.current = null;
+        term.dispose();
+      });
 
       // WebGL is an optimisation, not a requirement: a machine without a
       // working context (VM, remote desktop, blocklisted driver) must still
@@ -2353,9 +2365,11 @@ export function ServerTerminal({
       } catch {
         // Canvas/DOM renderer it is.
       }
+      // Second await boundary, second check: nothing below this line should
+      // attach handlers or observers to a component that has gone away.
+      if (disposed) return;
 
       fit.fit();
-      cleanups.push(() => term.dispose());
 
       const encoder = new TextEncoder();
       term.onData((data) => {
@@ -2478,10 +2492,16 @@ export function ServerTerminal({
       socket?.close();
       for (const cleanup of cleanups.splice(0)) cleanup();
     };
-    // `theme` is applied by the separate effect below so a theme switch does
-    // not tear down a live shell.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `theme` is deliberately NOT a dependency: it is applied by the effect
+    // below, so switching light/dark restyles the terminal in place instead of
+    // tearing down a live shell.
   }, [serverId, cwd, attempt, t]);
+
+  // Restyle in place on a theme switch. xterm applies a new theme object to a
+  // running terminal, so this costs a repaint rather than a reconnect.
+  React.useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = theme;
+  }, [theme]);
 
   return (
     <div className="flex flex-col gap-2">
