@@ -1214,6 +1214,13 @@ describe("resolveTerminalCwd", () => {
     });
   });
 
+  it("rejects a cwd made unsafe by the server's own sftp root", () => {
+    // sftpRoot is admin-configured and its validation permits quotes, so the
+    // joined path can carry a metacharacter the requested path never had.
+    expect(resolveTerminalCwd("/home/dep'loy", "app/")).toEqual({ ok: false });
+    expect(resolveTerminalCwd("/srv\nevil", "app/")).toEqual({ ok: false });
+  });
+
   it("rejects a path carrying shell metacharacters", () => {
     // The cwd is interpolated into a `cd '<path>'` line written to the pty, so
     // a single quote would break out of the quoting.
@@ -1261,6 +1268,11 @@ export function resolveTerminalCwd(
     // Explorer dir paths carry a trailing slash; `cd` does not care, but the
     // audit log and the ticket read better without it. Keep "/" intact.
     const cwd = confined.length > 1 ? confined.replace(/\/+$/, "") : confined;
+    // The pre-check above covers the untrusted half of the input; this one
+    // covers what actually ships. `sftpRoot` is admin-configured and its own
+    // validation (lib/validation.ts) permits quotes and newlines, so the
+    // joined result can carry a byte `requested` never contained.
+    if (UNSAFE_CWD.test(cwd)) return { ok: false };
     return { ok: true, cwd };
   } catch (error) {
     if (error instanceof PathError) return { ok: false };
