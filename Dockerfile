@@ -37,6 +37,14 @@ COPY . .
 
 RUN bun run build
 
+# The sidecar is a second entrypoint into the same codebase, so it ships in the
+# same image and is selected by `command:` in compose. `--conditions
+# react-server` makes the "server-only" package resolve to its empty stub, which
+# is what lets this bundle reuse lib/db, lib/secrets and lib/activity verbatim
+# instead of carrying a second copy of the data layer.
+RUN bun build lib/terminal/main.ts --target=bun --conditions="react-server" \
+    --outfile terminal-server.js
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
@@ -60,6 +68,7 @@ COPY --from=builder /app/docs ./docs
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/terminal-server.js ./terminal-server.js
 
 USER nextjs
 
