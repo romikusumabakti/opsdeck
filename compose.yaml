@@ -24,6 +24,7 @@ services:
       context: .
     image: opsdeck-app:local
     container_name: opsdeck-app
+    restart: always
     # No published port: the app is internal. Caddy (below) is the only public
     # surface — it terminates TLS and forwards with X-Forwarded-* headers so
     # Next derives the public host/port (no more internal :3000 leaking into
