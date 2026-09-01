@@ -28,11 +28,12 @@ export const backupFilenameSchema = z
   )
   .refine((f) => !f.includes(".."), "Filename must not contain '..'");
 
-// Database names are interpolated into SQL identifiers (pg "..." / mssql [...])
-// and into shell pipelines (shq-quoted). Both layers escape, but the picker
-// also lets the client send an arbitrary `database` for backup/restore/create/
-// drop, so constrain it to a conservative identifier — a tampered client can't
-// then smuggle control chars, path separators, or shell/SQL metacharacters.
+// Database names are interpolated into SQL identifiers (pg "...", mssql [...],
+// mysql `...`) and into shell pipelines (shq-quoted). Both layers escape, but
+// the picker also lets the client send an arbitrary `database` for backup/
+// restore/create/drop, so constrain it to a conservative identifier — a
+// tampered client can't then smuggle control chars, path separators, or
+// shell/SQL metacharacters.
 // The project's own configured dbName bypasses this (it's trusted config); only
 // a *different*, client-supplied target is validated here.
 export const databaseNameSchema = z
@@ -60,7 +61,7 @@ export const isoDurationSchema = z
 export const isoDateTimeSchema = z.iso.datetime({ offset: true });
 
 const serviceTypeSchema = z.enum(["docker", "systemd", "kubernetes"]);
-const databaseTypeSchema = z.enum(["postgres", "mssql"]);
+const databaseTypeSchema = z.enum(["postgres", "mssql", "mysql"]);
 
 export const serverInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -114,6 +115,9 @@ export const environmentInputSchema = z.object({
   dbServiceName: z.string().trim().min(1).max(255),
   dbType: databaseTypeSchema,
   dbName: z.string().trim().min(1).max(255),
+  // Admin login for the engines that authenticate over TCP; blank/absent falls
+  // back to the engine default (see lib/services#dbAdminUser).
+  dbUser: z.string().trim().max(255).nullish(),
   dbPassword: z.string().max(1024).nullish(),
   dbBackupPath: z.string().trim().min(1).max(1024),
 

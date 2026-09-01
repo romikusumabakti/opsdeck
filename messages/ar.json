@@ -205,7 +205,8 @@
     },
     "dbTypes": {
       "postgres": "PostgreSQL",
-      "mssql": "Microsoft SQL Server"
+      "mssql": "Microsoft SQL Server",
+      "mysql": "MySQL / MariaDB"
     },
     "recentActivity": {
       "title": "النشاط الأخير",
@@ -307,7 +308,7 @@
     "createdToast": "تم إنشاء ملف النسخ الاحتياطي",
     "lastFileLabel": "آخر ملف نسخ احتياطي:",
     "compressLabel": "ضغط النسخ الاحتياطي",
-    "compressHint": "موصى به — ينتج ملفاً أصغر (gzip لـ Postgres، ضغط داخلي لـ MSSQL).",
+    "compressHint": "موصى به — ينتج ملفًا أصغر (gzip لـ PostgreSQL و MySQL/MariaDB، وضغط داخلي لـ MSSQL).",
     "databaseLabel": "قاعدة البيانات",
     "databaseHint": "اختر قاعدة البيانات التي تريد نسخها احتياطياً. الافتراضي هو قاعدة البيانات المُهيّأة لهذه البيئة.",
     "defaultSuffix": "(افتراضية)",
@@ -572,12 +573,14 @@
     "serviceName": "اسم الخدمة",
     "dbType": "نوع قاعدة البيانات",
     "dbName": "اسم قاعدة البيانات",
-    "dbPassword": "كلمة مرور قاعدة البيانات (sa)",
-    "dbPasswordHint": "مطلوب لـ Microsoft SQL Server (يستخدمه sqlcmd). اتركه فارغاً لـ PostgreSQL.",
+    "dbUser": "مستخدم قاعدة البيانات",
+    "dbUserHint": "حساب المسؤول المستخدم لتسجيل الدخول إلى SQL Server أو MySQL/MariaDB عبر TCP. اتركه فارغًا لاستخدام الإعداد الافتراضي للمحرك (sa / root). لا يُستخدم مع PostgreSQL.",
+    "dbPassword": "كلمة مرور قاعدة البيانات",
+    "dbPasswordHint": "مطلوبة لـ Microsoft SQL Server و MySQL/MariaDB. اتركها فارغة مع PostgreSQL الذي يصادق كمستخدم نظام التشغيل الخاص به.",
     "dbPasswordEditPlaceholder": "اتركه فارغاً للإبقاء على القيمة الحالية",
-    "dbPasswordRequiredForMssql": "كلمة مرور قاعدة البيانات مطلوبة لـ Microsoft SQL Server",
+    "dbPasswordRequired": "كلمة مرور قاعدة البيانات مطلوبة لهذا النوع من قواعد البيانات",
     "backupPath": "مسار دليل النسخ الاحتياطي",
-    "backupPathHint": "المكان الذي تُكتب فيه ملفات النسخ الاحتياطي. بالنسبة لـ Docker/Kubernetes، يوجد المسار داخل الحاوية/Pod (قم بتكوين وحدات التحميل المربوطة أو وحدات التخزين بشكل منفصل إذا كنت بحاجة للوصول من المضيف). بالنسبة لـ systemd، يوجد المسار على نظام ملفات المضيف ويجب أن يكون قابلاً للكتابة بواسطة مستخدم قاعدة البيانات (postgres/mssql).",
+    "backupPathHint": "المكان الذي تُكتب فيه ملفات النسخ الاحتياطي. بالنسبة لـ Docker/Kubernetes، يوجد المسار داخل الحاوية/Pod (قم بتكوين وحدات التحميل المربوطة أو وحدات التخزين بشكل منفصل إذا كنت بحاجة للوصول من المضيف). بالنسبة لـ systemd، يوجد المسار على نظام ملفات المضيف ويجب أن يكون قابلاً للكتابة بواسطة مستخدم قاعدة البيانات (postgres/mssql/mysql).",
     "mockTimeApiUrl": "رابط واجهة برمجة محاكاة الوقت (اختياري)",
     "mockTimeApiUrlHint": "إذا كانت الخلفية تعرض نقطة نهاية لمحاكاة الوقت، الصقها هنا. عند الترك فارغاً، سيعود اللوح إلى تغيير ساعة الخادم وإعادة تشغيل الخلفية.",
     "mockTimeApiKey": "مفتاح واجهة برمجة محاكاة الوقت (اختياري)",

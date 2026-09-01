@@ -2,13 +2,16 @@
 
 import { unstable_cache } from "next/cache";
 import { requireCapability, requireSession } from "@/lib/auth-session";
+import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import {
   buildDbShellCommand,
+  buildMysqlCommand,
   buildSqlcmdCommand,
+  dbAdminUser,
   dbConfig,
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
@@ -40,7 +43,24 @@ async function probeDatabaseList(
   }
 
   const dbSvc = dbConfig(environment);
-  let cmd: string;
+  const cmd = buildDatabaseListCommand(environment);
+
+  const output = await executeRemoteCommand(
+    {
+      host: dbSvc.server.host,
+      username: dbSvc.server.username,
+      password: dbSvc.server.password,
+    },
+    cmd
+  );
+  return parseDatabaseList(output, dbSvc.dbName);
+}
+
+// Per-engine listing command. Each emits one `name|sizeBytes` line per database
+// so probeDatabaseList can share a single parser; a size that can't be computed
+// is simply omitted from the line.
+function buildDatabaseListCommand(environment: EnvironmentWithServers): string {
+  const dbSvc = dbConfig(environment);
   if (dbSvc.dbType === "mssql") {
     if (!dbSvc.dbPassword) {
       throw new Error(
@@ -54,34 +74,58 @@ async function probeDatabaseList(
     // size come back in one round-trip; parsing tolerates a missing size.
     const query =
       "SET NOCOUNT ON; SELECT name + '|' + CAST(CAST((SELECT SUM(mf.size) FROM sys.master_files mf WHERE mf.database_id = d.database_id) AS BIGINT) * 8192 AS VARCHAR(32)) FROM sys.databases d WHERE database_id > 4 ORDER BY name;";
-    cmd = buildSqlcmdCommand(
+    return buildSqlcmdCommand(
       query,
+      dbAdminUser(dbSvc.dbType, dbSvc.dbUser),
       dbSvc.dbPassword,
       dbSvc.serviceType,
       dbSvc.serviceName,
       ["-h", "-1", "-W"]
     );
-  } else {
-    // `-tAc`: tuples-only, unaligned, run-command — one `datname|sizeBytes` per
-    // line (pg_database_size gives on-disk bytes). Exclude template databases
-    // (template0/template1) which can't be backed up or restored into.
-    const query =
-      "SELECT datname || '|' || pg_database_size(datname) FROM pg_database WHERE datistemplate = false ORDER BY datname";
-    const inner = `psql -U postgres -tAc ${shq(query)}`;
-    cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
-      runAsUser: "postgres",
-      sudoPassword: dbSvc.server.password,
-    });
   }
+  if (dbSvc.dbType === "mysql") {
+    if (!dbSvc.dbPassword) {
+      throw new Error(
+        "Environment dbPassword is required to list MySQL databases"
+      );
+    }
+    // Sizes come from information_schema, which reports InnoDB's own estimate
+    // rather than the bytes on disk — close enough for a UI badge, and the only
+    // figure available without shelling into the data directory. Skip the four
+    // schemas the engines own (`sys` exists on MySQL only; naming it on MariaDB
+    // is harmless). `-N -B` drops the header and forces tab-separated batch
+    // output, one row per line.
+    const query =
+      "SELECT CONCAT(s.SCHEMA_NAME, '|', CAST(COALESCE(SUM(t.DATA_LENGTH + t.INDEX_LENGTH), 0) AS UNSIGNED)) " +
+      "FROM information_schema.SCHEMATA s " +
+      "LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME " +
+      "WHERE s.SCHEMA_NAME NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys') " +
+      "GROUP BY s.SCHEMA_NAME ORDER BY s.SCHEMA_NAME;";
+    return buildMysqlCommand(
+      query,
+      dbAdminUser(dbSvc.dbType, dbSvc.dbUser),
+      dbSvc.dbPassword,
+      dbSvc.serviceType,
+      dbSvc.serviceName,
+      ["-N", "-B"]
+    );
+  }
+  // `-tAc`: tuples-only, unaligned, run-command — one `datname|sizeBytes` per
+  // line (pg_database_size gives on-disk bytes). Exclude template databases
+  // (template0/template1) which can't be backed up or restored into.
+  const query =
+    "SELECT datname || '|' || pg_database_size(datname) FROM pg_database WHERE datistemplate = false ORDER BY datname";
+  const inner = `psql -U postgres -tAc ${shq(query)}`;
+  return buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
+    runAsUser: "postgres",
+    sudoPassword: dbSvc.server.password,
+  });
+}
 
-  const output = await executeRemoteCommand(
-    {
-      host: dbSvc.server.host,
-      username: dbSvc.server.username,
-      password: dbSvc.server.password,
-    },
-    cmd
-  );
+function parseDatabaseList(
+  output: string,
+  defaultDbName: string
+): DatabaseEntry[] {
   // Each line is `name|sizeBytes`. Split on the first `|` only — validated
   // database names never contain one, and a line with no `|` (older query, or
   // a size that failed to compute) still yields a usable name.
@@ -104,12 +148,12 @@ async function probeDatabaseList(
     });
   // Always surface the configured database, even if the enumeration somehow
   // missed it (permissions, race), and mark it as the default.
-  if (!entries.some((e) => e.name === dbSvc.dbName)) {
-    entries.unshift({ name: dbSvc.dbName, sizeBytes: undefined });
+  if (!entries.some((e) => e.name === defaultDbName)) {
+    entries.unshift({ name: defaultDbName, sizeBytes: undefined });
   }
   return entries.map((e) => ({
     ...e,
-    isDefault: e.name === dbSvc.dbName,
+    isDefault: e.name === defaultDbName,
   }));
 }
 

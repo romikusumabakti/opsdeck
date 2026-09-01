@@ -34,7 +34,7 @@ import {
 // one `environments` row plus one `environment_services` row per role. These
 // helpers are the single place that mapping lives.
 //
-// Secret columns (mssql `sa` password, mock-time API key) are encrypted at rest
+// Secret columns (the DB admin password, mock-time API key) are encrypted at rest
 // here, mirroring the decrypt boundary in
 // lib/environments#loadEnvironmentWithServers.
 
@@ -48,6 +48,7 @@ function dbServiceValues(d: EnvironmentInput): ServiceValues {
     serviceName: d.dbServiceName,
     dbType: d.dbType,
     dbName: d.dbName,
+    dbUser: d.dbUser,
     dbPassword: encryptNullable(d.dbPassword),
     dbBackupPath: d.dbBackupPath,
   };
@@ -91,6 +92,7 @@ function dbServicePatch(d: EnvironmentUpdate) {
     serviceName: d.dbServiceName,
     dbType: d.dbType,
     dbName: d.dbName,
+    dbUser: d.dbUser,
     dbPassword: "dbPassword" in d ? encryptNullable(d.dbPassword) : undefined,
     dbBackupPath: d.dbBackupPath,
   });

@@ -35,10 +35,21 @@ import type {
   SafeEnvironmentWithServers,
   Server,
 } from "@/lib/db/schema";
-import { backendService, dbService, frontendService } from "@/lib/services";
+import {
+  backendService,
+  dbAdminUser,
+  dbService,
+  frontendService,
+} from "@/lib/services";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
-const DB_TYPES = ["postgres", "mssql"] as const;
+const DB_TYPES = ["postgres", "mssql", "mysql"] as const;
+// Engines the panel logs into over TCP, so they need a user + password. Postgres
+// instead authenticates as its own OS user inside the container/unit.
+const TCP_AUTH_DB_TYPES = new Set<(typeof DB_TYPES)[number]>([
+  "mssql",
+  "mysql",
+]);
 const ENV_KINDS = ["qa", "dev", "release", "sandbox", "prod"] as const;
 // Sentinel for the "unspecified" Select option (Select can't hold an empty value).
 const KIND_NONE = "none";
@@ -86,8 +97,11 @@ export function EnvironmentForm({
       dbServiceName: z.string().min(1, tCommon("required")),
       dbType: z.enum(DB_TYPES),
       dbName: z.string().min(1, tCommon("required")),
-      // Empty string is valid here; superRefine enforces it for mssql on create.
-      // On edit, empty means "keep the stored password" (handled in onSubmit).
+      // Empty string means "use the engine's default admin account".
+      dbUser: z.string(),
+      // Empty string is valid here; superRefine enforces it for the TCP-auth
+      // engines on create. On edit, empty means "keep the stored password"
+      // (handled in onSubmit).
       dbPassword: z.string(),
       dbBackupPath: z.string().min(1, tCommon("required")),
 
@@ -107,17 +121,17 @@ export function EnvironmentForm({
       frontendServiceName: z.string().min(1, tCommon("required")),
     })
     .superRefine((data, ctx) => {
-      // mssql needs an `sa` password for sqlcmd. On create, the field must be
-      // filled. On edit, empty means "no change" — we only fail if there's no
-      // stored password to fall back to (handled at submit time too, but
-      // surface the error inline where possible).
-      if (data.dbType !== "mssql") return;
+      // The TCP-auth engines need a password to log in at all. On create, the
+      // field must be filled. On edit, empty means "no change" — we only fail
+      // if there's no stored password to fall back to (handled at submit time
+      // too, but surface the error inline where possible).
+      if (!TCP_AUTH_DB_TYPES.has(data.dbType)) return;
       const hasStored =
         mode.type === "edit" && dbService(mode.environment).hasDbPassword;
       if (!data.dbPassword && !hasStored) {
         ctx.addIssue({
           code: "custom",
-          message: t("dbPasswordRequiredForMssql"),
+          message: t("dbPasswordRequired"),
           path: ["dbPassword"],
         });
       }
@@ -154,6 +168,7 @@ export function EnvironmentForm({
           dbServiceName: dbSvc?.serviceName ?? "",
           dbType: dbSvc?.dbType ?? "postgres",
           dbName: dbSvc?.dbName ?? "",
+          dbUser: dbSvc?.dbUser ?? "",
           dbPassword: "",
           dbBackupPath: dbSvc?.dbBackupPath ?? "",
           backendServerId: backendSvc?.serverId ?? "",
@@ -175,6 +190,7 @@ export function EnvironmentForm({
           dbServiceName: "",
           dbType: "postgres",
           dbName: "",
+          dbUser: "",
           dbPassword: "",
           dbBackupPath: "",
           backendServerId: initialServers[0]?.id ?? "",
@@ -204,6 +220,7 @@ export function EnvironmentForm({
     const { dbPassword, backendMockTimeApiKey, ...rest } = values;
     const base = {
       ...rest,
+      dbUser: values.dbUser.trim() ? values.dbUser.trim() : null,
       backendMockTimeApiUrl: values.backendMockTimeApiUrl
         ? values.backendMockTimeApiUrl
         : null,
@@ -211,13 +228,16 @@ export function EnvironmentForm({
       kind: values.kind ? values.kind : null,
       owner: values.owner.trim() ? values.owner.trim() : null,
     };
-    // On create: persist password (null for postgres). On edit: only include it
-    // when the user typed something — empty means "keep stored value".
+    // On create: persist password (null for postgres, which never uses one). On
+    // edit: only include it when the user typed something — empty means "keep
+    // stored value". A blank dbUser always stores null, i.e. "engine default".
     const withPassword =
       mode.type === "create"
         ? {
             ...base,
-            dbPassword: values.dbType === "mssql" ? dbPassword : null,
+            dbPassword: TCP_AUTH_DB_TYPES.has(values.dbType)
+              ? dbPassword
+              : null,
           }
         : dbPassword
           ? { ...base, dbPassword }
@@ -450,6 +470,29 @@ export function EnvironmentForm({
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dbUser"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("dbUser")}</FormLabel>
+                  <FormControl>
+                    {/* Placeholder shows the account that will be used when the
+                        field is left blank, so the default is visible rather
+                        than implied. */}
+                    <Input
+                      autoComplete="off"
+                      placeholder={dbAdminUser(form.watch("dbType"), null)}
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("dbUserHint")}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

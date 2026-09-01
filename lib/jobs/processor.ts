@@ -21,6 +21,12 @@ import {
   mssqlFileListQuery,
   mssqlRenameDatabaseQuery,
   mssqlRestoreQuery,
+  mysqlBackupPipeline,
+  mysqlCreateDatabaseQuery,
+  mysqlDropDatabaseQuery,
+  mysqlRecreateDatabaseQuery,
+  mysqlRenameDatabasePipeline,
+  mysqlRestorePipeline,
   parseMssqlFileList,
   pgBackupPipeline,
   pgCreateDatabaseQuery,
@@ -37,7 +43,10 @@ import {
   backendService,
   buildControlCommand,
   buildDbShellCommand,
+  buildMysqlCommand,
   buildSqlcmdCommand,
+  type DatabaseType,
+  dbAdminUser,
   dbConfig,
   getServiceConfig,
 } from "@/lib/services";
@@ -67,6 +76,38 @@ async function tracked<T>(
   }
 }
 
+// The db-service fields the TCP-authenticating engines need. sqlcmd and the
+// MySQL client both log in with the configured admin account, so a missing
+// password is a configuration error worth naming as one instead of letting the
+// client fail with a generic "access denied".
+type DbAuth = { user: string; password: string };
+
+function dbAuth(
+  db: {
+    dbType: DatabaseType;
+    dbUser: string | null;
+    dbPassword: string | null;
+  },
+  operation: string
+): DbAuth {
+  if (!db.dbPassword) {
+    throw new Error(
+      `Environment dbPassword is required for ${db.dbType} ${operation}`
+    );
+  }
+  return {
+    user: dbAdminUser(db.dbType, db.dbUser),
+    password: db.dbPassword,
+  };
+}
+
+// What the backup step is about to run, for the run log.
+const DUMP_TOOL: Record<DatabaseType, string> = {
+  postgres: "pg_dump",
+  mssql: "BACKUP DATABASE",
+  mysql: "mysqldump",
+};
+
 async function handleCreateDatabaseBackup(
   data: JobMap["db/backup.requested"]
 ): Promise<{ success: true; filename: string }> {
@@ -90,10 +131,11 @@ async function handleCreateDatabaseBackup(
     await tracked(runId, "Ensuring backup directory exists", async () => {
       // Run as the DB's OS user so the directory ends up owned by the
       // process that later writes into it: pg_dump runs as `postgres`,
-      // and SQL Server's BACKUP DATABASE writes the .bak file from the
-      // `mssql` server process. No-op `runAsUser` for docker/kubernetes
-      // — the exec wrapper already enters the container.
-      const runAsUser = db.dbType === "postgres" ? "postgres" : "mssql";
+      // SQL Server's BACKUP DATABASE writes the .bak file from the `mssql`
+      // server process, and mysqldump is invoked as `mysql`. No-op
+      // `runAsUser` for docker/kubernetes — the exec wrapper already enters
+      // the container.
+      const runAsUser = dbOsUser(db.dbType);
       const mkdirCmd = buildDbShellCommand(
         db.serviceType,
         db.serviceName,
@@ -105,11 +147,20 @@ async function handleCreateDatabaseBackup(
 
     const filename = await tracked(
       runId,
-      `Running ${db.dbType === "mssql" ? "BACKUP DATABASE" : "pg_dump"} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
+      `Running ${DUMP_TOOL[db.dbType]} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
       async () => {
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
         if (db.dbType === "mssql") {
           return await runMssqlBackup(
+            environment,
+            dbName,
+            ts,
+            credentials,
+            useCompression
+          );
+        }
+        if (db.dbType === "mysql") {
+          return await runMysqlBackup(
             environment,
             dbName,
             ts,
@@ -168,11 +219,7 @@ async function runMssqlBackup(
   compress: boolean
 ): Promise<string> {
   const db = dbConfig(environment);
-  if (!db.dbPassword) {
-    throw new Error(
-      "Environment dbPassword is required for MSSQL backups (sqlcmd needs it)"
-    );
-  }
+  const auth = dbAuth(db, "backups (sqlcmd needs it)");
   const fname = `${database}_${ts}.bak`;
   const target = `${db.dbBackupPath}/${fname}`;
   const query = mssqlBackupQuery(database, target, compress);
@@ -183,10 +230,41 @@ async function runMssqlBackup(
   // SSH error path instead of being silently swallowed on stdout.
   const cmd = buildSqlcmdCommand(
     query,
-    db.dbPassword,
+    auth.user,
+    auth.password,
     db.serviceType,
     db.serviceName
   );
+  await executeRemoteCommand(credentials, cmd);
+  return fname;
+}
+
+async function runMysqlBackup(
+  environment: EnvironmentWithServers,
+  database: string,
+  ts: string,
+  credentials: { host: string; username: string; password: string },
+  compress: boolean
+): Promise<string> {
+  const db = dbConfig(environment);
+  const auth = dbAuth(db, "backups (mysqldump needs it)");
+  // mysqldump emits a plain SQL script, so the filenames match Postgres'.
+  const fname = compress ? `${database}_${ts}.sql.gz` : `${database}_${ts}.sql`;
+  const target = `${db.dbBackupPath}/${fname}`;
+  const inner = mysqlBackupPipeline(
+    database,
+    target,
+    compress,
+    auth.user,
+    auth.password
+  );
+  // `runAsUser` here is about the FILESYSTEM, not the login: mysqldump writes
+  // client-side, so it must run as the user owning the backup directory. The
+  // database login itself is the TCP one built into the pipeline.
+  const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner, {
+    runAsUser: dbOsUser(db.dbType),
+    sudoPassword: credentials.password,
+  });
   await executeRemoteCommand(credentials, cmd);
   return fname;
 }
@@ -534,21 +612,25 @@ async function handleRestoreDatabaseBackup(
 
   try {
     if (db.dbType === "mssql") {
+      // RESTORE DATABASE ... WITH REPLACE overwrites in place, so there is no
+      // separate recreate step.
       await tracked(runId, `Restoring ${dbName} from ${filename}`, async () => {
         await runMssqlRestore(environment, dbName, source, credentials);
       });
     } else {
+      // Postgres and MySQL both load a SQL script into an empty database, so
+      // both drop and recreate the target first.
+      const recreate =
+        db.dbType === "mysql"
+          ? runMysqlRecreateDatabase
+          : runPostgresRecreateDatabase;
+      const restore =
+        db.dbType === "mysql" ? runMysqlRestore : runPostgresRestore;
       await tracked(runId, `Dropping and recreating ${dbName}`, async () => {
-        await runPostgresRecreateDatabase(environment, dbName, credentials);
+        await recreate(environment, dbName, credentials);
       });
       await tracked(runId, `Restoring from ${filename}`, async () => {
-        await runPostgresRestore(
-          environment,
-          dbName,
-          filename,
-          source,
-          credentials
-        );
+        await restore(environment, dbName, filename, source, credentials);
       });
     }
 
@@ -626,6 +708,48 @@ async function runPostgresRestore(
   await executeRemoteCommand(credentials, cmd);
 }
 
+async function runMysqlRecreateDatabase(
+  data: EnvironmentWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const dbSvc = dbConfig(data);
+  const auth = dbAuth(dbSvc, "restores");
+  const cmd = buildMysqlCommand(
+    mysqlRecreateDatabaseQuery(database),
+    auth.user,
+    auth.password,
+    dbSvc.serviceType,
+    dbSvc.serviceName
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMysqlRestore(
+  data: EnvironmentWithServers,
+  database: string,
+  filename: string,
+  source: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const dbSvc = dbConfig(data);
+  const auth = dbAuth(dbSvc, "restores");
+  const inner = mysqlRestorePipeline(
+    database,
+    source,
+    filename.endsWith(".gz"),
+    auth.user,
+    auth.password
+  );
+  // Unlike the create/drop paths this one READS the dump file, so it has to run
+  // as the user owning the backup directory (see runMysqlBackup).
+  const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
+    runAsUser: dbOsUser(dbSvc.dbType),
+    sudoPassword: credentials.password,
+  });
+  await executeRemoteCommand(credentials, cmd);
+}
+
 async function handleControlService(
   data: JobMap["service/control.requested"]
 ): Promise<{ success: true }> {
@@ -678,9 +802,11 @@ async function getMssqlBackupFileList(
   credentials: { host: string; username: string; password: string }
 ): Promise<MssqlBackupFile[]> {
   const dbSvc = dbConfig(data);
+  const auth = dbAuth(dbSvc, "restores (sqlcmd needs it)");
   const cmd = buildSqlcmdCommand(
     mssqlFileListQuery(source),
-    dbSvc.dbPassword!,
+    auth.user,
+    auth.password,
     dbSvc.serviceType,
     dbSvc.serviceName,
     MSSQL_FILE_LIST_FLAGS
@@ -701,11 +827,7 @@ async function runMssqlRestore(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const dbSvc = dbConfig(data);
-  if (!dbSvc.dbPassword) {
-    throw new Error(
-      "Environment dbPassword is required for MSSQL restores (sqlcmd needs it)"
-    );
-  }
+  const auth = dbAuth(dbSvc, "restores (sqlcmd needs it)");
   // Relocate the backup's logical files onto the target DB's own paths so a
   // cross-database restore (backup of DB A into DB B) doesn't collide with the
   // source DB's in-use files.
@@ -717,7 +839,8 @@ async function runMssqlRestore(
   );
   const cmd = buildSqlcmdCommand(
     query,
-    dbSvc.dbPassword,
+    auth.user,
+    auth.password,
     dbSvc.serviceType,
     dbSvc.serviceName
   );
@@ -743,6 +866,8 @@ async function handleCreateDatabase(
     await tracked(runId, `Creating database ${database}`, async () => {
       if (db.dbType === "mssql") {
         await runMssqlCreateDatabase(environment, database, credentials);
+      } else if (db.dbType === "mysql") {
+        await runMysqlCreateDatabase(environment, database, credentials);
       } else {
         await runPostgresCreateDatabase(environment, database, credentials);
       }
@@ -779,15 +904,28 @@ async function runMssqlCreateDatabase(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const db = dbConfig(environment);
-  if (!db.dbPassword) {
-    throw new Error(
-      "Environment dbPassword is required for MSSQL database creation (sqlcmd needs it)"
-    );
-  }
-  const query = mssqlCreateDatabaseQuery(database);
+  const auth = dbAuth(db, "database creation (sqlcmd needs it)");
   const cmd = buildSqlcmdCommand(
-    query,
-    db.dbPassword,
+    mssqlCreateDatabaseQuery(database),
+    auth.user,
+    auth.password,
+    db.serviceType,
+    db.serviceName
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMysqlCreateDatabase(
+  environment: EnvironmentWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const db = dbConfig(environment);
+  const auth = dbAuth(db, "database creation");
+  const cmd = buildMysqlCommand(
+    mysqlCreateDatabaseQuery(database),
+    auth.user,
+    auth.password,
     db.serviceType,
     db.serviceName
   );
@@ -819,6 +957,8 @@ async function handleDropDatabase(
     await tracked(runId, `Dropping database ${database}`, async () => {
       if (db.dbType === "mssql") {
         await runMssqlDropDatabase(environment, database, credentials);
+      } else if (db.dbType === "mysql") {
+        await runMysqlDropDatabase(environment, database, credentials);
       } else {
         await runPostgresDropDatabase(environment, database, credentials);
       }
@@ -857,15 +997,28 @@ async function runMssqlDropDatabase(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const db = dbConfig(environment);
-  if (!db.dbPassword) {
-    throw new Error(
-      "Environment dbPassword is required for MSSQL database drop (sqlcmd needs it)"
-    );
-  }
-  const query = mssqlDropDatabaseQuery(database);
+  const auth = dbAuth(db, "database drop (sqlcmd needs it)");
   const cmd = buildSqlcmdCommand(
-    query,
-    db.dbPassword,
+    mssqlDropDatabaseQuery(database),
+    auth.user,
+    auth.password,
+    db.serviceType,
+    db.serviceName
+  );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMysqlDropDatabase(
+  environment: EnvironmentWithServers,
+  database: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const db = dbConfig(environment);
+  const auth = dbAuth(db, "database drop");
+  const cmd = buildMysqlCommand(
+    mysqlDropDatabaseQuery(database),
+    auth.user,
+    auth.password,
     db.serviceType,
     db.serviceName
   );
@@ -897,9 +1050,18 @@ async function handleRenameDatabase(
       );
     }
 
-    await tracked(runId, `Renaming database ${from} → ${to}`, async () => {
+    // MySQL/MariaDB have no RENAME DATABASE, so their rename copies the schema
+    // and drops the original — say so in the run log, since it takes time
+    // proportional to the data instead of being instant like the other two.
+    const label =
+      db.dbType === "mysql"
+        ? `Renaming database ${from} → ${to} (copy + drop — MySQL has no RENAME DATABASE)`
+        : `Renaming database ${from} → ${to}`;
+    await tracked(runId, label, async () => {
       if (db.dbType === "mssql") {
         await runMssqlRenameDatabase(environment, from, to, credentials);
+      } else if (db.dbType === "mysql") {
+        await runMysqlRenameDatabase(environment, from, to, credentials);
       } else {
         await runPostgresRenameDatabase(environment, from, to, credentials);
       }
@@ -938,18 +1100,29 @@ async function runMssqlRenameDatabase(
   credentials: { host: string; username: string; password: string }
 ): Promise<void> {
   const db = dbConfig(environment);
-  if (!db.dbPassword) {
-    throw new Error(
-      "Environment dbPassword is required for MSSQL database rename (sqlcmd needs it)"
-    );
-  }
-  const query = mssqlRenameDatabaseQuery(from, to);
+  const auth = dbAuth(db, "database rename (sqlcmd needs it)");
   const cmd = buildSqlcmdCommand(
-    query,
-    db.dbPassword,
+    mssqlRenameDatabaseQuery(from, to),
+    auth.user,
+    auth.password,
     db.serviceType,
     db.serviceName
   );
+  await executeRemoteCommand(credentials, cmd);
+}
+
+async function runMysqlRenameDatabase(
+  environment: EnvironmentWithServers,
+  from: string,
+  to: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const db = dbConfig(environment);
+  const auth = dbAuth(db, "database rename");
+  // A pipeline rather than a query — the copy spans three client invocations.
+  // Nothing touches the filesystem, so no `runAsUser` is needed.
+  const inner = mysqlRenameDatabasePipeline(from, to, auth.user, auth.password);
+  const cmd = buildDbShellCommand(db.serviceType, db.serviceName, inner);
   await executeRemoteCommand(credentials, cmd);
 }
 

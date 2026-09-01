@@ -5,6 +5,7 @@ import {
   buildPlaceCommand,
   buildRemovePlacedCommand,
   type CommandTargetEnvironment,
+  dbBackupExtensionPattern,
   dbOsUser,
   mssqlBackupQuery,
   mssqlCreateDatabaseQuery,
@@ -12,6 +13,13 @@ import {
   mssqlFileListQuery,
   mssqlRenameDatabaseQuery,
   mssqlRestoreQuery,
+  mysqlBackupPipeline,
+  mysqlCreateDatabaseQuery,
+  mysqlDropDatabaseQuery,
+  mysqlQuoteId,
+  mysqlRecreateDatabaseQuery,
+  mysqlRenameDatabasePipeline,
+  mysqlRestorePipeline,
   parseMssqlFileList,
   pgBackupPipeline,
   pgCreateDatabaseQuery,
@@ -166,6 +174,24 @@ describe("dbOsUser", () => {
   it("maps each engine to the OS user it runs as", () => {
     expect(dbOsUser("postgres")).toBe("postgres");
     expect(dbOsUser("mssql")).toBe("mssql");
+    expect(dbOsUser("mysql")).toBe("mysql");
+  });
+});
+
+describe("dbBackupExtensionPattern", () => {
+  it("matches .bak only for SQL Server", () => {
+    expect(dbBackupExtensionPattern("mssql")).toBe("\\.bak");
+  });
+
+  it("matches the optional gzip suffix for the SQL-script engines", () => {
+    // pg_dump and mysqldump both write a plain script the panel may gzip, so
+    // the two share a pattern — and share the restore-side suffix sniffing.
+    const pattern = dbBackupExtensionPattern("postgres");
+    expect(dbBackupExtensionPattern("mysql")).toBe(pattern);
+    const re = new RegExp(`${pattern}$`);
+    expect(re.test("car2.sql")).toBe(true);
+    expect(re.test("car2.sql.gz")).toBe(true);
+    expect(re.test("car2.bak")).toBe(false);
   });
 });
 
@@ -526,10 +552,135 @@ describe("buildMssqlMoveClauses", () => {
   });
 });
 
+describe("MySQL/MariaDB statements", () => {
+  it("quotes identifiers with backticks, doubling a literal backtick", () => {
+    expect(mysqlQuoteId("car2")).toBe("`car2`");
+    expect(mysqlQuoteId("we`ird")).toBe("`we``ird`");
+  });
+
+  it("recreates the schema so a dump loads into an empty target", () => {
+    expect(mysqlRecreateDatabaseQuery("car2")).toBe(
+      "DROP DATABASE IF EXISTS `car2`; CREATE DATABASE `car2`;"
+    );
+  });
+
+  it("creates and drops with escaped identifiers", () => {
+    expect(mysqlCreateDatabaseQuery("car2")).toBe("CREATE DATABASE `car2`;");
+    expect(mysqlDropDatabaseQuery("we`ird")).toBe(
+      "DROP DATABASE IF EXISTS `we``ird`;"
+    );
+  });
+});
+
+describe("mysqlBackupPipeline", () => {
+  it("resolves the dump binary, preferring MariaDB's rename", () => {
+    const cmd = mysqlBackupPipeline("car2", "/b/car2.sql", false, "root", "pw");
+    expect(cmd).toContain("command -v mariadb-dump");
+    expect(cmd).toContain("command -v mysqldump");
+  });
+
+  it("carries the flags that keep stored programs in the dump", () => {
+    const cmd = mysqlBackupPipeline("car2", "/b/car2.sql", false, "root", "pw");
+    // Each of these is off by default; omitting one silently drops objects.
+    expect(cmd).toContain("--single-transaction");
+    expect(cmd).toContain("--routines");
+    expect(cmd).toContain("--triggers");
+    expect(cmd).toContain("--events");
+    // MySQL-only flags MariaDB's dumper rejects outright.
+    expect(cmd).not.toContain("--set-gtid-purged");
+    expect(cmd).not.toContain("--column-statistics");
+  });
+
+  it("sets pipefail only when piping through gzip", () => {
+    const compressed = mysqlBackupPipeline(
+      "car2",
+      "/b/car2.sql.gz",
+      true,
+      "root",
+      "pw"
+    );
+    expect(compressed).toContain("set -o pipefail");
+    expect(compressed).toContain("| gzip > '/b/car2.sql.gz'");
+
+    const plain = mysqlBackupPipeline(
+      "car2",
+      "/b/car2.sql",
+      false,
+      "root",
+      "pw"
+    );
+    expect(plain).not.toContain("set -o pipefail");
+    expect(plain).toContain("> '/b/car2.sql'");
+  });
+
+  it("keeps the password out of argv", () => {
+    const cmd = mysqlBackupPipeline("car2", "/b/x.sql", false, "root", "p@ss");
+    expect(cmd).toContain("export MYSQL_PWD='p@ss'");
+    expect(cmd).not.toContain("-pp@ss");
+  });
+});
+
+describe("mysqlRestorePipeline", () => {
+  it("gunzips a .gz dump under pipefail", () => {
+    const cmd = mysqlRestorePipeline(
+      "car3",
+      "/b/car2.sql.gz",
+      true,
+      "root",
+      "pw"
+    );
+    expect(cmd).toContain("set -o pipefail");
+    expect(cmd).toContain("gunzip -c '/b/car2.sql.gz' |");
+    expect(cmd).toContain("'car3'");
+  });
+
+  it("redirects a plain dump straight in", () => {
+    const cmd = mysqlRestorePipeline(
+      "car3",
+      "/b/car2.sql",
+      false,
+      "root",
+      "pw"
+    );
+    expect(cmd).not.toContain("gunzip");
+    expect(cmd).toContain("< '/b/car2.sql'");
+  });
+});
+
+describe("mysqlRenameDatabasePipeline", () => {
+  const cmd = mysqlRenameDatabasePipeline("car2", "car3", "root", "pw");
+
+  it("copies into the new schema and drops the old one", () => {
+    // Neither engine has RENAME DATABASE, so the move is create → dump|load →
+    // drop. All three must be present or the rename silently loses data.
+    expect(cmd).toContain("CREATE DATABASE `car3`;");
+    expect(cmd).toContain("DROP DATABASE IF EXISTS `car2`;");
+    expect(cmd).toContain("$MYSQLDUMP");
+    expect(cmd.indexOf("CREATE DATABASE")).toBeLessThan(
+      cmd.indexOf("DROP DATABASE")
+    );
+  });
+
+  it("guards the drop behind the copy so a failure can't destroy the source", () => {
+    // With `;` between them a failed copy would still reach the DROP. pipefail
+    // is what makes a failing mysqldump fail the dump|load pipeline at all.
+    expect(cmd).toContain("set -o pipefail; ");
+    expect(cmd).toContain("| \"$MYSQL\" -h 127.0.0.1 -u 'root' 'car3' && ");
+    expect(cmd).toContain("&& \"$MYSQL\" -h 127.0.0.1 -u 'root' -e 'DROP");
+  });
+
+  it("rolls the destination back when the copy fails", () => {
+    // Otherwise a failed rename strands a half-populated `car3` behind.
+    const rollback = cmd.slice(cmd.lastIndexOf("||"));
+    expect(rollback).toContain("DROP DATABASE IF EXISTS `car3`;");
+    expect(rollback).toContain("exit 1");
+  });
+});
+
 describe("cross-server transfer commands", () => {
   function env(
     serviceType: "docker" | "systemd" | "kubernetes",
-    dbType: "postgres" | "mssql" = "postgres"
+    dbType: "postgres" | "mssql" | "mysql" = "postgres"
   ): CommandTargetEnvironment {
     return {
       id: "env-1",

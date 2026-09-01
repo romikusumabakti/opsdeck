@@ -25,7 +25,15 @@ export const serviceTypeEnum = pgEnum("service_type", [
   "systemd",
   "kubernetes",
 ]);
-export const databaseTypeEnum = pgEnum("database_type", ["postgres", "mssql"]);
+// `mysql` covers MariaDB too: the two share a wire protocol and mysqldump
+// output, so one value keeps cross-environment restores between them legal and
+// avoids duplicating every dbType branch. The remote command builders probe for
+// the MariaDB-renamed binaries (mariadb/mariadb-dump) before the mysql* names.
+export const databaseTypeEnum = pgEnum("database_type", [
+  "postgres",
+  "mssql",
+  "mysql",
+]);
 // Role a service plays within its environment. `db`/`backend`/`frontend` match
 // lib/services.ts ServiceRole; `worker`/`cache`/`gateway` are seeded so adding
 // them needs no enum migration. An environment owns 1..N services, one per
@@ -177,12 +185,18 @@ export const environmentServices = pgTable(
     // --- db-role config (null on non-db services) ---
     dbType: databaseTypeEnum("db_type"),
     dbName: text("db_name"),
-    // Required for mssql (sqlcmd needs `sa` password); unused for postgres which
-    // relies on trusted local auth (`-U postgres`) inside the container.
+    // Admin login for the engines the panel authenticates to over TCP
+    // (mssql, mysql). Null falls back to the engine's conventional account —
+    // see lib/services#dbAdminUser. Not a secret, so it survives the sanitized
+    // client projection. Unused for postgres, which uses trusted local auth.
+    dbUser: text("db_user"),
+    // Required for mssql and mysql (sqlcmd / the mysql client authenticate with
+    // it); unused for postgres which relies on trusted local auth
+    // (`-U postgres`) inside the container.
     dbPassword: text("db_password"),
     // Where backup files live. Interpretation depends on serviceType:
     // docker/kubernetes — path inside the container/pod; systemd — path on the
-    // host filesystem, writable by the DB's OS user (postgres/mssql).
+    // host filesystem, writable by the DB's OS user (postgres/mssql/mysql).
     dbBackupPath: text("db_backup_path"),
 
     // --- backend-role config (null on non-backend services) ---
@@ -1115,16 +1129,16 @@ export type EnvironmentSummary = Environment &
 // link builders (/[key]/[slug]/…). Credential-free.
 export type EnvironmentListItem = EnvironmentSummary & { key: string };
 
-// Credential-free projections handed to the client. SSH passwords, the mssql
-// `sa` password, and the mock-time API key must never cross the server/client
+// Credential-free projections handed to the client. SSH passwords, the DB admin
+// password, and the mock-time API key must never cross the server/client
 // boundary (RSC payloads are visible in the browser). Server code loads the
 // full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers;
 // anything passed to a client component must be sanitized to these shapes first.
 export type SafeServer = Omit<Server, "password">;
 
 // A service stripped of its secrets, with presence flags so edit forms can show
-// a "leave blank to keep" affordance and validate mssql password requirements
-// without ever receiving the secret.
+// a "leave blank to keep" affordance and validate per-engine password
+// requirements without ever receiving the secret.
 export type SafeServiceWithServer = Omit<
   EnvironmentService,
   "dbPassword" | "mockTimeApiKey"
