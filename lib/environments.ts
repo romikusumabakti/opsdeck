@@ -77,7 +77,7 @@ function stripService(service: ServiceWithServer): SafeServiceWithServer {
 /**
  * Drop every secret from a fully-loaded environment so the result is safe to send
  * to a client component (and thus serialize into the RSC payload). Strips each
- * service's SSH password, the mssql `sa` password, and the mock-time API key.
+ * service's SSH password, the DB admin password, and the mock-time API key.
  */
 export function sanitizeEnvironment(
   environment: EnvironmentWithServers

@@ -1,6 +1,11 @@
 import {
   buildDbShellCommand,
+  type DatabaseType,
   dbConfig,
+  MYSQL_CLIENT_RESOLVE,
+  MYSQLDUMP_RESOLVE,
+  mysqlConnectionFlags,
+  mysqlPasswordExport,
   type ServiceType,
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
@@ -20,10 +25,10 @@ import { shq } from "@/lib/sh";
 
 // --- Escaping --------------------------------------------------------------
 //
-// Three different rules, deliberately three different functions. Postgres and
-// SQL Server disagree on identifier quoting, and an identifier and a string
-// literal disagree with each other in both dialects — so a single generic
-// "escape" helper would be the bug.
+// Four different rules, deliberately four different functions. Postgres, SQL
+// Server, and MySQL each quote identifiers differently, and an identifier and a
+// string literal disagree with each other in every dialect — so a single
+// generic "escape" helper would be the bug.
 
 /**
  * Escape a value used inside a T-SQL single-quoted string literal (e.g. file
@@ -60,6 +65,15 @@ export function pgQuoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
+/**
+ * Quote a MySQL/MariaDB identifier. Both engines wrap identifiers in backticks
+ * (ANSI_QUOTES is off by default and we never set it), and a literal backtick
+ * is doubled. Returns the value WITH its backticks.
+ */
+export function mysqlQuoteId(value: string): string {
+  return `\`${value.replace(/`/g, "``")}\``;
+}
+
 // --- Paths -----------------------------------------------------------------
 
 /**
@@ -74,8 +88,24 @@ export function posixDirname(p: string): string {
 }
 
 /** The OS user a database engine runs as on the remote host. */
-export function dbOsUser(dbType: "postgres" | "mssql"): string {
-  return dbType === "postgres" ? "postgres" : "mssql";
+const DB_OS_USERS: Record<DatabaseType, string> = {
+  postgres: "postgres",
+  mssql: "mssql",
+  mysql: "mysql",
+};
+
+export function dbOsUser(dbType: DatabaseType): string {
+  return DB_OS_USERS[dbType];
+}
+
+/**
+ * Extended-regex fragment matching the filenames an engine's backups carry.
+ * SQL Server writes its own `.bak` archives; pg_dump and mysqldump both emit a
+ * SQL script the panel optionally gzips. Shared by the backup listing (which
+ * filters the directory with it) and, implicitly, by backupFilenameSchema.
+ */
+export function dbBackupExtensionPattern(dbType: DatabaseType): string {
+  return dbType === "mssql" ? "\\.bak" : "\\.sql(\\.gz)?";
 }
 
 // --- Postgres --------------------------------------------------------------
@@ -161,6 +191,126 @@ export function pgRestorePipeline(
   return gzipped
     ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
     : `${psqlCmd} < ${shq(source)}`;
+}
+
+// --- MySQL / MariaDB -------------------------------------------------------
+//
+// One code path for both engines. Every pipeline below resolves its client
+// binary at run time (MariaDB 11 renamed them) and passes the password through
+// MYSQL_PWD so it never reaches argv — see lib/services for both helpers.
+
+/**
+ * The dump flags that make a mysqldump a faithful, restorable copy of a schema.
+ *
+ * `--single-transaction` takes the snapshot inside one consistent read instead
+ * of locking the tables. `--routines --triggers --events` are each off by
+ * default, and omitting them silently drops stored programs from the dump.
+ * `--no-tablespaces` avoids requiring the PROCESS privilege for a statement no
+ * restore here needs. Deliberately no `--set-gtid-purged` or
+ * `--column-statistics`: those are MySQL-only flags that MariaDB's dumper
+ * rejects outright.
+ */
+const MYSQLDUMP_FLAGS =
+  "--single-transaction --routines --triggers --events --no-tablespaces";
+
+/**
+ * The inner shell command that dumps `database` to `target`.
+ *
+ * mysqldump writes a plain SQL script, so compression is gzip exactly as it is
+ * for pg_dump, and `set -o pipefail` keeps a dump failure from being masked by
+ * gzip's exit 0.
+ */
+export function mysqlBackupPipeline(
+  database: string,
+  target: string,
+  compress: boolean,
+  user: string,
+  password: string
+): string {
+  const prelude = `${MYSQLDUMP_RESOLVE}; ${mysqlPasswordExport(password)};`;
+  const dumpCmd =
+    `"$MYSQLDUMP" ${mysqlConnectionFlags(user)} ${MYSQLDUMP_FLAGS} ` +
+    shq(database);
+  return compress
+    ? `set -o pipefail; ${prelude} ${dumpCmd} | gzip > ${shq(target)}`
+    : `${prelude} ${dumpCmd} > ${shq(target)}`;
+}
+
+/**
+ * The inner shell command that feeds a dump file back into the client, matching
+ * pgRestorePipeline's handling of both `.sql` and `.sql.gz`. The client aborts
+ * on the first failing statement in batch mode, so no equivalent of psql's
+ * ON_ERROR_STOP is needed.
+ */
+export function mysqlRestorePipeline(
+  database: string,
+  source: string,
+  gzipped: boolean,
+  user: string,
+  password: string
+): string {
+  const prelude = `${MYSQL_CLIENT_RESOLVE}; ${mysqlPasswordExport(password)};`;
+  const client = `"$MYSQL" ${mysqlConnectionFlags(user)} ${shq(database)}`;
+  return gzipped
+    ? `set -o pipefail; ${prelude} gunzip -c ${shq(source)} | ${client}`
+    : `${prelude} ${client} < ${shq(source)}`;
+}
+
+export function mysqlCreateDatabaseQuery(database: string): string {
+  return `CREATE DATABASE ${mysqlQuoteId(database)};`;
+}
+
+/**
+ * Drop and recreate so a dump loads into a clean schema — mysqldump output is
+ * only conditionally idempotent (`--routines` in particular emits bare CREATEs),
+ * so restoring over a populated schema would collide.
+ */
+export function mysqlRecreateDatabaseQuery(database: string): string {
+  const dbId = mysqlQuoteId(database);
+  return `DROP DATABASE IF EXISTS ${dbId}; CREATE DATABASE ${dbId};`;
+}
+
+export function mysqlDropDatabaseQuery(database: string): string {
+  return `DROP DATABASE IF EXISTS ${mysqlQuoteId(database)};`;
+}
+
+/**
+ * Rename by copying, because neither engine can do it directly: MySQL removed
+ * `RENAME DATABASE` in 5.1.23 (it could corrupt data) and MariaDB never shipped
+ * it. The documented replacement is to move the contents into a fresh schema,
+ * and dump-and-load is the variant that carries views, routines, triggers, and
+ * events across — a `RENAME TABLE` loop moves only tables and silently leaves
+ * the rest behind in the old schema.
+ *
+ * Returns an inner shell command rather than a query, since it spans three
+ * client invocations. They are `&&`-chained so a failure at any step leaves the
+ * source database intact and untouched — the run is then safe to retry.
+ */
+export function mysqlRenameDatabasePipeline(
+  from: string,
+  to: string,
+  user: string,
+  password: string
+): string {
+  const conn = mysqlConnectionFlags(user);
+  // The preamble is `;`-separated because each resolve already exits on its own
+  // failure; only the three database steps are `&&`-chained, so mixing the two
+  // operators (which share a precedence level) can't reorder anything.
+  const preamble = [
+    MYSQL_CLIENT_RESOLVE,
+    MYSQLDUMP_RESOLVE,
+    mysqlPasswordExport(password),
+    "set -o pipefail",
+  ].join("; ");
+  const create = `"$MYSQL" ${conn} -e ${shq(mysqlCreateDatabaseQuery(to))}`;
+  const copy = `"$MYSQLDUMP" ${conn} ${MYSQLDUMP_FLAGS} ${shq(from)} | "$MYSQL" ${conn} ${shq(to)}`;
+  const dropOld = `"$MYSQL" ${conn} -e ${shq(mysqlDropDatabaseQuery(from))}`;
+  // Roll the destination back if the copy (or the final drop) fails, so a
+  // failed rename leaves the server exactly as it was rather than stranding a
+  // half-populated schema. Only reachable once CREATE succeeded, so this can
+  // never drop a database that was already there.
+  const rollback = `"$MYSQL" ${conn} -e ${shq(mysqlDropDatabaseQuery(to))}; exit 1`;
+  return `${preamble}; ${create} && { ${copy} && ${dropOld} || { ${rollback}; }; }`;
 }
 
 // --- SQL Server ------------------------------------------------------------
@@ -350,7 +500,7 @@ export type CommandTargetEnvironment = {
     role: string;
     serviceType: ServiceType;
     serviceName: string;
-    dbType: "postgres" | "mssql" | null;
+    dbType: DatabaseType | null;
     dbName: string | null;
     dbBackupPath: string | null;
     server: { host: string; username: string; password: string };

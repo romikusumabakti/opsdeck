@@ -4,6 +4,7 @@ import { unstable_cache, updateTag } from "next/cache";
 import { requireCapability, requireSession } from "@/lib/auth-session";
 import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/environments";
+import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, dbConfig } from "@/lib/services";
@@ -45,11 +46,10 @@ async function probeBackupList(environmentId: string): Promise<Backup[]> {
   }
   const dbSvc = dbConfig(environment);
   // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
-  // postgres (compressed or not) and `.bak` for mssql. Anything else in the
-  // folder is ignored so users can't pick an unrestoreable file from the
-  // dropdown.
-  const extensionPattern =
-    dbSvc.dbType === "postgres" ? "\\.sql(\\.gz)?" : "\\.bak";
+  // the SQL-script engines (postgres, mysql) and `.bak` for mssql. Anything
+  // else in the folder is ignored so users can't pick an unrestoreable file
+  // from the dropdown.
+  const extensionPattern = dbBackupExtensionPattern(dbSvc.dbType);
 
   // `grep -E` for the optional `.gz` alternation. Run as the DB's OS user
   // for systemd so the listing works even when the backup dir is mode 700
@@ -57,7 +57,7 @@ async function probeBackupList(environmentId: string): Promise<Backup[]> {
   // docker/kubernetes where the exec wrapper already enters the container.
   const inner = `ls -lt ${shq(dbSvc.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
   const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
-    runAsUser: dbSvc.dbType === "postgres" ? "postgres" : "mssql",
+    runAsUser: dbOsUser(dbSvc.dbType),
     sudoPassword: dbSvc.server.password,
   });
   const output = await executeRemoteCommand(
@@ -181,7 +181,8 @@ export async function restoreDatabaseBackup(
 
   // Resolve an optional cross-environment source. A source equal to (or omitting)
   // the target reads the backup from the target's own dir as before. Any other
-  // source must share the target's dbType (postgres↔postgres, mssql↔mssql); the
+  // source must share the target's dbType (postgres↔postgres, mssql↔mssql,
+  // mysql↔mysql — which also covers MySQL↔MariaDB, whose dumps interchange); the
   // worker reads it directly when the DB location also matches, otherwise it
   // stages the file across hosts.
   let sourceEnvironmentId: string | undefined;
