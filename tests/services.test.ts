@@ -2,8 +2,10 @@ import { describe, expect, it } from "bun:test";
 import {
   buildControlCommand,
   buildDbShellCommand,
+  buildMysqlCommand,
   buildSqlcmdCommand,
   buildStatusCommand,
+  dbAdminUser,
   parseServiceState,
 } from "@/lib/services";
 
@@ -170,7 +172,7 @@ describe("buildSqlcmdCommand", () => {
   // The inner pipeline is shq-wrapped again by buildDbShellCommand, so the
   // single quotes get re-escaped — assert on quote-free tokens that survive.
   it("pipes the query into a probed sqlcmd invocation", () => {
-    const cmd = buildSqlcmdCommand("SELECT 1", "pw", "docker", "sql");
+    const cmd = buildSqlcmdCommand("SELECT 1", "sa", "pw", "docker", "sql");
     expect(cmd).toContain("SELECT 1");
     // tool path probed before PATH fallback
     expect(cmd).toContain("/opt/mssql-tools18/bin/sqlcmd");
@@ -180,20 +182,86 @@ describe("buildSqlcmdCommand", () => {
     expect(cmd.startsWith("docker exec 'sql' bash -c ")).toBe(true);
   });
 
-  it("forwards the password to sqlcmd's -P flag", () => {
-    const cmd = buildSqlcmdCommand("SELECT 1", "p@ssword", "systemd", "sql");
+  it("forwards the user and password to sqlcmd's -U/-P flags", () => {
+    const cmd = buildSqlcmdCommand(
+      "SELECT 1",
+      "opsdeck",
+      "p@ssword",
+      "systemd",
+      "sql"
+    );
+    expect(cmd).toContain("opsdeck");
     expect(cmd).toContain("p@ssword");
   });
 
   it("appends extraArgs to the sqlcmd argument list", () => {
-    const base = buildSqlcmdCommand("SELECT 1", "pw", "docker", "sql");
-    const withArgs = buildSqlcmdCommand("SELECT 1", "pw", "docker", "sql", [
-      "-h",
-      "-1",
-      "-W",
-    ]);
+    const base = buildSqlcmdCommand("SELECT 1", "sa", "pw", "docker", "sql");
+    const withArgs = buildSqlcmdCommand(
+      "SELECT 1",
+      "sa",
+      "pw",
+      "docker",
+      "sql",
+      ["-h", "-1", "-W"]
+    );
     expect(base).not.toContain("-W");
     expect(withArgs).toContain("-h");
     expect(withArgs).toContain("-W");
+  });
+});
+
+describe("dbAdminUser", () => {
+  it("falls back to each engine's conventional superuser", () => {
+    expect(dbAdminUser("postgres", null)).toBe("postgres");
+    expect(dbAdminUser("mssql", null)).toBe("sa");
+    expect(dbAdminUser("mysql", null)).toBe("root");
+  });
+
+  it("prefers a configured account, ignoring blank input", () => {
+    expect(dbAdminUser("mysql", "opsdeck")).toBe("opsdeck");
+    // A whitespace-only value is what an untouched form field submits; it must
+    // not become the login.
+    expect(dbAdminUser("mysql", "   ")).toBe("root");
+    expect(dbAdminUser("mysql", undefined)).toBe("root");
+  });
+});
+
+describe("buildMysqlCommand", () => {
+  it("probes for the MariaDB binary before the MySQL one", () => {
+    const cmd = buildMysqlCommand("SELECT 1", "root", "pw", "docker", "my");
+    expect(cmd).toContain("command -v mariadb ");
+    expect(cmd).toContain("command -v mysql)");
+    expect(cmd).toContain("SELECT 1");
+    expect(cmd.startsWith("docker exec 'my' bash -c ")).toBe(true);
+  });
+
+  it("passes the password via MYSQL_PWD, never as a flag", () => {
+    const cmd = buildMysqlCommand("SELECT 1", "root", "p@ss", "systemd", "my");
+    expect(cmd).toContain("export MYSQL_PWD=");
+    expect(cmd).toContain("p@ss");
+    // `-p<password>` would put the secret in argv, where `ps` exposes it.
+    expect(cmd).not.toContain("-pp@ss");
+    expect(cmd).not.toContain("--password");
+  });
+
+  it("forces TCP so the unix_socket auth plugin can't shadow the login", () => {
+    const cmd = buildMysqlCommand("SELECT 1", "opsdeck", "pw", "docker", "my");
+    expect(cmd).toContain("-h 127.0.0.1");
+    expect(cmd).toContain("opsdeck");
+  });
+
+  it("appends extraArgs to the client argument list", () => {
+    const base = buildMysqlCommand("SELECT 1", "root", "pw", "docker", "my");
+    const withArgs = buildMysqlCommand(
+      "SELECT 1",
+      "root",
+      "pw",
+      "docker",
+      "my",
+      ["-N", "-B"]
+    );
+    expect(base).not.toContain("-N");
+    expect(withArgs).toContain("-N");
+    expect(withArgs).toContain("-B");
   });
 });

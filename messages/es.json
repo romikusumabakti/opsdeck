@@ -205,7 +205,8 @@
     },
     "dbTypes": {
       "postgres": "PostgreSQL",
-      "mssql": "Microsoft SQL Server"
+      "mssql": "Microsoft SQL Server",
+      "mysql": "MySQL / MariaDB"
     },
     "recentActivity": {
       "title": "Actividad reciente",
@@ -307,7 +308,7 @@
     "createdToast": "Archivo de copia de seguridad creado",
     "lastFileLabel": "Último archivo de copia:",
     "compressLabel": "Comprimir la copia de seguridad",
-    "compressHint": "Recomendado: produce un archivo más pequeño (gzip para Postgres, compresión interna para MSSQL).",
+    "compressHint": "Recomendado: produce un archivo más pequeño (gzip para PostgreSQL y MySQL/MariaDB, compresión interna para MSSQL).",
     "databaseLabel": "Base de datos",
     "databaseHint": "Elige de qué base de datos hacer copia. Por defecto es la base de datos configurada del entorno.",
     "defaultSuffix": "(predeterminada)",
@@ -572,12 +573,14 @@
     "serviceName": "Nombre del servicio",
     "dbType": "Tipo de base de datos",
     "dbName": "Nombre de la base de datos",
-    "dbPassword": "Contraseña de la base de datos (sa)",
-    "dbPasswordHint": "Obligatoria para Microsoft SQL Server (la usa sqlcmd). Déjala en blanco para PostgreSQL.",
+    "dbUser": "Usuario de base de datos",
+    "dbUserHint": "Cuenta de administrador para iniciar sesión en SQL Server o MySQL/MariaDB por TCP. Déjalo en blanco para usar el valor predeterminado del motor (sa / root). No se usa en PostgreSQL.",
+    "dbPassword": "Contraseña de base de datos",
+    "dbPasswordHint": "Obligatoria para Microsoft SQL Server y MySQL/MariaDB. Déjala en blanco para PostgreSQL, que se autentica como su propio usuario del sistema.",
     "dbPasswordEditPlaceholder": "Déjalo en blanco para no cambiarla",
-    "dbPasswordRequiredForMssql": "La contraseña de la base de datos es obligatoria para Microsoft SQL Server",
+    "dbPasswordRequired": "La contraseña de base de datos es obligatoria para este tipo de base de datos",
     "backupPath": "Ruta del directorio de copias de seguridad",
-    "backupPathHint": "Dónde se escriben los archivos de copia de seguridad. Para Docker/Kubernetes, la ruta está dentro del contenedor/pod (configura montajes o volúmenes aparte si necesitas acceso desde el host). Para systemd, la ruta está en el sistema de archivos del host y el usuario del sistema de la base de datos (postgres/mssql) debe poder escribir en ella.",
+    "backupPathHint": "Dónde se escriben los archivos de copia de seguridad. Para Docker/Kubernetes, la ruta está dentro del contenedor/pod (configura montajes o volúmenes aparte si necesitas acceso desde el host). Para systemd, la ruta está en el sistema de archivos del host y el usuario del sistema de la base de datos (postgres/mssql/mysql) debe poder escribir en ella.",
     "mockTimeApiUrl": "URL de la API de simulación de tiempo (opcional)",
     "mockTimeApiUrlHint": "Si el backend expone un endpoint de simulación de tiempo, pégalo aquí. Si se deja vacío, el panel recurrirá a cambiar el reloj del servidor y reiniciar el backend.",
     "mockTimeApiKey": "Clave de la API de simulación de tiempo (opcional)",

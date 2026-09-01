@@ -205,7 +205,8 @@
     },
     "dbTypes": {
       "postgres": "PostgreSQL",
-      "mssql": "Microsoft SQL Server"
+      "mssql": "Microsoft SQL Server",
+      "mysql": "MySQL / MariaDB"
     },
     "recentActivity": {
       "title": "Aktivitas terbaru",
@@ -307,7 +308,7 @@
     "createdToast": "File backup berhasil dibuat",
     "lastFileLabel": "File backup terakhir:",
     "compressLabel": "Kompres backup",
-    "compressHint": "Disarankan — menghasilkan file yang lebih kecil (gzip untuk Postgres, kompresi internal untuk MSSQL).",
+    "compressHint": "Disarankan — menghasilkan file lebih kecil (gzip untuk PostgreSQL dan MySQL/MariaDB, kompresi internal untuk MSSQL).",
     "databaseLabel": "Database",
     "databaseHint": "Pilih database yang akan di-backup. Default-nya adalah database yang dikonfigurasi untuk environment ini.",
     "defaultSuffix": "(default)",
@@ -572,12 +573,14 @@
     "serviceName": "Nama service",
     "dbType": "Tipe database",
     "dbName": "Nama database",
-    "dbPassword": "Password database (sa)",
-    "dbPasswordHint": "Wajib untuk Microsoft SQL Server (digunakan oleh sqlcmd). Kosongkan untuk PostgreSQL.",
+    "dbUser": "Pengguna database",
+    "dbUserHint": "Akun admin untuk login ke SQL Server atau MySQL/MariaDB lewat TCP. Kosongkan untuk memakai bawaan engine (sa / root). Tidak dipakai untuk PostgreSQL.",
+    "dbPassword": "Kata sandi database",
+    "dbPasswordHint": "Wajib untuk Microsoft SQL Server dan MySQL/MariaDB. Kosongkan untuk PostgreSQL, yang login sebagai pengguna OS-nya sendiri.",
     "dbPasswordEditPlaceholder": "Kosongkan jika tidak diubah",
-    "dbPasswordRequiredForMssql": "Password database wajib diisi untuk Microsoft SQL Server",
+    "dbPasswordRequired": "Kata sandi database wajib diisi untuk tipe database ini",
     "backupPath": "Path direktori backup",
-    "backupPathHint": "Lokasi penyimpanan file backup. Untuk Docker/Kubernetes, path berada di dalam container/pod (konfigurasikan bind mount atau volume terpisah jika perlu diakses dari host). Untuk systemd, path berada di filesystem host dan harus dapat ditulis oleh pengguna OS database (postgres/mssql).",
+    "backupPathHint": "Lokasi penyimpanan file backup. Untuk Docker/Kubernetes, path berada di dalam container/pod (konfigurasikan bind mount atau volume terpisah jika butuh akses dari host). Untuk systemd, path berada di filesystem host dan harus dapat ditulis oleh pengguna OS database (postgres/mssql/mysql).",
     "mockTimeApiUrl": "URL API mock-time (opsional)",
     "mockTimeApiUrlHint": "Jika backend punya endpoint mock-time, isi URL-nya di sini. Jika dikosongkan, panel akan jatuh ke pendekatan legacy: ubah jam server lalu restart backend.",
     "mockTimeApiKey": "API key mock-time (opsional)",

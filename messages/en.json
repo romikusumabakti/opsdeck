@@ -205,7 +205,8 @@
     },
     "dbTypes": {
       "postgres": "PostgreSQL",
-      "mssql": "Microsoft SQL Server"
+      "mssql": "Microsoft SQL Server",
+      "mysql": "MySQL / MariaDB"
     },
     "recentActivity": {
       "title": "Recent activity",
@@ -307,7 +308,7 @@
     "createdToast": "Backup file created",
     "lastFileLabel": "Last backup file:",
     "compressLabel": "Compress backup",
-    "compressHint": "Recommended — produces a smaller file (gzip for Postgres, internal compression for MSSQL).",
+    "compressHint": "Recommended — produces a smaller file (gzip for PostgreSQL and MySQL/MariaDB, internal compression for MSSQL).",
     "databaseLabel": "Database",
     "databaseHint": "Pick which database to back up. The default is the environment's configured database.",
     "defaultSuffix": "(default)",
@@ -572,12 +573,14 @@
     "serviceName": "Service name",
     "dbType": "Database type",
     "dbName": "Database name",
-    "dbPassword": "Database password (sa)",
-    "dbPasswordHint": "Required for Microsoft SQL Server (used by sqlcmd). Leave blank for PostgreSQL.",
+    "dbUser": "Database user",
+    "dbUserHint": "Admin account used to log in to SQL Server or MySQL/MariaDB over TCP. Leave blank to use the engine's default (sa / root). Unused for PostgreSQL.",
+    "dbPassword": "Database password",
+    "dbPasswordHint": "Required for Microsoft SQL Server and MySQL/MariaDB. Leave blank for PostgreSQL, which authenticates as its own OS user.",
     "dbPasswordEditPlaceholder": "Leave blank to keep unchanged",
-    "dbPasswordRequiredForMssql": "Database password is required for Microsoft SQL Server",
+    "dbPasswordRequired": "Database password is required for this database type",
     "backupPath": "Backup directory path",
-    "backupPathHint": "Where backup files are written. For Docker/Kubernetes, the path lives inside the container/pod (configure bind mounts or volumes separately if you need host-side access). For systemd, the path lives on the host filesystem and must be writable by the database's OS user (postgres/mssql).",
+    "backupPathHint": "Where backup files are written. For Docker/Kubernetes, the path lives inside the container/pod (configure bind mounts or volumes separately if you need host-side access). For systemd, the path lives on the host filesystem and must be writable by the database's OS user (postgres/mssql/mysql).",
     "mockTimeApiUrl": "Time-mocking API URL (optional)",
     "mockTimeApiUrlHint": "If the backend exposes a time-mocking endpoint, paste it here. When empty, the panel will fall back to changing the server clock + restarting the backend.",
     "mockTimeApiKey": "Time-mocking API key (optional)",

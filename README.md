@@ -11,8 +11,9 @@ all over SSH against your own infrastructure.
 - **Servers** — register hosts and run operations over SSH (`node-ssh`).
 - **Projects & runs** — group infrastructure work; long-running operations are
   tracked as runs with live status and streamed logs.
-- **Databases** — create, rename, and drop databases on PostgreSQL and SQL
-  Server, plus backup and restore (including cross-database file relocation).
+- **Databases** — create, rename, and drop databases on PostgreSQL, SQL Server,
+  and MySQL/MariaDB, plus backup and restore (including cross-database file
+  relocation).
 - **Services** — control `docker`, `systemd`, and `kubernetes` services.
 - **Knowledge base** — collections of rich-text documents (Tiptap) with
   full-text search, revisions, internal linking, image attachments (Garage

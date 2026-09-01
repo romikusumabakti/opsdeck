@@ -2,7 +2,7 @@ import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-// App-level encryption for secrets at rest: SSH/DB passwords, the mssql `sa`
+// App-level encryption for secrets at rest: SSH passwords, the database admin
 // password, S3 secret keys, and the mock-time API key. AES-256-GCM under a
 // single master key from `process.env.SECRETS_KEY` (base64, 32 bytes — generate
 // with `openssl rand -base64 32`).

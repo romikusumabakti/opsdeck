@@ -7,6 +7,33 @@ export type ServiceState = "running" | "stopped" | "not-found" | "unknown";
 
 export type ServiceType = "docker" | "systemd" | "kubernetes";
 
+// The database engines a db-role service can run. `mysql` covers MariaDB too —
+// see the databaseTypeEnum comment in lib/db/schema.
+export type DatabaseType = "postgres" | "mssql" | "mysql";
+
+// The account each engine is administered through when no explicit `dbUser` is
+// configured. postgres authenticates locally as its OS user; mssql and mysql
+// authenticate over TCP, where these are the conventional superuser logins.
+const DEFAULT_DB_USERS: Record<DatabaseType, string> = {
+  postgres: "postgres",
+  mssql: "sa",
+  mysql: "root",
+};
+
+/**
+ * Resolve the login the panel connects to the engine with. Distros commonly
+ * lock the conventional account down (Debian/Ubuntu put `root@localhost` of
+ * both MySQL and MariaDB on the unix_socket plugin, which rejects a TCP login),
+ * so a service may name a dedicated admin account instead; unset falls back to
+ * the engine default.
+ */
+export function dbAdminUser(
+  dbType: DatabaseType,
+  dbUser: string | null | undefined
+): string {
+  return dbUser?.trim() || DEFAULT_DB_USERS[dbType];
+}
+
 // Sentinel emitted by the status command when the underlying tool can't find
 // the resource (otherwise `docker inspect` / `kubectl get` exits non-zero and
 // executeRemoteCommand throws).
@@ -65,13 +92,13 @@ export function frontendService<S extends { role: string }>(
 export function dbConfig<
   S extends {
     role: string;
-    dbType: "postgres" | "mssql" | null;
+    dbType: DatabaseType | null;
     dbName: string | null;
     dbBackupPath: string | null;
   },
 >(
   env: WithServices<S>
-): S & { dbType: "postgres" | "mssql"; dbName: string; dbBackupPath: string } {
+): S & { dbType: DatabaseType; dbName: string; dbBackupPath: string } {
   const service = getService(env, "db");
   if (!(service.dbType && service.dbName && service.dbBackupPath)) {
     throw new Error(
@@ -79,7 +106,7 @@ export function dbConfig<
     );
   }
   return service as S & {
-    dbType: "postgres" | "mssql";
+    dbType: DatabaseType;
     dbName: string;
     dbBackupPath: string;
   };
@@ -240,6 +267,7 @@ export function buildDbShellCommand(
 // (e.g. `-h -1 -W` for header-less list output).
 export function buildSqlcmdCommand(
   query: string,
+  user: string,
   password: string,
   serviceType: ServiceType,
   serviceName: string,
@@ -249,7 +277,7 @@ export function buildSqlcmdCommand(
     "-S",
     "localhost",
     "-U",
-    "sa",
+    user,
     "-P",
     password,
     "-C",
@@ -263,6 +291,73 @@ export function buildSqlcmdCommand(
     "for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do " +
     `[ -x "$p" ] && exec "$p" ${args}; done; exec sqlcmd ${args}`;
   const inner = `printf '%s\\n' ${shq(query)} | sh -c ${shq(sqlcmdInvoke)}`;
+  return buildDbShellCommand(serviceType, serviceName, inner);
+}
+
+// --- MySQL / MariaDB -------------------------------------------------------
+//
+// The two engines are one code path (see the DatabaseType comment), but they
+// disagree on what their client programs are called: MariaDB 11 renamed
+// `mysql`/`mysqldump` to `mariadb`/`mariadb-dump` and marked the old symlinks
+// deprecated, while MySQL only ever ships the `mysql*` names. Rather than
+// pinning a name (or a version) per environment, every pipeline resolves the
+// binary on the remote host and refers to it through a shell variable — the
+// same probe-then-fall-back trick the sqlcmd builder uses.
+
+/** Resolves the interactive/batch client into `$MYSQL`. */
+export const MYSQL_CLIENT_RESOLVE =
+  "MYSQL=$(command -v mariadb || command -v mysql) || " +
+  '{ echo "no mariadb/mysql client found on the database service" >&2; exit 1; }';
+
+/** Resolves the dump tool into `$MYSQLDUMP`. */
+export const MYSQLDUMP_RESOLVE =
+  "MYSQLDUMP=$(command -v mariadb-dump || command -v mysqldump) || " +
+  '{ echo "no mariadb-dump/mysqldump found on the database service" >&2; exit 1; }';
+
+/**
+ * Connection flags shared by every MySQL invocation.
+ *
+ * `-h 127.0.0.1` is deliberate: the client only uses a unix socket for the
+ * literal host "localhost", and the Debian/Ubuntu packages of both engines put
+ * `root@localhost` on the unix_socket auth plugin, which rejects any password.
+ * Forcing TCP means the configured user/password decides access — the same
+ * model sqlcmd uses for SQL Server — instead of the OS user the pipeline
+ * happens to run as.
+ */
+export function mysqlConnectionFlags(user: string): string {
+  return `-h 127.0.0.1 -u ${shq(user)}`;
+}
+
+/**
+ * Export the password as `MYSQL_PWD` rather than passing `-p<password>`.
+ * Both engines read that variable, and unlike a flag it never lands in the
+ * process's argv, where any user on the host could read it out of `ps`.
+ */
+export function mysqlPasswordExport(password: string): string {
+  return `export MYSQL_PWD=${shq(password)}`;
+}
+
+/**
+ * Pipe a SQL script into the MySQL/MariaDB client, wrapped for the service
+ * type. The query goes in over stdin (not `-e`) so quoting survives untouched
+ * and the statement stays out of argv; the pipeline is built inside the inner
+ * shell for the same reason as sqlcmd's — on systemd the outer shell's stdin is
+ * already carrying the sudo password. `extraArgs` appends client flags (e.g.
+ * `-N -B` for header-less, tab-separated list output).
+ */
+export function buildMysqlCommand(
+  query: string,
+  user: string,
+  password: string,
+  serviceType: ServiceType,
+  serviceName: string,
+  extraArgs: string[] = []
+): string {
+  const args = extraArgs.map(shq).join(" ");
+  const invoke = `"$MYSQL" ${mysqlConnectionFlags(user)}${args ? ` ${args}` : ""}`;
+  const inner =
+    `${MYSQL_CLIENT_RESOLVE}; ${mysqlPasswordExport(password)}; ` +
+    `printf '%s\\n' ${shq(query)} | ${invoke}`;
   return buildDbShellCommand(serviceType, serviceName, inner);
 }
 

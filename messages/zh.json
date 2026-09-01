@@ -205,7 +205,8 @@
     },
     "dbTypes": {
       "postgres": "PostgreSQL",
-      "mssql": "Microsoft SQL Server"
+      "mssql": "Microsoft SQL Server",
+      "mysql": "MySQL / MariaDB"
     },
     "recentActivity": {
       "title": "最近活动",
@@ -307,7 +308,7 @@
     "createdToast": "备份文件已创建",
     "lastFileLabel": "最近备份文件：",
     "compressLabel": "压缩备份",
-    "compressHint": "推荐使用——生成更小的文件（Postgres 使用 gzip，MSSQL 使用内部压缩）。",
+    "compressHint": "推荐 — 生成更小的文件（PostgreSQL 和 MySQL/MariaDB 使用 gzip，MSSQL 使用内部压缩）。",
     "databaseLabel": "数据库",
     "databaseHint": "选择要备份的数据库。默认为该环境配置的数据库。",
     "defaultSuffix": "（默认）",
@@ -572,12 +573,14 @@
     "serviceName": "服务名称",
     "dbType": "数据库类型",
     "dbName": "数据库名称",
-    "dbPassword": "数据库密码（sa）",
-    "dbPasswordHint": "Microsoft SQL Server 必需（由 sqlcmd 使用）。PostgreSQL 请留空。",
+    "dbUser": "数据库用户",
+    "dbUserHint": "通过 TCP 登录 SQL Server 或 MySQL/MariaDB 所用的管理员账户。留空则使用引擎默认值（sa / root）。PostgreSQL 不使用此项。",
+    "dbPassword": "数据库密码",
+    "dbPasswordHint": "Microsoft SQL Server 和 MySQL/MariaDB 必填。PostgreSQL 请留空，它以自身的操作系统用户进行认证。",
     "dbPasswordEditPlaceholder": "留空则保持不变",
-    "dbPasswordRequiredForMssql": "Microsoft SQL Server 需要数据库密码",
+    "dbPasswordRequired": "此数据库类型必须填写数据库密码",
     "backupPath": "备份目录路径",
-    "backupPathHint": "备份文件写入的位置。对于 Docker/Kubernetes，路径位于容器/Pod 内部（如需主机端访问，请单独配置绑定挂载或卷）。对于 systemd，路径位于主机文件系统上，必须对数据库的 OS 用户（postgres/mssql）可写。",
+    "backupPathHint": "备份文件写入的位置。对于 Docker/Kubernetes，路径位于容器/Pod 内部（如需主机端访问，请单独配置绑定挂载或卷）。对于 systemd，路径位于主机文件系统上，必须对数据库的 OS 用户（postgres/mssql/mysql）可写。",
     "mockTimeApiUrl": "时间模拟 API URL（可选）",
     "mockTimeApiUrlHint": "如果后端提供时间模拟端点，请在此粘贴。为空时，面板将回退到更改服务器时钟并重启后端。",
     "mockTimeApiKey": "时间模拟 API 密钥（可选）",
