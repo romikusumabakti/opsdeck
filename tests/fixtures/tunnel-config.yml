@@ -1,0 +1,69 @@
+# Cloudflare Tunnel dss-apps-136 - publishes the application UIs on this host.
+#
+# Kept separate from the ZITADEL tunnel on purpose; see compose.yml. The ingress
+# table lives here in git-able form rather than in the Cloudflare dashboard, so
+# the routing is readable from the server itself.
+#
+# Origins are addressed by CONTAINER NAME over the app stack's own network, not
+# via the host's published port. The published ports are a leftover from the
+# pre-tunnel setup and are meant to be closed; naming containers keeps this file
+# working when they are.
+
+tunnel: 421f7083-06b9-4e64-98ec-d64df7e14e41
+credentials-file: /etc/cloudflared/creds.json
+
+# Bound inside the container only; nothing publishes it to the host.
+metrics: 0.0.0.0:2000
+no-autoupdate: true
+
+ingress:
+  - hostname: dapenmu-portal.dssconsulting.id
+    service: http://dplk-customer-portal-frontend:80
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-accounting.dssconsulting.id
+    service: http://dplk-accounting-frontend:80
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-cms.dssconsulting.id
+    service: http://dplk-customer-portal-cms-web:80
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-hrd.dssconsulting.id
+    service: http://hr-admin-frontend:80
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-wallboard.dssconsulting.id
+    service: http://executive-wallboard-display:3100
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-wallboard-demo.dssconsulting.id
+    service: http://executive-wallboard-demo-display:3100
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-wallboard-admin.dssconsulting.id
+    service: http://executive-wallboard-admin:3200
+    originRequest:
+      connectTimeout: 30s
+
+  - hostname: dapenmu-middleware.dssconsulting.id
+    service: http://dplk-middleware:3000
+    originRequest:
+      connectTimeout: 30s
+
+  # dms-caddy also listens on 443 with its own certificate; the tunnel talks to
+  # its plaintext :80 instead, because TLS is already terminated at the edge and
+  # the hop from this container never leaves the host.
+  - hostname: dapenmu-dms.dssconsulting.id
+    service: http://dms-caddy:80
+    originRequest:
+      connectTimeout: 30s
+
+  # Anything that reaches this tunnel with an unexpected Host is not ours.
+  - service: http_status:404

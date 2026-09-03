@@ -1,0 +1,71 @@
+# Cloudflare Tunnel for the application UIs on this host.
+#
+# Deliberately a SEPARATE tunnel from dss-zitadel-136. That one publishes
+# auth.dssconsulting.id, the identity provider every app depends on: editing app
+# routing must never require restarting the IdP's tunnel, and a mistake in this
+# ingress table must not be able to take authentication down with it.
+#
+# Each app stack owns its own container network, so this container joins all of
+# them and reaches every origin by container name. Routing through the host's
+# published ports instead would work only for as long as those ports stay open
+# to the LAN - and closing them is the point of putting the apps behind a tunnel.
+services:
+  cloudflared:
+    image: ${CLOUDFLARED_IMAGE:-docker.io/cloudflare/cloudflared:2026.8.2}
+    container_name: apps-cloudflared
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    environment:
+      TZ: ${TZ:-Asia/Jakarta}
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ./cloudflared/creds.json:/etc/cloudflared/creds.json:ro
+    networks:
+      - customer-portal
+      - accounting
+      - cms
+      - hr
+      - wallboard
+      - wallboard-demo
+      - membership
+      - dms
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:2000", "ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# All external: these networks are created by the application stacks, and this
+# stack must never own their lifecycle - `compose down` here would otherwise try
+# to remove networks that live applications are still attached to.
+networks:
+  customer-portal:
+    name: dplk-customer-portal_default
+    external: true
+  accounting:
+    name: dplk-accounting_default
+    external: true
+  cms:
+    name: dplk-customer-portal-cms_default
+    external: true
+  hr:
+    name: hr-administration_default
+    external: true
+  wallboard:
+    name: executive-wallboard_default
+    external: true
+  wallboard-demo:
+    name: executive-wallboard-demo_default
+    external: true
+  membership:
+    name: dplk-membership_default
+    external: true
+  dms:
+    name: dplk-dms_default
+    external: true

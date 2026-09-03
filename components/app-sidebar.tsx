@@ -7,6 +7,7 @@ import {
   Cable,
   CircleDot,
   Clock,
+  Cloud,
   DatabaseZap,
   FolderKanban,
   HardDrive,
@@ -63,6 +64,7 @@ const projectItems = [
 const adminItems = [
   { key: "activity", url: "/admin/activity", icon: Activity },
   { key: "jira", url: "/admin/jira", icon: Cable },
+  { key: "tunnels", url: "/admin/tunnels", icon: Cloud },
   { key: "users", url: "/admin/users", icon: Users },
 ] as const;
 
