@@ -205,6 +205,13 @@ export async function validateIngressFile(
  * `cloudflared` does not reload config.yml on its own — a locally-managed
  * tunnel reads it once at startup — so an edit that is not followed by this is
  * an edit that has not taken effect.
+ *
+ * `--force-recreate` is load-bearing, not belt-and-braces. Plain
+ * `docker compose up -d` diffs the SERVICE DEFINITION — image, env, volumes,
+ * labels — and the content of a bind-mounted file is not part of it. Editing
+ * config.yml changes nothing compose can see, so it leaves the old container
+ * running and the edit never goes live, while the old container keeps passing
+ * the readiness probe and makes the whole operation look like it worked.
  */
 export async function applyStack(
   creds: SshCreds,
@@ -212,9 +219,69 @@ export async function applyStack(
 ): Promise<string> {
   return executeRemoteCommand(
     creds,
-    `cd ${shq(stackDir)} && docker compose up -d`,
+    `cd ${shq(stackDir)} && docker compose up -d --force-recreate`,
     APPLY_TIMEOUT_MS
   );
+}
+
+/**
+ * Whether the running container can possibly have loaded the config on disk.
+ *
+ * A container that started before the file was written is serving the previous
+ * ingress table, whatever the file says now. Both timestamps come from the same
+ * host clock, and `stat` reports whole seconds, so a recreate landing inside the
+ * write's own second is treated as live rather than stale.
+ */
+export function configIsLive(startedAt: Date, configModified: Date): boolean {
+  return (
+    Math.floor(startedAt.getTime() / 1000) >=
+    Math.floor(configModified.getTime() / 1000)
+  );
+}
+
+export function parseAppliedAt(output: string): {
+  startedAt: Date;
+  configModified: Date;
+} {
+  const [started, modified] = output.trim().split("|");
+  const startedSeconds = Number(started);
+  const modifiedSeconds = Number(modified);
+  if (!startedSeconds || !modifiedSeconds) {
+    // Never fall back to "assume live": an unreadable probe is the one case
+    // where guessing reintroduces exactly the silent failure it guards against.
+    throw new TunnelRemoteError(
+      `Could not read the tunnel's start time and config mtime (got ${JSON.stringify(output)})`
+    );
+  }
+  return {
+    startedAt: new Date(startedSeconds * 1000),
+    configModified: new Date(modifiedSeconds * 1000),
+  };
+}
+
+/**
+ * Confirm the apply actually took: the container must have started no earlier
+ * than the config was written.
+ *
+ * Asserting the EFFECT rather than trusting the command is the whole point.
+ * `docker compose up -d` returning zero says a container is running; it does
+ * not say it is running the file that was just written.
+ */
+export async function assertConfigApplied(
+  creds: SshCreds,
+  options: { containerName: string; configPath: string }
+): Promise<void> {
+  const output = await executeRemoteCommand(
+    creds,
+    `echo "$(date -d "$(docker container inspect -f '{{.State.StartedAt}}' ${shq(options.containerName)})" +%s)|$(stat -c %Y ${shq(options.configPath)})"`,
+    20_000
+  );
+  const { startedAt, configModified } = parseAppliedAt(output);
+  if (!configIsLive(startedAt, configModified)) {
+    throw new TunnelRemoteError(
+      `${options.containerName} started at ${startedAt.toISOString()}, before ${options.configPath} was written at ${configModified.toISOString()} — the container was not recreated, so it is still serving the previous configuration`
+    );
+  }
 }
 
 /** `docker compose config -q` — syntax check before applying a compose edit. */

@@ -38,6 +38,7 @@ import {
 } from "@/lib/tunnels/ingress";
 import {
   applyStack,
+  assertConfigApplied,
   commitStagedFile,
   composeFilePath,
   configFilePath,
@@ -583,6 +584,14 @@ export async function createTunnelRoute(input: {
     // --- Apply, and put the old config back if the tunnel won't come up ---
     try {
       await applyStack(creds, tunnel.stackDir);
+      // Assert the apply had an EFFECT before trusting the readiness probe: a
+      // container that was never recreated stays healthy while still serving
+      // the previous ingress, which would make this report a success it has
+      // not earned.
+      await assertConfigApplied(creds, {
+        containerName: tunnel.containerName,
+        configPath,
+      });
       const health = await waitForTunnelHealth(creds, tunnel.containerName);
       if (!health.healthy) throw new Error(health.detail);
     } catch (error) {
@@ -675,6 +684,14 @@ export async function deleteTunnelRoute(input: {
 
     try {
       await applyStack(creds, tunnel.stackDir);
+      // Assert the apply had an EFFECT before trusting the readiness probe: a
+      // container that was never recreated stays healthy while still serving
+      // the previous ingress, which would make this report a success it has
+      // not earned.
+      await assertConfigApplied(creds, {
+        containerName: tunnel.containerName,
+        configPath,
+      });
       const health = await waitForTunnelHealth(creds, tunnel.containerName);
       if (!health.healthy) throw new Error(health.detail);
     } catch (error) {
@@ -755,6 +772,13 @@ export async function attachTunnelNetwork(input: {
     try {
       await validateCompose(creds, tunnel.stackDir);
       await applyStack(creds, tunnel.stackDir);
+      // Same assertion as the route paths, against the file that changed here:
+      // a container still older than the edited compose file is not attached to
+      // the new network, however healthy it looks.
+      await assertConfigApplied(creds, {
+        containerName: tunnel.containerName,
+        configPath: composePath,
+      });
       const health = await waitForTunnelHealth(creds, tunnel.containerName);
       if (!health.healthy) throw new Error(health.detail);
     } catch (error) {
