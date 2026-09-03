@@ -6,6 +6,8 @@ import {
 import {
   composeFilePath,
   configFilePath,
+  configIsLive,
+  parseAppliedAt,
   parsePublishedPorts,
 } from "@/lib/tunnels/remote";
 
@@ -90,5 +92,42 @@ describe("describeCloudflareErrors", () => {
     expect(describeCloudflareErrors([])).toBe(
       "Cloudflare returned an unsuccessful response"
     );
+  });
+});
+
+describe("configIsLive", () => {
+  const written = new Date("2026-09-03T07:10:30Z");
+
+  // The bug this exists to catch: `docker compose up -d` is a no-op when only
+  // the CONTENT of a bind-mounted file changed, because compose diffs the
+  // service definition and nothing in it moved. cloudflared reads config.yml
+  // once at startup, so the edit never went live — while the old container kept
+  // answering the readiness probe, making the action report success.
+  it("rejects a container older than the config it is supposed to have loaded", () => {
+    expect(configIsLive(new Date("2026-09-03T05:25:22Z"), written)).toBe(false);
+  });
+
+  it("accepts a container started after the config was written", () => {
+    expect(configIsLive(new Date("2026-09-03T07:10:31Z"), written)).toBe(true);
+  });
+
+  it("accepts a container started in the same second as the write", () => {
+    // `stat` reports whole seconds, so a recreate fast enough to land inside
+    // the write's second must not be read as staleness.
+    expect(configIsLive(written, written)).toBe(true);
+  });
+});
+
+describe("parseAppliedAt", () => {
+  it("reads the two epochs the liveness probe emits", () => {
+    expect(parseAppliedAt("1756883122|1756889430")).toEqual({
+      startedAt: new Date(1756883122000),
+      configModified: new Date(1756889430000),
+    });
+  });
+
+  it("rejects output it cannot parse rather than guessing the tunnel is live", () => {
+    expect(() => parseAppliedAt("")).toThrow();
+    expect(() => parseAppliedAt("nope")).toThrow();
   });
 });
