@@ -7,6 +7,26 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.servers.id,
       to: r.environmentServices.serverId,
     }),
+    tunnels: r.many.tunnels({
+      from: r.servers.id,
+      to: r.tunnels.serverId,
+    }),
+  },
+  cloudflareZones: {
+    tunnels: r.many.tunnels({
+      from: r.cloudflareZones.id,
+      to: r.tunnels.zoneId,
+    }),
+  },
+  tunnels: {
+    zone: r.one.cloudflareZones({
+      from: r.tunnels.zoneId,
+      to: r.cloudflareZones.id,
+    }),
+    server: r.one.servers({
+      from: r.tunnels.serverId,
+      to: r.servers.id,
+    }),
   },
   projects: {
     environments: r.many.environments(),
