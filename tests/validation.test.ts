@@ -5,6 +5,8 @@ import {
   explorerRelativePathSchema,
   isoDurationSchema,
   projectKeySchema,
+  subdomainLabelSchema,
+  tunnelRouteInputSchema,
   uuidSchema,
 } from "@/lib/validation";
 
@@ -112,5 +114,70 @@ describe("explorerRelativePathSchema", () => {
   it("rejects a path deeper than the segment limit", () => {
     const deep = Array.from({ length: 65 }, (_, i) => `d${i}`).join("/");
     expect(explorerRelativePathSchema.safeParse(deep).success).toBe(false);
+  });
+});
+
+describe("subdomainLabelSchema", () => {
+  it.each(["dapenmu-portal", "app", "a1", "x".repeat(63)])(
+    "accepts %s",
+    (label) => {
+      expect(subdomainLabelSchema.safeParse(label).success).toBe(true);
+    }
+  );
+
+  // The rule that shapes every hostname on these tunnels: Cloudflare's free
+  // Universal SSL covers `*.zone` and nothing deeper, so a multi-level name
+  // would be served a certificate that does not match it.
+  it("rejects a multi-level name", () => {
+    const result = subdomainLabelSchema.safeParse("portal.dapenmu");
+    expect(result.success).toBe(false);
+  });
+
+  it.each(["-lead", "trail-", "under_score", "dots.here", "", "x".repeat(64)])(
+    "rejects %s",
+    (label) => {
+      expect(subdomainLabelSchema.safeParse(label).success).toBe(false);
+    }
+  );
+
+  it("lowercases what it accepts, so the hostname is canonical", () => {
+    // `.trim().toLowerCase()` run before the regex, so mixed case is coerced
+    // rather than refused — only characters outside the class are rejected.
+    expect(subdomainLabelSchema.parse("  Portal  ")).toBe("portal");
+  });
+});
+
+describe("tunnelRouteInputSchema", () => {
+  const base = {
+    tunnelId: "0198f0a0-0000-7000-8000-000000000000",
+    label: "dapenmu-foo",
+    originHost: "dplk-middleware",
+    originPort: 3000,
+  };
+
+  it("accepts a container origin and its internal port", () => {
+    expect(tunnelRouteInputSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("coerces a port arriving as a string from the form", () => {
+    const result = tunnelRouteInputSchema.safeParse({
+      ...base,
+      originPort: "8080",
+    });
+    expect(result.success && result.data.originPort).toBe(8080);
+  });
+
+  it.each([0, 65536, 1.5])("rejects port %s", (originPort) => {
+    expect(
+      tunnelRouteInputSchema.safeParse({ ...base, originPort }).success
+    ).toBe(false);
+  });
+
+  it("rejects an origin host carrying a path or shell metacharacter", () => {
+    for (const originHost of ["a/b", "a;rm -rf /", "$(id)", "-leading"]) {
+      expect(
+        tunnelRouteInputSchema.safeParse({ ...base, originHost }).success
+      ).toBe(false);
+    }
   });
 });

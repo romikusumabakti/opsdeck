@@ -38,6 +38,20 @@ function message(
       });
     case "milestone.created":
       return t("milestoneCreated", { actor, name: String(d.name) });
+    case "tunnel.route.created":
+      return t("tunnelRouteCreated", {
+        actor,
+        hostname: String(d.hostname),
+        origin: String(d.origin),
+      });
+    case "tunnel.route.deleted":
+      return t("tunnelRouteDeleted", { actor, hostname: String(d.hostname) });
+    case "tunnel.network.attached":
+      return t("tunnelNetworkAttached", {
+        actor,
+        network: String(d.network),
+        tunnel: String(d.tunnel),
+      });
     case "terminal.open":
       return t("terminalOpened", { actor, server: String(d.server) });
     case "terminal.close":

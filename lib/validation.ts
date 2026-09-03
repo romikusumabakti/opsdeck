@@ -448,3 +448,122 @@ export const issueIdSchema = z.uuid();
 export type CollectionInput = z.infer<typeof collectionInputSchema>;
 export type DocumentInput = z.infer<typeof documentInputSchema>;
 export type DocumentUpdate = z.infer<typeof documentUpdateSchema>;
+
+// --- Cloudflare Tunnel subdomains ---
+
+export const cloudflareZoneInputSchema = z.object({
+  // The apex domain hostnames are published under, e.g. "dssconsulting.id".
+  name: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(253)
+    .regex(
+      /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/,
+      "Enter a domain like example.com"
+    ),
+  // Cloudflare zone IDs are 32 lowercase hex characters.
+  zoneId: z
+    .string()
+    .trim()
+    .regex(
+      /^[0-9a-f]{32}$/,
+      "A Cloudflare zone ID is 32 hexadecimal characters"
+    ),
+  apiToken: z.string().trim().min(1).max(1024),
+});
+
+// Update allows omitting apiToken ("leave blank to keep the current token").
+export const cloudflareZoneUpdateSchema = cloudflareZoneInputSchema
+  .partial()
+  .extend({ apiToken: z.string().trim().min(1).max(1024).optional() });
+
+// Absolute POSIX path with no traversal segment. `stackDir` is interpolated
+// into shell commands (shq-quoted) and joined with `configPath` to address a
+// file over SFTP, so both layers get a conservative shape here rather than
+// trusting a client-supplied string.
+const absolutePathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(512)
+  .regex(/^\/[^\0]*$/, "Enter an absolute path starting with /")
+  .refine((p) => !p.split("/").includes(".."), "Path must not contain '..'")
+  .refine((p) => p === "/" || !p.endsWith("/"), "Path must not end with /");
+
+// Docker/Compose object names. Same character class Docker itself enforces.
+const containerNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(
+    /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/,
+    "Enter a container name (letters, digits, and _ . -)"
+  );
+
+export const tunnelInputSchema = z.object({
+  zoneId: uuidSchema,
+  serverId: uuidSchema,
+  name: z.string().trim().min(1).max(200),
+  // The tunnel's own UUID — the `tunnel:` key of its config.yml, and the label
+  // its hostnames CNAME to as `<id>.cfargotunnel.com`.
+  tunnelId: z.uuid(),
+  stackDir: absolutePathSchema,
+  // Relative to stackDir, because it is a bind-mount source inside the stack.
+  configPath: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .regex(/^[^/\0][^\0]*$/, "Enter a path relative to the stack directory")
+    .refine((p) => !p.split("/").includes(".."), "Path must not contain '..'"),
+  containerName: containerNameSchema,
+});
+
+export const tunnelUpdateSchema = tunnelInputSchema.partial();
+
+// One flat DNS label — NOT a dotted name.
+//
+// This enforces the rule that shapes every hostname on these tunnels:
+// Cloudflare's free Universal SSL certificate covers `*.zone` and nothing
+// deeper, so `app.team.example.com` would be served a certificate that does not
+// match it. A multi-level name needs paid Advanced Certificate Manager, so the
+// panel refuses one rather than publishing a hostname that fails TLS.
+export const subdomainLabelSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
+    "Use one flat label: lowercase letters, digits and hyphens, not starting or ending with a hyphen"
+  )
+  .refine(
+    (label) => !label.includes("."),
+    "Use a single flat label — Cloudflare's free Universal SSL only covers one level under the zone"
+  );
+
+export const tunnelRouteInputSchema = z.object({
+  tunnelId: uuidSchema,
+  label: subdomainLabelSchema,
+  // Origin container name and the port it listens on INSIDE its network — not
+  // a port published on the host, which is what the tunnel exists to close.
+  originHost: containerNameSchema,
+  originPort: z.coerce.number().int().min(1).max(65535),
+});
+
+// Deleting a route is keyed by the fully-qualified hostname shown in the table,
+// so it round-trips exactly what the operator confirmed.
+export const tunnelHostnameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(
+    /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/,
+    "Invalid hostname"
+  );
+
+export type CloudflareZoneInput = z.infer<typeof cloudflareZoneInputSchema>;
+export type TunnelInput = z.infer<typeof tunnelInputSchema>;
+export type TunnelRouteInput = z.infer<typeof tunnelRouteInputSchema>;

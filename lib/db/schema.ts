@@ -855,6 +855,87 @@ export const jiraProjectLinks = pgTable(
 );
 
 // =========================
+// Cloudflare Tunnel subdomains
+// =========================
+
+// A Cloudflare DNS zone the panel may publish hostnames in, managed by admins
+// like `servers`, `s3Connections`, and `jiraConnections`.
+//
+// The credential is held per zone rather than per tunnel because that is the
+// shape of the authority it grants: a `Zone:DNS:Edit` token covers every record
+// in one zone, whichever tunnel a hostname ends up on. Copying it onto each
+// tunnel row would duplicate one secret and make rotation an N-row edit.
+export const cloudflareZones = pgTable("cloudflare_zones", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  // The apex domain, e.g. "dssconsulting.id". Hostnames are formed as
+  // `<label>.<name>`, and the panel refuses anything that isn't under a zone
+  // registered here.
+  name: text("name").notNull().unique(),
+  // Cloudflare's own zone identifier, taken from the dashboard overview.
+  zoneId: text("zone_id").notNull(),
+  // API token, encrypted at rest via lib/secrets.ts and stripped before any row
+  // reaches the client (see SafeCloudflareZone).
+  //
+  // Scope it to `Zone:DNS:Edit` on THIS ZONE ONLY. That is everything the panel
+  // does with it, and it deliberately excludes creating or deleting tunnels —
+  // which is why tunnel creation is not a feature here and stays a manual,
+  // audited step performed with the account-wide origin certificate.
+  apiToken: text("api_token").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// A locally-managed `cloudflared` tunnel the panel can edit the ingress of.
+//
+// Note what is NOT here: the routes. The tunnel's `config.yml` on the server is
+// the source of truth for its ingress table, and this row only records where to
+// find it. Mirroring routes into Postgres would create a second source of truth
+// for the same fact — and a stale route table is how orphaned hostnames and
+// silent 1016s happen. Routes are read by parsing the file (lib/tunnels/remote).
+export const tunnels = pgTable(
+  "tunnels",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    // restrict: a zone still publishing hostnames can't be deleted out from
+    // under the tunnels that depend on its credential.
+    zoneId: uuid("zone_id")
+      .notNull()
+      .references(() => cloudflareZones.id, { onDelete: "restrict" }),
+    // The host the tunnel's stack and container live on. The panel reaches it
+    // with this server's existing SSH credentials.
+    serverId: uuid("server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    // Human label, matching what `cloudflared tunnel list` shows (e.g.
+    // "dss-apps-136"). Display only — never used to address the tunnel, because
+    // resolving a name needs the origin certificate that isn't kept on the host.
+    name: text("name").notNull(),
+    // The tunnel's UUID. This is what a hostname's CNAME points at, as
+    // `<tunnelId>.cfargotunnel.com`, and it is the `tunnel:` key of config.yml.
+    tunnelId: text("tunnel_id").notNull(),
+    // Directory holding the stack's compose file; also the working directory
+    // the apply step runs `docker compose up -d` in.
+    stackDir: text("stack_dir").notNull(),
+    // Config location relative to `stackDir`. Kept configurable rather than
+    // assumed: it is a bind-mount source the stack author chose.
+    configPath: text("config_path").notNull().default("cloudflared/config.yml"),
+    // The running container, used for the post-apply health check and for
+    // reading which Docker networks the tunnel can currently reach.
+    containerName: text("container_name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // One row per tunnel per host. Two rows for the same tunnel would let two
+    // stack directories claim the same ingress table.
+    uniqueIndex("tunnels_server_tunnel_idx").on(t.serverId, t.tunnelId),
+    // The zone page lists its tunnels; the delete-guard scans by zone.
+    index("tunnels_zone_idx").on(t.zoneId),
+    index("tunnels_server_idx").on(t.serverId),
+  ]
+);
+
+// =========================
 // Team Knowledge Base
 // =========================
 
@@ -1212,4 +1293,23 @@ export type SafeJiraConnection = Omit<
 // A project's link plus the connection fields the settings card renders.
 export type JiraLinkWithConnection = JiraProjectLink & {
   connection: Pick<JiraConnection, "id" | "name" | "baseUrl">;
+};
+
+export type CloudflareZone = InferSelectModel<typeof cloudflareZones>;
+export type NewCloudflareZone = InferInsertModel<typeof cloudflareZones>;
+
+// Credential-free projection handed to the client, mirroring SafeJiraConnection.
+// `hasToken` lets the edit form offer "leave blank to keep the current token".
+export type SafeCloudflareZone = Omit<CloudflareZone, "apiToken"> & {
+  hasToken: boolean;
+};
+
+export type Tunnel = InferSelectModel<typeof tunnels>;
+export type NewTunnel = InferInsertModel<typeof tunnels>;
+
+// A tunnel plus the parent rows every tunnel view needs to render: which host
+// it runs on and which zone its hostnames live in.
+export type TunnelWithContext = Tunnel & {
+  server: SafeServer;
+  zone: Pick<CloudflareZone, "id" | "name" | "zoneId">;
 };
