@@ -177,20 +177,84 @@ export function pgRenameDatabaseQuery(from: string, to: string): string {
 }
 
 /**
+ * awk filter that drops the ownership and privilege statements of a plain
+ * pg_dump script which name a role the target server doesn't have. A dump
+ * taken on another server carries `ALTER ... OWNER TO <role>` and
+ * `GRANT ... TO <role>` for that server's roles, and under ON_ERROR_STOP the
+ * first missing role aborts the restore halfway. Statements naming roles that
+ * do exist are kept, so a same-server restore keeps its ownership exactly; a
+ * dropped OWNER TO leaves the object owned by postgres.
+ *
+ * `roles` is the newline-separated `pg_roles` list. COPY data blocks are passed
+ * through untouched so a data row that happens to look like a GRANT is never
+ * filtered. A role list that can't be parsed reads as unknown, which drops the
+ * statement — losing one grant beats aborting the whole restore.
+ */
+const PG_ROLE_FILTER_AWK = String.raw`
+function known_list(s,   n, i, parts, name) {
+  n = split(s, parts, ", ")
+  for (i = 1; i <= n; i++) {
+    name = parts[i]
+    gsub(/"/, "", name)
+    if (!(name in known)) return 0
+  }
+  return 1
+}
+function roles_ok(line,   rest) {
+  if (match(line, /GRANTED BY [^;]*/)) {
+    if (!known_list(substr(line, RSTART + 11, RLENGTH - 11))) return 0
+    sub(/ GRANTED BY [^;]*/, "", line)
+  }
+  sub(/ WITH (GRANT|ADMIN) OPTION/, "", line)
+  if (match(line, /FOR ROLE .* (IN SCHEMA|GRANT|REVOKE) /)) {
+    rest = substr(line, RSTART + 9)
+    sub(/ (IN SCHEMA|GRANT|REVOKE) .*/, "", rest)
+    if (!known_list(rest)) return 0
+  }
+  if (match(line, /.* (OWNER TO|TO|FROM) /)) {
+    rest = substr(line, RLENGTH + 1)
+    sub(/;$/, "", rest)
+    if (!known_list(rest)) return 0
+  }
+  return 1
+}
+BEGIN {
+  n = split(roles, r, "\n")
+  for (i = 1; i <= n; i++) known[r[i]] = 1
+  known["PUBLIC"] = 1
+}
+copy { print; if ($0 == "\\.") copy = 0; next }
+/^COPY .* FROM stdin;$/ { copy = 1; print; next }
+/^(ALTER .* OWNER TO |GRANT |REVOKE |ALTER DEFAULT PRIVILEGES ).*;$/ {
+  if (!roles_ok($0)) next
+}
+{ print }
+`;
+
+/**
  * The inner shell command that feeds a dump file into `psql`. Branches on the
  * file suffix so both gzipped (`.sql.gz`) and plain (`.sql`) dumps produced by
  * the backup handler restore. `set -o pipefail` is what makes a failing
- * `gunzip` fail the whole command instead of being masked by psql's exit code.
+ * `gunzip` (or the role filter) fail the whole command instead of being masked
+ * by psql's exit code.
+ *
+ * The dump runs through PG_ROLE_FILTER_AWK so a dump from another server
+ * restores even when its roles don't exist here. psql's stdout — one command
+ * tag per statement — goes to /dev/null: it is thousands of lines of noise that
+ * buried the real error, which psql writes to stderr.
  */
 export function pgRestorePipeline(
   database: string,
   source: string,
   gzipped: boolean
 ): string {
-  const psqlCmd = `psql -v ON_ERROR_STOP=on -U postgres -d ${shq(database)}`;
-  return gzipped
-    ? `set -o pipefail; gunzip -c ${shq(source)} | ${psqlCmd}`
-    : `${psqlCmd} < ${shq(source)}`;
+  const roles =
+    `roles=$(psql -X -At -U postgres -d postgres ` +
+    `-c ${shq("SELECT rolname FROM pg_roles")}) || exit 1`;
+  const reader = gzipped ? `gunzip -c ${shq(source)}` : `cat ${shq(source)}`;
+  const filter = `awk -v roles="$roles" ${shq(PG_ROLE_FILTER_AWK)}`;
+  const psqlCmd = `psql -X -q -v ON_ERROR_STOP=on -U postgres -d ${shq(database)} > /dev/null`;
+  return `set -o pipefail; ${roles}; ${reader} | ${filter} | ${psqlCmd}`;
 }
 
 // --- MySQL / MariaDB -------------------------------------------------------
