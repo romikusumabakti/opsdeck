@@ -1,4 +1,8 @@
 import { describe, expect, it } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   buildExtractCommand,
   buildMssqlMoveClauses,
@@ -281,22 +285,106 @@ describe("Postgres statements", () => {
   });
 
   describe("pgRestorePipeline", () => {
-    it("redirects a plain .sql dump into psql", () => {
-      expect(pgRestorePipeline("car2", "/b/car2.sql", false)).toBe(
-        `psql -v ON_ERROR_STOP=on -U postgres -d 'car2' < '/b/car2.sql'`
+    it("reads a plain .sql dump with cat", () => {
+      expect(pgRestorePipeline("car2", "/b/car2.sql", false)).toContain(
+        "; cat '/b/car2.sql' | awk "
       );
     });
 
     it("gunzips a .gz dump through a pipefail pipeline", () => {
       const cmd = pgRestorePipeline("car2", "/b/car2.sql.gz", true);
-      expect(cmd.startsWith("set -o pipefail; gunzip -c ")).toBe(true);
-      expect(cmd).toContain("| psql -v ON_ERROR_STOP=on -U postgres -d 'car2'");
+      expect(cmd.startsWith("set -o pipefail; ")).toBe(true);
+      expect(cmd).toContain("; gunzip -c '/b/car2.sql.gz' | awk ");
     });
 
-    it("connects to the target database, not postgres", () => {
-      expect(pgRestorePipeline("car2", "/b/c.sql", false)).toContain(
-        "-d 'car2'"
+    it("stops on the first error and discards psql's command tags", () => {
+      expect(pgRestorePipeline("car2", "/b/c.sql", false)).toEndWith(
+        "| psql -X -q -v ON_ERROR_STOP=on -U postgres -d 'car2' > /dev/null"
       );
+    });
+
+    it("aborts when the role list can't be read", () => {
+      // An empty role list would make the filter drop every OWNER TO.
+      expect(pgRestorePipeline("car2", "/b/c.sql", false)).toContain(
+        `roles=$(psql -X -At -U postgres -d postgres -c 'SELECT rolname FROM pg_roles') || exit 1;`
+      );
+    });
+
+    it("quotes a hostile source path into a single argument", () => {
+      const cmd = pgRestorePipeline("car2", "/b/a'; rm -rf /.sql", false);
+      expect(cmd).toContain(`cat '/b/a'\\''; rm -rf /.sql'`);
+    });
+  });
+
+  describe("pgRestorePipeline role filter", () => {
+    // Run the real pipeline's reader + awk stage against a dump fixture, with
+    // psql swapped for the role list and for a sink, so the test exercises the
+    // awk program exactly as it ships.
+    function filterDump(dump: string, roles: string[]): string {
+      const dir = mkdtempSync(join(tmpdir(), "pg-role-filter-"));
+      const source = join(dir, "dump.sql");
+      writeFileSync(source, dump);
+      const cmd = pgRestorePipeline("car2", source, false)
+        .replace(
+          /roles=\$\(psql [^)]*\)/,
+          `roles=$(printf '%s\\n' ${roles.map((r) => `'${r}'`).join(" ")})`
+        )
+        .replace(/ \| psql .*$/, "");
+      const out = spawnSync("bash", ["-c", cmd], { encoding: "utf8" });
+      rmSync(dir, { recursive: true });
+      if (out.status !== 0) throw new Error(out.stderr);
+      return out.stdout;
+    }
+
+    const DUMP = [
+      "CREATE TABLE public.users (id integer, note text);",
+      "ALTER TABLE public.users OWNER TO dss;",
+      "ALTER TABLE public.orders OWNER TO app;",
+      'ALTER FUNCTION public."f"(integer) OWNER TO "dss";',
+      "ALTER SCHEMA public OWNER TO pg_database_owner;",
+      "COPY public.users (id, note) FROM stdin;",
+      "1\tGRANT ALL ON TABLE x TO dss;",
+      "\\.",
+      "GRANT ALL ON TABLE public.users TO dss;",
+      "GRANT SELECT ON TABLE public.users TO app WITH GRANT OPTION;",
+      "GRANT SELECT ON TABLE public.users TO app, dss;",
+      "GRANT USAGE ON SCHEMA public TO app GRANTED BY dss;",
+      "REVOKE ALL ON SCHEMA public FROM PUBLIC;",
+      "ALTER DEFAULT PRIVILEGES FOR ROLE dss IN SCHEMA public GRANT ALL ON TABLES TO app;",
+      "ALTER DEFAULT PRIVILEGES FOR ROLE app IN SCHEMA public GRANT ALL ON TABLES TO app;",
+      "",
+    ].join("\n");
+
+    const ROLES = ["postgres", "app", "pg_database_owner"];
+
+    it("drops ownership and privileges naming a missing role", () => {
+      const out = filterDump(DUMP, ROLES);
+      expect(out).not.toContain("OWNER TO dss;");
+      expect(out).not.toContain('OWNER TO "dss";');
+      expect(out).not.toContain("GRANT ALL ON TABLE public.users TO dss;");
+      expect(out).not.toContain("TO app, dss;");
+      expect(out).not.toContain("GRANTED BY dss");
+      expect(out).not.toContain("FOR ROLE dss");
+    });
+
+    it("keeps statements whose roles all exist", () => {
+      const out = filterDump(DUMP, ROLES);
+      expect(out).toContain("ALTER TABLE public.orders OWNER TO app;");
+      expect(out).toContain("ALTER SCHEMA public OWNER TO pg_database_owner;");
+      expect(out).toContain("TO app WITH GRANT OPTION;");
+      expect(out).toContain("REVOKE ALL ON SCHEMA public FROM PUBLIC;");
+      expect(out).toContain("FOR ROLE app IN SCHEMA public");
+      expect(out).toContain("CREATE TABLE public.users");
+    });
+
+    it("passes COPY data through even when a row looks like a GRANT", () => {
+      expect(filterDump(DUMP, ROLES)).toContain(
+        "COPY public.users (id, note) FROM stdin;\n1\tGRANT ALL ON TABLE x TO dss;\n\\.\n"
+      );
+    });
+
+    it("changes nothing when every role exists", () => {
+      expect(filterDump(DUMP, [...ROLES, "dss"])).toBe(DUMP);
     });
   });
 });
