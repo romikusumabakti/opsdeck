@@ -37,34 +37,52 @@ follows.
 
 ## Data model
 
-Three nullable columns on `environments` (Mailpit is an HTTP endpoint, not an
-SSH-managed deployable unit, so it does not fit `environment_services`, which
-requires `serverId`/`serviceType`/`serviceName`):
+New 1:1 table `environment_mailpit` (row present = integration enabled):
 
 | Column | Type | Notes |
 |---|---|---|
-| `mailpit_url` | text | Base URL including any webroot, e.g. `https://mail-qa.example.com/` or `http://10.0.0.5:8025`. Null = integration disabled. |
-| `mailpit_username` | text | Basic Auth user; not secret. |
-| `mailpit_password` | text | Basic Auth password, encrypted with `lib/secrets.ts` (`enc:v1:`). |
+| `environment_id` | uuid PK, FK → `environments.id` on delete cascade | |
+| `url` | text not null | Base URL including any webroot, e.g. `https://mail-qa.example.com/` or `http://10.0.0.5:8025`. |
+| `username` | text null | Basic Auth user; not secret. |
+| `password` | text null | Basic Auth password, encrypted with `lib/secrets.ts` (`enc:v1:`). |
+| `updated_at` | timestamp not null default now() | |
+
+Why a separate table rather than columns on `environments`: whole
+`environments` rows reach the client in several places
+(`listEnvironments` spreads `getTableColumns(environments)`, the project
+catalog loads `environments` via relations, create/update return the row).
+A secret column there would leak (encrypted) into RSC payloads; a separate
+table keeps it out by construction. It also keeps the Mailpit config out of
+`environment_services`, which models SSH-managed units
+(`serverId`/`serviceType`/`serviceName` are required).
 
 - Migration: `drizzle/20261002000000_mailpit/migration.sql`, hand-written,
-  `BEGIN; … COMMIT;`, `ADD COLUMN IF NOT EXISTS`, matching existing ones.
-- `loadEnvironmentWithServers` decrypts `mailpitPassword`.
-- `sanitizeEnvironment` strips `mailpitPassword` and adds
-  `hasMailpitPassword`; `mailpitUrl` and `mailpitUsername` stay visible.
+  `BEGIN; … COMMIT;`, `CREATE TABLE IF NOT EXISTS`, matching existing ones.
+- `lib/mailpit/config.ts` (`server-only`) is the single decrypt boundary:
+  `loadMailpitConfig(environmentId)` returns `{ url, username, password }`
+  or null.
+- `listEnvironments` adds a `hasMailpit` boolean (EXISTS subquery) to
+  `EnvironmentListItem`, so the sidebar can show the entry without loading
+  config.
 - Validation (`lib/validation.ts`): URL must parse and use `http:`/`https:`;
   password follows the existing "blank on edit = keep" convention used by
-  `dbPassword` / `mockTimeApiKey`.
+  `dbPassword` / `mockTimeApiKey`. Saving with an empty URL removes the row.
 
 ## Configuration UI
 
-`components/environment-form.tsx` gets a "Mailpit" section (URL, username,
-password) handled by the existing create/update actions in
-`actions/environments.ts` (admin-only, `recordActivity` on change).
+A separate **Mailpit** card on the environment settings page
+(`app/[locale]/[projectKey]/[envSlug]/settings`, config tab, admin-only), with
+its own small form (URL, username, password) and its own actions in
+`actions/mailpit-settings.ts`: `getMailpitSettings`, `saveMailpitSettings`
+and `testMailpitConnection`. Keeping it out of `components/environment-form.tsx` leaves that
+large create/clone/edit form and its transaction untouched. Mailpit is
+configured after the environment exists. Saving records `recordActivity`
+(`mailpit.configured` / `mailpit.removed`).
 
-A **Test connection** button calls a server action that hits
-`GET /api/v1/info` with the form's values (admin only, since those values come
-from the client) and reports version / message count or the error.
+A **Test connection** button calls `GET /api/v1/info` with the form's
+values. When the password field is blank it uses the stored password. The
+action is admin-only, since the URL comes from the client. It reports the
+version and message count, or the error.
 
 ## Mailpit client — `lib/mailpit.ts` (`server-only`)
 
@@ -81,7 +99,7 @@ Thin typed wrapper over `fetch`; each response parsed with a zod schema
 | `getPart(id, partId)` | `GET /api/v1/message/{id}/part/{partId}` (streamed) |
 | `deleteMessages(ids \| "all")` | `DELETE /api/v1/messages` |
 | `deleteSearch(query)` | `DELETE /api/v1/search` |
-| `markRead(ids)` | `PUT /api/v1/messages` |
+| `getHeaders(id)` | `GET /api/v1/message/{id}/headers` |
 | `eventsUrl` | `ws(s)://…/api/events` |
 
 - Config input: `{ url, username, password }` built from the loaded
@@ -105,43 +123,52 @@ equivalent non-redirecting check in route handlers (401/403 JSON).
 ## Inbox UI — `app/[locale]/[projectKey]/[envSlug]/mail`
 
 - Sidebar entry `mail` (icon `Mail`) in `projectItems`, shown only when the
-  environment has `mailpitUrl` set and the effective role has `mail`.
+  environment's `hasMailpit` is true. The sidebar only knows the global
+  role (per-project membership is resolved server-side), so role gating
+  happens on the page.
 - Page server component: when not configured, an empty state (admins get a
-  link to settings); when role lacks `mail`, the page refuses like other
-  gated pages.
+  link to settings); when the effective role lacks `mail`, an empty state
+  saying mail is restricted to members. The actions and routes enforce the
+  capability independently.
 - Two-pane client layout:
   - **Left:** search box (Mailpit search syntax: `to:`, `from:`,
     `subject:`, `is:unread`, …), paginated list (from, subject, snippet,
     time, unread dot, attachment icon), row checkboxes.
   - **Right:** selected message: header block (from, to, cc, date,
     subject), tabs **HTML / Text / Headers / Raw**, attachment list with
-    download links. Opening a message marks it read.
+    download links. Mailpit itself marks a message read when
+    `GET /api/v1/message/{id}` is called, so no separate mark-read call.
 - Actions: delete message, delete selected, delete all (or all matching the
   current search), all behind a confirm dialog. Each delete is recorded with
   `recordActivity`.
 - Data loading via server actions (`actions/mail.ts`: `listMail`,
-  `getMail`, `deleteMail`, `markMailRead`) returning
+  `getMail`, `getMailSource`, `deleteMail`) returning
   `{ success, data } | { success: false, error }`, the same shape as
   mock-time.
+
+## HTML rendering
+
+`next.config.ts` sends `frame-ancestors 'none'` + `X-Frame-Options: DENY` on
+every path, so an iframe pointing at an OpsDeck route would be blocked. The
+HTML is therefore returned by the `getMail` action and rendered with
+`<iframe srcdoc sandbox="allow-popups allow-popups-to-escape-sandbox">`
+(no `allow-scripts`, no `allow-same-origin`).
+
+`lib/mailpit/html.ts` prepares the document server-side:
+
+- Inline `cid:` references are rewritten to `data:` URIs (parts fetched from
+  Mailpit, per-part cap 2 MB, total cap 10 MB; above the cap the reference is
+  left as-is and renders broken).
+- A `<head>` prelude is injected:
+  `<meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">`,
+  `<meta name="referrer" content="no-referrer">` and `<base target="_blank">`,
+  so links (reset/verify links QA needs to click) open in a new tab.
+- Remote `https:` images load (test environments; no toggle).
 
 ## Route handlers — `app/api/environments/[environmentId]/mail/`
 
 All are `runtime = "nodejs"`, `dynamic = "force-dynamic"`, authenticate the
 session and the `mail` capability, and load config from the DB.
-
-### `messages/[id]/html`
-
-Serves the message HTML for an `<iframe sandbox>` (no `allow-scripts`, no
-`allow-same-origin`).
-
-- Response headers: `Content-Security-Policy: sandbox; default-src 'none';
-  img-src https: data:; style-src 'unsafe-inline' https:; font-src https: data:`,
-  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
-- Inline `cid:` references are rewritten to `data:` URIs server-side
-  (parts fetched from Mailpit, per-part size cap, e.g. 2 MB; above the cap the
-  image is left broken). This avoids the sandboxed (opaque-origin) iframe
-  needing session cookies to fetch parts.
-- Remote `https:` images are allowed (test environments; no toggle).
 
 ### `messages/[id]/part/[partId]`
 
@@ -176,7 +203,7 @@ are ignored.
 
 ## i18n
 
-New `mail` namespace, `nav.mail`, environment-form field labels/hints, and
+New `mail` and `mailpitSettings` namespaces, `nav.mail`, activity strings, and
 errors in all five `messages/{ar,en,es,id,zh}.json`.
 
 ## Testing (`bun test`, pure functions)
@@ -185,11 +212,10 @@ errors in all five `messages/{ar,en,es,id,zh}.json`.
   Basic Auth header, zod parsing of sample responses (fixtures in
   `tests/fixtures/mailpit-*.json`), error normalisation (401, timeout,
   ECONNREFUSED).
-- HTML rewrite: `cid:` → `data:` mapping, size cap, untouched non-cid URLs.
-- Header builders: CSP string, `Content-Disposition` with non-ASCII
-  filenames.
-- `tests/validation.test.ts`: Mailpit URL scheme validation, blank password
-  keeps existing.
+- HTML preparation: `cid:` → `data:` mapping, size caps, untouched non-cid
+  URLs, prelude injection with and without an existing `<head>`.
+- Event parsing: Mailpit WebSocket frames → relevant/ignored types.
+- `tests/validation.test.ts`: Mailpit settings schema (URL scheme, lengths).
 - Roles: `mail` capability granted to member+, denied to viewer.
 
 Manual verification: run a local Mailpit (`axllent/mailpit`), point a dev
