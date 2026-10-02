@@ -1513,7 +1513,9 @@
     "issueJiraPushFailed": "无法把 {field} 写回 Jira",
     "tunnelRouteCreated": "{actor} 发布了 {hostname} → {origin}",
     "tunnelRouteDeleted": "{actor} 撤回了 {hostname}",
-    "tunnelNetworkAttached": "{actor} 将网络 {network} 接入 {tunnel}"
+    "tunnelNetworkAttached": "{actor} 将网络 {network} 接入 {tunnel}",
+    "mailpitConfigured": "{actor} 为 {environment} 连接了 Mailpit",
+    "mailpitRemoved": "{actor} 断开了 {environment} 的 Mailpit"
   },
   "jira": {
     "title": "Jira",
