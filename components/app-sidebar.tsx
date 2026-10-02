@@ -14,6 +14,7 @@ import {
   History,
   House,
   LayoutDashboard,
+  Mail,
   Server,
   ServerCog,
   Settings,
@@ -54,6 +55,7 @@ const projectItems = [
     adminOnly: false,
   },
   { key: "mockTime", url: "/mock-time", icon: Clock, adminOnly: false },
+  { key: "mail", url: "/mail", icon: Mail, adminOnly: false },
   { key: "issues", url: "/issues", icon: CircleDot, adminOnly: false },
   { key: "history", url: "/history", icon: History, adminOnly: false },
   { key: "settings", url: "/settings", icon: Settings, adminOnly: true },
@@ -250,6 +252,9 @@ export function AppSidebar({
               <SidebarMenu>
                 {projectItems
                   .filter((item) => !item.adminOnly || isAdmin)
+                  // Mail only exists once a Mailpit is connected. Role gating happens on
+                  // the page: the sidebar knows only the global role, not membership.
+                  .filter((item) => item.key !== "mail" || activeEnv.hasMailpit)
                   .map((item) => {
                     const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
                     const isActive =
