@@ -567,3 +567,15 @@ export const tunnelHostnameSchema = z
 export type CloudflareZoneInput = z.infer<typeof cloudflareZoneInputSchema>;
 export type TunnelInput = z.infer<typeof tunnelInputSchema>;
 export type TunnelRouteInput = z.infer<typeof tunnelRouteInputSchema>;
+
+// Mailpit connection for one environment. Empty `url` = disconnect. An omitted
+// `password` keeps the stored one ("blank = keep", like dbPassword).
+export const mailpitSettingsSchema = z.object({
+  url: z.union([
+    z.literal(""),
+    z.url({ protocol: /^https?$/ }).max(2048),
+  ]),
+  username: z.string().trim().max(255).nullish(),
+  password: z.string().max(1024).optional(),
+});
+export type MailpitSettingsInput = z.infer<typeof mailpitSettingsSchema>;

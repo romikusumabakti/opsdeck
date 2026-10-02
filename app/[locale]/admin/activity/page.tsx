@@ -52,6 +52,10 @@ function message(
         network: String(d.network),
         tunnel: String(d.tunnel),
       });
+    case "mailpit.configured":
+      return t("mailpitConfigured", { actor, environment: String(d.environment) });
+    case "mailpit.removed":
+      return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "terminal.open":
       return t("terminalOpened", { actor, server: String(d.server) });
     case "terminal.close":

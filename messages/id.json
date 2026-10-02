@@ -1513,7 +1513,9 @@
     "issueJiraPushFailed": "Gagal menulis {field} kembali ke Jira",
     "tunnelRouteCreated": "{actor} menerbitkan {hostname} → {origin}",
     "tunnelRouteDeleted": "{actor} mencabut {hostname}",
-    "tunnelNetworkAttached": "{actor} menyambungkan network {network} ke {tunnel}"
+    "tunnelNetworkAttached": "{actor} menyambungkan network {network} ke {tunnel}",
+    "mailpitConfigured": "{actor} menghubungkan Mailpit untuk {environment}",
+    "mailpitRemoved": "{actor} memutus Mailpit dari {environment}"
   },
   "jira": {
     "title": "Jira",

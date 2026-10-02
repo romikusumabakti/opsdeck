@@ -1513,7 +1513,9 @@
     "issueJiraPushFailed": "تعذّرت كتابة {field} إلى Jira",
     "tunnelRouteCreated": "نشر {actor} المضيف {hostname} ← {origin}",
     "tunnelRouteDeleted": "سحب {actor} المضيف {hostname}",
-    "tunnelNetworkAttached": "أوصل {actor} الشبكة {network} بالنفق {tunnel}"
+    "tunnelNetworkAttached": "أوصل {actor} الشبكة {network} بالنفق {tunnel}",
+    "mailpitConfigured": "قام {actor} بربط Mailpit بالبيئة {environment}",
+    "mailpitRemoved": "قام {actor} بفصل Mailpit عن البيئة {environment}"
   },
   "jira": {
     "title": "Jira",
