@@ -112,12 +112,14 @@ export function effectiveRole(
 //   read             — view issues, knowledge, dashboards
 //   issue.edit       — create/edit issues
 //   kb.edit          — create/edit knowledge documents
+//   mail             — read/delete the email an environment sent (Mailpit)
 //   ops.destructive  — backup/restore/create/drop DB, mock time
 //   admin            — servers, storage, users, project CRUD, membership
 export const CAPABILITIES = [
   "read",
   "issue.edit",
   "kb.edit",
+  "mail",
   "ops.destructive",
   "admin",
 ] as const;
@@ -127,6 +129,8 @@ const CAPABILITY_MIN_ROLE: Record<Capability, UserRole> = {
   read: ROLE_VIEWER,
   "issue.edit": ROLE_MEMBER,
   "kb.edit": ROLE_MEMBER,
+  // Captured mail carries OTPs and reset links, so viewers don't get it.
+  mail: ROLE_MEMBER,
   "ops.destructive": ROLE_MAINTAINER,
   admin: ROLE_ADMIN,
 };
