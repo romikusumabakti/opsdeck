@@ -71,13 +71,20 @@ export async function saveMailpitSettings(
         });
       }
     } else {
-      // No username = no Basic Auth, so any stored password goes with it.
-      // Otherwise a blank password field keeps the stored one.
+      // Use the same security guard as testMailpitConnection: only reuse the stored
+      // password if the URL and username match and no new password was typed. This
+      // prevents an admin from changing the URL to an attacker's host and retrieving
+      // the stored password via Basic Auth.
+      const stored = await loadMailpitConfig(environmentId);
+      const shouldReuse = shouldReuseStoredPassword({ url, username, password }, stored);
+
       const passwordPatch = !username
         ? { password: null }
         : password
           ? { password: encryptSecret(password) }
-          : {};
+          : shouldReuse
+            ? {} // Keep the stored password (omit from patch)
+            : { password: null };
       await db
         .insert(environmentMailpit)
         .values({ environmentId, url, username, ...passwordPatch })
