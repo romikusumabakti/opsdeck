@@ -14,6 +14,7 @@ import {
   type Environment,
   type EnvironmentListItem,
   environmentAccess,
+  environmentMailpit,
   environmentServices,
   environments,
   type NewEnvironmentService,
@@ -139,6 +140,9 @@ export async function listEnvironments(): Promise<EnvironmentListItem[]> {
         key: projects.key,
         dbType: environmentServices.dbType,
         dbName: environmentServices.dbName,
+        // Sidebar's Mail entry. EXISTS, not a join, so the secret columns
+        // never enter this client-bound projection.
+        hasMailpit: sql<boolean>`exists (select 1 from ${environmentMailpit} where ${environmentMailpit.environmentId} = ${environments.id})`,
       })
       .from(environments)
       .innerJoin(projects, eq(projects.id, environments.projectId))
