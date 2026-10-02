@@ -1739,6 +1739,7 @@
     "username": "Username (optional)",
     "password": "Password (optional)",
     "passwordKeepPlaceholder": "Leave blank to keep unchanged",
+    "passwordReenter": "The stored password is cleared when the URL changes — enter it again.",
     "authHint": "Basic Auth credentials, if Mailpit runs with --ui-auth-file.",
     "save": "Save",
     "saving": "Saving…",

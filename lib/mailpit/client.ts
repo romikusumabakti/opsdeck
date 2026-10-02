@@ -97,6 +97,8 @@ async function request(
           : { "Content-Type": "application/json" }),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      // Don't follow upstream redirects to other hosts.
+      redirect: "error",
       signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });

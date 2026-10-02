@@ -15,7 +15,7 @@ import { useDialog } from "@/components/dialog-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { MessagesPage } from "@/lib/mailpit/schemas";
+import { MAIL_PAGE_SIZE, type MessagesPage } from "@/lib/mailpit/schemas";
 import { cn } from "@/lib/utils";
 import type { MailDeleteTarget } from "@/lib/validation";
 import { MailDetailPane } from "./mail-detail";
@@ -47,6 +47,10 @@ export function MailInbox({ environmentId }: { environmentId: string }) {
         setError(result.error);
         return;
       }
+      // Deleted the last rows of a trailing page: step back to a real page.
+      if (result.data.messages.length === 0 && start > 0) {
+        setStart(Math.max(0, start - MAIL_PAGE_SIZE));
+      }
       setError(null);
       setPage(result.data);
       // Drop selections that scrolled off or were deleted elsewhere.
@@ -66,7 +70,12 @@ export function MailInbox({ environmentId }: { environmentId: string }) {
       `/api/environments/${environmentId}/mail/events`
     );
     let timer: ReturnType<typeof setTimeout> | undefined;
-    source.addEventListener("ready", () => setLive(true));
+    source.addEventListener("ready", () => {
+      setLive(true);
+      // Catch up on mail that arrived while the stream was disconnected.
+      clearTimeout(timer);
+      timer = setTimeout(onMailEvent, REFRESH_DEBOUNCE_MS);
+    });
     source.addEventListener("mail", () => {
       clearTimeout(timer);
       timer = setTimeout(onMailEvent, REFRESH_DEBOUNCE_MS);
@@ -205,6 +214,7 @@ export function MailInbox({ environmentId }: { environmentId: string }) {
         <MailDetailPane
           environmentId={environmentId}
           messageId={selectedId}
+          deleting={deleting}
           onDelete={(id) =>
             confirmDelete(
               { scope: "ids", ids: [id] },

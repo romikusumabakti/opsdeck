@@ -72,7 +72,8 @@ export async function saveMailpitSettings(
       }
     } else {
       // Use the same security guard as testMailpitConnection: only reuse the stored
-      // password if the URL and username match and no new password was typed. This
+      // password if the URL equals the stored URL, a username is present, and no
+      // new password was typed. This
       // prevents an admin from changing the URL to an attacker's host and retrieving
       // the stored password via Basic Auth.
       const stored = await loadMailpitConfig(environmentId);

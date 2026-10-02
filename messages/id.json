@@ -1739,6 +1739,7 @@
     "username": "Username (opsional)",
     "password": "Password (opsional)",
     "passwordKeepPlaceholder": "Kosongkan agar tidak berubah",
+    "passwordReenter": "Password tersimpan dihapus saat URL berubah — masukkan lagi.",
     "authHint": "Kredensial Basic Auth, jika Mailpit dijalankan dengan --ui-auth-file.",
     "save": "Simpan",
     "saving": "Menyimpan…",

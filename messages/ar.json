@@ -1739,6 +1739,7 @@
     "username": "اسم المستخدم (اختياري)",
     "password": "كلمة المرور (اختياري)",
     "passwordKeepPlaceholder": "اتركه فارغًا للإبقاء عليه دون تغيير",
+    "passwordReenter": "تُمسح كلمة المرور المحفوظة عند تغيير الرابط — أدخلها مرة أخرى.",
     "authHint": "بيانات Basic Auth إذا كان Mailpit يعمل مع --ui-auth-file.",
     "save": "حفظ",
     "saving": "جارٍ الحفظ…",
