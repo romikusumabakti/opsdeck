@@ -1515,7 +1515,10 @@
     "tunnelRouteDeleted": "سحب {actor} المضيف {hostname}",
     "tunnelNetworkAttached": "أوصل {actor} الشبكة {network} بالنفق {tunnel}",
     "mailpitConfigured": "قام {actor} بربط Mailpit بالبيئة {environment}",
-    "mailpitRemoved": "قام {actor} بفصل Mailpit عن البيئة {environment}"
+    "mailpitRemoved": "قام {actor} بفصل Mailpit عن البيئة {environment}",
+    "mailDeleted": "حذف {actor} {count, plural, one {رسالة واحدة} other {# رسائل}} في {environment}",
+    "mailDeletedSearch": "حذف {actor} الرسائل المطابقة لـ «{query}» في {environment}",
+    "mailCleared": "أفرغ {actor} صندوق بريد {environment}"
   },
   "jira": {
     "title": "Jira",
