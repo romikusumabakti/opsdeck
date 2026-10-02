@@ -56,6 +56,20 @@ function message(
       return t("mailpitConfigured", { actor, environment: String(d.environment) });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
+    case "mail.deleted":
+      return t("mailDeleted", {
+        actor,
+        count: Number(d.count),
+        environment: String(d.environment),
+      });
+    case "mail.deleted_search":
+      return t("mailDeletedSearch", {
+        actor,
+        query: String(d.query),
+        environment: String(d.environment),
+      });
+    case "mail.cleared":
+      return t("mailCleared", { actor, environment: String(d.environment) });
     case "terminal.open":
       return t("terminalOpened", { actor, server: String(d.server) });
     case "terminal.close":

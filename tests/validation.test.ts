@@ -4,6 +4,10 @@ import {
   databaseNameSchema,
   explorerRelativePathSchema,
   isoDurationSchema,
+  mailDeleteTargetSchema,
+  mailListInputSchema,
+  mailpitIdSchema,
+  mailpitPartIdSchema,
   mailpitSettingsSchema,
   projectKeySchema,
   subdomainLabelSchema,
@@ -203,5 +207,52 @@ describe("mailpitSettingsSchema", () => {
   it("keeps password undefined when omitted (blank = keep)", () => {
     const parsed = mailpitSettingsSchema.parse({ url: "http://x.test", username: "qa" });
     expect(parsed.password).toBeUndefined();
+  });
+});
+
+describe("mailpit ids", () => {
+  it.each(["VjkzFzyhPMWm5kBoEygbAz", "0b8c6f5e-1d2a-4c1e-9f00-123456789abc"])(
+    "accepts message id %p",
+    (id) => {
+      expect(mailpitIdSchema.safeParse(id).success).toBe(true);
+    }
+  );
+
+  it.each(["", "../etc", "a/b", "x".repeat(65)])("rejects message id %p", (id) => {
+    expect(mailpitIdSchema.safeParse(id).success).toBe(false);
+  });
+
+  it.each(["1", "1.2", "2.10.3"])("accepts part id %p", (id) => {
+    expect(mailpitPartIdSchema.safeParse(id).success).toBe(true);
+  });
+
+  it.each(["", "1.", ".1", "1/2", "a"])("rejects part id %p", (id) => {
+    expect(mailpitPartIdSchema.safeParse(id).success).toBe(false);
+  });
+});
+
+describe("mailDeleteTargetSchema", () => {
+  it("rejects an empty id selection (never means delete-all)", () => {
+    expect(mailDeleteTargetSchema.safeParse({ scope: "ids", ids: [] }).success).toBe(false);
+  });
+
+  it("rejects a blank search", () => {
+    expect(mailDeleteTargetSchema.safeParse({ scope: "search", query: "  " }).success).toBe(false);
+  });
+
+  it("accepts the three scopes", () => {
+    expect(mailDeleteTargetSchema.safeParse({ scope: "ids", ids: ["abc"] }).success).toBe(true);
+    expect(mailDeleteTargetSchema.safeParse({ scope: "search", query: "is:read" }).success).toBe(true);
+    expect(mailDeleteTargetSchema.safeParse({ scope: "all" }).success).toBe(true);
+  });
+});
+
+describe("mailListInputSchema", () => {
+  it("defaults query and start", () => {
+    expect(mailListInputSchema.parse({})).toEqual({ query: "", start: 0 });
+  });
+
+  it("rejects negative offsets", () => {
+    expect(mailListInputSchema.safeParse({ start: -50 }).success).toBe(false);
   });
 });
