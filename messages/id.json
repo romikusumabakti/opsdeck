@@ -1725,5 +1725,23 @@
     "apiToken": "API token",
     "apiTokenDescription": "Beri scope Zone:DNS:Edit HANYA untuk zone ini — itu semua yang dilakukan OpsDeck dengannya. Disimpan terenkripsi dan tak pernah dikirim ke browser.",
     "apiTokenKeep": "Kosongkan untuk mempertahankan token saat ini"
+  },
+  "mailpitSettings": {
+    "title": "Mailpit",
+    "description": "Hubungkan Mailpit environment ini agar member bisa membaca email yang dikirimnya.",
+    "url": "URL Mailpit",
+    "urlHint": "URL dasar web UI Mailpit, termasuk webroot jika ada (mis. https://mail-qa.example.com/). Kosongkan untuk memutus koneksi.",
+    "username": "Username (opsional)",
+    "password": "Password (opsional)",
+    "passwordKeepPlaceholder": "Kosongkan agar tidak berubah",
+    "authHint": "Kredensial Basic Auth, jika Mailpit dijalankan dengan --ui-auth-file.",
+    "save": "Simpan",
+    "saving": "Menyimpan…",
+    "saved": "Pengaturan Mailpit disimpan",
+    "removed": "Mailpit diputus",
+    "saveFailed": "Gagal menyimpan pengaturan Mailpit",
+    "test": "Tes koneksi",
+    "testing": "Mengetes…",
+    "testOk": "Terhubung — Mailpit {version}, {count, plural, other {# pesan}}"
   }
 }

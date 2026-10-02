@@ -1725,5 +1725,23 @@
     "apiToken": "رمز API",
     "apiTokenDescription": "اقصر صلاحيته على Zone:DNS:Edit لهذا النطاق وحده — وهذا كل ما يفعله OpsDeck به. يُخزَّن مشفَّراً ولا يُرسَل إلى المتصفح أبداً.",
     "apiTokenKeep": "اتركه فارغاً للإبقاء على الرمز الحالي"
+  },
+  "mailpitSettings": {
+    "title": "Mailpit",
+    "description": "اربط Mailpit الخاص بهذه البيئة ليتمكن الأعضاء من قراءة البريد الذي ترسله.",
+    "url": "رابط Mailpit",
+    "urlHint": "الرابط الأساسي لواجهة Mailpit، بما في ذلك المسار الجذري إن وجد (مثل https://mail-qa.example.com/). اتركه فارغًا لفصل الاتصال.",
+    "username": "اسم المستخدم (اختياري)",
+    "password": "كلمة المرور (اختياري)",
+    "passwordKeepPlaceholder": "اتركه فارغًا للإبقاء عليه دون تغيير",
+    "authHint": "بيانات Basic Auth إذا كان Mailpit يعمل مع --ui-auth-file.",
+    "save": "حفظ",
+    "saving": "جارٍ الحفظ…",
+    "saved": "تم حفظ إعدادات Mailpit",
+    "removed": "تم فصل Mailpit",
+    "saveFailed": "تعذّر حفظ إعدادات Mailpit",
+    "test": "اختبار الاتصال",
+    "testing": "جارٍ الاختبار…",
+    "testOk": "متصل — Mailpit {version}، {count, plural, one {رسالة واحدة} other {# رسائل}}"
   }
 }

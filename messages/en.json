@@ -1725,5 +1725,23 @@
     "apiToken": "API token",
     "apiTokenDescription": "Scope it to Zone:DNS:Edit on THIS ZONE ONLY — that is everything OpsDeck does with it. Stored encrypted and never sent to the browser.",
     "apiTokenKeep": "Leave blank to keep the current token"
+  },
+  "mailpitSettings": {
+    "title": "Mailpit",
+    "description": "Connect this environment's Mailpit so members can read the email it sends.",
+    "url": "Mailpit URL",
+    "urlHint": "Base URL of the Mailpit web UI, including any webroot (e.g. https://mail-qa.example.com/). Leave empty to disconnect.",
+    "username": "Username (optional)",
+    "password": "Password (optional)",
+    "passwordKeepPlaceholder": "Leave blank to keep unchanged",
+    "authHint": "Basic Auth credentials, if Mailpit runs with --ui-auth-file.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Mailpit settings saved",
+    "removed": "Mailpit disconnected",
+    "saveFailed": "Could not save Mailpit settings",
+    "test": "Test connection",
+    "testing": "Testing…",
+    "testOk": "Connected — Mailpit {version}, {count, plural, one {# message} other {# messages}}"
   }
 }

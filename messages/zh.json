@@ -1725,5 +1725,23 @@
     "apiToken": "API 令牌",
     "apiTokenDescription": "请将其权限限定为「仅本区域」的 Zone:DNS:Edit——OpsDeck 用它做的就这些。加密存储，绝不发送到浏览器。",
     "apiTokenKeep": "留空以保留当前令牌"
+  },
+  "mailpitSettings": {
+    "title": "Mailpit",
+    "description": "连接此环境的 Mailpit，让成员可以阅读它发送的邮件。",
+    "url": "Mailpit 地址",
+    "urlHint": "Mailpit 网页界面的基础地址，包含 webroot（如 https://mail-qa.example.com/）。留空则断开连接。",
+    "username": "用户名（可选）",
+    "password": "密码（可选）",
+    "passwordKeepPlaceholder": "留空则保持不变",
+    "authHint": "如果 Mailpit 使用 --ui-auth-file 运行，请填写 Basic Auth 凭据。",
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "Mailpit 设置已保存",
+    "removed": "已断开 Mailpit",
+    "saveFailed": "无法保存 Mailpit 设置",
+    "test": "测试连接",
+    "testing": "测试中…",
+    "testOk": "已连接 — Mailpit {version}，{count, plural, other {# 封邮件}}"
   }
 }
