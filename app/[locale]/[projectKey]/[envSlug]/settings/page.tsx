@@ -1,9 +1,11 @@
 import { Copy } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getEnvironmentById } from "@/actions/environments";
+import { getMailpitSettings } from "@/actions/mailpit-settings";
 import { listProjects } from "@/actions/project-catalog";
 import { getServers } from "@/actions/servers";
 import { EnvironmentForm } from "@/components/environment-form";
+import { MailpitSettingsForm } from "@/components/mailpit-settings-form";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,14 +32,16 @@ export default async function ProjectSettingsPage({
 
   await requireAdmin();
 
-  const [environment, servers, projects] = await Promise.all([
+  const [environment, servers, projects, mailpit] = await Promise.all([
     getEnvironmentById(environmentId),
     getServers(),
     listProjects(),
+    getMailpitSettings(environmentId),
   ]);
 
   const t = await getTranslations("environmentSettings");
   const tCommon = await getTranslations("common");
+  const tMailpit = await getTranslations("mailpitSettings");
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
@@ -64,6 +68,19 @@ export default async function ProjectSettingsPage({
                 mode={{ type: "edit", environment }}
                 servers={servers}
                 projects={projects}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{tMailpit("title")}</CardTitle>
+              <CardDescription>{tMailpit("description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MailpitSettingsForm
+                environmentId={environment.id}
+                settings={mailpit}
               />
             </CardContent>
           </Card>
