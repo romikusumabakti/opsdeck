@@ -3,6 +3,7 @@
 import { requireCapability, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type EnvironmentWithServers, runs } from "@/lib/db/schema";
+import { describeFetchError } from "@/lib/fetch-error";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import type { Capability } from "@/lib/roles";
@@ -57,33 +58,6 @@ async function requireEnvironment(
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) return { ok: false, error: "Environment not found" };
   return { ok: true, environment, userId: session.user.id };
-}
-
-// Node's fetch retries every resolved address (Happy Eyeballs). When all fail
-// it surfaces an AggregateError under `cause` whose `errors[]` each carry the
-// real reason (ETIMEDOUT, ECONNREFUSED, ENETUNREACH...). Pull the most useful
-// one for the toast.
-function describeFetchError(err: unknown): string {
-  if (err instanceof Error) {
-    const cause = (err as { cause?: unknown }).cause;
-    if (cause && typeof cause === "object") {
-      const errors = (
-        cause as { errors?: Array<{ code?: string; message?: string }> }
-      ).errors;
-      if (Array.isArray(errors) && errors.length > 0) {
-        const first = errors[0];
-        if (first) {
-          return first.code
-            ? `${first.code}: ${first.message ?? ""}`
-            : (first.message ?? err.message);
-        }
-      }
-      const code = (cause as { code?: string }).code;
-      if (code) return code;
-    }
-    return err.message || err.name;
-  }
-  return String(err);
 }
 
 // Parses RFC 7807 problem+json bodies returned by the clock API. Falls back to
