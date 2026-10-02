@@ -1,0 +1,24 @@
+{
+  "ID": "VjkzFzyhPMWm5kBoEygbAz",
+  "MessageID": "a1@app.test",
+  "From": { "Name": "App", "Address": "noreply@app.test" },
+  "To": [{ "Name": "", "Address": "qa@example.com" }],
+  "Cc": null,
+  "Bcc": null,
+  "ReplyTo": [],
+  "ReturnPath": "noreply@app.test",
+  "Subject": "Reset your password",
+  "ListUnsubscribe": { "Header": "", "Links": [], "Errors": "", "HeaderPost": "" },
+  "Date": "2026-10-02T03:04:05Z",
+  "Tags": [],
+  "Username": "",
+  "Text": "Click the link below to reset",
+  "HTML": "<html><head><title>x</title></head><body><img src=\"cid:logo@app\"><a href=\"https://app.test/reset?t=1\">Reset</a></body></html>",
+  "Size": 4096,
+  "Inline": [
+    { "PartID": "1.2", "FileName": "logo.png", "ContentType": "image/png", "ContentID": "logo@app", "Size": 120, "Checksums": {} }
+  ],
+  "Attachments": [
+    { "PartID": "2", "FileName": "invoice.pdf", "ContentType": "application/pdf", "ContentID": "", "Size": 2048, "Checksums": {} }
+  ]
+}
