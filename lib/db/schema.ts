@@ -220,6 +220,26 @@ export const environmentServices = pgTable(
   ]
 );
 
+// Mailpit connection for one environment: 1:1, row present = integration on.
+// A separate table rather than columns on `environments` because whole
+// environment rows reach the client in several places (listEnvironments,
+// project catalog relations, create/update results); a secret column there
+// would leak into RSC payloads.
+export const environmentMailpit = pgTable("environment_mailpit", {
+  environmentId: uuid("environment_id")
+    .primaryKey()
+    .references(() => environments.id, { onDelete: "cascade" }),
+  // Base URL of the Mailpit UI/API, including any webroot
+  // (e.g. `https://mail-qa.example.com/` or `http://10.0.0.5:8025`).
+  url: text("url").notNull(),
+  // Basic Auth for Mailpit's --ui-auth-file. Null username = no auth.
+  username: text("username"),
+  // Encrypted at rest via lib/secrets.ts; decrypted only in
+  // lib/mailpit/config#loadMailpitConfig.
+  password: text("password"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const runStatusEnum = pgEnum("run_status", [
   "started",
   "success",
@@ -1191,6 +1211,8 @@ export type NewEnvironmentService = InferInsertModel<
   typeof environmentServices
 >;
 
+export type EnvironmentMailpit = InferSelectModel<typeof environmentMailpit>;
+
 // A service row with its server record resolved. Consumers pick a service by
 // role via lib/services#getServiceConfig.
 export type ServiceWithServer = EnvironmentService & { server: Server };
@@ -1207,8 +1229,12 @@ export type EnvironmentSummary = Environment &
   Pick<EnvironmentService, "dbType" | "dbName">;
 
 // An environment summary plus its owning project's issue key, for readable-URL
-// link builders (/[key]/[slug]/…). Credential-free.
-export type EnvironmentListItem = EnvironmentSummary & { key: string };
+// link builders (/[key]/[slug]/…), and whether a Mailpit is connected (drives
+// the sidebar's Mail entry). Credential-free.
+export type EnvironmentListItem = EnvironmentSummary & {
+  key: string;
+  hasMailpit: boolean;
+};
 
 // Credential-free projections handed to the client. SSH passwords, the DB admin
 // password, and the mock-time API key must never cross the server/client

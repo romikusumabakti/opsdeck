@@ -1,5 +1,6 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type {
   EnvironmentWithServers,
@@ -9,6 +10,7 @@ import type {
   Server,
   ServiceWithServer,
 } from "@/lib/db/schema";
+import { environments } from "@/lib/db/schema";
 import { decryptNullable, decryptSecret } from "@/lib/secrets";
 
 /**
@@ -94,4 +96,14 @@ export async function loadSafeEnvironment(
 ): Promise<SafeEnvironmentWithServers | null> {
   const environment = await loadEnvironmentWithServers(id);
   return environment ? sanitizeEnvironment(environment) : null;
+}
+
+/** An environment's display name, for activity-log params. */
+export async function environmentName(id: string): Promise<string | undefined> {
+  const [row] = await db
+    .select({ name: environments.name })
+    .from(environments)
+    .where(eq(environments.id, id))
+    .limit(1);
+  return row?.name;
 }
