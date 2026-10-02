@@ -25,6 +25,7 @@ export async function GET(
   const { cfg } = auth;
 
   const encoder = new TextEncoder();
+  let stop = () => {};
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
@@ -35,7 +36,7 @@ export async function GET(
         try {
           controller.enqueue(encoder.encode(payload));
         } catch {
-          closed = true;
+          tearDown();
         }
       }
 
@@ -69,7 +70,12 @@ export async function GET(
         }
       }
 
+      stop = tearDown;
       req.signal.addEventListener("abort", tearDown);
+      if (req.signal.aborted) {
+        tearDown();
+        return;
+      }
       enqueue(`retry: ${RETRY_MS}\n\n`);
 
       try {
@@ -96,6 +102,9 @@ export async function GET(
         tearDown();
       });
       socket.addEventListener("close", tearDown);
+    },
+    cancel() {
+      stop();
     },
   });
 
