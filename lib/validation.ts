@@ -579,3 +579,32 @@ export const mailpitSettingsSchema = z.object({
   password: z.string().max(1024).optional(),
 });
 export type MailpitSettingsInput = z.infer<typeof mailpitSettingsSchema>;
+
+// Mailpit message ids are short base62 tokens (older versions: UUIDs); part
+// ids are dotted MIME paths ("1", "1.2"). Both end up in upstream URL paths.
+export const mailpitIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+export const mailpitPartIdSchema = z
+  .string()
+  .max(32)
+  .regex(/^\d+(?:\.\d+)*$/);
+
+export const mailListInputSchema = z.object({
+  query: z.string().trim().max(500).default(""),
+  start: z.number().int().min(0).max(1_000_000).default(0),
+});
+
+// What an inbox delete targets. `ids` must be non-empty: Mailpit reads an
+// empty id list as "delete everything", which only the explicit `all` scope
+// may mean.
+export const mailDeleteTargetSchema = z.discriminatedUnion("scope", [
+  z.object({
+    scope: z.literal("ids"),
+    ids: z.array(mailpitIdSchema).min(1).max(500),
+  }),
+  z.object({
+    scope: z.literal("search"),
+    query: z.string().trim().min(1).max(500),
+  }),
+  z.object({ scope: z.literal("all") }),
+]);
+export type MailDeleteTarget = z.infer<typeof mailDeleteTargetSchema>;

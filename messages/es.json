@@ -1515,7 +1515,10 @@
     "tunnelRouteDeleted": "{actor} retiró {hostname}",
     "tunnelNetworkAttached": "{actor} conectó la red {network} a {tunnel}",
     "mailpitConfigured": "{actor} conectó Mailpit para {environment}",
-    "mailpitRemoved": "{actor} desconectó Mailpit de {environment}"
+    "mailpitRemoved": "{actor} desconectó Mailpit de {environment}",
+    "mailDeleted": "{actor} eliminó {count, plural, one {# correo} other {# correos}} en {environment}",
+    "mailDeletedSearch": "{actor} eliminó los correos que coinciden con «{query}» en {environment}",
+    "mailCleared": "{actor} vació la bandeja de {environment}"
   },
   "jira": {
     "title": "Jira",

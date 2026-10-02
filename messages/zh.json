@@ -1515,7 +1515,10 @@
     "tunnelRouteDeleted": "{actor} 撤回了 {hostname}",
     "tunnelNetworkAttached": "{actor} 将网络 {network} 接入 {tunnel}",
     "mailpitConfigured": "{actor} 为 {environment} 连接了 Mailpit",
-    "mailpitRemoved": "{actor} 断开了 {environment} 的 Mailpit"
+    "mailpitRemoved": "{actor} 断开了 {environment} 的 Mailpit",
+    "mailDeleted": "{actor} 删除了 {environment} 中的 {count, plural, other {# 封邮件}}",
+    "mailDeletedSearch": "{actor} 删除了 {environment} 中匹配\"{query}\"的邮件",
+    "mailCleared": "{actor} 清空了 {environment} 的收件箱"
   },
   "jira": {
     "title": "Jira",

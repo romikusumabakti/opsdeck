@@ -1515,7 +1515,10 @@
     "tunnelRouteDeleted": "{actor} mencabut {hostname}",
     "tunnelNetworkAttached": "{actor} menyambungkan network {network} ke {tunnel}",
     "mailpitConfigured": "{actor} menghubungkan Mailpit untuk {environment}",
-    "mailpitRemoved": "{actor} memutus Mailpit dari {environment}"
+    "mailpitRemoved": "{actor} memutus Mailpit dari {environment}",
+    "mailDeleted": "{actor} menghapus {count, plural, other {# email}} di {environment}",
+    "mailDeletedSearch": "{actor} menghapus email yang cocok dengan \"{query}\" di {environment}",
+    "mailCleared": "{actor} mengosongkan inbox {environment}"
   },
   "jira": {
     "title": "Jira",
