@@ -1,0 +1,44 @@
+{
+  "total": 3,
+  "unread": 1,
+  "messages_count": 2,
+  "messages_unread": 1,
+  "start": 0,
+  "tags": [],
+  "messages": [
+    {
+      "ID": "VjkzFzyhPMWm5kBoEygbAz",
+      "MessageID": "a1@app.test",
+      "Read": false,
+      "From": { "Name": "App", "Address": "noreply@app.test" },
+      "To": [{ "Name": "", "Address": "qa@example.com" }],
+      "Cc": null,
+      "Bcc": null,
+      "ReplyTo": [],
+      "Subject": "Reset your password",
+      "Created": "2026-10-02T03:04:05.678Z",
+      "Username": "",
+      "Tags": [],
+      "Size": 4096,
+      "Attachments": 1,
+      "Snippet": "Click the link below to reset"
+    },
+    {
+      "ID": "Q2bJw7oYbq7fJ3xYfB4vNk",
+      "MessageID": "a2@app.test",
+      "Read": true,
+      "From": null,
+      "To": null,
+      "Cc": null,
+      "Bcc": null,
+      "ReplyTo": null,
+      "Subject": "",
+      "Created": "2026-10-02T03:00:00.000Z",
+      "Username": "",
+      "Tags": [],
+      "Size": 512,
+      "Attachments": 0,
+      "Snippet": ""
+    }
+  ]
+}
