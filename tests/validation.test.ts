@@ -204,6 +204,13 @@ describe("mailpitSettingsSchema", () => {
     }
   );
 
+  it.each(["https://u:p@mail.test/", "https://u@mail.test/"])(
+    "rejects url with embedded credentials %p",
+    (url) => {
+      expect(mailpitSettingsSchema.safeParse({ url }).success).toBe(false);
+    }
+  );
+
   it("keeps password undefined when omitted (blank = keep)", () => {
     const parsed = mailpitSettingsSchema.parse({ url: "http://x.test", username: "qa" });
     expect(parsed.password).toBeUndefined();

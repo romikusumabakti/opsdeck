@@ -185,6 +185,7 @@ describe("requests", () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://mail.test/mailpit/api/v1/messages");
     expect(init.method).toBe("DELETE");
+    expect(init.redirect).toBe("error");
     expect(init.body).toBe('{"IDs":[]}');
   });
 });
