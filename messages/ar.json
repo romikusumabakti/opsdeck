@@ -79,7 +79,8 @@
     "security": "الأمان",
     "sessions": "الجلسات",
     "issues": "المشكلات",
-    "jira": "Jira"
+    "jira": "Jira",
+    "mail": "البريد"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",
@@ -126,7 +127,8 @@
     "admin": "المشرف",
     "badgeAssignedIssues": "{count, plural, zero {لا مشكلات مسندة إليك} one {مشكلة واحدة مسندة إليك} two {مشكلتان مسندتان إليك} few {# مشكلات مسندة إليك} many {# مشكلة مسندة إليك} other {# مشكلة مسندة إليك}}",
     "badgeActiveRuns": "{count, plural, zero {لا مهام قيد التشغيل} one {مهمة واحدة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمة قيد التشغيل} other {# مهمة قيد التشغيل}}",
-    "tunnels": "الأنفاق"
+    "tunnels": "الأنفاق",
+    "mail": "البريد"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -1746,5 +1748,52 @@
     "test": "اختبار الاتصال",
     "testing": "جارٍ الاختبار…",
     "testOk": "متصل — Mailpit {version}، {count, plural, one {رسالة واحدة} other {# رسائل}}"
+  },
+  "mail": {
+    "title": "البريد",
+    "subtitle": "البريد الذي التقطه Mailpit للبيئة {name}.",
+    "searchPlaceholder": "بحث (مثل to:user@example.com subject:reset is:unread)",
+    "refresh": "تحديث",
+    "live": "مباشر",
+    "offline": "جارٍ إعادة الاتصال…",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا توجد رسائل",
+    "emptySearch": "لا توجد رسائل مطابقة لهذا البحث",
+    "selectPrompt": "اختر رسالة لقراءتها",
+    "notConfiguredTitle": "Mailpit غير متصل",
+    "notConfiguredDescription": "يمكن للمسؤول ربط Mailpit لهذه البيئة من الإعدادات.",
+    "openSettings": "فتح الإعدادات",
+    "forbiddenTitle": "البريد مقيّد",
+    "forbiddenDescription": "تتطلب قراءة البريد الملتقط دور عضو أو أعلى في هذا المشروع.",
+    "loadFailed": "تعذّر تحميل البريد",
+    "retry": "إعادة المحاولة",
+    "from": "من",
+    "to": "إلى",
+    "cc": "نسخة",
+    "date": "التاريخ",
+    "noSubject": "(بدون موضوع)",
+    "tabHtml": "HTML",
+    "tabText": "نص",
+    "tabHeaders": "الترويسات",
+    "tabRaw": "المصدر",
+    "noHtml": "لا تحتوي هذه الرسالة على جزء HTML.",
+    "noText": "لا تحتوي هذه الرسالة على جزء نصي.",
+    "sourceTruncated": "يُعرض أول 1 ميغابايت فقط. نزّل ملف ‎.eml للحصول على المصدر الكامل.",
+    "attachments": "المرفقات",
+    "downloadEml": "تنزيل ‎.eml",
+    "messageGone": "هذه الرسالة لم تعد موجودة.",
+    "delete": "حذف",
+    "deleteSelected": "حذف المحدد ({count})",
+    "deleteAll": "حذف الكل",
+    "deleteMatching": "حذف كل المطابق",
+    "deleteConfirmTitle": "حذف الرسائل؟",
+    "deleteSelectedConfirm": "سيتم حذف {count, plural, one {رسالة واحدة} other {# رسائل}} نهائيًا من Mailpit.",
+    "deleteAllConfirm": "سيتم حذف كل الرسائل في Mailpit لهذه البيئة نهائيًا.",
+    "deleteMatchingConfirm": "سيتم حذف كل الرسائل المطابقة لـ «{query}» نهائيًا.",
+    "deleted": "تم الحذف",
+    "total": "{count, plural, one {رسالة واحدة} other {# رسائل}}",
+    "previous": "السابق",
+    "next": "التالي",
+    "selectAll": "تحديد الكل في هذه الصفحة"
   }
 }

@@ -79,7 +79,8 @@
     "security": "Keamanan",
     "sessions": "Sesi",
     "issues": "Isu",
-    "jira": "Jira"
+    "jira": "Jira",
+    "mail": "Email"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -126,7 +127,8 @@
     "admin": "Admin",
     "badgeAssignedIssues": "{count, plural, other {# isu ditugaskan ke Anda}}",
     "badgeActiveRuns": "{count, plural, other {# tugas sedang berjalan}}",
-    "tunnels": "Tunnel"
+    "tunnels": "Tunnel",
+    "mail": "Email"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -1746,5 +1748,52 @@
     "test": "Tes koneksi",
     "testing": "Mengetes…",
     "testOk": "Terhubung — Mailpit {version}, {count, plural, other {# pesan}}"
+  },
+  "mail": {
+    "title": "Email",
+    "subtitle": "Email yang ditangkap Mailpit untuk {name}.",
+    "searchPlaceholder": "Cari (mis. to:user@example.com subject:reset is:unread)",
+    "refresh": "Muat ulang",
+    "live": "Live",
+    "offline": "Menyambung ulang…",
+    "loading": "Memuat…",
+    "empty": "Tidak ada pesan",
+    "emptySearch": "Tidak ada pesan yang cocok",
+    "selectPrompt": "Pilih pesan untuk membacanya",
+    "notConfiguredTitle": "Mailpit belum terhubung",
+    "notConfiguredDescription": "Admin dapat menghubungkan Mailpit environment ini di pengaturan.",
+    "openSettings": "Buka pengaturan",
+    "forbiddenTitle": "Email dibatasi",
+    "forbiddenDescription": "Membaca email yang ditangkap memerlukan role member atau lebih tinggi di project ini.",
+    "loadFailed": "Gagal memuat email",
+    "retry": "Coba lagi",
+    "from": "Dari",
+    "to": "Kepada",
+    "cc": "Cc",
+    "date": "Tanggal",
+    "noSubject": "(tanpa subjek)",
+    "tabHtml": "HTML",
+    "tabText": "Teks",
+    "tabHeaders": "Header",
+    "tabRaw": "Raw",
+    "noHtml": "Pesan ini tidak punya bagian HTML.",
+    "noText": "Pesan ini tidak punya bagian teks.",
+    "sourceTruncated": "Menampilkan 1 MB pertama. Unduh .eml untuk source lengkap.",
+    "attachments": "Lampiran",
+    "downloadEml": "Unduh .eml",
+    "messageGone": "Pesan ini sudah tidak ada.",
+    "delete": "Hapus",
+    "deleteSelected": "Hapus terpilih ({count})",
+    "deleteAll": "Hapus semua",
+    "deleteMatching": "Hapus semua yang cocok",
+    "deleteConfirmTitle": "Hapus pesan?",
+    "deleteSelectedConfirm": "{count, plural, other {# pesan}} akan dihapus permanen dari Mailpit.",
+    "deleteAllConfirm": "Semua pesan di Mailpit environment ini akan dihapus permanen.",
+    "deleteMatchingConfirm": "Semua pesan yang cocok dengan “{query}” akan dihapus permanen.",
+    "deleted": "Terhapus",
+    "total": "{count, plural, other {# pesan}}",
+    "previous": "Sebelumnya",
+    "next": "Berikutnya",
+    "selectAll": "Pilih semua di halaman ini"
   }
 }

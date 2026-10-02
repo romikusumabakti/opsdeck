@@ -79,7 +79,8 @@
     "security": "Seguridad",
     "sessions": "Sesiones",
     "issues": "Incidencias",
-    "jira": "Jira"
+    "jira": "Jira",
+    "mail": "Correo"
   },
   "commandPalette": {
     "triggerLabel": "Buscar o ir a…",
@@ -126,7 +127,8 @@
     "admin": "Administración",
     "badgeAssignedIssues": "{count, plural, one {# incidencia asignada a ti} other {# incidencias asignadas a ti}}",
     "badgeActiveRuns": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
-    "tunnels": "Túneles"
+    "tunnels": "Túneles",
+    "mail": "Correo"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -1746,5 +1748,52 @@
     "test": "Probar conexión",
     "testing": "Probando…",
     "testOk": "Conectado — Mailpit {version}, {count, plural, one {# mensaje} other {# mensajes}}"
+  },
+  "mail": {
+    "title": "Correo",
+    "subtitle": "Correo capturado por Mailpit para {name}.",
+    "searchPlaceholder": "Buscar (p. ej. to:user@example.com subject:reset is:unread)",
+    "refresh": "Actualizar",
+    "live": "En vivo",
+    "offline": "Reconectando…",
+    "loading": "Cargando…",
+    "empty": "No hay mensajes",
+    "emptySearch": "Ningún mensaje coincide con la búsqueda",
+    "selectPrompt": "Selecciona un mensaje para leerlo",
+    "notConfiguredTitle": "Mailpit no está conectado",
+    "notConfiguredDescription": "Un administrador puede conectar el Mailpit de este entorno en la configuración.",
+    "openSettings": "Abrir configuración",
+    "forbiddenTitle": "El correo está restringido",
+    "forbiddenDescription": "Leer el correo capturado requiere el rol de miembro o superior en este proyecto.",
+    "loadFailed": "No se pudo cargar el correo",
+    "retry": "Reintentar",
+    "from": "De",
+    "to": "Para",
+    "cc": "Cc",
+    "date": "Fecha",
+    "noSubject": "(sin asunto)",
+    "tabHtml": "HTML",
+    "tabText": "Texto",
+    "tabHeaders": "Cabeceras",
+    "tabRaw": "Original",
+    "noHtml": "Este mensaje no tiene parte HTML.",
+    "noText": "Este mensaje no tiene parte de texto.",
+    "sourceTruncated": "Se muestra el primer MB. Descarga el .eml para ver el original completo.",
+    "attachments": "Adjuntos",
+    "downloadEml": "Descargar .eml",
+    "messageGone": "Este mensaje ya no existe.",
+    "delete": "Eliminar",
+    "deleteSelected": "Eliminar seleccionados ({count})",
+    "deleteAll": "Eliminar todo",
+    "deleteMatching": "Eliminar coincidencias",
+    "deleteConfirmTitle": "¿Eliminar mensajes?",
+    "deleteSelectedConfirm": "{count, plural, one {# mensaje se eliminará} other {# mensajes se eliminarán}} de Mailpit de forma permanente.",
+    "deleteAllConfirm": "Se eliminarán de forma permanente todos los mensajes del Mailpit de este entorno.",
+    "deleteMatchingConfirm": "Se eliminarán de forma permanente todos los mensajes que coincidan con «{query}».",
+    "deleted": "Eliminado",
+    "total": "{count, plural, one {# mensaje} other {# mensajes}}",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "selectAll": "Seleccionar todo en esta página"
   }
 }

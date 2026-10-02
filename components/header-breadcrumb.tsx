@@ -115,6 +115,7 @@ const PARALLEL_SECTIONS = new Set([
   "services",
   "databases",
   "mock-time",
+  "mail",
   "issues",
   "history",
   "settings",
@@ -134,6 +135,8 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.backupRestore";
     case "mock-time":
       return "breadcrumbs.mockTime";
+    case "mail":
+      return "breadcrumbs.mail";
     case "history":
       return "breadcrumbs.history";
     case "settings":

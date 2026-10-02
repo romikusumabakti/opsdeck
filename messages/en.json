@@ -79,7 +79,8 @@
     "security": "Security",
     "sessions": "Sessions",
     "issues": "Issues",
-    "jira": "Jira"
+    "jira": "Jira",
+    "mail": "Mail"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",
@@ -126,7 +127,8 @@
     "admin": "Admin",
     "badgeAssignedIssues": "{count, plural, one {# issue assigned to you} other {# issues assigned to you}}",
     "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}",
-    "tunnels": "Tunnels"
+    "tunnels": "Tunnels",
+    "mail": "Mail"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -1746,5 +1748,52 @@
     "test": "Test connection",
     "testing": "Testing…",
     "testOk": "Connected — Mailpit {version}, {count, plural, one {# message} other {# messages}}"
+  },
+  "mail": {
+    "title": "Mail",
+    "subtitle": "Email captured by Mailpit for {name}.",
+    "searchPlaceholder": "Search (e.g. to:user@example.com subject:reset is:unread)",
+    "refresh": "Refresh",
+    "live": "Live",
+    "offline": "Reconnecting…",
+    "loading": "Loading…",
+    "empty": "No messages",
+    "emptySearch": "No messages match this search",
+    "selectPrompt": "Select a message to read it",
+    "notConfiguredTitle": "Mailpit is not connected",
+    "notConfiguredDescription": "An admin can connect this environment's Mailpit in settings.",
+    "openSettings": "Open settings",
+    "forbiddenTitle": "Mail is restricted",
+    "forbiddenDescription": "Reading captured email requires the member role or higher on this project.",
+    "loadFailed": "Could not load mail",
+    "retry": "Retry",
+    "from": "From",
+    "to": "To",
+    "cc": "Cc",
+    "date": "Date",
+    "noSubject": "(no subject)",
+    "tabHtml": "HTML",
+    "tabText": "Text",
+    "tabHeaders": "Headers",
+    "tabRaw": "Raw",
+    "noHtml": "This message has no HTML part.",
+    "noText": "This message has no text part.",
+    "sourceTruncated": "Showing the first 1 MB. Download the .eml for the full source.",
+    "attachments": "Attachments",
+    "downloadEml": "Download .eml",
+    "messageGone": "This message no longer exists.",
+    "delete": "Delete",
+    "deleteSelected": "Delete selected ({count})",
+    "deleteAll": "Delete all",
+    "deleteMatching": "Delete all matching",
+    "deleteConfirmTitle": "Delete messages?",
+    "deleteSelectedConfirm": "{count, plural, one {# message} other {# messages}} will be permanently deleted from Mailpit.",
+    "deleteAllConfirm": "Every message in this environment's Mailpit will be permanently deleted.",
+    "deleteMatchingConfirm": "Every message matching “{query}” will be permanently deleted.",
+    "deleted": "Deleted",
+    "total": "{count, plural, one {# message} other {# messages}}",
+    "previous": "Previous",
+    "next": "Next",
+    "selectAll": "Select all on this page"
   }
 }
