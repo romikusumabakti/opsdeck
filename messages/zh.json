@@ -79,7 +79,8 @@
     "security": "安全",
     "sessions": "会话",
     "issues": "问题",
-    "jira": "Jira"
+    "jira": "Jira",
+    "mail": "邮件"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",
@@ -126,7 +127,8 @@
     "admin": "管理员",
     "badgeAssignedIssues": "{count, plural, other {分配给你的 # 个问题}}",
     "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}",
-    "tunnels": "隧道"
+    "tunnels": "隧道",
+    "mail": "邮件"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -1746,5 +1748,52 @@
     "test": "测试连接",
     "testing": "测试中…",
     "testOk": "已连接 — Mailpit {version}，{count, plural, other {# 封邮件}}"
+  },
+  "mail": {
+    "title": "邮件",
+    "subtitle": "Mailpit 为 {name} 捕获的邮件。",
+    "searchPlaceholder": "搜索（如 to:user@example.com subject:reset is:unread）",
+    "refresh": "刷新",
+    "live": "实时",
+    "offline": "正在重新连接…",
+    "loading": "加载中…",
+    "empty": "没有邮件",
+    "emptySearch": "没有匹配此搜索的邮件",
+    "selectPrompt": "选择一封邮件进行阅读",
+    "notConfiguredTitle": "未连接 Mailpit",
+    "notConfiguredDescription": "管理员可以在设置中为此环境连接 Mailpit。",
+    "openSettings": "打开设置",
+    "forbiddenTitle": "邮件受限",
+    "forbiddenDescription": "阅读捕获的邮件需要此项目的成员或更高角色。",
+    "loadFailed": "无法加载邮件",
+    "retry": "重试",
+    "from": "发件人",
+    "to": "收件人",
+    "cc": "抄送",
+    "date": "日期",
+    "noSubject": "（无主题）",
+    "tabHtml": "HTML",
+    "tabText": "文本",
+    "tabHeaders": "邮件头",
+    "tabRaw": "原文",
+    "noHtml": "此邮件没有 HTML 部分。",
+    "noText": "此邮件没有文本部分。",
+    "sourceTruncated": "仅显示前 1 MB。下载 .eml 查看完整原文。",
+    "attachments": "附件",
+    "downloadEml": "下载 .eml",
+    "messageGone": "此邮件已不存在。",
+    "delete": "删除",
+    "deleteSelected": "删除所选（{count}）",
+    "deleteAll": "全部删除",
+    "deleteMatching": "删除所有匹配项",
+    "deleteConfirmTitle": "删除邮件？",
+    "deleteSelectedConfirm": "{count, plural, other {# 封邮件}}将从 Mailpit 中永久删除。",
+    "deleteAllConfirm": "此环境 Mailpit 中的所有邮件都将被永久删除。",
+    "deleteMatchingConfirm": "所有匹配“{query}”的邮件都将被永久删除。",
+    "deleted": "已删除",
+    "total": "{count, plural, other {# 封邮件}}",
+    "previous": "上一页",
+    "next": "下一页",
+    "selectAll": "全选本页"
   }
 }
