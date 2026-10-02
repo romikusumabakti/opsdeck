@@ -4,6 +4,7 @@ import {
   databaseNameSchema,
   explorerRelativePathSchema,
   isoDurationSchema,
+  mailpitSettingsSchema,
   projectKeySchema,
   subdomainLabelSchema,
   tunnelRouteInputSchema,
@@ -179,5 +180,28 @@ describe("tunnelRouteInputSchema", () => {
         tunnelRouteInputSchema.safeParse({ ...base, originHost }).success
       ).toBe(false);
     }
+  });
+});
+
+describe("mailpitSettingsSchema", () => {
+  it.each([
+    "http://10.0.0.5:8025",
+    "https://mail-qa.example.com/",
+    "https://example.com/mailpit",
+    "",
+  ])("accepts url %p", (url) => {
+    expect(mailpitSettingsSchema.safeParse({ url }).success).toBe(true);
+  });
+
+  it.each(["ftp://x.test", "javascript:alert(1)", "not a url", "file:///etc/passwd"])(
+    "rejects url %p",
+    (url) => {
+      expect(mailpitSettingsSchema.safeParse({ url }).success).toBe(false);
+    }
+  );
+
+  it("keeps password undefined when omitted (blank = keep)", () => {
+    const parsed = mailpitSettingsSchema.parse({ url: "http://x.test", username: "qa" });
+    expect(parsed.password).toBeUndefined();
   });
 });

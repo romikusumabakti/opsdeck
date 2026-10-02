@@ -1513,7 +1513,9 @@
     "issueJiraPushFailed": "No se pudo escribir {field} de vuelta en Jira",
     "tunnelRouteCreated": "{actor} publicó {hostname} → {origin}",
     "tunnelRouteDeleted": "{actor} retiró {hostname}",
-    "tunnelNetworkAttached": "{actor} conectó la red {network} a {tunnel}"
+    "tunnelNetworkAttached": "{actor} conectó la red {network} a {tunnel}",
+    "mailpitConfigured": "{actor} conectó Mailpit para {environment}",
+    "mailpitRemoved": "{actor} desconectó Mailpit de {environment}"
   },
   "jira": {
     "title": "Jira",
