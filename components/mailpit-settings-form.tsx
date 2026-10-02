@@ -62,6 +62,11 @@ export function MailpitSettingsForm({
     },
   });
   const url = useWatch({ control: form.control, name: "url" });
+  const username = useWatch({ control: form.control, name: "username" });
+  // The server keeps the stored password only while the URL is unchanged and a
+  // username remains (see actions/mailpit-settings).
+  const keepsPassword =
+    url.trim() === settings?.url && username.trim().length > 0;
   const saving = form.formState.isSubmitting;
   useUnsavedChanges(form.formState.isDirty && !saving);
 
@@ -152,11 +157,18 @@ export function MailpitSettingsForm({
                   <PasswordInput
                     autoComplete="new-password"
                     placeholder={
-                      settings?.hasPassword ? t("passwordKeepPlaceholder") : ""
+                      settings?.hasPassword && keepsPassword
+                        ? t("passwordKeepPlaceholder")
+                        : ""
                     }
                     {...field}
                   />
                 </FormControl>
+                {settings?.hasPassword && !keepsPassword && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("passwordReenter")}
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}

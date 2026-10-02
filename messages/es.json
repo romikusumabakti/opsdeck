@@ -1739,6 +1739,7 @@
     "username": "Usuario (opcional)",
     "password": "Contraseña (opcional)",
     "passwordKeepPlaceholder": "Déjala en blanco para no cambiarla",
+    "passwordReenter": "La contraseña guardada se borra al cambiar la URL; vuelve a introducirla.",
     "authHint": "Credenciales Basic Auth, si Mailpit se ejecuta con --ui-auth-file.",
     "save": "Guardar",
     "saving": "Guardando…",

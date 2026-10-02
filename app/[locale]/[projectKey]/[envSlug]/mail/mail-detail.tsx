@@ -32,11 +32,13 @@ function Pane({ children }: { children: React.ReactNode }) {
 export function MailDetailPane({
   environmentId,
   messageId,
+  deleting,
   onDelete,
   onGone,
 }: {
   environmentId: string;
   messageId: string | null;
+  deleting: boolean;
   onDelete: (id: string) => void;
   onGone: () => void;
 }) {
@@ -64,7 +66,7 @@ export function MailDetailPane({
   }, [environmentId, messageId]);
 
   function loadSource(id: string) {
-    if (source?.id === id) return;
+    if (source?.id === id && source.result.success) return;
     startLoading(async () => {
       setSource({ id, result: await getMailSource(environmentId, id) });
     });
@@ -147,6 +149,7 @@ export function MailDetailPane({
         <Button
           variant="outline"
           size="icon-sm"
+          disabled={deleting}
           onClick={() => onDelete(message.ID)}
           aria-label={t("delete")}
         >

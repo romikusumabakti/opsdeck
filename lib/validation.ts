@@ -573,7 +573,20 @@ export type TunnelRouteInput = z.infer<typeof tunnelRouteInputSchema>;
 export const mailpitSettingsSchema = z.object({
   url: z.union([
     z.literal(""),
-    z.url({ protocol: /^https?$/ }).max(2048),
+    z
+      .url({ protocol: /^https?$/ })
+      .max(2048)
+      // Credentials belong in the encrypted username/password columns, not
+      // embedded in the URL (stored in clear and easy to leak into logs).
+      .refine((u) => {
+        // Refinements still run after a failed .url() check.
+        try {
+          const { username, password } = new URL(u);
+          return !username && !password;
+        } catch {
+          return true;
+        }
+      }, "URL must not contain credentials"),
   ]),
   username: z.string().trim().max(255).nullish(),
   password: z.string().max(1024).optional(),
