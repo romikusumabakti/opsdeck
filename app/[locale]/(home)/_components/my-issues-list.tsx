@@ -4,13 +4,18 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { setIssueStatus } from "@/actions/issues";
-import { type Status, StatusSelect } from "@/components/issues-board";
+import {
+  STATUS_DOT,
+  type Status,
+  StatusSelect,
+} from "@/components/issues-board";
 import { Link } from "@/i18n/navigation";
 import type { MyIssue } from "@/lib/home/queries";
 import { cn } from "@/lib/utils";
 
 export function MyIssuesList({ items }: { items: MyIssue[] }) {
   const t = useTranslations("homePage");
+  const tIssues = useTranslations("issues");
   const [, startTransition] = React.useTransition();
   const [rows, setOptimistic] = React.useOptimistic(
     items,
@@ -22,8 +27,14 @@ export function MyIssuesList({ items }: { items: MyIssue[] }) {
     startTransition(async () => {
       setOptimistic({ id, status });
       // updateIssue revalidates Home, so resolved/closed rows drop out.
-      const res = await setIssueStatus(id, status);
-      if (!res.success) toast.error(t("issues.statusFailed"));
+      try {
+        const res = await setIssueStatus(id, status);
+        if (!res.success) toast.error(t("issues.statusFailed"));
+      } catch {
+        // A thrown action (forbidden, expired session) must not reach the
+        // route error boundary; the optimistic status rolls back.
+        toast.error(t("issues.statusFailed"));
+      }
     });
   }
 
@@ -50,11 +61,23 @@ export function MyIssuesList({ items }: { items: MyIssue[] }) {
           <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
             {i.projectName}
           </span>
-          <StatusSelect
-            value={i.status as Status}
-            onChange={(s) => changeStatus(i.id, s)}
-            className="h-7 w-36 shrink-0"
-          />
+          {i.canWrite ? (
+            <StatusSelect
+              value={i.status as Status}
+              onChange={(s) => changeStatus(i.id, s)}
+              className="h-7 w-36 shrink-0"
+            />
+          ) : (
+            <span className="flex h-7 w-36 shrink-0 items-center gap-2 px-3 text-sm">
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  STATUS_DOT[i.status as Status]
+                )}
+              />
+              {tIssues(`status.${i.status as Status}`)}
+            </span>
+          )}
         </li>
       ))}
     </ul>
