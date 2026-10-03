@@ -128,7 +128,8 @@
     "badgeAssignedIssues": "{count, plural, one {# incidencia asignada a ti} other {# incidencias asignadas a ti}}",
     "badgeActiveRuns": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
     "tunnels": "Túneles",
-    "mail": "Correo"
+    "mail": "Correo",
+    "access": "Acceso"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -1010,7 +1011,8 @@
     "routeDeleteFailed": "No se pudo retirar el nombre",
     "networkAttached": "Conectado a {network}",
     "networkAttachFailed": "No se pudo conectar la red",
-    "networkAlreadyAttached": "Ya está conectado a esa red"
+    "networkAlreadyAttached": "Ya está conectado a esa red",
+    "cannotRemoveLastAdmin": "No se puede degradar al último administrador"
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1520,7 +1522,10 @@
     "mailpitRemoved": "{actor} desconectó Mailpit de {environment}",
     "mailDeleted": "{actor} eliminó {count, plural, one {# correo} other {# correos}} en {environment}",
     "mailDeletedSearch": "{actor} eliminó los correos que coinciden con «{query}» en {environment}",
-    "mailCleared": "{actor} vació la bandeja de {environment}"
+    "mailCleared": "{actor} vació la bandeja de {environment}",
+    "userOffboarded": "{actor} dio de baja a {user}",
+    "userRoleChanged": "{actor} cambió el rol de {user} de {from} a {to}",
+    "userInvited": "{actor} invitó a {email} como {role}"
   },
   "jira": {
     "title": "Jira",
@@ -1794,5 +1799,24 @@
     "previous": "Anterior",
     "next": "Siguiente",
     "selectAll": "Seleccionar todo en esta página"
+  },
+  "access": {
+    "title": "Acceso",
+    "subtitle": "Quién puede acceder a qué, en todos los proyectos.",
+    "colUser": "Usuario",
+    "colOrgRole": "Rol de organización",
+    "colLastSeen": "Última actividad",
+    "inactive": "Inactivo",
+    "banned": "Bloqueado",
+    "filterInactive": "Inactivos > 60 días",
+    "filterBanned": "Mostrar bloqueados",
+    "never": "Nunca",
+    "offboard": "Dar de baja",
+    "offboardTitle": "Dar de baja al usuario",
+    "offboardConfirm": "¿Bloquear a {name}, cerrar sus sesiones y quitar todas sus membresías e invitaciones pendientes?",
+    "offboarded": "Usuario dado de baja",
+    "errorInvalidUser": "Usuario desconocido",
+    "errorSelf": "No puedes darte de baja a ti mismo",
+    "errorLastAdmin": "No se puede quitar al último administrador"
   }
 }

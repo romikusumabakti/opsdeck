@@ -4,6 +4,9 @@ import { randomBytes } from "node:crypto";
 import { and, count, eq, inArray, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
+import { assertNotLastAdmin } from "@/lib/access";
+import { recordActivity } from "@/lib/activity";
+import { listActiveAdminIds } from "@/lib/admins";
 import { assignableUsersWhere } from "@/lib/assignees";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
 import { requireSession } from "@/lib/auth-session";
@@ -252,6 +255,13 @@ export async function inviteUser(input: {
     return { success: false, message: t("emailSendFailed") };
   }
 
+  await recordActivity({
+    actorId: session.user.id,
+    action: "user.invited",
+    entityType: "access",
+    data: { email, role },
+  });
+
   revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
 }
@@ -304,6 +314,17 @@ export async function updateUserRole(input: {
   }
   const role: OrgRole = input.role;
 
+  if (
+    !assertNotLastAdmin(await listActiveAdminIds(), input.userId, role)
+  ) {
+    return { success: false, message: t("cannotRemoveLastAdmin") };
+  }
+  const [before] = await db
+    .select({ role: userTable.role, name: userTable.name })
+    .from(userTable)
+    .where(eq(userTable.id, input.userId))
+    .limit(1);
+
   // Direct Drizzle update: the admin plugin's `setRole` API only accepts its
   // built-in role names in TypeScript types, but our `member` role is custom.
   // Updating our own users table avoids that mismatch and is what `setRole`
@@ -317,6 +338,14 @@ export async function updateUserRole(input: {
   if (result.length === 0) {
     return { success: false, message: t("errorGeneric") };
   }
+
+  await recordActivity({
+    actorId: session.user.id,
+    action: "user.roleChanged",
+    entityType: "access",
+    entityId: input.userId,
+    data: { user: before?.name ?? "?", from: before?.role ?? "?", to: role },
+  });
 
   revalidatePath("/admin/users");
   return { success: true, message: t("roleUpdated") };
