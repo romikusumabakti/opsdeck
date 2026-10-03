@@ -845,7 +845,7 @@
     "role": {
       "admin": "Admin",
       "infra": "Infra",
-      "observer": "Pengamat",
+      "observer": "Pemantau",
       "member": "Anggota"
     },
     "roleChangeTitle": "Ubah peran",
@@ -1764,8 +1764,6 @@
     "notConfiguredTitle": "Mailpit belum terhubung",
     "notConfiguredDescription": "Admin dapat menghubungkan Mailpit environment ini di pengaturan.",
     "openSettings": "Buka pengaturan",
-    "forbiddenTitle": "Email dibatasi",
-    "forbiddenDescription": "Membaca email yang ditangkap memerlukan role member atau lebih tinggi di project ini.",
     "loadFailed": "Gagal memuat email",
     "retry": "Coba lagi",
     "from": "Dari",
