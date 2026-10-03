@@ -121,24 +121,31 @@ export type MyIssue = {
   status: IssueStatus;
   projectKey: string;
   projectName: string;
+  // Assignment does not imply issue:write (a viewer can be assigned).
+  canWrite: boolean;
 };
 
 export async function listMyOpenIssues(
   limit = 8
 ): Promise<{ items: MyIssue[]; total: number }> {
   const session = await requireSession();
+  const [scope, access] = await Promise.all([
+    projectScope(issues.projectId),
+    getProjectAccess(),
+  ]);
   const where: SQL | undefined = and(
     eq(issues.assigneeId, session.user.id),
     inArray(issues.status, ["open", "in_progress"]),
-    await projectScope(issues.projectId)
+    scope
   );
-  const [items, [totalRow]] = await Promise.all([
+  const [rows, [totalRow]] = await Promise.all([
     db
       .select({
         id: issues.id,
         number: issues.number,
         title: issues.title,
         status: issues.status,
+        projectId: issues.projectId,
         projectKey: projects.key,
         projectName: projects.name,
       })
@@ -153,6 +160,12 @@ export async function listMyOpenIssues(
       .limit(limit),
     db.select({ total: count() }).from(issues).where(where),
   ]);
+  const items = rows.map(({ projectId, ...issue }) => ({
+    ...issue,
+    canWrite: canProject(access.roles[projectId] ?? null, {
+      issue: ["write"],
+    }),
+  }));
   return { items, total: totalRow?.total ?? 0 };
 }
 
