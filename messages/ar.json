@@ -607,7 +607,8 @@
     "owner": "المالك",
     "ownerPlaceholder": "مثال: QA — Budi",
     "ownerHint": "مالك عملية النشر هذه. اختياري.",
-    "purpose": "الغرض"
+    "purpose": "الغرض",
+    "infraReadOnlyHint": "يتطلب تغيير الخوادم أو الخدمات أو إعدادات قاعدة البيانات صلاحية إدارة الخوادم."
   },
   "environmentSettings": {
     "title": "إعدادات البيئة",

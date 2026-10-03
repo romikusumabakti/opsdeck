@@ -19,7 +19,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { requireProjectPage } from "@/lib/authz";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import { canProject } from "@/lib/permissions";
+import {
+  canCreateEnvironment as canCreateEnvironmentIn,
+  canProject,
+} from "@/lib/permissions";
 import { IssuesClient } from "./[envSlug]/issues/issues-client";
 import { MilestonesClient } from "./milestones-client";
 import { ProjectMembersClient } from "./project-members-client";
@@ -49,9 +52,11 @@ export default async function ProjectOverviewPage({
     notFound();
   }
   // 404 when the project is invisible to the caller.
-  const { role } = await requireProjectPage({ projectId: project.id });
+  const { session, role } = await requireProjectPage({
+    projectId: project.id,
+  });
   const canUpdateEnvironment = canProject(role, { environment: ["update"] });
-  const canCreateEnvironment = canProject(role, { environment: ["create"] });
+  const canCreateEnvironment = canCreateEnvironmentIn(session.user.role, role);
 
   const [issues, users, milestones, t, tOv, tDash, tKinds] = await Promise.all([
     listIssues(project.id),

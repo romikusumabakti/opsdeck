@@ -177,3 +177,16 @@ export function canProject(
   if (!role) return false;
   return projectRoles[role].authorize(perms as never).success;
 }
+
+// Creating an environment binds it to servers (and their stored credentials),
+// so it needs org-level server:manage on top of environment:create on the
+// project. Changing an existing environment's bindings needs the same.
+export function canCreateEnvironment(
+  orgRole: string | null | undefined,
+  projectRole: ProjectRole | null
+): boolean {
+  return (
+    canProject(projectRole, { environment: ["create"] }) &&
+    canOrg(orgRole, { server: ["manage"] })
+  );
+}

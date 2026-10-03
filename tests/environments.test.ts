@@ -4,7 +4,11 @@ import type {
   Server,
   ServiceWithServer,
 } from "@/lib/db/schema";
-import { sanitizeEnvironment } from "@/lib/environments";
+import {
+  changedInfraFields,
+  type INFRA_FIELDS,
+  sanitizeEnvironment,
+} from "@/lib/environments";
 import { backendService, dbService } from "@/lib/services";
 
 function makeServer(name: string): Server {
@@ -143,5 +147,93 @@ describe("sanitizeEnvironment", () => {
     expect(dbService(safe).dbName).toBe("appdb");
     expect(dbService(safe).server.name).toBe("server-11");
     expect(dbService(safe).server.host).toBe("11.example.com");
+  });
+});
+
+describe("changedInfraFields", () => {
+  // The full payload the settings form re-submits with nothing edited.
+  const unchanged = {
+    projectId: "22222222-2222-2222-2222-222222222222",
+    name: "Demo renamed",
+    kind: "qa" as const,
+    owner: "QA team",
+    dbServerId: "db",
+    dbServiceType: "docker" as const,
+    dbServiceName: "pg",
+    dbType: "postgres" as const,
+    dbName: "appdb",
+    dbUser: null,
+    dbBackupPath: "/backups",
+    backendServerId: "be",
+    backendServiceType: "systemd" as const,
+    backendServiceName: "api",
+    backendMockTimeApiUrl: "https://api.example.com/clock",
+    frontendServerId: "fe",
+    frontendServiceType: "docker" as const,
+    frontendServiceName: "web",
+  };
+
+  it("reports nothing when only name/kind/owner/project change", () => {
+    expect(changedInfraFields(unchanged, makeProject())).toEqual([]);
+  });
+
+  it("reports nothing for an empty payload", () => {
+    expect(changedInfraFields({}, makeProject())).toEqual([]);
+  });
+
+  it("treats a re-submitted secret equal to the stored one as unchanged", () => {
+    expect(
+      changedInfraFields(
+        { dbPassword: "db-secret", backendMockTimeApiKey: "mock-time-api-key" },
+        makeProject()
+      )
+    ).toEqual([]);
+  });
+
+  it("flags a server rebinding", () => {
+    expect(
+      changedInfraFields({ ...unchanged, dbServerId: "other" }, makeProject())
+    ).toEqual(["dbServerId"]);
+  });
+
+  it("flags every infra field individually", () => {
+    const changes: Record<keyof typeof INFRA_FIELDS, unknown> = {
+      dbServerId: "x",
+      dbServiceType: "systemd",
+      dbServiceName: "x",
+      dbType: "mysql",
+      dbName: "x",
+      dbUser: "root",
+      dbPassword: "new-secret",
+      dbBackupPath: "/x",
+      backendServerId: "x",
+      backendServiceType: "docker",
+      backendServiceName: "x",
+      backendMockTimeApiUrl: "http://169.254.169.254/",
+      backendMockTimeApiKey: "new-key",
+      frontendServerId: "x",
+      frontendServiceType: "kubernetes",
+      frontendServiceName: "x",
+    };
+    for (const [field, value] of Object.entries(changes)) {
+      expect(changedInfraFields({ [field]: value }, makeProject())).toEqual([
+        field as keyof typeof INFRA_FIELDS,
+      ]);
+    }
+  });
+
+  it("flags clearing a stored value", () => {
+    expect(
+      changedInfraFields({ backendMockTimeApiUrl: null }, makeProject())
+    ).toEqual(["backendMockTimeApiUrl"]);
+  });
+
+  it("counts fields for a missing service row as changes", () => {
+    expect(
+      changedInfraFields(
+        { frontendServiceName: "web" },
+        makeProject({ services: [makeDbService(), makeBackendService()] })
+      )
+    ).toEqual(["frontendServiceName"]);
   });
 });

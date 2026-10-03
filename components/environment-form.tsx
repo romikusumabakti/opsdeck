@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { createEnvironment, updateEnvironment } from "@/actions/environments";
@@ -73,7 +73,9 @@ export function EnvironmentForm({
 }: {
   mode: Mode;
   servers: ServerOption[];
-  // Whether the caller may register a new server (server:manage).
+  // Whether the caller holds org server:manage: may register a new server and
+  // change an environment's infrastructure bindings. Without it, edit mode
+  // shows those bindings read-only and submits only the info fields.
   canManageServers: boolean;
   projects: Project[];
   // Preselected parent project for a fresh create (e.g. "New environment" from
@@ -91,14 +93,18 @@ export function EnvironmentForm({
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
-  const schema = z
-    .object({
-      projectId: z.string().min(1, t("projectRequired")),
-      name: z.string().min(1, tCommon("required")),
-      // "" = unspecified (mapped to null on submit).
-      kind: z.enum(ENV_KINDS).or(z.literal("")),
-      owner: z.string(),
+  const infraReadOnly = mode.type === "edit" && !canManageServers;
 
+  const infoSchema = z.object({
+    projectId: z.string().min(1, t("projectRequired")),
+    name: z.string().min(1, tCommon("required")),
+    // "" = unspecified (mapped to null on submit).
+    kind: z.enum(ENV_KINDS).or(z.literal("")),
+    owner: z.string(),
+  });
+
+  const schema = infoSchema
+    .extend({
       dbServerId: z.string().min(1, t("pickServerRequired")),
       dbServiceType: z.enum(SERVICE_TYPES),
       dbServiceName: z.string().min(1, tCommon("required")),
@@ -158,7 +164,11 @@ export function EnvironmentForm({
   const frontendSvc = source ? frontendService(source) : undefined;
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    // Read-only infrastructure is never submitted, so only the info fields are
+    // validated (a stored binding the caller can't edit must not block a save).
+    resolver: (infraReadOnly
+      ? zodResolver(infoSchema)
+      : zodResolver(schema)) as unknown as Resolver<FormValues>,
     defaultValues: source
       ? {
           projectId: source.projectId,
@@ -224,6 +234,22 @@ export function EnvironmentForm({
   }
 
   async function onSubmit(values: FormValues) {
+    if (infraReadOnly && mode.type === "edit") {
+      const result = await updateEnvironment(mode.environment.id, {
+        projectId: values.projectId,
+        name: values.name,
+        kind: values.kind ? values.kind : null,
+        owner: values.owner.trim() ? values.owner.trim() : null,
+      });
+      if (!result.success || !result.data) {
+        toast.error(result.message ?? t("submitFailed"));
+        return;
+      }
+      toast.success(t("savedSuccess"));
+      form.reset(values);
+      router.refresh();
+      return;
+    }
     const { dbPassword, backendMockTimeApiKey, ...rest } = values;
     const base = {
       ...rest,
@@ -417,262 +443,272 @@ export function EnvironmentForm({
             />
           </Section>
 
-          <Section title={t("database")}>
-            <ServerPicker
-              t={t}
-              control={form.control}
-              name="dbServerId"
-              servers={servers}
-              onRequestCreate={
-                canManageServers ? () => setDialogRole("db") : undefined
-              }
-            />
-            <FormField
-              control={form.control}
-              name="dbServiceType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("serviceType")}</FormLabel>
-                  <EnumSelect
-                    field={field}
-                    options={SERVICE_TYPES}
-                    getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbServiceName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("serviceName")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("dbType")}</FormLabel>
-                  <EnumSelect
-                    field={field}
-                    options={DB_TYPES}
-                    getLabel={(v) => tEnums(`dbTypes.${v}`)}
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("dbName")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbUser"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("dbUser")}</FormLabel>
-                  <FormControl>
-                    {/* Placeholder shows the account that will be used when the
-                        field is left blank, so the default is visible rather
-                        than implied. */}
-                    <Input
-                      autoComplete="off"
-                      placeholder={dbAdminUser(form.watch("dbType"), null)}
-                      {...field}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {t("dbUserHint")}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("dbPassword")}</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      autoComplete="new-password"
-                      placeholder={
-                        mode.type === "edit"
-                          ? t("dbPasswordEditPlaceholder")
-                          : ""
-                      }
-                      {...field}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {t("dbPasswordHint")}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dbBackupPath"
-              render={({ field }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>{t("backupPath")}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="/var/backups/db" {...field} />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {t("backupPathHint")}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </Section>
+          {infraReadOnly && mode.type === "edit" ? (
+            <InfraSummary environment={mode.environment} />
+          ) : (
+            <>
+              <Section title={t("database")}>
+                <ServerPicker
+                  t={t}
+                  control={form.control}
+                  name="dbServerId"
+                  servers={servers}
+                  onRequestCreate={
+                    canManageServers ? () => setDialogRole("db") : undefined
+                  }
+                />
+                <FormField
+                  control={form.control}
+                  name="dbServiceType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("serviceType")}</FormLabel>
+                      <EnumSelect
+                        field={field}
+                        options={SERVICE_TYPES}
+                        getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dbServiceName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("serviceName")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dbType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("dbType")}</FormLabel>
+                      <EnumSelect
+                        field={field}
+                        options={DB_TYPES}
+                        getLabel={(v) => tEnums(`dbTypes.${v}`)}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dbName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("dbName")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dbUser"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("dbUser")}</FormLabel>
+                      <FormControl>
+                        {/* Placeholder shows the account that will be used when the
+                            field is left blank, so the default is visible rather
+                            than implied. */}
+                        <Input
+                          autoComplete="off"
+                          placeholder={dbAdminUser(form.watch("dbType"), null)}
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        {t("dbUserHint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dbPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("dbPassword")}</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          autoComplete="new-password"
+                          placeholder={
+                            mode.type === "edit"
+                              ? t("dbPasswordEditPlaceholder")
+                              : ""
+                          }
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        {t("dbPasswordHint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dbBackupPath"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>{t("backupPath")}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="/var/backups/db" {...field} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        {t("backupPathHint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </Section>
 
-          <Section title={t("backend")}>
-            <ServerPicker
-              t={t}
-              control={form.control}
-              name="backendServerId"
-              servers={servers}
-              onRequestCreate={
-                canManageServers ? () => setDialogRole("backend") : undefined
-              }
-            />
-            <FormField
-              control={form.control}
-              name="backendServiceType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("serviceType")}</FormLabel>
-                  <EnumSelect
-                    field={field}
-                    options={SERVICE_TYPES}
-                    getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="backendServiceName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("serviceName")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="backendMockTimeApiUrl"
-              render={({ field }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>{t("mockTimeApiUrl")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="url"
-                      placeholder="https://api.example.com/v1/clock"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {t("mockTimeApiUrlHint")}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="backendMockTimeApiKey"
-              render={({ field }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>{t("mockTimeApiKey")}</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      autoComplete="new-password"
-                      placeholder={
-                        mode.type === "edit" &&
-                        backendService(mode.environment).hasMockTimeApiKey
-                          ? t("mockTimeApiKeyEditPlaceholder")
-                          : ""
-                      }
-                      {...field}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {t("mockTimeApiKeyHint")}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </Section>
+              <Section title={t("backend")}>
+                <ServerPicker
+                  t={t}
+                  control={form.control}
+                  name="backendServerId"
+                  servers={servers}
+                  onRequestCreate={
+                    canManageServers
+                      ? () => setDialogRole("backend")
+                      : undefined
+                  }
+                />
+                <FormField
+                  control={form.control}
+                  name="backendServiceType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("serviceType")}</FormLabel>
+                      <EnumSelect
+                        field={field}
+                        options={SERVICE_TYPES}
+                        getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="backendServiceName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("serviceName")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="backendMockTimeApiUrl"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>{t("mockTimeApiUrl")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://api.example.com/v1/clock"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        {t("mockTimeApiUrlHint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="backendMockTimeApiKey"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>{t("mockTimeApiKey")}</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          autoComplete="new-password"
+                          placeholder={
+                            mode.type === "edit" &&
+                            backendService(mode.environment).hasMockTimeApiKey
+                              ? t("mockTimeApiKeyEditPlaceholder")
+                              : ""
+                          }
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        {t("mockTimeApiKeyHint")}
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </Section>
 
-          <Section title={t("frontend")}>
-            <ServerPicker
-              t={t}
-              control={form.control}
-              name="frontendServerId"
-              servers={servers}
-              onRequestCreate={
-                canManageServers ? () => setDialogRole("frontend") : undefined
-              }
-            />
-            <FormField
-              control={form.control}
-              name="frontendServiceType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("serviceType")}</FormLabel>
-                  <EnumSelect
-                    field={field}
-                    options={SERVICE_TYPES}
-                    getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                  />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="frontendServiceName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("serviceName")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </Section>
+              <Section title={t("frontend")}>
+                <ServerPicker
+                  t={t}
+                  control={form.control}
+                  name="frontendServerId"
+                  servers={servers}
+                  onRequestCreate={
+                    canManageServers
+                      ? () => setDialogRole("frontend")
+                      : undefined
+                  }
+                />
+                <FormField
+                  control={form.control}
+                  name="frontendServiceType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("serviceType")}</FormLabel>
+                      <EnumSelect
+                        field={field}
+                        options={SERVICE_TYPES}
+                        getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="frontendServiceName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("serviceName")}</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </Section>
+            </>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button
@@ -707,6 +743,73 @@ export function EnvironmentForm({
         onOpenChange={setProjectDialogOpen}
         onCreated={onProjectCreated}
       />
+    </>
+  );
+}
+
+// Read-only view of an environment's infrastructure bindings for callers
+// without server:manage. Built from the stored environment only (server names
+// included), so the server list is never fetched for them.
+function InfraSummary({
+  environment,
+}: {
+  environment: SafeEnvironmentWithServers;
+}) {
+  const t = useTranslations("environmentForm");
+  const tEnums = useTranslations("dashboard");
+  const db = dbService(environment);
+  const backend = backendService(environment);
+  const frontend = frontendService(environment);
+  const row = (label: string, value: string | null | undefined) => ({
+    label,
+    value: value || "—",
+  });
+  const sections = [
+    {
+      title: t("database"),
+      rows: [
+        row(t("server"), db.server.name),
+        row(t("serviceType"), tEnums(`serviceTypes.${db.serviceType}`)),
+        row(t("serviceName"), db.serviceName),
+        row(t("dbType"), db.dbType ? tEnums(`dbTypes.${db.dbType}`) : null),
+        row(t("dbName"), db.dbName),
+        row(t("dbUser"), db.dbUser),
+        row(t("backupPath"), db.dbBackupPath),
+      ],
+    },
+    {
+      title: t("backend"),
+      rows: [
+        row(t("server"), backend.server.name),
+        row(t("serviceType"), tEnums(`serviceTypes.${backend.serviceType}`)),
+        row(t("serviceName"), backend.serviceName),
+        row(t("mockTimeApiUrl"), backend.mockTimeApiUrl),
+      ],
+    },
+    {
+      title: t("frontend"),
+      rows: [
+        row(t("server"), frontend.server.name),
+        row(t("serviceType"), tEnums(`serviceTypes.${frontend.serviceType}`)),
+        row(t("serviceName"), frontend.serviceName),
+      ],
+    },
+  ];
+  return (
+    <>
+      <p className="text-sm text-muted-foreground">{t("infraReadOnlyHint")}</p>
+      {sections.map((section) => (
+        <Section key={section.title} title={section.title}>
+          {section.rows.map((r) => (
+            <div key={r.label} className="flex flex-col gap-1">
+              <span className="text-sm font-medium">{r.label}</span>
+              <span className="text-sm text-muted-foreground break-all">
+                {r.value}
+              </span>
+            </div>
+          ))}
+        </Section>
+      ))}
     </>
   );
 }

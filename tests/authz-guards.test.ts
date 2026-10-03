@@ -185,16 +185,43 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
   }
 });
 
-describe("listServerOptions leaks nothing beyond id and name", () => {
-  const source = readFileSync("actions/servers.ts", "utf8");
-  const fn = body(source, "listServerOptions");
-  it("requires environment:update on the project", () => {
-    expect(fn).toMatch(/requireProjectPermission\(\s*\{ projectId \}/);
-    expect(fn).toMatch(/environment: \["update"\]/);
+// Binding an environment to infrastructure is fleet-level power (service
+// control, database drop/restore and logs run against whatever it points at),
+// so it needs org server:manage, not just a project role.
+describe("environment infrastructure bindings need server:manage", () => {
+  const source = readFileSync("actions/environments.ts", "utf8");
+  it("createEnvironment requires server:manage", () => {
+    expect(body(source, "createEnvironment")).toMatch(
+      /requireOrgPermission\(\{ server: \["manage"\] \}\)/
+    );
   });
-  it("selects only id and name", () => {
-    expect(fn).toMatch(/select\(\{ id: servers\.id, name: servers\.name \}\)/);
-    expect(fn).not.toMatch(/select\(\)/);
+  it("updateEnvironment requires server:manage when an infra field changes", () => {
+    const fn = body(source, "updateEnvironment");
+    expect(fn).toMatch(
+      /changedInfraFields\([\s\S]*requireOrgPermission\(\{ server: \["manage"\] \}\)/
+    );
+    // The check must run before the try block, so ForbiddenError propagates.
+    expect(fn.indexOf("changedInfraFields(")).toBeLessThan(fn.indexOf("try {"));
+  });
+  it("the new-environment page requires server:manage", () => {
+    expect(
+      readFileSync(
+        "app/[locale]/[projectKey]/environments/new/page.tsx",
+        "utf8"
+      )
+    ).toMatch(/requireOrgPage\(\{ server: \["manage"\] \}\)/);
+  });
+  it("the settings page only fetches servers for server:manage", () => {
+    const page = readFileSync(
+      "app/[locale]/[projectKey]/[envSlug]/settings/page.tsx",
+      "utf8"
+    );
+    expect(page).toMatch(/canManageServers \? getServers\(\)/);
+  });
+  it("listServerOptions is gone", () => {
+    expect(readFileSync("actions/servers.ts", "utf8")).not.toMatch(
+      /listServerOptions/
+    );
   });
 });
 

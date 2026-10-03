@@ -63,6 +63,7 @@ export default async function ProjectsPage({
         lastOpened={lastOpened}
         initialSort={initialSort}
         projectRoles={access.roles}
+        orgRole={orgRole}
       />
     </>
   );
