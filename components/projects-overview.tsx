@@ -28,7 +28,12 @@ import {
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { EnvironmentSummary } from "@/lib/db/schema";
-import { canProject, type ProjectRole } from "@/lib/permissions";
+import {
+  canCreateEnvironment as canCreateEnvironmentIn,
+  canProject,
+  type OrgRole,
+  type ProjectRole,
+} from "@/lib/permissions";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
@@ -49,6 +54,7 @@ export function ProjectsOverview({
   lastOpened,
   initialSort,
   projectRoles,
+  orgRole,
 }: {
   projects: ProjectWithEnvironments[];
   openIssueCounts: Record<string, number>;
@@ -56,6 +62,7 @@ export function ProjectsOverview({
   lastOpened: Record<string, number>;
   initialSort: SortKey;
   projectRoles: Record<string, ProjectRole>;
+  orgRole: OrgRole;
 }) {
   const t = useTranslations("home");
   const locale = useLocale();
@@ -189,6 +196,7 @@ export function ProjectsOverview({
               lastActivity={lastActivity}
               dateFnsLocale={dateFnsLocale}
               role={projectRoles[project.id] ?? null}
+              orgRole={orgRole}
             />
           ))}
         </div>
@@ -203,14 +211,16 @@ function ProjectCard({
   lastActivity,
   dateFnsLocale,
   role,
+  orgRole,
 }: {
   project: ProjectWithEnvironments;
   openIssues: number;
   lastActivity: Record<string, EnvironmentActivity | null>;
   dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
   role: ProjectRole | null;
+  orgRole: OrgRole;
 }) {
-  const canCreateEnvironment = canProject(role, { environment: ["create"] });
+  const canCreateEnvironment = canCreateEnvironmentIn(orgRole, role);
   const canUpdateEnvironment = canProject(role, { environment: ["update"] });
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");

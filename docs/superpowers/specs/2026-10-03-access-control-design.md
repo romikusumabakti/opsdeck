@@ -101,6 +101,8 @@ All statements are defined once in `lib/permissions.ts` with `createAccessContro
 | `environment: create, update, delete` | – | – | ✓ |
 | `member: manage` | – | – | ✓ |
 
+**Infrastructure bindings need org `server: manage` too.** Under `environment: create, update, delete`: creating an environment, and changing an existing environment's infrastructure bindings (its db/backend/frontend servers, service types and names, database type/name/user/password/backup path, and the mock-time API URL/key), additionally require org `server: manage`. Those bindings decide what `service: control`, `database: drop`/`restore`, `service: logs` and the mock-time call act on, so a project role alone would amount to `server: manage` across the fleet. A maintainer without it can still rename the environment, set its kind and owner, move it to another project they may create environments in, and delete it; the settings page shows the bindings read-only. Only fields whose value actually changes count.
+
 The following stay open to any signed-in user, because they act only on the caller's own data: their own notifications, their own saved views, and their own account and passkeys.
 
 ## Enforcement API (`lib/authz.ts`)
@@ -123,6 +125,7 @@ Rules:
 - **Server action without permission:** throw `ForbiddenError` (a typed error). The client turns it into a toast. Server actions never redirect on denial.
 - **Cross-project queries must apply `projectScope`.** These are: project and environment lists, global issue list, issue counts, assigned-to-me, notifications, activity log and search. A grep-based test fails CI if one of these actions queries `issues`/`environments`/`projects` without it.
 - **Assignee pickers** list only users who have access to the project (`listAssignableUsers(projectId)`).
+- **The add-member picker** lists every non-banned user (`listMemberCandidates(projectId)`, which needs `member: manage`), because membership is how an org `member` gains access.
 - Terminal and explorer: the WebSocket ticket route requires `server: terminal`
   when minting (tickets live 30 s, so no redeem-time check); explorer actions
   and routes require `server: files`.

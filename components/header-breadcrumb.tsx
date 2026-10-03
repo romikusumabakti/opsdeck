@@ -24,8 +24,8 @@ import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
+  canCreateEnvironment as canCreateEnvironmentIn,
   canOrg,
-  canProject,
   type OrgRole,
   type ProjectRole,
 } from "@/lib/permissions";
@@ -344,9 +344,9 @@ function EnvironmentSwitcher({
   // changed when many sections re-render at once.
   const router = useViewTransitionRouter();
   const plainRouter = useRouter();
-  const canCreateEnvironment = canProject(
-    projectRoles[activeEnv.projectId] ?? null,
-    { environment: ["create"] }
+  const canCreateEnvironment = canCreateEnvironmentIn(
+    orgRole,
+    projectRoles[activeEnv.projectId] ?? null
   );
   const canCreateProject = canOrg(orgRole, { project: ["create"] });
   const tHeader = useTranslations("header");

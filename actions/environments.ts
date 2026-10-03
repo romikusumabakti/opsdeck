@@ -6,6 +6,7 @@ import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
   projectScope,
+  requireOrgPermission,
   requireProjectPermission,
 } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -21,7 +22,11 @@ import {
   type NewEnvironmentService,
   projects,
 } from "@/lib/db/schema";
-import { loadSafeEnvironment } from "@/lib/environments";
+import {
+  changedInfraFields,
+  loadEnvironmentWithServers,
+  loadSafeEnvironment,
+} from "@/lib/environments";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
 import type { ActionResponse } from "@/lib/types";
@@ -295,6 +300,10 @@ export async function createEnvironment(
     { projectId: parsed.data.projectId },
     { environment: ["create"] }
   );
+  // A new environment binds servers, service names and database credentials,
+  // which service control, drop/restore and logs then act on: org-level
+  // server:manage, not just a project role.
+  await requireOrgPermission({ server: ["manage"] });
   try {
     const input = parsed.data;
     const slug = await uniqueEnvSlug(input.projectId, input.name);
@@ -344,10 +353,21 @@ export async function updateEnvironment(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Environment>> {
-  await requireProjectPermission({ environmentId: id }, { environment: ["update"] });
+  await requireProjectPermission(
+    { environmentId: id },
+    { environment: ["update"] }
+  );
   const parsed = environmentUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid environment data" };
+  }
+  // Rebinding infrastructure (servers, service names, database credentials,
+  // the mock-time URL) needs org server:manage. Only fields whose value really
+  // changes count, so a maintainer re-saving the full form is still fine.
+  const stored = await loadEnvironmentWithServers(id);
+  if (!stored) return { success: false, message: "Environment not found" };
+  if (changedInfraFields(parsed.data, stored).length > 0) {
+    await requireOrgPermission({ server: ["manage"] });
   }
   // Moving an environment into another project is a create there.
   if (parsed.data.projectId) {

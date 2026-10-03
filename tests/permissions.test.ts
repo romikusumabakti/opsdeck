@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  canCreateEnvironment,
   canOrg,
   canProject,
   effectiveProjectRole,
@@ -155,5 +156,21 @@ describe("canProject matrix", () => {
   }
   it("denies everything to no role", () => {
     expect(canProject(null, { project: ["read"] })).toBe(false);
+  });
+});
+
+describe("canCreateEnvironment", () => {
+  it("needs environment:create on the project and org server:manage", () => {
+    expect(canCreateEnvironment("admin", "maintainer")).toBe(true);
+    expect(canCreateEnvironment("infra", "maintainer")).toBe(true);
+  });
+  it("denies a maintainer whose org role lacks server:manage", () => {
+    for (const org of ["member", "observer", "Admin", null]) {
+      expect(canCreateEnvironment(org, "maintainer")).toBe(false);
+    }
+  });
+  it("denies server:manage holders without environment:create", () => {
+    expect(canCreateEnvironment("infra", "contributor")).toBe(false);
+    expect(canCreateEnvironment("admin", null)).toBe(false);
   });
 });

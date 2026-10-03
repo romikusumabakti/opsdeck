@@ -6,7 +6,7 @@ import {
   getProjectByKeyWithEnvironments,
   listProjects,
 } from "@/actions/project-catalog";
-import { getServers, listServerOptions } from "@/actions/servers";
+import { getServers } from "@/actions/servers";
 import { EnvironmentForm } from "@/components/environment-form";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -16,8 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireProjectPage } from "@/lib/authz";
-import { canOrg } from "@/lib/permissions";
+import { requireOrgPage, requireProjectPage } from "@/lib/authz";
 
 // New environment under a given project. The parent comes from the route, so
 // the form's project picker starts on it; `?from=<envId>` clones an existing
@@ -39,18 +38,17 @@ export default async function NewEnvironmentPage({
   if (!project) {
     notFound();
   }
-  const { session } = await requireProjectPage(
+  await requireProjectPage(
     { projectId: project.id },
     { environment: ["create"] }
   );
+  // A new environment binds servers and their credentials: org server:manage
+  // too, not just the project role.
+  await requireOrgPage({ server: ["manage"] });
 
   const t = await getTranslations("newEnvironment");
   const [servers, projects, cloneFrom] = await Promise.all([
-    // Full server rows need org-level server:read; without it the picker gets
-    // id and name only.
-    canOrg(session.user.role, { server: ["read"] })
-      ? getServers()
-      : listServerOptions(project.id),
+    getServers(),
     listProjects(),
     from ? getEnvironmentById(from) : Promise.resolve(undefined),
   ]);
@@ -87,9 +85,7 @@ export default async function NewEnvironmentPage({
           <EnvironmentForm
             mode={{ type: "create", cloneFrom: cloneFrom ?? undefined }}
             servers={servers}
-            canManageServers={canOrg(session.user.role, {
-              server: ["manage"],
-            })}
+            canManageServers
             projects={projects}
             defaultProjectId={project.id}
           />
