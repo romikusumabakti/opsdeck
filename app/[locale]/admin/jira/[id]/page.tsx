@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function EditJiraConnectionPage({
   params,
@@ -22,7 +22,7 @@ export default async function EditJiraConnectionPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ integration: ["manage"] });
 
   const connection = await getJiraConnection(id);
   if (!connection) notFound();

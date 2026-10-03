@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireProjectPage } from "@/lib/authz";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
+import { canOrg } from "@/lib/permissions";
 import { DeleteEnvironmentCard } from "./delete-environment-card";
 
 export default async function ProjectSettingsPage({
@@ -30,11 +31,18 @@ export default async function ProjectSettingsPage({
   const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
-  await requireAdmin();
+  const { session } = await requireProjectPage(
+    { environmentId },
+    { environment: ["update"] }
+  );
 
   const [environment, servers, projects, mailpit] = await Promise.all([
     getEnvironmentById(environmentId),
-    getServers(),
+    // Servers are an org-level resource; without server:read the picker is
+    // simply empty.
+    canOrg(session.user.role, { server: ["read"] })
+      ? getServers()
+      : Promise.resolve([]),
     listProjects(),
     getMailpitSettings(environmentId),
   ]);

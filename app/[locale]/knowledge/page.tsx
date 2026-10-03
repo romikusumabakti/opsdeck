@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
-import { requireSession } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { loadCollections } from "@/lib/knowledge";
 
 export default async function KnowledgeHome({
@@ -13,7 +13,7 @@ export default async function KnowledgeHome({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireSession();
+  await requireOrgPage({ knowledge: ["read"] });
 
   const [collections, t] = await Promise.all([
     loadCollections(),

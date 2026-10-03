@@ -2,8 +2,14 @@
 
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getProjectRole, projectIdsWhere, projectScope } from "@/lib/authz";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { requireSession } from "@/lib/auth-session";
+import {
+  getProjectRole,
+  projectIdsWhere,
+  projectScope,
+  requireOrgPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -139,7 +145,7 @@ export async function getProjectByKeyWithEnvironments(
 export async function addProject(
   data: unknown
 ): Promise<ActionResponse<Project>> {
-  await requireAdmin();
+  await requireOrgPermission({ project: ["create"] });
   const parsed = projectMetaInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid project data" };
@@ -166,7 +172,10 @@ export async function editProject(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Project>> {
-  await requireAdmin();
+  await requireProjectPermission(
+    { projectId: id },
+    { environment: ["update"] }
+  );
   const parsed = projectMetaUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid project data" };
@@ -197,7 +206,7 @@ export async function editProject(
  * issues — the caller must confirm this destructive action first.
  */
 export async function removeProject(id: string): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ project: ["delete"] });
   try {
     await db.delete(projects).where(eq(projects.id, id));
     revalidatePath("/projects");

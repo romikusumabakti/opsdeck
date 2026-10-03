@@ -9,6 +9,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
+import { requireOrgPage } from "@/lib/authz";
 import { RoutesClient } from "./routes-client";
 
 export default async function TunnelDetailPage({
@@ -18,6 +19,7 @@ export default async function TunnelDetailPage({
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ tunnel: ["read"] });
 
   const tunnel = await getTunnel(id);
   if (!tunnel) notFound();

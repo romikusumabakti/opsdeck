@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { routeOrgGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { servers } from "@/lib/db/schema";
 import { resolveTerminalCwd } from "@/lib/terminal/authorize";
@@ -22,12 +22,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
-  // Admin-only, matching the file explorer. Checked here as well as on the
-  // page, because this route is directly callable.
-  if (!session || !isAdmin(session)) {
-    return new NextResponse("Forbidden", { status: 403 });
-  }
+  // Checked here as well as on the page, because this route is directly
+  // callable. The ticket TTL is 30 s, so this is the only check.
+  const guard = await routeOrgGuard({ server: ["terminal"] });
+  if (!guard.ok) return guard.response;
+  const { session } = guard;
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

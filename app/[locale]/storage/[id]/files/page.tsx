@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getS3Connection } from "@/actions/s3-connections";
 import { FileExplorer } from "@/components/file-explorer";
 import { PageHeader } from "@/components/page-header";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function StorageFilesPage({
   params,
@@ -13,7 +13,7 @@ export default async function StorageFilesPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ storage: ["files"] });
 
   const connection = await getS3Connection(id);
   if (!connection) notFound();

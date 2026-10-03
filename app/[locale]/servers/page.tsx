@@ -4,7 +4,7 @@ import { getServers } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { ServersClient } from "./servers-client";
 
 export default async function ServersPage({
@@ -15,7 +15,7 @@ export default async function ServersPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ server: ["read"] });
 
   const servers = await getServers();
   const t = await getTranslations("servers");

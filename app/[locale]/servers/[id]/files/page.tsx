@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServerById } from "@/actions/servers";
 import { FileExplorer } from "@/components/file-explorer";
 import { PageHeader } from "@/components/page-header";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function ServerFilesPage({
   params,
@@ -13,7 +13,7 @@ export default async function ServerFilesPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ server: ["files"] });
 
   const server = await getServerById(id);
   if (!server) notFound();

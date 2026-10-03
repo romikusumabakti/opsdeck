@@ -2,7 +2,7 @@
 
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPermission } from "@/lib/authz";
 import {
   type ExplorerEntry,
   type ExplorerSource,
@@ -34,7 +34,7 @@ import {
 } from "@/lib/validation";
 
 // Storage explorer actions. Filesystem/bucket access is powerful (SFTP runs as
-// the SSH user, often root), so every entry point is admin-gated — a stricter
+// the SSH user, often root), so every entry point is gated on the files permission of its target kind — a stricter
 // bar than the requireSession used for read-only project data. Credentials are
 // never in a payload: the client sends a source descriptor of ids, and
 // resolveBackend loads creds server-side.
@@ -51,6 +51,10 @@ async function open(
   if (!parsed.success) {
     return { ok: false as const, message: t("invalidInput") };
   }
+  // Authorize by the resolved target kind, before any credential load or I/O.
+  await requireOrgPermission(
+    parsed.data.kind === "s3" ? { storage: ["files"] } : { server: ["files"] }
+  );
   const backend = await resolveBackend(parsed.data as ExplorerSource);
   if (!backend) {
     return { ok: false as const, message: t("sourceNotFound") };
@@ -76,7 +80,6 @@ export async function listEntries(
   source: unknown,
   path: unknown
 ): Promise<ListResult> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -105,7 +108,6 @@ export async function getDownloadTarget(
   source: unknown,
   path: unknown
 ): Promise<DownloadResult> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -132,7 +134,6 @@ export async function readFileText(
   source: unknown,
   path: unknown
 ): Promise<ReadTextResult> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -161,7 +162,6 @@ export async function saveFileText(
   content: unknown,
   eol: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -192,7 +192,6 @@ export async function createFolder(
   parentPath: unknown,
   name: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -215,7 +214,6 @@ export async function deleteEntry(
   source: unknown,
   path: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -236,7 +234,6 @@ export async function renameEntry(
   path: unknown,
   newName: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -268,7 +265,6 @@ export async function moveEntry(
   path: unknown,
   destDir: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -304,7 +300,6 @@ export async function copyEntry(
   path: unknown,
   destDir: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -342,7 +337,6 @@ export async function compressEntries(
   destDir: unknown,
   name: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
@@ -384,7 +378,6 @@ export async function folderStats(
   source: unknown,
   path: unknown
 ): Promise<ActionResponse<FolderStats>> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };

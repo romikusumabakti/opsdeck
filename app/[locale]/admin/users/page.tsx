@@ -1,6 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
 import { listPendingInvitations, listUsers } from "@/actions/users";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { UsersClient } from "./users-client";
 
 export default async function UsersPage({
@@ -11,7 +11,7 @@ export default async function UsersPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const session = await requireAdmin();
+  const session = await requireOrgPage({ user: ["list"] });
 
   const [users, invitations] = await Promise.all([
     listUsers(),

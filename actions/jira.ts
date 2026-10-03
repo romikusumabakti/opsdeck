@@ -4,8 +4,7 @@ import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
-import { requireProjectPermission } from "@/lib/authz";
+import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -44,7 +43,7 @@ function toSafe(row: JiraConnection): SafeJiraConnection {
 // --- Connections ---
 
 export async function getJiraConnections(): Promise<SafeJiraConnection[]> {
-  await requireSession();
+  await requireOrgPermission({ integration: ["manage"] });
   const rows = await db
     .select()
     .from(jiraConnections)
@@ -55,7 +54,7 @@ export async function getJiraConnections(): Promise<SafeJiraConnection[]> {
 export async function getJiraConnection(
   id: string
 ): Promise<SafeJiraConnection | undefined> {
-  await requireSession();
+  await requireOrgPermission({ integration: ["manage"] });
   const [row] = await db
     .select()
     .from(jiraConnections)
@@ -74,7 +73,7 @@ export async function getJiraConnection(
 export async function getJiraWebhookUrl(
   connectionId: string
 ): Promise<string | null> {
-  await requireAdmin();
+  await requireOrgPermission({ integration: ["manage"] });
   const [row] = await db
     .select({ webhookSecret: jiraConnections.webhookSecret })
     .from(jiraConnections)
@@ -92,7 +91,7 @@ export async function getJiraWebhookUrl(
 export async function createJiraConnection(
   data: unknown
 ): Promise<ActionResponse<SafeJiraConnection>> {
-  await requireAdmin();
+  await requireOrgPermission({ integration: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = jiraConnectionInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
@@ -128,7 +127,7 @@ export async function updateJiraConnection(
   id: string,
   data: unknown
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ integration: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = jiraConnectionUpdateSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
@@ -164,7 +163,7 @@ export async function updateJiraConnection(
 export async function deleteJiraConnection(
   id: string
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ integration: ["manage"] });
   const t = await getTranslations("actionErrors");
   let orphaned: { projectId: string }[] = [];
   try {
@@ -203,7 +202,7 @@ export async function testJiraConnection(input: {
   apiToken?: string;
   connectionId?: string;
 }): Promise<{ ok: true; account: string } | { ok: false; message: string }> {
-  await requireAdmin();
+  await requireOrgPermission({ integration: ["manage"] });
   const t = await getTranslations("actionErrors");
 
   let token = input.apiToken;

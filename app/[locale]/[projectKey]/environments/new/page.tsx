@@ -16,7 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireProjectPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 
 // New environment under a given project. The parent comes from the route, so
 // the form's project picker starts on it; `?from=<envId>` clones an existing
@@ -34,18 +35,25 @@ export default async function NewEnvironmentPage({
   ]);
   setRequestLocale(locale);
 
-  await requireAdmin();
-
-  const t = await getTranslations("newEnvironment");
-  const [servers, projects, project, cloneFrom] = await Promise.all([
-    getServers(),
-    listProjects(),
-    getProjectByKeyWithEnvironments(projectKey),
-    from ? getEnvironmentById(from) : Promise.resolve(undefined),
-  ]);
+  const project = await getProjectByKeyWithEnvironments(projectKey);
   if (!project) {
     notFound();
   }
+  const { session } = await requireProjectPage(
+    { projectId: project.id },
+    { environment: ["create"] }
+  );
+
+  const t = await getTranslations("newEnvironment");
+  const [servers, projects, cloneFrom] = await Promise.all([
+    // Servers are an org-level resource; without server:read the picker is
+    // simply empty.
+    canOrg(session.user.role, { server: ["read"] })
+      ? getServers()
+      : Promise.resolve([]),
+    listProjects(),
+    from ? getEnvironmentById(from) : Promise.resolve(undefined),
+  ]);
 
   const isCloning = Boolean(cloneFrom);
 

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { recordActivity } from "@/lib/activity";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -87,7 +87,7 @@ function toSafeZone(row: CloudflareZone): SafeCloudflareZone {
 }
 
 export async function getCloudflareZones(): Promise<SafeCloudflareZone[]> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["read"] });
   const rows = await db
     .select()
     .from(cloudflareZones)
@@ -98,7 +98,7 @@ export async function getCloudflareZones(): Promise<SafeCloudflareZone[]> {
 export async function createCloudflareZone(
   data: NewCloudflareZone
 ): Promise<ActionResponse<{ id: string }>> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = cloudflareZoneInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
@@ -130,7 +130,7 @@ export async function updateCloudflareZone(
   id: string,
   data: Partial<NewCloudflareZone>
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = cloudflareZoneUpdateSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
@@ -158,7 +158,7 @@ export async function updateCloudflareZone(
 export async function deleteCloudflareZone(
   id: string
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   try {
     await db.delete(cloudflareZones).where(eq(cloudflareZones.id, id));
@@ -181,7 +181,7 @@ export async function testCloudflareZone(input: {
   apiToken?: string;
   id?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
 
   let apiToken = input.apiToken?.trim();
@@ -212,7 +212,7 @@ export async function testCloudflareZone(input: {
 // =========================
 
 export async function getTunnels(): Promise<TunnelWithContext[]> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["read"] });
   const rows = await db
     .select()
     .from(tunnels)
@@ -232,7 +232,7 @@ export async function getTunnels(): Promise<TunnelWithContext[]> {
 }
 
 export async function getTunnel(id: string): Promise<TunnelWithContext | null> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["read"] });
   const [row] = await db
     .select()
     .from(tunnels)
@@ -253,7 +253,7 @@ export async function getTunnel(id: string): Promise<TunnelWithContext | null> {
 export async function createTunnel(
   data: NewTunnel
 ): Promise<ActionResponse<{ id: string }>> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = tunnelInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
@@ -279,7 +279,7 @@ export async function updateTunnel(
   id: string,
   data: Partial<NewTunnel>
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = tunnelUpdateSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
@@ -306,7 +306,7 @@ export async function updateTunnel(
  * where that config lives. Withdraw the routes first if that is the intent.
  */
 export async function deleteTunnel(id: string): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   try {
     await db.delete(tunnels).where(eq(tunnels.id, id));
@@ -386,7 +386,7 @@ export type TunnelRoutesView = {
  * by hand disappears — neither can leave this view showing a fiction.
  */
 export async function getTunnelRoutes(id: string): Promise<TunnelRoutesView> {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["read"] });
   const loaded = await loadTunnel(id);
   if (!loaded) return { routes: [], containerState: "not-found", ready: null };
   const { tunnel, creds, zone } = loaded;
@@ -460,7 +460,7 @@ export async function getTunnelRoutes(id: string): Promise<TunnelRoutesView> {
 
 /** Containers on the tunnel's host, for the origin picker in the add dialog. */
 export async function getOriginCandidates(id: string) {
-  await requireAdmin();
+  await requireOrgPermission({ tunnel: ["read"] });
   const loaded = await loadTunnel(id);
   if (!loaded) return [];
   try {
@@ -502,7 +502,7 @@ export async function createTunnelRoute(input: {
   originHost: string;
   originPort: number;
 }): Promise<ActionResponse<{ hostname: string }>> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = tunnelRouteInputSchema.safeParse(input);
   if (!parsed.success) {
@@ -658,7 +658,7 @@ export async function deleteTunnelRoute(input: {
   tunnelId: string;
   hostname: string;
 }): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
   const hostname = tunnelHostnameSchema.safeParse(input.hostname);
   if (!hostname.success) return { success: false, message: t("invalidInput") };
@@ -748,7 +748,7 @@ export async function attachTunnelNetwork(input: {
   tunnelId: string;
   network: string;
 }): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ tunnel: ["manage"] });
   const t = await getTranslations("actionErrors");
 
   const loaded = await loadTunnel(input.tunnelId);

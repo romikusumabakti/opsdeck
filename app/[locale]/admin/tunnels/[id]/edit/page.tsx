@@ -4,6 +4,7 @@ import { getServers } from "@/actions/servers";
 import { getCloudflareZones, getTunnel } from "@/actions/tunnels";
 import { PageHeader } from "@/components/page-header";
 import { TunnelForm } from "@/components/tunnel-form";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function EditTunnelPage({
   params,
@@ -12,6 +13,7 @@ export default async function EditTunnelPage({
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ tunnel: ["manage"] });
 
   const [tunnel, servers, zones] = await Promise.all([
     getTunnel(id),

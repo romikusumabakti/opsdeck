@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth-session";
+import { routeOrgGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { imgproxyUrl } from "@/lib/imgproxy";
 import { knowledgeIdSchema } from "@/lib/validation";
@@ -16,7 +16,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  await requireSession();
+  const guard = await routeOrgGuard({ knowledge: ["read"] });
+  if (!guard.ok) return guard.response;
 
   const { id } = await params;
   if (!knowledgeIdSchema.safeParse(id).success) {

@@ -4,6 +4,7 @@ import { getCloudflareZones, getTunnels } from "@/actions/tunnels";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
+import { requireOrgPage } from "@/lib/authz";
 import { TunnelsClient } from "./tunnels-client";
 
 export default async function TunnelsPage({
@@ -13,6 +14,7 @@ export default async function TunnelsPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ tunnel: ["read"] });
 
   const [tunnels, zones] = await Promise.all([
     getTunnels(),
