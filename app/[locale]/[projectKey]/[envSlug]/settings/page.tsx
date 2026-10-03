@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getEnvironmentById } from "@/actions/environments";
 import { getMailpitSettings } from "@/actions/mailpit-settings";
 import { listProjects } from "@/actions/project-catalog";
-import { getServers } from "@/actions/servers";
+import { getServers, listServerOptions } from "@/actions/servers";
 import { EnvironmentForm } from "@/components/environment-form";
 import { MailpitSettingsForm } from "@/components/mailpit-settings-form";
 import { PageHeader } from "@/components/page-header";
@@ -31,18 +31,18 @@ export default async function ProjectSettingsPage({
   const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
-  const { session } = await requireProjectPage(
+  const { session, projectId } = await requireProjectPage(
     { environmentId },
     { environment: ["update"] }
   );
 
   const [environment, servers, projects, mailpit] = await Promise.all([
     getEnvironmentById(environmentId),
-    // Servers are an org-level resource; without server:read the picker is
-    // simply empty.
+    // Full server rows need org-level server:read; without it the picker gets
+    // id and name only.
     canOrg(session.user.role, { server: ["read"] })
       ? getServers()
-      : Promise.resolve([]),
+      : listServerOptions(projectId),
     listProjects(),
     getMailpitSettings(environmentId),
   ]);
@@ -75,6 +75,9 @@ export default async function ProjectSettingsPage({
               <EnvironmentForm
                 mode={{ type: "edit", environment }}
                 servers={servers}
+                canManageServers={canOrg(session.user.role, {
+                  server: ["manage"],
+                })}
                 projects={projects}
               />
             </CardContent>

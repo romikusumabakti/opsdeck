@@ -125,7 +125,7 @@ export async function getDownloadTarget(
 
 // Editing reads/writes the whole file through the action layer instead of the
 // streaming upload route: the payload is bounded (MAX_EDITABLE_BYTES) and this
-// keeps the mutation on the same admin-gated, path-validated path as the rest.
+// keeps the mutation on the same permission-gated, path-validated path as the rest.
 type ReadTextResult =
   | { success: true; content: string; eol: Eol }
   | { success: false; message: string };
