@@ -359,8 +359,25 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
     return { success: false, message: t("cannotDeleteSelf") };
   }
 
+  // Snapshot the name before the row is gone, for the activity feed.
+  const [target] = await db
+    .select({ name: userTable.name, email: userTable.email })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
+
   const ctx = await auth.$context;
   await ctx.internalAdapter.deleteUser(userId);
+
+  if (target) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "user.deleted",
+      entityType: "access",
+      entityId: userId,
+      data: { user: target.name, email: target.email },
+    });
+  }
 
   revalidatePath("/admin/users");
   return { success: true, message: t("userDeleted") };
@@ -369,9 +386,21 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
 export async function revokeInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
-  await requireOrgPermission({ user: ["invite"] });
+  const session = await requireOrgPermission({ user: ["invite"] });
   const t = await getTranslations("actionErrors");
-  await db.delete(invitations).where(eq(invitations.id, invitationId));
+  const removed = await db
+    .delete(invitations)
+    .where(eq(invitations.id, invitationId))
+    .returning({ id: invitations.id, email: invitations.email });
+  for (const inv of removed) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "user.invitationRevoked",
+      entityType: "access",
+      entityId: inv.id,
+      data: { email: inv.email },
+    });
+  }
   revalidatePath("/admin/users");
   return { success: true, message: t("invitationRevoked") };
 }
@@ -428,6 +457,14 @@ export async function resendInvitation(
     return { success: false, message: t("emailSendFailed") };
   }
 
+  await recordActivity({
+    actorId: session.user.id,
+    action: "user.invitationResent",
+    entityType: "access",
+    entityId: inv.id,
+    data: { email: inv.email },
+  });
+
   revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
 }
@@ -459,6 +496,20 @@ export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
     return { success: true, deleted: 0, skippedSelf, failed: [] };
   }
 
+  // Snapshot names before the rows are gone, for the activity feed.
+  const names = new Map(
+    (
+      await db
+        .select({
+          id: userTable.id,
+          name: userTable.name,
+          email: userTable.email,
+        })
+        .from(userTable)
+        .where(inArray(userTable.id, targets))
+    ).map((u) => [u.id, u])
+  );
+
   const ctx = await auth.$context;
   let deleted = 0;
   const failed: { id: string; message: string }[] = [];
@@ -466,6 +517,16 @@ export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
     try {
       await ctx.internalAdapter.deleteUser(id);
       deleted += 1;
+      const target = names.get(id);
+      if (target) {
+        await recordActivity({
+          actorId: session.user.id,
+          action: "user.deleted",
+          entityType: "access",
+          entityId: id,
+          data: { user: target.name, email: target.email },
+        });
+      }
     } catch (error) {
       console.error(`Failed to delete user ${id}:`, error);
       failed.push({ id, message: t("errorGeneric") });
@@ -482,7 +543,7 @@ export type BulkInvitationsResult =
 export async function bulkRevokeInvitations(
   ids: string[]
 ): Promise<BulkInvitationsResult> {
-  await requireOrgPermission({ user: ["invite"] });
+  const session = await requireOrgPermission({ user: ["invite"] });
   const t = await getTranslations("actionErrors");
   if (ids.length === 0) {
     return { success: true, revoked: 0 };
@@ -491,7 +552,16 @@ export async function bulkRevokeInvitations(
     const result = await db
       .delete(invitations)
       .where(inArray(invitations.id, ids))
-      .returning({ id: invitations.id });
+      .returning({ id: invitations.id, email: invitations.email });
+    for (const inv of result) {
+      await recordActivity({
+        actorId: session.user.id,
+        action: "user.invitationRevoked",
+        entityType: "access",
+        entityId: inv.id,
+        data: { email: inv.email },
+      });
+    }
     revalidatePath("/admin/users");
     return { success: true, revoked: result.length };
   } catch (error) {

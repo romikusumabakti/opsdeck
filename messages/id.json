@@ -1528,7 +1528,10 @@
     "mailCleared": "{actor} mengosongkan inbox {environment}",
     "userOffboarded": "{actor} meng-offboard {user}",
     "userRoleChanged": "{actor} mengubah role {user} dari {from} ke {to}",
-    "userInvited": "{actor} mengundang {email} sebagai {role}"
+    "userInvited": "{actor} mengundang {email} sebagai {role}",
+    "userDeleted": "{actor} menghapus {user}",
+    "userInvitationRevoked": "{actor} membatalkan undangan untuk {email}",
+    "userInvitationResent": "{actor} mengirim ulang undangan ke {email}"
   },
   "jira": {
     "title": "Jira",
