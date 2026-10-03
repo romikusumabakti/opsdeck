@@ -52,7 +52,8 @@ async function AttentionSection({
   mode: SectionMode;
   result: PromiseSettledResult<AttentionGroup[]>;
 }) {
-  if (mode === "hidden") return null;
+  // A failed query counts as 0 and may come out "hidden"; show the error anyway.
+  if (mode === "hidden" && result.status === "fulfilled") return null;
   const t = await getTranslations("homePage");
   if (result.status === "fulfilled" && mode === "compact") {
     return (
