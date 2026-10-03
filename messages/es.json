@@ -1414,6 +1414,60 @@
     "recentEmpty": "No hay entornos recientes.",
     "viewAll": "Ver todo"
   },
+  "home": {
+    "title": "Inicio",
+    "subtitle": "Tu trabajo y lo que necesita atención.",
+    "greeting": {
+      "morning": "Buenos días, {name}",
+      "midday": "Buenas tardes, {name}",
+      "afternoon": "Buenas tardes, {name}",
+      "night": "Buenas noches, {name}"
+    },
+    "newIssue": "Nueva incidencia",
+    "kind": {
+      "backup": "Copia de seguridad",
+      "restore": "Restauración",
+      "mock_time": "Hora simulada",
+      "test": "Prueba"
+    },
+    "attention": {
+      "title": "Necesita atención",
+      "allClear": "Todo en orden: sin fallos pendientes en los últimos 7 días.",
+      "createIssue": "Incidencia",
+      "acknowledge": "Reconocer",
+      "acknowledged": "Reconocido",
+      "ackFailed": "No se pudo reconocer el fallo.",
+      "undo": "Deshacer",
+      "undoFailed": "No se pudo deshacer.",
+      "issueTitle": "{kind} fallida: {environment}",
+      "runHistory": "Historial de ejecuciones"
+    },
+    "issues": {
+      "title": "Mis incidencias",
+      "empty": "No tienes nada asignado.",
+      "viewAll": "Ver todo ({count})",
+      "statusFailed": "No se pudo actualizar el estado."
+    },
+    "running": {
+      "title": "En ejecución",
+      "empty": "Nada en ejecución."
+    },
+    "recent": {
+      "title": "Retomar",
+      "empty": "No hay entornos recientes.",
+      "backup": "Copia",
+      "backupStarted": "Copia de seguridad iniciada",
+      "backupFailed": "No se pudo iniciar la copia de seguridad."
+    },
+    "issueDialog": {
+      "project": "Proyecto",
+      "loadFailed": "No se pudieron cargar las opciones del proyecto."
+    },
+    "error": {
+      "load": "No se pudo cargar esta sección.",
+      "retry": "Reintentar"
+    }
+  },
   "issueDetail": {
     "description": "Descripción",
     "noDescription": "Sin descripción.",

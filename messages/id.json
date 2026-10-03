@@ -1414,6 +1414,60 @@
     "recentEmpty": "Belum ada environment terbaru.",
     "viewAll": "Lihat semua"
   },
+  "home": {
+    "title": "Beranda",
+    "subtitle": "Pekerjaan Anda dan yang perlu perhatian.",
+    "greeting": {
+      "morning": "Selamat pagi, {name}",
+      "midday": "Selamat siang, {name}",
+      "afternoon": "Selamat sore, {name}",
+      "night": "Selamat malam, {name}"
+    },
+    "newIssue": "Issue baru",
+    "kind": {
+      "backup": "Backup",
+      "restore": "Restore",
+      "mock_time": "Mock time",
+      "test": "Uji"
+    },
+    "attention": {
+      "title": "Perlu perhatian",
+      "allClear": "Aman — tidak ada kegagalan yang belum ditangani dalam 7 hari terakhir.",
+      "createIssue": "Issue",
+      "acknowledge": "Tandai",
+      "acknowledged": "Ditandai sudah ditangani",
+      "ackFailed": "Gagal menandai kegagalan.",
+      "undo": "Urungkan",
+      "undoFailed": "Gagal mengurungkan.",
+      "issueTitle": "{kind} gagal: {environment}",
+      "runHistory": "Riwayat run"
+    },
+    "issues": {
+      "title": "Issue saya",
+      "empty": "Tidak ada tugas untuk Anda.",
+      "viewAll": "Lihat semua ({count})",
+      "statusFailed": "Gagal mengubah status."
+    },
+    "running": {
+      "title": "Berjalan",
+      "empty": "Tidak ada yang berjalan."
+    },
+    "recent": {
+      "title": "Lanjutkan",
+      "empty": "Belum ada environment terbaru.",
+      "backup": "Backup",
+      "backupStarted": "Backup dimulai",
+      "backupFailed": "Gagal memulai backup."
+    },
+    "issueDialog": {
+      "project": "Project",
+      "loadFailed": "Gagal memuat opsi project."
+    },
+    "error": {
+      "load": "Gagal memuat bagian ini.",
+      "retry": "Coba lagi"
+    }
+  },
   "issueDetail": {
     "description": "Deskripsi",
     "noDescription": "Tidak ada deskripsi.",
