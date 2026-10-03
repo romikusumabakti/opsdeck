@@ -20,9 +20,11 @@ import type { TunnelWithContext } from "@/lib/db/schema";
 export function TunnelsClient({
   tunnels,
   hasZones,
+  canManage,
 }: {
   tunnels: TunnelWithContext[];
   hasZones: boolean;
+  canManage: boolean;
 }) {
   const t = useTranslations("tunnels");
   const tCommon = useTranslations("common");
@@ -141,6 +143,9 @@ export function TunnelsClient({
     ],
     [t, tCommon, isPending, onDelete]
   );
+  const visibleColumns = canManage
+    ? columns
+    : columns.filter((c) => c.id !== "actions");
 
   if (optimistic.length === 0) {
     return (
@@ -150,7 +155,7 @@ export function TunnelsClient({
           title={t("emptyTitle")}
           description={hasZones ? t("empty") : t("emptyNoZone")}
           action={
-            hasZones ? (
+            !canManage ? undefined : hasZones ? (
               <Button render={<Link href="/admin/tunnels/new" />}>
                 <Plus className="size-4" />
                 {t("addTunnel")}
@@ -170,7 +175,7 @@ export function TunnelsClient({
   return (
     <DataTable
       fillHeight
-      columns={columns}
+      columns={visibleColumns}
       data={optimistic}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}

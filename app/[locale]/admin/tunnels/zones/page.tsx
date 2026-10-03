@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { requireOrgPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 import { ZonesClient } from "./zones-client";
 
 // Sits under /admin/tunnels rather than beside it so the sidebar keeps one
@@ -18,7 +19,10 @@ export default async function ZonesPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireOrgPage({ tunnel: ["read"] });
+  const session = await requireOrgPage({ tunnel: ["read"] });
+  // tunnel:read (observers) may look; adding, editing and deleting need
+  // tunnel:manage, so those controls are hidden without it.
+  const canManage = canOrg(session.user.role, { tunnel: ["manage"] });
 
   const zones = await getCloudflareZones();
   const t = await getTranslations("zones");
@@ -29,13 +33,15 @@ export default async function ZonesPage({
         title={t("title")}
         subtitle={t("subtitle")}
         action={
-          <Button render={<Link href="/admin/tunnels/zones/new" />}>
-            <Plus className="size-4" />
-            {t("addZone")}
-          </Button>
+          canManage ? (
+            <Button render={<Link href="/admin/tunnels/zones/new" />}>
+              <Plus className="size-4" />
+              {t("addZone")}
+            </Button>
+          ) : undefined
         }
       />
-      <ZonesClient zones={zones} />
+      <ZonesClient zones={zones} canManage={canManage} />
     </>
   );
 }

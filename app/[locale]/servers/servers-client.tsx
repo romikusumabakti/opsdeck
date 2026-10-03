@@ -3,6 +3,7 @@
 import {
   FolderOpen,
   MoreHorizontal,
+  Eye,
   Pencil,
   Plus,
   Server as ServerIcon,
@@ -32,7 +33,20 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { Server } from "@/lib/db/schema";
 
-export function ServersClient({ servers }: { servers: Server[] }) {
+// What the caller may do beyond listing (server:read), from the page.
+export type ServerCapabilities = {
+  manage: boolean;
+  terminal: boolean;
+  files: boolean;
+};
+
+export function ServersClient({
+  servers,
+  can,
+}: {
+  servers: Server[];
+  can: ServerCapabilities;
+}) {
   const t = useTranslations("servers");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
@@ -158,18 +172,19 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         cell: ({ row }) => (
           <ServerActions
             server={row.original}
+            can={can}
             disabled={isPending}
             browseLabel={t("browseFiles")}
             terminalLabel={t("openTerminal")}
             menuLabel={tCommon("openMenu")}
-            editLabel={tCommon("edit")}
+            editLabel={can.manage ? tCommon("edit") : tCommon("view")}
             deleteLabel={tCommon("delete")}
             onDelete={() => onDelete(row.original)}
           />
         ),
       },
     ],
-    [t, tCommon, isPending, onDelete]
+    [t, tCommon, isPending, onDelete, can]
   );
 
   const renderCard = React.useCallback(
@@ -186,17 +201,18 @@ export function ServersClient({ servers }: { servers: Server[] }) {
         </div>
         <ServerActions
           server={server}
+          can={can}
           disabled={isPending}
           browseLabel={t("browseFiles")}
           terminalLabel={t("openTerminal")}
           menuLabel={tCommon("openMenu")}
-          editLabel={tCommon("edit")}
+          editLabel={can.manage ? tCommon("edit") : tCommon("view")}
           deleteLabel={tCommon("delete")}
           onDelete={() => onDelete(server)}
         />
       </div>
     ),
-    [t, tCommon, isPending, onDelete]
+    [t, tCommon, isPending, onDelete, can]
   );
 
   if (optimisticServers.length === 0) {
@@ -207,10 +223,12 @@ export function ServersClient({ servers }: { servers: Server[] }) {
           title={t("emptyTitle")}
           description={t("empty")}
           action={
-            <Button render={<Link href="/servers/new" />}>
-              <Plus className="size-4" />
-              {t("addServer")}
-            </Button>
+            can.manage ? (
+              <Button render={<Link href="/servers/new" />}>
+                <Plus className="size-4" />
+                {t("addServer")}
+              </Button>
+            ) : undefined
           }
         />
       </div>
@@ -227,17 +245,21 @@ export function ServersClient({ servers }: { servers: Server[] }) {
       getRowId={(row) => row.id}
       urlKey="srv"
       renderCard={renderCard}
-      bulkActions={(ids, clearSelection) => (
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => onBulkDelete(ids, clearSelection)}
-          disabled={isPending}
-        >
-          <Trash2 className="size-4" />
-          {t("bulkDelete")}
-        </Button>
-      )}
+      bulkActions={
+        can.manage
+          ? (ids, clearSelection) => (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => onBulkDelete(ids, clearSelection)}
+                disabled={isPending}
+              >
+                <Trash2 className="size-4" />
+                {t("bulkDelete")}
+              </Button>
+            )
+          : undefined
+      }
     />
   );
 }
@@ -248,6 +270,7 @@ export function ServersClient({ servers }: { servers: Server[] }) {
 // through these action controls.
 function ServerActions({
   server,
+  can,
   disabled,
   browseLabel,
   terminalLabel,
@@ -257,6 +280,7 @@ function ServerActions({
   onDelete,
 }: {
   server: Server;
+  can: ServerCapabilities;
   disabled: boolean;
   browseLabel: string;
   terminalLabel: string;
@@ -267,16 +291,18 @@ function ServerActions({
 }) {
   return (
     <div className="flex items-center justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={browseLabel}
-        title={browseLabel}
-        disabled={disabled}
-        render={<Link href={`/servers/${server.id}/files`} />}
-      >
-        <FolderOpen className="size-4" />
-      </Button>
+      {can.files ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={browseLabel}
+          title={browseLabel}
+          disabled={disabled}
+          render={<Link href={`/servers/${server.id}/files`} />}
+        >
+          <FolderOpen className="size-4" />
+        </Button>
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -292,21 +318,32 @@ function ServerActions({
           }
         />
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            render={<Link href={`/servers/${server.id}/terminal`} />}
-          >
-            <SquareTerminal className="size-4" />
-            {terminalLabel}
-          </DropdownMenuItem>
+          {can.terminal ? (
+            <DropdownMenuItem
+              render={<Link href={`/servers/${server.id}/terminal`} />}
+            >
+              <SquareTerminal className="size-4" />
+              {terminalLabel}
+            </DropdownMenuItem>
+          ) : null}
+          {/* The detail page is read-only without server:manage. */}
           <DropdownMenuItem render={<Link href={`/servers/${server.id}`} />}>
-            <Pencil className="size-4" />
+            {can.manage ? (
+              <Pencil className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
             {editLabel}
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            <Trash2 className="size-4" />
-            {deleteLabel}
-          </DropdownMenuItem>
+          {can.manage ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <Trash2 className="size-4" />
+                {deleteLabel}
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

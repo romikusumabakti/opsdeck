@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { requireOrgPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 import { TunnelsClient } from "./tunnels-client";
 
 export default async function TunnelsPage({
@@ -14,7 +15,10 @@ export default async function TunnelsPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireOrgPage({ tunnel: ["read"] });
+  const session = await requireOrgPage({ tunnel: ["read"] });
+  // tunnel:read (observers) may look; adding, editing and deleting need
+  // tunnel:manage, so those controls are hidden without it.
+  const canManage = canOrg(session.user.role, { tunnel: ["manage"] });
 
   const [tunnels, zones] = await Promise.all([
     getTunnels(),
@@ -38,21 +42,27 @@ export default async function TunnelsPage({
             </Button>
             {/* A tunnel can only be registered once a zone exists: the zone
                 holds the credential that publishes its hostnames. */}
-            <Button
-              disabled={zones.length === 0}
-              render={
-                zones.length === 0 ? undefined : (
-                  <Link href="/admin/tunnels/new" />
-                )
-              }
-            >
-              <Plus className="size-4" />
-              {t("addTunnel")}
-            </Button>
+            {canManage ? (
+              <Button
+                disabled={zones.length === 0}
+                render={
+                  zones.length === 0 ? undefined : (
+                    <Link href="/admin/tunnels/new" />
+                  )
+                }
+              >
+                <Plus className="size-4" />
+                {t("addTunnel")}
+              </Button>
+            ) : null}
           </div>
         }
       />
-      <TunnelsClient tunnels={tunnels} hasZones={zones.length > 0} />
+      <TunnelsClient
+        tunnels={tunnels}
+        hasZones={zones.length > 0}
+        canManage={canManage}
+      />
     </>
   );
 }

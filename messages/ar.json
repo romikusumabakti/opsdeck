@@ -37,7 +37,8 @@
     "errorDetails": "التفاصيل",
     "capsLockOn": "مفتاح Caps Lock مُفعَّل",
     "more": "المزيد",
-    "create": "إنشاء"
+    "create": "إنشاء",
+    "view": "عرض"
   },
   "dataTable": {
     "searchPlaceholder": "بحث…",
@@ -750,7 +751,8 @@
     "description": "تحديث بيانات اعتماد SSH ومراجعة أماكن استخدام هذا الخادم.",
     "formTitle": "بيانات اعتماد SSH",
     "formDescription": "اترك كلمة المرور فارغة للإبقاء عليها.",
-    "backToServers": "العودة إلى الخوادم"
+    "backToServers": "العودة إلى الخوادم",
+    "viewTitle": "الخادم: {name}"
   },
   "localeSwitcher": {
     "ariaLabel": "اختر اللغة"

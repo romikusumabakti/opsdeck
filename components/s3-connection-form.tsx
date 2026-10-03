@@ -37,7 +37,15 @@ type TestState =
   | { kind: "ok" }
   | { kind: "fail"; message: string };
 
-export function S3ConnectionForm({ mode }: { mode: Mode }) {
+export function S3ConnectionForm({
+  mode,
+  readOnly = false,
+}: {
+  mode: Mode;
+  // Show the stored values without edit, test or save controls (callers
+  // without storage:manage).
+  readOnly?: boolean;
+}) {
   const t = useTranslations("s3Form");
   const tCommon = useTranslations("common");
   const router = useRouter();
@@ -156,48 +164,85 @@ export function S3ConnectionForm({ mode }: { mode: Mode }) {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-4"
       >
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("namePlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="endpoint"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("endpoint")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="https://s3.example.com"
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* Read-only callers (no manage permission) see the stored values with
+            every input disabled and no test/save controls. */}
+        <fieldset disabled={readOnly} className="contents">
           <FormField
             control={form.control}
-            name="bucket"
+            name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("bucket")}</FormLabel>
+                <FormLabel>{t("name")}</FormLabel>
+                <FormControl>
+                  <Input placeholder={t("namePlaceholder")} {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="endpoint"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("endpoint")}</FormLabel>
                 <FormControl>
                   <Input
+                    placeholder="https://s3.example.com"
+                    {...field}
+                    onChange={(e) => {
+                      resetTest();
+                      field.onChange(e);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="bucket"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("bucket")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      onChange={(e) => {
+                        resetTest();
+                        field.onChange(e);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="region"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("region")}</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <FormField
+            control={form.control}
+            name="accessKeyId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("accessKeyId")}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete="off"
                     {...field}
                     onChange={(e) => {
                       resetTest();
@@ -211,104 +256,73 @@ export function S3ConnectionForm({ mode }: { mode: Mode }) {
           />
           <FormField
             control={form.control}
-            name="region"
+            name="secretKey"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("region")}</FormLabel>
+                <FormLabel>
+                  {mode.type === "edit" ? t("secretKeyEdit") : t("secretKey")}
+                </FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <PasswordInput
+                    autoComplete="new-password"
+                    placeholder={
+                      mode.type === "edit"
+                        ? t("secretKeyEditPlaceholder")
+                        : undefined
+                    }
+                    {...field}
+                    onChange={(e) => {
+                      resetTest();
+                      field.onChange(e);
+                    }}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
-        <FormField
-          control={form.control}
-          name="accessKeyId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("accessKeyId")}</FormLabel>
-              <FormControl>
-                <Input
-                  autoComplete="off"
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="secretKey"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {mode.type === "edit" ? t("secretKeyEdit") : t("secretKey")}
-              </FormLabel>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  placeholder={
-                    mode.type === "edit"
-                      ? t("secretKeyEditPlaceholder")
-                      : undefined
-                  }
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="forcePathStyle"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <FormLabel>{t("forcePathStyle")}</FormLabel>
-                <FormDescription>
-                  {t("forcePathStyleDescription")}
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={(v) => {
-                    resetTest();
-                    field.onChange(v);
-                  }}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="forcePathStyle"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <FormLabel>{t("forcePathStyle")}</FormLabel>
+                  <FormDescription>
+                    {t("forcePathStyleDescription")}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={(v) => {
+                      resetTest();
+                      field.onChange(v);
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </fieldset>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onTest}
-            disabled={!canTest}
-          >
-            {testState.kind === "testing" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : null}
-            {t("testConnection")}
-          </Button>
-          <TestStatus state={testState} t={t} />
-        </div>
+        {readOnly ? null : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onTest}
+              disabled={!canTest}
+            >
+              {testState.kind === "testing" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              {t("testConnection")}
+            </Button>
+            <TestStatus state={testState} t={t} />
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <Button
@@ -319,13 +333,15 @@ export function S3ConnectionForm({ mode }: { mode: Mode }) {
           >
             {tCommon("cancel")}
           </Button>
-          <Button type="submit" disabled={loading}>
-            {loading
-              ? t("submitting")
-              : mode.type === "edit"
-                ? t("saveChanges")
-                : t("create")}
-          </Button>
+          {readOnly ? null : (
+            <Button type="submit" disabled={loading}>
+              {loading
+                ? t("submitting")
+                : mode.type === "edit"
+                  ? t("saveChanges")
+                  : t("create")}
+            </Button>
+          )}
         </div>
       </form>
     </Form>

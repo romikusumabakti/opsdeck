@@ -37,7 +37,8 @@
     "errorDetails": "Detail",
     "capsLockOn": "Caps Lock aktif",
     "more": "Lainnya",
-    "create": "Buat"
+    "create": "Buat",
+    "view": "Lihat"
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",
@@ -750,7 +751,8 @@
     "description": "Ubah kredensial SSH dan lihat proyek yang menggunakan server ini.",
     "formTitle": "Kredensial SSH",
     "formDescription": "Kosongkan password jika tidak ingin mengubahnya.",
-    "backToServers": "Kembali ke server"
+    "backToServers": "Kembali ke server",
+    "viewTitle": "Server: {name}"
   },
   "localeSwitcher": {
     "ariaLabel": "Pilih bahasa"

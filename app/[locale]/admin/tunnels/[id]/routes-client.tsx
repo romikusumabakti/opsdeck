@@ -44,10 +44,13 @@ export function RoutesClient({
   tunnel,
   view,
   candidates,
+  canManage,
 }: {
   tunnel: TunnelWithContext;
   view: TunnelRoutesView;
   candidates: OriginCandidate[];
+  // tunnel:manage: add/delete hostnames and attach networks.
+  canManage: boolean;
 }) {
   const t = useTranslations("tunnels");
   const tCommon = useTranslations("common");
@@ -140,14 +143,16 @@ export function RoutesClient({
             {tunnel.stackDir}/{tunnel.configPath}
           </span>
         </div>
-        <Button onClick={() => setAddOpen(true)} disabled={isPending}>
-          {isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" />
-          )}
-          {t("addHostname")}
-        </Button>
+        {canManage ? (
+          <Button onClick={() => setAddOpen(true)} disabled={isPending}>
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
+            {t("addHostname")}
+          </Button>
+        ) : null}
       </div>
 
       {view.routes.length === 0 ? (
@@ -157,10 +162,12 @@ export function RoutesClient({
             title={t("routesEmptyTitle")}
             description={t("routesEmpty")}
             action={
-              <Button onClick={() => setAddOpen(true)}>
-                <Plus className="size-4" />
-                {t("addHostname")}
-              </Button>
+              canManage ? (
+                <Button onClick={() => setAddOpen(true)}>
+                  <Plus className="size-4" />
+                  {t("addHostname")}
+                </Button>
+              ) : undefined
             }
           />
         </div>
@@ -173,7 +180,7 @@ export function RoutesClient({
                 <TableHead>{t("colOrigin")}</TableHead>
                 <TableHead>{t("colDns")}</TableHead>
                 <TableHead>{t("colReachable")}</TableHead>
-                <TableHead className="w-12" />
+                {canManage ? <TableHead className="w-12" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -213,6 +220,11 @@ export function RoutesClient({
                         <Plug className="size-3" />
                         {t("reachableYes")}
                       </Badge>
+                    ) : !canManage ? (
+                      <Badge variant="outline">
+                        <Link2Off className="size-3 text-destructive" />
+                        {t("reachableNo")}
+                      </Badge>
                     ) : (
                       // The 502-at-the-edge case. Offer the fix inline rather
                       // than only naming the problem.
@@ -233,18 +245,20 @@ export function RoutesClient({
                       </Button>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={tCommon("delete")}
-                      title={tCommon("delete")}
-                      disabled={isPending}
-                      onClick={() => onDelete(route)}
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
-                  </TableCell>
+                  {canManage ? (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={tCommon("delete")}
+                        title={tCommon("delete")}
+                        disabled={isPending}
+                        onClick={() => onDelete(route)}
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
