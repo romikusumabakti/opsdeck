@@ -139,6 +139,18 @@ function message(
         key: String(d.key),
         result: t(`result.${d.result}` as "result.pass" | "result.fail"),
       });
+    case "run.acknowledged":
+      return t("runAcknowledged", {
+        actor,
+        count: Number(d.count),
+        environment: String(d.environment),
+      });
+    case "run.unacknowledged":
+      return t("runUnacknowledged", {
+        actor,
+        count: Number(d.count),
+        environment: String(d.environment),
+      });
     default:
       return t("unknown", { actor });
   }

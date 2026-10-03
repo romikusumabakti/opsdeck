@@ -1531,7 +1531,9 @@
     "userInvited": "{actor} mengundang {email} sebagai {role}",
     "userDeleted": "{actor} menghapus {user}",
     "userInvitationRevoked": "{actor} membatalkan undangan untuk {email}",
-    "userInvitationResent": "{actor} mengirim ulang undangan ke {email}"
+    "userInvitationResent": "{actor} mengirim ulang undangan ke {email}",
+    "runAcknowledged": "{actor} menandai {count, plural, other {# run gagal}} di {environment} sudah ditangani",
+    "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}"
   },
   "jira": {
     "title": "Jira",
