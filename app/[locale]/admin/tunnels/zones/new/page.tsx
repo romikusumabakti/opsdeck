@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { CloudflareZoneForm } from "@/components/cloudflare-zone-form";
 import { PageHeader } from "@/components/page-header";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function NewZonePage({
   params,
@@ -9,6 +10,7 @@ export default async function NewZonePage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ tunnel: ["manage"] });
   const t = await getTranslations("zoneForm");
 
   return (

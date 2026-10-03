@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function EditStoragePage({
   params,
@@ -23,7 +23,7 @@ export default async function EditStoragePage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ storage: ["read"] });
 
   const connection = await getS3Connection(id);
   if (!connection) notFound();

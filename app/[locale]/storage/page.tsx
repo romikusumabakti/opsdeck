@@ -4,7 +4,7 @@ import { getS3Connections } from "@/actions/s3-connections";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { StorageClient } from "./storage-client";
 
 export default async function StoragePage({
@@ -15,7 +15,7 @@ export default async function StoragePage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ storage: ["read"] });
 
   const connections = await getS3Connections();
   const t = await getTranslations("storage");

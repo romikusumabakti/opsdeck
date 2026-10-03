@@ -12,7 +12,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { generateKeyBetween } from "fractional-indexing";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
   type KnowledgeCollection,
@@ -22,6 +22,7 @@ import {
   knowledgeCollections,
   knowledgeDocuments,
 } from "@/lib/db/schema";
+import { canOrg } from "@/lib/permissions";
 
 // --- Visibility -------------------------------------------------------------
 
@@ -30,14 +31,16 @@ import {
  * their author or an admin; everyone else sees published docs only. Enforced in
  * the DATA layer (here) — not the UI — so no caller can forget to gate.
  */
-export type KnowledgeViewer = { userId: string | null; isAdmin: boolean };
+export type KnowledgeViewer = { userId: string | null; canManage: boolean };
 
 /** Resolve the current request's viewer from the session. */
 export async function currentViewer(): Promise<KnowledgeViewer> {
   const session = await getServerSession();
   return {
     userId: session?.user.id ?? null,
-    isAdmin: session ? isAdmin(session) : false,
+    canManage: session
+      ? canOrg(session.user.role, { knowledge: ["manage"] })
+      : false,
   };
 }
 
@@ -46,7 +49,7 @@ export async function currentViewer(): Promise<KnowledgeViewer> {
  * base table) to what `viewer` may see. `undefined` (admin) means no constraint.
  */
 function visibleDocs(viewer: KnowledgeViewer): SQL | undefined {
-  if (viewer.isAdmin) return undefined;
+  if (viewer.canManage) return undefined;
   return or(
     isNotNull(knowledgeDocuments.publishedAt),
     // `false` literal when anonymous so only published rows match.
@@ -63,7 +66,7 @@ function canViewDoc(
 ): boolean {
   return (
     doc.publishedAt !== null ||
-    viewer.isAdmin ||
+    viewer.canManage ||
     (viewer.userId !== null && doc.createdById === viewer.userId)
   );
 }
@@ -233,7 +236,7 @@ export type Backlink = { id: string; title: string; slug: string };
 export async function loadBacklinks(documentId: string): Promise<Backlink[]> {
   const viewer = await currentViewer();
   // Hide inbound links from drafts the viewer may not see (title would leak).
-  const draftFilter = viewer.isAdmin
+  const draftFilter = viewer.canManage
     ? sql``
     : sql`AND (d.published_at IS NOT NULL OR d.created_by_id = ${viewer.userId})`;
   const rows = await db.execute<Backlink>(sql`
@@ -270,7 +273,7 @@ export const HL_STOP = String.fromCharCode(2);
 export async function searchDocuments(query: string): Promise<SearchHit[]> {
   const viewer = await currentViewer();
   // Keep drafts the viewer may not see out of results.
-  const draftFilter = viewer.isAdmin
+  const draftFilter = viewer.canManage
     ? sql``
     : sql`AND (d.published_at IS NOT NULL OR d.created_by_id = ${viewer.userId})`;
   const rows = await db.execute<SearchHit>(sql`

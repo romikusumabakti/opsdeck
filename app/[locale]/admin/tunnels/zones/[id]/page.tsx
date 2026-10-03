@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getCloudflareZones } from "@/actions/tunnels";
 import { CloudflareZoneForm } from "@/components/cloudflare-zone-form";
 import { PageHeader } from "@/components/page-header";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function EditZonePage({
   params,
@@ -11,6 +12,7 @@ export default async function EditZonePage({
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ tunnel: ["manage"] });
 
   // Zones are a handful of rows; reusing the list avoids a second action whose
   // only job would be a by-id lookup that must also strip the token.

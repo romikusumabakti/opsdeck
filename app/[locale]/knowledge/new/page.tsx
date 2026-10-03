@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { DocumentForm } from "@/components/document-form";
 import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { redirect } from "@/i18n/navigation";
-import { requireSession } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { loadCollections, loadTreeNodes } from "@/lib/knowledge";
 
 export default async function NewDocumentPage({
@@ -12,7 +12,7 @@ export default async function NewDocumentPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireSession();
+  await requireOrgPage({ knowledge: ["write"] });
 
   const [collections, nodes] = await Promise.all([
     loadCollections(),

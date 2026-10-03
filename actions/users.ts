@@ -1,20 +1,17 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import {
-  and,
-  count,
-  eq,
-  inArray,
-  isNull,
-  max,
-} from "drizzle-orm";
+import { and, count, eq, inArray, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { assignableUsersWhere } from "@/lib/assignees";
-import { projectScope, requireProjectPermission } from "@/lib/authz";
+import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
+import { requireSession } from "@/lib/auth-session";
+import {
+  projectScope,
+  requireOrgPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
   invitations,
@@ -23,12 +20,7 @@ import {
   users as userTable,
 } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
-import {
-  isAssignableRole,
-  ROLE_ADMIN,
-  ROLE_MEMBER,
-  type UserRole,
-} from "@/lib/roles";
+import { isOrgRole, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 
 const INVITE_EXPIRES_HOURS = 48;
@@ -98,7 +90,7 @@ export async function createInitialUser(input: {
     email,
     emailVerified: true,
     image: null,
-    role: ROLE_ADMIN,
+    role: "admin",
   });
 
   // better-auth's createUser + linkAccount don't share a transaction. If the
@@ -154,7 +146,7 @@ export async function listAssignableUsersAcrossProjects(): Promise<
 }
 
 export async function listUsers() {
-  await requireAdmin();
+  await requireOrgPermission({ user: ["list"] });
   // Last-active is derived from the most recent session touch per user
   // (better-auth bumps sessions.updatedAt on activity/refresh). A LEFT JOIN +
   // MAX keeps it a single query; users with no session yet come back null
@@ -178,7 +170,7 @@ export async function listUsers() {
 }
 
 export async function listPendingInvitations() {
-  await requireAdmin();
+  await requireOrgPermission({ user: ["invite"] });
   // Include expired invitations too — admins should be able to see them and
   // either resend or revoke. The UI flags expired rows with a badge.
   return db
@@ -191,14 +183,14 @@ export async function listPendingInvitations() {
 export async function inviteUser(input: {
   email: string;
   name: string;
-  role: UserRole;
+  role: string;
 }): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ user: ["invite"] });
   const t = await getTranslations("actionErrors");
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
-  const role: UserRole = input.role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
+  const role: OrgRole = isOrgRole(input.role) ? input.role : "member";
 
   if (!email || !name) {
     return { success: false, message: t("nameAndEmailRequired") };
@@ -268,7 +260,7 @@ export async function updateUserName(input: {
   userId: string;
   name: string;
 }): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ user: ["update"] });
   const t = await getTranslations("actionErrors");
 
   const name = input.name.trim();
@@ -295,9 +287,9 @@ export async function updateUserName(input: {
 
 export async function updateUserRole(input: {
   userId: string;
-  role: UserRole;
+  role: string;
 }): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ user: ["set-role"] });
   const t = await getTranslations("actionErrors");
 
   if (session.user.id === input.userId) {
@@ -308,10 +300,10 @@ export async function updateUserRole(input: {
   // `viewer` (where Microsoft sign-in lands new users) and `maintainer` are
   // both assignable. An unrecognised string is rejected outright instead of
   // being silently rewritten, so a bad client can't quietly change a role.
-  if (!isAssignableRole(input.role)) {
+  if (!isOrgRole(input.role)) {
     return { success: false, message: t("invalidInput") };
   }
-  const role: UserRole = input.role;
+  const role: OrgRole = input.role;
 
   // Direct Drizzle update: the admin plugin's `setRole` API only accepts its
   // built-in role names in TypeScript types, but our `member` role is custom.
@@ -332,7 +324,7 @@ export async function updateUserRole(input: {
 }
 
 export async function deleteUser(userId: string): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ user: ["delete"] });
   const t = await getTranslations("actionErrors");
 
   if (session.user.id === userId) {
@@ -349,7 +341,7 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
 export async function revokeInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ user: ["invite"] });
   const t = await getTranslations("actionErrors");
   await db.delete(invitations).where(eq(invitations.id, invitationId));
   revalidatePath("/admin/users");
@@ -359,7 +351,7 @@ export async function revokeInvitation(
 export async function resendInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ user: ["invite"] });
   const t = await getTranslations("actionErrors");
 
   const [inv] = await db
@@ -428,7 +420,7 @@ export type BulkUsersResult =
  * rest, matching the bulk-servers behavior.
  */
 export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ user: ["delete"] });
   const t = await getTranslations("actionErrors");
 
   const targets = ids.filter((id) => id !== session.user.id);
@@ -462,7 +454,7 @@ export type BulkInvitationsResult =
 export async function bulkRevokeInvitations(
   ids: string[]
 ): Promise<BulkInvitationsResult> {
-  await requireAdmin();
+  await requireOrgPermission({ user: ["invite"] });
   const t = await getTranslations("actionErrors");
   if (ids.length === 0) {
     return { success: true, revoked: 0 };
@@ -544,7 +536,7 @@ export async function acceptInvitation(input: {
 
   // Promote per the invitation's stored role. Validate against known roles
   // in case the row was tampered with directly in the DB.
-  const role: UserRole = inv.role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_MEMBER;
+  const role: OrgRole = normalizeOrgRole(inv.role);
 
   const created = await ctx.internalAdapter.createUser({
     name: inv.name,

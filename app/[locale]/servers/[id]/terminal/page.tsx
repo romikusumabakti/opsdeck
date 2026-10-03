@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getServerById } from "@/actions/servers";
 import { PageHeader } from "@/components/page-header";
 import { ServerTerminal } from "@/components/server-terminal";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function ServerTerminalPage({
   params,
@@ -17,7 +17,7 @@ export default async function ServerTerminalPage({
 
   // The ticket route checks this too — this one keeps the page itself off
   // limits, so a non-admin never sees a terminal that would refuse to connect.
-  await requireAdmin();
+  await requireOrgPage({ server: ["terminal"] });
 
   const server = await getServerById(id);
   if (!server) notFound();

@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -30,7 +30,7 @@ export type ServerUsage = {
 };
 
 export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
-  await requireSession();
+  await requireOrgPermission({ server: ["read"] });
   // The server↔environment relationship now lives on environmentServices (one
   // row per role), not a flat FK triple on environments — join through it and
   // fold the per-role rows back into one entry per environment.
@@ -78,12 +78,12 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
 }
 
 export async function getServers(): Promise<Server[]> {
-  await requireSession();
+  await requireOrgPermission({ server: ["read"] });
   return db.select().from(servers).orderBy(servers.name);
 }
 
 export async function getServerById(id: string): Promise<Server | undefined> {
-  await requireSession();
+  await requireOrgPermission({ server: ["read"] });
   const [row] = await db
     .select()
     .from(servers)
@@ -95,7 +95,7 @@ export async function getServerById(id: string): Promise<Server | undefined> {
 export async function createServer(
   data: NewServer
 ): Promise<ActionResponse<Server>> {
-  await requireAdmin();
+  await requireOrgPermission({ server: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = serverInputSchema.safeParse(data);
   if (!parsed.success) {
@@ -125,7 +125,7 @@ export async function updateServer(
   id: string,
   data: Partial<NewServer>
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ server: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = serverUpdateSchema.safeParse(data);
   if (!parsed.success) {
@@ -165,7 +165,7 @@ export async function testServerConnection(input: {
   password?: string;
   serverId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireAdmin();
+  await requireOrgPermission({ server: ["manage"] });
   const t = await getTranslations("actionErrors");
 
   const host = input.host.trim();
@@ -210,7 +210,7 @@ export type BulkDeleteServersResult =
 export async function bulkDeleteServers(
   ids: string[]
 ): Promise<BulkDeleteServersResult> {
-  await requireAdmin();
+  await requireOrgPermission({ server: ["manage"] });
   const t = await getTranslations("actionErrors");
   if (ids.length === 0) {
     return { success: true, deleted: 0, failed: [] };
@@ -244,7 +244,7 @@ export async function bulkDeleteServers(
 }
 
 export async function deleteServer(id: string): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ server: ["manage"] });
   const t = await getTranslations("actionErrors");
   try {
     await db.delete(servers).where(eq(servers.id, id));

@@ -4,6 +4,7 @@ import { getCloudflareZones } from "@/actions/tunnels";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
+import { requireOrgPage } from "@/lib/authz";
 import { ZonesClient } from "./zones-client";
 
 // Sits under /admin/tunnels rather than beside it so the sidebar keeps one
@@ -17,6 +18,7 @@ export default async function ZonesPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ tunnel: ["read"] });
 
   const zones = await getCloudflareZones();
   const t = await getTranslations("zones");

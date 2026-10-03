@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -29,7 +29,7 @@ function toSafe(row: S3Connection): SafeS3Connection {
 }
 
 export async function getS3Connections(): Promise<SafeS3Connection[]> {
-  await requireSession();
+  await requireOrgPermission({ storage: ["read"] });
   const rows = await db
     .select()
     .from(s3Connections)
@@ -40,7 +40,7 @@ export async function getS3Connections(): Promise<SafeS3Connection[]> {
 export async function getS3Connection(
   id: string
 ): Promise<SafeS3Connection | undefined> {
-  await requireSession();
+  await requireOrgPermission({ storage: ["read"] });
   const [row] = await db
     .select()
     .from(s3Connections)
@@ -52,7 +52,7 @@ export async function getS3Connection(
 export async function createS3Connection(
   data: NewS3Connection
 ): Promise<ActionResponse<SafeS3Connection>> {
-  await requireAdmin();
+  await requireOrgPermission({ storage: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = s3ConnectionInputSchema.safeParse(data);
   if (!parsed.success) {
@@ -81,7 +81,7 @@ export async function updateS3Connection(
   id: string,
   data: Partial<NewS3Connection>
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ storage: ["manage"] });
   const t = await getTranslations("actionErrors");
   const parsed = s3ConnectionUpdateSchema.safeParse(data);
   if (!parsed.success) {
@@ -110,7 +110,7 @@ export async function updateS3Connection(
 }
 
 export async function deleteS3Connection(id: string): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireOrgPermission({ storage: ["manage"] });
   const t = await getTranslations("actionErrors");
   try {
     await db.delete(s3Connections).where(eq(s3Connections.id, id));
@@ -133,7 +133,7 @@ export async function testS3ConnectionAction(input: {
   forcePathStyle: boolean;
   connectionId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireAdmin();
+  await requireOrgPermission({ storage: ["manage"] });
   const t = await getTranslations("actionErrors");
 
   let secretKey = input.secretKey;
