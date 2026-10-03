@@ -21,7 +21,6 @@ const SCOPED_READS: Record<string, string[]> = {
   "actions/issues.ts": [
     "getOpenIssueCounts",
     "getAssignedIssueCounts",
-    "listAssignedIssues",
     "getIssueDetail",
     "listAllIssues",
     "listIssues",
@@ -32,7 +31,6 @@ const SCOPED_READS: Record<string, string[]> = {
     "getEnvironmentRuns",
     "getRunSnapshot",
     "getEnvironmentKpis",
-    "getRecentFailedRuns",
   ],
   // notifications are deliberately absent: they're per-user rows with no
   // project column, written only to their recipient; a link into a project the
