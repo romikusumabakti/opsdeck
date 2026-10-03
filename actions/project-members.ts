@@ -6,7 +6,7 @@ import { recordActivity } from "@/lib/activity";
 import { requireCapability } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
-import { ROLE_RANK, type UserRole } from "@/lib/roles";
+import { isProjectRole, type ProjectRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
@@ -14,11 +14,11 @@ export type ProjectMemberRow = {
   userId: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: ProjectRole;
 };
 
-function isValidRole(role: string): role is UserRole {
-  return role in ROLE_RANK;
+function isValidRole(role: string): role is ProjectRole {
+  return isProjectRole(role);
 }
 
 // Managing membership is admin-only (global admin, or a per-project admin). The

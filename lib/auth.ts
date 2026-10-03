@@ -16,7 +16,7 @@ import {
 } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
-import { ROLE_ADMIN, ROLE_VIEWER } from "./roles";
+import { orgAc, orgRoles } from "./permissions";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
@@ -25,7 +25,7 @@ export { ALLOWED_EMAIL_DOMAIN, isAllowedEmail } from "./branding";
 // the "all three or none" rule that protects it now live in lib/env, which
 // checks them at boot alongside every other var (see validateEnv).
 export { MICROSOFT_AUTH_ENABLED } from "./env";
-export { ROLE_ADMIN, ROLE_MEMBER, type UserRole } from "./roles";
+export type { OrgRole } from "./permissions";
 
 const BASE_URL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 
@@ -86,7 +86,7 @@ export const auth = betterAuth({
           // Two things keep that from being a hole:
           //   - the `databaseHooks` guard below rejects any email outside
           //     ALLOWED_EMAIL_DOMAIN, and
-          //   - new users land on `defaultRole` (viewer — read-only), never
+          //   - new users land on `defaultRole` (member — no projects until added), never
           //     with write or ops rights.
           // Invitations still exist for anyone who needs a higher role up front.
           disableSignUp: false,
@@ -172,15 +172,14 @@ export const auth = betterAuth({
   },
   plugins: [
     admin({
-      // The role for users nobody assigned one to — in practice only the
-      // Microsoft sign-in path, which self-provisions. Read-only by design: a
-      // fresh Entra identity can look around but cannot edit issues or KB
-      // pages, let alone run ops. An admin promotes from the Users page.
-      // Both server-action paths (/setup, invitation acceptance) pass an
-      // explicit role, and the admin plugin's own hook spreads the incoming
-      // user last, so this default never overrides them.
-      defaultRole: ROLE_VIEWER,
-      adminRoles: [ROLE_ADMIN],
+      // Roles and their statements live in lib/permissions. A user nobody
+      // assigned a role to — in practice a fresh Microsoft sign-in — lands on
+      // `member`: with project isolation that is the knowledge base and zero
+      // projects until an admin adds memberships.
+      ac: orgAc,
+      roles: orgRoles,
+      defaultRole: "member",
+      adminRoles: ["admin"],
     }),
     // Passkeys are an additional factor a user enrols from their account page —
     // never a sign-up path. Registration keeps the plugin's default of
