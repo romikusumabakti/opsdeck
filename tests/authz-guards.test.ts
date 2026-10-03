@@ -38,10 +38,17 @@ const SCOPED_READS: Record<string, string[]> = {
   // project column, written only to their recipient; a link into a project the
   // user has since lost resolves to the 404 page.
   "actions/milestones.ts": ["listMilestones"],
+  "lib/home/queries.ts": [
+    "getAttentionGroups",
+    "listMyOpenIssues",
+    "listRecentEnvironments",
+    "listIssueProjects",
+    "getHomeAccess",
+  ],
 };
 
 const SCOPE_HELPERS =
-  /projectScope|projectIdsWhere|requireProjectPage|requireProjectPermission|getProjectRole/;
+  /projectScope|projectIdsWhere|requireProjectPage|requireProjectPermission|getProjectRole|getProjectAccess/;
 
 function body(source: string, name: string): string {
   const start = source.search(
