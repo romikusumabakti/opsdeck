@@ -138,12 +138,20 @@ export const INFRA_FIELDS = {
   >
 >;
 
+// Never compared with the stored value: "equal → allowed, different →
+// forbidden" would let a caller without server:manage confirm a guessed
+// password or API key. Submitting one at all counts as a change.
+const SECRET_INFRA_FIELDS: ReadonlySet<keyof typeof INFRA_FIELDS> = new Set([
+  "dbPassword",
+  "backendMockTimeApiKey",
+]);
+
 /**
  * Pure: the infrastructure fields an update payload actually changes, compared
  * with the stored (decrypted) environment. Absent keys are untouched; null and
  * undefined/absent stored values compare equal, so re-submitting the form with
  * the bindings unchanged reports nothing. A missing service row counts every
- * submitted field for it as a change.
+ * submitted field for it as a change, and so does any submitted secret.
  */
 export function changedInfraFields(
   input: Partial<EnvironmentInput>,
@@ -155,6 +163,10 @@ export function changedInfraFields(
     (typeof INFRA_FIELDS)[keyof typeof INFRA_FIELDS],
   ][]) {
     if (!(field in input) || input[field] === undefined) continue;
+    if (SECRET_INFRA_FIELDS.has(field)) {
+      changed.push(field);
+      continue;
+    }
     const service = stored.services.find((s) => s.role === role);
     const next = input[field] ?? null;
     const current = service ? (service[column] ?? null) : undefined;
