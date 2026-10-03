@@ -239,6 +239,20 @@ describe("render-time permissioned reads are gated", () => {
   });
 });
 
+describe("access_control migration refuses a second run", () => {
+  const sql = readFileSync(
+    "drizzle/20261003000000_access_control/migration.sql",
+    "utf8"
+  );
+  it("raises before any UPDATE when project_role already has contributor", () => {
+    const guard = sql.search(
+      /enumlabel = 'contributor'[\s\S]*RAISE EXCEPTION 'access_control migration already applied'/
+    );
+    expect(guard).toBeGreaterThan(sql.indexOf("BEGIN;"));
+    expect(guard).toBeLessThan(sql.indexOf("UPDATE "));
+  });
+});
+
 describe("old role module is gone", () => {
   it("lib/roles.ts no longer exists", () => {
     expect(existsSync("lib/roles.ts")).toBe(false);
