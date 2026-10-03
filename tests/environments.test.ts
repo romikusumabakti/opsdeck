@@ -181,13 +181,24 @@ describe("changedInfraFields", () => {
     expect(changedInfraFields({}, makeProject())).toEqual([]);
   });
 
-  it("treats a re-submitted secret equal to the stored one as unchanged", () => {
+  // Comparing a submitted secret with the stored one would let a caller without
+  // server:manage confirm a guess (allowed when equal, forbidden otherwise).
+  it("always flags a submitted secret, even one equal to the stored value", () => {
     expect(
       changedInfraFields(
         { dbPassword: "db-secret", backendMockTimeApiKey: "mock-time-api-key" },
         makeProject()
       )
-    ).toEqual([]);
+    ).toEqual(["dbPassword", "backendMockTimeApiKey"]);
+  });
+
+  it("flags a submitted null secret too", () => {
+    expect(
+      changedInfraFields(
+        { dbPassword: null, backendMockTimeApiKey: null },
+        makeProject()
+      )
+    ).toEqual(["dbPassword", "backendMockTimeApiKey"]);
   });
 
   it("flags a server rebinding", () => {
