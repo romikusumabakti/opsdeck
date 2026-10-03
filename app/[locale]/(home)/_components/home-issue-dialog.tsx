@@ -28,6 +28,8 @@ type DialogState = {
   projectId: string;
   environmentId: string | null;
   defaults: IssueDefaults;
+  // Bumped by every open(), so reopening retries a failed options load.
+  nonce: number;
 };
 
 type IssueDialogApi = {
@@ -59,23 +61,27 @@ export function HomeIssueDialogProvider({
   const t = useTranslations("homePage");
   const router = useRouter();
   const [state, setState] = React.useState<DialogState | null>(null);
-  const [options, setOptions] = React.useState<{
-    projectId: string;
-    data: IssueFormOptions;
-  } | null>(null);
+  // Loaded pickers per project; a failed load leaves no entry.
+  const [options, setOptions] = React.useState<
+    Record<string, IssueFormOptions>
+  >({});
+  const loaded = React.useRef(new Set<string>());
 
   const writable = React.useMemo(
     () => new Set(projects.map((p) => p.id)),
     [projects]
   );
   const projectId = state?.projectId ?? null;
+  const nonce = state?.nonce ?? 0;
 
+  // Runs on each open and project change; fetches unless already loaded.
   React.useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || nonce === 0 || loaded.current.has(projectId)) return;
     let cancelled = false;
     getIssueFormOptions(projectId).then(
       (data) => {
-        if (!cancelled) setOptions({ projectId, data });
+        loaded.current.add(projectId);
+        setOptions((o) => ({ ...o, [projectId]: data }));
       },
       () => {
         if (!cancelled) toast.error(t("issueDialog.loadFailed"));
@@ -84,7 +90,7 @@ export function HomeIssueDialogProvider({
     return () => {
       cancelled = true;
     };
-  }, [projectId, t]);
+  }, [projectId, nonce, t]);
 
   const open = React.useCallback(
     (prefill: IssuePrefill = {}) => {
@@ -99,7 +105,8 @@ export function HomeIssueDialogProvider({
         : pid === defaultTarget?.projectId
           ? defaultTarget.environmentId
           : null;
-      setState({
+      setState((s) => ({
+        nonce: (s?.nonce ?? 0) + 1,
         open: true,
         projectId: pid,
         environmentId,
@@ -108,7 +115,7 @@ export function HomeIssueDialogProvider({
           description: prefill.description,
           type: prefill.type,
         },
-      });
+      }));
     },
     [writable, defaultTarget, projects]
   );
@@ -122,8 +129,7 @@ export function HomeIssueDialogProvider({
     [open, writable, projects.length]
   );
 
-  const current =
-    options && options.projectId === projectId ? options.data : null;
+  const current = projectId ? (options[projectId] ?? null) : null;
 
   return (
     <IssueDialogContext.Provider value={api}>
