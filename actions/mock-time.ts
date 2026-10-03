@@ -131,6 +131,7 @@ async function recordAudit(
       environmentId: environment.id,
       userId,
       description,
+      kind: "mock_time",
       status,
       runAt,
       completedAt: new Date(),
@@ -338,6 +339,7 @@ export async function mockProjectTimeLegacy(
       environmentId: ctx.environment.id,
       userId: ctx.userId,
       description: `Mock time to ${mockedAt} (legacy)`,
+      kind: "mock_time",
     });
     await enqueue("environment/mock-time.legacy", {
       environmentId: ctx.environment.id,
@@ -450,6 +452,7 @@ export async function advanceClockLegacy(
       environmentId: ctx.environment.id,
       userId: ctx.userId,
       description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
+      kind: "mock_time",
     });
     await enqueue("environment/mock-time.legacy", {
       environmentId: ctx.environment.id,
@@ -472,6 +475,7 @@ export async function resetClockLegacy(
       environmentId: ctx.environment.id,
       userId: ctx.userId,
       description: "Reset clock to real time (legacy)",
+      kind: "mock_time",
     });
     await enqueue("environment/mock-time.reset-legacy", {
       environmentId: ctx.environment.id,
