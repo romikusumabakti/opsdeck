@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { getProjectRole } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environments, projects } from "@/lib/db/schema";
 
@@ -16,6 +17,7 @@ export const resolveEnvIdByKeySlug = cache(
       columns: { id: true },
     });
     if (!project) notFound();
+    if (!(await getProjectRole({ projectId: project.id }))) notFound();
     const [env] = await db
       .select({ id: environments.id })
       .from(environments)

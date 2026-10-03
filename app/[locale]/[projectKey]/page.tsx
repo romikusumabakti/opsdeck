@@ -54,7 +54,7 @@ export default async function ProjectOverviewPage({
 
   const [issues, users, milestones, t, tOv, tDash, tKinds] = await Promise.all([
     listIssues(project.id),
-    listAssignableUsers(),
+    listAssignableUsers(project.id),
     listMilestones(project.id),
     getTranslations("home"),
     getTranslations("projectOverview"),
