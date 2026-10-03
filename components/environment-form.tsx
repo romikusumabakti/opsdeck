@@ -56,6 +56,10 @@ const KIND_NONE = "none";
 
 type ServerRole = "db" | "backend" | "frontend";
 
+// What the pickers need. `host` is present only for callers allowed to read
+// servers; options-only callers get id and name.
+type ServerOption = { id: string; name: string; host?: string };
+
 type Mode =
   | { type: "create"; cloneFrom?: SafeEnvironmentWithServers }
   | { type: "edit"; environment: SafeEnvironmentWithServers };
@@ -65,9 +69,12 @@ export function EnvironmentForm({
   servers: initialServers,
   projects: initialProjects,
   defaultProjectId,
+  canManageServers,
 }: {
   mode: Mode;
-  servers: Server[];
+  servers: ServerOption[];
+  // Whether the caller may register a new server (server:manage).
+  canManageServers: boolean;
   projects: Project[];
   // Preselected parent project for a fresh create (e.g. "New environment" from
   // a project overview). Ignored on edit/clone, which take the source's project.
@@ -79,7 +86,7 @@ export function EnvironmentForm({
   const tCommon = useTranslations("common");
   const router = useRouter();
 
-  const [servers, setServers] = useState<Server[]>(initialServers);
+  const [servers, setServers] = useState<ServerOption[]>(initialServers);
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -416,7 +423,9 @@ export function EnvironmentForm({
               control={form.control}
               name="dbServerId"
               servers={servers}
-              onRequestCreate={() => setDialogRole("db")}
+              onRequestCreate={
+                canManageServers ? () => setDialogRole("db") : undefined
+              }
             />
             <FormField
               control={form.control}
@@ -545,7 +554,9 @@ export function EnvironmentForm({
               control={form.control}
               name="backendServerId"
               servers={servers}
-              onRequestCreate={() => setDialogRole("backend")}
+              onRequestCreate={
+                canManageServers ? () => setDialogRole("backend") : undefined
+              }
             />
             <FormField
               control={form.control}
@@ -629,7 +640,9 @@ export function EnvironmentForm({
               control={form.control}
               name="frontendServerId"
               servers={servers}
-              onRequestCreate={() => setDialogRole("frontend")}
+              onRequestCreate={
+                canManageServers ? () => setDialogRole("frontend") : undefined
+              }
             />
             <FormField
               control={form.control}
@@ -765,8 +778,8 @@ function ServerPicker({
   // biome-ignore lint/suspicious/noExplicitAny: control type is generic over form values
   control: any;
   name: string;
-  servers: Server[];
-  onRequestCreate: () => void;
+  servers: ServerOption[];
+  onRequestCreate?: () => void;
 }) {
   return (
     <FormField
@@ -788,15 +801,17 @@ function ServerPicker({
               <SelectContent>
                 {servers.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.name} ({s.host})
+                    {s.host ? `${s.name} (${s.host})` : s.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button type="button" variant="outline" onClick={onRequestCreate}>
-              <Plus className="size-4" />
-              <span className="hidden sm:inline">{t("newServerShort")}</span>
-            </Button>
+            {onRequestCreate && (
+              <Button type="button" variant="outline" onClick={onRequestCreate}>
+                <Plus className="size-4" />
+                <span className="hidden sm:inline">{t("newServerShort")}</span>
+              </Button>
+            )}
           </div>
           <FormMessage />
         </FormItem>

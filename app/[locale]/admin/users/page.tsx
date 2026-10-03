@@ -1,6 +1,7 @@
 import { setRequestLocale } from "next-intl/server";
 import { listPendingInvitations, listUsers } from "@/actions/users";
 import { requireOrgPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 import { UsersClient } from "./users-client";
 
 export default async function UsersPage({
@@ -15,7 +16,10 @@ export default async function UsersPage({
 
   const [users, invitations] = await Promise.all([
     listUsers(),
-    listPendingInvitations(),
+    // Invitations need user:invite; an observer (list only) sees none.
+    canOrg(session.user.role, { user: ["invite"] })
+      ? listPendingInvitations()
+      : Promise.resolve([]),
   ]);
 
   return (

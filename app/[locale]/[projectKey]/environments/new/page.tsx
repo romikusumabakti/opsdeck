@@ -6,7 +6,7 @@ import {
   getProjectByKeyWithEnvironments,
   listProjects,
 } from "@/actions/project-catalog";
-import { getServers } from "@/actions/servers";
+import { getServers, listServerOptions } from "@/actions/servers";
 import { EnvironmentForm } from "@/components/environment-form";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -46,11 +46,11 @@ export default async function NewEnvironmentPage({
 
   const t = await getTranslations("newEnvironment");
   const [servers, projects, cloneFrom] = await Promise.all([
-    // Servers are an org-level resource; without server:read the picker is
-    // simply empty.
+    // Full server rows need org-level server:read; without it the picker gets
+    // id and name only.
     canOrg(session.user.role, { server: ["read"] })
       ? getServers()
-      : Promise.resolve([]),
+      : listServerOptions(project.id),
     listProjects(),
     from ? getEnvironmentById(from) : Promise.resolve(undefined),
   ]);
@@ -87,6 +87,9 @@ export default async function NewEnvironmentPage({
           <EnvironmentForm
             mode={{ type: "create", cloneFrom: cloneFrom ?? undefined }}
             servers={servers}
+            canManageServers={canOrg(session.user.role, {
+              server: ["manage"],
+            })}
             projects={projects}
             defaultProjectId={project.id}
           />
