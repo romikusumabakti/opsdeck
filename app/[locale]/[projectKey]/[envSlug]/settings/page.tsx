@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getEnvironmentById } from "@/actions/environments";
 import { getMailpitSettings } from "@/actions/mailpit-settings";
 import { listProjects } from "@/actions/project-catalog";
-import { getServers, listServerOptions } from "@/actions/servers";
+import { getServers } from "@/actions/servers";
 import { EnvironmentForm } from "@/components/environment-form";
 import { MailpitSettingsForm } from "@/components/mailpit-settings-form";
 import { PageHeader } from "@/components/page-header";
@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { requireProjectPage } from "@/lib/authz";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
-import { canOrg } from "@/lib/permissions";
+import { canCreateEnvironment, canOrg } from "@/lib/permissions";
 import { DeleteEnvironmentCard } from "./delete-environment-card";
 
 export default async function ProjectSettingsPage({
@@ -31,18 +31,20 @@ export default async function ProjectSettingsPage({
   const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
 
-  const { session, projectId } = await requireProjectPage(
+  const { session, role } = await requireProjectPage(
     { environmentId },
     { environment: ["update"] }
   );
+  // Infrastructure bindings (servers, services, credentials) need org
+  // server:manage. Without it the form shows them read-only from the stored
+  // environment and never fetches the server list.
+  const canManageServers = canOrg(session.user.role, { server: ["manage"] });
+  // Duplicating opens the new-environment page, which needs both.
+  const canDuplicate = canCreateEnvironment(session.user.role, role);
 
   const [environment, servers, projects, mailpit] = await Promise.all([
     getEnvironmentById(environmentId),
-    // Full server rows need org-level server:read; without it the picker gets
-    // id and name only.
-    canOrg(session.user.role, { server: ["read"] })
-      ? getServers()
-      : listServerOptions(projectId),
+    canManageServers ? getServers() : Promise.resolve([]),
     listProjects(),
     getMailpitSettings(environmentId),
   ]);
@@ -75,9 +77,7 @@ export default async function ProjectSettingsPage({
               <EnvironmentForm
                 mode={{ type: "edit", environment }}
                 servers={servers}
-                canManageServers={canOrg(session.user.role, {
-                  server: ["manage"],
-                })}
+                canManageServers={canManageServers}
                 projects={projects}
               />
             </CardContent>
@@ -96,25 +96,27 @@ export default async function ProjectSettingsPage({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("duplicateTitle")}</CardTitle>
-              <CardDescription>{t("duplicateDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                render={
-                  <Link
-                    href={`/${projectKey}/environments/new?from=${environment.id}`}
-                  />
-                }
-                variant="outline"
-              >
-                <Copy className="size-4" />
-                {t("duplicateButton")}
-              </Button>
-            </CardContent>
-          </Card>
+          {canDuplicate ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("duplicateTitle")}</CardTitle>
+                <CardDescription>{t("duplicateDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  render={
+                    <Link
+                      href={`/${projectKey}/environments/new?from=${environment.id}`}
+                    />
+                  }
+                  variant="outline"
+                >
+                  <Copy className="size-4" />
+                  {t("duplicateButton")}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="danger">

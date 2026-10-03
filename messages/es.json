@@ -607,7 +607,8 @@
     "owner": "Responsable",
     "ownerPlaceholder": "p. ej. QA — Budi",
     "ownerHint": "Quién es responsable de este despliegue. Opcional.",
-    "purpose": "Propósito"
+    "purpose": "Propósito",
+    "infraReadOnlyHint": "Cambiar servidores, servicios o la configuración de la base de datos requiere acceso de gestión de servidores."
   },
   "environmentSettings": {
     "title": "Ajustes del entorno",

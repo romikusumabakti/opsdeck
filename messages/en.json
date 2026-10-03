@@ -607,7 +607,8 @@
     "owner": "Owner",
     "ownerPlaceholder": "e.g. QA — Budi",
     "ownerHint": "Who owns this deployment. Optional.",
-    "purpose": "Purpose"
+    "purpose": "Purpose",
+    "infraReadOnlyHint": "Changing servers, services or database settings requires server management access."
   },
   "environmentSettings": {
     "title": "Environment settings",

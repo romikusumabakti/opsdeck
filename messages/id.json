@@ -607,7 +607,8 @@
     "owner": "Pemilik",
     "ownerPlaceholder": "mis. QA — Budi",
     "ownerHint": "Siapa pemilik deployment ini. Opsional.",
-    "purpose": "Tujuan"
+    "purpose": "Tujuan",
+    "infraReadOnlyHint": "Mengubah server, layanan, atau pengaturan database memerlukan akses pengelolaan server."
   },
   "environmentSettings": {
     "title": "Pengaturan environment",

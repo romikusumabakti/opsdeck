@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
+import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -80,19 +80,6 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
 export async function getServers(): Promise<Server[]> {
   await requireOrgPermission({ server: ["read"] });
   return db.select().from(servers).orderBy(servers.name);
-}
-
-// Id and name only, for the server pickers in the environment forms. A project
-// maintainer without org-level server:read can still assign an environment to
-// a server, but must not see its host, user or credentials.
-export async function listServerOptions(
-  projectId: string
-): Promise<{ id: string; name: string }[]> {
-  await requireProjectPermission({ projectId }, { environment: ["update"] });
-  return db
-    .select({ id: servers.id, name: servers.name })
-    .from(servers)
-    .orderBy(servers.name);
 }
 
 export async function getServerById(id: string): Promise<Server | undefined> {

@@ -12,6 +12,7 @@ import type {
 } from "@/lib/db/schema";
 import { environments } from "@/lib/db/schema";
 import { decryptNullable, decryptSecret } from "@/lib/secrets";
+import type { EnvironmentInput } from "@/lib/validation";
 
 /**
  * Load an environment (deployment) together with its services and each
@@ -106,4 +107,58 @@ export async function environmentName(id: string): Promise<string | undefined> {
     .where(eq(environments.id, id))
     .limit(1);
   return row?.name;
+}
+
+// Every form field that binds an environment to infrastructure, mapped to the
+// service role and column it is stored in. Changing any of these can point the
+// environment's service control, database drop/restore, logs or mock-time
+// requests at different targets, so it needs org server:manage on top of
+// environment:update. Only projectId/name/kind/owner are not listed here.
+export const INFRA_FIELDS = {
+  dbServerId: ["db", "serverId"],
+  dbServiceType: ["db", "serviceType"],
+  dbServiceName: ["db", "serviceName"],
+  dbType: ["db", "dbType"],
+  dbName: ["db", "dbName"],
+  dbUser: ["db", "dbUser"],
+  dbPassword: ["db", "dbPassword"],
+  dbBackupPath: ["db", "dbBackupPath"],
+  backendServerId: ["backend", "serverId"],
+  backendServiceType: ["backend", "serviceType"],
+  backendServiceName: ["backend", "serviceName"],
+  backendMockTimeApiUrl: ["backend", "mockTimeApiUrl"],
+  backendMockTimeApiKey: ["backend", "mockTimeApiKey"],
+  frontendServerId: ["frontend", "serverId"],
+  frontendServiceType: ["frontend", "serviceType"],
+  frontendServiceName: ["frontend", "serviceName"],
+} as const satisfies Partial<
+  Record<
+    keyof EnvironmentInput,
+    readonly ["db" | "backend" | "frontend", keyof ServiceWithServer]
+  >
+>;
+
+/**
+ * Pure: the infrastructure fields an update payload actually changes, compared
+ * with the stored (decrypted) environment. Absent keys are untouched; null and
+ * undefined/absent stored values compare equal, so re-submitting the form with
+ * the bindings unchanged reports nothing. A missing service row counts every
+ * submitted field for it as a change.
+ */
+export function changedInfraFields(
+  input: Partial<EnvironmentInput>,
+  stored: Pick<EnvironmentWithServers, "services">
+): (keyof typeof INFRA_FIELDS)[] {
+  const changed: (keyof typeof INFRA_FIELDS)[] = [];
+  for (const [field, [role, column]] of Object.entries(INFRA_FIELDS) as [
+    keyof typeof INFRA_FIELDS,
+    (typeof INFRA_FIELDS)[keyof typeof INFRA_FIELDS],
+  ][]) {
+    if (!(field in input) || input[field] === undefined) continue;
+    const service = stored.services.find((s) => s.role === role);
+    const next = input[field] ?? null;
+    const current = service ? (service[column] ?? null) : undefined;
+    if (current === undefined || next !== current) changed.push(field);
+  }
+  return changed;
 }

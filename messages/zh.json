@@ -607,7 +607,8 @@
     "owner": "负责人",
     "ownerPlaceholder": "例如 QA — Budi",
     "ownerHint": "该部署的负责人。可选。",
-    "purpose": "用途"
+    "purpose": "用途",
+    "infraReadOnlyHint": "更改服务器、服务或数据库设置需要服务器管理权限。"
   },
   "environmentSettings": {
     "title": "环境设置",

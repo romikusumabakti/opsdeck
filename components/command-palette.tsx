@@ -39,8 +39,8 @@ import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
+  canCreateEnvironment as canCreateEnvironmentIn,
   canOrg,
-  canProject,
   type OrgRole,
   type ProjectRole,
 } from "@/lib/permissions";
@@ -67,7 +67,7 @@ export function CommandPalette({
   // The palette has no project context: offer "create environment" when any
   // project the caller can see lets them. The create dialog re-checks per project.
   const canCreateEnvironment = Object.values(projectRoles).some((role) =>
-    canProject(role, { environment: ["create"] })
+    canCreateEnvironmentIn(orgRole, role)
   );
 
   useEffect(() => {
