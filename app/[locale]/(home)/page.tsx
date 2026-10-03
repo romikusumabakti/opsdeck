@@ -9,6 +9,7 @@ import {
   hourIn,
 } from "@/lib/home/layout";
 import {
+  type IssueProject,
   listIssueProjects,
   listRecentEnvironments,
   type RecentEnvironment,
@@ -34,7 +35,11 @@ export default async function HomePage({
 
   const [t, issueProjects, recent] = await Promise.all([
     getTranslations("homePage"),
-    listIssueProjects(),
+    // A failure disables New issue rather than failing the page.
+    listIssueProjects().catch((error: unknown): IssueProject[] => {
+      console.error("Home issue projects failed:", error);
+      return [];
+    }),
     listRecentEnvironments().catch(
       (error: unknown): RecentEnvironment[] | null => {
         console.error("Home recent environments failed:", error);
