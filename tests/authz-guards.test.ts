@@ -225,6 +225,20 @@ describe("environment infrastructure bindings need server:manage", () => {
   });
 });
 
+// Pages any project role can open must not call an action that throws for
+// some of those roles while rendering; that would crash to the error boundary.
+describe("render-time permissioned reads are gated", () => {
+  it("the databases page lists backups only for database:backup", () => {
+    const page = readFileSync(
+      "app/[locale]/[projectKey]/[envSlug]/databases/page.tsx",
+      "utf8"
+    );
+    expect(page).toMatch(/canProject\(role, \{ database: \["backup"\] \}\)/);
+    expect(page).toMatch(/canBackup\s*\?\s*getBackupList\(/);
+    expect(page.match(/getBackupList\(/g)?.length).toBe(1);
+  });
+});
+
 describe("old role module is gone", () => {
   it("lib/roles.ts no longer exists", () => {
     expect(existsSync("lib/roles.ts")).toBe(false);

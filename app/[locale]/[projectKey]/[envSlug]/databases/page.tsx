@@ -5,8 +5,10 @@ import { getDatabaseList } from "@/actions/databases";
 import { getEnvironmentById, listEnvironments } from "@/actions/environments";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
+import { requireProjectPage } from "@/lib/authz";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
+import { canProject } from "@/lib/permissions";
 import { dbService } from "@/lib/services";
 import { DatabasesTabs } from "./databases-tabs";
 import { DatabasesTabsSkeleton } from "./databases-tabs-skeleton";
@@ -22,6 +24,11 @@ export default async function Page({
   const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   const { tab } = await searchParams;
   setRequestLocale(locale);
+  // Any project role may open the page (the Manage tab lists databases on
+  // project:read); Backup and Restore only render for roles that may use them.
+  const { role } = await requireProjectPage({ environmentId });
+  const canBackup = canProject(role, { database: ["backup"] });
+  const canRestore = canProject(role, { database: ["restore"] });
   const environment = await getEnvironmentById(environmentId);
   const t = await getTranslations("databases");
   const tCommon = await getTranslations("common");
@@ -30,7 +37,15 @@ export default async function Page({
     return <p>{tCommon("environmentNotFound")}</p>;
   }
 
-  const defaultTab = tab === "restore" || tab === "manage" ? tab : "backup";
+  const allowedTabs = [
+    ...(canBackup ? (["backup"] as const) : []),
+    ...(canRestore ? (["restore"] as const) : []),
+    "manage" as const,
+  ];
+  const defaultTab =
+    allowedTabs.find((allowed) => allowed === tab) ??
+    allowedTabs[0] ??
+    "manage";
 
   return (
     <>
@@ -53,6 +68,8 @@ export default async function Page({
             <DatabasesContent
               environment={environment}
               defaultTab={defaultTab}
+              canBackup={canBackup}
+              canRestore={canRestore}
             />
           </Suspense>
         </CardContent>
@@ -66,9 +83,13 @@ export default async function Page({
 async function DatabasesContent({
   environment,
   defaultTab,
+  canBackup,
+  canRestore,
 }: {
   environment: SafeEnvironmentWithServers;
   defaultTab: "manage" | "backup" | "restore";
+  canBackup: boolean;
+  canRestore: boolean;
 }) {
   // Best-effort enumeration; both lists degrade gracefully so a single failing
   // probe never blocks the page from rendering the other tabs. `allProjects`
@@ -76,7 +97,10 @@ async function DatabasesContent({
   // ones sharing this environment's DB location).
   const [dbResult, backupResult, allProjects] = await Promise.all([
     getDatabaseList(environment.id),
-    getBackupList(environment.id),
+    // getBackupList needs database:backup and throws without it.
+    canBackup
+      ? getBackupList(environment.id)
+      : Promise.resolve({ success: true as const, data: [] }),
     listEnvironments(),
   ]);
   const databases = dbResult.success
@@ -95,6 +119,8 @@ async function DatabasesContent({
       listError={listError}
       backupListError={backupListError}
       defaultTab={defaultTab}
+      canBackup={canBackup}
+      canRestore={canRestore}
     />
   );
 }
