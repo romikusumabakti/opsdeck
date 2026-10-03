@@ -1501,6 +1501,7 @@
     "issueStatusChanged": "{actor} 将 {key} 移动到 {status}",
     "memberAdded": "{actor} 将 {user} 添加到 {project}，角色为 {role}",
     "memberRemoved": "{actor} 从 {project} 移除了 {user}",
+    "memberRoleChanged": "{actor} 将 {user} 在 {project} 中的角色从 {from} 改为 {to}",
     "milestoneCreated": "{actor} 创建了里程碑 {name}",
     "terminalOpened": "{actor} 在 {server} 上打开了终端",
     "terminalClosed": "{actor} 在 {server} 上关闭了终端，持续 {seconds} 秒",

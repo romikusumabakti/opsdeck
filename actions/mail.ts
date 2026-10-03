@@ -1,8 +1,9 @@
 "use server";
 
 import { recordActivity } from "@/lib/activity";
-import { requireCapability } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { environmentName } from "@/lib/environments";
+import type { ProjectPermissions } from "@/lib/permissions";
 import {
   deleteMailpitMessages,
   deleteMailpitSearch,
@@ -49,12 +50,16 @@ type Fail = { success: false; error: string; notFound?: boolean };
 // Validate + authorize + load config for one inbox action. The Mailpit URL and
 // credentials come from the DB, never the client (SSRF).
 async function requireMail(
-  environmentId: string
+  environmentId: string,
+  perms: ProjectPermissions = { mail: ["read"] }
 ): Promise<{ ok: true; cfg: MailpitConfig; userId: string } | { ok: false; fail: Fail }> {
   if (!uuidSchema.safeParse(environmentId).success) {
     return { ok: false, fail: { success: false, error: "Invalid environment id" } };
   }
-  const session = await requireCapability("mail", { environmentId });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    perms
+  );
   const cfg = await loadMailpitConfig(environmentId);
   if (!cfg) {
     return {
@@ -160,7 +165,7 @@ export async function deleteMail(
   environmentId: string,
   target: unknown
 ): Promise<MailResult<null>> {
-  const auth = await requireMail(environmentId);
+  const auth = await requireMail(environmentId, { mail: ["delete"] });
   if (!auth.ok) return auth.fail;
   const parsed = mailDeleteTargetSchema.safeParse(target);
   if (!parsed.success) return { success: false, error: "Invalid selection" };

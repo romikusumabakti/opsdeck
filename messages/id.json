@@ -1501,6 +1501,7 @@
     "issueStatusChanged": "{actor} memindah {key} ke {status}",
     "memberAdded": "{actor} menambahkan {user} ke {project} sebagai {role}",
     "memberRemoved": "{actor} menghapus {user} dari {project}",
+    "memberRoleChanged": "{actor} mengubah {user} di {project} dari {from} menjadi {to}",
     "milestoneCreated": "{actor} membuat milestone {name}",
     "terminalOpened": "{actor} membuka terminal di {server}",
     "terminalClosed": "{actor} menutup terminal di {server} setelah {seconds} detik",

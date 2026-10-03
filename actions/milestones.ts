@@ -3,17 +3,28 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
-import { requireSession } from "@/lib/auth-session";
-import { requireProjectPage } from "@/lib/authz";
+import { requireProjectPage, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import { issues, type Milestone, milestones } from "@/lib/db/schema";
 import type { ActionResponse } from "@/lib/types";
-import { milestoneInputSchema } from "@/lib/validation";
+import { milestoneInputSchema, uuidSchema } from "@/lib/validation";
 
 // A milestone plus how many issues point at it — the count drives the
 // management list and warns before deleting a non-empty one.
 export type MilestoneWithCount = Milestone & { issueCount: number };
+
+// Private ("use server" files expose every export): the project that owns a
+// milestone, or null when the id is malformed or unknown.
+async function milestoneProjectId(id: string): Promise<string | null> {
+  if (!uuidSchema.safeParse(id).success) return null;
+  const [row] = await db
+    .select({ projectId: milestones.projectId })
+    .from(milestones)
+    .where(eq(milestones.id, id))
+    .limit(1);
+  return row?.projectId ?? null;
+}
 
 /** All milestones for a project, open ones first, then by due date. */
 export async function listMilestones(
@@ -52,12 +63,15 @@ export async function listMilestones(
 export async function createMilestone(
   data: unknown
 ): Promise<ActionResponse<Milestone>> {
-  const session = await requireSession();
   const parsed = milestoneInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid milestone data" };
   }
   const input = parsed.data;
+  const { session } = await requireProjectPermission(
+    { projectId: input.projectId },
+    { issue: ["write"] }
+  );
   try {
     const row = one(
       await db
@@ -90,7 +104,9 @@ export async function updateMilestone(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Milestone>> {
-  await requireSession();
+  const projectId = await milestoneProjectId(id);
+  if (!projectId) return { success: false, message: "Milestone not found" };
+  await requireProjectPermission({ projectId }, { issue: ["write"] });
   const parsed = milestoneInputSchema.partial().safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid milestone data" };
@@ -120,7 +136,9 @@ export async function setMilestoneClosed(
   id: string,
   closed: boolean
 ): Promise<ActionResponse<Milestone>> {
-  await requireSession();
+  const projectId = await milestoneProjectId(id);
+  if (!projectId) return { success: false, message: "Milestone not found" };
+  await requireProjectPermission({ projectId }, { issue: ["write"] });
   try {
     const row = one(
       await db
@@ -141,7 +159,9 @@ export async function setMilestoneClosed(
 
 /** Delete a milestone. Issues pointing at it fall back to null (FK set null). */
 export async function deleteMilestone(id: string): Promise<ActionResponse> {
-  await requireSession();
+  const projectId = await milestoneProjectId(id);
+  if (!projectId) return { success: false, message: "Milestone not found" };
+  await requireProjectPermission({ projectId }, { issue: ["delete"] });
   try {
     await db.delete(milestones).where(and(eq(milestones.id, id)));
     revalidatePath("/", "layout");

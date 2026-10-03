@@ -62,3 +62,81 @@ describe("cross-project reads are scoped", () => {
     }
   }
 });
+
+// Every project-scoped mutation must state the permission it needs.
+const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
+  "actions/issues.ts": {
+    addComment: /issue: \["write"\]/,
+    createIssue: /issue: \["write"\]/,
+    updateIssue: /issue: \["write"\]/,
+    // setIssueStatus delegates to updateIssue, which owns the guard.
+    setIssueStatus: /return updateIssue\(/,
+    bulkSetStatus: /requireProjectPermissionForAll\([\s\S]*issue: \["write"\]/,
+    bulkDeleteIssues: /requireProjectPermissionForAll\([\s\S]*issue: \["delete"\]/,
+    deleteIssue: /issue: \["delete"\]/,
+  },
+  "actions/issue-attachments.ts": {
+    listIssueAttachments: /project: \["read"\]/,
+    deleteIssueAttachment: /issue: \["write"\]/,
+  },
+  "actions/labels.ts": { setIssueLabels: /issue: \["write"\]/ },
+  "actions/milestones.ts": {
+    createMilestone: /issue: \["write"\]/,
+    updateMilestone: /issue: \["write"\]/,
+    setMilestoneClosed: /issue: \["write"\]/,
+    deleteMilestone: /issue: \["delete"\]/,
+  },
+  "actions/test-runs.ts": {
+    listIssueTestRuns: /project: \["read"\]/,
+    recordTestRun: /issue: \["write"\]/,
+  },
+  "actions/services.ts": {
+    getAllServiceStatuses: /project: \["read"\]/,
+    controlService: /service: \["control"\]/,
+  },
+  "actions/backups.ts": {
+    getBackupList: /database: \["backup"\]/,
+    revalidateBackupList: /database: \["backup"\]/,
+    createDatabaseBackup: /database: \["backup"\]/,
+    restoreDatabaseBackup: /database: \["restore"\]/,
+  },
+  "actions/databases.ts": {
+    getDatabaseList: /project: \["read"\]/,
+    createDatabase: /database: \["create"\]/,
+    dropDatabase: /database: \["drop"\]/,
+    renameDatabase: /database: \["rename"\]/,
+  },
+  "actions/mailpit-settings.ts": {
+    getMailpitSettings: /environment: \["update"\]/,
+    saveMailpitSettings: /environment: \["update"\]/,
+    testMailpitConnection: /environment: \["update"\]/,
+  },
+  "actions/environments.ts": {
+    createEnvironment: /environment: \["create"\]/,
+    updateEnvironment: /environment: \["update"\]/,
+    deleteEnvironment: /environment: \["delete"\]/,
+  },
+  "actions/project-members.ts": {
+    listProjectMembers: /member: \["manage"\]/,
+    addProjectMember: /member: \["manage"\]/,
+    updateProjectMemberRole: /member: \["manage"\]/,
+    removeProjectMember: /member: \["manage"\]/,
+  },
+  "actions/jira.ts": {
+    getJiraLink: /project: \["read"\]/,
+    saveJiraLink: /environment: \["update"\]/,
+    unlinkJiraProject: /environment: \["update"\]/,
+    syncJiraProjectNow: /environment: \["update"\]/,
+  },
+};
+
+describe("project-scoped writes state their permission", () => {
+  for (const [file, fns] of Object.entries(SCOPED_WRITES)) {
+    const source = readFileSync(file, "utf8");
+    for (const [fn, pattern] of Object.entries(fns)) {
+      it(`${file} ${fn}`, () => {
+        expect(body(source, fn)).toMatch(pattern);
+      });
+    }
+  }
+});

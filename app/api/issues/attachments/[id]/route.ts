@@ -1,4 +1,5 @@
-import { requireSession } from "@/lib/auth-session";
+import { getServerSession } from "@/lib/auth-session";
+import { routeProjectGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { getObject } from "@/lib/storage";
 import { issueIdSchema } from "@/lib/validation";
@@ -13,7 +14,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  await requireSession();
+  if (!(await getServerSession())) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const { id } = await params;
   if (!issueIdSchema.safeParse(id).success) {
@@ -22,9 +25,14 @@ export async function GET(
 
   const row = await db.query.issueAttachments.findFirst({
     where: { id },
-    columns: { storageKey: true, filename: true, mime: true },
+    columns: { storageKey: true, filename: true, mime: true, issueId: true },
   });
   if (!row) return new Response("Not found", { status: 404 });
+  const guard = await routeProjectGuard(
+    { issueId: row.issueId },
+    { project: ["read"] }
+  );
+  if (!guard.ok) return guard.response;
 
   let obj: Awaited<ReturnType<typeof getObject>>;
   try {

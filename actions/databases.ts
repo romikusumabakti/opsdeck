@@ -1,7 +1,7 @@
 "use server";
 
 import { unstable_cache } from "next/cache";
-import { requireCapability, requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/environments";
@@ -165,7 +165,7 @@ function parseDatabaseList(
 export async function getDatabaseList(
   environmentId: string
 ): Promise<DatabaseListResult> {
-  await requireSession();
+  await requireProjectPermission({ environmentId }, { project: ["read"] });
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, error: "Invalid environment id" };
   }
@@ -201,9 +201,10 @@ export async function createDatabase(
   if (!uuidSchema.safeParse(environmentId).success) {
     throw new Error("Invalid environment id");
   }
-  const session = await requireCapability("ops.destructive", {
-    environmentId: environmentId,
-  });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { database: ["create"] }
+  );
   const parsed = databaseNameSchema.safeParse(options.database);
   if (!parsed.success) {
     throw new Error("Invalid database name");
@@ -232,9 +233,10 @@ export async function dropDatabase(
   if (!uuidSchema.safeParse(environmentId).success) {
     throw new Error("Invalid environment id");
   }
-  const session = await requireCapability("ops.destructive", {
-    environmentId: environmentId,
-  });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { database: ["drop"] }
+  );
   const parsed = databaseNameSchema.safeParse(options.database);
   if (!parsed.success) {
     throw new Error("Invalid database name");
@@ -269,9 +271,10 @@ export async function renameDatabase(
   if (!uuidSchema.safeParse(environmentId).success) {
     throw new Error("Invalid environment id");
   }
-  const session = await requireCapability("ops.destructive", {
-    environmentId: environmentId,
-  });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { database: ["rename"] }
+  );
   const parsedFrom = databaseNameSchema.safeParse(options.from);
   if (!parsedFrom.success) {
     throw new Error("Invalid database name");

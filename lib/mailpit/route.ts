@@ -1,7 +1,6 @@
 import "server-only";
 
-import { getEffectiveRole, getServerSession } from "@/lib/auth-session";
-import { roleHasCapability } from "@/lib/roles";
+import { routeProjectGuard } from "@/lib/authz";
 import { uuidSchema } from "@/lib/validation";
 import type { MailpitConfig } from "./client";
 import { loadMailpitConfig } from "./config";
@@ -14,15 +13,8 @@ export async function authorizeMailRoute(
   if (!uuidSchema.safeParse(environmentId).success) {
     return { ok: false, response: new Response("Not found", { status: 404 }) };
   }
-  const session = await getServerSession();
-  if (!session) {
-    return { ok: false, response: new Response("Unauthorized", { status: 401 }) };
-  }
-  // A session exists, so getEffectiveRole's requireSession cannot redirect.
-  const role = await getEffectiveRole({ environmentId });
-  if (!roleHasCapability(role, "mail")) {
-    return { ok: false, response: new Response("Forbidden", { status: 403 }) };
-  }
+  const guard = await routeProjectGuard({ environmentId }, { mail: ["read"] });
+  if (!guard.ok) return guard;
   const cfg = await loadMailpitConfig(environmentId);
   if (!cfg) {
     return {

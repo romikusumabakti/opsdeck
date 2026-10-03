@@ -1,6 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { getRunSnapshot } from "@/actions/runs";
-import { getServerSession } from "@/lib/auth-session";
+import { routeProjectGuard } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { uuidSchema } from "@/lib/validation";
 
 // Streamed updates require Node runtime (Edge has stricter timeouts and no
 // long-lived I/O). We poll the DB instead of LISTEN/NOTIFY because the same
@@ -18,10 +20,21 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession();
-  if (!session) return new NextResponse("Unauthorized", { status: 401 });
-
   const { id } = await params;
+
+  // Authorize against the run's project before opening the stream. A malformed
+  // or unknown id is a 404, same as a run in a project the caller can't see.
+  const owner = uuidSchema.safeParse(id).success
+    ? await db.query.runs.findFirst({
+        where: { id },
+        columns: { environmentId: true },
+      })
+    : undefined;
+  const guard = await routeProjectGuard(
+    { environmentId: owner?.environmentId ?? "" },
+    { project: ["read"] }
+  );
+  if (!guard.ok) return guard.response;
 
   const encoder = new TextEncoder();
   const startedAt = Date.now();
