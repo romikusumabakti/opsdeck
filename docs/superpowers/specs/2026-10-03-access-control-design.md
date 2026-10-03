@@ -82,6 +82,7 @@ All statements are defined once in `lib/permissions.ts` with `createAccessContro
 | `integration: manage` (Jira connections) | ✓ | – | – | – |
 | `knowledge: read` | ✓ | ✓ | ✓ | ✓ |
 | `knowledge: write` | ✓ | ✓ | – | ✓ |
+| `knowledge: manage` (others' drafts, collections, delete docs) | ✓ | – | – | – |
 | `audit: read` (activity log, access matrix) | ✓ | ✓ | ✓ | – |
 
 ### Project scope (checked against the effective project role)
@@ -122,7 +123,9 @@ Rules:
 - **Server action without permission:** throw `ForbiddenError` (a typed error). The client turns it into a toast. Server actions never redirect on denial.
 - **Cross-project queries must apply `projectScope`.** These are: project and environment lists, global issue list, issue counts, assigned-to-me, notifications, activity log and search. A grep-based test fails CI if one of these actions queries `issues`/`environments`/`projects` without it.
 - **Assignee pickers** list only users who have access to the project (`listAssignableUsers(projectId)`).
-- **Terminal and explorer:** the WebSocket ticket requires `server: terminal`, and the explorer actions and routes require `server: files`. The check runs both when the ticket is issued and when it is redeemed.
+- Terminal and explorer: the WebSocket ticket route requires `server: terminal`
+  when minting (tickets live 30 s, so no redeem-time check); explorer actions
+  and routes require `server: files`.
 - **Jira webhook:** unchanged, authenticated by its token.
 - **Removed:** `requireAdmin`, `isAdmin`, `requireCapability`, `getEffectiveRole`, `CAPABILITIES`, `ROLE_RANK`. A test fails if any of them reappears.
 
@@ -167,10 +170,10 @@ Deploy order: back up → migrate → deploy the app → run the per-person scri
 ## Testing
 
 - **Unit (`tests/permissions.test.ts`):** a full matrix of role × statement for both scopes, asserted against the tables above. Also covers `effectiveProjectRole` for every combination of org and membership role.
-- **Integration (`tests/authz.test.ts`):**
-  - A `member` with no memberships gets `[]` from `accessibleProjectIds`, and `projectScope` filters every list to empty.
-  - An `observer` can read, but `requireProjectPermission(..., { issue: ["write"] })` throws.
-  - `infra` gets `"all"` with maintainer, but `user: invite` is denied.
+- Resolution (`tests/authz.test.ts`): the pure `resolveProjectAccess` — member
+  with no memberships → no projects; observer → all as viewer; infra → all as
+  maintainer; bulk checks refuse a mixed-project set. (The repo has no DB-backed
+  test harness, so the DB lookups stay thin wrappers around these pure helpers.)
 - **Regression (grep test):** none of the removed helpers remain, and no cross-project action skips `projectScope`.
 - **Manual:** sign in as each org role on staging and check navigation, project list, 404 on a foreign project URL, terminal access and offboarding.
 
