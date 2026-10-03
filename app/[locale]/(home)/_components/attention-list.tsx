@@ -36,25 +36,45 @@ export function AttentionList({ groups }: { groups: AttentionGroup[] }) {
 
   function undo(g: AttentionGroup, runIds: string[]) {
     startTransition(async () => {
-      const res = await unacknowledgeRuns(g.environmentId, runIds);
-      if (!res.success) toast.error(t("attention.undoFailed"));
+      try {
+        const res = await unacknowledgeRuns(g.environmentId, runIds);
+        if (!res.success) toast.error(t("attention.undoFailed"));
+      } catch {
+        // A thrown action (forbidden, expired session) must not reach the
+        // route error boundary.
+        toast.error(t("attention.undoFailed"));
+      }
     });
   }
 
   function acknowledge(g: AttentionGroup) {
     startTransition(async () => {
       hide(groupId(g));
-      const res = await acknowledgeAttentionGroup(g.environmentId, g.key);
-      if (!res.success) {
+      let runIds: string[];
+      try {
+        const res = await acknowledgeAttentionGroup(g.environmentId, g.key);
+        if (!res.success) {
+          toast.error(t("attention.ackFailed"));
+          return;
+        }
+        runIds = res.data.runIds;
+      } catch {
+        // The optimistic hide rolls back when the transition ends.
         toast.error(t("attention.ackFailed"));
         return;
       }
-      toast.success(t("attention.acknowledged"), {
-        action: {
-          label: t("attention.undo"),
-          onClick: () => undo(g, res.data.runIds),
-        },
-      });
+      // Empty when someone else acknowledged first: nothing of ours to undo.
+      toast.success(
+        t("attention.acknowledged"),
+        runIds.length > 0
+          ? {
+              action: {
+                label: t("attention.undo"),
+                onClick: () => undo(g, runIds),
+              },
+            }
+          : undefined
+      );
     });
   }
 
