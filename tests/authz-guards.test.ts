@@ -157,6 +157,40 @@ describe("issue writes validate their references", () => {
   });
 });
 
+// A notification carries the issue's key and title, so recipients must be able
+// to see the project. Every notifyIssueMention call site must draw its
+// recipients from projectVisibleUsersWhere.
+describe("mention notifications only reach users who can see the project", () => {
+  const source = readFileSync("actions/issues.ts", "utf8");
+  it("addComment selects mention candidates with projectVisibleUsersWhere", () => {
+    const fn = body(source, "addComment");
+    expect(fn).toMatch(
+      /projectVisibleUsersWhere\(\s*eq\(projectMembers\.projectId, issue\.projectId\)/
+    );
+    expect(fn.indexOf("projectVisibleUsersWhere(")).toBeLessThan(
+      fn.indexOf("notifyIssueMention(")
+    );
+  });
+  it("notifyIssueMention is only called from addComment", () => {
+    const files = Array.from(
+      new Bun.Glob("**/*.{ts,tsx}").scanSync("actions"),
+      (f) => `actions/${f}`
+    );
+    const callers = files.filter((f) =>
+      /notifyIssueMention\(/.test(readFileSync(f, "utf8"))
+    );
+    expect(callers).toEqual(["actions/issues.ts"]);
+    expect(source.match(/notifyIssueMention\(/g)?.length).toBe(1);
+  });
+  it("visible roles include observer; assignee roles do not", () => {
+    const helpers = readFileSync("lib/assignees.ts", "utf8");
+    expect(helpers).toMatch(
+      /ORG_WIDE_VISIBLE_ROLES = \["admin", "infra", "observer"\]/
+    );
+    expect(helpers).toMatch(/ORG_WIDE_ASSIGNEE_ROLES = \["admin", "infra"\]/);
+  });
+});
+
 // The old catch-all helpers have been removed. Everything under actions, lib, app
 // and components is scanned to ensure no legacy helper calls remain.
 describe("no legacy authorization helpers outside lib/auth-session", () => {

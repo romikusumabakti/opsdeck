@@ -126,6 +126,7 @@ Rules:
 - **Cross-project queries must apply `projectScope`.** These are: project and environment lists, global issue list, issue counts, assigned-to-me, notifications, activity log and search. A grep-based test fails CI if one of these actions queries `issues`/`environments`/`projects` without it.
 - **Assignee pickers** list only users who have access to the project (`listAssignableUsers(projectId)`).
 - **The add-member picker** lists every non-banned user (`listMemberCandidates(projectId)`, which needs `member: manage`), because membership is how an org `member` gains access.
+- **Mention notifications** go only to users who can see the issue's project (org `admin`/`infra`/`observer`, or a member of it), because the notification carries the issue key and title.
 - Terminal and explorer: the WebSocket ticket route requires `server: terminal`
   when minting (tickets live 30 s, so no redeem-time check); explorer actions
   and routes require `server: files`.
