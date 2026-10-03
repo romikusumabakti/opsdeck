@@ -128,7 +128,8 @@
     "badgeAssignedIssues": "{count, plural, other {分配给你的 # 个问题}}",
     "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}",
     "tunnels": "隧道",
-    "mail": "邮件"
+    "mail": "邮件",
+    "access": "访问权限"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -1010,7 +1011,8 @@
     "routeDeleteFailed": "无法撤回主机名",
     "networkAttached": "已接入 {network}",
     "networkAttachFailed": "无法接入网络",
-    "networkAlreadyAttached": "已经接入该网络"
+    "networkAlreadyAttached": "已经接入该网络",
+    "cannotRemoveLastAdmin": "不能降级最后一位管理员"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1520,7 +1522,10 @@
     "mailpitRemoved": "{actor} 断开了 {environment} 的 Mailpit",
     "mailDeleted": "{actor} 删除了 {environment} 中的 {count, plural, other {# 封邮件}}",
     "mailDeletedSearch": "{actor} 删除了 {environment} 中匹配\"{query}\"的邮件",
-    "mailCleared": "{actor} 清空了 {environment} 的收件箱"
+    "mailCleared": "{actor} 清空了 {environment} 的收件箱",
+    "userOffboarded": "{actor} 移除了 {user} 的访问权限",
+    "userRoleChanged": "{actor} 将 {user} 的角色从 {from} 改为 {to}",
+    "userInvited": "{actor} 邀请 {email} 为 {role}"
   },
   "jira": {
     "title": "Jira",
@@ -1794,5 +1799,24 @@
     "previous": "上一页",
     "next": "下一页",
     "selectAll": "全选本页"
+  },
+  "access": {
+    "title": "访问权限",
+    "subtitle": "谁可以访问哪些内容（所有项目）。",
+    "colUser": "用户",
+    "colOrgRole": "组织角色",
+    "colLastSeen": "最近活动",
+    "inactive": "不活跃",
+    "banned": "已封禁",
+    "filterInactive": "超过 60 天未活动",
+    "filterBanned": "显示已封禁",
+    "never": "从未",
+    "offboard": "移除访问",
+    "offboardTitle": "移除用户访问",
+    "offboardConfirm": "封禁 {name}，结束其会话并移除所有项目成员资格和待处理邀请？",
+    "offboarded": "已移除用户访问",
+    "errorInvalidUser": "未知用户",
+    "errorSelf": "不能移除自己的访问权限",
+    "errorLastAdmin": "不能移除最后一位管理员"
   }
 }

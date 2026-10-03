@@ -2,7 +2,7 @@ import { setRequestLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
 // The admin area has no dashboard of its own — it's a container for the
-// sections listed in the sidebar. Land on Activity, the read-only one.
+// sections listed in the sidebar. Land on Access, the overview of who can reach what.
 export default async function AdminPage({
   params,
 }: {
@@ -10,5 +10,5 @@ export default async function AdminPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await redirect("/admin/activity");
+  await redirect("/admin/access");
 }

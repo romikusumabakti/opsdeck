@@ -128,7 +128,8 @@
     "badgeAssignedIssues": "{count, plural, other {# isu ditugaskan ke Anda}}",
     "badgeActiveRuns": "{count, plural, other {# tugas sedang berjalan}}",
     "tunnels": "Tunnel",
-    "mail": "Email"
+    "mail": "Email",
+    "access": "Akses"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -1010,7 +1011,8 @@
     "routeDeleteFailed": "Gagal mencabut hostname",
     "networkAttached": "Tersambung ke {network}",
     "networkAttachFailed": "Gagal menyambungkan network",
-    "networkAlreadyAttached": "Sudah tersambung ke network itu"
+    "networkAlreadyAttached": "Sudah tersambung ke network itu",
+    "cannotRemoveLastAdmin": "Admin terakhir tidak bisa diturunkan"
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1520,7 +1522,10 @@
     "mailpitRemoved": "{actor} memutus Mailpit dari {environment}",
     "mailDeleted": "{actor} menghapus {count, plural, other {# email}} di {environment}",
     "mailDeletedSearch": "{actor} menghapus email yang cocok dengan \"{query}\" di {environment}",
-    "mailCleared": "{actor} mengosongkan inbox {environment}"
+    "mailCleared": "{actor} mengosongkan inbox {environment}",
+    "userOffboarded": "{actor} meng-offboard {user}",
+    "userRoleChanged": "{actor} mengubah role {user} dari {from} ke {to}",
+    "userInvited": "{actor} mengundang {email} sebagai {role}"
   },
   "jira": {
     "title": "Jira",
@@ -1794,5 +1799,24 @@
     "previous": "Sebelumnya",
     "next": "Berikutnya",
     "selectAll": "Pilih semua di halaman ini"
+  },
+  "access": {
+    "title": "Akses",
+    "subtitle": "Siapa bisa mengakses apa, di semua project.",
+    "colUser": "Pengguna",
+    "colOrgRole": "Role org",
+    "colLastSeen": "Terakhir aktif",
+    "inactive": "Tidak aktif",
+    "banned": "Diblokir",
+    "filterInactive": "Tidak aktif > 60 hari",
+    "filterBanned": "Tampilkan yang diblokir",
+    "never": "Belum pernah",
+    "offboard": "Offboard",
+    "offboardTitle": "Offboard pengguna",
+    "offboardConfirm": "Blokir {name}, akhiri sesinya, dan hapus semua keanggotaan project serta undangan yang tertunda?",
+    "offboarded": "Pengguna di-offboard",
+    "errorInvalidUser": "Pengguna tidak dikenal",
+    "errorSelf": "Kamu tidak bisa meng-offboard diri sendiri",
+    "errorLastAdmin": "Admin terakhir tidak bisa dihapus"
   }
 }

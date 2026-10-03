@@ -128,7 +128,8 @@
     "badgeAssignedIssues": "{count, plural, zero {لا مشكلات مسندة إليك} one {مشكلة واحدة مسندة إليك} two {مشكلتان مسندتان إليك} few {# مشكلات مسندة إليك} many {# مشكلة مسندة إليك} other {# مشكلة مسندة إليك}}",
     "badgeActiveRuns": "{count, plural, zero {لا مهام قيد التشغيل} one {مهمة واحدة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمة قيد التشغيل} other {# مهمة قيد التشغيل}}",
     "tunnels": "الأنفاق",
-    "mail": "البريد"
+    "mail": "البريد",
+    "access": "الوصول"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -1010,7 +1011,8 @@
     "routeDeleteFailed": "تعذّر سحب اسم المضيف",
     "networkAttached": "تم الوصل بالشبكة {network}",
     "networkAttachFailed": "تعذّر وصل الشبكة",
-    "networkAlreadyAttached": "موصول بتلك الشبكة بالفعل"
+    "networkAlreadyAttached": "موصول بتلك الشبكة بالفعل",
+    "cannotRemoveLastAdmin": "لا يمكن تخفيض آخر مسؤول"
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1520,7 +1522,10 @@
     "mailpitRemoved": "قام {actor} بفصل Mailpit عن البيئة {environment}",
     "mailDeleted": "حذف {actor} {count, plural, one {رسالة واحدة} other {# رسائل}} في {environment}",
     "mailDeletedSearch": "حذف {actor} الرسائل المطابقة لـ «{query}» في {environment}",
-    "mailCleared": "أفرغ {actor} صندوق بريد {environment}"
+    "mailCleared": "أفرغ {actor} صندوق بريد {environment}",
+    "userOffboarded": "{actor} ألغى وصول {user}",
+    "userRoleChanged": "{actor} غيّر دور {user} من {from} إلى {to}",
+    "userInvited": "{actor} دعا {email} بصفة {role}"
   },
   "jira": {
     "title": "Jira",
@@ -1794,5 +1799,24 @@
     "previous": "السابق",
     "next": "التالي",
     "selectAll": "تحديد الكل في هذه الصفحة"
+  },
+  "access": {
+    "title": "الوصول",
+    "subtitle": "من يمكنه الوصول إلى ماذا عبر جميع المشاريع.",
+    "colUser": "المستخدم",
+    "colOrgRole": "دور المؤسسة",
+    "colLastSeen": "آخر ظهور",
+    "inactive": "غير نشط",
+    "banned": "محظور",
+    "filterInactive": "غير نشط > 60 يومًا",
+    "filterBanned": "إظهار المحظورين",
+    "never": "أبدًا",
+    "offboard": "إلغاء الوصول",
+    "offboardTitle": "إلغاء وصول المستخدم",
+    "offboardConfirm": "حظر {name} وإنهاء جلساته وإزالة جميع عضويات المشاريع والدعوات المعلقة؟",
+    "offboarded": "تم إلغاء وصول المستخدم",
+    "errorInvalidUser": "مستخدم غير معروف",
+    "errorSelf": "لا يمكنك إلغاء وصولك بنفسك",
+    "errorLastAdmin": "لا يمكن إزالة آخر مسؤول"
   }
 }

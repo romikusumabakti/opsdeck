@@ -128,7 +128,8 @@
     "badgeAssignedIssues": "{count, plural, one {# issue assigned to you} other {# issues assigned to you}}",
     "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}",
     "tunnels": "Tunnels",
-    "mail": "Mail"
+    "mail": "Mail",
+    "access": "Access"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -1010,7 +1011,8 @@
     "routeDeleteFailed": "Could not withdraw the hostname",
     "networkAttached": "Attached to {network}",
     "networkAttachFailed": "Could not attach the network",
-    "networkAlreadyAttached": "Already attached to that network"
+    "networkAlreadyAttached": "Already attached to that network",
+    "cannotRemoveLastAdmin": "The last admin can't be demoted"
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1520,7 +1522,10 @@
     "mailpitRemoved": "{actor} disconnected Mailpit from {environment}",
     "mailDeleted": "{actor} deleted {count, plural, one {# email} other {# emails}} in {environment}",
     "mailDeletedSearch": "{actor} deleted emails matching \"{query}\" in {environment}",
-    "mailCleared": "{actor} cleared the {environment} inbox"
+    "mailCleared": "{actor} cleared the {environment} inbox",
+    "userOffboarded": "{actor} offboarded {user}",
+    "userRoleChanged": "{actor} changed {user}'s role from {from} to {to}",
+    "userInvited": "{actor} invited {email} as {role}"
   },
   "jira": {
     "title": "Jira",
@@ -1794,5 +1799,24 @@
     "previous": "Previous",
     "next": "Next",
     "selectAll": "Select all on this page"
+  },
+  "access": {
+    "title": "Access",
+    "subtitle": "Who can reach what, across every project.",
+    "colUser": "User",
+    "colOrgRole": "Org role",
+    "colLastSeen": "Last seen",
+    "inactive": "Inactive",
+    "banned": "Banned",
+    "filterInactive": "Inactive > 60 days",
+    "filterBanned": "Show banned",
+    "never": "Never",
+    "offboard": "Offboard",
+    "offboardTitle": "Offboard user",
+    "offboardConfirm": "Ban {name}, end their sessions and remove all project memberships and pending invitations?",
+    "offboarded": "User offboarded",
+    "errorInvalidUser": "Unknown user",
+    "errorSelf": "You can't offboard yourself",
+    "errorLastAdmin": "The last admin can't be removed"
   }
 }

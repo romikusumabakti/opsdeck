@@ -45,6 +45,21 @@ function message(
         from: String(d.from),
         to: String(d.to),
       });
+    case "user.offboarded":
+      return t("userOffboarded", { actor, user: String(d.user) });
+    case "user.roleChanged":
+      return t("userRoleChanged", {
+        actor,
+        user: String(d.user),
+        from: String(d.from),
+        to: String(d.to),
+      });
+    case "user.invited":
+      return t("userInvited", {
+        actor,
+        email: String(d.email),
+        role: String(d.role),
+      });
     case "milestone.created":
       return t("milestoneCreated", { actor, name: String(d.name) });
     case "tunnel.route.created":
