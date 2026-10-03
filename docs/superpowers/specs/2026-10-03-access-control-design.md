@@ -163,13 +163,15 @@ admin({
 
 Per-person assignments (who becomes `infra`/`observer`, which memberships drop to `contributor`, who gets offboarded) are a separate rollout step. That step is a reviewed SQL script that runs after the migration and is **not committed**, because it contains staff names. Write it from the current roster and show it to the owner before running it.
 
-Deploy order: back up → migrate → deploy the app → run the per-person script. During the gap between migrate and deploy, the old app sees roles it does not know. It floors them to viewer (safe-deny), so access goes down, never up. Keep the gap short.
+Deploy order: back up → migrate → deploy the app → run the per-person script. Between migrate and deploy the old app treats migrated org `member` (former `viewer`) as its own `member` rank, so former viewers briefly gain member rights — deploy immediately after migrating.
+
+The migration refuses to run twice: it raises `access_control migration already applied` if `project_role` already has the `contributor` label, because a second run would rewrite `infra`/`observer` to `member` and `contributor` memberships to `viewer`.
 
 ## Audit and offboarding
 
-- **`/admin/access`** (`audit: read`, editable with `user: set-role` / `member: manage`): a user × project matrix that shows the org role, each project role and the last session. It can filter to users inactive for more than 60 days and to banned users.
+- **`/admin/access`** (`audit: read`; the org role is editable with `user: set-role`): a user × project matrix that shows the org role, each project role and the last session. It can filter to users inactive for more than 60 days and to banned users. In v1 the memberships are read-only there; they are edited on each project's Members panel (`member: manage`). Only the org role is editable on `/admin/access`.
 - **Offboard action** (`user: offboard`): in one transaction, ban the user, delete all `project_members` rows and revoke pending invitations to their email. Banning also revokes the user's sessions, through better-auth `banUser`. Then write `activity_log` with `action = "user.offboarded"`.
-- **Every change to an org role, membership add/remove/change and invitation** writes an `activity_log` row with actor, target and before → after role (`entityType: "access"`).
+- **Every change to an org role, membership add/remove/change and invitation** writes an `activity_log` row with actor, target and before → after role. Membership rows (`member.added`, `member.removed`, `member.roleChanged`) use the existing `entityType: "member"`; org-level access events (`user.roleChanged`, `user.invited`, `user.invitationRevoked`, `user.invitationResent`, `user.deleted`, `user.offboarded`) use `entityType: "access"`.
 
 ## Testing
 
