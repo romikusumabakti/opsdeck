@@ -454,3 +454,23 @@ describe("ops runs record their kind", () => {
     expect(count("actions/mock-time.ts")).toBe(4);
   });
 });
+
+// Assignment does not imply issue:write: a viewer assigned an issue must see a
+// read-only status, not a StatusSelect whose change would be refused.
+describe("Home my-issues gates status changes on issue:write", () => {
+  it("listMyOpenIssues computes canWrite from issue:write", () => {
+    const fn = body(
+      readFileSync("lib/home/queries.ts", "utf8"),
+      "listMyOpenIssues"
+    );
+    expect(fn).toMatch(/canWrite: canProject\([\s\S]*issue: \["write"\]/);
+  });
+  it("the list renders StatusSelect only when canWrite", () => {
+    const list = readFileSync(
+      "app/[locale]/(home)/_components/my-issues-list.tsx",
+      "utf8"
+    );
+    expect(list).toMatch(/i\.canWrite \? \(\s*<StatusSelect/);
+    expect(list.match(/<StatusSelect/g)?.length).toBe(1);
+  });
+});
