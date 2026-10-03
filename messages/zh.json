@@ -1764,8 +1764,6 @@
     "notConfiguredTitle": "未连接 Mailpit",
     "notConfiguredDescription": "管理员可以在设置中为此环境连接 Mailpit。",
     "openSettings": "打开设置",
-    "forbiddenTitle": "邮件受限",
-    "forbiddenDescription": "阅读捕获的邮件需要此项目的成员或更高角色。",
     "loadFailed": "无法加载邮件",
     "retry": "重试",
     "from": "发件人",
