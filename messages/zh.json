@@ -1414,6 +1414,60 @@
     "recentEmpty": "暂无最近环境。",
     "viewAll": "查看全部"
   },
+  "home": {
+    "title": "主页",
+    "subtitle": "你的工作与需要关注的事项。",
+    "greeting": {
+      "morning": "早上好，{name}",
+      "midday": "中午好，{name}",
+      "afternoon": "下午好，{name}",
+      "night": "晚上好，{name}"
+    },
+    "newIssue": "新建事项",
+    "kind": {
+      "backup": "备份",
+      "restore": "恢复",
+      "mock_time": "模拟时间",
+      "test": "测试"
+    },
+    "attention": {
+      "title": "需要关注",
+      "allClear": "一切正常——过去 7 天内没有未处理的失败。",
+      "createIssue": "事项",
+      "acknowledge": "确认",
+      "acknowledged": "已确认",
+      "ackFailed": "无法确认该失败。",
+      "undo": "撤销",
+      "undoFailed": "无法撤销确认。",
+      "issueTitle": "{kind}失败：{environment}",
+      "runHistory": "运行历史"
+    },
+    "issues": {
+      "title": "我的事项",
+      "empty": "没有分配给你的事项。",
+      "viewAll": "查看全部（{count}）",
+      "statusFailed": "无法更新状态。"
+    },
+    "running": {
+      "title": "运行中",
+      "empty": "没有正在运行的任务。"
+    },
+    "recent": {
+      "title": "快速返回",
+      "empty": "暂无最近环境。",
+      "backup": "备份",
+      "backupStarted": "备份已开始",
+      "backupFailed": "无法开始备份。"
+    },
+    "issueDialog": {
+      "project": "项目",
+      "loadFailed": "无法加载项目选项。"
+    },
+    "error": {
+      "load": "无法加载此部分。",
+      "retry": "重试"
+    }
+  },
   "issueDetail": {
     "description": "描述",
     "noDescription": "暂无描述。",

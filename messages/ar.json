@@ -1414,6 +1414,60 @@
     "recentEmpty": "لا بيئات حديثة.",
     "viewAll": "عرض الكل"
   },
+  "home": {
+    "title": "الرئيسية",
+    "subtitle": "عملك وما يحتاج إلى انتباه.",
+    "greeting": {
+      "morning": "صباح الخير، {name}",
+      "midday": "طاب يومك، {name}",
+      "afternoon": "مساء الخير، {name}",
+      "night": "مساء الخير، {name}"
+    },
+    "newIssue": "مشكلة جديدة",
+    "kind": {
+      "backup": "نسخ احتياطي",
+      "restore": "استعادة",
+      "mock_time": "وقت محاكى",
+      "test": "اختبار"
+    },
+    "attention": {
+      "title": "يحتاج انتباه",
+      "allClear": "كل شيء على ما يرام — لا إخفاقات غير معالجة في آخر 7 أيام.",
+      "createIssue": "مشكلة",
+      "acknowledge": "إقرار",
+      "acknowledged": "تم الإقرار",
+      "ackFailed": "تعذّر الإقرار بالإخفاق.",
+      "undo": "تراجع",
+      "undoFailed": "تعذّر التراجع عن الإقرار.",
+      "issueTitle": "فشل {kind}: {environment}",
+      "runHistory": "سجل التشغيل"
+    },
+    "issues": {
+      "title": "مشكلاتي",
+      "empty": "لا شيء مُسنَد إليك.",
+      "viewAll": "عرض الكل ({count})",
+      "statusFailed": "تعذّر تحديث الحالة."
+    },
+    "running": {
+      "title": "قيد التشغيل",
+      "empty": "لا شيء قيد التشغيل."
+    },
+    "recent": {
+      "title": "العودة السريعة",
+      "empty": "لا بيئات حديثة.",
+      "backup": "نسخ احتياطي",
+      "backupStarted": "بدأ النسخ الاحتياطي",
+      "backupFailed": "تعذّر بدء النسخ الاحتياطي."
+    },
+    "issueDialog": {
+      "project": "المشروع",
+      "loadFailed": "تعذّر تحميل خيارات المشروع."
+    },
+    "error": {
+      "load": "تعذّر تحميل هذا القسم.",
+      "retry": "إعادة المحاولة"
+    }
+  },
   "issueDetail": {
     "description": "الوصف",
     "noDescription": "لا يوجد وصف.",
