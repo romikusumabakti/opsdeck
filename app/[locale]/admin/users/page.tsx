@@ -14,12 +14,13 @@ export default async function UsersPage({
 
   const session = await requireOrgPage({ user: ["list"] });
 
+  const role = session.user.role;
+  const canInvite = canOrg(role, { user: ["invite"] });
+
   const [users, invitations] = await Promise.all([
     listUsers(),
     // Invitations need user:invite; an observer (list only) sees none.
-    canOrg(session.user.role, { user: ["invite"] })
-      ? listPendingInvitations()
-      : Promise.resolve([]),
+    canInvite ? listPendingInvitations() : Promise.resolve([]),
   ]);
 
   return (
@@ -27,6 +28,10 @@ export default async function UsersPage({
       users={users}
       invitations={invitations}
       currentUserId={session.user.id}
+      canInvite={canInvite}
+      canRename={canOrg(role, { user: ["update"] })}
+      canSetRole={canOrg(role, { user: ["set-role"] })}
+      canDelete={canOrg(role, { user: ["delete"] })}
     />
   );
 }

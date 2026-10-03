@@ -28,6 +28,7 @@ import {
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { EnvironmentSummary } from "@/lib/db/schema";
+import { canProject, type ProjectRole } from "@/lib/permissions";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
@@ -47,14 +48,14 @@ export function ProjectsOverview({
   lastActivity,
   lastOpened,
   initialSort,
-  canCreate,
+  projectRoles,
 }: {
   projects: ProjectWithEnvironments[];
   openIssueCounts: Record<string, number>;
   lastActivity: Record<string, EnvironmentActivity | null>;
   lastOpened: Record<string, number>;
   initialSort: SortKey;
-  canCreate: boolean;
+  projectRoles: Record<string, ProjectRole>;
 }) {
   const t = useTranslations("home");
   const locale = useLocale();
@@ -187,7 +188,7 @@ export function ProjectsOverview({
               openIssues={openIssueCounts[project.id] ?? 0}
               lastActivity={lastActivity}
               dateFnsLocale={dateFnsLocale}
-              canCreate={canCreate}
+              role={projectRoles[project.id] ?? null}
             />
           ))}
         </div>
@@ -201,14 +202,16 @@ function ProjectCard({
   openIssues,
   lastActivity,
   dateFnsLocale,
-  canCreate,
+  role,
 }: {
   project: ProjectWithEnvironments;
   openIssues: number;
   lastActivity: Record<string, EnvironmentActivity | null>;
   dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
-  canCreate: boolean;
+  role: ProjectRole | null;
 }) {
+  const canCreateEnvironment = canProject(role, { environment: ["create"] });
+  const canUpdateEnvironment = canProject(role, { environment: ["update"] });
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");
   const environments = [...project.environments].sort(
@@ -250,24 +253,30 @@ function ProjectCard({
               ) : null}
             </div>
           </div>
-          {canCreate ? (
+          {canCreateEnvironment || canUpdateEnvironment ? (
             <div className="flex shrink-0 items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                render={<Link href={`/${project.key}/environments/new`} />}
-              >
-                <Plus className="size-4" />
-                <span className="hidden sm:inline">{t("newEnvironment")}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={tOv("editProject")}
-                render={<Link href={`/${project.key}/settings`} />}
-              >
-                <Settings className="size-4" />
-              </Button>
+              {canCreateEnvironment && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  render={<Link href={`/${project.key}/environments/new`} />}
+                >
+                  <Plus className="size-4" />
+                  <span className="hidden sm:inline">
+                    {t("newEnvironment")}
+                  </span>
+                </Button>
+              )}
+              {canUpdateEnvironment && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={tOv("editProject")}
+                  render={<Link href={`/${project.key}/settings`} />}
+                >
+                  <Settings className="size-4" />
+                </Button>
+              )}
             </div>
           ) : null}
         </div>

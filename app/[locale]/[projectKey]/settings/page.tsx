@@ -37,6 +37,8 @@ export default async function ProjectSettingsPage({
     { environment: ["update"] }
   );
 
+  // Deleting a project is an org-level permission, not a project role one.
+  const canDelete = canOrg(session.user.role, { project: ["delete"] });
   const t = await getTranslations("projectSettings");
   const [jiraConnections, jiraLink] = await Promise.all([
     // Connections are an org-level integration: a maintainer without that
@@ -58,7 +60,9 @@ export default async function ProjectSettingsPage({
         <TabsList>
           <TabsTrigger value="details">{t("tabDetails")}</TabsTrigger>
           <TabsTrigger value="jira">{t("tabJira")}</TabsTrigger>
-          <TabsTrigger value="danger">{t("tabDanger")}</TabsTrigger>
+          {canDelete && (
+            <TabsTrigger value="danger">{t("tabDanger")}</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="details">
@@ -89,22 +93,24 @@ export default async function ProjectSettingsPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="danger">
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-destructive">
-                {t("dangerZoneTitle")}
-              </CardTitle>
-              <CardDescription>{t("dangerZoneDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DeleteProjectCard
-                project={project}
-                environmentCount={project.environments.length}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {canDelete && (
+          <TabsContent value="danger">
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-destructive">
+                  {t("dangerZoneTitle")}
+                </CardTitle>
+                <CardDescription>{t("dangerZoneDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DeleteProjectCard
+                  project={project}
+                  environmentCount={project.environments.length}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </>
   );

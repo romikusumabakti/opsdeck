@@ -843,10 +843,10 @@
     "emailPlaceholder": "usuario@{{EMAIL_DOMAIN}}",
     "roleLabel": "Rol",
     "role": {
-      "viewer": "Observador",
-      "member": "Miembro",
-      "maintainer": "Mantenedor",
-      "admin": "Administrador"
+      "admin": "Administrador",
+      "infra": "Infraestructura",
+      "observer": "Observador",
+      "member": "Miembro"
     },
     "roleChangeTitle": "Cambiar rol",
     "roleChangeDescription": "¿Cambiar el rol de {name} a {role}?",
@@ -1454,15 +1454,14 @@
     "add": "Añadir",
     "role": {
       "viewer": "Observador",
-      "member": "Miembro",
-      "maintainer": "Mantenedor",
-      "admin": "Administrador"
+      "contributor": "Colaborador",
+      "maintainer": "Mantenedor"
     },
     "colName": "Usuario",
     "colRole": "Rol",
     "remove": "Quitar",
     "empty": "Aún no hay miembros",
-    "emptyDescription": "Añade miembros para concederles acceso por proyecto por encima de su rol global.",
+    "emptyDescription": "Solo los miembros (y administradores, infraestructura y observadores) pueden ver este proyecto.",
     "addedSuccess": "Miembro añadido",
     "roleUpdatedSuccess": "Rol actualizado",
     "removedSuccess": "Miembro eliminado",

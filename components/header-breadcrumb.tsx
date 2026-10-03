@@ -23,6 +23,12 @@ import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { EnvironmentListItem } from "@/lib/db/schema";
+import {
+  canOrg,
+  canProject,
+  type OrgRole,
+  type ProjectRole,
+} from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 // Drop the redundant project-name prefix from an environment's name when it's
@@ -197,12 +203,14 @@ export function HeaderBreadcrumb({
   environments,
   projectNameById,
   projectKeyById,
-  isAdmin,
+  orgRole,
+  projectRoles,
 }: {
   environments: EnvironmentListItem[];
   projectNameById: Record<string, string>;
   projectKeyById: Record<string, string>;
-  isAdmin: boolean;
+  orgRole: OrgRole;
+  projectRoles: Record<string, ProjectRole>;
 }) {
   const pathname = usePathname();
   const t = useTranslations();
@@ -288,7 +296,8 @@ export function HeaderBreadcrumb({
               environments={environments}
               projectNameById={projectNameById}
               activeEnv={activeEnv}
-              isAdmin={isAdmin}
+              orgRole={orgRole}
+              projectRoles={projectRoles}
               activeSection={
                 envSubSlug && PARALLEL_SECTIONS.has(envSubSlug)
                   ? envSubSlug
@@ -319,13 +328,15 @@ function EnvironmentSwitcher({
   environments,
   projectNameById,
   activeEnv,
-  isAdmin,
+  orgRole,
+  projectRoles,
   activeSection,
 }: {
   environments: EnvironmentListItem[];
   projectNameById: Record<string, string>;
   activeEnv: EnvironmentListItem;
-  isAdmin: boolean;
+  orgRole: OrgRole;
+  projectRoles: Record<string, ProjectRole>;
   activeSection?: string;
 }) {
   // View Transitions API gives the environment switch a perceptible crossfade so
@@ -333,6 +344,11 @@ function EnvironmentSwitcher({
   // changed when many sections re-render at once.
   const router = useViewTransitionRouter();
   const plainRouter = useRouter();
+  const canCreateEnvironment = canProject(
+    projectRoles[activeEnv.projectId] ?? null,
+    { environment: ["create"] }
+  );
+  const canCreateProject = canOrg(orgRole, { project: ["create"] });
   const tHeader = useTranslations("header");
   const tKinds = useTranslations("environmentKinds");
   const [open, setOpen] = React.useState(false);
@@ -428,27 +444,31 @@ function EnvironmentSwitcher({
                 ))}
               </CommandGroup>
             ))}
-            {isAdmin && (
+            {(canCreateEnvironment || canCreateProject) && (
               <>
                 <CommandSeparator />
                 <CommandGroup>
-                  <CommandItem
-                    value="__create-environment"
-                    onSelect={() => go(`/${activeEnv.key}/environments/new`)}
-                  >
-                    <Plus className="size-4" />
-                    {tHeader("createEnvironment")}
-                  </CommandItem>
-                  <CommandItem
-                    value="__create-project"
-                    onSelect={() => {
-                      setOpen(false);
-                      setProjectDialogOpen(true);
-                    }}
-                  >
-                    <FolderPlus className="size-4" />
-                    {tHeader("createProject")}
-                  </CommandItem>
+                  {canCreateEnvironment && (
+                    <CommandItem
+                      value="__create-environment"
+                      onSelect={() => go(`/${activeEnv.key}/environments/new`)}
+                    >
+                      <Plus className="size-4" />
+                      {tHeader("createEnvironment")}
+                    </CommandItem>
+                  )}
+                  {canCreateProject && (
+                    <CommandItem
+                      value="__create-project"
+                      onSelect={() => {
+                        setOpen(false);
+                        setProjectDialogOpen(true);
+                      }}
+                    >
+                      <FolderPlus className="size-4" />
+                      {tHeader("createProject")}
+                    </CommandItem>
+                  )}
                 </CommandGroup>
               </>
             )}

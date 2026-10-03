@@ -3,10 +3,9 @@ import {
   getEnvironmentById,
   recordEnvironmentAccess,
 } from "@/actions/environments";
-import { OpsCapabilityProvider } from "@/components/ops-capability";
-import { getEffectiveRole } from "@/lib/auth-session";
+import { ProjectRoleProvider } from "@/components/project-role";
+import { requireProjectPage } from "@/lib/authz";
 import { resolveEnvIdByKeySlug } from "@/lib/env-url";
-import { roleHasCapability } from "@/lib/roles";
 
 export default async function Layout({
   children,
@@ -18,6 +17,10 @@ export default async function Layout({
   const { locale, projectKey, envSlug } = await params;
   const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
   setRequestLocale(locale);
+
+  // 404 when the environment's project is invisible to the caller; otherwise the
+  // effective role feeds the buttons below. Server actions enforce it regardless.
+  const { role } = await requireProjectPage({ environmentId });
 
   const environment = await getEnvironmentById(environmentId);
 
@@ -31,17 +34,5 @@ export default async function Layout({
   // nav between sibling pages, which matches "opened this environment".
   await recordEnvironmentAccess(environmentId);
 
-  // `environmentId` is an environment id here; resolve the effective role for its
-  // owning environment so ops buttons below can disable themselves for users who
-  // lack the destructive-ops capability. Server actions enforce this regardless.
-  const canRunOps = roleHasCapability(
-    await getEffectiveRole({ environmentId: environmentId }),
-    "ops.destructive"
-  );
-
-  return (
-    <OpsCapabilityProvider canRunOps={canRunOps}>
-      {children}
-    </OpsCapabilityProvider>
-  );
+  return <ProjectRoleProvider role={role}>{children}</ProjectRoleProvider>;
 }

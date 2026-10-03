@@ -14,13 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
-import {
-  getEffectiveRole,
-  getServerSession,
-  isAdmin,
-} from "@/lib/auth-session";
+import { requireProjectPage } from "@/lib/authz";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import { roleHasCapability } from "@/lib/roles";
+import { canProject } from "@/lib/permissions";
 import { IssuesClient } from "./[envSlug]/issues/issues-client";
 import { MilestonesClient } from "./milestones-client";
 import { ProjectMembersClient } from "./project-members-client";
@@ -42,15 +38,17 @@ export default async function ProjectOverviewPage({
   const { locale, projectKey } = await params;
   setRequestLocale(locale);
 
-  const [project, session, lastActivity] = await Promise.all([
+  const [project, lastActivity] = await Promise.all([
     getProjectByKeyWithEnvironments(projectKey),
-    getServerSession(),
     getEnvironmentsLastActivity(),
   ]);
   if (!project) {
     notFound();
   }
-  const admin = session ? isAdmin(session) : false;
+  // 404 when the project is invisible to the caller.
+  const { role } = await requireProjectPage({ projectId: project.id });
+  const canUpdateEnvironment = canProject(role, { environment: ["update"] });
+  const canCreateEnvironment = canProject(role, { environment: ["create"] });
 
   const [issues, users, milestones, t, tOv, tDash, tKinds] = await Promise.all([
     listIssues(project.id),
@@ -63,14 +61,9 @@ export default async function ProjectOverviewPage({
   ]);
   const dateFnsLocale = getDateFnsLocale(locale);
 
-  // Membership is admin-only. Effective role folds in per-project admin, so a
-  // project-admin who isn't a global admin still manages members here.
-  const canManageMembers = session
-    ? roleHasCapability(
-        await getEffectiveRole({ projectId: project.id }),
-        "admin"
-      )
-    : false;
+  // Membership management follows the project role (maintainers, plus org
+  // admin/infra who are implicit maintainers everywhere).
+  const canManageMembers = canProject(role, { member: ["manage"] });
   const members = canManageMembers ? await listProjectMembers(project.id) : [];
 
   const environments = [...project.environments].sort((a, b) =>
@@ -83,21 +76,25 @@ export default async function ProjectOverviewPage({
         title={project.name}
         subtitle={project.client ?? undefined}
         action={
-          admin ? (
+          canUpdateEnvironment || canCreateEnvironment ? (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                render={<Link href={`/${project.key}/settings`} />}
-              >
-                <Settings className="size-4" />
-                <span className="hidden sm:inline">{tOv("editProject")}</span>
-              </Button>
-              <Button
-                render={<Link href={`/${project.key}/environments/new`} />}
-              >
-                <Plus className="size-4" />
-                {tOv("newEnvironment")}
-              </Button>
+              {canUpdateEnvironment && (
+                <Button
+                  variant="outline"
+                  render={<Link href={`/${project.key}/settings`} />}
+                >
+                  <Settings className="size-4" />
+                  <span className="hidden sm:inline">{tOv("editProject")}</span>
+                </Button>
+              )}
+              {canCreateEnvironment && (
+                <Button
+                  render={<Link href={`/${project.key}/environments/new`} />}
+                >
+                  <Plus className="size-4" />
+                  {tOv("newEnvironment")}
+                </Button>
+              )}
             </div>
           ) : undefined
         }

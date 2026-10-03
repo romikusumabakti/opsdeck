@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/page-header";
 import { ProjectsEmpty } from "@/components/projects-empty";
 import type { SortKey } from "@/components/projects-overview";
 import { ProjectsOverview } from "@/components/projects-overview";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { getOrgRole, getProjectAccess } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 
 const SORT_KEYS: SortKey[] = ["recent", "opened", "name_asc", "name_desc"];
 
@@ -20,25 +21,28 @@ export default async function ProjectsPage({
   const [
     { sort },
     projects,
-    session,
+    orgRole,
+    access,
     lastActivity,
     lastOpened,
     openIssueCounts,
   ] = await Promise.all([
     searchParams,
     listProjectsWithEnvironments(),
-    getServerSession(),
+    getOrgRole(),
+    getProjectAccess(),
     getEnvironmentsLastActivity(),
     getEnvironmentsLastOpened(),
     getOpenIssueCounts(),
   ]);
-  const admin = session ? isAdmin(session) : false;
+  // The list is every member's; only the create affordances depend on the role.
+  const canCreateProject = canOrg(orgRole, { project: ["create"] });
   const initialSort: SortKey = SORT_KEYS.includes(sort as SortKey)
     ? (sort as SortKey)
     : "recent";
 
   if (projects.length === 0) {
-    return <ProjectsEmpty canCreate={admin} />;
+    return <ProjectsEmpty canCreate={canCreateProject} />;
   }
 
   const t = await getTranslations("home");
@@ -50,7 +54,7 @@ export default async function ProjectsPage({
         subtitle={t("subtitle")}
         // Only "New project" here: an environment always belongs to a project,
         // so it is created from that project's card (which prefills the parent).
-        action={admin ? <NewProjectButton /> : undefined}
+        action={canCreateProject ? <NewProjectButton /> : undefined}
       />
       <ProjectsOverview
         projects={projects}
@@ -58,7 +62,7 @@ export default async function ProjectsPage({
         lastActivity={lastActivity}
         lastOpened={lastOpened}
         initialSort={initialSort}
-        canCreate={admin}
+        projectRoles={access.roles}
       />
     </>
   );

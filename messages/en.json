@@ -843,10 +843,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "Role",
     "role": {
-      "viewer": "Viewer",
-      "member": "Member",
-      "maintainer": "Maintainer",
-      "admin": "Admin"
+      "admin": "Admin",
+      "infra": "Infra",
+      "observer": "Observer",
+      "member": "Member"
     },
     "roleChangeTitle": "Change role",
     "roleChangeDescription": "Change {name}'s role to {role}?",
@@ -1454,15 +1454,14 @@
     "add": "Add",
     "role": {
       "viewer": "Viewer",
-      "member": "Member",
-      "maintainer": "Maintainer",
-      "admin": "Admin"
+      "contributor": "Contributor",
+      "maintainer": "Maintainer"
     },
     "colName": "User",
     "colRole": "Role",
     "remove": "Remove",
     "empty": "No members yet",
-    "emptyDescription": "Add members to grant per-project access above their global role.",
+    "emptyDescription": "Only members (and admins, infra and observers) can see this project.",
     "addedSuccess": "Member added",
     "roleUpdatedSuccess": "Role updated",
     "removedSuccess": "Member removed",

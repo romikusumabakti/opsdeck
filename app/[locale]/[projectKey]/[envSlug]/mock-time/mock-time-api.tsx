@@ -14,7 +14,7 @@ import {
   travelClock,
 } from "@/actions/mock-time";
 import { useDialog } from "@/components/dialog-provider";
-import { useCanRunOps } from "@/components/ops-capability";
+import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
@@ -227,7 +227,7 @@ export function MockTimeApi({
     }
   }
 
-  const canRunOps = useCanRunOps();
+  const canRunOps = useProjectCan({ clock: ["control"] });
   const anyPending = pendingAction !== null || !canRunOps;
   const isFrozen = clock?.frozen === true;
   const isMocked = clock?.mocked === true;

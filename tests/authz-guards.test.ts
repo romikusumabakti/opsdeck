@@ -157,12 +157,12 @@ describe("issue writes validate their references", () => {
 });
 
 // The old catch-all helpers live only in lib/auth-session until Task 8 removes
-// them. UI files (layouts, components, toggle-only pages) are covered later.
+// them. Everything under actions, lib, app and components is scanned.
 describe("no legacy authorization helpers outside lib/auth-session", () => {
   const LEGACY =
-    /\b(requireAdmin|isAdmin|requireCapability|getEffectiveRole|roleHasCapability)\(/;
+    /\b(requireAdmin|isAdmin|requireCapability|getEffectiveRole|roleHasCapability|useCanRunOps)\(/;
   // Bun's glob can't nest a "/" inside braces, so scan the roots separately.
-  const roots = ["actions", "lib", "app/api"];
+  const roots = ["actions", "lib", "app", "components"];
   const files = roots.flatMap((root) => [
     ...Array.from(
       new Bun.Glob("**/*.{ts,tsx}").scanSync(root),

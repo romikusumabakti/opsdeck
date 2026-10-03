@@ -28,20 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
-import {
-  ROLE_ADMIN,
-  ROLE_MAINTAINER,
-  ROLE_MEMBER,
-  ROLE_VIEWER,
-  type UserRole,
-} from "@/lib/roles";
-
-const ROLES: UserRole[] = [
-  ROLE_VIEWER,
-  ROLE_MEMBER,
-  ROLE_MAINTAINER,
-  ROLE_ADMIN,
-];
+import { PROJECT_ROLES, type ProjectRole } from "@/lib/permissions";
 
 export function ProjectMembersClient({
   projectId,
@@ -56,7 +43,7 @@ export function ProjectMembersClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [addUserId, setAddUserId] = useState<string>("");
-  const [addRole, setAddRole] = useState<UserRole>(ROLE_MEMBER);
+  const [addRole, setAddRole] = useState<ProjectRole>("contributor");
 
   // Only offer users who aren't already members in the add picker.
   const candidates = useMemo(() => {
@@ -99,14 +86,14 @@ export function ProjectMembersClient({
         </Select>
         <Select
           value={addRole}
-          onValueChange={(v) => setAddRole(v as UserRole)}
+          onValueChange={(v) => setAddRole(v as ProjectRole)}
           disabled={isPending}
         >
           <SelectTrigger className="min-w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {ROLES.map((r) => (
+            {PROJECT_ROLES.map((r) => (
               <SelectItem key={r} value={r}>
                 {t(`role.${r}`)}
               </SelectItem>
@@ -120,7 +107,7 @@ export function ProjectMembersClient({
               addProjectMember({ projectId, userId: addUserId, role: addRole })
             );
             setAddUserId("");
-            setAddRole(ROLE_MEMBER);
+            setAddRole("contributor");
           }}
         >
           <UserPlus className="size-4" />
@@ -174,7 +161,7 @@ export function ProjectMembersClient({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {ROLES.map((r) => (
+                      {PROJECT_ROLES.map((r) => (
                         <SelectItem key={r} value={r}>
                           {t(`role.${r}`)}
                         </SelectItem>
