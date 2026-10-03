@@ -37,7 +37,9 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { isRtlLocale } from "@/i18n/locales";
 import { routing } from "@/i18n/routing";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { getServerSession } from "@/lib/auth-session";
+import { getProjectAccess } from "@/lib/authz";
+import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import "../globals.css";
 
@@ -114,7 +116,8 @@ export default async function LocaleLayout({
   const projectKeyById: Record<string, string> = Object.fromEntries(
     projects.map((p) => [p.id, p.key])
   );
-  const admin = session ? isAdmin(session) : false;
+  const orgRole = session ? normalizeOrgRole(session.user.role) : "member";
+  const projectRoles = session ? (await getProjectAccess()).roles : {};
   const messages = await getMessages({ locale });
   const tHeader = await getTranslations({ locale, namespace: "header" });
 
@@ -159,7 +162,8 @@ export default async function LocaleLayout({
                       </a>
                       <AppSidebar
                         environments={environments}
-                        isAdmin={admin}
+                        orgRole={orgRole}
+                        projectRoles={projectRoles}
                         issueCounts={issueCounts}
                         side={rtl ? "right" : "left"}
                         user={{
@@ -176,7 +180,8 @@ export default async function LocaleLayout({
                             environments={environments}
                             projectNameById={projectNameById}
                             projectKeyById={projectKeyById}
-                            isAdmin={admin}
+                            orgRole={orgRole}
+                            projectRoles={projectRoles}
                           />
                           <div className="ms-auto flex items-center gap-2">
                             <ActiveRunsIndicator />
@@ -189,7 +194,8 @@ export default async function LocaleLayout({
                             />
                             <CommandPalette
                               environments={environments}
-                              isAdmin={admin}
+                              orgRole={orgRole}
+                              projectRoles={projectRoles}
                             />
                           </div>
                         </header>

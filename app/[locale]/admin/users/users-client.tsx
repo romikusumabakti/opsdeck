@@ -58,15 +58,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  ASSIGNABLE_ROLES,
-  isAssignableRole,
-  ROLE_ADMIN,
-  ROLE_MEMBER,
-  type UserRole,
-} from "@/lib/roles";
-
-const ROLE_OPTIONS: readonly UserRole[] = [ROLE_MEMBER, ROLE_ADMIN] as const;
+import { isOrgRole, ORG_ROLES, type OrgRole } from "@/lib/permissions";
 
 type UserRow = {
   id: string;
@@ -102,10 +94,19 @@ export function UsersClient({
   users,
   invitations,
   currentUserId,
+  canInvite,
+  canRename,
+  canSetRole,
+  canDelete,
 }: {
   users: UserRow[];
   invitations: InvitationRow[];
   currentUserId: string;
+  // Computed on the server with canOrg; the actions enforce the same checks.
+  canInvite: boolean;
+  canRename: boolean;
+  canSetRole: boolean;
+  canDelete: boolean;
 }) {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
@@ -139,7 +140,7 @@ export function UsersClient({
   // or flip the role/name inline on update.
   type OptimisticUserAction =
     | { type: "remove"; ids: string[] }
-    | { type: "updateRole"; id: string; role: UserRole }
+    | { type: "updateRole"; id: string; role: OrgRole }
     | { type: "updateName"; id: string; name: string };
   const [optimisticUsers, applyOptimisticUsers] = useOptimistic<
     UserRow[],
@@ -161,12 +162,12 @@ export function UsersClient({
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
     email: z.string().email(tCommon("emailInvalid")),
-    role: z.enum([ROLE_MEMBER, ROLE_ADMIN]),
+    role: z.enum(ORG_ROLES),
   });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", email: "", role: ROLE_MEMBER },
+    defaultValues: { name: "", email: "", role: "member" as const },
   });
 
   function onInvite(values: z.infer<typeof schema>) {
@@ -188,7 +189,7 @@ export function UsersClient({
         return;
       }
       toast.success(result.message ?? "");
-      form.reset({ name: "", email: "", role: ROLE_MEMBER });
+      form.reset({ name: "", email: "", role: "member" as const });
       setInviteOpen(false);
     });
   }
@@ -198,7 +199,7 @@ export function UsersClient({
   const onInviteOpenChange = React.useCallback(
     (open: boolean) => {
       setInviteOpen(open);
-      if (!open) form.reset({ name: "", email: "", role: ROLE_MEMBER });
+      if (!open) form.reset({ name: "", email: "", role: "member" as const });
     },
     [form]
   );
@@ -265,7 +266,7 @@ export function UsersClient({
   );
 
   const onChangeRole = React.useCallback(
-    async (user: UserRow, role: UserRole) => {
+    async (user: UserRow, role: OrgRole) => {
       const ok = await dialog.confirm({
         title: t("roleChangeTitle"),
         description: t("roleChangeDescription", {
@@ -418,61 +419,77 @@ export function UsersClient({
       // aligned down the table and the title says why they're unavailable.
       return (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={renameLabel}
-            title={renameLabel}
-            disabled={isPending}
-            onClick={() => onRename(user)}
-          >
-            <Pencil className="size-4" />
-          </Button>
-          {/* A menu rather than an admin/member toggle: there are four roles,
-              and users who sign in with Microsoft start at `viewer`, so the
-              common promotion is viewer → member — a toggle would jump them
-              straight to admin. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={isSelf ? t("cannotChangeOwnRole") : roleLabel}
-                  title={isSelf ? t("cannotChangeOwnRole") : roleLabel}
-                  disabled={isPending || isSelf}
-                />
-              }
+          {canRename && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={renameLabel}
+              title={renameLabel}
+              disabled={isPending}
+              onClick={() => onRename(user)}
             >
-              <UserCog className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {ASSIGNABLE_ROLES.map((r) => (
-                <DropdownMenuItem
-                  key={r}
-                  disabled={r === user.role}
-                  onClick={() => onChangeRole(user, r)}
-                >
-                  {t(`role.${r}`)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={isSelf ? t("cannotDeleteSelf") : deleteLabel}
-            title={isSelf ? t("cannotDeleteSelf") : deleteLabel}
-            disabled={isPending || isSelf}
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => onDelete(user)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+              <Pencil className="size-4" />
+            </Button>
+          )}
+          {/* A menu rather than an admin/member toggle: there are four roles and
+              new sign-ins start at `member`, so a toggle would skip the
+              intermediate infra/observer roles. */}
+          {canSetRole && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={isSelf ? t("cannotChangeOwnRole") : roleLabel}
+                    title={isSelf ? t("cannotChangeOwnRole") : roleLabel}
+                    disabled={isPending || isSelf}
+                  />
+                }
+              >
+                <UserCog className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {ORG_ROLES.map((r) => (
+                  <DropdownMenuItem
+                    key={r}
+                    disabled={r === user.role}
+                    onClick={() => onChangeRole(user, r)}
+                  >
+                    {t(`role.${r}`)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={isSelf ? t("cannotDeleteSelf") : deleteLabel}
+              title={isSelf ? t("cannotDeleteSelf") : deleteLabel}
+              disabled={isPending || isSelf}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDelete(user)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
         </div>
       );
     },
-    [currentUserId, t, tCommon, isPending, onDelete, onChangeRole, onRename]
+    [
+      currentUserId,
+      t,
+      tCommon,
+      isPending,
+      onDelete,
+      onChangeRole,
+      onRename,
+      canRename,
+      canSetRole,
+      canDelete,
+    ]
   );
 
   const renderUserIdentity = React.useCallback(
@@ -676,10 +693,12 @@ export function UsersClient({
         title={t("title")}
         subtitle={t("subtitle")}
         action={
-          <Button onClick={() => setInviteOpen(true)}>
-            <UserPlus className="size-4" />
-            {t("inviteCardTitle")}
-          </Button>
+          canInvite ? (
+            <Button onClick={() => setInviteOpen(true)}>
+              <UserPlus className="size-4" />
+              {t("inviteCardTitle")}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -743,7 +762,7 @@ export function UsersClient({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {ROLE_OPTIONS.map((r) => (
+                        {ORG_ROLES.map((r) => (
                           <SelectItem key={r} value={r}>
                             {t(`role.${r}`)}
                           </SelectItem>
@@ -813,7 +832,7 @@ export function UsersClient({
             filterColumn="name"
             filterPlaceholder={t("searchPlaceholder")}
             getRowId={(row) => row.id}
-            canSelectRow={(row) => row.id !== currentUserId}
+            canSelectRow={(row) => canDelete && row.id !== currentUserId}
             urlKey="usr"
             renderCard={renderUserCard}
             bulkActions={(ids, clearSelection) => (
@@ -888,12 +907,12 @@ export function UsersClient({
 
 function RoleBadge({ role, t }: { role: string; t: (key: string) => string }) {
   // Unknown/legacy role strings render verbatim rather than blowing up on a
-  // missing translation key — matches how roleRank() floors them to viewer.
-  const known = isAssignableRole(role);
+  // missing translation key — an unknown role is treated as `member` for access.
+  const known = isOrgRole(role);
   const label = known ? t(`role.${role}`) : role;
   return (
     <Badge
-      variant={role === ROLE_ADMIN ? "default" : "secondary"}
+      variant={role === "admin" ? "default" : "secondary"}
       className="text-xs"
     >
       {label}

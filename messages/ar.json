@@ -843,10 +843,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "الدور",
     "role": {
-      "viewer": "مشاهد",
-      "member": "عضو",
-      "maintainer": "مشرف صيانة",
-      "admin": "مشرف"
+      "admin": "مشرف",
+      "infra": "البنية التحتية",
+      "observer": "مراقب",
+      "member": "عضو"
     },
     "roleChangeTitle": "تغيير الدور",
     "roleChangeDescription": "تغيير دور {name} إلى {role}؟",
@@ -1454,15 +1454,14 @@
     "add": "إضافة",
     "role": {
       "viewer": "مشاهد",
-      "member": "عضو",
-      "maintainer": "مشرف صيانة",
-      "admin": "مدير"
+      "contributor": "مساهم",
+      "maintainer": "مشرف صيانة"
     },
     "colName": "المستخدم",
     "colRole": "الدور",
     "remove": "إزالة",
     "empty": "لا يوجد أعضاء بعد",
-    "emptyDescription": "أضف أعضاء لمنح صلاحية على مستوى المشروع أعلى من دورهم العام.",
+    "emptyDescription": "يمكن للأعضاء فقط (والمسؤولين وفريق البنية التحتية والمراقبين) رؤية هذا المشروع.",
     "addedSuccess": "تمت إضافة العضو",
     "roleUpdatedSuccess": "تم تحديث الدور",
     "removedSuccess": "تمت إزالة العضو",

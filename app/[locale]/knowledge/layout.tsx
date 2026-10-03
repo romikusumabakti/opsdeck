@@ -19,7 +19,7 @@ export default async function KnowledgeLayout({
   const { locale } = await params;
   setRequestLocale(locale);
   const session = await requireOrgPage({ knowledge: ["read"] });
-  const admin = canOrg(session.user.role, { knowledge: ["manage"] });
+  const canManage = canOrg(session.user.role, { knowledge: ["manage"] });
 
   const [collections, nodes, t] = await Promise.all([
     loadCollections(),
@@ -39,7 +39,7 @@ export default async function KnowledgeLayout({
               <BookOpen className="size-4" />
               {t("title")}
             </Link>
-            {admin && <CollectionCreateDialog />}
+            {canManage && <CollectionCreateDialog />}
           </div>
           {collections.length > 0 && (
             <>
@@ -63,7 +63,7 @@ export default async function KnowledgeLayout({
           <KnowledgeTree
             collections={collections}
             nodes={nodes}
-            isAdmin={admin}
+            canManage={canManage}
           />
         </div>
       </aside>

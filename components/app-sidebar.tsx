@@ -14,6 +14,7 @@ import {
   History,
   House,
   LayoutDashboard,
+  type LucideIcon,
   Mail,
   Server,
   ServerCog,
@@ -40,35 +41,75 @@ import {
 import { UserMenu } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { EnvironmentListItem } from "@/lib/db/schema";
+import {
+  canOrg,
+  canProject,
+  type OrgPermissions,
+  type OrgRole,
+  type ProjectPermissions,
+  type ProjectRole,
+} from "@/lib/permissions";
 
 // Readable env path: uppercase key + lowercase slug (/CMEM/prod/…). Distinct
 // from single-segment lowercase top-level routes (/issues, …).
 const ENV_PATH_REGEX = /^\/([A-Z][A-Z0-9]{1,9})\/([a-z0-9][a-z0-9-]*)(?:\/|$)/;
 
-const projectItems = [
-  { key: "dashboard", url: "", icon: LayoutDashboard, adminOnly: false },
-  { key: "services", url: "/services", icon: ServerCog, adminOnly: false },
+type ProjectItem = {
+  key: string;
+  url: string;
+  icon: LucideIcon;
+  perm?: ProjectPermissions;
+};
+
+const projectItems: ProjectItem[] = [
+  { key: "dashboard", url: "", icon: LayoutDashboard },
+  { key: "services", url: "/services", icon: ServerCog },
+  { key: "databases", url: "/databases", icon: DatabaseZap },
   {
-    key: "databases",
-    url: "/databases",
-    icon: DatabaseZap,
-    adminOnly: false,
+    key: "mockTime",
+    url: "/mock-time",
+    icon: Clock,
+    perm: { clock: ["control"] },
   },
-  { key: "mockTime", url: "/mock-time", icon: Clock, adminOnly: false },
-  { key: "mail", url: "/mail", icon: Mail, adminOnly: false },
-  { key: "issues", url: "/issues", icon: CircleDot, adminOnly: false },
-  { key: "history", url: "/history", icon: History, adminOnly: false },
-  { key: "settings", url: "/settings", icon: Settings, adminOnly: true },
-] as const;
+  { key: "mail", url: "/mail", icon: Mail, perm: { mail: ["read"] } },
+  { key: "issues", url: "/issues", icon: CircleDot },
+  { key: "history", url: "/history", icon: History },
+  {
+    key: "settings",
+    url: "/settings",
+    icon: Settings,
+    perm: { environment: ["update"] },
+  },
+];
 
 // Sections of the /admin area, shown as their own sidebar group while the
-// user is inside it. Gated server-side by app/[locale]/admin/layout.tsx.
-const adminItems = [
-  { key: "activity", url: "/admin/activity", icon: Activity },
-  { key: "jira", url: "/admin/jira", icon: Cable },
-  { key: "tunnels", url: "/admin/tunnels", icon: Cloud },
-  { key: "users", url: "/admin/users", icon: Users },
-] as const;
+// user is inside it. Each page enforces the same permission server-side.
+const adminItems: {
+  key: string;
+  url: string;
+  icon: LucideIcon;
+  perm: OrgPermissions;
+}[] = [
+  {
+    key: "activity",
+    url: "/admin/activity",
+    icon: Activity,
+    perm: { audit: ["read"] },
+  },
+  {
+    key: "jira",
+    url: "/admin/jira",
+    icon: Cable,
+    perm: { integration: ["manage"] },
+  },
+  {
+    key: "tunnels",
+    url: "/admin/tunnels",
+    icon: Cloud,
+    perm: { tunnel: ["read"] },
+  },
+  { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
+];
 
 type AppSidebarUser = {
   id: string;
@@ -79,13 +120,15 @@ type AppSidebarUser = {
 
 export function AppSidebar({
   environments,
-  isAdmin,
+  orgRole,
+  projectRoles,
   issueCounts,
   user,
   side = "left",
 }: {
   environments: EnvironmentListItem[];
-  isAdmin: boolean;
+  orgRole: OrgRole;
+  projectRoles: Record<string, ProjectRole>;
   issueCounts: AssignedIssueCounts;
   user: AppSidebarUser;
   side?: "left" | "right";
@@ -94,13 +137,20 @@ export function AppSidebar({
   const tNav = useTranslations("nav");
   const pathname = usePathname();
 
+  const canSeeServers = canOrg(orgRole, { server: ["read"] });
+  const canSeeStorage = canOrg(orgRole, { storage: ["read"] });
+  const canSeeAdmin = canOrg(orgRole, { audit: ["read"] });
   const inAdmin =
-    isAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));
+    canSeeAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));
 
   const match = ENV_PATH_REGEX.exec(pathname);
   const activeEnv = match
     ? (environments.find((e) => e.key === match[1] && e.slug === match[2]) ??
       null)
+    : null;
+
+  const envRole = activeEnv
+    ? (projectRoles[activeEnv.projectId] ?? null)
     : null;
 
   // Issues live on the environment's parent project, so the group badge counts
@@ -181,39 +231,41 @@ export function AppSidebar({
                   <span>{tNav("knowledge")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {isAdmin && (
-                <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/servers" />}
-                      isActive={pathname.startsWith("/servers")}
-                      tooltip={tNav("servers")}
-                    >
-                      <Server />
-                      <span>{tNav("servers")}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/storage" />}
-                      isActive={pathname.startsWith("/storage")}
-                      tooltip={tNav("storage")}
-                    >
-                      <HardDrive />
-                      <span>{tNav("storage")}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/admin" />}
-                      isActive={inAdmin}
-                      tooltip={tNav("admin")}
-                    >
-                      <ShieldUser />
-                      <span>{tNav("admin")}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </>
+              {canSeeServers && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/servers" />}
+                    isActive={pathname.startsWith("/servers")}
+                    tooltip={tNav("servers")}
+                  >
+                    <Server />
+                    <span>{tNav("servers")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canSeeStorage && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/storage" />}
+                    isActive={pathname.startsWith("/storage")}
+                    tooltip={tNav("storage")}
+                  >
+                    <HardDrive />
+                    <span>{tNav("storage")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canSeeAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/admin" />}
+                    isActive={inAdmin}
+                    tooltip={tNav("admin")}
+                  >
+                    <ShieldUser />
+                    <span>{tNav("admin")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -226,18 +278,20 @@ export function AppSidebar({
             <SidebarGroupLabel>{tNav("admin")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminItems.map((item) => (
-                  <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton
-                      render={<Link href={item.url} />}
-                      isActive={pathname.startsWith(item.url)}
-                      tooltip={tNav(item.key)}
-                    >
-                      <item.icon />
-                      <span>{tNav(item.key)}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {adminItems
+                  .filter((item) => canOrg(orgRole, item.perm))
+                  .map((item) => (
+                    <SidebarMenuItem key={item.key}>
+                      <SidebarMenuButton
+                        render={<Link href={item.url} />}
+                        isActive={pathname.startsWith(item.url)}
+                        tooltip={tNav(item.key)}
+                      >
+                        <item.icon />
+                        <span>{tNav(item.key)}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -251,9 +305,10 @@ export function AppSidebar({
             <SidebarGroupContent>
               <SidebarMenu>
                 {projectItems
-                  .filter((item) => !item.adminOnly || isAdmin)
-                  // Mail only exists once a Mailpit is connected. Role gating happens on
-                  // the page: the sidebar knows only the global role, not membership.
+                  .filter(
+                    (item) => !item.perm || canProject(envRole, item.perm)
+                  )
+                  // Mail only exists once a Mailpit is connected.
                   .filter((item) => item.key !== "mail" || activeEnv.hasMailpit)
                   .map((item) => {
                     const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
@@ -300,7 +355,7 @@ export function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <UserMenu user={user} isAdmin={isAdmin} variant="sidebar" />
+            <UserMenu user={user} orgRole={orgRole} variant="sidebar" />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

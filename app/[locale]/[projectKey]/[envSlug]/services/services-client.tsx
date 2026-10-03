@@ -24,6 +24,7 @@ import {
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { PageHeader } from "@/components/page-header";
+import { useProjectCan } from "@/components/project-role";
 import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -213,7 +214,8 @@ function ServiceCard({
 
   const state = status?.state ?? "unknown";
   const Icon = meta.icon;
-  const busy = loading || pendingAction !== null;
+  const canControl = useProjectCan({ service: ["control"] });
+  const busy = loading || pendingAction !== null || !canControl;
   // Closing the dialog (X / ESC / overlay-click) clears the run and re-fetches
   // status. The run itself keeps running server-side even if the user dismisses
   // early — refresh will surface the eventual final state.
