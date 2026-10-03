@@ -228,6 +228,29 @@ describe("lookups by client-supplied id check the caller first", () => {
   });
 });
 
+// Org-level access changes leave an audit trail (entityType "access"), and the
+// activity page renders each action.
+const ACCESS_AUDIT: Record<string, string> = {
+  deleteUser: "user.deleted",
+  bulkDeleteUsers: "user.deleted",
+  revokeInvitation: "user.invitationRevoked",
+  bulkRevokeInvitations: "user.invitationRevoked",
+  resendInvitation: "user.invitationResent",
+};
+
+describe("access changes are recorded in the activity log", () => {
+  const source = readFileSync("actions/users.ts", "utf8");
+  const page = readFileSync("app/[locale]/admin/activity/page.tsx", "utf8");
+  for (const [fn, action] of Object.entries(ACCESS_AUDIT)) {
+    it(`${fn} records ${action}`, () => {
+      const code = body(source, fn);
+      expect(code).toContain(`action: "${action}"`);
+      expect(code).toContain('entityType: "access"');
+      expect(page).toContain(`case "${action}":`);
+    });
+  }
+});
+
 // The old catch-all helpers have been removed. Everything under actions, lib, app
 // and components is scanned to ensure no legacy helper calls remain.
 describe("no legacy authorization helpers outside lib/auth-session", () => {

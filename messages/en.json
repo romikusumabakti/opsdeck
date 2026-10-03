@@ -1528,7 +1528,10 @@
     "mailCleared": "{actor} cleared the {environment} inbox",
     "userOffboarded": "{actor} offboarded {user}",
     "userRoleChanged": "{actor} changed {user}'s role from {from} to {to}",
-    "userInvited": "{actor} invited {email} as {role}"
+    "userInvited": "{actor} invited {email} as {role}",
+    "userDeleted": "{actor} deleted {user}",
+    "userInvitationRevoked": "{actor} revoked the invitation for {email}",
+    "userInvitationResent": "{actor} resent the invitation to {email}"
   },
   "jira": {
     "title": "Jira",
