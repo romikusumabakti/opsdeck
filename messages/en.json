@@ -1401,19 +1401,6 @@
     "jiraTitle": "Jira sync",
     "jiraDescription": "Mirror a Jira project into this project's issue tracker."
   },
-  "inbox": {
-    "title": "Home",
-    "subtitle": "Your work and what needs attention.",
-    "assignedToMe": "Assigned to me",
-    "assignedEmpty": "Nothing assigned to you.",
-    "runningNow": "Running now",
-    "runningEmpty": "No jobs running.",
-    "needsAttention": "Needs attention",
-    "failedEmpty": "No recent failures.",
-    "jumpBackIn": "Jump back in",
-    "recentEmpty": "No recent environments.",
-    "viewAll": "View all"
-  },
   "homePage": {
     "title": "Home",
     "subtitle": "Your work and what needs attention.",

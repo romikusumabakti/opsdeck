@@ -1401,19 +1401,6 @@
     "jiraTitle": "Sinkronisasi Jira",
     "jiraDescription": "Mirror sebuah proyek Jira ke pelacak isu proyek ini."
   },
-  "inbox": {
-    "title": "Beranda",
-    "subtitle": "Pekerjaan Anda dan yang perlu perhatian.",
-    "assignedToMe": "Ditugaskan ke saya",
-    "assignedEmpty": "Tidak ada tugas untuk Anda.",
-    "runningNow": "Sedang berjalan",
-    "runningEmpty": "Tidak ada job berjalan.",
-    "needsAttention": "Perlu perhatian",
-    "failedEmpty": "Tidak ada kegagalan terbaru.",
-    "jumpBackIn": "Lanjutkan",
-    "recentEmpty": "Belum ada environment terbaru.",
-    "viewAll": "Lihat semua"
-  },
   "homePage": {
     "title": "Beranda",
     "subtitle": "Pekerjaan Anda dan yang perlu perhatian.",
