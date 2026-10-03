@@ -325,16 +325,13 @@ export const environmentAccess = pgTable(
 // Per-project membership (RBAC)
 // =========================
 
-// Effective role = max(users.role global floor, this per-project role). Members
-// attach to the LOGICAL project, not a deployment, so a QA granted `maintainer`
-// on "Common Membership" may restore/mock any of its environments. The global
-// `users.role` (text, owned by better-auth) is the floor; this raises it per
-// project. Same four-rung ladder as lib/roles.ts.
+// Project role, per lib/permissions PROJECT_ROLES. Effective role on a project =
+// max(this membership, the role the user's org role implies); no row and no
+// implicit role = the project is invisible to them.
 export const projectRoleEnum = pgEnum("project_role", [
   "viewer",
-  "member",
+  "contributor",
   "maintainer",
-  "admin",
 ]);
 
 export const projectMembers = pgTable(
