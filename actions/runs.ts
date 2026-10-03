@@ -140,13 +140,6 @@ export async function getRunSnapshot(
   runId: string
 ): Promise<RunSnapshot | null> {
   await requireSession();
-  const run = await db.query.runs.findFirst({
-    where: { id: runId },
-    columns: { environmentId: true },
-  });
-  if (!run || !(await getProjectRole({ environmentId: run.environmentId }))) {
-    return null;
-  }
   const row = await db.query.runs.findFirst({
     where: { id: runId },
     columns: {
@@ -160,7 +153,10 @@ export async function getRunSnapshot(
       completedAt: true,
     },
   });
-  return row ?? null;
+  if (!row || !(await getProjectRole({ environmentId: row.environmentId }))) {
+    return null;
+  }
+  return row;
 }
 
 export type KpiKind = "backup" | "restore" | "mock";

@@ -1,7 +1,17 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, exists, inArray, isNull, max, or } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  max,
+  or,
+  type SQL,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
@@ -115,6 +125,24 @@ export async function createInitialUser(input: {
 // Org roles that reach every project, so they can be assigned anywhere.
 const ORG_WIDE_ASSIGNEE_ROLES = ["admin", "infra"];
 
+// Non-banned users who are org admin/infra (reach every project) or hold a
+// project_members row matching `projectCond`. Private: this is a "use server"
+// file, so every export would be a public endpoint.
+function assignableUsersWhere(projectCond: SQL | undefined) {
+  return and(
+    eq(userTable.banned, false),
+    or(
+      inArray(userTable.role, ORG_WIDE_ASSIGNEE_ROLES),
+      exists(
+        db
+          .select({ one: projectMembers.userId })
+          .from(projectMembers)
+          .where(and(eq(projectMembers.userId, userTable.id), projectCond))
+      )
+    )
+  );
+}
+
 /**
  * Minimal user list for a project's assignment pickers — id + name of
  * non-banned users who can work on it: org admin/infra, or a member of the
@@ -127,25 +155,7 @@ export async function listAssignableUsers(
   return db
     .select({ id: userTable.id, name: userTable.name })
     .from(userTable)
-    .where(
-      and(
-        eq(userTable.banned, false),
-        or(
-          inArray(userTable.role, ORG_WIDE_ASSIGNEE_ROLES),
-          exists(
-            db
-              .select({ one: projectMembers.userId })
-              .from(projectMembers)
-              .where(
-                and(
-                  eq(projectMembers.userId, userTable.id),
-                  eq(projectMembers.projectId, projectId)
-                )
-              )
-          )
-        )
-      )
-    )
+    .where(assignableUsersWhere(eq(projectMembers.projectId, projectId)))
     .orderBy(userTable.name);
 }
 
@@ -162,25 +172,7 @@ export async function listAssignableUsersAcrossProjects(): Promise<
   return db
     .select({ id: userTable.id, name: userTable.name })
     .from(userTable)
-    .where(
-      and(
-        eq(userTable.banned, false),
-        or(
-          inArray(userTable.role, ORG_WIDE_ASSIGNEE_ROLES),
-          exists(
-            db
-              .select({ one: projectMembers.userId })
-              .from(projectMembers)
-              .where(
-                and(
-                  eq(projectMembers.userId, userTable.id),
-                  await projectScope(projectMembers.projectId)
-                )
-              )
-          )
-        )
-      )
-    )
+    .where(assignableUsersWhere(await projectScope(projectMembers.projectId)))
     .orderBy(userTable.name);
 }
 
