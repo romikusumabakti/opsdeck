@@ -116,6 +116,9 @@ export async function updateProjectMemberRole(input: {
     { member: ["manage"] }
   );
   const t = await getTranslations("projectMembers");
+  if (!uuidSchema.safeParse(input.userId).success) {
+    return { success: false, message: t("errorInvalidInput") };
+  }
   if (!isValidRole(input.role)) {
     return { success: false, message: t("errorInvalidRole") };
   }
@@ -129,6 +132,7 @@ export async function updateProjectMemberRole(input: {
       )
     )
     .limit(1);
+  if (!previous) return { success: false, message: t("errorInvalidInput") };
   await db
     .update(projectMembers)
     .set({ role: input.role })
@@ -138,19 +142,17 @@ export async function updateProjectMemberRole(input: {
         eq(projectMembers.userId, input.userId)
       )
     );
-  if (previous) {
-    await recordActivity({
-      actorId: session.user.id,
-      action: "member.roleChanged",
-      entityType: "member",
-      entityId: input.userId,
-      data: {
-        ...(await memberNames(input.projectId, input.userId)),
-        from: previous.role,
-        to: input.role,
-      },
-    });
-  }
+  await recordActivity({
+    actorId: session.user.id,
+    action: "member.roleChanged",
+    entityType: "member",
+    entityId: input.userId,
+    data: {
+      ...(await memberNames(input.projectId, input.userId)),
+      from: previous.role,
+      to: input.role,
+    },
+  });
   return { success: true, message: t("roleUpdatedSuccess") };
 }
 

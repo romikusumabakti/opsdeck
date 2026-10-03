@@ -5,17 +5,15 @@ import {
   and,
   count,
   eq,
-  exists,
   inArray,
   isNull,
   max,
-  or,
-  type SQL,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { assignableUsersWhere } from "@/lib/assignees";
 import { projectScope, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
@@ -120,27 +118,6 @@ export async function createInitialUser(input: {
 
   revalidatePath("/", "layout");
   return { success: true, message: t("accountCreated") };
-}
-
-// Org roles that reach every project, so they can be assigned anywhere.
-const ORG_WIDE_ASSIGNEE_ROLES = ["admin", "infra"];
-
-// Non-banned users who are org admin/infra (reach every project) or hold a
-// project_members row matching `projectCond`. Private: this is a "use server"
-// file, so every export would be a public endpoint.
-function assignableUsersWhere(projectCond: SQL | undefined) {
-  return and(
-    eq(userTable.banned, false),
-    or(
-      inArray(userTable.role, ORG_WIDE_ASSIGNEE_ROLES),
-      exists(
-        db
-          .select({ one: projectMembers.userId })
-          .from(projectMembers)
-          .where(and(eq(projectMembers.userId, userTable.id), projectCond))
-      )
-    )
-  );
 }
 
 /**

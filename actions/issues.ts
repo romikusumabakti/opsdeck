@@ -17,6 +17,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
+import { assignableUsersWhere } from "@/lib/assignees";
 import { requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
@@ -37,6 +38,7 @@ import {
   issues,
   type LabelLite,
   labels,
+  milestones,
   projectMembers,
   projects,
   users as userTable,
@@ -603,30 +605,75 @@ async function owningProjectIds(ids: string[]): Promise<string[]> {
   return owners.map((o) => o.projectId);
 }
 
-// An assignee must be able to work on the issue's project: an org admin/infra
-// (reaches every project) or a member of it. Mirrors listAssignableUsers.
+// An assignee must be able to work on the issue's project: a non-banned org
+// admin/infra or a member of it (the same predicate as listAssignableUsers).
 async function canAssignTo(
   assigneeId: string,
   projectId: string
 ): Promise<boolean> {
-  const [user] = await db
-    .select({ role: userTable.role })
+  const [row] = await db
+    .select({ id: userTable.id })
     .from(userTable)
-    .where(eq(userTable.id, assigneeId))
-    .limit(1);
-  if (!user) return false;
-  if (user.role === "admin" || user.role === "infra") return true;
-  const [member] = await db
-    .select({ userId: projectMembers.userId })
-    .from(projectMembers)
     .where(
       and(
-        eq(projectMembers.userId, assigneeId),
-        eq(projectMembers.projectId, projectId)
+        eq(userTable.id, assigneeId),
+        assignableUsersWhere(eq(projectMembers.projectId, projectId))
       )
     )
     .limit(1);
-  return !!member;
+  return !!row;
+}
+
+// environmentId / milestoneId / parentId must belong to the issue's own
+// project, or a writer could reach into another project's data by id.
+async function referencesInProject(
+  projectId: string,
+  refs: {
+    environmentId?: string | null;
+    milestoneId?: string | null;
+    parentId?: string | null;
+  }
+): Promise<boolean> {
+  const [env, milestone, parent] = await Promise.all([
+    refs.environmentId
+      ? db
+          .select({ id: environments.id })
+          .from(environments)
+          .where(
+            and(
+              eq(environments.id, refs.environmentId),
+              eq(environments.projectId, projectId)
+            )
+          )
+          .limit(1)
+      : null,
+    refs.milestoneId
+      ? db
+          .select({ id: milestones.id })
+          .from(milestones)
+          .where(
+            and(
+              eq(milestones.id, refs.milestoneId),
+              eq(milestones.projectId, projectId)
+            )
+          )
+          .limit(1)
+      : null,
+    refs.parentId
+      ? db
+          .select({ id: issues.id })
+          .from(issues)
+          .where(
+            and(eq(issues.id, refs.parentId), eq(issues.projectId, projectId))
+          )
+          .limit(1)
+      : null,
+  ]);
+  return (
+    (!refs.environmentId || !!env?.length) &&
+    (!refs.milestoneId || !!milestone?.length) &&
+    (!refs.parentId || !!parent?.length)
+  );
 }
 
 /** All issues for a logical project, newest first. */
@@ -670,6 +717,9 @@ export async function createIssue(
     input.assigneeId &&
     !(await canAssignTo(input.assigneeId, input.projectId))
   ) {
+    return { success: false, message: "Invalid issue data" };
+  }
+  if (!(await referencesInProject(input.projectId, input))) {
     return { success: false, message: "Invalid issue data" };
   }
 
@@ -750,6 +800,10 @@ export async function updateIssue(
     parsed.data.assigneeId &&
     !(await canAssignTo(parsed.data.assigneeId, projectId))
   ) {
+    return { success: false, message: "Invalid issue data" };
+  }
+  // Compared against the issue's stored project, not anything from `data`.
+  if (!(await referencesInProject(projectId, parsed.data))) {
     return { success: false, message: "Invalid issue data" };
   }
   // An issue can't be its own parent. (Deeper cycles are avoided in the UI by

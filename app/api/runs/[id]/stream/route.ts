@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getRunSnapshot } from "@/actions/runs";
+import { getServerSession } from "@/lib/auth-session";
 import { routeProjectGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { uuidSchema } from "@/lib/validation";
@@ -20,6 +21,10 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Authenticate before touching the DB.
+  if (!(await getServerSession())) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const { id } = await params;
 
   // Authorize against the run's project before opening the stream. A malformed
