@@ -5,7 +5,10 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { listIssues } from "@/actions/issues";
 import { listMilestones } from "@/actions/milestones";
 import { getProjectByKeyWithEnvironments } from "@/actions/project-catalog";
-import { listProjectMembers } from "@/actions/project-members";
+import {
+  listMemberCandidates,
+  listProjectMembers,
+} from "@/actions/project-members";
 import { getEnvironmentsLastActivity } from "@/actions/runs";
 import { listAssignableUsers } from "@/actions/users";
 import { PageHeader } from "@/components/page-header";
@@ -64,7 +67,12 @@ export default async function ProjectOverviewPage({
   // Membership management follows the project role (maintainers, plus org
   // admin/infra who are implicit maintainers everywhere).
   const canManageMembers = canProject(role, { member: ["manage"] });
-  const members = canManageMembers ? await listProjectMembers(project.id) : [];
+  const [members, memberCandidates] = canManageMembers
+    ? await Promise.all([
+        listProjectMembers(project.id),
+        listMemberCandidates(project.id),
+      ])
+    : [[], []];
 
   const environments = [...project.environments].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -250,7 +258,7 @@ export default async function ProjectOverviewPage({
             <ProjectMembersClient
               projectId={project.id}
               initialMembers={members}
-              assignableUsers={users}
+              memberCandidates={memberCandidates}
             />
           </TabsContent>
         ) : null}

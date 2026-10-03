@@ -41,6 +41,21 @@ export async function listProjectMembers(
   return rows as ProjectMemberRow[];
 }
 
+// Everyone who could be added to the project: every non-banned user, by name.
+// The picker drops current members itself. Membership is how an org `member`
+// gains access to a project, so this list deliberately reaches beyond the
+// project's current members (unlike listAssignableUsers).
+export async function listMemberCandidates(
+  projectId: string
+): Promise<{ id: string; name: string; email: string }[]> {
+  await requireProjectPermission({ projectId }, { member: ["manage"] });
+  return db
+    .select({ id: userTable.id, name: userTable.name, email: userTable.email })
+    .from(userTable)
+    .where(eq(userTable.banned, false))
+    .orderBy(userTable.name);
+}
+
 // Snapshot the user + project display names for the activity feed so it reads
 // without joins even after a membership row changes.
 async function memberNames(projectId: string, userId: string) {
