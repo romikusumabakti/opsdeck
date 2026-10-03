@@ -9,18 +9,20 @@ import type { IssueWithMeta } from "@/actions/issues";
 import {
   bulkDeleteIssues,
   bulkSetStatus,
-  createIssue,
   setIssueStatus,
   updateIssue,
 } from "@/actions/issues";
 import { useDialog } from "@/components/dialog-provider";
+import {
+  IssueCreateDialog,
+  type Option,
+} from "@/components/issue-create-dialog";
 import {
   type AssignableUser,
   AssigneeSelect,
   IssueBoard,
   type IssueType,
   type MilestoneOption,
-  MilestoneSelect,
   type Priority,
   PrioritySelect,
   STATUSES,
@@ -28,20 +30,10 @@ import {
   StatusSelect,
   type Swimlane,
   TypeIcon,
-  TypeSelect,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
-import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -63,8 +55,6 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
 
-type EnvOption = { id: string; name: string };
-
 export function IssuesClient({
   projectId,
   projectKey,
@@ -77,7 +67,7 @@ export function IssuesClient({
   projectId: string;
   projectKey: string;
   currentEnvironmentId: string;
-  environments: EnvOption[];
+  environments: Option[];
   users: AssignableUser[];
   milestones: MilestoneOption[];
   initialIssues: IssueWithMeta[];
@@ -547,7 +537,7 @@ export function IssuesClient({
         </div>
       )}
 
-      <CreateIssueDialog
+      <IssueCreateDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         projectId={projectId}
@@ -561,184 +551,5 @@ export function IssuesClient({
         }}
       />
     </div>
-  );
-}
-
-function CreateIssueDialog({
-  open,
-  onOpenChange,
-  projectId,
-  environments,
-  users,
-  milestones,
-  defaultEnvironmentId,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  projectId: string;
-  environments: EnvOption[];
-  users: AssignableUser[];
-  milestones: MilestoneOption[];
-  defaultEnvironmentId: string;
-  onCreated: () => void;
-}) {
-  const t = useTranslations("issues");
-  const tCommon = useTranslations("common");
-
-  const NONE = "none";
-  const [title, setTitle] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [type, setType] = React.useState<IssueType>("task");
-  const [priority, setPriority] = React.useState<Priority>("medium");
-  const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
-  const [milestoneId, setMilestoneId] = React.useState<string | null>(null);
-  // Empty default (e.g. from the project overview, which has no "current" env)
-  // falls back to the "None" option.
-  const [environmentId, setEnvironmentId] = React.useState(
-    defaultEnvironmentId || NONE
-  );
-  const [saving, setSaving] = React.useState(false);
-
-  // Reset the form each time the dialog opens.
-  React.useEffect(() => {
-    if (open) {
-      setTitle("");
-      setDescription("");
-      setType("task");
-      setPriority("medium");
-      setAssigneeId(null);
-      setMilestoneId(null);
-      setEnvironmentId(defaultEnvironmentId || NONE);
-    }
-  }, [open, defaultEnvironmentId]);
-
-  async function submit() {
-    if (!title.trim()) return;
-    setSaving(true);
-    const result = await createIssue({
-      projectId,
-      title: title.trim(),
-      description: description.trim(),
-      type,
-      priority,
-      environmentId: environmentId === NONE ? null : environmentId,
-      assigneeId,
-      milestoneId,
-    });
-    setSaving(false);
-    if (!result.success) {
-      toast.error(t("createFailed"));
-      return;
-    }
-    toast.success(t("createdSuccess"));
-    onCreated();
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Capped to the viewport with the fields scrolling inside: the markdown
-          editor's toolbar plus its writing surface make this form taller than a
-          short screen, and without the cap the header and the Create button are
-          the parts that fall off. The wider breakpoint keeps the toolbar on one
-          row. */}
-      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-2xl max-h-[calc(100dvh-4rem)]">
-        <DialogHeader>
-          <DialogTitle>{t("createTitle")}</DialogTitle>
-          <DialogDescription>{t("createDescription")}</DialogDescription>
-        </DialogHeader>
-        {/* px/py + the negative margin keep focus rings from being clipped by
-            the scroll container's edges. */}
-        <div className="-mx-1 flex flex-col gap-4 overflow-y-auto px-1 py-1">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" htmlFor="issue-title">
-              {t("titleLabel")}
-            </label>
-            <Input
-              id="issue-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("titlePlaceholder")}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">{t("typeLabel")}</span>
-              <TypeSelect value={type} onChange={setType} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">{t("priorityLabel")}</span>
-              <PrioritySelect value={priority} onChange={setPriority} />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">{t("descriptionLabel")}</span>
-            {/* Same markdown editor as the issue detail page, so what is typed
-                here round-trips through the same parse/serialize. Shorter than
-                the default surface — it sits in a dialog and grows as you
-                type. */}
-            <MarkdownEditor
-              value={description}
-              onChange={setDescription}
-              contentClassName="min-h-[6rem]"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">{t("environmentLabel")}</span>
-            <Select
-              value={environmentId}
-              onValueChange={(v) => setEnvironmentId(v ?? NONE)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t("none")}</SelectItem>
-                {environments.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">{t("assignee")}</span>
-            <AssigneeSelect
-              users={users}
-              value={assigneeId}
-              onChange={setAssigneeId}
-            />
-          </div>
-          {milestones.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">{t("milestone")}</span>
-              <MilestoneSelect
-                milestones={milestones}
-                value={milestoneId}
-                onChange={setMilestoneId}
-              />
-            </div>
-          ) : null}
-        </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
-            {tCommon("cancel")}
-          </Button>
-          <Button
-            type="button"
-            onClick={submit}
-            disabled={saving || !title.trim()}
-          >
-            {saving ? t("creating") : t("create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
