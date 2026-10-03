@@ -172,6 +172,11 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
   it("scans a plausible number of files", () => {
     expect(files.length).toBeGreaterThan(50);
   });
+  it("scans at least one file in every root", () => {
+    for (const root of roots) {
+      expect(files.some((f) => f.startsWith(`${root}/`))).toBe(true);
+    }
+  });
   for (const file of files) {
     // Both modules are deleted in Task 8; they define the helpers.
     if (file === "lib/auth-session.ts" || file === "lib/roles.ts") continue;

@@ -845,7 +845,7 @@
     "role": {
       "admin": "Administrador",
       "infra": "Infraestructura",
-      "observer": "Observador",
+      "observer": "Supervisor",
       "member": "Miembro"
     },
     "roleChangeTitle": "Cambiar rol",
@@ -1764,8 +1764,6 @@
     "notConfiguredTitle": "Mailpit no está conectado",
     "notConfiguredDescription": "Un administrador puede conectar el Mailpit de este entorno en la configuración.",
     "openSettings": "Abrir configuración",
-    "forbiddenTitle": "El correo está restringido",
-    "forbiddenDescription": "Leer el correo capturado requiere el rol de miembro o superior en este proyecto.",
     "loadFailed": "No se pudo cargar el correo",
     "retry": "Reintentar",
     "from": "De",

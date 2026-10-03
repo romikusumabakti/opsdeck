@@ -1764,8 +1764,6 @@
     "notConfiguredTitle": "Mailpit غير متصل",
     "notConfiguredDescription": "يمكن للمسؤول ربط Mailpit لهذه البيئة من الإعدادات.",
     "openSettings": "فتح الإعدادات",
-    "forbiddenTitle": "البريد مقيّد",
-    "forbiddenDescription": "تتطلب قراءة البريد الملتقط دور عضو أو أعلى في هذا المشروع.",
     "loadFailed": "تعذّر تحميل البريد",
     "retry": "إعادة المحاولة",
     "from": "من",

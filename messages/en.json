@@ -1764,8 +1764,6 @@
     "notConfiguredTitle": "Mailpit is not connected",
     "notConfiguredDescription": "An admin can connect this environment's Mailpit in settings.",
     "openSettings": "Open settings",
-    "forbiddenTitle": "Mail is restricted",
-    "forbiddenDescription": "Reading captured email requires the member role or higher on this project.",
     "loadFailed": "Could not load mail",
     "retry": "Retry",
     "from": "From",
