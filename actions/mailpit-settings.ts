@@ -3,7 +3,7 @@
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environmentMailpit } from "@/lib/db/schema";
 import { environmentName } from "@/lib/environments";
@@ -30,7 +30,7 @@ export type MailpitTestResult =
 export async function getMailpitSettings(
   environmentId: string
 ): Promise<MailpitSettings | null> {
-  await requireAdmin();
+  await requireProjectPermission({ environmentId }, { environment: ["update"] });
   if (!uuidSchema.safeParse(environmentId).success) return null;
   const cfg = await loadMailpitConfig(environmentId);
   return cfg
@@ -42,7 +42,10 @@ export async function saveMailpitSettings(
   environmentId: string,
   data: unknown
 ): Promise<ActionResponse> {
-  const session = await requireAdmin();
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { environment: ["update"] }
+  );
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, message: "Invalid environment id" };
   }
@@ -118,7 +121,7 @@ export async function testMailpitConnection(
   environmentId: string,
   data: unknown
 ): Promise<MailpitTestResult> {
-  await requireAdmin();
+  await requireProjectPermission({ environmentId }, { environment: ["update"] });
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, error: "Invalid environment id" };
   }

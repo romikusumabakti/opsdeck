@@ -3,7 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { recordActivity } from "@/lib/activity";
-import { requireCapability } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
 import { isProjectRole, type ProjectRole } from "@/lib/permissions";
@@ -21,13 +21,12 @@ function isValidRole(role: string): role is ProjectRole {
   return isProjectRole(role);
 }
 
-// Managing membership is admin-only (global admin, or a per-project admin). The
-// scope is the LOGICAL project id — membership is inherited by every environment
-// under it. Read the panel and mutate it behind the same `admin` capability.
+// Managing membership needs member:manage on the project (maintainer, or an
+// admin/infra org role).
 export async function listProjectMembers(
   projectId: string
 ): Promise<ProjectMemberRow[]> {
-  await requireCapability("admin", { projectId });
+  await requireProjectPermission({ projectId }, { member: ["manage"] });
   const rows = await db
     .select({
       userId: projectMembers.userId,
@@ -65,9 +64,10 @@ export async function addProjectMember(input: {
   userId: string;
   role: string;
 }): Promise<ActionResponse> {
-  const session = await requireCapability("admin", {
-    projectId: input.projectId,
-  });
+  const { session } = await requireProjectPermission(
+    { projectId: input.projectId },
+    { member: ["manage"] }
+  );
   const t = await getTranslations("projectMembers");
   if (
     !uuidSchema.safeParse(input.projectId).success ||
@@ -111,11 +111,24 @@ export async function updateProjectMemberRole(input: {
   userId: string;
   role: string;
 }): Promise<ActionResponse> {
-  await requireCapability("admin", { projectId: input.projectId });
+  const { session } = await requireProjectPermission(
+    { projectId: input.projectId },
+    { member: ["manage"] }
+  );
   const t = await getTranslations("projectMembers");
   if (!isValidRole(input.role)) {
     return { success: false, message: t("errorInvalidRole") };
   }
+  const [previous] = await db
+    .select({ role: projectMembers.role })
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, input.projectId),
+        eq(projectMembers.userId, input.userId)
+      )
+    )
+    .limit(1);
   await db
     .update(projectMembers)
     .set({ role: input.role })
@@ -125,6 +138,19 @@ export async function updateProjectMemberRole(input: {
         eq(projectMembers.userId, input.userId)
       )
     );
+  if (previous) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "member.roleChanged",
+      entityType: "member",
+      entityId: input.userId,
+      data: {
+        ...(await memberNames(input.projectId, input.userId)),
+        from: previous.role,
+        to: input.role,
+      },
+    });
+  }
   return { success: true, message: t("roleUpdatedSuccess") };
 }
 
@@ -132,9 +158,10 @@ export async function removeProjectMember(input: {
   projectId: string;
   userId: string;
 }): Promise<ActionResponse> {
-  const session = await requireCapability("admin", {
-    projectId: input.projectId,
-  });
+  const { session } = await requireProjectPermission(
+    { projectId: input.projectId },
+    { member: ["manage"] }
+  );
   const t = await getTranslations("projectMembers");
   // Capture names before the row is gone.
   const names = await memberNames(input.projectId, input.userId);

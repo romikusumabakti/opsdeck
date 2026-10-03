@@ -3,7 +3,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
-import { requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { runs } from "@/lib/db/schema";
 import { testRunSchema } from "@/lib/validation";
@@ -19,7 +19,7 @@ export type TestRunRow = {
 export async function listIssueTestRuns(
   issueId: string
 ): Promise<TestRunRow[]> {
-  await requireSession();
+  await requireProjectPermission({ issueId }, { project: ["read"] });
   try {
     return await db
       .select({
@@ -46,12 +46,15 @@ export async function listIssueTestRuns(
 export async function recordTestRun(
   data: unknown
 ): Promise<{ success: boolean; message?: string }> {
-  const session = await requireSession();
   const parsed = testRunSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid test data" };
   }
   const input = parsed.data;
+  const { session } = await requireProjectPermission(
+    { issueId: input.issueId },
+    { issue: ["write"] }
+  );
 
   const issue = await db.query.issues.findFirst({
     where: { id: input.issueId },

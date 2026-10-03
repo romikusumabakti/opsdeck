@@ -1501,6 +1501,7 @@
     "issueStatusChanged": "{actor} movió {key} a {status}",
     "memberAdded": "{actor} añadió a {user} a {project} como {role}",
     "memberRemoved": "{actor} quitó a {user} de {project}",
+    "memberRoleChanged": "{actor} cambió a {user} en {project} de {from} a {to}",
     "milestoneCreated": "{actor} creó el hito {name}",
     "terminalOpened": "{actor} abrió un terminal en {server}",
     "terminalClosed": "{actor} cerró un terminal en {server} tras {seconds} s",

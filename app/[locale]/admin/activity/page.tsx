@@ -36,6 +36,14 @@ function message(
         user: String(d.user),
         project: String(d.project),
       });
+    case "member.roleChanged":
+      return t("memberRoleChanged", {
+        actor,
+        user: String(d.user),
+        project: String(d.project),
+        from: String(d.from),
+        to: String(d.to),
+      });
     case "milestone.created":
       return t("milestoneCreated", { actor, name: String(d.name) });
     case "tunnel.route.created":

@@ -2,7 +2,7 @@
 
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { issueAttachments } from "@/lib/db/schema";
 import { deleteObject } from "@/lib/storage";
@@ -19,7 +19,7 @@ export type IssueAttachmentRow = {
 export async function listIssueAttachments(
   issueId: string
 ): Promise<IssueAttachmentRow[]> {
-  await requireSession();
+  await requireProjectPermission({ issueId }, { project: ["read"] });
   try {
     return await db
       .select({
@@ -41,12 +41,15 @@ export async function listIssueAttachments(
 export async function deleteIssueAttachment(
   id: string
 ): Promise<{ success: boolean; message?: string }> {
-  await requireSession();
   const row = await db.query.issueAttachments.findFirst({
     where: { id },
-    columns: { storageKey: true },
+    columns: { storageKey: true, issueId: true },
   });
   if (!row) return { success: false, message: "Not found" };
+  await requireProjectPermission(
+    { issueId: row.issueId },
+    { issue: ["write"] }
+  );
   try {
     // Best-effort object delete — if it fails we still drop the row so the UI
     // doesn't keep showing a broken attachment; the orphan can be swept later.

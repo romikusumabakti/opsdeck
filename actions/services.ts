@@ -1,6 +1,6 @@
 "use server";
 
-import { requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
@@ -63,7 +63,7 @@ async function probeServiceStatus(
 export async function getAllServiceStatuses(
   environmentId: string
 ): Promise<ServiceStatusResult[]> {
-  await requireSession();
+  await requireProjectPermission({ environmentId }, { project: ["read"] });
   if (!uuidSchema.safeParse(environmentId).success) {
     return [];
   }
@@ -81,7 +81,10 @@ export async function controlService(
   role: ServiceRole,
   action: ServiceAction
 ): Promise<{ runId: string }> {
-  const session = await requireSession();
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { service: ["control"] }
+  );
   const parsedRole = serviceRoleSchema.safeParse(role);
   const parsedAction = serviceActionSchema.safeParse(action);
   if (

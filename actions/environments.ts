@@ -2,12 +2,12 @@
 
 import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getProjectRole, projectScope } from "@/lib/authz";
+import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
-  getServerSession,
-  requireAdmin,
-  requireSession,
-} from "@/lib/auth-session";
+  getProjectRole,
+  projectScope,
+  requireProjectPermission,
+} from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
@@ -29,7 +29,6 @@ import type { EnvironmentInput } from "@/lib/validation";
 import {
   environmentInputSchema,
   environmentUpdateSchema,
-  uuidSchema,
 } from "@/lib/validation";
 
 // The form posts one flat payload (db*/backend*/frontend* fields); storage is
@@ -288,11 +287,14 @@ async function uniqueEnvSlug(projectId: string, name: string): Promise<string> {
 export async function createEnvironment(
   data: unknown
 ): Promise<ActionResponse<Environment>> {
-  await requireAdmin();
   const parsed = environmentInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid environment data" };
   }
+  await requireProjectPermission(
+    { projectId: parsed.data.projectId },
+    { environment: ["create"] }
+  );
   try {
     const input = parsed.data;
     const slug = await uniqueEnvSlug(input.projectId, input.name);
@@ -342,13 +344,17 @@ export async function updateEnvironment(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Environment>> {
-  await requireAdmin();
-  if (!uuidSchema.safeParse(id).success) {
-    return { success: false, message: "Invalid environment id" };
-  }
+  await requireProjectPermission({ environmentId: id }, { environment: ["update"] });
   const parsed = environmentUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid environment data" };
+  }
+  // Moving an environment into another project is a create there.
+  if (parsed.data.projectId) {
+    await requireProjectPermission(
+      { projectId: parsed.data.projectId },
+      { environment: ["create"] }
+    );
   }
   try {
     const input = parsed.data;
@@ -412,7 +418,7 @@ export async function updateEnvironment(
 }
 
 export async function deleteEnvironment(id: string): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireProjectPermission({ environmentId: id }, { environment: ["delete"] });
   try {
     await db.delete(environments).where(eq(environments.id, id));
     revalidatePath("/projects");

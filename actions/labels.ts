@@ -3,6 +3,7 @@
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { issueLabels, type Label, labels } from "@/lib/db/schema";
 
@@ -22,7 +23,7 @@ export async function setIssueLabels(
   issueId: string,
   labelIds: string[]
 ): Promise<{ success: boolean }> {
-  await requireSession();
+  await requireProjectPermission({ issueId }, { issue: ["write"] });
   try {
     await db.transaction(async (tx) => {
       await tx.delete(issueLabels).where(eq(issueLabels.issueId, issueId));

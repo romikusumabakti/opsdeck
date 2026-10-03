@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "@/lib/auth-session";
+import { routeProjectGuard } from "@/lib/authz";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import {
   buildFollowLogsCommand,
@@ -37,10 +37,12 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ environmentId: string; role: string }> }
 ) {
-  const session = await getServerSession();
-  if (!session) return new NextResponse("Unauthorized", { status: 401 });
-
   const { environmentId, role } = await params;
+  const guard = await routeProjectGuard(
+    { environmentId },
+    { service: ["logs"] }
+  );
+  if (!guard.ok) return guard.response;
   if (!VALID_ROLES.includes(role as ServiceRole)) {
     return new NextResponse("Invalid role", { status: 400 });
   }

@@ -1,12 +1,12 @@
 "use server";
 
-import { requireCapability, requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { type EnvironmentWithServers, runs } from "@/lib/db/schema";
 import { describeFetchError } from "@/lib/fetch-error";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
-import type { Capability } from "@/lib/roles";
+import type { ProjectPermissions } from "@/lib/permissions";
 import { createRun } from "@/lib/run-progress";
 import { backendService } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -40,10 +40,9 @@ const API_TIMEOUT_MS = 30_000;
 // the server-side `fetch` below can't be redirected to an attacker URL (SSRF).
 async function requireEnvironment(
   environmentId: string,
-  // Mutating clock actions pass "ops.destructive" (maintainer+); the read path
-  // defaults to "read", which every authenticated user satisfies, so reads are
-  // never blocked and skip the per-project membership lookup.
-  capability: Capability = "read"
+  // Mutating clock actions pass { clock: ["control"] }; the read path defaults
+  // to project:read.
+  perms: ProjectPermissions = { project: ["read"] }
 ): Promise<
   | { ok: true; environment: EnvironmentWithServers; userId: string }
   | { ok: false; error: string }
@@ -51,10 +50,10 @@ async function requireEnvironment(
   if (!uuidSchema.safeParse(environmentId).success) {
     return { ok: false, error: "Invalid environment id" };
   }
-  const session =
-    capability === "read"
-      ? await requireSession()
-      : await requireCapability(capability, { environmentId });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    perms
+  );
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) return { ok: false, error: "Environment not found" };
   return { ok: true, environment, userId: session.user.id };
@@ -248,7 +247,7 @@ export async function travelClock(
   environmentId: string,
   target: string
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, error: ctx.error };
   if (!isoDateTimeSchema.safeParse(target).success) {
     return { success: false, error: "Invalid target timestamp" };
@@ -268,7 +267,7 @@ export async function freezeClock(
   environmentId: string,
   at: string | null
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, error: ctx.error };
   if (at !== null && !isoDateTimeSchema.safeParse(at).success) {
     return { success: false, error: "Invalid freeze timestamp" };
@@ -292,7 +291,7 @@ export async function advanceClock(
   environmentId: string,
   duration: string
 ): Promise<ApiResult<ClockState>> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, error: ctx.error };
   if (!isoDurationSchema.safeParse(duration).success) {
     return { success: false, error: "Invalid duration" };
@@ -311,7 +310,7 @@ export async function advanceClock(
 export async function resetClock(
   environmentId: string
 ): Promise<ApiResult<null>> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, error: ctx.error };
   // DELETE /clock returns 204 No Content — don't try to parse a body.
   const result = await callMutating(
@@ -329,7 +328,7 @@ export async function mockProjectTimeLegacy(
   environmentId: string,
   mockedAt: string
 ): Promise<LegacyResult> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   if (!isoDateTimeSchema.safeParse(mockedAt).success) {
     return { success: false, mode: "legacy", error: "Invalid timestamp" };
@@ -421,7 +420,7 @@ export async function advanceClockLegacy(
   environmentId: string,
   duration: string
 ): Promise<LegacyResult> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   const offsetMs = parseIsoDurationMs(duration);
   if (offsetMs === null) {
@@ -466,7 +465,7 @@ export async function advanceClockLegacy(
 export async function resetClockLegacy(
   environmentId: string
 ): Promise<LegacyResult> {
-  const ctx = await requireEnvironment(environmentId, "ops.destructive");
+  const ctx = await requireEnvironment(environmentId, { clock: ["control"] });
   if (!ctx.ok) return { success: false, mode: "legacy", error: ctx.error };
   try {
     const runId = await createRun({
