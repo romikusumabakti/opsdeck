@@ -246,7 +246,7 @@ export function EnvironmentForm({
         return;
       }
       toast.success(t("savedSuccess"));
-      form.reset(values);
+      form.reset({ ...form.getValues(), ...values });
       router.refresh();
       return;
     }
