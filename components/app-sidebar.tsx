@@ -19,6 +19,7 @@ import {
   Server,
   ServerCog,
   Settings,
+  ShieldCheck,
   ShieldUser,
   Users,
 } from "lucide-react";
@@ -90,6 +91,12 @@ const adminItems: {
   icon: LucideIcon;
   perm: OrgPermissions;
 }[] = [
+  {
+    key: "access",
+    url: "/admin/access",
+    icon: ShieldCheck,
+    perm: { audit: ["read"] },
+  },
   {
     key: "activity",
     url: "/admin/activity",
