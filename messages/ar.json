@@ -1528,7 +1528,10 @@
     "mailCleared": "أفرغ {actor} صندوق بريد {environment}",
     "userOffboarded": "{actor} ألغى وصول {user}",
     "userRoleChanged": "{actor} غيّر دور {user} من {from} إلى {to}",
-    "userInvited": "{actor} دعا {email} بصفة {role}"
+    "userInvited": "{actor} دعا {email} بصفة {role}",
+    "userDeleted": "{actor} حذف {user}",
+    "userInvitationRevoked": "{actor} ألغى دعوة {email}",
+    "userInvitationResent": "{actor} أعاد إرسال الدعوة إلى {email}"
   },
   "jira": {
     "title": "Jira",

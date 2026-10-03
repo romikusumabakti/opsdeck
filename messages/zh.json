@@ -1528,7 +1528,10 @@
     "mailCleared": "{actor} 清空了 {environment} 的收件箱",
     "userOffboarded": "{actor} 移除了 {user} 的访问权限",
     "userRoleChanged": "{actor} 将 {user} 的角色从 {from} 改为 {to}",
-    "userInvited": "{actor} 邀请 {email} 为 {role}"
+    "userInvited": "{actor} 邀请 {email} 为 {role}",
+    "userDeleted": "{actor} 删除了 {user}",
+    "userInvitationRevoked": "{actor} 撤销了 {email} 的邀请",
+    "userInvitationResent": "{actor} 重新发送了给 {email} 的邀请"
   },
   "jira": {
     "title": "Jira",
