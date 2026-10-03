@@ -191,6 +191,43 @@ describe("mention notifications only reach users who can see the project", () =>
   });
 });
 
+describe("lookups by client-supplied id check the caller first", () => {
+  it("recordEnvironmentAccess only records visible environments", () => {
+    const fn = body(
+      readFileSync("actions/environments.ts", "utf8"),
+      "recordEnvironmentAccess"
+    );
+    expect(fn).toMatch(/getProjectRole\(\{ environmentId \}\)/);
+    expect(fn.indexOf("getProjectRole(")).toBeLessThan(fn.indexOf(".insert("));
+  });
+  it("getRunSnapshot rejects a non-uuid run id before querying", () => {
+    const fn = body(readFileSync("actions/runs.ts", "utf8"), "getRunSnapshot");
+    expect(fn).toMatch(/uuidSchema\.safeParse\(runId\)/);
+    expect(fn.indexOf("uuidSchema.safeParse(runId)")).toBeLessThan(
+      fn.indexOf("findFirst(")
+    );
+  });
+  it("milestoneProjectId requires a session before its lookup", () => {
+    const source = readFileSync("actions/milestones.ts", "utf8");
+    const start = source.indexOf("async function milestoneProjectId");
+    const end = source.slice(start).search(/\r?\n\}\r?\n/);
+    expect(end).toBeGreaterThan(0);
+    const fn = source.slice(start, start + end);
+    expect(fn.indexOf("requireSession()")).toBeGreaterThan(-1);
+    expect(fn.indexOf("requireSession()")).toBeLessThan(fn.indexOf(".select("));
+  });
+  it("deleteIssueAttachment requires a session before its lookup", () => {
+    const fn = body(
+      readFileSync("actions/issue-attachments.ts", "utf8"),
+      "deleteIssueAttachment"
+    );
+    expect(fn.indexOf("requireSession()")).toBeGreaterThan(-1);
+    expect(fn.indexOf("requireSession()")).toBeLessThan(
+      fn.indexOf("findFirst(")
+    );
+  });
+});
+
 // The old catch-all helpers have been removed. Everything under actions, lib, app
 // and components is scanned to ensure no legacy helper calls remain.
 describe("no legacy authorization helpers outside lib/auth-session", () => {

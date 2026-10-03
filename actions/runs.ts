@@ -10,6 +10,7 @@ import {
 } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environments, type Run, runs } from "@/lib/db/schema";
+import { uuidSchema } from "@/lib/validation";
 
 export type RunWithUser = Run & {
   user: { id: string; name: string; email: string } | null;
@@ -140,6 +141,8 @@ export async function getRunSnapshot(
   runId: string
 ): Promise<RunSnapshot | null> {
   await requireSession();
+  // Ids come from the client; a non-uuid is "not found", not a Postgres error.
+  if (!uuidSchema.safeParse(runId).success) return null;
   const row = await db.query.runs.findFirst({
     where: { id: runId },
     columns: {
