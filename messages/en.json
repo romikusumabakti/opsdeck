@@ -37,7 +37,8 @@
     "errorDetails": "Details",
     "capsLockOn": "Caps Lock is on",
     "more": "More",
-    "create": "Create"
+    "create": "Create",
+    "view": "View"
   },
   "dataTable": {
     "searchPlaceholder": "Search…",
@@ -750,7 +751,8 @@
     "description": "Update SSH credentials and review where this server is used.",
     "formTitle": "SSH credentials",
     "formDescription": "Leave the password blank to keep it unchanged.",
-    "backToServers": "Back to servers"
+    "backToServers": "Back to servers",
+    "viewTitle": "Server: {name}"
   },
   "localeSwitcher": {
     "ariaLabel": "Select language"

@@ -37,7 +37,8 @@
     "errorDetails": "详情",
     "capsLockOn": "大写锁定已开启",
     "more": "更多",
-    "create": "创建"
+    "create": "创建",
+    "view": "查看"
   },
   "dataTable": {
     "searchPlaceholder": "搜索…",
@@ -750,7 +751,8 @@
     "description": "更新 SSH 凭据并查看此服务器的使用情况。",
     "formTitle": "SSH 凭据",
     "formDescription": "留空密码则保持不变。",
-    "backToServers": "返回服务器列表"
+    "backToServers": "返回服务器列表",
+    "viewTitle": "服务器：{name}"
   },
   "localeSwitcher": {
     "ariaLabel": "选择语言"

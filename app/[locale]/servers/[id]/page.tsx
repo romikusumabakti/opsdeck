@@ -16,6 +16,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import { requireOrgPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 
 export default async function EditServerPage({
   params,
@@ -25,7 +26,9 @@ export default async function EditServerPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireOrgPage({ server: ["read"] });
+  const session = await requireOrgPage({ server: ["read"] });
+  // Observers (server:read) see the details read-only.
+  const canManage = canOrg(session.user.role, { server: ["manage"] });
 
   const [server, usage] = await Promise.all([
     getServerById(id),
@@ -40,7 +43,11 @@ export default async function EditServerPage({
   return (
     <>
       <PageHeader
-        title={t("title", { name: server.name })}
+        title={
+          canManage
+            ? t("title", { name: server.name })
+            : t("viewTitle", { name: server.name })
+        }
         subtitle={t("description")}
         action={
           <Button variant="outline" render={<Link href="/servers" />}>
@@ -59,7 +66,7 @@ export default async function EditServerPage({
             <CardDescription>{t("formDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ServerForm mode={{ type: "edit", server }} />
+            <ServerForm mode={{ type: "edit", server }} readOnly={!canManage} />
           </CardContent>
         </Card>
 

@@ -17,7 +17,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { SafeCloudflareZone } from "@/lib/db/schema";
 
-export function ZonesClient({ zones }: { zones: SafeCloudflareZone[] }) {
+export function ZonesClient({
+  zones,
+  canManage,
+}: {
+  zones: SafeCloudflareZone[];
+  canManage: boolean;
+}) {
   const t = useTranslations("zones");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
@@ -107,6 +113,9 @@ export function ZonesClient({ zones }: { zones: SafeCloudflareZone[] }) {
     ],
     [t, tCommon, isPending, onDelete]
   );
+  const visibleColumns = canManage
+    ? columns
+    : columns.filter((c) => c.id !== "actions");
 
   if (optimistic.length === 0) {
     return (
@@ -116,10 +125,12 @@ export function ZonesClient({ zones }: { zones: SafeCloudflareZone[] }) {
           title={t("emptyTitle")}
           description={t("empty")}
           action={
-            <Button render={<Link href="/admin/tunnels/zones/new" />}>
-              <Plus className="size-4" />
-              {t("addZone")}
-            </Button>
+            canManage ? (
+              <Button render={<Link href="/admin/tunnels/zones/new" />}>
+                <Plus className="size-4" />
+                {t("addZone")}
+              </Button>
+            ) : undefined
           }
         />
       </div>
@@ -128,7 +139,7 @@ export function ZonesClient({ zones }: { zones: SafeCloudflareZone[] }) {
 
   return (
     <DataTable
-      columns={columns}
+      columns={visibleColumns}
       data={optimistic}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
