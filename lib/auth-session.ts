@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { cache } from "react";
+import { redirect } from "@/i18n/navigation";
 import { auth } from "./auth";
 
 /**
@@ -30,7 +31,6 @@ export async function requireSession() {
     // Proxy only checks cookie presence; a stale cookie reaches here.
     // `redirect` is typed `void`, so throw to narrow the return type for
     // callers that read `session.user.*` directly afterwards.
-    const { redirect } = await import("@/i18n/navigation");
     await redirect("/sign-in");
     throw new Error("redirect did not abort");
   }

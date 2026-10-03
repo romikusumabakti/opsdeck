@@ -156,8 +156,8 @@ describe("issue writes validate their references", () => {
   });
 });
 
-// The old catch-all helpers live only in lib/auth-session until Task 8 removes
-// them. Everything under actions, lib, app and components is scanned.
+// The old catch-all helpers have been removed. Everything under actions, lib, app
+// and components is scanned to ensure no legacy helper calls remain.
 describe("no legacy authorization helpers outside lib/auth-session", () => {
   const LEGACY =
     /\b(requireAdmin|isAdmin|requireCapability|getEffectiveRole|roleHasCapability|useCanRunOps)\(/;
@@ -202,7 +202,11 @@ describe("old role module is gone", () => {
     expect(existsSync("lib/roles.ts")).toBe(false);
   });
   it("nothing imports @/lib/roles", () => {
-    for (const file of new Bun.Glob("{actions,app,lib,components,tests}/**/*.{ts,tsx}").scanSync(".")) {
+    const files = Array.from(
+      new Bun.Glob("{actions,app,lib,components,tests}/**/*.{ts,tsx}").scanSync(".")
+    );
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
       if (file === "tests/authz-guards.test.ts") continue;
       expect(readFileSync(file, "utf8")).not.toContain('@/lib/roles"');
     }
