@@ -1501,6 +1501,7 @@
     "issueStatusChanged": "{actor} moved {key} to {status}",
     "memberAdded": "{actor} added {user} to {project} as {role}",
     "memberRemoved": "{actor} removed {user} from {project}",
+    "memberRoleChanged": "{actor} changed {user} in {project} from {from} to {to}",
     "milestoneCreated": "{actor} created milestone {name}",
     "terminalOpened": "{actor} opened a terminal on {server}",
     "terminalClosed": "{actor} closed a terminal on {server} after {seconds}s",

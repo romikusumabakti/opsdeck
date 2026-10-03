@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth-session";
+import { routeProjectGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import { issueAttachments } from "@/lib/db/schema";
@@ -26,22 +26,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  const session = await requireSession();
-
   const { id } = await params;
   if (!issueIdSchema.safeParse(id).success) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
 
-  // Confirm the issue exists before storing bytes, so a bad id can't leave an
-  // orphaned object in the bucket.
-  const issue = await db.query.issues.findFirst({
-    where: { id },
-    columns: { id: true },
-  });
-  if (!issue) {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
+  // The guard resolves the issue's project, so an unknown issue is a 404 and a
+  // bad id can't leave an orphaned object in the bucket.
+  const guard = await routeProjectGuard({ issueId: id }, { issue: ["write"] });
+  if (!guard.ok) return guard.response;
+  const { session } = guard;
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");

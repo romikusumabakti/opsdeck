@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -245,7 +246,7 @@ export async function testJiraConnection(input: {
 export async function getJiraLink(
   projectId: string
 ): Promise<JiraLinkWithConnection | null> {
-  await requireSession();
+  await requireProjectPermission({ projectId }, { project: ["read"] });
   const [row] = await db
     .select({
       link: jiraProjectLinks,
@@ -274,11 +275,14 @@ export async function getJiraLink(
  * and kicks off an immediate incremental sweep.
  */
 export async function saveJiraLink(data: unknown): Promise<ActionResponse> {
-  await requireAdmin();
   const t = await getTranslations("actionErrors");
   const parsed = jiraProjectLinkSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
   const input = parsed.data;
+  await requireProjectPermission(
+    { projectId: input.projectId },
+    { environment: ["update"] }
+  );
 
   const [connection] = await db
     .select()
@@ -357,7 +361,7 @@ export async function saveJiraLink(data: unknown): Promise<ActionResponse> {
 export async function unlinkJiraProject(
   projectId: string
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireProjectPermission({ projectId }, { environment: ["update"] });
   const t = await getTranslations("actionErrors");
   try {
     // Row first: it is the source of truth. A sweep that fires against a
@@ -384,7 +388,7 @@ export async function syncJiraProjectNow(
   projectId: string,
   full = false
 ): Promise<ActionResponse> {
-  await requireAdmin();
+  await requireProjectPermission({ projectId }, { environment: ["update"] });
   const t = await getTranslations("actionErrors");
   const [link] = await db
     .select({ enabled: jiraProjectLinks.enabled })

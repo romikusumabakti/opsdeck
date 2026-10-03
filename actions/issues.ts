@@ -23,6 +23,8 @@ import {
   projectIdsWhere,
   projectScope,
   requireProjectPage,
+  requireProjectPermission,
+  requireProjectPermissionForAll,
 } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -35,6 +37,7 @@ import {
   issues,
   type LabelLite,
   labels,
+  projectMembers,
   projects,
   users as userTable,
 } from "@/lib/db/schema";
@@ -348,7 +351,10 @@ export async function addComment(
   issueId: string,
   body: string
 ): Promise<{ success: boolean; message?: string }> {
-  const session = await requireSession();
+  const { session } = await requireProjectPermission(
+    { issueId },
+    { issue: ["write"] }
+  );
   const trimmed = (body ?? "").trim();
   if (!trimmed) return { success: false, message: "Empty comment" };
   if (trimmed.length > 20_000) {
@@ -584,6 +590,45 @@ function isUuid(value: string | undefined): value is string {
   return !!value && z.uuid().safeParse(value).success;
 }
 
+// Private helpers: this is a "use server" file, so every export is a public
+// endpoint.
+
+// Projects owning the given issues; the bulk actions authorize against all of
+// them so a mixed selection is refused as a whole.
+async function owningProjectIds(ids: string[]): Promise<string[]> {
+  const owners = await db
+    .select({ projectId: issues.projectId })
+    .from(issues)
+    .where(inArray(issues.id, ids));
+  return owners.map((o) => o.projectId);
+}
+
+// An assignee must be able to work on the issue's project: an org admin/infra
+// (reaches every project) or a member of it. Mirrors listAssignableUsers.
+async function canAssignTo(
+  assigneeId: string,
+  projectId: string
+): Promise<boolean> {
+  const [user] = await db
+    .select({ role: userTable.role })
+    .from(userTable)
+    .where(eq(userTable.id, assigneeId))
+    .limit(1);
+  if (!user) return false;
+  if (user.role === "admin" || user.role === "infra") return true;
+  const [member] = await db
+    .select({ userId: projectMembers.userId })
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.userId, assigneeId),
+        eq(projectMembers.projectId, projectId)
+      )
+    )
+    .limit(1);
+  return !!member;
+}
+
 /** All issues for a logical project, newest first. */
 export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
   await requireProjectPage({ projectId });
@@ -612,12 +657,21 @@ export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
 export async function createIssue(
   data: unknown
 ): Promise<ActionResponse<Issue>> {
-  const session = await requireSession();
   const parsed = issueInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid issue data" };
   }
   const input = parsed.data;
+  const { session } = await requireProjectPermission(
+    { projectId: input.projectId },
+    { issue: ["write"] }
+  );
+  if (
+    input.assigneeId &&
+    !(await canAssignTo(input.assigneeId, input.projectId))
+  ) {
+    return { success: false, message: "Invalid issue data" };
+  }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -684,9 +738,18 @@ export async function updateIssue(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Issue>> {
-  const session = await requireSession();
+  const { session, projectId } = await requireProjectPermission(
+    { issueId: id },
+    { issue: ["write"] }
+  );
   const parsed = issueUpdateSchema.safeParse(data);
   if (!parsed.success) {
+    return { success: false, message: "Invalid issue data" };
+  }
+  if (
+    parsed.data.assigneeId &&
+    !(await canAssignTo(parsed.data.assigneeId, projectId))
+  ) {
     return { success: false, message: "Invalid issue data" };
   }
   // An issue can't be its own parent. (Deeper cycles are avoided in the UI by
@@ -742,7 +805,10 @@ export async function updateIssue(
   }
 }
 
-/** Convenience for the common inline status change on the board/list. */
+/**
+ * Convenience for the common inline status change on the board/list.
+ * updateIssue enforces issue:write on the issue's project.
+ */
 export async function setIssueStatus(
   id: string,
   status: string
@@ -755,10 +821,13 @@ export async function bulkSetStatus(
   ids: string[],
   status: string
 ): Promise<{ success: boolean; message?: string }> {
-  await requireSession();
   const parsed = issueStatusSchema.safeParse(status);
   if (!parsed.success) return { success: false, message: "Invalid status" };
   if (ids.length === 0) return { success: true };
+  if (!ids.every(isUuid)) return { success: false, message: "Invalid issue data" };
+  await requireProjectPermissionForAll(await owningProjectIds(ids), {
+    issue: ["write"],
+  });
   try {
     await db
       .update(issues)
@@ -776,8 +845,11 @@ export async function bulkSetStatus(
 export async function bulkDeleteIssues(
   ids: string[]
 ): Promise<{ success: boolean; message?: string }> {
-  await requireSession();
   if (ids.length === 0) return { success: true };
+  if (!ids.every(isUuid)) return { success: false, message: "Invalid issue data" };
+  await requireProjectPermissionForAll(await owningProjectIds(ids), {
+    issue: ["delete"],
+  });
   try {
     await db.delete(issues).where(inArray(issues.id, ids));
     revalidateIssues();
@@ -788,9 +860,9 @@ export async function bulkDeleteIssues(
   }
 }
 
-/** Delete an issue (creator or admin gate is enforced in the UI/route). */
+/** Delete an issue; needs issue:delete on its project. */
 export async function deleteIssue(id: string): Promise<ActionResponse> {
-  await requireSession();
+  await requireProjectPermission({ issueId: id }, { issue: ["delete"] });
   try {
     await db.delete(issues).where(and(eq(issues.id, id)));
     revalidateIssues();

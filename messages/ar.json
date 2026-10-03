@@ -1501,6 +1501,7 @@
     "issueStatusChanged": "نقل {actor} {key} إلى {status}",
     "memberAdded": "أضاف {actor} {user} إلى {project} بدور {role}",
     "memberRemoved": "أزال {actor} {user} من {project}",
+    "memberRoleChanged": "غيّر {actor} دور {user} في {project} من {from} إلى {to}",
     "milestoneCreated": "أنشأ {actor} معلمًا {name}",
     "terminalOpened": "{actor} فتح طرفية على {server}",
     "terminalClosed": "{actor} أغلق طرفية على {server} بعد {seconds} ثانية",

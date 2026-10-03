@@ -1,7 +1,7 @@
 "use server";
 
 import { unstable_cache, updateTag } from "next/cache";
-import { requireCapability, requireSession } from "@/lib/auth-session";
+import { requireProjectPermission } from "@/lib/authz";
 import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
@@ -82,7 +82,7 @@ async function probeBackupList(environmentId: string): Promise<Backup[]> {
 export async function getBackupList(
   environmentId: string
 ): Promise<BackupListResult> {
-  await requireSession();
+  await requireProjectPermission({ environmentId }, { database: ["backup"] });
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, error: "Invalid environment id" };
   }
@@ -113,7 +113,7 @@ export async function getBackupList(
 export async function revalidateBackupList(
   environmentId: string
 ): Promise<void> {
-  await requireSession();
+  await requireProjectPermission({ environmentId }, { database: ["backup"] });
   if (!uuidSchema.safeParse(environmentId).success) return;
   updateTag(backupListCacheTag(environmentId));
 }
@@ -125,9 +125,10 @@ export async function createDatabaseBackup(
   if (!uuidSchema.safeParse(environmentId).success) {
     throw new Error("Invalid environment id");
   }
-  const session = await requireCapability("ops.destructive", {
-    environmentId: environmentId,
-  });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { database: ["backup"] }
+  );
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
   const database = resolveTargetDatabase(
@@ -166,9 +167,10 @@ export async function restoreDatabaseBackup(
   if (!uuidSchema.safeParse(environmentId).success) {
     throw new Error("Invalid environment id");
   }
-  const session = await requireCapability("ops.destructive", {
-    environmentId: environmentId,
-  });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { database: ["restore"] }
+  );
   const parsedFilename = backupFilenameSchema.safeParse(options.filename);
   if (!parsedFilename.success) {
     throw new Error("Invalid backup filename");
@@ -193,6 +195,11 @@ export async function restoreDatabaseBackup(
     if (!uuidSchema.safeParse(options.sourceEnvironmentId).success) {
       throw new Error("Invalid source environment id");
     }
+    // Reading another environment's backup is a read of that project's data.
+    await requireProjectPermission(
+      { environmentId: options.sourceEnvironmentId },
+      { database: ["backup"] }
+    );
     const source = await loadEnvironmentWithServers(
       options.sourceEnvironmentId
     );
