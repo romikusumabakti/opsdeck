@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 // Cross-project reads must filter to the caller's projects. The DB lookups are
 // thin, so the cheapest durable check is structural: each listed function must
@@ -178,8 +178,6 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
     }
   });
   for (const file of files) {
-    // Both modules are deleted in Task 8; they define the helpers.
-    if (file === "lib/auth-session.ts" || file === "lib/roles.ts") continue;
     it(file, () => {
       expect(readFileSync(file, "utf8")).not.toMatch(LEGACY);
     });
@@ -196,5 +194,17 @@ describe("listServerOptions leaks nothing beyond id and name", () => {
   it("selects only id and name", () => {
     expect(fn).toMatch(/select\(\{ id: servers\.id, name: servers\.name \}\)/);
     expect(fn).not.toMatch(/select\(\)/);
+  });
+});
+
+describe("old role module is gone", () => {
+  it("lib/roles.ts no longer exists", () => {
+    expect(existsSync("lib/roles.ts")).toBe(false);
+  });
+  it("nothing imports @/lib/roles", () => {
+    for (const file of new Bun.Glob("{actions,app,lib,components,tests}/**/*.{ts,tsx}").scanSync(".")) {
+      if (file === "tests/authz-guards.test.ts") continue;
+      expect(readFileSync(file, "utf8")).not.toContain('@/lib/roles"');
+    }
   });
 });
