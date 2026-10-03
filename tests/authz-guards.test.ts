@@ -140,3 +140,17 @@ describe("project-scoped writes state their permission", () => {
     }
   }
 });
+
+describe("issue writes validate their references", () => {
+  const source = readFileSync("actions/issues.ts", "utf8");
+  for (const fn of ["createIssue", "updateIssue"]) {
+    it(`${fn} checks assignee and same-project references`, () => {
+      expect(body(source, fn)).toMatch(/canAssignTo/);
+      expect(body(source, fn)).toMatch(/referencesInProject/);
+    });
+  }
+  it("canAssignTo reuses the shared assignable-users predicate", () => {
+    expect(source).toMatch(/assignableUsersWhere\(/);
+    expect(source).not.toMatch(/"infra"/);
+  });
+});
