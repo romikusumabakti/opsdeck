@@ -33,11 +33,11 @@ import { PROJECT_ROLES, type ProjectRole } from "@/lib/permissions";
 export function ProjectMembersClient({
   projectId,
   initialMembers,
-  assignableUsers,
+  memberCandidates,
 }: {
   projectId: string;
   initialMembers: ProjectMemberRow[];
-  assignableUsers: { id: string; name: string }[];
+  memberCandidates: { id: string; name: string; email: string }[];
 }) {
   const t = useTranslations("projectMembers");
   const router = useRouter();
@@ -48,8 +48,8 @@ export function ProjectMembersClient({
   // Only offer users who aren't already members in the add picker.
   const candidates = useMemo(() => {
     const taken = new Set(initialMembers.map((m) => m.userId));
-    return assignableUsers.filter((u) => !taken.has(u.id));
-  }, [assignableUsers, initialMembers]);
+    return memberCandidates.filter((u) => !taken.has(u.id));
+  }, [memberCandidates, initialMembers]);
 
   function run(action: () => Promise<{ success: boolean; message?: string }>) {
     startTransition(async () => {
@@ -80,6 +80,7 @@ export function ProjectMembersClient({
             {candidates.map((u) => (
               <SelectItem key={u.id} value={u.id}>
                 {u.name}
+                <span className="text-muted-foreground text-xs">{u.email}</span>
               </SelectItem>
             ))}
           </SelectContent>

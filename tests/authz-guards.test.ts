@@ -119,6 +119,7 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
   },
   "actions/project-members.ts": {
     listProjectMembers: /member: \["manage"\]/,
+    listMemberCandidates: /member: \["manage"\]/,
     addProjectMember: /member: \["manage"\]/,
     updateProjectMemberRole: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,
