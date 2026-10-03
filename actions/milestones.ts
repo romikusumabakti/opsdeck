@@ -4,6 +4,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
+import { requireProjectPage } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import { issues, type Milestone, milestones } from "@/lib/db/schema";
@@ -18,7 +19,7 @@ export type MilestoneWithCount = Milestone & { issueCount: number };
 export async function listMilestones(
   projectId: string
 ): Promise<MilestoneWithCount[]> {
-  await requireSession();
+  await requireProjectPage({ projectId });
   try {
     const rows = await db
       .select({

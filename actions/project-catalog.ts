@@ -2,6 +2,7 @@
 
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getProjectRole, projectIdsWhere, projectScope } from "@/lib/authz";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -21,7 +22,11 @@ import {
 export async function listProjects(): Promise<Project[]> {
   await requireSession();
   try {
-    return await db.select().from(projects).orderBy(asc(projects.name));
+    return await db
+      .select()
+      .from(projects)
+      .where(await projectScope(projects.id))
+      .orderBy(asc(projects.name));
   } catch (error) {
     console.error("Failed to list projects:", error);
     return [];
@@ -69,6 +74,7 @@ export async function listProjectsWithEnvironments(): Promise<
   await requireSession();
   try {
     const rows = await db.query.projects.findMany({
+      where: { id: await projectIdsWhere() },
       with: WITH_DB_SERVICE,
       orderBy: { name: "asc" },
     });
@@ -84,6 +90,7 @@ export async function listProjectsWithEnvironments(): Promise<
 
 export async function getProject(id: string): Promise<Project | undefined> {
   await requireSession();
+  if (!(await getProjectRole({ projectId: id }))) return undefined;
   const [row] = await db
     .select()
     .from(projects)
@@ -97,6 +104,7 @@ export async function getProjectWithEnvironments(
   id: string
 ): Promise<ProjectWithEnvironments | undefined> {
   await requireSession();
+  if (!(await getProjectRole({ projectId: id }))) return undefined;
   const row = await db.query.projects.findFirst({
     where: { id },
     with: WITH_DB_SERVICE,
@@ -121,7 +129,7 @@ export async function getProjectByKeyWithEnvironments(
     where: { key: key.toUpperCase() },
     with: WITH_DB_SERVICE,
   });
-  if (!row) return undefined;
+  if (!row || !(await getProjectRole({ projectId: row.id }))) return undefined;
   return {
     ...row,
     ...flattenDbSummary(row as never),

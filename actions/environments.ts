@@ -2,6 +2,7 @@
 
 import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getProjectRole, projectScope } from "@/lib/authz";
 import {
   getServerSession,
   requireAdmin,
@@ -160,6 +161,7 @@ export async function listEnvironments(): Promise<EnvironmentListItem[]> {
           eq(environmentAccess.userId, session.user.id)
         )
       )
+      .where(await projectScope(environments.projectId))
       .orderBy(
         sql`${environmentAccess.lastAccessedAt} desc nulls last`,
         asc(environments.name)
@@ -211,7 +213,16 @@ export async function getEnvironmentsLastOpened(): Promise<
         lastAccessedAt: environmentAccess.lastAccessedAt,
       })
       .from(environmentAccess)
-      .where(eq(environmentAccess.userId, session.user.id));
+      .innerJoin(
+        environments,
+        eq(environments.id, environmentAccess.environmentId)
+      )
+      .where(
+        and(
+          eq(environmentAccess.userId, session.user.id),
+          await projectScope(environments.projectId)
+        )
+      );
     const map: Record<string, number> = {};
     for (const r of rows) map[r.environmentId] = r.lastAccessedAt.getTime();
     return map;
@@ -231,6 +242,7 @@ export async function getEnvironmentById(
   id: string
 ): Promise<SafeEnvironmentWithServers | undefined> {
   await requireSession();
+  if (!(await getProjectRole({ environmentId: id }))) return undefined;
   try {
     return (await loadSafeEnvironment(id)) ?? undefined;
   } catch (error) {

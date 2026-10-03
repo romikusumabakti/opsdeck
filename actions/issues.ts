@@ -18,6 +18,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
+import {
+  getProjectRole,
+  projectIdsWhere,
+  projectScope,
+  requireProjectPage,
+} from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -168,7 +174,12 @@ export async function getOpenIssueCounts(): Promise<Record<string, number>> {
         count: sql<number>`count(*)::int`,
       })
       .from(issues)
-      .where(inArray(issues.status, [...OPEN_STATUSES]))
+      .where(
+        and(
+          inArray(issues.status, [...OPEN_STATUSES]),
+          await projectScope(issues.projectId)
+        )
+      )
       .groupBy(issues.projectId);
     const map: Record<string, number> = {};
     for (const r of rows) map[r.projectId] = Number(r.count);
@@ -206,7 +217,8 @@ export async function getAssignedIssueCounts(): Promise<AssignedIssueCounts> {
       .where(
         and(
           eq(issues.assigneeId, session.user.id),
-          inArray(issues.status, [...OPEN_STATUSES])
+          inArray(issues.status, [...OPEN_STATUSES]),
+          await projectScope(issues.projectId)
         )
       )
       .groupBy(issues.projectId);
@@ -234,7 +246,7 @@ export async function listAssignedIssues(
   await requireSession();
   try {
     const rows = await db.query.issues.findMany({
-      where: { assigneeId: userId },
+      where: { assigneeId: userId, projectId: await projectIdsWhere() },
       with: {
         project: { columns: { id: true, name: true, key: true } },
         createdBy: { columns: { id: true, name: true } },
@@ -287,6 +299,7 @@ export async function getIssueDetail(
       columns: { id: true },
     });
     if (!project) return null;
+    if (!(await getProjectRole({ projectId: project.id }))) return null;
     const issue = await db.query.issues.findFirst({
       where: { projectId: project.id, number },
       with: {
@@ -439,6 +452,8 @@ export async function listAllIssues(
   const creatorUser = alias(userTable, "creator_user");
 
   const conditions: SQL[] = [];
+  const scope = await projectScope(issues.projectId);
+  if (scope) conditions.push(scope);
   const q = query.q?.trim();
   if (q) {
     const pattern = `%${q}%`;
@@ -571,7 +586,7 @@ function isUuid(value: string | undefined): value is string {
 
 /** All issues for a logical project, newest first. */
 export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
-  await requireSession();
+  await requireProjectPage({ projectId });
   try {
     const rows = await db.query.issues.findMany({
       where: { projectId },
