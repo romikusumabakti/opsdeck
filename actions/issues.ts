@@ -16,6 +16,9 @@ import {
 import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { listMilestones } from "@/actions/milestones";
+import { getProjectWithEnvironments } from "@/actions/project-catalog";
+import { listAssignableUsers } from "@/actions/users";
 import { recordActivity } from "@/lib/activity";
 import {
   assignableUsersWhere,
@@ -934,4 +937,34 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
     console.error(`Failed to delete issue ${id}:`, error);
     return { success: false, message: "Failed to delete issue" };
   }
+}
+
+export type IssueFormOptions = {
+  environments: { id: string; name: string }[];
+  users: { id: string; name: string }[];
+  milestones: { id: string; name: string }[];
+};
+
+/**
+ * The pickers of the create-issue form for one project, for callers that
+ * choose the project at runtime (Home's New issue). Gated on issue:write: the
+ * form is useless without it.
+ */
+export async function getIssueFormOptions(
+  projectId: string
+): Promise<IssueFormOptions> {
+  await requireProjectPermission({ projectId }, { issue: ["write"] });
+  const [project, users, milestones] = await Promise.all([
+    getProjectWithEnvironments(projectId),
+    listAssignableUsers(projectId),
+    listMilestones(projectId),
+  ]);
+  return {
+    environments: (project?.environments ?? []).map((e) => ({
+      id: e.id,
+      name: e.name,
+    })),
+    users,
+    milestones: milestones.map((m) => ({ id: m.id, name: m.name })),
+  };
 }

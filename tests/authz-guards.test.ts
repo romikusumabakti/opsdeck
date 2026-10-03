@@ -86,6 +86,7 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     bulkDeleteIssues:
       /requireProjectPermissionForAll\([\s\S]*issue: \["delete"\]/,
     deleteIssue: /issue: \["delete"\]/,
+    getIssueFormOptions: /issue: \["write"\]/,
   },
   "actions/issue-attachments.ts": {
     listIssueAttachments: /project: \["read"\]/,
