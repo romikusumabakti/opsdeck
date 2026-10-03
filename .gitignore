@@ -47,3 +47,6 @@ next-env.d.ts
 
 # Runtime lock (per-session, not team config)
 .claude/scheduled_tasks.lock
+
+# superpowers brainstorming companion
+.superpowers/
