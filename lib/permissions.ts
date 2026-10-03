@@ -74,6 +74,8 @@ const projectStatements = {
   service: ["logs", "control"],
   environment: ["create", "update", "delete"],
   member: ["manage"],
+  // Acknowledge a failed run so it leaves Home's "Needs attention" for everyone.
+  run: ["acknowledge"],
 } as const;
 
 export const projectAc = createAccessControl(projectStatements);
@@ -89,6 +91,7 @@ const contributorStatements = {
   mail: ["read", "delete"],
   clock: ["control"],
   database: ["backup", "restore"],
+  run: ["acknowledge"],
 } as const;
 
 export const projectRoles = {
@@ -103,6 +106,7 @@ export const projectRoles = {
     service: ["logs", "control"],
     environment: ["create", "update", "delete"],
     member: ["manage"],
+    run: ["acknowledge"],
   }),
 } satisfies Record<ProjectRole, unknown>;
 
