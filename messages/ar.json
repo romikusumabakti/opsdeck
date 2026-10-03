@@ -1531,7 +1531,9 @@
     "userInvited": "{actor} دعا {email} بصفة {role}",
     "userDeleted": "{actor} حذف {user}",
     "userInvitationRevoked": "{actor} ألغى دعوة {email}",
-    "userInvitationResent": "{actor} أعاد إرسال الدعوة إلى {email}"
+    "userInvitationResent": "{actor} أعاد إرسال الدعوة إلى {email}",
+    "runAcknowledged": "أقرّ {actor} بـ {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
+    "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}"
   },
   "jira": {
     "title": "Jira",

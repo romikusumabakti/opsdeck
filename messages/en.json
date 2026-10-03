@@ -1531,7 +1531,9 @@
     "userInvited": "{actor} invited {email} as {role}",
     "userDeleted": "{actor} deleted {user}",
     "userInvitationRevoked": "{actor} revoked the invitation for {email}",
-    "userInvitationResent": "{actor} resent the invitation to {email}"
+    "userInvitationResent": "{actor} resent the invitation to {email}",
+    "runAcknowledged": "{actor} acknowledged {count, plural, one {# failed run} other {# failed runs}} in {environment}",
+    "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}"
   },
   "jira": {
     "title": "Jira",
