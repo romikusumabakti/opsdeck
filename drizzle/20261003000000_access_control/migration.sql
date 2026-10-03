@@ -5,6 +5,19 @@
 -- script — this file only maps old values to their safe new equivalents.
 BEGIN;
 
+-- Not re-run safe: a second run would rewrite infra/observer org roles to
+-- member and contributor memberships to viewer. The old project_role enum
+-- never had a `contributor` label, so its presence means this already ran.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+    WHERE t.typname = 'project_role' AND e.enumlabel = 'contributor'
+  ) THEN
+    RAISE EXCEPTION 'access_control migration already applied';
+  END IF;
+END $$;
+
 UPDATE users
    SET role = CASE WHEN role = 'admin' THEN 'admin' ELSE 'member' END
  WHERE role IS DISTINCT FROM CASE WHEN role = 'admin' THEN 'admin' ELSE 'member' END;
