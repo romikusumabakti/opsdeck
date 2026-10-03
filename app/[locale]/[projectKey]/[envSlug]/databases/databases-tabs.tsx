@@ -28,6 +28,8 @@ export function DatabasesTabs({
   listError,
   backupListError,
   defaultTab = "backup",
+  canBackup,
+  canRestore,
 }: {
   environment: SafeEnvironmentWithServers;
   databases: DatabaseEntry[];
@@ -36,6 +38,9 @@ export function DatabasesTabs({
   listError: string | null;
   backupListError: string | null;
   defaultTab?: "manage" | "backup" | "restore";
+  // Roles without database:backup / database:restore don't get those tabs.
+  canBackup: boolean;
+  canRestore: boolean;
 }) {
   const t = useTranslations("databases");
   const tBackup = useTranslations("backupDb");
@@ -57,64 +62,72 @@ export function DatabasesTabs({
       className="flex flex-1 min-h-0 flex-col gap-4"
     >
       <TabsList className="w-full shrink-0">
-        <TabsTrigger value="backup">
-          <Database className="size-4" />
-          {t("backupTab")}
-        </TabsTrigger>
-        <TabsTrigger value="restore">
-          <DatabaseBackup className="size-4" />
-          {t("restoreTab")}
-        </TabsTrigger>
+        {canBackup ? (
+          <TabsTrigger value="backup">
+            <Database className="size-4" />
+            {t("backupTab")}
+          </TabsTrigger>
+        ) : null}
+        {canRestore ? (
+          <TabsTrigger value="restore">
+            <DatabaseBackup className="size-4" />
+            {t("restoreTab")}
+          </TabsTrigger>
+        ) : null}
         <TabsTrigger value="manage">
           <DatabaseZap className="size-4" />
           {t("manageTab")}
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent
-        value="backup"
-        className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto"
-      >
-        <p className="text-sm text-muted-foreground">
-          {tBackup("targetDescription")}
-        </p>
-        <BackupDatabase environment={environment} databases={databases} />
-        <p className="text-xs text-muted-foreground">{tBackup("infoNote")}</p>
-      </TabsContent>
+      {canBackup ? (
+        <TabsContent
+          value="backup"
+          className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto"
+        >
+          <p className="text-sm text-muted-foreground">
+            {tBackup("targetDescription")}
+          </p>
+          <BackupDatabase environment={environment} databases={databases} />
+          <p className="text-xs text-muted-foreground">{tBackup("infoNote")}</p>
+        </TabsContent>
+      ) : null}
 
-      <TabsContent
-        value="restore"
-        className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto"
-      >
-        <p className="text-sm text-muted-foreground">
-          {tRestore("pickerDescription")}
-        </p>
-        {backupListError ? (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-            <p>{backupListError}</p>
-          </div>
-        ) : backups.length === 0 && sourceEnvironments.length === 0 ? (
-          <EmptyState
-            icon={DatabaseBackup}
-            title={tRestore("backupsNotFound")}
-            description={tRestore("backupsNotFoundDescription")}
-          />
-        ) : (
-          <>
+      {canRestore ? (
+        <TabsContent
+          value="restore"
+          className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto"
+        >
+          <p className="text-sm text-muted-foreground">
+            {tRestore("pickerDescription")}
+          </p>
+          {backupListError ? (
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-              <p>{tRestore("dangerNote")}</p>
+              <p>{backupListError}</p>
             </div>
-            <RestoreDatabase
-              environment={environment}
-              backups={backups}
-              databases={databases}
-              sourceEnvironments={sourceEnvironments}
+          ) : backups.length === 0 && sourceEnvironments.length === 0 ? (
+            <EmptyState
+              icon={DatabaseBackup}
+              title={tRestore("backupsNotFound")}
+              description={tRestore("backupsNotFoundDescription")}
             />
-          </>
-        )}
-      </TabsContent>
+          ) : (
+            <>
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <p>{tRestore("dangerNote")}</p>
+              </div>
+              <RestoreDatabase
+                environment={environment}
+                backups={backups}
+                databases={databases}
+                sourceEnvironments={sourceEnvironments}
+              />
+            </>
+          )}
+        </TabsContent>
+      ) : null}
 
       <TabsContent
         value="manage"
