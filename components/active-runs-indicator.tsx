@@ -12,21 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useRunCompletionNotifications } from "@/hooks/use-run-notifications";
-
-function toMs(value: Date | string): number {
-  // Server actions serialize Date to string over the wire — TS types still
-  // claim Date, so accept both at runtime to avoid NaN from .getTime().
-  return typeof value === "string" ? Date.parse(value) : value.getTime();
-}
-
-function formatElapsed(from: Date | string, now: number): string {
-  const ms = Math.max(0, now - toMs(from));
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rs = s % 60;
-  return `${m}m ${rs}s`;
-}
+import { formatElapsed } from "@/lib/elapsed";
 
 export function ActiveRunsIndicator() {
   const t = useTranslations("activeTasks");
