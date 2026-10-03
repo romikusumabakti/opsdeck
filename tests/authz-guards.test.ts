@@ -72,6 +72,10 @@ describe("cross-project reads are scoped", () => {
 
 // Every project-scoped mutation must state the permission it needs.
 const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
+  "actions/home.ts": {
+    acknowledgeAttentionGroup: /run: \["acknowledge"\]/,
+    unacknowledgeRuns: /run: \["acknowledge"\]/,
+  },
   "actions/issues.ts": {
     addComment: /issue: \["write"\]/,
     createIssue: /issue: \["write"\]/,
@@ -403,5 +407,23 @@ describe("old role module is gone", () => {
       if (file === "tests/authz-guards.test.ts") continue;
       expect(readFileSync(file, "utf8")).not.toContain('@/lib/roles"');
     }
+  });
+});
+
+describe("home acknowledgement actions", () => {
+  const source = readFileSync("actions/home.ts", "utf8");
+  for (const fn of ["acknowledgeAttentionGroup", "unacknowledgeRuns"]) {
+    it(`${fn} validates input before the permission lookup`, () => {
+      const b = body(source, fn);
+      expect(b.indexOf("safeParse")).toBeGreaterThan(-1);
+      expect(b.indexOf("safeParse")).toBeLessThan(
+        b.indexOf("requireProjectPermission(")
+      );
+    });
+  }
+  it("undo only clears acknowledgements the caller made", () => {
+    expect(body(source, "unacknowledgeRuns")).toMatch(
+      /eq\(runs\.acknowledgedById, session\.user\.id\)/
+    );
   });
 });
