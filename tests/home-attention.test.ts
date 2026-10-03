@@ -42,8 +42,8 @@ describe("groupFailures", () => {
     );
     const groups = groupFailures(rows, []);
     expect(groups).toHaveLength(1);
-    expect(groups[0].count).toBe(6);
-    expect(groups[0].latest.runAt).toEqual(at("2026-10-06T10:00:00Z"));
+    expect(groups[0]!.count).toBe(6);
+    expect(groups[0]!.latest.runAt).toEqual(at("2026-10-06T10:00:00Z"));
   });
 
   it("keeps the same key in two environments apart", () => {
