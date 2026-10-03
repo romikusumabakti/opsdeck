@@ -1401,19 +1401,6 @@
     "jiraTitle": "مزامنة Jira",
     "jiraDescription": "انسخ مشروع Jira إلى متتبّع المهام في هذا المشروع."
   },
-  "inbox": {
-    "title": "الرئيسية",
-    "subtitle": "عملك وما يحتاج إلى انتباه.",
-    "assignedToMe": "مُسنَد إليّ",
-    "assignedEmpty": "لا شيء مُسنَد إليك.",
-    "runningNow": "قيد التشغيل الآن",
-    "runningEmpty": "لا مهام قيد التشغيل.",
-    "needsAttention": "يحتاج انتباه",
-    "failedEmpty": "لا إخفاقات حديثة.",
-    "jumpBackIn": "العودة السريعة",
-    "recentEmpty": "لا بيئات حديثة.",
-    "viewAll": "عرض الكل"
-  },
   "homePage": {
     "title": "الرئيسية",
     "subtitle": "عملك وما يحتاج إلى انتباه.",

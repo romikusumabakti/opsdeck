@@ -1401,19 +1401,6 @@
     "jiraTitle": "Sincronización con Jira",
     "jiraDescription": "Replica un proyecto de Jira en el gestor de incidencias de este proyecto."
   },
-  "inbox": {
-    "title": "Inicio",
-    "subtitle": "Tu trabajo y lo que necesita atención.",
-    "assignedToMe": "Asignado a mí",
-    "assignedEmpty": "No tienes nada asignado.",
-    "runningNow": "Ejecutándose ahora",
-    "runningEmpty": "No hay trabajos en ejecución.",
-    "needsAttention": "Necesita atención",
-    "failedEmpty": "No hay fallos recientes.",
-    "jumpBackIn": "Retomar",
-    "recentEmpty": "No hay entornos recientes.",
-    "viewAll": "Ver todo"
-  },
   "homePage": {
     "title": "Inicio",
     "subtitle": "Tu trabajo y lo que necesita atención.",

@@ -27,7 +27,6 @@ import {
 import { requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
-  projectIdsWhere,
   projectScope,
   requireProjectPage,
   requireProjectPermission,
@@ -244,35 +243,6 @@ export async function getAssignedIssueCounts(): Promise<AssignedIssueCounts> {
   } catch (error) {
     console.error("Failed to count assigned issues:", error);
     return { total: 0, byProject: {} };
-  }
-}
-
-/**
- * Not-yet-resolved issues assigned to one user, newest-updated first — the
- * "assigned to me" feed on Home.
- */
-export async function listAssignedIssues(
-  userId: string
-): Promise<GlobalIssue[]> {
-  await requireSession();
-  try {
-    const rows = await db.query.issues.findMany({
-      where: { assigneeId: userId, projectId: await projectIdsWhere() },
-      with: {
-        project: { columns: { id: true, name: true, key: true } },
-        createdBy: { columns: { id: true, name: true } },
-        assignee: { columns: { id: true, name: true } },
-        environment: { columns: { id: true, name: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-    const open = rows.filter((i) =>
-      (OPEN_STATUSES as readonly string[]).includes(i.status)
-    );
-    return (await attachLabels(open)) as unknown as GlobalIssue[];
-  } catch (error) {
-    console.error("Failed to list assigned issues:", error);
-    return [];
   }
 }
 
