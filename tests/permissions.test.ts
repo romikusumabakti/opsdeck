@@ -81,39 +81,122 @@ describe("effectiveProjectRole", () => {
     });
   }
   it("never lets a junk org role see a project without membership", () => {
-    for (const r of JUNK_ROLES) expect(effectiveProjectRole(r, null)).toBeNull();
+    for (const r of JUNK_ROLES)
+      expect(effectiveProjectRole(r, null)).toBeNull();
   });
 });
 
 // The spec's org matrix, verbatim. One row per statement, one column per role.
 const ORG_MATRIX: [string, string, Record<OrgRole, boolean>][] = [
-  ["user", "list", { admin: true, infra: false, observer: true, member: false }],
-  ["user", "invite", { admin: true, infra: false, observer: false, member: false }],
-  ["user", "set-role", { admin: true, infra: false, observer: false, member: false }],
-  ["user", "offboard", { admin: true, infra: false, observer: false, member: false }],
-  ["project", "create", { admin: true, infra: false, observer: false, member: false }],
-  ["project", "delete", { admin: true, infra: false, observer: false, member: false }],
-  ["server", "read", { admin: true, infra: true, observer: true, member: false }],
-  ["server", "manage", { admin: true, infra: true, observer: false, member: false }],
-  ["server", "terminal", { admin: true, infra: true, observer: false, member: false }],
-  ["server", "files", { admin: true, infra: true, observer: false, member: false }],
-  ["storage", "read", { admin: true, infra: true, observer: true, member: false }],
-  ["storage", "manage", { admin: true, infra: true, observer: false, member: false }],
-  ["storage", "files", { admin: true, infra: true, observer: false, member: false }],
-  ["tunnel", "read", { admin: true, infra: true, observer: true, member: false }],
-  ["tunnel", "manage", { admin: true, infra: true, observer: false, member: false }],
-  ["integration", "manage", { admin: true, infra: false, observer: false, member: false }],
-  ["knowledge", "read", { admin: true, infra: true, observer: true, member: true }],
-  ["knowledge", "write", { admin: true, infra: true, observer: false, member: true }],
-  ["knowledge", "manage", { admin: true, infra: false, observer: false, member: false }],
-  ["audit", "read", { admin: true, infra: true, observer: true, member: false }],
+  [
+    "user",
+    "list",
+    { admin: true, infra: false, observer: true, member: false },
+  ],
+  [
+    "user",
+    "invite",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "user",
+    "set-role",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "user",
+    "offboard",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "project",
+    "create",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "project",
+    "delete",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "server",
+    "read",
+    { admin: true, infra: true, observer: true, member: false },
+  ],
+  [
+    "server",
+    "manage",
+    { admin: true, infra: true, observer: false, member: false },
+  ],
+  [
+    "server",
+    "terminal",
+    { admin: true, infra: true, observer: false, member: false },
+  ],
+  [
+    "server",
+    "files",
+    { admin: true, infra: true, observer: false, member: false },
+  ],
+  [
+    "storage",
+    "read",
+    { admin: true, infra: true, observer: true, member: false },
+  ],
+  [
+    "storage",
+    "manage",
+    { admin: true, infra: true, observer: false, member: false },
+  ],
+  [
+    "storage",
+    "files",
+    { admin: true, infra: true, observer: false, member: false },
+  ],
+  [
+    "tunnel",
+    "read",
+    { admin: true, infra: true, observer: true, member: false },
+  ],
+  [
+    "tunnel",
+    "manage",
+    { admin: true, infra: true, observer: false, member: false },
+  ],
+  [
+    "integration",
+    "manage",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "knowledge",
+    "read",
+    { admin: true, infra: true, observer: true, member: true },
+  ],
+  [
+    "knowledge",
+    "write",
+    { admin: true, infra: true, observer: false, member: true },
+  ],
+  [
+    "knowledge",
+    "manage",
+    { admin: true, infra: false, observer: false, member: false },
+  ],
+  [
+    "audit",
+    "read",
+    { admin: true, infra: true, observer: true, member: false },
+  ],
 ];
 
 describe("canOrg matrix", () => {
   for (const [resource, action, expected] of ORG_MATRIX) {
     for (const role of ORG_ROLES) {
       it(`${role} ${expected[role] ? "can" : "cannot"} ${resource}:${action}`, () => {
-        expect(canOrg(role, { [resource]: [action] } as never)).toBe(expected[role]);
+        expect(canOrg(role, { [resource]: [action] } as never)).toBe(
+          expected[role]
+        );
       });
     }
   }
@@ -134,23 +217,62 @@ const PROJECT_MATRIX: [string, string, Record<ProjectRole, boolean>][] = [
   ["mail", "read", { viewer: false, contributor: true, maintainer: true }],
   ["mail", "delete", { viewer: false, contributor: true, maintainer: true }],
   ["clock", "control", { viewer: false, contributor: true, maintainer: true }],
-  ["database", "backup", { viewer: false, contributor: true, maintainer: true }],
-  ["database", "restore", { viewer: false, contributor: true, maintainer: true }],
-  ["database", "create", { viewer: false, contributor: false, maintainer: true }],
+  [
+    "database",
+    "backup",
+    { viewer: false, contributor: true, maintainer: true },
+  ],
+  [
+    "database",
+    "restore",
+    { viewer: false, contributor: true, maintainer: true },
+  ],
+  [
+    "database",
+    "create",
+    { viewer: false, contributor: false, maintainer: true },
+  ],
   ["database", "drop", { viewer: false, contributor: false, maintainer: true }],
-  ["database", "rename", { viewer: false, contributor: false, maintainer: true }],
-  ["service", "control", { viewer: false, contributor: false, maintainer: true }],
-  ["environment", "create", { viewer: false, contributor: false, maintainer: true }],
-  ["environment", "update", { viewer: false, contributor: false, maintainer: true }],
-  ["environment", "delete", { viewer: false, contributor: false, maintainer: true }],
+  [
+    "database",
+    "rename",
+    { viewer: false, contributor: false, maintainer: true },
+  ],
+  [
+    "service",
+    "control",
+    { viewer: false, contributor: false, maintainer: true },
+  ],
+  [
+    "environment",
+    "create",
+    { viewer: false, contributor: false, maintainer: true },
+  ],
+  [
+    "environment",
+    "update",
+    { viewer: false, contributor: false, maintainer: true },
+  ],
+  [
+    "environment",
+    "delete",
+    { viewer: false, contributor: false, maintainer: true },
+  ],
   ["member", "manage", { viewer: false, contributor: false, maintainer: true }],
+  [
+    "run",
+    "acknowledge",
+    { viewer: false, contributor: true, maintainer: true },
+  ],
 ];
 
 describe("canProject matrix", () => {
   for (const [resource, action, expected] of PROJECT_MATRIX) {
     for (const role of PROJECT_ROLES) {
       it(`${role} ${expected[role] ? "can" : "cannot"} ${resource}:${action}`, () => {
-        expect(canProject(role, { [resource]: [action] } as never)).toBe(expected[role]);
+        expect(canProject(role, { [resource]: [action] } as never)).toBe(
+          expected[role]
+        );
       });
     }
   }
