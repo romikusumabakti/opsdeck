@@ -426,3 +426,31 @@ describe("home acknowledgement actions", () => {
     );
   });
 });
+
+// Home's attention groups key on runs.kind; a run created without one falls
+// back to its per-run description and never groups or auto-resolves.
+describe("ops runs record their kind", () => {
+  // Each call's argument object runs to the first "});" after it.
+  function runInserts(source: string): string[] {
+    const calls: string[] = [];
+    const re = /createRun\(\{|\.insert\(runs\)\.values\(\{/g;
+    for (const m of source.matchAll(re)) {
+      const end = source.indexOf("});", m.index);
+      calls.push(source.slice(m.index, end));
+    }
+    return calls;
+  }
+  for (const file of ["actions/backups.ts", "actions/mock-time.ts"]) {
+    it(`${file} sets kind on every run it creates`, () => {
+      const calls = runInserts(readFileSync(file, "utf8"));
+      expect(calls.length).toBeGreaterThan(0);
+      for (const call of calls) expect(call).toMatch(/\bkind: "/);
+    });
+  }
+  it("covers every run-creation site in both files", () => {
+    const count = (file: string) =>
+      runInserts(readFileSync(file, "utf8")).length;
+    expect(count("actions/backups.ts")).toBe(2);
+    expect(count("actions/mock-time.ts")).toBe(4);
+  });
+});
