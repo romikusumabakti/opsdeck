@@ -143,6 +143,7 @@ export async function createDatabaseBackup(
     description: compress
       ? `Backup database (${database})`
       : `Backup database (${database}, uncompressed)`,
+    kind: "backup",
   });
   // Enqueue only the environmentId + database — the worker re-loads credentials
   // server-side so they never live in the job payload.
@@ -217,6 +218,7 @@ export async function restoreDatabaseBackup(
     description: options.restartBackend
       ? `Restore database ${database} from ${filename} (+ restart backend)`
       : `Restore database ${database} from ${filename}`,
+    kind: "restore",
   });
   await enqueue("db/restore.requested", {
     environmentId: environment.id,
