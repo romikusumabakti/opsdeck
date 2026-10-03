@@ -34,6 +34,7 @@ import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
+import { canOrg, type OrgRole } from "@/lib/permissions";
 
 type UserSummary = {
   id: string;
@@ -50,11 +51,11 @@ const themeOptions = [
 
 export function UserMenu({
   user,
-  isAdmin,
+  orgRole,
   variant = "avatar",
 }: {
   user: UserSummary;
-  isAdmin: boolean;
+  orgRole: OrgRole;
   variant?: "avatar" | "sidebar";
 }) {
   const t = useTranslations("userMenu");
@@ -132,17 +133,17 @@ export function UserMenu({
           <UserRound />
           {t("account")}
         </DropdownMenuItem>
-        {isAdmin && (
-          <>
-            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
-              <Users />
-              {t("users")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/servers")}>
-              <Server />
-              {t("servers")}
-            </DropdownMenuItem>
-          </>
+        {canOrg(orgRole, { user: ["list"] }) && (
+          <DropdownMenuItem onClick={() => router.push("/admin/users")}>
+            <Users />
+            {t("users")}
+          </DropdownMenuItem>
+        )}
+        {canOrg(orgRole, { server: ["read"] }) && (
+          <DropdownMenuItem onClick={() => router.push("/servers")}>
+            <Server />
+            {t("servers")}
+          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuSub>

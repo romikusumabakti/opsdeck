@@ -201,11 +201,11 @@ function DocNode({
 export function KnowledgeTree({
   collections,
   nodes,
-  isAdmin = false,
+  canManage = false,
 }: {
   collections: KnowledgeCollection[];
   nodes: KnowledgeTreeNode[];
-  isAdmin?: boolean;
+  canManage?: boolean;
 }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
@@ -417,9 +417,9 @@ export function KnowledgeTree({
         const isOpen = !collapsed.has(collection.id);
         return (
           <div key={collection.id}>
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: collection header is a drag handle (reorder, admin) and a drop target (doc → collection root) */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: collection header is a drag handle (reorder, canManage) and a drop target (doc → collection root) */}
             <div
-              draggable={isAdmin}
+              draggable={canManage}
               onDragStart={(e) => {
                 e.dataTransfer.effectAllowed = "move";
                 ctx.onDragStart(collection.id, "collection");

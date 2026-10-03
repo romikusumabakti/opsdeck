@@ -12,7 +12,7 @@ import {
 } from "@/actions/databases";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
-import { useCanRunOps } from "@/components/ops-capability";
+import { useProjectCan } from "@/components/project-role";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -35,7 +35,9 @@ export function ManageDatabases({
 }) {
   const t = useTranslations("databases");
   const tCommon = useTranslations("common");
-  const canRunOps = useCanRunOps();
+  const canCreate = useProjectCan({ database: ["create"] });
+  const canDrop = useProjectCan({ database: ["drop"] });
+  const canRename = useProjectCan({ database: ["rename"] });
   const dialog = useDialog();
   const router = useRouter();
   const [query, setQuery] = React.useState("");
@@ -161,7 +163,7 @@ export function ManageDatabases({
             {t("count", { count: databases.length })}
           </span>
         </div>
-        <Button onClick={onCreatePrompt} disabled={submitting || !canRunOps}>
+        <Button onClick={onCreatePrompt} disabled={submitting || !canCreate}>
           <Plus className="size-4" />
           {submitting ? t("queuing") : t("create")}
         </Button>
@@ -220,7 +222,7 @@ export function ManageDatabases({
                 variant="ghost"
                 size="icon"
                 className="shrink-0"
-                disabled={d.isDefault || submitting || !canRunOps}
+                disabled={d.isDefault || submitting || !canRename}
                 onClick={() => onRename(d.name)}
                 title={
                   d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
@@ -233,7 +235,7 @@ export function ManageDatabases({
                 variant="ghost"
                 size="icon"
                 className="shrink-0 text-destructive hover:text-destructive"
-                disabled={d.isDefault || submitting || !canRunOps}
+                disabled={d.isDefault || submitting || !canDrop}
                 onClick={() => onDrop(d.name)}
                 title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
                 aria-label={t("dropTitle")}

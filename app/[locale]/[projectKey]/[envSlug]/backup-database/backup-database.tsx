@@ -11,7 +11,7 @@ import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
-import { useCanRunOps } from "@/components/ops-capability";
+import { useProjectCan } from "@/components/project-role";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,7 +44,7 @@ export function BackupDatabase({
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
   const tDash = useTranslations("dashboard");
-  const canRunOps = useCanRunOps();
+  const canRunOps = useProjectCan({ database: ["backup"] });
   const dialog = useDialog();
   const router = useRouter();
   const dbSvc = dbService(environment);

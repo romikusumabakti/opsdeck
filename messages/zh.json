@@ -843,10 +843,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "角色",
     "role": {
-      "viewer": "只读",
-      "member": "成员",
-      "maintainer": "维护者",
-      "admin": "管理员"
+      "admin": "管理员",
+      "infra": "基础设施",
+      "observer": "观察者",
+      "member": "成员"
     },
     "roleChangeTitle": "更改角色",
     "roleChangeDescription": "将 {name} 的角色更改为 {role}？",
@@ -1454,15 +1454,14 @@
     "add": "添加",
     "role": {
       "viewer": "查看者",
-      "member": "成员",
-      "maintainer": "维护者",
-      "admin": "管理员"
+      "contributor": "贡献者",
+      "maintainer": "维护者"
     },
     "colName": "用户",
     "colRole": "角色",
     "remove": "移除",
     "empty": "暂无成员",
-    "emptyDescription": "添加成员以授予高于其全局角色的项目级访问权限。",
+    "emptyDescription": "只有成员（以及管理员、基础设施和观察者）可以查看此项目。",
     "addedSuccess": "已添加成员",
     "roleUpdatedSuccess": "角色已更新",
     "removedSuccess": "已移除成员",

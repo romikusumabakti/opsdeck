@@ -18,10 +18,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth-session";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import { ROLE_MAINTAINER, ROLE_RANK, roleRank } from "@/lib/roles";
+import { canOrg } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
-// Ops-capable users (maintainer+) lead with infra health; everyone else leads
+// Ops-oriented roles (admin, infra, observer) lead with infra health; everyone else leads
 // with their own work. Same four sections, reordered — one Home, role-adapted.
 // Literal order-* classes so Tailwind keeps them.
 const ORDER_OPS: Record<string, string> = {
@@ -68,10 +68,9 @@ export default async function HomePage({
   const ago = (d: Date) =>
     formatDistanceToNow(new Date(d), { addSuffix: true, locale: dfl });
 
-  const ord =
-    roleRank(session.user.role) >= ROLE_RANK[ROLE_MAINTAINER]
-      ? ORDER_OPS
-      : ORDER_WORK;
+  const ord = canOrg(session.user.role, { server: ["read"] })
+    ? ORDER_OPS
+    : ORDER_WORK;
 
   return (
     <>

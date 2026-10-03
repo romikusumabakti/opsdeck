@@ -38,13 +38,21 @@ import { useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
 import type { EnvironmentListItem } from "@/lib/db/schema";
+import {
+  canOrg,
+  canProject,
+  type OrgRole,
+  type ProjectRole,
+} from "@/lib/permissions";
 
 export function CommandPalette({
   environments,
-  isAdmin,
+  orgRole,
+  projectRoles,
 }: {
   environments: EnvironmentListItem[];
-  isAdmin: boolean;
+  orgRole: OrgRole;
+  projectRoles: Record<string, ProjectRole>;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -56,6 +64,11 @@ export function CommandPalette({
   const tHeader = useTranslations("header");
   const modKey = useModKey();
   const { setTheme } = useTheme();
+  // The palette has no project context: offer "create environment" when any
+  // project the caller can see lets them. The create dialog re-checks per project.
+  const canCreateEnvironment = Object.values(projectRoles).some((role) =>
+    canProject(role, { environment: ["create"] })
+  );
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -155,37 +168,41 @@ export function CommandPalette({
               <BookOpen />
               {tNav("knowledge")}
             </CommandItem>
-            {isAdmin && (
-              <>
-                <CommandItem
-                  value="servers"
-                  onSelect={() => run(() => router.push("/servers"))}
-                >
-                  <Server />
-                  {tUserMenu("servers")}
-                </CommandItem>
-                <CommandItem
-                  value="activity audit feed events"
-                  onSelect={() => run(() => router.push("/admin/activity"))}
-                >
-                  <Activity />
-                  {tNav("activity")}
-                </CommandItem>
-                <CommandItem
-                  value="jira integration connections"
-                  onSelect={() => run(() => router.push("/admin/jira"))}
-                >
-                  <Cable />
-                  {tNav("jira")}
-                </CommandItem>
-                <CommandItem
-                  value="users"
-                  onSelect={() => run(() => router.push("/admin/users"))}
-                >
-                  <Users />
-                  {tUserMenu("users")}
-                </CommandItem>
-              </>
+            {canOrg(orgRole, { server: ["read"] }) && (
+              <CommandItem
+                value="servers"
+                onSelect={() => run(() => router.push("/servers"))}
+              >
+                <Server />
+                {tUserMenu("servers")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { audit: ["read"] }) && (
+              <CommandItem
+                value="activity audit feed events"
+                onSelect={() => run(() => router.push("/admin/activity"))}
+              >
+                <Activity />
+                {tNav("activity")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { integration: ["manage"] }) && (
+              <CommandItem
+                value="jira integration connections"
+                onSelect={() => run(() => router.push("/admin/jira"))}
+              >
+                <Cable />
+                {tNav("jira")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { user: ["list"] }) && (
+              <CommandItem
+                value="users"
+                onSelect={() => run(() => router.push("/admin/users"))}
+              >
+                <Users />
+                {tUserMenu("users")}
+              </CommandItem>
             )}
           </CommandGroup>
 
@@ -205,7 +222,7 @@ export function CommandPalette({
                     <span className="truncate">{env.name}</span>
                   </CommandItem>
                 ))}
-                {isAdmin && (
+                {canCreateEnvironment && (
                   // An environment needs a parent project, so the palette (which
                   // has no project context) sends the user to the list, where
                   // every project card carries the action.

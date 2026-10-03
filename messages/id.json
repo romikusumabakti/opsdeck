@@ -843,10 +843,10 @@
     "emailPlaceholder": "user@{{EMAIL_DOMAIN}}",
     "roleLabel": "Peran",
     "role": {
-      "viewer": "Pengamat",
-      "member": "Anggota",
-      "maintainer": "Maintainer",
-      "admin": "Admin"
+      "admin": "Admin",
+      "infra": "Infra",
+      "observer": "Pengamat",
+      "member": "Anggota"
     },
     "roleChangeTitle": "Ubah peran",
     "roleChangeDescription": "Ubah peran {name} menjadi {role}?",
@@ -1454,15 +1454,14 @@
     "add": "Tambah",
     "role": {
       "viewer": "Pengamat",
-      "member": "Anggota",
-      "maintainer": "Pengelola",
-      "admin": "Admin"
+      "contributor": "Kontributor",
+      "maintainer": "Pengelola"
     },
     "colName": "Pengguna",
     "colRole": "Peran",
     "remove": "Hapus",
     "empty": "Belum ada anggota",
-    "emptyDescription": "Tambahkan anggota untuk memberi akses per-proyek di atas peran global mereka.",
+    "emptyDescription": "Hanya anggota (serta admin, infra, dan pengamat) yang bisa melihat project ini.",
     "addedSuccess": "Anggota ditambahkan",
     "roleUpdatedSuccess": "Peran diperbarui",
     "removedSuccess": "Anggota dihapus",
