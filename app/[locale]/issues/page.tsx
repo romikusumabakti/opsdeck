@@ -3,7 +3,7 @@ import { listAllIssues } from "@/actions/issues";
 import { listLabels } from "@/actions/labels";
 import { listProjects } from "@/actions/project-catalog";
 import { listSavedViews } from "@/actions/saved-views";
-import { listAssignableUsers } from "@/actions/users";
+import { listAssignableUsersAcrossProjects } from "@/actions/users";
 import { GlobalIssuesClient } from "@/components/global-issues-client";
 import { PageHeader } from "@/components/page-header";
 import { requireSession } from "@/lib/auth-session";
@@ -38,7 +38,7 @@ export default async function GlobalIssuesPage({
       offset: isBoard ? 0 : pageIndex * pageSize,
       limit: isBoard ? BOARD_LIMIT : pageSize,
     }),
-    listAssignableUsers(),
+    listAssignableUsersAcrossProjects(),
     listLabels(),
     listSavedViews(),
     // From the project table, not from the loaded issues: a project with no

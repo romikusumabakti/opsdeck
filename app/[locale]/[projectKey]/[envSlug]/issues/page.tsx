@@ -31,7 +31,7 @@ export default async function IssuesPage({
   const [project, issues, users, milestones] = await Promise.all([
     getProjectWithEnvironments(env.projectId),
     listIssues(env.projectId),
-    listAssignableUsers(),
+    listAssignableUsers(env.projectId),
     listMilestones(env.projectId),
   ]);
   if (!project) {

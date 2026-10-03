@@ -44,7 +44,7 @@ export default async function IssueDetailPage({
     t,
   ] = await Promise.all([
     getProjectWithEnvironments(issue.project.id),
-    listAssignableUsers(),
+    listAssignableUsers(issue.project.id),
     listLabels(),
     listMilestones(issue.project.id),
     listIssues(issue.project.id),

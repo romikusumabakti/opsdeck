@@ -1,9 +1,15 @@
 "use server";
 
-import { and, desc, eq, gte, like } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-session";
+import {
+  getProjectRole,
+  projectIdsWhere,
+  projectScope,
+  requireProjectPage,
+} from "@/lib/authz";
 import { db } from "@/lib/db";
-import { type Run, runs } from "@/lib/db/schema";
+import { environments, type Run, runs } from "@/lib/db/schema";
 
 export type RunWithUser = Run & {
   user: { id: string; name: string; email: string } | null;
@@ -35,6 +41,7 @@ export async function getEnvironmentsLastActivity(): Promise<
   Record<string, EnvironmentActivity>
 > {
   await requireSession();
+  const scope = await projectScope(environments.projectId);
   try {
     const rows = await db
       .selectDistinctOn([runs.environmentId], {
@@ -43,6 +50,14 @@ export async function getEnvironmentsLastActivity(): Promise<
         runAt: runs.runAt,
       })
       .from(runs)
+      .where(
+        scope
+          ? inArray(
+              runs.environmentId,
+              db.select({ id: environments.id }).from(environments).where(scope)
+            )
+          : undefined
+      )
       .orderBy(runs.environmentId, desc(runs.runAt));
     const map: Record<string, EnvironmentActivity> = {};
     for (const row of rows) {
@@ -57,9 +72,13 @@ export async function getEnvironmentsLastActivity(): Promise<
 
 export async function getActiveRuns(): Promise<ActiveRun[]> {
   await requireSession();
+  const projectIds = await projectIdsWhere();
   try {
     const rows = await db.query.runs.findMany({
-      where: { status: "started" },
+      where: {
+        status: "started",
+        ...(projectIds && { environment: { projectId: projectIds } }),
+      },
       columns: {
         id: true,
         environmentId: true,
@@ -84,7 +103,7 @@ export async function getActiveRuns(): Promise<ActiveRun[]> {
 export async function getEnvironmentRuns(
   environmentId: string
 ): Promise<RunWithUser[]> {
-  await requireSession();
+  await requireProjectPage({ environmentId });
   try {
     const rows = await db.query.runs.findMany({
       where: { environmentId: environmentId },
@@ -121,6 +140,13 @@ export async function getRunSnapshot(
   runId: string
 ): Promise<RunSnapshot | null> {
   await requireSession();
+  const run = await db.query.runs.findFirst({
+    where: { id: runId },
+    columns: { environmentId: true },
+  });
+  if (!run || !(await getProjectRole({ environmentId: run.environmentId }))) {
+    return null;
+  }
   const row = await db.query.runs.findFirst({
     where: { id: runId },
     columns: {
@@ -193,7 +219,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function getEnvironmentKpis(
   environmentId: string
 ): Promise<EnvironmentKpis> {
-  await requireSession();
+  await requireProjectPage({ environmentId });
   // Pull 14 days so we can compute both the current 7d window (for the
   // existing total/success metrics + sparkline) and the prior 7d window
   // (for the delta indicator) in a single round-trip.
@@ -287,9 +313,13 @@ export type HomeRun = {
  */
 export async function getRecentFailedRuns(limit = 8): Promise<HomeRun[]> {
   await requireSession();
+  const projectIds = await projectIdsWhere();
   try {
     const rows = await db.query.runs.findMany({
-      where: { status: "failed" },
+      where: {
+        status: "failed",
+        ...(projectIds && { environment: { projectId: projectIds } }),
+      },
       columns: {
         id: true,
         environmentId: true,

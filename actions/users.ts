@@ -1,13 +1,19 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, count, eq, exists, inArray, isNull, max, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
 import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { projectScope, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { invitations, sessions, users as userTable } from "@/lib/db/schema";
+import {
+  invitations,
+  projectMembers,
+  sessions,
+  users as userTable,
+} from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
 import {
   isAssignableRole,
@@ -106,18 +112,75 @@ export async function createInitialUser(input: {
   return { success: true, message: t("accountCreated") };
 }
 
+// Org roles that reach every project, so they can be assigned anywhere.
+const ORG_WIDE_ASSIGNEE_ROLES = ["admin", "infra"];
+
 /**
- * Minimal, session-gated user list for issue assignment pickers — id + name of
- * non-banned users. Not admin-only (any member can assign an issue).
+ * Minimal user list for a project's assignment pickers — id + name of
+ * non-banned users who can work on it: org admin/infra, or a member of the
+ * project. Needs read access to the project.
  */
-export async function listAssignableUsers(): Promise<
+export async function listAssignableUsers(
+  projectId: string
+): Promise<{ id: string; name: string }[]> {
+  await requireProjectPermission({ projectId }, { project: ["read"] });
+  return db
+    .select({ id: userTable.id, name: userTable.name })
+    .from(userTable)
+    .where(
+      and(
+        eq(userTable.banned, false),
+        or(
+          inArray(userTable.role, ORG_WIDE_ASSIGNEE_ROLES),
+          exists(
+            db
+              .select({ one: projectMembers.userId })
+              .from(projectMembers)
+              .where(
+                and(
+                  eq(projectMembers.userId, userTable.id),
+                  eq(projectMembers.projectId, projectId)
+                )
+              )
+          )
+        )
+      )
+    )
+    .orderBy(userTable.name);
+}
+
+/**
+ * The cross-project variant for the global issues list, which has no single
+ * project in scope: org admin/infra, or a member of any project the caller can
+ * see. Deliberately never wider than that, so the picker can't enumerate users
+ * from projects the caller can't reach.
+ */
+export async function listAssignableUsersAcrossProjects(): Promise<
   { id: string; name: string }[]
 > {
   await requireSession();
   return db
     .select({ id: userTable.id, name: userTable.name })
     .from(userTable)
-    .where(eq(userTable.banned, false))
+    .where(
+      and(
+        eq(userTable.banned, false),
+        or(
+          inArray(userTable.role, ORG_WIDE_ASSIGNEE_ROLES),
+          exists(
+            db
+              .select({ one: projectMembers.userId })
+              .from(projectMembers)
+              .where(
+                and(
+                  eq(projectMembers.userId, userTable.id),
+                  await projectScope(projectMembers.projectId)
+                )
+              )
+          )
+        )
+      )
+    )
     .orderBy(userTable.name);
 }
 

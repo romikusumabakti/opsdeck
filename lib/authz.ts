@@ -21,6 +21,7 @@ import {
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
+import { uuidSchema } from "@/lib/validation";
 
 // The server-side authorization boundary. lib/permissions says what each role
 // may do; this module works out which roles the caller holds and enforces them.
@@ -142,11 +143,22 @@ const projectIdOfIssue = cache(async (issueId: string) => {
   return row?.projectId ?? null;
 });
 
+// Ids often come straight from a URL; a non-uuid resolves to "not found"
+// rather than a Postgres "invalid input syntax for type uuid" error.
 async function projectIdOf(scope: ProjectScope): Promise<string | null> {
-  if ("projectId" in scope) return scope.projectId;
-  if ("environmentId" in scope)
-    return projectIdOfEnvironment(scope.environmentId);
-  return projectIdOfIssue(scope.issueId);
+  if ("projectId" in scope) {
+    return uuidSchema.safeParse(scope.projectId).success
+      ? scope.projectId
+      : null;
+  }
+  if ("environmentId" in scope) {
+    return uuidSchema.safeParse(scope.environmentId).success
+      ? projectIdOfEnvironment(scope.environmentId)
+      : null;
+  }
+  return uuidSchema.safeParse(scope.issueId).success
+    ? projectIdOfIssue(scope.issueId)
+    : null;
 }
 
 export async function getProjectRole(
