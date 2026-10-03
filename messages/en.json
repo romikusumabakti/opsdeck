@@ -1414,6 +1414,60 @@
     "recentEmpty": "No recent environments.",
     "viewAll": "View all"
   },
+  "home": {
+    "title": "Home",
+    "subtitle": "Your work and what needs attention.",
+    "greeting": {
+      "morning": "Good morning, {name}",
+      "midday": "Good afternoon, {name}",
+      "afternoon": "Good afternoon, {name}",
+      "night": "Good evening, {name}"
+    },
+    "newIssue": "New issue",
+    "kind": {
+      "backup": "Backup",
+      "restore": "Restore",
+      "mock_time": "Mock time",
+      "test": "Test"
+    },
+    "attention": {
+      "title": "Needs attention",
+      "allClear": "All clear — no unresolved failures in the last 7 days.",
+      "createIssue": "Issue",
+      "acknowledge": "Ack",
+      "acknowledged": "Acknowledged",
+      "ackFailed": "Couldn't acknowledge the failure.",
+      "undo": "Undo",
+      "undoFailed": "Couldn't undo the acknowledgement.",
+      "issueTitle": "{kind} failed: {environment}",
+      "runHistory": "Run history"
+    },
+    "issues": {
+      "title": "My issues",
+      "empty": "Nothing assigned to you.",
+      "viewAll": "View all ({count})",
+      "statusFailed": "Couldn't update the status."
+    },
+    "running": {
+      "title": "Running",
+      "empty": "Nothing running."
+    },
+    "recent": {
+      "title": "Jump back in",
+      "empty": "No recent environments.",
+      "backup": "Backup",
+      "backupStarted": "Backup started",
+      "backupFailed": "Couldn't start the backup."
+    },
+    "issueDialog": {
+      "project": "Project",
+      "loadFailed": "Couldn't load the project's options."
+    },
+    "error": {
+      "load": "Couldn't load this section.",
+      "retry": "Retry"
+    }
+  },
   "issueDetail": {
     "description": "Description",
     "noDescription": "No description.",
