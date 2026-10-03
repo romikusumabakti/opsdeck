@@ -2,10 +2,12 @@
 
 import { asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireSession } from "@/lib/auth-session";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { issueAttachments } from "@/lib/db/schema";
 import { deleteObject } from "@/lib/storage";
+import { uuidSchema } from "@/lib/validation";
 
 export type IssueAttachmentRow = {
   id: string;
@@ -41,6 +43,12 @@ export async function listIssueAttachments(
 export async function deleteIssueAttachment(
   id: string
 ): Promise<{ success: boolean; message?: string }> {
+  // Signed-in callers only before the lookup, which reveals whether the id
+  // exists; a non-uuid id is "not found" rather than a Postgres error.
+  await requireSession();
+  if (!uuidSchema.safeParse(id).success) {
+    return { success: false, message: "Not found" };
+  }
   const row = await db.query.issueAttachments.findFirst({
     where: { id },
     columns: { storageKey: true, issueId: true },

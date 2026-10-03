@@ -186,6 +186,8 @@ export async function recordEnvironmentAccess(
 ): Promise<void> {
   const session = await getServerSession();
   if (!session) return;
+  // Only environments the caller can see; also rejects non-uuid ids.
+  if (!(await getProjectRole({ environmentId }))) return;
   try {
     await db
       .insert(environmentAccess)

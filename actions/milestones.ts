@@ -3,6 +3,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
+import { requireSession } from "@/lib/auth-session";
 import { requireProjectPage, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -17,6 +18,9 @@ export type MilestoneWithCount = Milestone & { issueCount: number };
 // Private ("use server" files expose every export): the project that owns a
 // milestone, or null when the id is malformed or unknown.
 async function milestoneProjectId(id: string): Promise<string | null> {
+  // Signed-in callers only, before any lookup: the result tells a caller
+  // whether a milestone id exists.
+  await requireSession();
   if (!uuidSchema.safeParse(id).success) return null;
   const [row] = await db
     .select({ projectId: milestones.projectId })
