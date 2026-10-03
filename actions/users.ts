@@ -296,10 +296,9 @@ export async function updateUserRole(input: {
     return { success: false, message: t("cannotChangeOwnRole") };
   }
 
-  // Validate against the known ladder rather than clamping to admin/member —
-  // `viewer` (where Microsoft sign-in lands new users) and `maintainer` are
-  // both assignable. An unrecognised string is rejected outright instead of
-  // being silently rewritten, so a bad client can't quietly change a role.
+  // Only the four org roles (admin, infra, observer, member) are assignable.
+  // An unrecognised string is rejected outright instead of being silently
+  // rewritten, so a bad client can't quietly change a role.
   if (!isOrgRole(input.role)) {
     return { success: false, message: t("invalidInput") };
   }

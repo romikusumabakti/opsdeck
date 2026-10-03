@@ -169,6 +169,9 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
       (f) => `${root}/${f}`
     ),
   ]);
+  it("scans a plausible number of files", () => {
+    expect(files.length).toBeGreaterThan(50);
+  });
   for (const file of files) {
     // Both modules are deleted in Task 8; they define the helpers.
     if (file === "lib/auth-session.ts" || file === "lib/roles.ts") continue;
@@ -176,4 +179,17 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
       expect(readFileSync(file, "utf8")).not.toMatch(LEGACY);
     });
   }
+});
+
+describe("listServerOptions leaks nothing beyond id and name", () => {
+  const source = readFileSync("actions/servers.ts", "utf8");
+  const fn = body(source, "listServerOptions");
+  it("requires environment:update on the project", () => {
+    expect(fn).toMatch(/requireProjectPermission\(\s*\{ projectId \}/);
+    expect(fn).toMatch(/environment: \["update"\]/);
+  });
+  it("selects only id and name", () => {
+    expect(fn).toMatch(/select\(\{ id: servers\.id, name: servers\.name \}\)/);
+    expect(fn).not.toMatch(/select\(\)/);
+  });
 });
