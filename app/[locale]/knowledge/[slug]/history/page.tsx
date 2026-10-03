@@ -6,7 +6,7 @@ import { KnowledgeHistoryClient } from "@/components/knowledge-history-client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { requireSession } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { loadDocumentBySlug, loadRevisions } from "@/lib/knowledge";
 
 export default async function DocumentHistoryPage({
@@ -16,7 +16,7 @@ export default async function DocumentHistoryPage({
 }) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
-  await requireSession();
+  await requireOrgPage({ knowledge: ["write"] });
 
   const doc = await loadDocumentBySlug(slug);
   if (!doc) notFound();

@@ -12,8 +12,9 @@ import { MarkdownContent } from "@/components/markdown-content";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "@/i18n/navigation";
-import { getServerSession, isAdmin, requireSession } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { loadBacklinks, loadDocumentBySlug } from "@/lib/knowledge";
+import { canOrg } from "@/lib/permissions";
 
 export default async function DocumentPage({
   params,
@@ -22,19 +23,18 @@ export default async function DocumentPage({
 }) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
-  await requireSession();
+  const session = await requireOrgPage({ knowledge: ["read"] });
 
   const doc = await loadDocumentBySlug(slug);
   if (!doc) notFound();
 
-  const [backlinks, session, t, tCommon, format] = await Promise.all([
+  const [backlinks, t, tCommon, format] = await Promise.all([
     loadBacklinks(doc.id),
-    getServerSession(),
     getTranslations("knowledge"),
     getTranslations("common"),
     getFormatter(),
   ]);
-  const canDelete = session ? isAdmin(session) : false;
+  const canDelete = canOrg(session.user.role, { knowledge: ["manage"] });
 
   return (
     <div className="flex h-full min-h-0 flex-col">

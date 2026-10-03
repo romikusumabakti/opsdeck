@@ -4,7 +4,7 @@ import { getJiraConnections } from "@/actions/jira";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { JiraClient } from "./jira-client";
 
 export default async function JiraPage({
@@ -15,7 +15,7 @@ export default async function JiraPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ integration: ["manage"] });
 
   const connections = await getJiraConnections();
   const t = await getTranslations("jira");

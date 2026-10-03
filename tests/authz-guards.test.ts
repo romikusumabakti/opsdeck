@@ -72,7 +72,8 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     // setIssueStatus delegates to updateIssue, which owns the guard.
     setIssueStatus: /return updateIssue\(/,
     bulkSetStatus: /requireProjectPermissionForAll\([\s\S]*issue: \["write"\]/,
-    bulkDeleteIssues: /requireProjectPermissionForAll\([\s\S]*issue: \["delete"\]/,
+    bulkDeleteIssues:
+      /requireProjectPermissionForAll\([\s\S]*issue: \["delete"\]/,
     deleteIssue: /issue: \["delete"\]/,
   },
   "actions/issue-attachments.ts": {
@@ -153,4 +154,26 @@ describe("issue writes validate their references", () => {
     expect(source).toMatch(/assignableUsersWhere\(/);
     expect(source).not.toMatch(/"infra"/);
   });
+});
+
+// The old catch-all helpers live only in lib/auth-session until Task 8 removes
+// them. UI files (layouts, components, toggle-only pages) are covered later.
+describe("no legacy authorization helpers outside lib/auth-session", () => {
+  const LEGACY =
+    /\b(requireAdmin|isAdmin|requireCapability|getEffectiveRole|roleHasCapability)\(/;
+  // Bun's glob can't nest a "/" inside braces, so scan the roots separately.
+  const roots = ["actions", "lib", "app/api"];
+  const files = roots.flatMap((root) => [
+    ...Array.from(
+      new Bun.Glob("**/*.{ts,tsx}").scanSync(root),
+      (f) => `${root}/${f}`
+    ),
+  ]);
+  for (const file of files) {
+    // Both modules are deleted in Task 8; they define the helpers.
+    if (file === "lib/auth-session.ts" || file === "lib/roles.ts") continue;
+    it(file, () => {
+      expect(readFileSync(file, "utf8")).not.toMatch(LEGACY);
+    });
+  }
 });

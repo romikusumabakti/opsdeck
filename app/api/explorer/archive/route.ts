@@ -1,7 +1,7 @@
 import { Readable as NodeReadable } from "node:stream";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { routeOrgGuard } from "@/lib/authz";
 import { type ExplorerSource, resolveBackend } from "@/lib/explorer";
 import { zipStream } from "@/lib/explorer/archive";
 import {
@@ -23,11 +23,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session || !isAdmin(session)) {
-    return new NextResponse("Forbidden", { status: 403 });
-  }
-
   let source: ExplorerSource;
   try {
     source = explorerSourceSchema.parse(
@@ -36,6 +31,10 @@ export async function GET(req: NextRequest) {
   } catch {
     return new NextResponse("Invalid source", { status: 400 });
   }
+  const guard = await routeOrgGuard(
+    source.kind === "s3" ? { storage: ["files"] } : { server: ["files"] }
+  );
+  if (!guard.ok) return guard.response;
   // No `path` at all means the root folder, which is also the empty string.
   const requested = req.nextUrl.searchParams.getAll("path");
   const parsedPaths = z

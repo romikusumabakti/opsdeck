@@ -3,6 +3,7 @@ import { Activity } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { type ActivityRow, listActivity } from "@/actions/activity";
 import { PageHeader } from "@/components/page-header";
+import { requireOrgPage } from "@/lib/authz";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 // Render one event to a localized sentence. `data` is the denormalized params
@@ -61,7 +62,10 @@ function message(
         tunnel: String(d.tunnel),
       });
     case "mailpit.configured":
-      return t("mailpitConfigured", { actor, environment: String(d.environment) });
+      return t("mailpitConfigured", {
+        actor,
+        environment: String(d.environment),
+      });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "mail.deleted":
@@ -126,6 +130,7 @@ export default async function ActivityPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireOrgPage({ audit: ["read"] });
 
   const [events, t, tIssues] = await Promise.all([
     listActivity(100),

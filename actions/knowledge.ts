@@ -2,7 +2,7 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, requireSession } from "@/lib/auth-session";
+import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -49,7 +49,7 @@ const KNOWLEDGE_PATH = "/knowledge";
 export async function createCollection(
   data: unknown
 ): Promise<ActionResponse<KnowledgeCollection>> {
-  const session = await requireAdmin();
+  const session = await requireOrgPermission({ knowledge: ["manage"] });
   const parsed = collectionInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid collection data" };
@@ -78,7 +78,7 @@ export async function updateCollection(
   id: string,
   data: unknown
 ): Promise<ActionResponse<KnowledgeCollection>> {
-  await requireAdmin();
+  await requireOrgPermission({ knowledge: ["manage"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid collection id" };
   }
@@ -104,7 +104,7 @@ export async function updateCollection(
 export async function deleteCollection(
   id: string
 ): Promise<ActionResponse<never>> {
-  await requireAdmin();
+  await requireOrgPermission({ knowledge: ["manage"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid collection id" };
   }
@@ -128,7 +128,7 @@ export async function deleteCollection(
 export async function moveCollection(
   data: unknown
 ): Promise<ActionResponse<never>> {
-  await requireAdmin();
+  await requireOrgPermission({ knowledge: ["manage"] });
   const parsed = collectionMoveSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid move data" };
@@ -176,7 +176,7 @@ async function rebuildLinks(
 export async function createDocument(
   data: unknown
 ): Promise<ActionResponse<KnowledgeDocument>> {
-  const session = await requireSession();
+  const session = await requireOrgPermission({ knowledge: ["write"] });
   const parsed = documentInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid document data" };
@@ -229,7 +229,7 @@ export async function updateDocument(
   id: string,
   data: unknown
 ): Promise<ActionResponse<KnowledgeDocument>> {
-  const session = await requireSession();
+  const session = await requireOrgPermission({ knowledge: ["write"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid document id" };
   }
@@ -328,7 +328,7 @@ export async function updateDocument(
 export async function moveDocument(
   data: unknown
 ): Promise<ActionResponse<never>> {
-  await requireSession();
+  await requireOrgPermission({ knowledge: ["write"] });
   const parsed = documentMoveSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid move data" };
@@ -426,7 +426,7 @@ export async function deleteDocument(
   // Deleting is admin-only; members reach a deleted-doc URL → handled by the
   // route's notFound(). Children re-parent to the collection root via the FK's
   // set-null, so a delete never silently removes a subtree.
-  await requireAdmin();
+  await requireOrgPermission({ knowledge: ["manage"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid document id" };
   }
@@ -445,7 +445,7 @@ export async function restoreRevision(
   documentId: string,
   revisionId: string
 ): Promise<ActionResponse<KnowledgeDocument>> {
-  const session = await requireSession();
+  const session = await requireOrgPermission({ knowledge: ["write"] });
   if (
     !knowledgeIdSchema.safeParse(documentId).success ||
     !knowledgeIdSchema.safeParse(revisionId).success
@@ -500,7 +500,7 @@ export async function restoreRevision(
 // --- Read actions (client-callable) -----------------------------------------
 
 export async function searchKnowledge(query: string): Promise<SearchHit[]> {
-  await requireSession();
+  await requireOrgPermission({ knowledge: ["read"] });
   const parsed = knowledgeSearchSchema.safeParse(query);
   if (!parsed.success) return [];
   try {
@@ -512,7 +512,7 @@ export async function searchKnowledge(query: string): Promise<SearchHit[]> {
 }
 
 export async function getBacklinks(documentId: string): Promise<Backlink[]> {
-  await requireSession();
+  await requireOrgPermission({ knowledge: ["read"] });
   if (!knowledgeIdSchema.safeParse(documentId).success) return [];
   try {
     return await loadBacklinks(documentId);

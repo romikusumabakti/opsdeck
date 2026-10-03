@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { getServerSession } from "@/lib/auth-session";
+import { routeOrgGuard } from "@/lib/authz";
 import { type ExplorerSource, resolveBackend } from "@/lib/explorer";
 import { ensureDir } from "@/lib/explorer/ops";
 import { dirname, joinPath, PathError } from "@/lib/explorer/path";
@@ -12,15 +13,16 @@ import {
 } from "@/lib/validation";
 
 // Proxy upload: streams a multipart file body straight into the backend's write
-// stream (S3 PutObject / SFTP write) without buffering the whole file. Admin-
-// gated. Node runtime for the ssh2 socket + Node stream piping.
+// stream (S3 PutObject / SFTP write) without buffering the whole file. Gated on
+// the target kind's files permission. Node runtime for the ssh2 socket + Node stream piping.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session || !isAdmin(session)) {
-    return new NextResponse("Forbidden", { status: 403 });
+  // Cheap authentication before buffering the multipart body; the permission
+  // check needs the source kind, which lives inside the form.
+  if (!(await getServerSession())) {
+    return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const form = await req.formData();
@@ -35,6 +37,10 @@ export async function POST(req: NextRequest) {
   } catch {
     return new NextResponse("Invalid source", { status: 400 });
   }
+  const guard = await routeOrgGuard(
+    source.kind === "s3" ? { storage: ["files"] } : { server: ["files"] }
+  );
+  if (!guard.ok) return guard.response;
   const parsedDir = explorerPathSchema.safeParse(form.get("path") ?? "");
   // Where the file lands under the destination directory. A folder upload sends
   // the browser's relative path ("dist/assets/app.js"); a plain file upload

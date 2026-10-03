@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession, isAdmin } from "@/lib/auth-session";
+import { routeOrgGuard } from "@/lib/authz";
 import { type ExplorerSource, resolveBackend } from "@/lib/explorer";
 import { basename, PathError } from "@/lib/explorer/path";
 import { explorerPathSchema, explorerSourceSchema } from "@/lib/validation";
@@ -14,11 +14,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession();
-  if (!session || !isAdmin(session)) {
-    return new NextResponse("Forbidden", { status: 403 });
-  }
-
   const rawSource = req.nextUrl.searchParams.get("source");
   const rawPath = req.nextUrl.searchParams.get("path");
   let source: ExplorerSource;
@@ -27,6 +22,10 @@ export async function GET(req: NextRequest) {
   } catch {
     return new NextResponse("Invalid source", { status: 400 });
   }
+  const guard = await routeOrgGuard(
+    source.kind === "s3" ? { storage: ["files"] } : { server: ["files"] }
+  );
+  if (!guard.ok) return guard.response;
   const parsedPath = explorerPathSchema.safeParse(rawPath ?? "");
   if (!parsedPath.success || !parsedPath.data) {
     return new NextResponse("Invalid path", { status: 400 });

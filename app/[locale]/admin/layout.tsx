@@ -1,5 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 // One gate for the whole admin area. Every page below can assume an admin
 // session, so they don't repeat the check (non-admins are redirected home by
@@ -13,6 +13,6 @@ export default async function AdminLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireAdmin();
+  await requireOrgPage({ audit: ["read"] });
   return children;
 }

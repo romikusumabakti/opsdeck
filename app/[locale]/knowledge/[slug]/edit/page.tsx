@@ -2,12 +2,13 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { DocumentForm } from "@/components/document-form";
 import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
-import { getServerSession, isAdmin, requireSession } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import {
   loadCollections,
   loadDocumentBySlug,
   loadTreeNodes,
 } from "@/lib/knowledge";
+import { canOrg } from "@/lib/permissions";
 
 export default async function EditDocumentPage({
   params,
@@ -16,17 +17,16 @@ export default async function EditDocumentPage({
 }) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
-  await requireSession();
+  const session = await requireOrgPage({ knowledge: ["write"] });
 
-  const [doc, collections, nodes, session, t] = await Promise.all([
+  const [doc, collections, nodes, t] = await Promise.all([
     loadDocumentBySlug(slug),
     loadCollections(),
     loadTreeNodes(),
-    getServerSession(),
     getTranslations("knowledge"),
   ]);
   if (!doc) notFound();
-  const canDelete = session ? isAdmin(session) : false;
+  const canDelete = canOrg(session.user.role, { knowledge: ["manage"] });
   // Linkable targets exclude the document itself — no self-links.
   const linkableDocs = nodes
     .filter((n) => n.id !== doc.id)

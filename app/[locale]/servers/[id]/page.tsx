@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function EditServerPage({
   params,
@@ -25,7 +25,7 @@ export default async function EditServerPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ server: ["read"] });
 
   const [server, usage] = await Promise.all([
     getServerById(id),

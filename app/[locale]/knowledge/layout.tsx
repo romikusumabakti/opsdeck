@@ -5,8 +5,9 @@ import { KnowledgeSearch } from "@/components/knowledge-search";
 import { KnowledgeTree } from "@/components/knowledge-tree";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { getServerSession, isAdmin, requireSession } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 import { loadCollections, loadTreeNodes } from "@/lib/knowledge";
+import { canOrg } from "@/lib/permissions";
 
 export default async function KnowledgeLayout({
   children,
@@ -17,9 +18,8 @@ export default async function KnowledgeLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requireSession();
-  const session = await getServerSession();
-  const admin = session ? isAdmin(session) : false;
+  const session = await requireOrgPage({ knowledge: ["read"] });
+  const admin = canOrg(session.user.role, { knowledge: ["manage"] });
 
   const [collections, nodes, t] = await Promise.all([
     loadCollections(),

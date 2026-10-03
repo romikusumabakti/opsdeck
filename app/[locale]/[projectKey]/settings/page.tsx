@@ -13,7 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireProjectPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 import { DeleteProjectCard } from "./delete-project-card";
 
 export default async function ProjectSettingsPage({
@@ -24,18 +25,25 @@ export default async function ProjectSettingsPage({
   const { locale, projectKey } = await params;
   setRequestLocale(locale);
 
-  // Editing project metadata and deleting a project are both admin-only, same
-  // as the `editProject` / `removeProject` actions themselves.
-  await requireAdmin();
-
+  // Editing project metadata needs environment:update on this project (same as
+  // `editProject`). The key is resolved through the scoped lookup first, so an
+  // invisible project 404s before any permission is consulted.
   const project = await getProjectByKeyWithEnvironments(projectKey);
   if (!project) {
     notFound();
   }
+  const { session } = await requireProjectPage(
+    { projectId: project.id },
+    { environment: ["update"] }
+  );
 
   const t = await getTranslations("projectSettings");
   const [jiraConnections, jiraLink] = await Promise.all([
-    getJiraConnections(),
+    // Connections are an org-level integration: a maintainer without that
+    // permission just gets no connection to pick from.
+    canOrg(session.user.role, { integration: ["manage"] })
+      ? getJiraConnections()
+      : Promise.resolve([]),
     getJiraLink(project.id),
   ]);
 

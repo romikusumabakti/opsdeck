@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireAdmin } from "@/lib/auth-session";
+import { requireOrgPage } from "@/lib/authz";
 
 export default async function NewJiraConnectionPage({
   params,
@@ -19,7 +19,7 @@ export default async function NewJiraConnectionPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  await requireAdmin();
+  await requireOrgPage({ integration: ["manage"] });
 
   const t = await getTranslations("newJira");
 

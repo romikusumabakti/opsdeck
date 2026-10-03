@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth-session";
+import { routeOrgGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import { knowledgeAttachments } from "@/lib/db/schema";
@@ -49,7 +49,9 @@ function sniffImage(buf: Buffer): { ext: string; mime: string } | null {
  * via imgproxy (see the GET route). The app keeps no image-processing code.
  */
 export async function POST(request: Request): Promise<Response> {
-  const session = await requireSession();
+  const guard = await routeOrgGuard({ knowledge: ["write"] });
+  if (!guard.ok) return guard.response;
+  const { session } = guard;
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
