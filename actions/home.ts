@@ -63,6 +63,7 @@ export async function acknowledgeAttentionGroup(
         entityId: firstAck.id,
         data: {
           environment: await environmentName(environmentId),
+          key,
           count: acked.length,
         },
       });
@@ -101,7 +102,10 @@ export async function unacknowledgeRuns(
           eq(runs.acknowledgedById, session.user.id)
         )
       )
-      .returning({ id: runs.id });
+      .returning({
+        id: runs.id,
+        key: sql<string>`coalesce(${runs.kind}::text, ${runs.description})`,
+      });
     const firstClr = cleared[0];
     if (firstClr) {
       await recordActivity({
@@ -111,6 +115,7 @@ export async function unacknowledgeRuns(
         entityId: firstClr.id,
         data: {
           environment: await environmentName(environmentId),
+          key: firstClr.key,
           count: cleared.length,
         },
       });
