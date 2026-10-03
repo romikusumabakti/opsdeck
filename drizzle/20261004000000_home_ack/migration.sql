@@ -28,7 +28,8 @@ CREATE INDEX IF NOT EXISTS "runs_attention_idx"
 --              older "Restore database from <file>" and "Restore <db> from <file>"
 --   mock_time: "Mock time: travel/freeze/advance/reset ...", "Mock time to <ts> (legacy)",
 --              "Advance clock by ... (legacy)", "Reset clock to real time (legacy)",
---              pre-rename "Simulate time to <ts>[ (legacy)]"
+--              pre-rename "Simulate time to <ts>[ (legacy)]", and live-only legacy
+--              "Travel clock ..." / "Bekukan clock ..." (found in dss_panel)
 -- No other run description starts with these (databases.ts: Create/Drop/Rename
 -- database; services.ts: Start/Stop/Restart ... service).
 UPDATE "runs" SET "kind" = 'backup'
@@ -41,6 +42,8 @@ UPDATE "runs" SET "kind" = 'mock_time'
     OR "description" LIKE 'Advance clock%'
     OR "description" LIKE 'Reset clock%'
     OR "description" LIKE 'Simulate time%'
+    OR "description" LIKE 'Travel clock%'
+    OR "description" LIKE 'Bekukan clock%'
   );
 
 COMMIT;
