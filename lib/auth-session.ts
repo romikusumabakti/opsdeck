@@ -1,17 +1,6 @@
-import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { cache } from "react";
-import { redirect } from "@/i18n/navigation";
 import { auth } from "./auth";
-import { db } from "./db";
-import { environments, projectMembers } from "./db/schema";
-import {
-  type Capability,
-  effectiveRole,
-  ROLE_ADMIN,
-  roleHasCapability,
-  type UserRole,
-} from "./roles";
 
 /**
  * The current session, memoized for the lifetime of one request.
@@ -41,114 +30,9 @@ export async function requireSession() {
     // Proxy only checks cookie presence; a stale cookie reaches here.
     // `redirect` is typed `void`, so throw to narrow the return type for
     // callers that read `session.user.*` directly afterwards.
+    const { redirect } = await import("@/i18n/navigation");
     await redirect("/sign-in");
     throw new Error("redirect did not abort");
   }
   return session;
-}
-
-export function isAdmin(session: { user: { role?: string | null } }): boolean {
-  return session.user.role === ROLE_ADMIN;
-}
-
-type SessionUser = { user: { id: string; role?: string | null } };
-
-// Scope a capability check to a project. Ops actions (backups/databases/
-// mock-time) act on an ENVIRONMENT, so they pass `{ environmentId }` and the
-// resolver maps it up to its owning project. Pass `{ projectId }` when you
-// already hold the logical project id. No scope = global role only.
-type CapabilityScope = { projectId?: string; environmentId?: string };
-
-// Both lookups below are memoized per request for the same reason
-// `getServerSession` is: a page that calls `requireCapability` to gate the
-// render and then `getEffectiveRole` to gate the buttons asks the identical
-// question twice, and nested layouts multiply that. Keyed on primitives, so
-// React's argument comparison actually hits — do NOT fold these back into
-// `resolveEffectiveRole`, whose object argument would never match by identity.
-const projectIdOfEnvironment = cache(async (environmentId: string) => {
-  const [env] = await db
-    .select({ projectId: environments.projectId })
-    .from(environments)
-    .where(eq(environments.id, environmentId))
-    .limit(1);
-  return env?.projectId;
-});
-
-const membershipRoleOf = cache(async (projectId: string, userId: string) => {
-  const [membership] = await db
-    .select({ role: projectMembers.role })
-    .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, userId)
-      )
-    )
-    .limit(1);
-  return membership?.role;
-});
-
-// Resolve the scope to a project, look the membership up, and hand both roles
-// to lib/roles#effectiveRole — which owns the combining rule (including the
-// legacy no-role default) and is unit-tested without a database. Everything
-// here is the lookup around it.
-//
-// An unresolvable scope — an environment id that matches no row — falls through
-// to the global role rather than erroring: the caller is about to 404 on the
-// same id anyway, and failing here would turn a missing page into a redirect
-// home.
-async function resolveEffectiveRole(
-  session: SessionUser,
-  scope?: CapabilityScope
-): Promise<UserRole> {
-  if (!scope) return effectiveRole(session.user.role, null);
-
-  let projectId = scope.projectId;
-  if (!projectId && scope.environmentId) {
-    projectId = await projectIdOfEnvironment(scope.environmentId);
-  }
-  if (!projectId) return effectiveRole(session.user.role, null);
-
-  const membershipRole = await membershipRoleOf(projectId, session.user.id);
-  return effectiveRole(session.user.role, membershipRole);
-}
-
-/**
- * Authorize the current user for a capability, optionally within a project or
- * environment scope. Unauthenticated users are sent to sign-in; authenticated
- * users lacking the capability are sent home (we don't reveal "forbidden" — the
- * UI already hides actions they can't take). Returns the session on success.
- */
-export async function requireCapability(
-  cap: Capability,
-  scope?: CapabilityScope
-) {
-  const session = await requireSession();
-  const role = await resolveEffectiveRole(session, scope);
-  if (!roleHasCapability(role, cap)) {
-    await redirect("/");
-    throw new Error("redirect did not abort");
-  }
-  return session;
-}
-
-/**
- * The user's effective role for a scope, for the UI to gate button visibility.
- * Does not redirect — read it in a page/layout and pass it to client components.
- */
-export async function getEffectiveRole(
-  scope?: CapabilityScope
-): Promise<UserRole> {
-  const session = await requireSession();
-  return resolveEffectiveRole(session, scope);
-}
-
-/**
- * Require a global admin. Thin wrapper over `requireCapability("admin")` — the
- * `admin` capability's minimum role is `admin`, and only the global role can be
- * admin, so behavior matches the previous implementation. Kept as a named
- * helper because most admin-only call sites read better as `requireAdmin()`.
- */
-export async function requireAdmin() {
-  return requireCapability("admin");
 }
