@@ -283,6 +283,13 @@ export const runs = pgTable(
     runAt: timestamp("run_at").notNull(),
     // Null while still running. Set once status transitions to success/failed.
     completedAt: timestamp("completed_at"),
+    // Set when someone acknowledges a failed run on Home: it leaves "Needs
+    // attention" for everyone. set null on user delete keeps the timestamp
+    // (the run stays acknowledged) without pinning the user row.
+    acknowledgedAt: timestamp("acknowledged_at"),
+    acknowledgedById: uuid("acknowledged_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
   },
   (t) => [
     // Every run query filters by environmentId and orders by runAt desc
@@ -292,6 +299,11 @@ export const runs = pgTable(
     index("runs_status_idx").on(t.status),
     // "Test runs for this issue" on the issue detail.
     index("runs_issue_idx").on(t.issueId),
+    // Home's "Needs attention" scans unacknowledged failures in a recent
+    // window across every environment, newest first.
+    index("runs_attention_idx")
+      .on(t.runAt.desc())
+      .where(sql`${t.status} = 'failed' and ${t.acknowledgedAt} is null`),
   ]
 );
 
