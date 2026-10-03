@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { requireOrgPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 import { RoutesClient } from "./routes-client";
 
 export default async function TunnelDetailPage({
@@ -19,7 +20,10 @@ export default async function TunnelDetailPage({
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
-  await requireOrgPage({ tunnel: ["read"] });
+  const session = await requireOrgPage({ tunnel: ["read"] });
+  // tunnel:read (observers) may look; adding, editing and deleting need
+  // tunnel:manage, so those controls are hidden without it.
+  const canManage = canOrg(session.user.role, { tunnel: ["manage"] });
 
   const tunnel = await getTunnel(id);
   if (!tunnel) notFound();
@@ -41,16 +45,23 @@ export default async function TunnelDetailPage({
           server: tunnel.server.name,
         })}
         action={
-          <Button
-            variant="outline"
-            render={<Link href={`/admin/tunnels/${tunnel.id}/edit`} />}
-          >
-            <Pencil className="size-4" />
-            {t("editRegistration")}
-          </Button>
+          canManage ? (
+            <Button
+              variant="outline"
+              render={<Link href={`/admin/tunnels/${tunnel.id}/edit`} />}
+            >
+              <Pencil className="size-4" />
+              {t("editRegistration")}
+            </Button>
+          ) : undefined
         }
       />
-      <RoutesClient tunnel={tunnel} view={view} candidates={candidates} />
+      <RoutesClient
+        tunnel={tunnel}
+        view={view}
+        candidates={candidates}
+        canManage={canManage}
+      />
     </>
   );
 }

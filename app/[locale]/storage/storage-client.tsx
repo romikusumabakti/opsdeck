@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Eye,
   FolderOpen,
   HardDrive,
   MoreHorizontal,
@@ -31,10 +32,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
 
+// What the caller may do beyond listing (storage:read), from the page.
+export type StorageCapabilities = { manage: boolean; files: boolean };
+
 export function StorageClient({
   connections,
+  can,
 }: {
   connections: SafeS3Connection[];
+  can: StorageCapabilities;
 }) {
   const t = useTranslations("storage");
   const tCommon = useTranslations("common");
@@ -110,17 +116,18 @@ export function StorageClient({
         cell: ({ row }) => (
           <ConnectionActions
             connection={row.original}
+            can={can}
             disabled={isPending}
             browseLabel={t("browse")}
             menuLabel={tCommon("openMenu")}
-            editLabel={tCommon("edit")}
+            editLabel={can.manage ? tCommon("edit") : tCommon("view")}
             deleteLabel={tCommon("delete")}
             onDelete={() => onDelete(row.original)}
           />
         ),
       },
     ],
-    [t, tCommon, isPending, onDelete]
+    [t, tCommon, isPending, onDelete, can]
   );
 
   if (optimistic.length === 0) {
@@ -131,10 +138,12 @@ export function StorageClient({
           title={t("emptyTitle")}
           description={t("empty")}
           action={
-            <Button render={<Link href="/storage/new" />}>
-              <Plus className="size-4" />
-              {t("addConnection")}
-            </Button>
+            can.manage ? (
+              <Button render={<Link href="/storage/new" />}>
+                <Plus className="size-4" />
+                {t("addConnection")}
+              </Button>
+            ) : undefined
           }
         />
       </div>
@@ -160,6 +169,7 @@ export function StorageClient({
 // through these action controls.
 function ConnectionActions({
   connection,
+  can,
   disabled,
   browseLabel,
   menuLabel,
@@ -168,6 +178,7 @@ function ConnectionActions({
   onDelete,
 }: {
   connection: SafeS3Connection;
+  can: StorageCapabilities;
   disabled: boolean;
   browseLabel: string;
   menuLabel: string;
@@ -177,16 +188,18 @@ function ConnectionActions({
 }) {
   return (
     <div className="flex items-center justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={browseLabel}
-        title={browseLabel}
-        disabled={disabled}
-        render={<Link href={`/storage/${connection.id}/files`} />}
-      >
-        <FolderOpen className="size-4" />
-      </Button>
+      {can.files ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={browseLabel}
+          title={browseLabel}
+          disabled={disabled}
+          render={<Link href={`/storage/${connection.id}/files`} />}
+        >
+          <FolderOpen className="size-4" />
+        </Button>
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -202,17 +215,26 @@ function ConnectionActions({
           }
         />
         <DropdownMenuContent align="end">
+          {/* The detail page is read-only without storage:manage. */}
           <DropdownMenuItem
             render={<Link href={`/storage/${connection.id}`} />}
           >
-            <Pencil className="size-4" />
+            {can.manage ? (
+              <Pencil className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
             {editLabel}
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            <Trash2 className="size-4" />
-            {deleteLabel}
-          </DropdownMenuItem>
+          {can.manage ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <Trash2 className="size-4" />
+                {deleteLabel}
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

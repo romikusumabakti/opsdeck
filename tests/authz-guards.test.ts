@@ -239,6 +239,42 @@ describe("render-time permissioned reads are gated", () => {
   });
 });
 
+// Observers can read servers, storage and tunnels but not manage them; the
+// pages must hide controls that would only throw ForbiddenError.
+const ORG_READ_PAGES: Record<string, RegExp[]> = {
+  "app/[locale]/servers/page.tsx": [
+    /server: \["manage"\]/,
+    /server: \["terminal"\]/,
+    /server: \["files"\]/,
+  ],
+  "app/[locale]/servers/[id]/page.tsx": [
+    /server: \["manage"\]/,
+    /readOnly=\{!canManage\}/,
+  ],
+  "app/[locale]/storage/page.tsx": [
+    /storage: \["manage"\]/,
+    /storage: \["files"\]/,
+  ],
+  "app/[locale]/storage/[id]/page.tsx": [
+    /storage: \["manage"\]/,
+    /storage: \["files"\]/,
+    /readOnly=\{!canManage\}/,
+  ],
+  "app/[locale]/admin/tunnels/page.tsx": [/tunnel: \["manage"\]/],
+  "app/[locale]/admin/tunnels/[id]/page.tsx": [/tunnel: \["manage"\]/],
+  "app/[locale]/admin/tunnels/zones/page.tsx": [/tunnel: \["manage"\]/],
+};
+
+describe("org read pages gate their management controls", () => {
+  for (const [file, patterns] of Object.entries(ORG_READ_PAGES)) {
+    it(file, () => {
+      const source = readFileSync(file, "utf8");
+      expect(source).toMatch(/canOrg\(/);
+      for (const pattern of patterns) expect(source).toMatch(pattern);
+    });
+  }
+});
+
 describe("access_control migration refuses a second run", () => {
   const sql = readFileSync(
     "drizzle/20261003000000_access_control/migration.sql",

@@ -38,6 +38,9 @@ type Props = {
    */
   onSuccess?: (server: Server) => void;
   onCancel?: () => void;
+  // Show the stored values without edit, test or save controls (callers
+  // without server:manage).
+  readOnly?: boolean;
 };
 
 type TestState =
@@ -46,7 +49,12 @@ type TestState =
   | { kind: "ok" }
   | { kind: "fail"; message: string };
 
-export function ServerForm({ mode, onSuccess, onCancel }: Props) {
+export function ServerForm({
+  mode,
+  onSuccess,
+  onCancel,
+  readOnly = false,
+}: Props) {
   const t = useTranslations("serverForm");
   const tCommon = useTranslations("common");
   const router = useRouter();
@@ -181,116 +189,122 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-4"
       >
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("namePlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="host"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("host")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="192.168.x.x"
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="username"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("username")}</FormLabel>
-              <FormControl>
-                <Input
-                  autoComplete="off"
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {mode.type === "edit" ? t("passwordEdit") : t("password")}
-              </FormLabel>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  placeholder={
-                    mode.type === "edit"
-                      ? t("passwordEditPlaceholder")
-                      : undefined
-                  }
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="sftpRoot"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("sftpRoot")}</FormLabel>
-              <FormControl>
-                <Input placeholder="/" {...field} />
-              </FormControl>
-              <FormDescription>{t("sftpRootDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Read-only callers (no manage permission) see the stored values with
+            every input disabled and no test/save controls. */}
+        <fieldset disabled={readOnly} className="contents">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("name")}</FormLabel>
+                <FormControl>
+                  <Input placeholder={t("namePlaceholder")} {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="host"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("host")}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="192.168.x.x"
+                    {...field}
+                    onChange={(e) => {
+                      resetTest();
+                      field.onChange(e);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("username")}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete="off"
+                    {...field}
+                    onChange={(e) => {
+                      resetTest();
+                      field.onChange(e);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {mode.type === "edit" ? t("passwordEdit") : t("password")}
+                </FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    autoComplete="new-password"
+                    placeholder={
+                      mode.type === "edit"
+                        ? t("passwordEditPlaceholder")
+                        : undefined
+                    }
+                    {...field}
+                    onChange={(e) => {
+                      resetTest();
+                      field.onChange(e);
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="sftpRoot"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("sftpRoot")}</FormLabel>
+                <FormControl>
+                  <Input placeholder="/" {...field} />
+                </FormControl>
+                <FormDescription>{t("sftpRootDescription")}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </fieldset>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onTest}
-            disabled={!canTest}
-          >
-            {testState.kind === "testing" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : null}
-            {t("testConnection")}
-          </Button>
-          <TestStatus state={testState} t={t} />
-        </div>
+        {readOnly ? null : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onTest}
+              disabled={!canTest}
+            >
+              {testState.kind === "testing" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              {t("testConnection")}
+            </Button>
+            <TestStatus state={testState} t={t} />
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <Button
@@ -301,13 +315,15 @@ export function ServerForm({ mode, onSuccess, onCancel }: Props) {
           >
             {tCommon("cancel")}
           </Button>
-          <Button type="submit" disabled={loading}>
-            {loading
-              ? t("submitting")
-              : mode.type === "edit"
-                ? t("saveChanges")
-                : t("create")}
-          </Button>
+          {readOnly ? null : (
+            <Button type="submit" disabled={loading}>
+              {loading
+                ? t("submitting")
+                : mode.type === "edit"
+                  ? t("saveChanges")
+                  : t("create")}
+            </Button>
+          )}
         </div>
       </form>
     </Form>

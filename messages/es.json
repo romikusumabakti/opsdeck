@@ -37,7 +37,8 @@
     "errorDetails": "Detalles",
     "capsLockOn": "Bloq Mayús está activado",
     "more": "Más",
-    "create": "Crear"
+    "create": "Crear",
+    "view": "Ver"
   },
   "dataTable": {
     "searchPlaceholder": "Buscar…",
@@ -750,7 +751,8 @@
     "description": "Actualiza las credenciales SSH y revisa dónde se usa este servidor.",
     "formTitle": "Credenciales SSH",
     "formDescription": "Deja la contraseña en blanco para no cambiarla.",
-    "backToServers": "Volver a servidores"
+    "backToServers": "Volver a servidores",
+    "viewTitle": "Servidor: {name}"
   },
   "localeSwitcher": {
     "ariaLabel": "Seleccionar idioma"

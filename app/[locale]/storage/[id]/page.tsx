@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { requireOrgPage } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
 
 export default async function EditStoragePage({
   params,
@@ -23,7 +24,11 @@ export default async function EditStoragePage({
   const { locale, id } = await params;
   setRequestLocale(locale);
 
-  await requireOrgPage({ storage: ["read"] });
+  const session = await requireOrgPage({ storage: ["read"] });
+  // Observers (storage:read) see the connection read-only, and the file
+  // browser only with storage:files.
+  const canManage = canOrg(session.user.role, { storage: ["manage"] });
+  const canBrowse = canOrg(session.user.role, { storage: ["files"] });
 
   const connection = await getS3Connection(id);
   if (!connection) notFound();
@@ -33,16 +38,20 @@ export default async function EditStoragePage({
   return (
     <>
       <PageHeader
-        title={t("title", { name: connection.name })}
+        title={
+          canManage ? t("title", { name: connection.name }) : connection.name
+        }
         subtitle={t("description")}
         action={
-          <Button
-            variant="outline"
-            render={<Link href={`/storage/${id}/files`} />}
-          >
-            <FolderOpen className="size-4" />
-            {t("browseFiles")}
-          </Button>
+          canBrowse ? (
+            <Button
+              variant="outline"
+              render={<Link href={`/storage/${id}/files`} />}
+            >
+              <FolderOpen className="size-4" />
+              {t("browseFiles")}
+            </Button>
+          ) : undefined
         }
       />
       <Card className="max-w-2xl w-full">
@@ -54,7 +63,10 @@ export default async function EditStoragePage({
           <CardDescription>{t("formDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <S3ConnectionForm mode={{ type: "edit", connection }} />
+          <S3ConnectionForm
+            mode={{ type: "edit", connection }}
+            readOnly={!canManage}
+          />
         </CardContent>
       </Card>
     </>
