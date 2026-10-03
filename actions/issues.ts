@@ -17,7 +17,10 @@ import { alias } from "drizzle-orm/pg-core";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
-import { assignableUsersWhere } from "@/lib/assignees";
+import {
+  assignableUsersWhere,
+  projectVisibleUsersWhere,
+} from "@/lib/assignees";
 import { requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
@@ -382,17 +385,23 @@ export async function addComment(
     // Notify mentioned users. The comment box inserts exact display names after
     // `@`, so a plain `@${name}` substring scan resolves mentions without a
     // username scheme. Ambiguous only if two users share a display name — rare
-    // in a small workspace, and at worst both get notified.
+    // in a small workspace, and at worst both get notified. Only users who can
+    // see the project are candidates: the notification carries the issue's
+    // key and title.
     const issue = await db.query.issues.findFirst({
       where: { id: issueId },
-      columns: { number: true, title: true },
+      columns: { number: true, title: true, projectId: true },
       with: { project: { columns: { key: true } } },
     });
     if (issue?.project) {
       const users = await db
         .select({ id: userTable.id, name: userTable.name })
         .from(userTable)
-        .where(eq(userTable.banned, false));
+        .where(
+          projectVisibleUsersWhere(
+            eq(projectMembers.projectId, issue.projectId)
+          )
+        );
       for (const u of users) {
         if (u.id !== session.user.id && trimmed.includes(`@${u.name}`)) {
           await notifyIssueMention({
