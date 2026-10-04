@@ -66,6 +66,10 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 > - `BETTER_AUTH_URL` must be the exact origin users visit. Passkeys are bound to it, and the terminal rejects WebSocket upgrades from any other origin.
 > - `NEXT_PUBLIC_*` branding variables are baked in at build time, so changing them means rebuilding the image.
 
+### Logo
+
+The logo is a single square SVG at `public/brand/logo.svg`. It is used for the sidebar, the sign-in pages and the favicon, and the repo ships a neutral default. To brand a deployment, put its own `logo.svg` in a directory outside the repo and set `BRAND_DIR` to that directory. Compose mounts it over `public/brand`, so swapping the logo takes a `docker compose up -d app`, not a rebuild.
+
 ## Running with Docker Compose
 
 ```sh

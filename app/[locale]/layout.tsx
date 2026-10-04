@@ -39,6 +39,7 @@ import { isRtlLocale } from "@/i18n/locales";
 import { routing } from "@/i18n/routing";
 import { getServerSession } from "@/lib/auth-session";
 import { getProjectAccess } from "@/lib/authz";
+import { BRAND_LOGO_SRC } from "@/lib/branding";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import "../globals.css";
@@ -73,6 +74,7 @@ export async function generateMetadata({
   return {
     title: t("name"),
     description: t("name"),
+    icons: { icon: { url: BRAND_LOGO_SRC, type: "image/svg+xml" } },
   };
 }
 

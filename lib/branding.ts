@@ -17,6 +17,14 @@ export const COMPANY_NAME =
 export const ALLOWED_EMAIL_DOMAIN =
   process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "example.com";
 
+/**
+ * The logo — sidebar, auth pages and favicon. Unlike the env vars above it is a
+ * runtime file, not a build-time value: a deployment mounts its own directory
+ * over `public/brand` (BRAND_DIR in compose.yaml), so the repo only ships a
+ * neutral default.
+ */
+export const BRAND_LOGO_SRC = "/brand/logo.svg";
+
 export const DEFAULT_EMAIL_FROM = `${APP_NAME} <no-reply@${ALLOWED_EMAIL_DOMAIN}>`;
 
 export function isAllowedEmail(email: string): boolean {
