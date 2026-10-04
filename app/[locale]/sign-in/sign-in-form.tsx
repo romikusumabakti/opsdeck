@@ -63,7 +63,7 @@ function oauthErrorKey(code: string) {
       return "errorMicrosoftNoAccount" as const;
     case "account_not_linked":
     case "unable_to_link_account":
-    case "email_doesn't_match":
+    case "email_does_not_match":
     case "account_already_linked_to_different_user":
       return "errorMicrosoftNotLinked" as const;
     case "email_not_found":
