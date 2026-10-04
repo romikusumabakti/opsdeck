@@ -88,13 +88,16 @@ export async function createInitialUser(input: {
 
   // The bootstrap user owns the panel — promote to admin so they can manage
   // users/servers. Subsequent users are created as "member" via invitation.
-  const created = await ctx.internalAdapter.createUser({
-    name,
-    email,
-    emailVerified: true,
-    image: null,
-    role: "admin",
-  });
+  const created = await ctx.internalAdapter.createUser(
+    {
+      name,
+      email,
+      emailVerified: true,
+      image: null,
+      role: "admin",
+    },
+    { method: "email-password" }
+  );
 
   // better-auth's createUser + linkAccount don't share a transaction. If the
   // credential link fails, roll the user back so we don't leave an account that
@@ -634,13 +637,16 @@ export async function acceptInvitation(input: {
   // in case the row was tampered with directly in the DB.
   const role: OrgRole = normalizeOrgRole(inv.role);
 
-  const created = await ctx.internalAdapter.createUser({
-    name: inv.name,
-    email: inv.email,
-    emailVerified: true,
-    image: null,
-    role,
-  });
+  const created = await ctx.internalAdapter.createUser(
+    {
+      name: inv.name,
+      email: inv.email,
+      emailVerified: true,
+      image: null,
+      role,
+    },
+    { method: "email-password" }
+  );
 
   // createUser + linkAccount aren't transactional in better-auth; if the
   // credential link fails, roll the user back so the invite can be retried
