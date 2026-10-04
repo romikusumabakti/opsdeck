@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { BRAND_LOGOS } from "@/lib/branding";
+import { BRANDS } from "@/lib/branding";
 
 /**
  * Startup validation for the process environment.
@@ -199,9 +199,9 @@ function collectFindings(): Finding[] {
   checkOptional("APP_TIMEZONE", timezoneSchema, findings);
 
   checkOptional(
-    "BRAND_LOGO",
-    z.enum(BRAND_LOGOS, {
-      error: `must be one of: ${BRAND_LOGOS.join(", ")}`,
+    "BRAND",
+    z.enum(BRANDS, {
+      error: `must be one of: ${BRANDS.join(", ")}`,
     }),
     findings
   );

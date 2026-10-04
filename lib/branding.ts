@@ -17,20 +17,23 @@ export const COMPANY_NAME =
 export const ALLOWED_EMAIL_DOMAIN =
   process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "example.com";
 
-/** Logos a deployment can choose from; drawn in lib/brand-logos.ts. */
-export const BRAND_LOGOS = ["default", "dss"] as const;
-export type BrandLogoName = (typeof BRAND_LOGOS)[number];
+/**
+ * Brands a deployment can choose from. A brand is a logo (lib/brand-logos.ts)
+ * plus a colour theme (the `[data-brand]` token blocks in app/globals.css).
+ */
+export const BRANDS = ["default", "dss"] as const;
+export type BrandName = (typeof BRANDS)[number];
 
 /**
- * Which logo this deployment shows (BRAND_LOGO). Server-only and read per
+ * This deployment's brand (BRAND). Server-only and read per
  * call, not a `NEXT_PUBLIC_` constant: the Docker build sees no deployment env,
  * so a build-time value would always be the default. Server components read it
  * and pass it down. An unknown value fails boot in lib/env.ts; this fallback
  * only covers `next dev` and tests.
  */
-export function brandLogo(): BrandLogoName {
-  const value = process.env.BRAND_LOGO;
-  return BRAND_LOGOS.find((logo) => logo === value) ?? "default";
+export function brand(): BrandName {
+  const value = process.env.BRAND;
+  return BRANDS.find((logo) => logo === value) ?? "default";
 }
 
 /** The favicon, rendered per deployment by app/brand/icon.svg/route.ts. */

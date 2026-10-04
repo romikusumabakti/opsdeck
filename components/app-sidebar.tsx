@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { BrandLogoName } from "@/lib/branding";
+import type { BrandName } from "@/lib/branding";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
   canOrg,
@@ -143,7 +143,7 @@ export function AppSidebar({
   projectRoles: Record<string, ProjectRole>;
   issueCounts: AssignedIssueCounts;
   user: AppSidebarUser;
-  logo: BrandLogoName;
+  logo: BrandName;
   side?: "left" | "right";
 }) {
   const tApp = useTranslations("app");

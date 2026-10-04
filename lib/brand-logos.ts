@@ -1,7 +1,7 @@
-import type { BrandLogoName } from "@/lib/branding";
+import type { BrandName } from "@/lib/branding";
 
 /**
- * The logos a deployment can pick with BRAND_LOGO. Every logo is the same
+ * The logos a deployment can pick with BRAND. Every logo is the same
  * four-tile grid — top-left, top-right, bottom-left, and the bottom-right
  * "status" tile that animates while runs are active — so the motion in
  * globals.css works for all of them and only shape and colour differ.
@@ -63,7 +63,7 @@ function grid(
   };
 }
 
-export const BRAND_LOGO_DEFS: Record<BrandLogoName, LogoDef> = {
+export const BRAND_LOGO_DEFS: Record<BrandName, LogoDef> = {
   // Neutral product mark: a plain dashboard grid in the theme's text colour.
   default: {
     tiles: (g) => grid(g, { tr: g.radius, br: g.radius }),
@@ -88,12 +88,12 @@ export const BRAND_LOGO_DEFS: Record<BrandLogoName, LogoDef> = {
   },
 };
 
-export function logoTiles(logo: BrandLogoName): Tiles {
+export function logoTiles(logo: BrandName): Tiles {
   return BRAND_LOGO_DEFS[logo].tiles(GRID_24);
 }
 
 /** The favicon: static, on the 16-unit grid, coloured by the browser scheme. */
-export function renderBrandIcon(logo: BrandLogoName): string {
+export function renderBrandIcon(logo: BrandName): string {
   const { tiles, icon } = BRAND_LOGO_DEFS[logo];
   const t = tiles(GRID_16);
   const size = GRID_16.tile * 2 + GRID_16.gap;
