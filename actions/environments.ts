@@ -440,7 +440,10 @@ export async function updateEnvironment(
 }
 
 export async function deleteEnvironment(id: string): Promise<ActionResponse> {
-  await requireProjectPermission({ environmentId: id }, { environment: ["delete"] });
+  await requireProjectPermission(
+    { environmentId: id },
+    { environment: ["delete"] }
+  );
   try {
     await db.delete(environments).where(eq(environments.id, id));
     revalidatePath("/projects");

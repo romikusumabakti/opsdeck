@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
-import messageFixture from "./fixtures/mailpit-message.json";
-import messagesFixture from "./fixtures/mailpit-messages.json";
 import {
   deleteMailpitMessages,
   describeMailpitStatus,
@@ -13,6 +11,8 @@ import {
   mailpitUrl,
 } from "@/lib/mailpit/client";
 import { mailMessageSchema, messagesPageSchema } from "@/lib/mailpit/schemas";
+import messageFixture from "./fixtures/mailpit-message.json";
+import messagesFixture from "./fixtures/mailpit-messages.json";
 
 const cfg: MailpitConfig = {
   url: "https://mail.test/mailpit",
@@ -71,7 +71,11 @@ describe("mailpitEventsUrl", () => {
 describe("mailpitAuthHeaders", () => {
   it("is empty without a username", () => {
     expect(
-      mailpitAuthHeaders({ url: "http://x.test", username: null, password: "p" })
+      mailpitAuthHeaders({
+        url: "http://x.test",
+        username: null,
+        password: "p",
+      })
     ).toEqual({});
   });
 
@@ -121,7 +125,10 @@ describe("requests", () => {
     const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json(messagesFixture)
     );
-    const page = await listMailpitMessages(cfg, { query: "is:unread", start: 50 });
+    const page = await listMailpitMessages(cfg, {
+      query: "is:unread",
+      start: 50,
+    });
     expect(page.messages_count).toBe(2);
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(

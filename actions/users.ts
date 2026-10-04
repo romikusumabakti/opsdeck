@@ -314,9 +314,7 @@ export async function updateUserRole(input: {
   }
   const role: OrgRole = input.role;
 
-  if (
-    !assertNotLastAdmin(await listActiveAdminIds(), input.userId, role)
-  ) {
+  if (!assertNotLastAdmin(await listActiveAdminIds(), input.userId, role)) {
     return { success: false, message: t("cannotRemoveLastAdmin") };
   }
   const [before] = await db

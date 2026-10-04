@@ -232,9 +232,7 @@ export function AccessClient({
             : null;
           return (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>
-                {at ? format.relativeTime(at, nowDate) : t("never")}
-              </span>
+              <span>{at ? format.relativeTime(at, nowDate) : t("never")}</span>
               {isInactive(at, nowDate) && (
                 <Badge variant="outline" className="text-xs">
                   {t("inactive")}

@@ -6,7 +6,10 @@ describe("describeFetchError", () => {
     const err = new TypeError("fetch failed", {
       cause: {
         errors: [
-          { code: "ECONNREFUSED", message: "connect ECONNREFUSED 10.0.0.5:8025" },
+          {
+            code: "ECONNREFUSED",
+            message: "connect ECONNREFUSED 10.0.0.5:8025",
+          },
         ],
       },
     });

@@ -81,11 +81,13 @@ describe("effectiveProjectRole", () => {
     });
   }
   it("never lets a junk org role see a project without membership", () => {
-    for (const r of JUNK_ROLES) expect(effectiveProjectRole(r, null)).toBeNull();
+    for (const r of JUNK_ROLES)
+      expect(effectiveProjectRole(r, null)).toBeNull();
   });
 });
 
 // The spec's org matrix, verbatim. One row per statement, one column per role.
+// biome-ignore format: kept as a one-row-per-statement table to mirror the spec
 const ORG_MATRIX: [string, string, Record<OrgRole, boolean>][] = [
   ["user", "list", { admin: true, infra: false, observer: true, member: false }],
   ["user", "invite", { admin: true, infra: false, observer: false, member: false }],
@@ -113,7 +115,9 @@ describe("canOrg matrix", () => {
   for (const [resource, action, expected] of ORG_MATRIX) {
     for (const role of ORG_ROLES) {
       it(`${role} ${expected[role] ? "can" : "cannot"} ${resource}:${action}`, () => {
-        expect(canOrg(role, { [resource]: [action] } as never)).toBe(expected[role]);
+        expect(canOrg(role, { [resource]: [action] } as never)).toBe(
+          expected[role]
+        );
       });
     }
   }
@@ -126,6 +130,7 @@ describe("canOrg matrix", () => {
   });
 });
 
+// biome-ignore format: kept as a one-row-per-statement table to mirror the spec
 const PROJECT_MATRIX: [string, string, Record<ProjectRole, boolean>][] = [
   ["project", "read", { viewer: true, contributor: true, maintainer: true }],
   ["service", "logs", { viewer: true, contributor: true, maintainer: true }],
@@ -151,7 +156,9 @@ describe("canProject matrix", () => {
   for (const [resource, action, expected] of PROJECT_MATRIX) {
     for (const role of PROJECT_ROLES) {
       it(`${role} ${expected[role] ? "can" : "cannot"} ${resource}:${action}`, () => {
-        expect(canProject(role, { [resource]: [action] } as never)).toBe(expected[role]);
+        expect(canProject(role, { [resource]: [action] } as never)).toBe(
+          expected[role]
+        );
       });
     }
   }

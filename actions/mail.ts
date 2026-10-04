@@ -3,7 +3,6 @@
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { environmentName } from "@/lib/environments";
-import type { ProjectPermissions } from "@/lib/permissions";
 import {
   deleteMailpitMessages,
   deleteMailpitSearch,
@@ -24,6 +23,7 @@ import {
   withPrelude,
 } from "@/lib/mailpit/html";
 import type { MailMessage, MessagesPage } from "@/lib/mailpit/schemas";
+import type { ProjectPermissions } from "@/lib/permissions";
 import {
   mailDeleteTargetSchema,
   mailListInputSchema,
@@ -52,19 +52,24 @@ type Fail = { success: false; error: string; notFound?: boolean };
 async function requireMail(
   environmentId: string,
   perms: ProjectPermissions = { mail: ["read"] }
-): Promise<{ ok: true; cfg: MailpitConfig; userId: string } | { ok: false; fail: Fail }> {
+): Promise<
+  { ok: true; cfg: MailpitConfig; userId: string } | { ok: false; fail: Fail }
+> {
   if (!uuidSchema.safeParse(environmentId).success) {
-    return { ok: false, fail: { success: false, error: "Invalid environment id" } };
+    return {
+      ok: false,
+      fail: { success: false, error: "Invalid environment id" },
+    };
   }
-  const { session } = await requireProjectPermission(
-    { environmentId },
-    perms
-  );
+  const { session } = await requireProjectPermission({ environmentId }, perms);
   const cfg = await loadMailpitConfig(environmentId);
   if (!cfg) {
     return {
       ok: false,
-      fail: { success: false, error: "Mailpit is not configured for this environment" },
+      fail: {
+        success: false,
+        error: "Mailpit is not configured for this environment",
+      },
     };
   }
   return { ok: true, cfg, userId: session.user.id };
@@ -87,7 +92,10 @@ export async function listMail(
   const parsed = mailListInputSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: "Invalid search" };
   try {
-    return { success: true, data: await listMailpitMessages(auth.cfg, parsed.data) };
+    return {
+      success: true,
+      data: await listMailpitMessages(auth.cfg, parsed.data),
+    };
   } catch (err) {
     return failure(err);
   }
@@ -132,7 +140,11 @@ export async function getMail(
     const { HTML: _html, ...rest } = message;
     return {
       success: true,
-      data: { message: rest, html: await prepareHtml(auth.cfg, message), headers },
+      data: {
+        message: rest,
+        html: await prepareHtml(auth.cfg, message),
+        headers,
+      },
     };
   } catch (err) {
     return failure(err);

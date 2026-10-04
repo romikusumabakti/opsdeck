@@ -3,10 +3,10 @@
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { type EnvironmentWithServers, runs } from "@/lib/db/schema";
-import { describeFetchError } from "@/lib/fetch-error";
 import { loadEnvironmentWithServers } from "@/lib/environments";
-import { enqueue } from "@/lib/queue";
+import { describeFetchError } from "@/lib/fetch-error";
 import type { ProjectPermissions } from "@/lib/permissions";
+import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { backendService } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
@@ -50,10 +50,7 @@ async function requireEnvironment(
   if (!uuidSchema.safeParse(environmentId).success) {
     return { ok: false, error: "Invalid environment id" };
   }
-  const { session } = await requireProjectPermission(
-    { environmentId },
-    perms
-  );
+  const { session } = await requireProjectPermission({ environmentId }, perms);
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) return { ok: false, error: "Environment not found" };
   return { ok: true, environment, userId: session.user.id };

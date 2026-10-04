@@ -65,7 +65,10 @@ export function toDataUri(contentType: string, bytes: Uint8Array): string {
   return `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
 }
 
-export function inlineCids(html: string, dataUris: Map<string, string>): string {
+export function inlineCids(
+  html: string,
+  dataUris: Map<string, string>
+): string {
   const lookup = new Map(
     [...dataUris].map(([cid, uri]) => [normaliseCid(cid), uri])
   );

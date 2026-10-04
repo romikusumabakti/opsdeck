@@ -33,6 +33,9 @@ export function shouldReuseStoredPassword(
   stored: MailpitConfig | null
 ): boolean {
   return Boolean(
-    stored?.password && input.username && !input.password && input.url === stored.url
+    stored?.password &&
+      input.username &&
+      !input.password &&
+      input.url === stored.url
   );
 }
