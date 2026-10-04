@@ -399,7 +399,9 @@ describe("old role module is gone", () => {
   });
   it("nothing imports @/lib/roles", () => {
     const files = Array.from(
-      new Bun.Glob("{actions,app,lib,components,tests}/**/*.{ts,tsx}").scanSync(".")
+      new Bun.Glob("{actions,app,lib,components,tests}/**/*.{ts,tsx}").scanSync(
+        "."
+      )
     );
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {

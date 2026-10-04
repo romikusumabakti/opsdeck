@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { MailpitError } from "@/lib/mailpit/client";
-import { attachmentDisposition, mailpitErrorResponse } from "@/lib/mailpit/download";
+import {
+  attachmentDisposition,
+  mailpitErrorResponse,
+} from "@/lib/mailpit/download";
 
 describe("attachmentDisposition", () => {
   it("is always an attachment with an RFC 5987 filename", () => {
@@ -18,7 +21,9 @@ describe("attachmentDisposition", () => {
 
 describe("mailpitErrorResponse", () => {
   it("passes 404 through", () => {
-    expect(mailpitErrorResponse(new MailpitError("gone", 404)).status).toBe(404);
+    expect(mailpitErrorResponse(new MailpitError("gone", 404)).status).toBe(
+      404
+    );
   });
 
   it("maps other Mailpit failures to 502", async () => {

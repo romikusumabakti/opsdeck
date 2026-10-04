@@ -9,7 +9,9 @@ import { loadMailpitConfig } from "./config";
 // instead of redirecting: callers are downloads and EventSource, not pages.
 export async function authorizeMailRoute(
   environmentId: string
-): Promise<{ ok: true; cfg: MailpitConfig } | { ok: false; response: Response }> {
+): Promise<
+  { ok: true; cfg: MailpitConfig } | { ok: false; response: Response }
+> {
   if (!uuidSchema.safeParse(environmentId).success) {
     return { ok: false, response: new Response("Not found", { status: 404 }) };
   }

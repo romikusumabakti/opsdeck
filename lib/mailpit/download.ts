@@ -15,7 +15,9 @@ export const DOWNLOAD_HEADERS = {
 
 export function mailpitErrorResponse(err: unknown): Response {
   if (err instanceof MailpitError) {
-    return new Response(err.message, { status: err.status === 404 ? 404 : 502 });
+    return new Response(err.message, {
+      status: err.status === 404 ? 404 : 502,
+    });
   }
   console.error("Mailpit download failed:", err);
   return new Response("Download failed", { status: 500 });

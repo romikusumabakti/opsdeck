@@ -1,10 +1,10 @@
 "use server";
 
 import { and, eq, isNull, max, sql } from "drizzle-orm";
-import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
-import { recordActivity } from "@/lib/activity";
+import { getTranslations } from "next-intl/server";
 import { assertNotLastAdmin } from "@/lib/access";
+import { recordActivity } from "@/lib/activity";
 import { listActiveAdminIds } from "@/lib/admins";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -111,10 +111,12 @@ export async function offboardUser(userId: string): Promise<ActionResponse> {
   const removed = await db.transaction(async (tx) => {
     await tx
       .update(users)
-      .set({ banned: true,
+      .set({
+        banned: true,
         banReason: "offboarded",
         banExpires: null,
-        updatedAt: new Date() })
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, userId));
     await tx.delete(sessions).where(eq(sessions.userId, userId));
     const memberships = await tx

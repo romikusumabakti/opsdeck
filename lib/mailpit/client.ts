@@ -122,7 +122,8 @@ async function request(
 
 async function parse<T>(res: Response, schema: z.ZodType<T>): Promise<T> {
   const parsed = schema.safeParse(await res.json().catch(() => undefined));
-  if (!parsed.success) throw new MailpitError("Unexpected response from Mailpit");
+  if (!parsed.success)
+    throw new MailpitError("Unexpected response from Mailpit");
   return parsed.data;
 }
 

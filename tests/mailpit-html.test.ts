@@ -30,7 +30,10 @@ describe("referencedCids", () => {
 
 describe("pickInlineParts", () => {
   it("keeps only referenced parts", () => {
-    const picked = pickInlineParts([part("logo@app"), part("unused")], new Set(["logo@app"]));
+    const picked = pickInlineParts(
+      [part("logo@app"), part("unused")],
+      new Set(["logo@app"])
+    );
     expect(picked.map((p) => p.ContentID)).toEqual(["logo@app"]);
   });
 
@@ -51,7 +54,10 @@ describe("pickInlineParts", () => {
     const size = MAX_INLINE_PART_BYTES;
     const count = MAX_INLINE_TOTAL_BYTES / size + 1;
     const parts = Array.from({ length: count }, (_, i) => part(`p${i}`, size));
-    const picked = pickInlineParts(parts, new Set(parts.map((p) => p.ContentID)));
+    const picked = pickInlineParts(
+      parts,
+      new Set(parts.map((p) => p.ContentID))
+    );
     expect(picked).toHaveLength(count - 1);
   });
 });
@@ -73,14 +79,21 @@ describe("toDataUri", () => {
 describe("inlineCids", () => {
   it("replaces known refs and leaves unknown ones", () => {
     const html = `<img src="cid:logo@app"><img src="cid:missing">`;
-    const out = inlineCids(html, new Map([["<logo@app>", "data:image/png;base64,AQID"]]));
-    expect(out).toBe(`<img src="data:image/png;base64,AQID"><img src="cid:missing">`);
+    const out = inlineCids(
+      html,
+      new Map([["<logo@app>", "data:image/png;base64,AQID"]])
+    );
+    expect(out).toBe(
+      `<img src="data:image/png;base64,AQID"><img src="cid:missing">`
+    );
   });
 });
 
 describe("withPrelude", () => {
   it("injects right after an existing <head>", () => {
-    const out = withPrelude(`<html><head lang="en"><title>x</title></head><body>b</body></html>`);
+    const out = withPrelude(
+      `<html><head lang="en"><title>x</title></head><body>b</body></html>`
+    );
     expect(out).toBe(
       `<html><head lang="en">${HTML_PRELUDE}<title>x</title></head><body>b</body></html>`
     );
