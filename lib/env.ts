@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { BRAND_LOGOS } from "@/lib/branding";
 
 /**
  * Startup validation for the process environment.
@@ -196,6 +197,14 @@ function collectFindings(): Finding[] {
   checkOptional("BETTER_AUTH_URL", urlSchema, findings);
 
   checkOptional("APP_TIMEZONE", timezoneSchema, findings);
+
+  checkOptional(
+    "BRAND_LOGO",
+    z.enum(BRAND_LOGOS, {
+      error: `must be one of: ${BRAND_LOGOS.join(", ")}`,
+    }),
+    findings
+  );
 
   checkGroup(
     "Microsoft sign-in",
