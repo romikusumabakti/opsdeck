@@ -116,6 +116,68 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Brand themes. The root layout sets data-brand on <html> from BRAND
+   (lib/branding.ts); each brand overrides the stock tokens above for light
+   (:not(.dark)) and dark mode. The selectors outrank :root and .dark, so the
+   order of these blocks doesn't matter. Status colours (destructive, success)
+   and charts stay stock. tests/brand-theme.test.ts holds every text pair here
+   to WCAG AA. */
+
+/* DSS Consulting: navy #203864 accents on navy-tinted neutrals (hue ~262),
+   matching the logo. Dark mode is a very dark navy rather than black. */
+[data-brand="dss"]:not(.dark) {
+  --foreground: oklch(0.22 0.047 261.7);
+  --card-foreground: oklch(0.22 0.047 261.7);
+  --popover-foreground: oklch(0.22 0.047 261.7);
+  --primary: oklch(0.346 0.083 261.5);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.967 0.009 264.5);
+  --secondary-foreground: oklch(0.346 0.083 261.5);
+  --muted: oklch(0.967 0.009 264.5);
+  --muted-foreground: oklch(0.526 0.036 261.6);
+  --accent: oklch(0.951 0.013 262.4);
+  --accent-foreground: oklch(0.22 0.047 261.7);
+  --border: oklch(0.927 0.013 262.4);
+  --input: oklch(0.927 0.013 262.4);
+  --ring: oklch(0.569 0.163 262.2);
+  --sidebar: oklch(0.976 0.006 264.5);
+  --sidebar-foreground: oklch(0.22 0.047 261.7);
+  --sidebar-primary: oklch(0.346 0.083 261.5);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.942 0.016 262.8);
+  --sidebar-accent-foreground: oklch(0.346 0.083 261.5);
+  --sidebar-border: oklch(0.927 0.013 262.4);
+  --sidebar-ring: oklch(0.569 0.163 262.2);
+}
+
+.dark[data-brand="dss"] {
+  --background: oklch(0.177 0.034 269.6);
+  --foreground: oklch(0.945 0.013 262.4);
+  --card: oklch(0.22 0.037 265.2);
+  --card-foreground: oklch(0.945 0.013 262.4);
+  --popover: oklch(0.22 0.037 265.2);
+  --popover-foreground: oklch(0.945 0.013 262.4);
+  --primary: oklch(0.811 0.071 262.5);
+  --primary-foreground: oklch(0.233 0.052 261.2);
+  --secondary: oklch(0.262 0.04 265.2);
+  --secondary-foreground: oklch(0.945 0.013 262.4);
+  --muted: oklch(0.262 0.04 265.2);
+  --muted-foreground: oklch(0.713 0.034 261.7);
+  --accent: oklch(0.279 0.047 264.8);
+  --accent-foreground: oklch(0.945 0.013 262.4);
+  --border: oklch(0.876 0.038 260.7 / 11%);
+  --input: oklch(0.876 0.038 260.7 / 16%);
+  --ring: oklch(0.73 0.112 260.7);
+  --sidebar: oklch(0.203 0.036 266.3);
+  --sidebar-foreground: oklch(0.945 0.013 262.4);
+  --sidebar-primary: oklch(0.811 0.071 262.5);
+  --sidebar-primary-foreground: oklch(0.233 0.052 261.2);
+  --sidebar-accent: oklch(0.279 0.047 264.8);
+  --sidebar-accent-foreground: oklch(0.945 0.013 262.4);
+  --sidebar-border: oklch(0.876 0.038 260.7 / 11%);
+  --sidebar-ring: oklch(0.73 0.112 260.7);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -39,7 +39,7 @@ import { isRtlLocale } from "@/i18n/locales";
 import { routing } from "@/i18n/routing";
 import { getServerSession } from "@/lib/auth-session";
 import { getProjectAccess } from "@/lib/authz";
-import { BRAND_ICON_SRC, brandLogo } from "@/lib/branding";
+import { BRAND_ICON_SRC, brand } from "@/lib/branding";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import "../globals.css";
@@ -128,8 +128,16 @@ export default async function LocaleLayout({
   const sidebarStateCookie = (await cookies()).get("sidebar_state")?.value;
   const sidebarDefaultOpen = sidebarStateCookie !== "false";
 
+  // Selects the brand's token blocks in globals.css (logo and colour theme).
+  const currentBrand = brand();
+
   return (
-    <html lang={locale} dir={rtl ? "rtl" : "ltr"} suppressHydrationWarning>
+    <html
+      lang={locale}
+      dir={rtl ? "rtl" : "ltr"}
+      data-brand={currentBrand}
+      suppressHydrationWarning
+    >
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${notoSansArabic.variable} antialiased`}
         style={
@@ -167,7 +175,7 @@ export default async function LocaleLayout({
                         orgRole={orgRole}
                         projectRoles={projectRoles}
                         issueCounts={issueCounts}
-                        logo={brandLogo()}
+                        logo={currentBrand}
                         side={rtl ? "right" : "left"}
                         user={{
                           id: session.user.id,

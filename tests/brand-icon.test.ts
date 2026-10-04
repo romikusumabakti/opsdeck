@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { GET } from "@/app/brand/icon.svg/route";
 
-const saved = process.env.BRAND_LOGO;
+const saved = process.env.BRAND;
 
 afterEach(() => {
-  if (saved === undefined) delete process.env.BRAND_LOGO;
-  else process.env.BRAND_LOGO = saved;
+  if (saved === undefined) delete process.env.BRAND;
+  else process.env.BRAND = saved;
 });
 
 async function fetchIcon(logo: string | undefined) {
-  if (logo === undefined) delete process.env.BRAND_LOGO;
-  else process.env.BRAND_LOGO = logo;
+  if (logo === undefined) delete process.env.BRAND;
+  else process.env.BRAND = logo;
   const res = GET();
   return { res, body: await res.text() };
 }
@@ -23,12 +23,12 @@ describe("GET /brand/icon.svg", () => {
     expect(body).toStartWith("<svg");
   });
 
-  it("serves the DSS mark when BRAND_LOGO=dss", async () => {
+  it("serves the DSS mark when BRAND=dss", async () => {
     const { body } = await fetchIcon("dss");
     expect(body).toContain("#203864");
   });
 
-  it("falls back to the neutral mark when BRAND_LOGO is unset", async () => {
+  it("falls back to the neutral mark when BRAND is unset", async () => {
     const { body } = await fetchIcon(undefined);
     expect(body).not.toContain("#203864");
   });

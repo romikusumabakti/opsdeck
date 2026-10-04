@@ -1,5 +1,5 @@
 import { BRAND_LOGO_DEFS, logoTiles } from "@/lib/brand-logos";
-import { APP_NAME, type BrandLogoName } from "@/lib/branding";
+import { APP_NAME, type BrandName } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
 /**
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * stays on its whole-pixel grid. Decorative (`aria-hidden`): the app name is
  * always beside it or in a tooltip.
  *
- * `logo` comes from `brandLogo()`, read on the server and passed down.
+ * `logo` comes from `brand()`, read on the server and passed down.
  * `active` makes the status tile pulse — set it while runs are in progress.
  */
 export function BrandLogo({
@@ -17,7 +17,7 @@ export function BrandLogo({
   active = false,
   className,
 }: {
-  logo: BrandLogoName;
+  logo: BrandName;
   active?: boolean;
   className?: string;
 }) {
@@ -63,7 +63,7 @@ export function BrandMark({
   logo,
   className,
 }: {
-  logo: BrandLogoName;
+  logo: BrandName;
   className?: string;
 }) {
   return (
