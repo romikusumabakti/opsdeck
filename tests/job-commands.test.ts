@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,6 +17,8 @@ import {
   type CommandTargetEnvironment,
   dbBackupExtensionPattern,
   dbOsUser,
+  dockerMountsCommand,
+  isOnMount,
   mssqlBackupQuery,
   mssqlCreateDatabaseQuery,
   mssqlDropDatabaseQuery,
@@ -258,9 +266,11 @@ describe("Postgres statements", () => {
   });
 
   describe("pgBackupPipeline", () => {
-    it("dumps to the target uncompressed", () => {
+    it("dumps to a partial file and renames it onto the target", () => {
       expect(pgBackupPipeline("car2", "/backups/car2.sql", false)).toBe(
-        `pg_dump -U postgres --clean --if-exists 'car2' > '/backups/car2.sql'`
+        `tmp='/backups/car2.sql.partial'; trap 'rm -f -- "$tmp"' EXIT; ` +
+          `pg_dump -U postgres --clean --if-exists 'car2' > "$tmp" && ` +
+          `mv -f -- "$tmp" '/backups/car2.sql'`
       );
     });
 
@@ -269,7 +279,51 @@ describe("Postgres statements", () => {
       // Without pipefail, a failed pg_dump is masked by gzip's exit 0 and the
       // run is recorded as a success with a truncated backup.
       expect(cmd.startsWith("set -o pipefail; ")).toBe(true);
-      expect(cmd).toContain("| gzip > '/backups/car2.sql.gz'");
+      expect(cmd).toContain(`| gzip > "$tmp"`);
+      expect(cmd).toContain(`mv -f -- "$tmp" '/backups/car2.sql.gz'`);
+    });
+
+    // Runs the real pipeline against a stub pg_dump on PATH.
+    function runBackup(stub: string): {
+      status: number | null;
+      files: string[];
+    } {
+      const dir = mkdtempSync(join(tmpdir(), "pg-backup-"));
+      const bin = join(dir, "pg_dump");
+      writeFileSync(bin, `#!/usr/bin/env bash\n${stub}\n`);
+      chmodSync(bin, 0o755);
+      const target = join(dir, "out", "car2.sql.gz");
+      spawnSync("mkdir", [join(dir, "out")]);
+      const out = spawnSync(
+        "bash",
+        ["-c", pgBackupPipeline("car2", target, true)],
+        {
+          encoding: "utf8",
+          env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+        }
+      );
+      const files = readdirSync(join(dir, "out"));
+      const result = { status: out.status, files };
+      if (files.includes("car2.sql.gz")) {
+        const gz = spawnSync("gunzip", ["-c", target], { encoding: "utf8" });
+        expect(gz.stdout).toBe("SELECT 1;\n");
+      }
+      rmSync(dir, { recursive: true });
+      return result;
+    }
+
+    it("leaves no file behind when pg_dump fails", () => {
+      const { status, files } = runBackup(
+        `echo 'database "car2" does not exist' >&2; exit 1`
+      );
+      expect(status).toBe(1);
+      expect(files).toEqual([]);
+    });
+
+    it("leaves only the finished dump when pg_dump succeeds", () => {
+      const { status, files } = runBackup(`echo 'SELECT 1;'`);
+      expect(status).toBe(0);
+      expect(files).toEqual(["car2.sql.gz"]);
     });
 
     it("emits --clean --if-exists so a re-restore doesn't collide", () => {
@@ -688,7 +742,8 @@ describe("mysqlBackupPipeline", () => {
       "pw"
     );
     expect(compressed).toContain("set -o pipefail");
-    expect(compressed).toContain("| gzip > '/b/car2.sql.gz'");
+    expect(compressed).toContain(`| gzip > "$tmp"`);
+    expect(compressed).toContain(`mv -f -- "$tmp" '/b/car2.sql.gz'`);
 
     const plain = mysqlBackupPipeline(
       "car2",
@@ -698,7 +753,7 @@ describe("mysqlBackupPipeline", () => {
       "pw"
     );
     expect(plain).not.toContain("set -o pipefail");
-    expect(plain).toContain("> '/b/car2.sql'");
+    expect(plain).toContain(`mv -f -- "$tmp" '/b/car2.sql'`);
   });
 
   it("keeps the password out of argv", () => {
@@ -898,5 +953,42 @@ describe("cross-server transfer commands", () => {
       const cmd = buildRemovePlacedCommand(env("systemd"), "/b/x'; reboot; #");
       expect(cmd).toContain(`'/b/x'\\''; reboot; #'`);
     });
+  });
+});
+
+describe("dockerMountsCommand", () => {
+  it("inspects the container's mount destinations", () => {
+    expect(dockerMountsCommand("dplk-postgres")).toBe(
+      `docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' 'dplk-postgres'`
+    );
+  });
+});
+
+describe("isOnMount", () => {
+  const MOUNTS = ["/var/lib/postgresql", "/backups", ""];
+
+  it("accepts the mount point itself and paths below it", () => {
+    expect(isOnMount("/backups", MOUNTS)).toBe(true);
+    expect(isOnMount("/backups/", MOUNTS)).toBe(true);
+    expect(isOnMount("/backups/daily", MOUNTS)).toBe(true);
+  });
+
+  it("rejects paths outside every mount", () => {
+    // The 56.115 case: the host path, which the container never sees.
+    expect(isOnMount("/deployments/dplk-membership/backups", MOUNTS)).toBe(
+      false
+    );
+    // A sibling sharing a name prefix is not under the mount.
+    expect(isOnMount("/backups2", MOUNTS)).toBe(false);
+    expect(isOnMount("/var/opt/mssql/data", [])).toBe(false);
+  });
+
+  it("normalizes dot segments before comparing", () => {
+    expect(isOnMount("/backups/../etc", MOUNTS)).toBe(false);
+    expect(isOnMount("/var/opt/mssql/./data/", ["/var/opt/mssql/"])).toBe(true);
+  });
+
+  it("treats a root mount as covering everything", () => {
+    expect(isOnMount("/anything", ["/"])).toBe(true);
   });
 });

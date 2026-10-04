@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import {
   buildDbShellCommand,
   type DatabaseType,
@@ -87,6 +88,43 @@ export function posixDirname(p: string): string {
   return i <= 0 ? "/" : p.slice(0, i);
 }
 
+/**
+ * Redirect `producer`'s stdout into `target` without ever leaving a half-written
+ * file there: the dump goes to `<target>.partial` and is renamed into place only
+ * once the producer exits 0, and the EXIT trap removes the partial file
+ * otherwise. Without this a failed dump (e.g. a missing database) still leaves
+ * an empty `.sql.gz` that the backup list shows as restorable. The `.partial`
+ * suffix keeps an orphan (from a killed shell) out of that list too, since
+ * dbBackupExtensionPattern is anchored at the end of the name.
+ */
+function writeAtomically(producer: string, target: string): string {
+  return (
+    `tmp=${shq(`${target}.partial`)}; trap 'rm -f -- "$tmp"' EXIT; ` +
+    `${producer} > "$tmp" && mv -f -- "$tmp" ${shq(target)}`
+  );
+}
+
+/**
+ * Lists a container's mount destinations, one per line. Runs on the SSH host,
+ * not inside the container; podman's `docker` shim understands it too.
+ */
+export function dockerMountsCommand(container: string): string {
+  return `docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' ${shq(container)}`;
+}
+
+/**
+ * Whether `path` (inside the container) sits on one of the `mounts` destinations
+ * — i.e. whether files written there outlive the container being recreated.
+ */
+export function isOnMount(path: string, mounts: string[]): boolean {
+  const norm = (p: string) => posix.normalize(p.trim()).replace(/\/+$/, "");
+  const target = norm(path);
+  return mounts
+    .filter((m) => m.trim())
+    .map(norm)
+    .some((m) => m === "" || target === m || target.startsWith(`${m}/`));
+}
+
 /** The OS user a database engine runs as on the remote host. */
 const DB_OS_USERS: Record<DatabaseType, string> = {
   postgres: "postgres",
@@ -139,8 +177,8 @@ export function pgBackupPipeline(
 ): string {
   const dumpCmd = `pg_dump -U postgres --clean --if-exists ${shq(database)}`;
   return compress
-    ? `set -o pipefail; ${dumpCmd} | gzip > ${shq(target)}`
-    : `${dumpCmd} > ${shq(target)}`;
+    ? `set -o pipefail; ${writeAtomically(`${dumpCmd} | gzip`, target)}`
+    : writeAtomically(dumpCmd, target);
 }
 
 /**
@@ -296,8 +334,8 @@ export function mysqlBackupPipeline(
     `"$MYSQLDUMP" ${mysqlConnectionFlags(user)} ${MYSQLDUMP_FLAGS} ` +
     shq(database);
   return compress
-    ? `set -o pipefail; ${prelude} ${dumpCmd} | gzip > ${shq(target)}`
-    : `${prelude} ${dumpCmd} > ${shq(target)}`;
+    ? `set -o pipefail; ${prelude} ${writeAtomically(`${dumpCmd} | gzip`, target)}`
+    : `${prelude} ${writeAtomically(dumpCmd, target)}`;
 }
 
 /**

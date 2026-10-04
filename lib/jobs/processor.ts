@@ -14,6 +14,8 @@ import {
   buildPlaceCommand,
   buildRemovePlacedCommand,
   dbOsUser,
+  dockerMountsCommand,
+  isOnMount,
   MSSQL_FILE_LIST_FLAGS,
   mssqlBackupQuery,
   mssqlCreateDatabaseQuery,
@@ -145,6 +147,15 @@ async function handleCreateDatabaseBackup(
       await executeRemoteCommand(credentials, mkdirCmd);
     });
 
+    if (db.serviceType === "docker") {
+      await warnIfBackupPathUnmounted(
+        runId,
+        credentials,
+        db.serviceName,
+        db.dbBackupPath
+      );
+    }
+
     const filename = await tracked(
       runId,
       `Running ${DUMP_TOOL[db.dbType]} for ${dbName}${useCompression ? "" : " (uncompressed)"}`,
@@ -186,6 +197,39 @@ async function handleCreateDatabaseBackup(
     const message = err instanceof Error ? err.message : String(err);
     await failRun(runId, message);
     throw err;
+  }
+}
+
+// A Docker backup path that isn't on a bind mount or volume lives in the
+// container's writable layer, so every backup there silently disappears the
+// next time the container is recreated (e.g. `docker compose down && up` on
+// deploy). Only warns: some containers keep their data in that layer too, and
+// a backup there is still useful while the container lives. Best effort — a
+// failed inspect must not fail the backup itself.
+async function warnIfBackupPathUnmounted(
+  runId: string,
+  credentials: { host: string; username: string; password: string },
+  container: string,
+  backupPath: string
+): Promise<void> {
+  try {
+    const mounts = await executeRemoteCommand(
+      credentials,
+      dockerMountsCommand(container)
+    );
+    if (isOnMount(backupPath, mounts.split("\n"))) return;
+    await appendRunOutput(
+      runId,
+      `⚠ ${backupPath} is not on a volume or bind mount of container ${container}; ` +
+        "this backup will be lost when the container is recreated. " +
+        "Point the backup path at a mounted directory in the environment settings."
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await appendRunOutput(
+      runId,
+      `⚠ Could not check the mounts of container ${container}: ${message}`
+    );
   }
 }
 
