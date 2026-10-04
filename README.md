@@ -68,7 +68,9 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 
 ### Logo
 
-The logo is a single square SVG at `public/brand/logo.svg`. It is used for the sidebar, the sign-in pages and the favicon, and the repo ships a neutral default. To brand a deployment, put its own `logo.svg` in a directory outside the repo and set `BRAND_DIR` to that directory. Compose mounts it over `public/brand`, so swapping the logo takes a `docker compose up -d app`, not a rebuild.
+`BRAND_LOGO` picks the logo for the sidebar, the sign-in pages and the favicon: `default` (a neutral grid) or `dss`. The server reads it at runtime, so switching logos takes a `docker compose up -d app`, not a rebuild.
+
+Logos are code, not image files, so that they can take the theme's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. To add a logo, give it an entry in `lib/brand-logos.ts`, which holds the tile geometry, Tailwind fill classes and favicon colours, and add its name to `BRAND_LOGOS` in `lib/branding.ts`. The favicon at `/brand/icon.svg` is drawn from the same entry and follows the browser's light or dark scheme.
 
 ## Running with Docker Compose
 

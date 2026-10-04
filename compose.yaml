@@ -31,11 +31,6 @@ services:
     # redirects).
     expose:
       - "3000"
-    volumes:
-      # The logo (sidebar, auth pages, favicon) is per deployment: point
-      # BRAND_DIR at a directory holding its own logo.svg. Next serves public/
-      # from disk at runtime, so swapping it takes a restart, not a rebuild.
-      - ${BRAND_DIR:-./public/brand}:/app/public/brand:ro
     environment:
       # App connection string. Set explicitly in .env so passwords with special
       # characters don't break URL parsing (no string concat from POSTGRES_*).
@@ -57,6 +52,9 @@ services:
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME-}
       NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME-}
       NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN: ${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}
+      # Logo (sidebar, sign-in pages, favicon): one of lib/branding.ts BRAND_LOGOS.
+      # Read by the server at runtime, so changing it takes a restart, not a rebuild.
+      BRAND_LOGO: ${BRAND_LOGO-}
       # Email (Resend) — optional; email features disabled if empty.
       # When EMAIL_FROM is unset, lib/branding.ts derives a default from
       # NEXT_PUBLIC_APP_NAME + NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN.

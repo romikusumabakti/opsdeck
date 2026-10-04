@@ -6,6 +6,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
+import { brandLogo } from "@/lib/branding";
 
 /**
  * Shared frame for the unauthenticated pages (sign-in, setup, password reset,
@@ -34,7 +35,7 @@ export function AuthShell({
     <div className="flex-1 flex flex-col px-4 pt-6">
       <div className="grow-[4]" />
       <main className="w-full max-w-md mx-auto">
-        <BrandMark className="mb-6 justify-center" />
+        <BrandMark logo={brandLogo()} className="mb-6 justify-center" />
         <Card>
           <CardHeader>
             {/* Rendered as the page's `h1`: `CardTitle` is a plain `div`, which

@@ -24,7 +24,10 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { AssignedIssueCounts } from "@/actions/issues";
-import { useActiveRunCount } from "@/components/active-runs-provider";
+import {
+  useActiveRunCount,
+  useActiveRuns,
+} from "@/components/active-runs-provider";
 import { BrandLogo } from "@/components/brand-mark";
 import { SidebarCountBadge } from "@/components/sidebar-count-badge";
 import {
@@ -41,6 +44,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
+import type { BrandLogoName } from "@/lib/branding";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
   canOrg,
@@ -131,6 +135,7 @@ export function AppSidebar({
   projectRoles,
   issueCounts,
   user,
+  logo,
   side = "left",
 }: {
   environments: EnvironmentListItem[];
@@ -138,6 +143,7 @@ export function AppSidebar({
   projectRoles: Record<string, ProjectRole>;
   issueCounts: AssignedIssueCounts;
   user: AppSidebarUser;
+  logo: BrandLogoName;
   side?: "left" | "right";
 }) {
   const tApp = useTranslations("app");
@@ -168,6 +174,7 @@ export function AppSidebar({
   // Live from the shared run stream: the History badge is "something is
   // happening right now", not a stored count.
   const envRunCount = useActiveRunCount(activeEnv?.id ?? null);
+  const anyRunActive = useActiveRuns().length > 0;
 
   return (
     <Sidebar collapsible="icon" side={side}>
@@ -179,7 +186,7 @@ export function AppSidebar({
               size="lg"
               tooltip={tApp("name")}
             >
-              <BrandLogo />
+              <BrandLogo logo={logo} active={anyRunActive} />
               <span className="font-semibold truncate">{tApp("name")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

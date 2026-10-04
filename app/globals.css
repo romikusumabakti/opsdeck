@@ -221,6 +221,59 @@
   }
 }
 
+/* Brand logo motion (components/brand-mark.tsx). The tiles assemble once when
+   the logo mounts (the sidebar persists across navigations, so once per page
+   load), part slightly while its parent — the sidebar button, the sign-in
+   lockup — is hovered, and the status tile breathes while runs are active.
+   All decoration, so reduced-motion users get none of it. Intro and breathing
+   animate `scale`/`opacity`, hover animates `translate`, so they compose. */
+@media (prefers-reduced-motion: no-preference) {
+  .brand-tile {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: translate 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: brand-tile-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .brand-tile-bl {
+    animation-delay: 70ms;
+  }
+  .brand-tile-tr {
+    animation-delay: 140ms;
+  }
+  .brand-tile-br {
+    animation-delay: 210ms;
+  }
+  :hover > .brand-logo .brand-tile-tl {
+    translate: -1px -1px;
+  }
+  :hover > .brand-logo .brand-tile-tr {
+    translate: 1px -1px;
+  }
+  :hover > .brand-logo .brand-tile-bl {
+    translate: -1px 1px;
+  }
+  :hover > .brand-logo .brand-tile-br {
+    translate: 1px 1px;
+  }
+  .brand-logo[data-active] .brand-tile-br {
+    animation:
+      brand-tile-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) 210ms both,
+      brand-breathe 1.4s ease-in-out 0.63s infinite;
+  }
+  @keyframes brand-tile-in {
+    from {
+      opacity: 0;
+      scale: 0.35;
+    }
+  }
+  @keyframes brand-breathe {
+    50% {
+      opacity: 0.35;
+      scale: 0.8;
+    }
+  }
+}
+
 /* highlight.js token colors for fenced code blocks. Shared by both surfaces:
    the knowledge editor (lowlight decorations) and the read view
    (rehype-highlight) emit the same hljs-* classes. One muted, oklch-based

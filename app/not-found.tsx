@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND_LOGO_SRC } from "@/lib/branding";
+import { BRAND_ICON_SRC } from "@/lib/branding";
 
 // Root 404. Rendered outside the locale layout / i18n context, so copy is
 // hardcoded English and styling is inline to stay dependency-light — and the
@@ -21,7 +21,7 @@ export default function NotFound() {
           "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
       }}
     >
-      <link rel="icon" href={BRAND_LOGO_SRC} type="image/svg+xml" />
+      <link rel="icon" href={BRAND_ICON_SRC} type="image/svg+xml" />
       <p style={{ fontSize: 14, fontWeight: 600, letterSpacing: 1, margin: 0 }}>
         404
       </p>
