@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  Aperture,
   BookOpen,
   Cable,
   CircleDot,
@@ -26,6 +25,7 @@ import {
 import { useTranslations } from "next-intl";
 import type { AssignedIssueCounts } from "@/actions/issues";
 import { useActiveRunCount } from "@/components/active-runs-provider";
+import { BrandLogo } from "@/components/brand-mark";
 import { SidebarCountBadge } from "@/components/sidebar-count-badge";
 import {
   Sidebar,
@@ -179,9 +179,7 @@ export function AppSidebar({
               size="lg"
               tooltip={tApp("name")}
             >
-              <span className="size-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                <Aperture className="size-4" />
-              </span>
+              <BrandLogo />
               <span className="font-semibold truncate">{tApp("name")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

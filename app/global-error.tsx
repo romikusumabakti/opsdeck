@@ -1,5 +1,7 @@
 "use client";
 
+import { BRAND_LOGO_SRC } from "@/lib/branding";
+
 // Root error boundary. This renders OUTSIDE the locale layout (and thus outside
 // the i18n provider), so copy is hardcoded English and it must supply its own
 // <html>/<body>. We never surface error.message to the user — only the opaque
@@ -13,6 +15,7 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
+      <link rel="icon" href={BRAND_LOGO_SRC} type="image/svg+xml" />
       <body
         style={{
           margin: 0,
