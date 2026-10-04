@@ -1,18 +1,32 @@
-import { Aperture } from "lucide-react";
-import { APP_NAME } from "@/lib/branding";
+import Image from "next/image";
+import { APP_NAME, BRAND_LOGO_SRC } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
 /**
- * Lockup used on the unauthenticated pages: a filled mark plus the wordmark.
- * A bare outline icon next to bold text reads as a stray glyph rather than a
- * logo, so the mark gets its own container to give it weight.
+ * The deployment's logo on its own. Decorative (`alt=""`): wherever it appears
+ * the app name sits beside it or in a tooltip. `unoptimized` because the image
+ * optimizer refuses SVG, and a vector needs no resizing anyway. Eager because
+ * it always sits at the top of the page.
  */
+export function BrandLogo({ className }: { className?: string }) {
+  return (
+    <Image
+      src={BRAND_LOGO_SRC}
+      alt=""
+      width={32}
+      height={32}
+      unoptimized
+      loading="eager"
+      className={cn("size-8 shrink-0", className)}
+    />
+  );
+}
+
+/** Lockup used on the unauthenticated pages: the logo plus the wordmark. */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-        <Aperture className="size-5" aria-hidden="true" />
-      </span>
+      <BrandLogo className="size-9" />
       <span className="text-base font-semibold tracking-tight">{APP_NAME}</span>
     </div>
   );

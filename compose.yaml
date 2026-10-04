@@ -31,6 +31,11 @@ services:
     # redirects).
     expose:
       - "3000"
+    volumes:
+      # The logo (sidebar, auth pages, favicon) is per deployment: point
+      # BRAND_DIR at a directory holding its own logo.svg. Next serves public/
+      # from disk at runtime, so swapping it takes a restart, not a rebuild.
+      - ${BRAND_DIR:-./public/brand}:/app/public/brand:ro
     environment:
       # App connection string. Set explicitly in .env so passwords with special
       # characters don't break URL parsing (no string concat from POSTGRES_*).
