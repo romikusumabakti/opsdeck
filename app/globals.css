@@ -124,7 +124,9 @@
    to WCAG AA. */
 
 /* DSS Consulting: navy #203864 accents on navy-tinted neutrals (hue ~262),
-   matching the logo. Dark mode is a very dark navy rather than black. */
+   matching the logo. Dark mode keeps the stock lightness steps with only a
+   faint navy cast (chroma ~0.015): a full-strength tint read as "all blue"
+   across a whole screen. */
 [data-brand="dss"]:not(.dark) {
   --foreground: oklch(0.22 0.047 261.7);
   --card-foreground: oklch(0.22 0.047 261.7);
@@ -151,30 +153,30 @@
 }
 
 .dark[data-brand="dss"] {
-  --background: oklch(0.177 0.034 269.6);
-  --foreground: oklch(0.945 0.013 262.4);
-  --card: oklch(0.22 0.037 265.2);
-  --card-foreground: oklch(0.945 0.013 262.4);
-  --popover: oklch(0.22 0.037 265.2);
-  --popover-foreground: oklch(0.945 0.013 262.4);
+  --background: oklch(0.15 0.012 265);
+  --foreground: oklch(0.97 0.006 262);
+  --card: oklch(0.205 0.014 265);
+  --card-foreground: oklch(0.97 0.006 262);
+  --popover: oklch(0.205 0.014 265);
+  --popover-foreground: oklch(0.97 0.006 262);
   --primary: oklch(0.811 0.071 262.5);
   --primary-foreground: oklch(0.233 0.052 261.2);
-  --secondary: oklch(0.262 0.04 265.2);
-  --secondary-foreground: oklch(0.945 0.013 262.4);
-  --muted: oklch(0.262 0.04 265.2);
-  --muted-foreground: oklch(0.713 0.034 261.7);
-  --accent: oklch(0.279 0.047 264.8);
-  --accent-foreground: oklch(0.945 0.013 262.4);
-  --border: oklch(0.876 0.038 260.7 / 11%);
-  --input: oklch(0.876 0.038 260.7 / 16%);
+  --secondary: oklch(0.265 0.016 265);
+  --secondary-foreground: oklch(0.97 0.006 262);
+  --muted: oklch(0.265 0.016 265);
+  --muted-foreground: oklch(0.715 0.018 262);
+  --accent: oklch(0.275 0.018 265);
+  --accent-foreground: oklch(0.97 0.006 262);
+  --border: oklch(0.88 0.02 262 / 10%);
+  --input: oklch(0.88 0.02 262 / 15%);
   --ring: oklch(0.73 0.112 260.7);
-  --sidebar: oklch(0.203 0.036 266.3);
-  --sidebar-foreground: oklch(0.945 0.013 262.4);
+  --sidebar: oklch(0.19 0.014 265);
+  --sidebar-foreground: oklch(0.97 0.006 262);
   --sidebar-primary: oklch(0.811 0.071 262.5);
   --sidebar-primary-foreground: oklch(0.233 0.052 261.2);
-  --sidebar-accent: oklch(0.279 0.047 264.8);
-  --sidebar-accent-foreground: oklch(0.945 0.013 262.4);
-  --sidebar-border: oklch(0.876 0.038 260.7 / 11%);
+  --sidebar-accent: oklch(0.275 0.022 265);
+  --sidebar-accent-foreground: oklch(0.97 0.006 262);
+  --sidebar-border: oklch(0.88 0.02 262 / 10%);
   --sidebar-ring: oklch(0.73 0.112 260.7);
 }
 
