@@ -14,6 +14,7 @@ const MANAGED: string[] = [
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "APP_TIMEZONE",
+  "BRAND_LOGO",
   "MICROSOFT_CLIENT_ID",
   "MICROSOFT_CLIENT_SECRET",
   "MICROSOFT_TENANT_ID",
@@ -124,6 +125,18 @@ describe("validateEnv", () => {
   it("accepts a real IANA timezone", () => {
     setEnv({ ...validCore(), APP_TIMEZONE: "Asia/Jakarta" });
     expect(() => validateEnv()).not.toThrow();
+  });
+
+  it("rejects an unknown BRAND_LOGO, naming the valid ones", () => {
+    setEnv({ ...validCore(), BRAND_LOGO: "acme" });
+    expect(() => validateEnv()).toThrow(/BRAND_LOGO.*default.*dss/);
+  });
+
+  it("accepts every known BRAND_LOGO", () => {
+    for (const logo of ["default", "dss"]) {
+      setEnv({ ...validCore(), BRAND_LOGO: logo });
+      expect(() => validateEnv()).not.toThrow();
+    }
   });
 
   it("requires BETTER_AUTH_SECRET only in production", () => {

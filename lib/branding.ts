@@ -17,13 +17,24 @@ export const COMPANY_NAME =
 export const ALLOWED_EMAIL_DOMAIN =
   process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "example.com";
 
+/** Logos a deployment can choose from; drawn in lib/brand-logos.ts. */
+export const BRAND_LOGOS = ["default", "dss"] as const;
+export type BrandLogoName = (typeof BRAND_LOGOS)[number];
+
 /**
- * The logo — sidebar, auth pages and favicon. Unlike the env vars above it is a
- * runtime file, not a build-time value: a deployment mounts its own directory
- * over `public/brand` (BRAND_DIR in compose.yaml), so the repo only ships a
- * neutral default.
+ * Which logo this deployment shows (BRAND_LOGO). Server-only and read per
+ * call, not a `NEXT_PUBLIC_` constant: the Docker build sees no deployment env,
+ * so a build-time value would always be the default. Server components read it
+ * and pass it down. An unknown value fails boot in lib/env.ts; this fallback
+ * only covers `next dev` and tests.
  */
-export const BRAND_LOGO_SRC = "/brand/logo.svg";
+export function brandLogo(): BrandLogoName {
+  const value = process.env.BRAND_LOGO;
+  return BRAND_LOGOS.find((logo) => logo === value) ?? "default";
+}
+
+/** The favicon, rendered per deployment by app/brand/icon.svg/route.ts. */
+export const BRAND_ICON_SRC = "/brand/icon.svg";
 
 export const DEFAULT_EMAIL_FROM = `${APP_NAME} <no-reply@${ALLOWED_EMAIL_DOMAIN}>`;
 
