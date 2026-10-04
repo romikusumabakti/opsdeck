@@ -149,14 +149,15 @@ export const auth = betterAuth({
         // provisioned even if the Azure-side app assignment is misconfigured.
         //
         // Throwing (rather than returning false) is deliberate: better-auth
-        // turns an APIError message into the `?error=` code on the OAuth
-        // callback redirect, so the sign-in page can explain what happened
-        // instead of showing a generic "unable to create user".
+        // passes an APIError's `code` through verbatim as the `?error=` value
+        // on the OAuth callback redirect, so the sign-in page can explain what
+        // happened instead of showing a generic "unable to create user". The
+        // code is therefore the lowercase slug sign-in-form.tsx matches on.
         before: async (user) => {
           if (!isAllowedEmail(user.email)) {
             throw APIError.from("FORBIDDEN", {
               message: "domain not allowed",
-              code: "DOMAIN_NOT_ALLOWED",
+              code: "domain_not_allowed",
             });
           }
         },
