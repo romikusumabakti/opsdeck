@@ -66,11 +66,18 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 > - `BETTER_AUTH_URL` must be the exact origin users visit. Passkeys are bound to it, and the terminal rejects WebSocket upgrades from any other origin.
 > - `NEXT_PUBLIC_*` branding variables are baked in at build time, so changing them means rebuilding the image.
 
-### Logo
+### Brand
 
-`BRAND_LOGO` picks the logo for the sidebar, the sign-in pages and the favicon: `default` (a neutral grid) or `dss`. The server reads it at runtime, so switching logos takes a `docker compose up -d app`, not a rebuild.
+`BRAND` picks the deployment's brand, which is its logo and colour theme: `default` (neutral grey, a plain grid logo) or `dss` (DSS Consulting navy). The server reads it at runtime, so switching brands takes a `docker compose up -d app`, not a rebuild.
 
-Logos are code, not image files, so that they can take the theme's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. To add a logo, give it an entry in `lib/brand-logos.ts`, which holds the tile geometry, Tailwind fill classes and favicon colours, and add its name to `BRAND_LOGOS` in `lib/branding.ts`. The favicon at `/brand/icon.svg` is drawn from the same entry and follows the browser's light or dark scheme.
+Logos are code, not image files, so that they can take the theme's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. The favicon at `/brand/icon.svg` is drawn from the same definition and follows the browser's light or dark scheme.
+
+The theme is the stock shadcn/ui token set in `app/globals.css`. A brand overrides those tokens in a `[data-brand="…"]` block for light mode and a `.dark[data-brand="…"]` block for dark mode; the root layout sets `data-brand` on `<html>`. Components never name brand colours directly. `tests/brand-theme.test.ts` checks that every brand's text and background pairs meet WCAG AA contrast.
+
+To add a brand:
+1. Add its name to `BRANDS` in `lib/branding.ts`.
+2. Give it a logo entry in `lib/brand-logos.ts`, with tile geometry, Tailwind fill classes and favicon colours.
+3. Give it light and dark token blocks in `app/globals.css`.
 
 ## Running with Docker Compose
 

@@ -14,7 +14,7 @@ const MANAGED: string[] = [
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "APP_TIMEZONE",
-  "BRAND_LOGO",
+  "BRAND",
   "MICROSOFT_CLIENT_ID",
   "MICROSOFT_CLIENT_SECRET",
   "MICROSOFT_TENANT_ID",
@@ -127,14 +127,14 @@ describe("validateEnv", () => {
     expect(() => validateEnv()).not.toThrow();
   });
 
-  it("rejects an unknown BRAND_LOGO, naming the valid ones", () => {
-    setEnv({ ...validCore(), BRAND_LOGO: "acme" });
-    expect(() => validateEnv()).toThrow(/BRAND_LOGO.*default.*dss/);
+  it("rejects an unknown BRAND, naming the valid ones", () => {
+    setEnv({ ...validCore(), BRAND: "acme" });
+    expect(() => validateEnv()).toThrow(/BRAND.*default.*dss/);
   });
 
-  it("accepts every known BRAND_LOGO", () => {
+  it("accepts every known BRAND", () => {
     for (const logo of ["default", "dss"]) {
-      setEnv({ ...validCore(), BRAND_LOGO: logo });
+      setEnv({ ...validCore(), BRAND: logo });
       expect(() => validateEnv()).not.toThrow();
     }
   });

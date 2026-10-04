@@ -52,9 +52,9 @@ services:
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME-}
       NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME-}
       NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN: ${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}
-      # Logo (sidebar, sign-in pages, favicon): one of lib/branding.ts BRAND_LOGOS.
+      # Brand — logo and colour theme: one of lib/branding.ts BRANDS.
       # Read by the server at runtime, so changing it takes a restart, not a rebuild.
-      BRAND_LOGO: ${BRAND_LOGO-}
+      BRAND: ${BRAND-}
       # Email (Resend) — optional; email features disabled if empty.
       # When EMAIL_FROM is unset, lib/branding.ts derives a default from
       # NEXT_PUBLIC_APP_NAME + NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN.
