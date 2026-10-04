@@ -5,7 +5,9 @@ describe("mailEventType", () => {
   it.each(["new", "update", "delete", "truncate", "prune"])(
     "relays %s frames",
     (type) => {
-      expect(mailEventType(JSON.stringify({ Type: type, Data: {} }))).toBe(type);
+      expect(mailEventType(JSON.stringify({ Type: type, Data: {} }))).toBe(
+        type
+      );
     }
   );
 

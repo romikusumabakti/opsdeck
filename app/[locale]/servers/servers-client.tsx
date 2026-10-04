@@ -1,9 +1,9 @@
 "use client";
 
 import {
+  Eye,
   FolderOpen,
   MoreHorizontal,
-  Eye,
   Pencil,
   Plus,
   Server as ServerIcon,

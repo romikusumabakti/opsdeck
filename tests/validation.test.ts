@@ -197,12 +197,14 @@ describe("mailpitSettingsSchema", () => {
     expect(mailpitSettingsSchema.safeParse({ url }).success).toBe(true);
   });
 
-  it.each(["ftp://x.test", "javascript:alert(1)", "not a url", "file:///etc/passwd"])(
-    "rejects url %p",
-    (url) => {
-      expect(mailpitSettingsSchema.safeParse({ url }).success).toBe(false);
-    }
-  );
+  it.each([
+    "ftp://x.test",
+    "javascript:alert(1)",
+    "not a url",
+    "file:///etc/passwd",
+  ])("rejects url %p", (url) => {
+    expect(mailpitSettingsSchema.safeParse({ url }).success).toBe(false);
+  });
 
   it.each(["https://u:p@mail.test/", "https://u@mail.test/"])(
     "rejects url with embedded credentials %p",
@@ -212,7 +214,10 @@ describe("mailpitSettingsSchema", () => {
   );
 
   it("keeps password undefined when omitted (blank = keep)", () => {
-    const parsed = mailpitSettingsSchema.parse({ url: "http://x.test", username: "qa" });
+    const parsed = mailpitSettingsSchema.parse({
+      url: "http://x.test",
+      username: "qa",
+    });
     expect(parsed.password).toBeUndefined();
   });
 });
@@ -225,9 +230,12 @@ describe("mailpit ids", () => {
     }
   );
 
-  it.each(["", "../etc", "a/b", "x".repeat(65)])("rejects message id %p", (id) => {
-    expect(mailpitIdSchema.safeParse(id).success).toBe(false);
-  });
+  it.each(["", "../etc", "a/b", "x".repeat(65)])(
+    "rejects message id %p",
+    (id) => {
+      expect(mailpitIdSchema.safeParse(id).success).toBe(false);
+    }
+  );
 
   it.each(["1", "1.2", "2.10.3"])("accepts part id %p", (id) => {
     expect(mailpitPartIdSchema.safeParse(id).success).toBe(true);
@@ -240,17 +248,28 @@ describe("mailpit ids", () => {
 
 describe("mailDeleteTargetSchema", () => {
   it("rejects an empty id selection (never means delete-all)", () => {
-    expect(mailDeleteTargetSchema.safeParse({ scope: "ids", ids: [] }).success).toBe(false);
+    expect(
+      mailDeleteTargetSchema.safeParse({ scope: "ids", ids: [] }).success
+    ).toBe(false);
   });
 
   it("rejects a blank search", () => {
-    expect(mailDeleteTargetSchema.safeParse({ scope: "search", query: "  " }).success).toBe(false);
+    expect(
+      mailDeleteTargetSchema.safeParse({ scope: "search", query: "  " }).success
+    ).toBe(false);
   });
 
   it("accepts the three scopes", () => {
-    expect(mailDeleteTargetSchema.safeParse({ scope: "ids", ids: ["abc"] }).success).toBe(true);
-    expect(mailDeleteTargetSchema.safeParse({ scope: "search", query: "is:read" }).success).toBe(true);
-    expect(mailDeleteTargetSchema.safeParse({ scope: "all" }).success).toBe(true);
+    expect(
+      mailDeleteTargetSchema.safeParse({ scope: "ids", ids: ["abc"] }).success
+    ).toBe(true);
+    expect(
+      mailDeleteTargetSchema.safeParse({ scope: "search", query: "is:read" })
+        .success
+    ).toBe(true);
+    expect(mailDeleteTargetSchema.safeParse({ scope: "all" }).success).toBe(
+      true
+    );
   });
 });
 

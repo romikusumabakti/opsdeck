@@ -860,7 +860,8 @@ export async function bulkSetStatus(
   const parsed = issueStatusSchema.safeParse(status);
   if (!parsed.success) return { success: false, message: "Invalid status" };
   if (ids.length === 0) return { success: true };
-  if (!ids.every(isUuid)) return { success: false, message: "Invalid issue data" };
+  if (!ids.every(isUuid))
+    return { success: false, message: "Invalid issue data" };
   await requireProjectPermissionForAll(await owningProjectIds(ids), {
     issue: ["write"],
   });
@@ -882,7 +883,8 @@ export async function bulkDeleteIssues(
   ids: string[]
 ): Promise<{ success: boolean; message?: string }> {
   if (ids.length === 0) return { success: true };
-  if (!ids.every(isUuid)) return { success: false, message: "Invalid issue data" };
+  if (!ids.every(isUuid))
+    return { success: false, message: "Invalid issue data" };
   await requireProjectPermissionForAll(await owningProjectIds(ids), {
     issue: ["delete"],
   });

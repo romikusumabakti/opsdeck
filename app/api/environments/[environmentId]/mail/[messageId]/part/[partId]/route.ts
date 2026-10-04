@@ -17,7 +17,11 @@ export async function GET(
   {
     params,
   }: {
-    params: Promise<{ environmentId: string; messageId: string; partId: string }>;
+    params: Promise<{
+      environmentId: string;
+      messageId: string;
+      partId: string;
+    }>;
   }
 ) {
   const { environmentId, messageId, partId } = await params;

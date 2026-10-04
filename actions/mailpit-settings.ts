@@ -30,11 +30,18 @@ export type MailpitTestResult =
 export async function getMailpitSettings(
   environmentId: string
 ): Promise<MailpitSettings | null> {
-  await requireProjectPermission({ environmentId }, { environment: ["update"] });
+  await requireProjectPermission(
+    { environmentId },
+    { environment: ["update"] }
+  );
   if (!uuidSchema.safeParse(environmentId).success) return null;
   const cfg = await loadMailpitConfig(environmentId);
   return cfg
-    ? { url: cfg.url, username: cfg.username, hasPassword: Boolean(cfg.password) }
+    ? {
+        url: cfg.url,
+        username: cfg.username,
+        hasPassword: Boolean(cfg.password),
+      }
     : null;
 }
 
@@ -80,7 +87,10 @@ export async function saveMailpitSettings(
       // prevents an admin from changing the URL to an attacker's host and retrieving
       // the stored password via Basic Auth.
       const stored = await loadMailpitConfig(environmentId);
-      const shouldReuse = shouldReuseStoredPassword({ url, username, password }, stored);
+      const shouldReuse = shouldReuseStoredPassword(
+        { url, username, password },
+        stored
+      );
 
       const passwordPatch = !username
         ? { password: null }
@@ -105,7 +115,10 @@ export async function saveMailpitSettings(
       });
     }
   } catch (error) {
-    console.error(`Failed to save Mailpit settings for ${environmentId}:`, error);
+    console.error(
+      `Failed to save Mailpit settings for ${environmentId}:`,
+      error
+    );
     return { success: false, message: "Failed to save Mailpit settings" };
   }
 
@@ -121,7 +134,10 @@ export async function testMailpitConnection(
   environmentId: string,
   data: unknown
 ): Promise<MailpitTestResult> {
-  await requireProjectPermission({ environmentId }, { environment: ["update"] });
+  await requireProjectPermission(
+    { environmentId },
+    { environment: ["update"] }
+  );
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, error: "Invalid environment id" };
   }
@@ -144,7 +160,10 @@ export async function testMailpitConnection(
       username: input.username,
       password,
     });
-    return { success: true, data: { version: info.Version, messages: info.Messages } };
+    return {
+      success: true,
+      data: { version: info.Version, messages: info.Messages },
+    };
   } catch (err) {
     return {
       success: false,

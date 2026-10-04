@@ -8,7 +8,12 @@
   "ReplyTo": [],
   "ReturnPath": "noreply@app.test",
   "Subject": "Reset your password",
-  "ListUnsubscribe": { "Header": "", "Links": [], "Errors": "", "HeaderPost": "" },
+  "ListUnsubscribe": {
+    "Header": "",
+    "Links": [],
+    "Errors": "",
+    "HeaderPost": ""
+  },
   "Date": "2026-10-02T03:04:05Z",
   "Tags": [],
   "Username": "",
@@ -16,9 +21,23 @@
   "HTML": "<html><head><title>x</title></head><body><img src=\"cid:logo@app\"><a href=\"https://app.test/reset?t=1\">Reset</a></body></html>",
   "Size": 4096,
   "Inline": [
-    { "PartID": "1.2", "FileName": "logo.png", "ContentType": "image/png", "ContentID": "logo@app", "Size": 120, "Checksums": {} }
+    {
+      "PartID": "1.2",
+      "FileName": "logo.png",
+      "ContentType": "image/png",
+      "ContentID": "logo@app",
+      "Size": 120,
+      "Checksums": {}
+    }
   ],
   "Attachments": [
-    { "PartID": "2", "FileName": "invoice.pdf", "ContentType": "application/pdf", "ContentID": "", "Size": 2048, "Checksums": {} }
+    {
+      "PartID": "2",
+      "FileName": "invoice.pdf",
+      "ContentType": "application/pdf",
+      "ContentID": "",
+      "Size": 2048,
+      "Checksums": {}
+    }
   ]
 }
