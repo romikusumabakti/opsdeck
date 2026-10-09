@@ -35,6 +35,7 @@ import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 import { canOrg, type OrgRole } from "@/lib/permissions";
+import { getInitials } from "@/lib/user-display";
 
 type UserSummary = {
   id: string;
@@ -82,13 +83,7 @@ export function UserMenu({
     });
   }
 
-  const initials = (user.name || user.email)
-    .split(/\s+/)
-    .map((s) => s[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const initials = getInitials(user.name, user.email);
 
   return (
     <DropdownMenu>
