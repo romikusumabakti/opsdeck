@@ -84,6 +84,10 @@ describe("projectKeySchema", () => {
     expect(projectKeySchema.parse("cmem")).toBe("CMEM");
   });
 
+  it("reserves PEOPLE", () => {
+    expect(projectKeySchema.safeParse("PEOPLE").success).toBe(false);
+  });
+
   it.each(["A", "TOOLONGKEY1", "1ABC"])("rejects malformed %s", (key) => {
     expect(projectKeySchema.safeParse(key).success).toBe(false);
   });
