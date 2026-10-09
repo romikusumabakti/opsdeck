@@ -3,6 +3,7 @@ import {
   AVATAR_COLOR_COUNT,
   activeStatus,
   avatarColorIndex,
+  expiryFromPreset,
   getInitials,
   isWithinWorkingHours,
   liveCardStatus,
@@ -144,13 +145,67 @@ describe("liveCardStatus", () => {
 
   it("keeps a status with no expiry or a future expiry", () => {
     expect(liveCardStatus({ ...base, expiresAt: null }, now)).not.toBeNull();
-    expect(liveCardStatus({ ...base, expiresAt: "2026-01-01T10:00:01Z" }, now)).not.toBeNull();
+    expect(
+      liveCardStatus({ ...base, expiresAt: "2026-01-01T10:00:01Z" }, now)
+    ).not.toBeNull();
   });
   it("drops a status that expired, including exactly now", () => {
-    expect(liveCardStatus({ ...base, expiresAt: "2026-01-01T10:00:00Z" }, now)).toBeNull();
-    expect(liveCardStatus({ ...base, expiresAt: "2025-12-31T00:00:00Z" }, now)).toBeNull();
+    expect(
+      liveCardStatus({ ...base, expiresAt: "2026-01-01T10:00:00Z" }, now)
+    ).toBeNull();
+    expect(
+      liveCardStatus({ ...base, expiresAt: "2025-12-31T00:00:00Z" }, now)
+    ).toBeNull();
   });
   it("passes null through", () => {
     expect(liveCardStatus(null, now)).toBeNull();
+  });
+});
+
+describe("expiryFromPreset", () => {
+  const now = new Date("2026-10-09T03:00:00Z"); // Fri 10:00 WIB
+  it("adds durations", () => {
+    expect(expiryFromPreset("30m", now, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-09T03:30:00.000Z"
+    );
+    expect(expiryFromPreset("1h", now, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-09T04:00:00.000Z"
+    );
+    expect(expiryFromPreset("4h", now, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-09T07:00:00.000Z"
+    );
+  });
+  it("ends today at local midnight", () => {
+    expect(expiryFromPreset("today", now, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-09T17:00:00.000Z"
+    );
+  });
+  it("ends the week at local Monday 00:00", () => {
+    expect(expiryFromPreset("week", now, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-11T17:00:00.000Z"
+    );
+  });
+  it("never", () => {
+    expect(expiryFromPreset("never", now, "Asia/Jakarta")).toBeNull();
+  });
+  it("handles negative-offset zones", () => {
+    // Fri 2026-10-09 23:30 in New York (EDT, UTC-4) -> local midnight is 04:00Z next day
+    const ny = new Date("2026-10-10T03:30:00Z");
+    expect(
+      expiryFromPreset("today", ny, "America/New_York")?.toISOString()
+    ).toBe("2026-10-10T04:00:00.000Z");
+    expect(
+      expiryFromPreset("week", ny, "America/New_York")?.toISOString()
+    ).toBe("2026-10-12T04:00:00.000Z");
+  });
+  it("ends the week on the next Monday when today is Sunday or Monday", () => {
+    const sun = new Date("2026-10-11T03:00:00Z"); // Sun 10:00 WIB
+    expect(expiryFromPreset("week", sun, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-11T17:00:00.000Z"
+    );
+    const mon = new Date("2026-10-12T03:00:00Z"); // Mon 10:00 WIB
+    expect(expiryFromPreset("week", mon, "Asia/Jakarta")?.toISOString()).toBe(
+      "2026-10-18T17:00:00.000Z"
+    );
   });
 });

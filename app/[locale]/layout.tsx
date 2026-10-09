@@ -43,6 +43,7 @@ import { getProjectAccess } from "@/lib/authz";
 import { BRAND_ICON_SRC, brand } from "@/lib/branding";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
+import { activeStatus } from "@/lib/user-display";
 import "../globals.css";
 
 const geistSans = Geist({
@@ -183,6 +184,16 @@ export default async function LocaleLayout({
                           name: session.user.name,
                           email: session.user.email,
                           image: session.user.image ?? null,
+                          status: (() => {
+                            const s = activeStatus(session.user);
+                            return (
+                              s && {
+                                ...s,
+                                expiresAt: s.expiresAt?.toISOString() ?? null,
+                              }
+                            );
+                          })(),
+                          timeZone: effectiveTimeZone(session.user),
                         }}
                       />
                       <SidebarInset className="min-w-0">
