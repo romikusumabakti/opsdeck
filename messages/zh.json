@@ -101,7 +101,8 @@
       "zh": "中文（简体）",
       "ar": "العربية",
       "es": "西班牙语"
-    }
+    },
+    "projects": "项目"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -139,7 +140,14 @@
     "createProject": "新建项目",
     "skipToContent": "跳转到主要内容",
     "createEnvironment": "新建环境",
-    "serverTime": "服务器时间（{zone}）"
+    "serverTime": "服务器时间（{zone}）",
+    "searchProject": "搜索项目…",
+    "noProject": "未找到项目。",
+    "allProjects": "所有项目",
+    "selectEnvironment": "选择环境",
+    "noEnvironmentInProject": "此项目还没有环境。",
+    "switchProject": "切换项目，当前：{name}",
+    "switchEnvironment": "切换环境，当前：{name}"
   },
   "activeTasks": {
     "trigger": "{count, plural, other {# 个运行中的任务}}",
