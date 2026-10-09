@@ -212,6 +212,7 @@ export default async function LocaleLayout({
                             />
                             <CommandPalette
                               environments={environments}
+                              projects={navProjects}
                               orgRole={orgRole}
                               projectRoles={projectRoles}
                             />

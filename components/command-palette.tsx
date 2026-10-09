@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -40,6 +41,11 @@ import { routing } from "@/i18n/routing";
 import { authClient } from "@/lib/auth-client";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
+  groupEnvironmentsByProject,
+  type NavProject,
+  stripProjectPrefix,
+} from "@/lib/nav-path";
+import {
   canCreateEnvironment as canCreateEnvironmentIn,
   canOrg,
   type OrgRole,
@@ -48,10 +54,12 @@ import {
 
 export function CommandPalette({
   environments,
+  projects,
   orgRole,
   projectRoles,
 }: {
   environments: EnvironmentListItem[];
+  projects: readonly NavProject[];
   orgRole: OrgRole;
   projectRoles: Record<string, ProjectRole>;
 }) {
@@ -69,6 +77,10 @@ export function CommandPalette({
   // project the caller can see lets them. The create dialog re-checks per project.
   const canCreateEnvironment = Object.values(projectRoles).some((role) =>
     canCreateEnvironmentIn(orgRole, role)
+  );
+  const environmentGroups = useMemo(
+    () => groupEnvironmentsByProject(projects, environments),
+    [projects, environments]
   );
 
   useEffect(() => {
@@ -214,20 +226,21 @@ export function CommandPalette({
             )}
           </CommandGroup>
 
-          {environments.length > 0 && (
+          {projects.length > 0 && (
             <>
               <CommandSeparator />
-              <CommandGroup heading={t("environments")}>
-                {environments.map((env) => (
+              <CommandGroup heading={t("projects")}>
+                {projects.map((project) => (
                   <CommandItem
-                    key={env.id}
-                    value={`environment ${env.name}`}
-                    onSelect={() =>
-                      run(() => router.push(`/${env.key}/${env.slug}`))
-                    }
+                    key={project.id}
+                    value={`project ${project.name} ${project.key}`}
+                    onSelect={() => run(() => router.push(`/${project.key}`))}
                   >
-                    <Folder />
-                    <span className="truncate">{env.name}</span>
+                    <FolderKanban />
+                    <span className="truncate">{project.name}</span>
+                    <CommandShortcut className="font-mono">
+                      {project.key}
+                    </CommandShortcut>
                   </CommandItem>
                 ))}
                 {canCreateEnvironment && (
@@ -245,6 +258,31 @@ export function CommandPalette({
               </CommandGroup>
             </>
           )}
+
+          {environmentGroups.map(({ project, environments: envs }) => (
+            <Fragment key={project.id}>
+              <CommandSeparator />
+              <CommandGroup heading={project.name}>
+                {envs.map((env) => (
+                  <CommandItem
+                    key={env.id}
+                    // Project-qualified so same-named environments in two
+                    // projects stay distinct and searchable by project.
+                    value={`environment ${project.name} ${project.key} ${env.name}`}
+                    onSelect={() =>
+                      run(() => router.push(`/${env.key}/${env.slug}`))
+                    }
+                  >
+                    <Folder />
+                    <span className="flex-1 min-w-0 truncate">
+                      {stripProjectPrefix(env.name, project.name)}
+                    </span>
+                    <EnvironmentKindBadge kind={env.kind} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </Fragment>
+          ))}
 
           <CommandSeparator />
           <CommandGroup heading={t("account")}>
