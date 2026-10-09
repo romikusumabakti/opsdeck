@@ -1873,5 +1873,18 @@
     "errorInvalidUser": "未知用户",
     "errorSelf": "不能移除自己的访问权限",
     "errorLastAdmin": "不能移除最后一位管理员"
+  },
+  "people": {
+    "localTime": "当地时间 {time}",
+    "workingNow": "工作时间",
+    "backToday": "非工作时间，{time} 上线",
+    "backTomorrow": "非工作时间，明天 {time} 上线",
+    "backOn": "非工作时间，{day} {time} 上线",
+    "deletedUser": "已删除的用户",
+    "viewProfile": "查看资料",
+    "email": "发邮件",
+    "teams": "在 Teams 中聊天",
+    "deactivated": "已停用",
+    "until": "至 {date}"
   }
 }

@@ -1873,5 +1873,18 @@
     "errorInvalidUser": "مستخدم غير معروف",
     "errorSelf": "لا يمكنك إلغاء وصولك بنفسك",
     "errorLastAdmin": "لا يمكن إزالة آخر مسؤول"
+  },
+  "people": {
+    "localTime": "الوقت المحلي {time}",
+    "workingNow": "ضمن ساعات العمل",
+    "backToday": "خارج ساعات العمل، يعود في {time}",
+    "backTomorrow": "خارج ساعات العمل، يعود غدًا في {time}",
+    "backOn": "خارج ساعات العمل، يعود {day} في {time}",
+    "deletedUser": "مستخدم محذوف",
+    "viewProfile": "عرض الملف الشخصي",
+    "email": "البريد الإلكتروني",
+    "teams": "محادثة في Teams",
+    "deactivated": "معطّل",
+    "until": "حتى {date}"
   }
 }

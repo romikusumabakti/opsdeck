@@ -1873,5 +1873,18 @@
     "errorInvalidUser": "Pengguna tidak dikenal",
     "errorSelf": "Kamu tidak bisa meng-offboard diri sendiri",
     "errorLastAdmin": "Admin terakhir tidak bisa dihapus"
+  },
+  "people": {
+    "localTime": "{time} waktu setempat",
+    "workingNow": "jam kerja",
+    "backToday": "di luar jam kerja, kembali pukul {time}",
+    "backTomorrow": "di luar jam kerja, kembali besok pukul {time}",
+    "backOn": "di luar jam kerja, kembali {day} pukul {time}",
+    "deletedUser": "Pengguna dihapus",
+    "viewProfile": "Lihat profil",
+    "email": "Email",
+    "teams": "Chat di Teams",
+    "deactivated": "Dinonaktifkan",
+    "until": "sampai {date}"
   }
 }
