@@ -24,7 +24,8 @@ import {
 } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
 import { isOrgRole, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
-import type { ActionResponse } from "@/lib/types";
+import { activeStatus } from "@/lib/user-display";
+import type { ActionResponse, UserRef } from "@/lib/types";
 
 const INVITE_EXPIRES_HOURS = 48;
 
@@ -118,6 +119,36 @@ export async function createInitialUser(input: {
   return { success: true, message: t("accountCreated") };
 }
 
+export type AssignableUserRow = UserRef & {
+  status: { emoji: string | null; text: string | null } | null;
+};
+
+const assignableColumns = {
+  id: userTable.id,
+  name: userTable.name,
+  image: userTable.image,
+  statusEmoji: userTable.statusEmoji,
+  statusText: userTable.statusText,
+  statusExpiresAt: userTable.statusExpiresAt,
+};
+
+function toAssignableUser({
+  statusEmoji,
+  statusText,
+  statusExpiresAt,
+  ...u
+}: {
+  id: string;
+  name: string;
+  image: string | null;
+  statusEmoji: string | null;
+  statusText: string | null;
+  statusExpiresAt: Date | null;
+}): AssignableUserRow {
+  const s = activeStatus({ statusEmoji, statusText, statusExpiresAt });
+  return { ...u, status: s ? { emoji: s.emoji, text: s.text } : null };
+}
+
 /**
  * Minimal user list for a project's assignment pickers — id + name of
  * non-banned users who can work on it: org admin/infra, or a member of the
@@ -125,13 +156,14 @@ export async function createInitialUser(input: {
  */
 export async function listAssignableUsers(
   projectId: string
-): Promise<{ id: string; name: string }[]> {
+): Promise<AssignableUserRow[]> {
   await requireProjectPermission({ projectId }, { project: ["read"] });
-  return db
-    .select({ id: userTable.id, name: userTable.name })
+  const rows = await db
+    .select(assignableColumns)
     .from(userTable)
     .where(assignableUsersWhere(eq(projectMembers.projectId, projectId)))
     .orderBy(userTable.name);
+  return rows.map(toAssignableUser);
 }
 
 /**
@@ -141,14 +173,15 @@ export async function listAssignableUsers(
  * from projects the caller can't reach.
  */
 export async function listAssignableUsersAcrossProjects(): Promise<
-  { id: string; name: string }[]
+  AssignableUserRow[]
 > {
   await requireSession();
-  return db
-    .select({ id: userTable.id, name: userTable.name })
+  const rows = await db
+    .select(assignableColumns)
     .from(userTable)
     .where(assignableUsersWhere(await projectScope(projectMembers.projectId)))
     .orderBy(userTable.name);
+  return rows.map(toAssignableUser);
 }
 
 export async function listUsers() {

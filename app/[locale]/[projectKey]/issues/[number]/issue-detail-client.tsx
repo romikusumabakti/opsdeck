@@ -44,6 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { UserAvatar } from "@/components/user/user-avatar";
+import { UserName } from "@/components/user/user-name";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { formatBytes } from "@/lib/utils";
@@ -498,14 +500,23 @@ export function IssueDetailClient({
           <ul className="flex flex-col gap-3">
             {issue.comments.map((c) => (
               <li key={c.id} className="flex gap-3">
-                <span className="mt-0.5 size-7 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
-                  {(c.author?.name ?? "?").charAt(0).toUpperCase()}
-                </span>
+                {c.author ? (
+                  <UserAvatar
+                    user={c.author}
+                    size="md"
+                    className="mt-0.5 shrink-0"
+                  />
+                ) : (
+                  <span className="mt-0.5 size-7 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                    ?
+                  </span>
+                )}
                 <div className="flex-1 min-w-0 rounded-lg border bg-card p-3">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                    <span className="font-medium text-foreground">
-                      {c.author?.name ?? t("unknownUser")}
-                    </span>
+                    <UserName
+                      user={c.author}
+                      className="font-medium text-foreground"
+                    />
                     <span>{ago(c.createdAt)}</span>
                   </div>
                   <p className="text-sm whitespace-pre-wrap break-words">

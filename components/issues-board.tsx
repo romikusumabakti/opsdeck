@@ -16,8 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { UserAvatar } from "@/components/user/user-avatar";
+import { UserName } from "@/components/user/user-name";
 import { Link } from "@/i18n/navigation";
 import type { LabelLite } from "@/lib/db/schema";
+import type { UserRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
@@ -67,7 +70,7 @@ export type BoardIssue = {
   priority?: Priority;
   keyPrefix: string;
   envName?: string | null;
-  assigneeName?: string | null;
+  assignee?: UserRef | null;
   milestoneName?: string | null;
   projectName?: string | null;
   labels?: LabelLite[];
@@ -196,7 +199,9 @@ export function PrioritySelect({
   );
 }
 
-export type AssignableUser = { id: string; name: string };
+export type AssignableUser = UserRef & {
+  status?: { emoji: string | null; text: string | null } | null;
+};
 
 const UNASSIGNED = "__unassigned";
 
@@ -229,7 +234,13 @@ export function AssigneeSelect({
         <SelectItem value={UNASSIGNED}>{t("unassigned")}</SelectItem>
         {users.map((u) => (
           <SelectItem key={u.id} value={u.id}>
-            {u.name}
+            <span className="flex items-center gap-2">
+              <UserAvatar user={u} size="xs" />
+              <span className="truncate">{u.name}</span>
+              {u.status?.emoji && (
+                <span title={u.status.text ?? undefined}>{u.status.emoji}</span>
+              )}
+            </span>
           </SelectItem>
         ))}
       </SelectContent>
@@ -318,13 +329,15 @@ function IssueCard({
       {issue.labels && issue.labels.length > 0 ? (
         <LabelChips labels={issue.labels} max={3} />
       ) : null}
-      {issue.envName || issue.assigneeName ? (
+      {issue.envName || issue.assignee ? (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
           {issue.envName ? <span>{issue.envName}</span> : null}
-          {issue.envName && issue.assigneeName ? (
+          {issue.envName && issue.assignee ? (
             <span aria-hidden="true">·</span>
           ) : null}
-          {issue.assigneeName ? <span>{issue.assigneeName}</span> : null}
+          {issue.assignee ? (
+            <UserName user={issue.assignee} avatar />
+          ) : null}
         </div>
       ) : null}
       <StatusSelect
@@ -415,7 +428,7 @@ export function IssueBoard({
   // Group, keeping the "none" bucket last and the rest alphabetical.
   const groups = new Map<string, BoardIssue[]>();
   for (const i of issues) {
-    const raw = swimlane === "assignee" ? i.assigneeName : i.milestoneName;
+    const raw = swimlane === "assignee" ? i.assignee?.name : i.milestoneName;
     const key = raw || noneLabel;
     const arr = groups.get(key);
     if (arr) arr.push(i);
