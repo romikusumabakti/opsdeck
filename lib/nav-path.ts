@@ -195,15 +195,31 @@ export function environmentSwitchHref(
   return base;
 }
 
+function latestBy<T>(
+  items: readonly T[],
+  at: (item: T) => number | undefined
+): T | undefined {
+  let latest: T | undefined;
+  let latestAt = -Infinity;
+  for (const item of items) {
+    const t = at(item);
+    if (t !== undefined && t > latestAt) {
+      latest = item;
+      latestAt = t;
+    }
+  }
+  return latest;
+}
+
 /**
  * Where picking a project in the project switcher should go: the caller's most
  * recently opened environment there (same section when it can), the equivalent
  * project page, or the project overview. Picking the current project goes to
  * its overview, like the plain project crumb this replaced.
  *
- * `visitedAt` (environment id → epoch ms) carries visits made since the shell's
- * environment list was loaded: the root layout doesn't re-render on client
- * navigation, so its `lastAccessedAt` goes stale within a session.
+ * `visitedAt` (environment id → browser epoch ms) carries visits made since the
+ * shell's environment list was loaded: the root layout doesn't re-render on
+ * client navigation, so its `lastAccessedAt` goes stale within a session.
  */
 export function projectSwitchHref({
   projectKey,
@@ -229,18 +245,12 @@ export function projectSwitchHref({
       : overview;
   }
   if (from.scope === "env") {
-    let latest: (typeof environments)[number] | undefined;
-    let latestAt = 0;
-    for (const env of environments) {
-      const at = Math.max(
-        env.lastAccessedAt?.getTime() ?? 0,
-        visitedAt[env.id] ?? 0
-      );
-      if (at > latestAt) {
-        latest = env;
-        latestAt = at;
-      }
-    }
+    // A visit this session is newer than anything the shell loaded, so it
+    // wins outright. Each source is only compared within its own clock: the
+    // browser's Date.now() and the server's timestamps aren't comparable.
+    const latest =
+      latestBy(environments, (env) => visitedAt[env.id]) ??
+      latestBy(environments, (env) => env.lastAccessedAt?.getTime());
     if (latest) return environmentSwitchHref(latest, from, role);
   }
   return overview;
