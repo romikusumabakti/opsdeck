@@ -101,7 +101,8 @@
       "zh": "中文（简体）",
       "ar": "العربية",
       "es": "الإسبانية"
-    }
+    },
+    "projects": "المشاريع"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -139,7 +140,14 @@
     "createProject": "مشروع جديد",
     "skipToContent": "انتقل إلى المحتوى الرئيسي",
     "createEnvironment": "بيئة جديدة",
-    "serverTime": "وقت الخادم ({zone})"
+    "serverTime": "وقت الخادم ({zone})",
+    "searchProject": "ابحث عن مشروع…",
+    "noProject": "لم يتم العثور على مشروع.",
+    "allProjects": "كل المشاريع",
+    "selectEnvironment": "اختر بيئة",
+    "noEnvironmentInProject": "لا توجد بيئات في هذا المشروع بعد.",
+    "switchProject": "تبديل المشروع، الحالي: {name}",
+    "switchEnvironment": "تبديل البيئة، الحالية: {name}"
   },
   "activeTasks": {
     "trigger": "{count, plural, zero {لا مهام قيد التشغيل} one {# مهمة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمةً قيد التشغيل} other {# مهمةً قيد التشغيل}}",

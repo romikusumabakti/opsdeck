@@ -101,7 +101,8 @@
       "zh": "Chino (simplificado)",
       "ar": "Árabe",
       "es": "Español"
-    }
+    },
+    "projects": "Proyectos"
   },
   "nav": {
     "dashboard": "Panel",
@@ -139,7 +140,14 @@
     "createProject": "Nuevo proyecto",
     "skipToContent": "Saltar al contenido principal",
     "createEnvironment": "Nuevo entorno",
-    "serverTime": "Hora del servidor ({zone})"
+    "serverTime": "Hora del servidor ({zone})",
+    "searchProject": "Buscar proyecto…",
+    "noProject": "No se encontró ningún proyecto.",
+    "allProjects": "Todos los proyectos",
+    "selectEnvironment": "Seleccionar entorno",
+    "noEnvironmentInProject": "Este proyecto aún no tiene entornos.",
+    "switchProject": "Cambiar proyecto, actual: {name}",
+    "switchEnvironment": "Cambiar entorno, actual: {name}"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
