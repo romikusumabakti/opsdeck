@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { UserName } from "@/components/user/user-name";
 import { useRouter } from "@/i18n/navigation";
 
 type Revision = {
@@ -25,7 +26,7 @@ type Revision = {
   title: string;
   content: string;
   createdAt: Date;
-  editedBy: { id: string; name: string } | null;
+  editedBy: { id: string; name: string; image: string | null } | null;
 };
 
 export function KnowledgeHistoryClient({
@@ -71,8 +72,10 @@ export function KnowledgeHistoryClient({
                   {rev.title}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {t("editedBy", {
+                  {t.rich("editedBy", {
                     name: rev.editedBy?.name ?? tCommon("you"),
+                    user: (chunks) =>
+                      rev.editedBy ? <UserName user={rev.editedBy} /> : chunks,
                     time: format.dateTime(new Date(rev.createdAt), {
                       dateStyle: "medium",
                       timeStyle: "short",

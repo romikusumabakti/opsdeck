@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UserName } from "@/components/user/user-name";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -67,9 +68,11 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
         cell: ({ row }) => {
           const user = row.original.user;
           return user ? (
-            <span className="text-sm text-muted-foreground" title={user.email}>
-              {user.name}
-            </span>
+            <UserName
+              user={user}
+              avatar
+              className="text-sm text-muted-foreground"
+            />
           ) : (
             <span className="text-sm italic text-muted-foreground">
               {t("userUnknown")}

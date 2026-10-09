@@ -184,7 +184,8 @@ export function IssuesClient({
   }
 
   const usersById = React.useMemo(
-    () => Object.fromEntries(
+    () =>
+      Object.fromEntries(
         users.map((u): [string, UserRef] => [
           u.id,
           { id: u.id, name: u.name, image: u.image },

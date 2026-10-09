@@ -11,6 +11,7 @@ import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { MarkdownContent } from "@/components/markdown-content";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
+import { UserName } from "@/components/user/user-name";
 import { Link } from "@/i18n/navigation";
 import { requireOrgPage } from "@/lib/authz";
 import { loadBacklinks, loadDocumentBySlug } from "@/lib/knowledge";
@@ -75,8 +76,10 @@ export default async function DocumentPage({
                 <Badge variant="secondary">{t("draft")}</Badge>
               )}
               <span>
-                {t("updatedBy", {
+                {t.rich("updatedBy", {
                   name: doc.updatedBy?.name ?? tCommon("you"),
+                  user: (chunks) =>
+                    doc.updatedBy ? <UserName user={doc.updatedBy} /> : chunks,
                   time: format.dateTime(new Date(doc.updatedAt), {
                     dateStyle: "medium",
                     timeStyle: "short",

@@ -6,7 +6,6 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import type { UserRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-
 // A textarea that offers an `@`-mention autocomplete. It only helps the author
 // type an exact display name; the server resolves who was mentioned by scanning
 // the saved body for `@${name}` (see actions/issues#addComment), so nothing here

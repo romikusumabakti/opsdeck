@@ -187,7 +187,7 @@ export async function loadDocumentBySlug(
     with: {
       collection: { columns: { id: true, name: true, icon: true } },
       createdBy: { columns: { id: true, name: true } },
-      updatedBy: { columns: { id: true, name: true } },
+      updatedBy: { columns: { id: true, name: true, image: true } },
     },
   });
   if (!doc) return null;
@@ -204,7 +204,7 @@ export async function loadDocumentById(
     with: {
       collection: { columns: { id: true, name: true, icon: true } },
       createdBy: { columns: { id: true, name: true } },
-      updatedBy: { columns: { id: true, name: true } },
+      updatedBy: { columns: { id: true, name: true, image: true } },
     },
   });
   if (!doc) return null;
@@ -215,7 +215,7 @@ export async function loadDocumentById(
 
 /** A document's revisions, newest first, with the editor's display name. */
 export type RevisionWithEditor = KnowledgeRevision & {
-  editedBy: { id: string; name: string } | null;
+  editedBy: { id: string; name: string; image: string | null } | null;
 };
 
 export async function loadRevisions(
@@ -223,7 +223,7 @@ export async function loadRevisions(
 ): Promise<RevisionWithEditor[]> {
   const rows = await db.query.knowledgeRevisions.findMany({
     where: { documentId },
-    with: { editedBy: { columns: { id: true, name: true } } },
+    with: { editedBy: { columns: { id: true, name: true, image: true } } },
     orderBy: { createdAt: "desc" },
     limit: 100,
   });

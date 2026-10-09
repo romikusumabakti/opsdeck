@@ -9,7 +9,9 @@ export type ActivityRow = {
   id: string;
   action: string;
   data: Record<string, string | number>;
+  actorId: string | null;
   actorName: string | null;
+  actorImage: string | null;
   createdAt: Date;
 };
 
@@ -22,7 +24,9 @@ export async function listActivity(limit = 100): Promise<ActivityRow[]> {
         id: activityLog.id,
         action: activityLog.action,
         data: activityLog.data,
+        actorId: activityLog.actorId,
         actorName: users.name,
+        actorImage: users.image,
         createdAt: activityLog.createdAt,
       })
       .from(activityLog)

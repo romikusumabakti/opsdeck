@@ -58,8 +58,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserAvatar } from "@/components/user/user-avatar";
+import { UserName } from "@/components/user/user-name";
 import { isOrgRole, ORG_ROLES, type OrgRole } from "@/lib/permissions";
-import { getInitials } from "@/lib/user-display";
 
 type UserRow = {
   id: string;
@@ -490,12 +491,10 @@ export function UsersClient({
       const isYou = user.id === currentUserId;
       return (
         <div className="flex items-center gap-3 min-w-0">
-          <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
-            {getInitials(user.name, user.email)}
-          </span>
+          <UserAvatar user={user} size="md" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{user.name}</span>
+              <UserName user={user} className="font-medium truncate" />
               {isYou && (
                 <Badge variant="secondary" className="text-xs">
                   {tCommon("you")}
