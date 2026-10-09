@@ -19,6 +19,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { WorkingHours } from "@/lib/user-display";
 
 export const serviceTypeEnum = pgEnum("service_type", [
   "docker",
@@ -635,23 +636,46 @@ export const notifications = pgTable(
 // `role`, `banned`, `banReason`, `banExpires` are managed by the better-auth
 // admin plugin (lib/auth.ts). Default role for invited users is "member"; the
 // bootstrap user created in `createInitialUser` is promoted to "admin".
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").notNull().default(false),
-  image: text("image"),
-  role: text("role").notNull().default("member"),
-  banned: boolean("banned").notNull().default(false),
-  banReason: text("ban_reason"),
-  banExpires: timestamp("ban_expires"),
-  // Atlassian account id, so a Jira assignee resolves to an OpsDeck user. Seeded
-  // by email match on first sync; an admin can correct it. Not unique — a stale
-  // duplicate must not be able to block a user row from saving.
-  jiraAccountId: text("jira_account_id"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export type AvatarSource = "upload" | "microsoft" | "removed";
+
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    role: text("role").notNull().default("member"),
+    banned: boolean("banned").notNull().default(false),
+    banReason: text("ban_reason"),
+    banExpires: timestamp("ban_expires"),
+    // Atlassian account id, so a Jira assignee resolves to an OpsDeck user. Seeded
+    // by email match on first sync; an admin can correct it. Not unique — a stale
+    // duplicate must not be able to block a user row from saving.
+    jiraAccountId: text("jira_account_id"),
+    // --- Profile (self-managed; see actions/profile.ts) ---
+    title: text("title"),
+    bio: text("bio"),
+    // IANA zone; null = APP_TIMEZONE (lib/timezone effectiveTimeZone).
+    timezone: text("timezone"),
+    workingHours: jsonb("working_hours").$type<WorkingHours>(),
+    // Status expiry is enforced on read (lib/user-display activeStatus).
+    statusEmoji: text("status_emoji"),
+    statusText: text("status_text"),
+    statusExpiresAt: timestamp("status_expires_at"),
+    // Where `image` came from. 'removed' blocks the Microsoft re-import.
+    avatarSource: text("avatar_source").$type<AvatarSource>(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Mentions resolve by exact @name, so active names must not collide.
+    uniqueIndex("users_active_name_lower_idx")
+      .on(sql`lower(${t.name})`)
+      .where(sql`${t.banned} = false`),
+  ]
+);
 
 export const sessions = pgTable(
   "sessions",

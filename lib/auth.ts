@@ -16,6 +16,7 @@ import {
 } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
+import { pickFreeName } from "./people/names";
 import { orgAc, orgRoles } from "./permissions";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
@@ -99,6 +100,21 @@ export const auth = betterAuth({
         },
       }
     : undefined,
+  user: {
+    // Profile fields ride on the session (the layout needs timezone and
+    // status on every render) but are written only by actions/profile.ts,
+    // never through /update-user, hence input: false.
+    additionalFields: {
+      title: { type: "string", required: false, input: false },
+      bio: { type: "string", required: false, input: false },
+      timezone: { type: "string", required: false, input: false },
+      workingHours: { type: "json", required: false, input: false },
+      statusEmoji: { type: "string", required: false, input: false },
+      statusText: { type: "string", required: false, input: false },
+      statusExpiresAt: { type: "date", required: false, input: false },
+      avatarSource: { type: "string", required: false, input: false },
+    },
+  },
   account: {
     accountLinking: {
       enabled: true,
@@ -160,6 +176,8 @@ export const auth = betterAuth({
               code: "domain_not_allowed",
             });
           }
+          // A clashing display name must never block a sign-in or an invite.
+          return { data: { ...user, name: await pickFreeName(user.name, user.email) } };
         },
       },
     },
