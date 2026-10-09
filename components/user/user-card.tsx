@@ -96,6 +96,17 @@ export function UserCardBody({
           <MessageSquare />
           {t("teams")}
         </Button>
+        {card.jiraUrl && (
+          <Button
+            size="sm"
+            variant="outline"
+            nativeButton={false}
+            render={<a href={card.jiraUrl} target="_blank" rel="noreferrer" />}
+          >
+            <SquareArrowOutUpRight />
+            {t("jira")}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"

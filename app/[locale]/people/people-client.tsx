@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AvailabilityDot } from "@/components/user/availability-dot";
 import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
@@ -95,7 +96,13 @@ export function PeopleClient({
                   so the card is one click target with no nested interactives. */}
               <Card className="relative h-full transition-colors hover:bg-muted/40">
                 <CardContent className="flex items-start gap-3">
-                  <UserAvatar user={p} size="lg" />
+                  <span className="relative flex shrink-0">
+                    <UserAvatar user={p} size="lg" />
+                    <AvailabilityDot
+                      timeZone={p.timeZone}
+                      workingHours={p.workingHours}
+                    />
+                  </span>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <Link
                       href={`/people/${p.id}`}

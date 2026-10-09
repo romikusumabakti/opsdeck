@@ -8,6 +8,20 @@ import {
   type WorkingHours,
 } from "@/lib/user-display";
 
+/**
+ * The current time, refreshed each minute. Null until mounted: the server
+ * can't know the viewer's clock minute, so rendering it would mismatch.
+ */
+export function useMinuteClock(): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 /** "14:03 local time · GMT+8 · outside working hours, back Mon 09:00". Ticks each minute. */
 export function LocalTime({
   timeZone,
@@ -19,13 +33,7 @@ export function LocalTime({
   const t = useTranslations("people");
   const format = useFormatter();
   const locale = useLocale();
-  const [now, setNow] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useMinuteClock();
 
   // Rendered after mount only: the server can't know the viewer's clock minute.
   if (!now) return <span className="text-muted-foreground">&nbsp;</span>;
