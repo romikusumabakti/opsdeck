@@ -5,6 +5,7 @@ import {
   isValidTimeZone,
 } from "@/lib/timezone";
 import {
+  normalizeDisplayName,
   profileInputSchema,
   statusEmojiSchema,
   statusInputSchema,
@@ -80,6 +81,17 @@ describe("profileInputSchema", () => {
     timezone: null,
     workingHours: null,
   };
+  it("collapses internal whitespace in the name", () => {
+    expect(
+      profileInputSchema.parse({ ...base, name: "  Budi \t  Santoso\n " }).name
+    ).toBe("Budi Santoso");
+    expect(normalizeDisplayName("Ana  Maria")).toBe("Ana Maria");
+  });
+  it("rejects a whitespace-only name", () => {
+    expect(
+      profileInputSchema.safeParse({ ...base, name: " \t\n " }).success
+    ).toBe(false);
+  });
   it("trims and turns blanks into null", () => {
     const r = profileInputSchema.parse({
       ...base,
