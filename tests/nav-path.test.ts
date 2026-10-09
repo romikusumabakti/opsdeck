@@ -347,6 +347,24 @@ describe("projectSwitchHref within a session", () => {
     ).toBe("/SUCOR/old/services");
   });
 
+  // Server timestamps and the browser clock aren't comparable (a
+  // `timestamp without time zone` read as UTC can sit hours in the future), so
+  // any visit this session must beat any server timestamp.
+  it("prefers a session visit even when server timestamps look newer", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments: [
+          target("old", new Date("2026-10-01T00:00:00Z")),
+          target("skewed", new Date("2099-01-01T00:00:00Z")),
+        ],
+        role: "viewer",
+        from: parseNavPath("/CMEM/prod/services"),
+        visitedAt: { old: Date.parse("2026-10-09T10:00:00Z") },
+      })
+    ).toBe("/SUCOR/old/services");
+  });
+
   it("treats a session visit as opened for a never-opened environment", () => {
     expect(
       projectSwitchHref({
