@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
+import { eq } from "drizzle-orm";
 import { after } from "next/server";
 import { v7 as uuidv7 } from "uuid";
 import { APP_NAME, isAllowedEmail } from "./branding";
@@ -17,8 +18,9 @@ import {
 } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
-import { pickFreeName } from "./people/names";
+import { nameTaken, pickFreeName } from "./people/names";
 import { orgAc, orgRoles } from "./permissions";
+import { uuidSchema } from "./validation";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
 
@@ -158,6 +160,42 @@ export const auth = betterAuth({
     },
   },
   hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      // Name and image are written only by actions/profile.ts and
+      // lib/avatars, which validate, keep names unique and only ever store
+      // our own /api/avatars URL. better-auth's generic user-update endpoints
+      // would bypass all of that (`input: false` guards only our additional
+      // fields), and nothing in the app calls them, so they are closed.
+      if (ctx.path === "/update-user" || ctx.path === "/admin/update-user") {
+        throw APIError.from("FORBIDDEN", {
+          message: "Profile changes go through the account page.",
+          code: "profile_update_forbidden",
+        });
+      }
+      // Names are unique among active users only, so a deactivated user's
+      // name may have been reused since. Reactivating them would trip the
+      // unique index with an opaque 500; refuse with a reason instead.
+      if (ctx.path === "/admin/unban-user") {
+        const parsed = uuidSchema.safeParse(
+          (ctx.body as { userId?: unknown } | undefined)?.userId
+        );
+        // Malformed ids are left to the endpoint's own validation.
+        if (!parsed.success) return;
+        const userId = parsed.data;
+        const [target] = await db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+        if (target && (await nameTaken(target.name, userId))) {
+          throw APIError.from("CONFLICT", {
+            message:
+              "Another active user has this name. Rename one of them first.",
+            code: "name_taken",
+          });
+        }
+      }
+    }),
     // After a Microsoft sign-in, pull the M365 photo in the background.
     // after() runs it once the response is sent, so sign-in never waits on
     // Graph, and a failure only logs. Dynamic import: lib/avatars-microsoft

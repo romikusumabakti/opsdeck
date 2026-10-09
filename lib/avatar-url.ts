@@ -25,6 +25,19 @@ export function hashFromAvatarUrl(
   return image?.match(URL_RE)?.[1] ?? null;
 }
 
+/**
+ * True only for the URL our own avatar store minted for this user. Anything
+ * else in `users.image` (a foreign URL written through some other path) is
+ * never handed to a viewer's browser.
+ */
+export function isOwnAvatarUrl(
+  image: string | null | undefined,
+  userId: string
+): image is string {
+  const hash = hashFromAvatarUrl(image);
+  return hash !== null && image === avatarUrl(userId, hash);
+}
+
 export function avatarSrc(image: string, px: number): string {
   return `${image}?s=${snapAvatarSize(px)}`;
 }
