@@ -29,9 +29,9 @@ Tiga lapis yang membatasi:
    `lib/auth.ts` menolak email apa pun di luar `ALLOWED_EMAIL_DOMAIN`. Berlaku
    untuk semua jalur pembuatan user, jadi tetap menahan meski app assignment di
    Azure lupa dinyalakan. Ditolak → `/sign-in?error=domain_not_allowed`.
-3. **Role default `viewer`** — user hasil OAuth cuma dapat capability `read`
-   (lihat `lib/roles.ts`). Tidak bisa edit issue, edit KB, apalagi ops. Admin
-   menaikkan role lewat halaman Users.
+3. **Role default `member`** — user hasil OAuth tidak punya akses ke project
+   mana pun sampai ditambahkan ke project (lihat `lib/permissions.ts`). Tidak
+   bisa ops. Admin menaikkan role lewat halaman Users.
 
 Kalau user dengan email tersebut sudah ada (dari `/setup` atau undangan), akun
 Microsoft di-*link* ke user itu — baris baru di tabel `accounts` dengan
@@ -219,7 +219,7 @@ account: {
 
 ## Catatan role default
 
-`admin({ defaultRole: ROLE_VIEWER })` di `lib/auth.ts` adalah role untuk user
+`admin({ defaultRole: "member" })` di `lib/auth.ts` adalah role untuk user
 yang tidak diberi role secara eksplisit — dalam praktiknya hanya jalur Microsoft
 sign-in.
 
@@ -232,15 +232,30 @@ Hasil akhir per jalur:
 
 | Jalur                  | Role hasil |
 | ---------------------- | ---------- |
-| Microsoft sign-in baru | `viewer`   |
+| Microsoft sign-in baru | `member`   |
 | `/setup` (user pertama)| `admin`    |
 | Terima undangan        | sesuai undangan (`member` / `admin`) |
 | Microsoft sign-in ke user yang sudah ada | tidak berubah |
 
-Halaman **Users** memakai menu role berisi keempat role (`ASSIGNABLE_ROLES` di
-`lib/roles.ts`), bukan lagi tombol toggle admin ↔ member — kalau tetap toggle,
-user `viewer` hasil OAuth akan langsung melompat jadi `admin` dalam satu klik.
+Halaman **Users** memakai menu role berisi semua role organisasi (`ORG_ROLES` di
+`lib/permissions.ts`), bukan tombol toggle admin ↔ member — kalau tetap toggle,
+user `member` hasil OAuth akan langsung melompat jadi `admin` dalam satu klik.
 Form undangan tetap menawarkan `member` / `admin` saja.
+
+---
+
+## Foto profil Microsoft
+
+Setelah sign-in Microsoft berhasil, aplikasi mengimpor foto M365 user di latar
+belakang (`lib/avatars-microsoft.ts`, dipicu hook `after` di `lib/auth.ts`).
+Impor memakai Microsoft Graph `me/photos/240x240/$value` dengan scope
+`User.Read` yang sudah termasuk dalam login — tidak perlu izin tambahan di
+Entra. Sign-in tidak menunggu Graph; kalau impor gagal, hanya tercatat di log
+dan user tetap memakai inisial.
+
+User juga bisa mengambil ulang foto kapan saja lewat tombol **Use Microsoft
+photo** di halaman akun (`/api/avatars/microsoft`), hanya untuk akun yang
+terhubung ke Microsoft.
 
 ---
 
@@ -264,7 +279,8 @@ harus dihapus dari portal.
 
 | Berkas                                   | Isi                                                       |
 | ---------------------------------------- | --------------------------------------------------------- |
-| `lib/auth.ts`                            | Konfigurasi provider, account linking, rate limit          |
+| `lib/auth.ts`                            | Konfigurasi provider, account linking, rate limit, impor foto |
+| `lib/avatars-microsoft.ts`               | Mengambil foto dari Graph dan menyimpannya sebagai avatar   |
 | `app/[locale]/sign-in/page.tsx`          | Membaca `MICROSOFT_AUTH_ENABLED` dan `?error=`             |
 | `app/[locale]/sign-in/sign-in-form.tsx`  | Tombol, logo, pemetaan error                               |
 | `app/api/auth/[...all]/route.ts`         | Handler callback better-auth                               |

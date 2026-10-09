@@ -116,6 +116,10 @@ Put the key ID and secret into `S3_ACCESS_KEY` and `S3_SECRET_KEY` in `.env`, th
 docker compose up -d app imgproxy
 ```
 
+#### User profiles
+
+User avatars share the same bucket under the `avatars/` prefix and are served through imgproxy, so nothing extra needs configuring. No env or compose changes are needed.
+
 ## Local development
 
 Requirements: Bun ≥ 1.3, Node 24 (Turbopack needs a real `node` to build), and a PostgreSQL instance.
