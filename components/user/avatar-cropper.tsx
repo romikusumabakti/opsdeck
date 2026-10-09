@@ -10,7 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { centerOffset, clampOffset, cropLayout, type Offset, zoomOffset } from "@/lib/avatar-crop";
+import {
+  centerOffset,
+  clampOffset,
+  cropLayout,
+  type Offset,
+  zoomOffset,
+} from "@/lib/avatar-crop";
 
 const VIEW = 256; // on-screen viewport, px
 const OUT = 512; // exported square, px
@@ -36,14 +42,25 @@ export function AvatarCropper({
     const image = new Image();
     image.onload = () => {
       // Start centered; from here on the offset is always a real, clamped position.
-      setOffset(centerOffset(cropLayout({ width: image.naturalWidth, height: image.naturalHeight }, 1, VIEW), VIEW));
+      setOffset(
+        centerOffset(
+          cropLayout(
+            { width: image.naturalWidth, height: image.naturalHeight },
+            1,
+            VIEW
+          ),
+          VIEW
+        )
+      );
       setImg(image);
     };
     image.src = url;
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const natural = img ? { width: img.naturalWidth, height: img.naturalHeight } : { width: VIEW, height: VIEW };
+  const natural = img
+    ? { width: img.naturalWidth, height: img.naturalHeight }
+    : { width: VIEW, height: VIEW };
   const layout = cropLayout(natural, zoom, VIEW);
 
   function exportCrop() {
@@ -54,7 +71,13 @@ export function AvatarCropper({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const k = OUT / VIEW;
-    ctx.drawImage(img, offset.x * k, offset.y * k, layout.width * k, layout.height * k);
+    ctx.drawImage(
+      img,
+      offset.x * k,
+      offset.y * k,
+      layout.width * k,
+      layout.height * k
+    );
     canvas.toBlob(
       (blob) => {
         if (blob?.type === "image/webp") onCropped(blob);
@@ -66,7 +89,9 @@ export function AvatarCropper({
   }
 
   function onZoom(next: number) {
-    setOffset((o) => zoomOffset(o, layout, cropLayout(natural, next, VIEW), VIEW));
+    setOffset((o) =>
+      zoomOffset(o, layout, cropLayout(natural, next, VIEW), VIEW)
+    );
     setZoom(next);
   }
 
@@ -85,7 +110,16 @@ export function AvatarCropper({
           }}
           onPointerMove={(e) => {
             if (drag.current) {
-              setOffset(clampOffset({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y }, layout, VIEW));
+              setOffset(
+                clampOffset(
+                  {
+                    x: e.clientX - drag.current.x,
+                    y: e.clientY - drag.current.y,
+                  },
+                  layout,
+                  VIEW
+                )
+              );
             }
           }}
           onPointerUp={() => {
@@ -102,7 +136,12 @@ export function AvatarCropper({
               alt=""
               draggable={false}
               className="absolute max-w-none select-none"
-              style={{ left: offset.x, top: offset.y, width: layout.width, height: layout.height }}
+              style={{
+                left: offset.x,
+                top: offset.y,
+                width: layout.width,
+                height: layout.height,
+              }}
             />
           )}
         </div>

@@ -60,7 +60,10 @@ export async function getUserCard(
     role: user.role,
     timeZone: effectiveTimeZone(user),
     workingHours: user.workingHours ?? null,
-    status: status && { ...status, expiresAt: status.expiresAt?.toISOString() ?? null },
+    status: status && {
+      ...status,
+      expiresAt: status.expiresAt?.toISOString() ?? null,
+    },
     jiraUrl,
     deactivated: user.banned,
   };

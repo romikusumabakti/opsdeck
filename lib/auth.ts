@@ -163,11 +163,14 @@ export const auth = betterAuth({
     // Graph, and a failure only logs. Dynamic import: lib/avatars-microsoft
     // imports this module.
     after: createAuthMiddleware(async (ctx) => {
-      if (!ctx.path.startsWith("/callback") || ctx.params?.id !== "microsoft") return;
+      if (!ctx.path.startsWith("/callback") || ctx.params?.id !== "microsoft")
+        return;
       const userId = ctx.context.newSession?.user.id;
       if (!userId) return;
       after(async () => {
-        const { importMicrosoftAvatar } = await import("@/lib/avatars-microsoft");
+        const { importMicrosoftAvatar } = await import(
+          "@/lib/avatars-microsoft"
+        );
         await importMicrosoftAvatar(userId).catch((error) =>
           console.error("Microsoft avatar import failed:", error)
         );
@@ -196,7 +199,9 @@ export const auth = betterAuth({
             });
           }
           // A clashing display name must never block a sign-in or an invite.
-          return { data: { ...user, name: await pickFreeName(user.name, user.email) } };
+          return {
+            data: { ...user, name: await pickFreeName(user.name, user.email) },
+          };
         },
       },
     },

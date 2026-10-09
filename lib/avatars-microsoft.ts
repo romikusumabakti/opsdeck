@@ -4,7 +4,12 @@ import { auth } from "@/lib/auth";
 import { storeAvatar } from "@/lib/avatars";
 import { db } from "@/lib/db";
 
-export type ImportResult = "imported" | "unchanged" | "skipped" | "no_photo" | "no_account";
+export type ImportResult =
+  | "imported"
+  | "unchanged"
+  | "skipped"
+  | "no_photo"
+  | "no_account";
 
 const PHOTO_URL = "https://graph.microsoft.com/v1.0/me/photos/240x240/$value";
 
@@ -24,7 +29,8 @@ export async function importMicrosoftAvatar(
     columns: { avatarSource: true, image: true },
   });
   if (!user) return "skipped";
-  if (!force && user.avatarSource !== null && user.avatarSource !== "microsoft") return "skipped";
+  if (!force && user.avatarSource !== null && user.avatarSource !== "microsoft")
+    return "skipped";
 
   const account = await db.query.accounts.findFirst({
     where: { userId, providerId: "microsoft" },
@@ -44,7 +50,11 @@ export async function importMicrosoftAvatar(
   if (!res.ok) throw new Error(`Graph photo request failed: ${res.status}`);
 
   const before = user.image;
-  const result = await storeAvatar(userId, Buffer.from(await res.arrayBuffer()), "microsoft");
+  const result = await storeAvatar(
+    userId,
+    Buffer.from(await res.arrayBuffer()),
+    "microsoft"
+  );
   if (!result.ok) return "no_photo";
   return result.image === before ? "unchanged" : "imported";
 }

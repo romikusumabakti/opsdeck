@@ -23,8 +23,17 @@ export function centerOffset(layout: Size, view: number): Offset {
 }
 
 /** New offset after a zoom change that keeps the viewport centre on the same image point. */
-export function zoomOffset(o: Offset, from: Size, to: Size, view: number): Offset {
+export function zoomOffset(
+  o: Offset,
+  from: Size,
+  to: Size,
+  view: number
+): Offset {
   const fx = (view / 2 - o.x) / from.width;
   const fy = (view / 2 - o.y) / from.height;
-  return clampOffset({ x: view / 2 - fx * to.width, y: view / 2 - fy * to.height }, to, view);
+  return clampOffset(
+    { x: view / 2 - fx * to.width, y: view / 2 - fy * to.height },
+    to,
+    view
+  );
 }
