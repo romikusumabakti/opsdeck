@@ -2,11 +2,13 @@
 
 import {
   ChevronsUpDown,
+  IdCard,
   Languages,
   LogOut,
   Monitor,
   Moon,
   Server,
+  Smile,
   Sun,
   UserRound,
   Users,
@@ -35,13 +37,20 @@ import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 import { canOrg, type OrgRole } from "@/lib/permissions";
-import { getInitials } from "@/lib/user-display";
+import { StatusDialog } from "@/components/user/status-dialog";
+import { UserAvatar } from "@/components/user/user-avatar";
 
-type UserSummary = {
+export type UserSummary = {
   id: string;
   name: string;
   email: string;
-  image?: string | null;
+  image: string | null;
+  status: {
+    emoji: string | null;
+    text: string | null;
+    expiresAt: string | null;
+  } | null;
+  timeZone: string;
 };
 
 const themeOptions = [
@@ -67,6 +76,7 @@ export function UserMenu({
   const currentLocale = useLocale() as Locale;
   const { theme = "system", setTheme } = useTheme();
   const [pending, startTransition] = useTransition();
+  const [statusOpen, setStatusOpen] = React.useState(false);
 
   async function onSignOut() {
     await authClient.signOut();
@@ -83,118 +93,132 @@ export function UserMenu({
     });
   }
 
-  const initials = getInitials(user.name, user.email);
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          variant === "sidebar" ? (
-            <SidebarUserTrigger
-              user={user}
-              initials={initials}
-              label={t("ariaLabel")}
-            />
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full"
-              aria-label={t("ariaLabel")}
-            >
-              <span className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
-                {initials}
-              </span>
-            </Button>
-          )
-        }
-      />
-      <DropdownMenuContent
-        align="end"
-        side={variant === "sidebar" ? "right" : "bottom"}
-        sideOffset={variant === "sidebar" ? 8 : undefined}
-        className="w-64"
-      >
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-sm font-medium truncate">{user.name}</span>
-            <span className="text-xs text-muted-foreground truncate">
-              {user.email}
-            </span>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push("/account")}>
-          <UserRound />
-          {t("account")}
-        </DropdownMenuItem>
-        {canOrg(orgRole, { user: ["list"] }) && (
-          <DropdownMenuItem onClick={() => router.push("/admin/users")}>
-            <Users />
-            {t("users")}
-          </DropdownMenuItem>
-        )}
-        {canOrg(orgRole, { server: ["read"] }) && (
-          <DropdownMenuItem onClick={() => router.push("/servers")}>
-            <Server />
-            {t("servers")}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            {theme === "dark" ? (
-              <Moon />
-            ) : theme === "light" ? (
-              <Sun />
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            variant === "sidebar" ? (
+              <SidebarUserTrigger user={user} label={t("ariaLabel")} />
             ) : (
-              <Monitor />
-            )}
-            {tTheme("ariaLabel")}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup
-                value={theme}
-                onValueChange={(v) => setTheme(v)}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                aria-label={t("ariaLabel")}
               >
-                {themeOptions.map(({ value, icon: Icon }) => (
-                  <DropdownMenuRadioItem key={value} value={value}>
-                    <Icon className="size-4" />
-                    {tTheme(value)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger disabled={pending}>
-            <Languages />
-            {tLocale("ariaLabel")}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup
-                value={currentLocale}
-                onValueChange={onLocaleChange}
-              >
-                {locales.map((locale) => (
-                  <DropdownMenuRadioItem key={locale} value={locale}>
-                    {localeLabels[locale]}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onSignOut}>
-          <LogOut />
-          {t("signOut")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                <UserAvatar user={user} size="md" />
+              </Button>
+            )
+          }
+        />
+        <DropdownMenuContent
+          align="end"
+          side={variant === "sidebar" ? "right" : "bottom"}
+          sideOffset={variant === "sidebar" ? 8 : undefined}
+          className="w-64"
+        >
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-sm font-medium truncate">{user.name}</span>
+              <span className="text-xs text-muted-foreground truncate">
+                {user.email}
+              </span>
+              {user.status && (
+                <span className="text-xs truncate">
+                  {user.status.emoji} {user.status.text}
+                </span>
+              )}
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => router.push(`/people/${user.id}`)}>
+            <IdCard />
+            {t("myProfile")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setStatusOpen(true)}>
+            <Smile />
+            {user.status ? t("editStatus") : t("setStatus")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/account")}>
+            <UserRound />
+            {t("account")}
+          </DropdownMenuItem>
+          {canOrg(orgRole, { user: ["list"] }) && (
+            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
+              <Users />
+              {t("users")}
+            </DropdownMenuItem>
+          )}
+          {canOrg(orgRole, { server: ["read"] }) && (
+            <DropdownMenuItem onClick={() => router.push("/servers")}>
+              <Server />
+              {t("servers")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              {theme === "dark" ? (
+                <Moon />
+              ) : theme === "light" ? (
+                <Sun />
+              ) : (
+                <Monitor />
+              )}
+              {tTheme("ariaLabel")}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={theme}
+                  onValueChange={(v) => setTheme(v)}
+                >
+                  {themeOptions.map(({ value, icon: Icon }) => (
+                    <DropdownMenuRadioItem key={value} value={value}>
+                      <Icon className="size-4" />
+                      {tTheme(value)}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={pending}>
+              <Languages />
+              {tLocale("ariaLabel")}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={currentLocale}
+                  onValueChange={onLocaleChange}
+                >
+                  {locales.map((locale) => (
+                    <DropdownMenuRadioItem key={locale} value={locale}>
+                      {localeLabels[locale]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={onSignOut}>
+            <LogOut />
+            {t("signOut")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <StatusDialog
+        key={`${user.status?.emoji}|${user.status?.text}|${user.status?.expiresAt}`}
+        open={statusOpen}
+        onOpenChange={setStatusOpen}
+        current={user.status}
+        timeZone={user.timeZone}
+      />
+    </>
   );
 }
 
@@ -202,10 +226,9 @@ const SidebarUserTrigger = React.forwardRef<
   HTMLButtonElement,
   {
     user: UserSummary;
-    initials: string;
     label: string;
   } & React.ButtonHTMLAttributes<HTMLButtonElement>
->(function SidebarUserTrigger({ user, initials, label, ...props }, ref) {
+>(function SidebarUserTrigger({ user, label, ...props }, ref) {
   return (
     <SidebarMenuButton
       ref={ref}
@@ -214,9 +237,7 @@ const SidebarUserTrigger = React.forwardRef<
       className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
       {...props}
     >
-      <span className="size-8 rounded-md bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
-        {initials}
-      </span>
+      <UserAvatar user={user} size="md" className="rounded-md" />
       <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
         <span className="truncate font-medium">{user.name}</span>
         <span className="truncate text-xs text-muted-foreground">

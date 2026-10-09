@@ -42,7 +42,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { UserMenu } from "@/components/user-menu";
+import { type UserSummary, UserMenu } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { BrandName } from "@/lib/branding";
 import type { EnvironmentListItem } from "@/lib/db/schema";
@@ -122,13 +122,6 @@ const adminItems: {
   { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
 ];
 
-type AppSidebarUser = {
-  id: string;
-  name: string;
-  email: string;
-  image?: string | null;
-};
-
 export function AppSidebar({
   environments,
   orgRole,
@@ -142,7 +135,7 @@ export function AppSidebar({
   orgRole: OrgRole;
   projectRoles: Record<string, ProjectRole>;
   issueCounts: AssignedIssueCounts;
-  user: AppSidebarUser;
+  user: UserSummary;
   logo: BrandName;
   side?: "left" | "right";
 }) {

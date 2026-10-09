@@ -638,7 +638,10 @@
     "changePassword": "Ubah password",
     "sessions": "Sesi aktif",
     "signOut": "Keluar",
-    "ariaLabel": "Menu pengguna"
+    "ariaLabel": "Menu pengguna",
+    "myProfile": "Profil saya",
+    "setStatus": "Atur status",
+    "editStatus": "Ubah status"
   },
   "account": {
     "title": "Akun",
@@ -1922,5 +1925,30 @@
     "tzHint": "Zona waktu Anda tampaknya {zone}. Tampilkan waktu dalam zona ini?",
     "tzHintUse": "Gunakan",
     "tzHintDismiss": "Tutup"
+  },
+  "status": {
+    "title": "Atur status",
+    "emoji": "Emoji",
+    "text": "Status",
+    "placeholder": "Apa status Anda?",
+    "clearAfter": "Hapus setelah",
+    "clear": "Hapus status",
+    "save": "Simpan",
+    "set": "Atur status",
+    "presets": {
+      "30m": "30 menit",
+      "1h": "1 jam",
+      "4h": "4 jam",
+      "today": "Hari ini",
+      "week": "Minggu ini",
+      "never": "Jangan hapus"
+    },
+    "suggestions": {
+      "focus": "Sedang fokus",
+      "meeting": "Sedang rapat",
+      "sick": "Sedang sakit",
+      "leave": "Sedang cuti",
+      "wfh": "Bekerja dari rumah"
+    }
   }
 }

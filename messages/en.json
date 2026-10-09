@@ -638,7 +638,10 @@
     "changePassword": "Change password",
     "sessions": "Active sessions",
     "signOut": "Sign out",
-    "ariaLabel": "User menu"
+    "ariaLabel": "User menu",
+    "myProfile": "My profile",
+    "setStatus": "Set status",
+    "editStatus": "Edit status"
   },
   "account": {
     "title": "Account",
@@ -1922,5 +1925,30 @@
     "tzHint": "Your timezone looks like {zone}. Show times in it?",
     "tzHintUse": "Use it",
     "tzHintDismiss": "Dismiss"
+  },
+  "status": {
+    "title": "Set a status",
+    "emoji": "Emoji",
+    "text": "Status",
+    "placeholder": "What's your status?",
+    "clearAfter": "Clear after",
+    "clear": "Clear status",
+    "save": "Save",
+    "set": "Set status",
+    "presets": {
+      "30m": "30 minutes",
+      "1h": "1 hour",
+      "4h": "4 hours",
+      "today": "Today",
+      "week": "This week",
+      "never": "Don't clear"
+    },
+    "suggestions": {
+      "focus": "Focusing",
+      "meeting": "In a meeting",
+      "sick": "Out sick",
+      "leave": "On leave",
+      "wfh": "Working from home"
+    }
   }
 }
