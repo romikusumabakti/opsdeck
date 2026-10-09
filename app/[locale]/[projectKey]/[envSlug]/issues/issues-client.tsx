@@ -54,6 +54,7 @@ import { TablePager } from "@/components/ui/table-pager";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
+import type { UserRef } from "@/lib/types";
 
 export function IssuesClient({
   projectId,
@@ -158,7 +159,11 @@ export function IssuesClient({
           ? {
               ...i,
               assignee: assigneeId
-                ? { id: assigneeId, name: usersById[assigneeId] ?? "" }
+                ? (usersById[assigneeId] ?? {
+                    id: assigneeId,
+                    name: "",
+                    image: null,
+                  })
                 : null,
             }
           : i
@@ -179,7 +184,12 @@ export function IssuesClient({
   }
 
   const usersById = React.useMemo(
-    () => Object.fromEntries(users.map((u) => [u.id, u.name])),
+    () => Object.fromEntries(
+        users.map((u): [string, UserRef] => [
+          u.id,
+          { id: u.id, name: u.name, image: u.image },
+        ])
+      ),
     [users]
   );
 
@@ -378,7 +388,7 @@ export function IssuesClient({
               priority: i.priority as Priority,
               keyPrefix: projectKey,
               envName: i.environment?.name ?? null,
-              assigneeName: i.assignee?.name ?? null,
+              assignee: i.assignee,
               milestoneName: i.milestoneId
                 ? (milestonesById[i.milestoneId] ?? null)
                 : null,

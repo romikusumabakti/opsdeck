@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/user/user-avatar";
+import type { UserRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type MentionUser = { id: string; name: string };
 
 // A textarea that offers an `@`-mention autocomplete. It only helps the author
 // type an exact display name; the server resolves who was mentioned by scanning
@@ -19,7 +20,7 @@ export function MentionTextarea({
 }: {
   value: string;
   onChange: (v: string) => void;
-  users: MentionUser[];
+  users: UserRef[];
   placeholder?: string;
   rows?: number;
 }) {
@@ -105,11 +106,12 @@ export function MentionTextarea({
                   insert(u.name);
                 }}
                 className={cn(
-                  "flex w-full items-center rounded px-2 py-1.5 text-start text-sm",
+                  "flex w-full items-center gap-2 rounded px-2 py-1.5 text-start text-sm",
                   i === active && "bg-accent"
                 )}
               >
-                @{u.name}
+                <UserAvatar user={u} size="xs" />
+                <span className="truncate">@{u.name}</span>
               </button>
             </li>
           ))}

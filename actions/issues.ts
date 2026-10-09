@@ -18,7 +18,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { listMilestones } from "@/actions/milestones";
 import { getProjectWithEnvironments } from "@/actions/project-catalog";
-import { listAssignableUsers } from "@/actions/users";
+import { type AssignableUserRow, listAssignableUsers } from "@/actions/users";
 import { recordActivity } from "@/lib/activity";
 import {
   assignableUsersWhere,
@@ -52,7 +52,7 @@ import type { IssueSort } from "@/lib/issue-query";
 import type { PushableField } from "@/lib/jira/push";
 import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
 import { enqueue, type JobMap } from "@/lib/queue";
-import type { ActionResponse } from "@/lib/types";
+import type { ActionResponse, UserRef } from "@/lib/types";
 import {
   issueInputSchema,
   issuePrioritySchema,
@@ -160,8 +160,8 @@ async function projectKeyOf(projectId: string): Promise<string> {
 
 // An issue plus the display names needed by the list, credential-free.
 export type IssueWithMeta = Issue & {
-  createdBy: { id: string; name: string } | null;
-  assignee: { id: string; name: string } | null;
+  createdBy: UserRef | null;
+  assignee: UserRef | null;
   environment: { id: string; name: string } | null;
   labels: LabelLite[];
 };
@@ -258,13 +258,13 @@ export type IssueRef = {
 export type IssueDetail = Issue & {
   project: { id: string; name: string; key: string };
   environment: { id: string; name: string } | null;
-  assignee: { id: string; name: string } | null;
-  createdBy: { id: string; name: string } | null;
+  assignee: UserRef | null;
+  createdBy: UserRef | null;
   labels: LabelLite[];
   parent: IssueRef | null;
   children: IssueRef[];
   comments: (IssueComment & {
-    author: { id: string; name: string } | null;
+    author: UserRef | null;
   })[];
 };
 
@@ -286,10 +286,10 @@ export async function getIssueDetail(
       with: {
         project: { columns: { id: true, name: true, key: true } },
         environment: { columns: { id: true, name: true } },
-        assignee: { columns: { id: true, name: true } },
-        createdBy: { columns: { id: true, name: true } },
+        assignee: { columns: { id: true, name: true, image: true } },
+        createdBy: { columns: { id: true, name: true, image: true } },
         comments: {
-          with: { author: { columns: { id: true, name: true } } },
+          with: { author: { columns: { id: true, name: true, image: true } } },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -521,7 +521,9 @@ export async function listAllIssues(
           projectName: projects.name,
           projectKey: projects.key,
           assigneeName: assigneeUser.name,
+          assigneeImage: assigneeUser.image,
           creatorName: creatorUser.name,
+          creatorImage: creatorUser.image,
           environmentName: environments.name,
         })
         .from(issues)
@@ -550,10 +552,18 @@ export async function listAllIssues(
         key: r.projectKey,
       },
       assignee: r.issue.assigneeId
-        ? { id: r.issue.assigneeId, name: r.assigneeName ?? "" }
+        ? {
+            id: r.issue.assigneeId,
+            name: r.assigneeName ?? "",
+            image: r.assigneeImage ?? null,
+          }
         : null,
       createdBy: r.issue.createdById
-        ? { id: r.issue.createdById, name: r.creatorName ?? "" }
+        ? {
+            id: r.issue.createdById,
+            name: r.creatorName ?? "",
+            image: r.creatorImage ?? null,
+          }
         : null,
       environment: r.issue.environmentId
         ? { id: r.issue.environmentId, name: r.environmentName ?? "" }
@@ -665,8 +675,8 @@ export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
     const rows = await db.query.issues.findMany({
       where: { projectId },
       with: {
-        createdBy: { columns: { id: true, name: true } },
-        assignee: { columns: { id: true, name: true } },
+        createdBy: { columns: { id: true, name: true, image: true } },
+        assignee: { columns: { id: true, name: true, image: true } },
         environment: { columns: { id: true, name: true } },
       },
       orderBy: { number: "desc" },
@@ -913,7 +923,7 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
 
 export type IssueFormOptions = {
   environments: { id: string; name: string }[];
-  users: { id: string; name: string }[];
+  users: AssignableUserRow[];
   milestones: { id: string; name: string }[];
 };
 
