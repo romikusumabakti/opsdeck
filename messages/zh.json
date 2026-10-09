@@ -904,7 +904,12 @@
     "colInvitee": "被邀请人",
     "colExpires": "到期时间",
     "colLastActive": "最近活跃",
-    "neverActive": "从未"
+    "neverActive": "从未",
+    "removeAvatarAction": "移除照片",
+    "removeAvatarTitle": "移除照片？",
+    "removeAvatarDescription": "{name} 的头像将被移除，改为显示姓名缩写。对方可以随时重新上传。",
+    "removeAvatarConfirm": "移除",
+    "noAvatar": "没有可移除的照片"
   },
   "setup": {
     "title": "初始设置",
@@ -1025,7 +1030,8 @@
     "networkAttached": "已接入 {network}",
     "networkAttachFailed": "无法接入网络",
     "networkAlreadyAttached": "已经接入该网络",
-    "cannotRemoveLastAdmin": "不能降级最后一位管理员"
+    "cannotRemoveLastAdmin": "不能降级最后一位管理员",
+    "avatarRemoved": "照片已移除"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1911,7 +1917,9 @@
     "noOpenIssues": "没有分配的未解决问题。",
     "viewAllIssues": "查看全部",
     "recentRuns": "最近运行",
-    "noRuns": "没有你可以查看的运行记录。"
+    "noRuns": "没有你可以查看的运行记录。",
+    "workingHoursNow": "工作时间内",
+    "outsideWorkingHours": "非工作时间"
   },
   "profile": {
     "name": "显示名称",
@@ -1963,7 +1971,8 @@
       "4h": "4 小时",
       "today": "今天",
       "week": "本周",
-      "never": "不清除"
+      "never": "不清除",
+      "keep": "保持当前设置（至 {date}）"
     },
     "suggestions": {
       "focus": "专注中",

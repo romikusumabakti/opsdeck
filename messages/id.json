@@ -904,7 +904,12 @@
     "colInvitee": "Diundang",
     "colExpires": "Kadaluarsa",
     "colLastActive": "Aktif terakhir",
-    "neverActive": "Belum pernah"
+    "neverActive": "Belum pernah",
+    "removeAvatarAction": "Hapus foto",
+    "removeAvatarTitle": "Hapus foto?",
+    "removeAvatarDescription": "Foto profil {name} akan dihapus dan diganti dengan inisialnya. Ia bisa mengunggah foto baru kapan saja.",
+    "removeAvatarConfirm": "Hapus",
+    "noAvatar": "Tidak ada foto untuk dihapus"
   },
   "setup": {
     "title": "Pengaturan awal",
@@ -1025,7 +1030,8 @@
     "networkAttached": "Tersambung ke {network}",
     "networkAttachFailed": "Gagal menyambungkan network",
     "networkAlreadyAttached": "Sudah tersambung ke network itu",
-    "cannotRemoveLastAdmin": "Admin terakhir tidak bisa diturunkan"
+    "cannotRemoveLastAdmin": "Admin terakhir tidak bisa diturunkan",
+    "avatarRemoved": "Foto dihapus"
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1911,7 +1917,9 @@
     "noOpenIssues": "Tidak ada isu terbuka yang ditugaskan.",
     "viewAllIssues": "Lihat semua",
     "recentRuns": "Eksekusi terbaru",
-    "noRuns": "Tidak ada eksekusi yang dapat Anda lihat."
+    "noRuns": "Tidak ada eksekusi yang dapat Anda lihat.",
+    "workingHoursNow": "Sedang jam kerja",
+    "outsideWorkingHours": "Di luar jam kerja"
   },
   "profile": {
     "name": "Nama tampilan",
@@ -1963,7 +1971,8 @@
       "4h": "4 jam",
       "today": "Hari ini",
       "week": "Minggu ini",
-      "never": "Jangan hapus"
+      "never": "Jangan hapus",
+      "keep": "Pertahankan (sampai {date})"
     },
     "suggestions": {
       "focus": "Sedang fokus",

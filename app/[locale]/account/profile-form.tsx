@@ -43,6 +43,7 @@ export function ProfileForm({
   hasMicrosoft: boolean;
 }) {
   const t = useTranslations("profile");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -65,12 +66,20 @@ export function ProfileForm({
     label: weekdayFmt.format(new Date(Date.UTC(2024, 0, d))), // 2024-01-01 is a Monday
   }));
 
-  /** Sends an avatar request; toasts the mapped error and returns null on failure. */
+  /**
+   * Sends an avatar request; toasts the mapped error and returns null on
+   * failure. Never throws: a rejection inside startTransition would replace
+   * the page with the error boundary.
+   */
   async function sendAvatar(
     url: string,
     init: RequestInit
   ): Promise<Response | null> {
-    const res = await fetch(url, init);
+    const res = await fetch(url, init).catch(() => null);
+    if (!res) {
+      toast.error(t("avatarError.storage"));
+      return null;
+    }
     if (res.ok) return res;
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     toast.error(t(`avatarError.${body.error ?? "storage"}`));
@@ -92,7 +101,9 @@ export function ProfileForm({
   async function importMicrosoftAvatar() {
     const res = await sendAvatar("/api/avatars/microsoft", { method: "POST" });
     if (!res) return;
-    const { result } = (await res.json()) as { result: string };
+    const { result } = (await res.json().catch(() => ({}))) as {
+      result?: string;
+    };
     if (result === "no_photo") toast.info(t("avatarNoMicrosoftPhoto"));
     else router.refresh();
   }
@@ -105,17 +116,21 @@ export function ProfileForm({
   function onSave(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const res = await updateProfile({
-        name,
-        title,
-        bio,
-        timezone,
-        workingHours: hours,
-      });
-      if (res.success) {
-        toast.success(res.message);
-        router.refresh();
-      } else toast.error(res.message);
+      try {
+        const res = await updateProfile({
+          name,
+          title,
+          bio,
+          timezone,
+          workingHours: hours,
+        });
+        if (res.success) {
+          toast.success(res.message);
+          router.refresh();
+        } else toast.error(res.message);
+      } catch {
+        toast.error(tCommon("errorGeneric"));
+      }
     });
   }
 

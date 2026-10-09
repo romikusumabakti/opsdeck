@@ -42,8 +42,9 @@ export async function storeAvatar(
   const image = avatarUrl(userId, hash);
   const previous = await currentImage(userId);
 
-  if (previous !== image)
-    await putObject(avatarKey(userId, hash), bytes, kind.mime);
+  // Always written: the key is content-hashed, so a re-put is idempotent and
+  // re-uploading the same picture repairs an object that went missing.
+  await putObject(avatarKey(userId, hash), bytes, kind.mime);
   await db
     .update(users)
     .set({ image, avatarSource: source, updatedAt: new Date() })
