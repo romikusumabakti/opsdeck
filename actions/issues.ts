@@ -50,6 +50,7 @@ import {
 } from "@/lib/db/schema";
 import type { IssueSort } from "@/lib/issue-query";
 import type { PushableField } from "@/lib/jira/push";
+import { resolveMentions } from "@/lib/mentions";
 import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
 import { enqueue, type JobMap } from "@/lib/queue";
 import type { ActionResponse, UserRef } from "@/lib/types";
@@ -355,12 +356,9 @@ export async function addComment(
     // enqueuing unconditionally is safe and keeps this action free of Jira
     // knowledge.
     await enqueueJiraPush("jira/push.comment", { commentId: created.id });
-    // Notify mentioned users. The comment box inserts exact display names after
-    // `@`, so a plain `@${name}` substring scan resolves mentions without a
-    // username scheme. Ambiguous only if two users share a display name — rare
-    // in a small workspace, and at worst both get notified. Only users who can
-    // see the project are candidates: the notification carries the issue's
-    // key and title.
+    // Notify mentioned users (see lib/mentions for how `@name` resolves). Only
+    // users who can see the project are candidates: the notification carries
+    // the issue's key and title.
     const issue = await db.query.issues.findFirst({
       where: { id: issueId },
       columns: { number: true, title: true, projectId: true },
@@ -375,16 +373,15 @@ export async function addComment(
             eq(projectMembers.projectId, issue.projectId)
           )
         );
-      for (const u of users) {
-        if (u.id !== session.user.id && trimmed.includes(`@${u.name}`)) {
-          await notifyIssueMention({
-            userId: u.id,
-            actorId: session.user.id,
-            projectKey: issue.project.key,
-            number: issue.number,
-            title: issue.title,
-          });
-        }
+      for (const u of resolveMentions(trimmed, users)) {
+        if (u.id === session.user.id) continue;
+        await notifyIssueMention({
+          userId: u.id,
+          actorId: session.user.id,
+          projectKey: issue.project.key,
+          number: issue.number,
+          title: issue.title,
+        });
       }
     }
     revalidateIssues();
