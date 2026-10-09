@@ -47,6 +47,7 @@ import { UserMenu, type UserSummary } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { BrandName } from "@/lib/branding";
 import type { EnvironmentListItem } from "@/lib/db/schema";
+import { parseNavPath, SECTION_PERMS } from "@/lib/nav-path";
 import {
   canOrg,
   canProject,
@@ -55,10 +56,6 @@ import {
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
-
-// Readable env path: uppercase key + lowercase slug (/CMEM/prod/…). Distinct
-// from single-segment lowercase top-level routes (/issues, …).
-const ENV_PATH_REGEX = /^\/([A-Z][A-Z0-9]{1,9})\/([a-z0-9][a-z0-9-]*)(?:\/|$)/;
 
 type ProjectItem = {
   key: string;
@@ -75,16 +72,16 @@ const projectItems: ProjectItem[] = [
     key: "mockTime",
     url: "/mock-time",
     icon: Clock,
-    perm: { clock: ["control"] },
+    perm: SECTION_PERMS["mock-time"],
   },
-  { key: "mail", url: "/mail", icon: Mail, perm: { mail: ["read"] } },
+  { key: "mail", url: "/mail", icon: Mail, perm: SECTION_PERMS.mail },
   { key: "issues", url: "/issues", icon: CircleDot },
   { key: "history", url: "/history", icon: History },
   {
     key: "settings",
     url: "/settings",
     icon: Settings,
-    perm: { environment: ["update"] },
+    perm: SECTION_PERMS.settings,
   },
 ];
 
@@ -150,11 +147,13 @@ export function AppSidebar({
   const inAdmin =
     canSeeAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));
 
-  const match = ENV_PATH_REGEX.exec(pathname);
-  const activeEnv = match
-    ? (environments.find((e) => e.key === match[1] && e.slug === match[2]) ??
-      null)
-    : null;
+  const nav = parseNavPath(pathname);
+  const activeEnv =
+    nav.scope === "env"
+      ? (environments.find(
+          (e) => e.key === nav.projectKey && e.slug === nav.envSlug
+        ) ?? null)
+      : null;
 
   const envRole = activeEnv
     ? (projectRoles[activeEnv.projectId] ?? null)

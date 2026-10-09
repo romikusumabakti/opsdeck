@@ -1262,11 +1262,13 @@ export type EnvironmentSummary = Environment &
   Pick<EnvironmentService, "dbType" | "dbName">;
 
 // An environment summary plus its owning project's issue key, for readable-URL
-// link builders (/[key]/[slug]/…), and whether a Mailpit is connected (drives
-// the sidebar's Mail entry). Credential-free.
+// link builders (/[key]/[slug]/…), whether a Mailpit is connected (drives the
+// sidebar's Mail entry), and when the current user last opened it (null when
+// never; picks the landing environment when switching project). Credential-free.
 export type EnvironmentListItem = EnvironmentSummary & {
   key: string;
   hasMailpit: boolean;
+  lastAccessedAt: Date | null;
 };
 
 // Credential-free projections handed to the client. SSH passwords, the DB admin
