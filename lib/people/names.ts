@@ -1,11 +1,20 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { normalizeDisplayName } from "@/lib/validation";
 
 // Display names are unique among active users (case-insensitive), because
 // mentions resolve by exact @name. Account creation must never fail on a
 // clash, so creation paths pick the first free variant.
 const MAX = 100;
+
+/** The name a new account starts from: normalised, else the email local part. */
+export function baseDisplayName(
+  name: string | null | undefined,
+  email: string
+): string {
+  return normalizeDisplayName(name ?? "") || (email.split("@")[0] ?? "");
+}
 
 export function disambiguateName(
   name: string,
@@ -43,13 +52,14 @@ export async function nameTaken(
 }
 
 export async function pickFreeName(
-  name: string,
+  name: string | null | undefined,
   email: string
 ): Promise<string> {
+  const base = baseDisplayName(name, email);
   for (let attempt = 0; attempt < 50; attempt++) {
-    const candidate = disambiguateName(name.trim(), email, attempt);
+    const candidate = disambiguateName(base, email, attempt);
     if (!(await nameTaken(candidate))) return candidate;
   }
   // 50 identical names is not a real directory; let the unique index decide.
-  return disambiguateName(name.trim(), email, 50);
+  return disambiguateName(base, email, 50);
 }
