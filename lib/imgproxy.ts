@@ -20,15 +20,20 @@ const hex = (s: string) => Buffer.from(s, "hex");
  * Signed imgproxy URL for an attachment's storage key. `rs:fit:W:0` downscales
  * to a max width without upscaling; format is negotiated by imgproxy from the
  * forwarded Accept header (AVIF → WebP → original), so callers pass the browser
- * Accept through and get the most modern format it supports.
+ * Accept through and get the most modern format it supports. `fill` instead
+ * crops to an exact width×height box (centred, enlarging small originals), used
+ * for avatars.
  */
 export function imgproxyUrl(
   storageKey: string,
-  { width = 1600, quality = 82 } = {}
+  { width = 1600, height = 0, quality = 82, fill = false } = {}
 ): string {
   const source = `s3://${requireEnv("S3_BUCKET")}/${storageKey}`;
   const encoded = Buffer.from(source).toString("base64url");
-  const path = `/rs:fit:${width}:0/q:${quality}/${encoded}`;
+  const resize = fill
+    ? `rs:fill:${width}:${height || width}:1/g:ce`
+    : `rs:fit:${width}:0`;
+  const path = `/${resize}/q:${quality}/${encoded}`;
 
   const signature = createHmac("sha256", hex(requireEnv("IMGPROXY_KEY")))
     .update(hex(requireEnv("IMGPROXY_SALT")))
