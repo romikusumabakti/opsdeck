@@ -6,6 +6,7 @@ import {
   avatarSrc,
   avatarUrl,
   hashFromAvatarUrl,
+  isOwnAvatarUrl,
   snapAvatarSize,
 } from "@/lib/avatar-url";
 import { sniffImage } from "@/lib/image-sniff";
@@ -46,6 +47,18 @@ describe("avatar urls", () => {
   it("ignores foreign urls", () => {
     expect(hashFromAvatarUrl("https://graph.microsoft.com/x")).toBeNull();
     expect(hashFromAvatarUrl(null)).toBeNull();
+  });
+  it("accepts only the user's own avatar url", () => {
+    const own = avatarUrl(UID, "0123456789abcdef");
+    expect(isOwnAvatarUrl(own, UID)).toBe(true);
+    expect(isOwnAvatarUrl(own, "0199a1b2-0000-7000-8000-000000000002")).toBe(
+      false
+    );
+    expect(isOwnAvatarUrl("https://evil.example/x.png", UID)).toBe(false);
+    expect(isOwnAvatarUrl(`//evil.example${own}`, UID)).toBe(false);
+    expect(isOwnAvatarUrl(`${own}?s=64`, UID)).toBe(false);
+    expect(isOwnAvatarUrl(null, UID)).toBe(false);
+    expect(isOwnAvatarUrl(undefined, UID)).toBe(false);
   });
   it("builds a sized src", () => {
     expect(avatarSrc(avatarUrl(UID, "0123456789abcdef"), 30)).toBe(
