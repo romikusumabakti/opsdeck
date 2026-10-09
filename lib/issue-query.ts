@@ -40,6 +40,7 @@ export const ISSUE_FILTER_KEYS = [
   "label",
   "priority",
   "mine",
+  "assignee",
   "view",
   "group",
 ] as const;

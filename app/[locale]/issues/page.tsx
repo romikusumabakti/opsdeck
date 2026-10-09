@@ -32,7 +32,7 @@ export default async function GlobalIssuesPage({
       projectId: filters.project,
       labelId: filters.label,
       priority: filters.priority,
-      assigneeId: filters.mine === "1" ? session.user.id : undefined,
+      assigneeId: filters.mine === "1" ? session.user.id : filters.assignee,
       sort,
       desc,
       offset: isBoard ? 0 : pageIndex * pageSize,

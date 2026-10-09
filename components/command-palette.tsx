@@ -18,6 +18,7 @@ import {
   Sun,
   UserRound,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -167,6 +168,13 @@ export function CommandPalette({
             >
               <BookOpen />
               {tNav("knowledge")}
+            </CommandItem>
+            <CommandItem
+              value="people team directory profiles"
+              onSelect={() => run(() => router.push("/people"))}
+            >
+              <UsersRound />
+              {tNav("people")}
             </CommandItem>
             {canOrg(orgRole, { server: ["read"] }) && (
               <CommandItem
