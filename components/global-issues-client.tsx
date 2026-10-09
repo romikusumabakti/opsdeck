@@ -51,6 +51,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { BOARD_LIMIT, TABLE_URL_KEY } from "@/lib/issue-query";
+import type { UserRef } from "@/lib/types";
 
 /**
  * One page of issues, patched in place. `remove` covers a bulk delete: the rows
@@ -105,7 +106,12 @@ export function GlobalIssuesClient({
   const [isPending, startTransition] = React.useTransition();
 
   const usersById = React.useMemo(
-    () => Object.fromEntries(users.map((u) => [u.id, u.name])),
+    () => Object.fromEntries(
+        users.map((u): [string, UserRef] => [
+          u.id,
+          { id: u.id, name: u.name, image: u.image },
+        ])
+      ),
     [users]
   );
 
@@ -213,7 +219,11 @@ export function GlobalIssuesClient({
           changes: {
             assigneeId,
             assignee: assigneeId
-              ? { id: assigneeId, name: usersById[assigneeId] ?? "" }
+              ? (usersById[assigneeId] ?? {
+                    id: assigneeId,
+                    name: "",
+                    image: null,
+                  })
               : null,
           },
         },
@@ -471,7 +481,7 @@ export function GlobalIssuesClient({
                 keyPrefix: i.project.key,
                 projectName: i.project.name,
                 envName: i.environment?.name ?? null,
-                assigneeName: i.assignee?.name ?? null,
+                assignee: i.assignee,
                 labels: i.labels,
               }))}
               onStatusChange={onStatusChange}
