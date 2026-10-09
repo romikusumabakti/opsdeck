@@ -148,6 +148,8 @@ export async function listEnvironments(): Promise<EnvironmentListItem[]> {
         // Sidebar's Mail entry. EXISTS, not a join, so the secret columns
         // never enter this client-bound projection.
         hasMailpit: sql<boolean>`exists (select 1 from ${environmentMailpit} where ${environmentMailpit.environmentId} = ${environments.id})`,
+        // Already left-joined for the ordering below; null = never opened.
+        lastAccessedAt: environmentAccess.lastAccessedAt,
       })
       .from(environments)
       .innerJoin(projects, eq(projects.id, environments.projectId))
