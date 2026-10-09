@@ -5,6 +5,7 @@ import {
   avatarColorIndex,
   getInitials,
   isWithinWorkingHours,
+  liveCardStatus,
   nextWorkingStart,
   zonedClock,
 } from "@/lib/user-display";
@@ -134,5 +135,22 @@ describe("working hours", () => {
     expect(
       nextWorkingStart(fridays, "UTC", new Date("2026-10-09T11:00:00Z"))
     ).toEqual({ daysAhead: 7, start: "09:00" });
+  });
+});
+
+describe("liveCardStatus", () => {
+  const now = new Date("2026-01-01T10:00:00Z");
+  const base = { emoji: "x", text: "Away" };
+
+  it("keeps a status with no expiry or a future expiry", () => {
+    expect(liveCardStatus({ ...base, expiresAt: null }, now)).not.toBeNull();
+    expect(liveCardStatus({ ...base, expiresAt: "2026-01-01T10:00:01Z" }, now)).not.toBeNull();
+  });
+  it("drops a status that expired, including exactly now", () => {
+    expect(liveCardStatus({ ...base, expiresAt: "2026-01-01T10:00:00Z" }, now)).toBeNull();
+    expect(liveCardStatus({ ...base, expiresAt: "2025-12-31T00:00:00Z" }, now)).toBeNull();
+  });
+  it("passes null through", () => {
+    expect(liveCardStatus(null, now)).toBeNull();
   });
 });

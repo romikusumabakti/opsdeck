@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 import { teamsChatUrl } from "@/lib/people/links";
 import type { UserCardData } from "@/lib/types";
+import { liveCardStatus } from "@/lib/user-display";
 import { LocalTime } from "./local-time";
 import { UserAvatar } from "./user-avatar";
 
@@ -17,6 +18,8 @@ export function UserCardBody({ promise, fallbackName, id }: { promise: Promise<U
   const tRoles = useTranslations("users.role");
   const format = useFormatter();
   const card = use(promise);
+  // Re-checked on every render: a status that expired while the card sat open must go.
+  const status = liveCardStatus(card.status);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-3">
@@ -30,12 +33,12 @@ export function UserCardBody({ promise, fallbackName, id }: { promise: Promise<U
           <Badge variant="outline" className="mt-1">{tRoles(card.role)}</Badge>
         </div>
       </div>
-      {card.status && (
+      {status && (
         <p className="text-sm">
-          {card.status.emoji} {card.status.text}
-          {card.status.expiresAt && (
+          {status.emoji} {status.text}
+          {status.expiresAt && (
             <span className="text-muted-foreground">
-              {" · "}{t("until", { date: format.dateTime(new Date(card.status.expiresAt), { dateStyle: "medium", timeStyle: "short" }) })}
+              {" · "}{t("until", { date: format.dateTime(new Date(status.expiresAt), { dateStyle: "medium", timeStyle: "short" }) })}
             </span>
           )}
         </p>
