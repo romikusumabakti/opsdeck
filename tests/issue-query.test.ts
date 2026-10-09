@@ -76,3 +76,10 @@ describe("parseIssueParams", () => {
     );
   });
 });
+
+describe("assignee filter", () => {
+  it("keeps the assignee filter", () => {
+    const id = "0199a1b2-0000-7000-8000-000000000001";
+    expect(parseIssueParams({ assignee: id }).filters.assignee).toBe(id);
+  });
+});

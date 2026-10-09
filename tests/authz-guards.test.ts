@@ -36,6 +36,12 @@ const SCOPED_READS: Record<string, string[]> = {
   // project column, written only to their recipient; a link into a project the
   // user has since lost resolves to the 404 page.
   "actions/milestones.ts": ["listMilestones"],
+  "lib/people/queries.ts": [
+    "listPeople",
+    "getPersonProjects",
+    "listPersonOpenIssues",
+    "listPersonRecentRuns",
+  ],
   "lib/home/queries.ts": [
     "getAttentionGroups",
     "listMyOpenIssues",

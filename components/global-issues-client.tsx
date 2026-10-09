@@ -419,6 +419,7 @@ export function GlobalIssuesClient({
       onChange={setParams}
       projects={projects}
       labels={allLabels}
+      users={users}
       leading={
         <IssuesSavedViews
           views={savedViews}
