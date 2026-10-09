@@ -114,12 +114,8 @@ export default async function LocaleLayout({
         getAssignedIssueCounts(),
       ])
     : [[], [], [], 0, { total: 0, byProject: {} }];
-  const projectNameById: Record<string, string> = Object.fromEntries(
-    projects.map((p) => [p.id, p.name])
-  );
-  const projectKeyById: Record<string, string> = Object.fromEntries(
-    projects.map((p) => [p.id, p.key])
-  );
+  // Slim projection for the client-side pickers (header switchers, palette).
+  const navProjects = projects.map(({ id, key, name }) => ({ id, key, name }));
   const orgRole = session ? normalizeOrgRole(session.user.role) : "member";
   const projectRoles = session ? (await getProjectAccess()).roles : {};
   const messages = await getMessages({ locale });
@@ -201,8 +197,7 @@ export default async function LocaleLayout({
                           <SidebarTrigger className="-ms-1" />
                           <HeaderBreadcrumb
                             environments={environments}
-                            projectNameById={projectNameById}
-                            projectKeyById={projectKeyById}
+                            projects={navProjects}
                             orgRole={orgRole}
                             projectRoles={projectRoles}
                           />
