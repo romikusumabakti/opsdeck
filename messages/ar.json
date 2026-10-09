@@ -650,8 +650,7 @@
     },
     "profile": {
       "title": "الملف الشخصي",
-      "description": "هويتك في {{APP_NAME}}.",
-      "nameManagedByAdmin": "اسمك تديره المشرفون. تواصل مع المشرف للتحديث."
+      "description": "كيف يراك زملاؤك في {{APP_NAME}}."
     },
     "security": {
       "title": "كلمة المرور",
@@ -1890,6 +1889,36 @@
     "until": "حتى {date}"
   },
   "profile": {
+    "name": "الاسم المعروض",
+    "jobTitle": "المسمى الوظيفي",
+    "jobTitlePlaceholder": "مثال: مهندس ضمان الجودة",
+    "bio": "نبذة قصيرة",
+    "timezone": "المنطقة الزمنية",
+    "tzDefault": "الافتراضي للمؤسسة ({zone})",
+    "tzSearch": "ابحث عن منطقة زمنية…",
+    "tzNone": "لم يتم العثور على منطقة زمنية",
+    "detectTimezone": "اكتشاف",
+    "workingHours": "ساعات العمل",
+    "workingDays": "أيام العمل",
+    "start": "البداية",
+    "end": "النهاية",
+    "save": "حفظ الملف الشخصي",
+    "viewPublicProfile": "عرض الملف الشخصي العام",
+    "uploadAvatar": "رفع صورة",
+    "useMicrosoftPhoto": "استخدام صورة Microsoft",
+    "removeAvatar": "إزالة",
+    "cropTitle": "قصّ صورتك",
+    "zoom": "تكبير",
+    "cancel": "إلغاء",
+    "saveAvatar": "حفظ الصورة",
+    "avatarNoMicrosoftPhoto": "حساب Microsoft الخاص بك لا يحتوي على صورة.",
+    "avatarError": {
+      "no_file": "اختر صورة أولاً.",
+      "too_large": "حجم الصورة أكبر من 5 ميغابايت.",
+      "unsupported_type": "استخدم صورة بصيغة PNG أو JPEG أو WebP أو AVIF.",
+      "storage": "تعذّر حفظ الصورة. حاول مرة أخرى.",
+      "graph": "لم تُرجع Microsoft صورتك. حاول لاحقاً."
+    },
     "tzHint": "يبدو أن منطقتك الزمنية هي {zone}. هل تريد عرض الأوقات بها؟",
     "tzHintUse": "استخدمها",
     "tzHintDismiss": "تجاهل"
