@@ -101,7 +101,8 @@
       "zh": "Bahasa Mandarin",
       "ar": "Bahasa Arab",
       "es": "Bahasa Spanyol"
-    }
+    },
+    "projects": "Proyek"
   },
   "nav": {
     "dashboard": "Dasbor",
@@ -139,7 +140,14 @@
     "createProject": "Proyek baru",
     "skipToContent": "Lewati ke konten utama",
     "createEnvironment": "Environment baru",
-    "serverTime": "Waktu server ({zone})"
+    "serverTime": "Waktu server ({zone})",
+    "searchProject": "Cari proyek…",
+    "noProject": "Proyek tidak ditemukan.",
+    "allProjects": "Semua proyek",
+    "selectEnvironment": "Pilih environment",
+    "noEnvironmentInProject": "Belum ada environment di proyek ini.",
+    "switchProject": "Ganti proyek, saat ini: {name}",
+    "switchEnvironment": "Ganti environment, saat ini: {name}"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# tugas berjalan} other {# tugas berjalan}}",

@@ -101,7 +101,8 @@
       "zh": "Chinese (Simplified)",
       "ar": "Arabic",
       "es": "Spanish"
-    }
+    },
+    "projects": "Projects"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -139,7 +140,14 @@
     "createProject": "New project",
     "skipToContent": "Skip to main content",
     "createEnvironment": "New environment",
-    "serverTime": "Server time ({zone})"
+    "serverTime": "Server time ({zone})",
+    "searchProject": "Search project…",
+    "noProject": "No project found.",
+    "allProjects": "All projects",
+    "selectEnvironment": "Select environment",
+    "noEnvironmentInProject": "No environments in this project yet.",
+    "switchProject": "Switch project, current: {name}",
+    "switchEnvironment": "Switch environment, current: {name}"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# running task} other {# running tasks}}",
