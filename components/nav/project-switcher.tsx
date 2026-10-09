@@ -39,9 +39,10 @@ export function ProjectSwitcher({
   const [open, setOpen] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
 
+  // The active project is selectable too: the parent sends it to the overview.
   function select(project: NavProject) {
     setOpen(false);
-    if (project.id !== activeProject.id) onSelect(project);
+    onSelect(project);
   }
 
   return (

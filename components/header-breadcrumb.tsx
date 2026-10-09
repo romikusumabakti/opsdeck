@@ -217,6 +217,21 @@ export function HeaderBreadcrumb({
       ? (projectEnvs.find((e) => e.slug === nav.envSlug) ?? null)
       : null;
 
+  // Environments opened since the shell loaded. The root layout doesn't
+  // re-render on client navigation, so `lastAccessedAt` alone would send a
+  // project switch to whatever was most recent at the last hard load.
+  const [visitedAt, setVisitedAt] = React.useState<Record<string, number>>({});
+  const activeEnvId = activeEnv?.id;
+  React.useEffect(() => {
+    if (activeEnvId) {
+      setVisitedAt((prev) => ({ ...prev, [activeEnvId]: Date.now() }));
+    }
+  }, [activeEnvId]);
+
+  function go(href: string) {
+    if (href !== pathname) router.push(href);
+  }
+
   if (!activeProject) {
     const segments = getStaticSegments(pathname);
     if (segments.length === 0) return null;
@@ -246,7 +261,7 @@ export function HeaderBreadcrumb({
         activeProject={activeProject}
         canCreateProject={canOrg(orgRole, { project: ["create"] })}
         onSelect={(project) =>
-          router.push(
+          go(
             projectSwitchHref({
               projectKey: project.key,
               environments: environments.filter(
@@ -254,6 +269,7 @@ export function HeaderBreadcrumb({
               ),
               role: projectRoles[project.id] ?? null,
               from: nav,
+              visitedAt,
             })
           )
         }
@@ -268,7 +284,7 @@ export function HeaderBreadcrumb({
             ? `/${activeProject.key}/environments/new`
             : null
         }
-        onSelect={(env) => router.push(environmentSwitchHref(env, nav, role))}
+        onSelect={(env) => go(environmentSwitchHref(env, nav, role))}
       />
       {trailing.map((seg, i) => (
         <React.Fragment key={`${seg.labelKey ?? seg.label}-${i}`}>
