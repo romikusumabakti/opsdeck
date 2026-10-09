@@ -10,9 +10,9 @@ export type ActiveStatus = {
 };
 
 type StatusFields = {
-  statusEmoji: string | null;
-  statusText: string | null;
-  statusExpiresAt: Date | string | null;
+  statusEmoji?: string | null;
+  statusText?: string | null;
+  statusExpiresAt?: Date | string | null;
 };
 
 /** Up to two initials, grapheme-safe (Array.from splits by code point). */
@@ -50,7 +50,11 @@ export function activeStatus(
   if (!u.statusEmoji && !u.statusText) return null;
   const expiresAt = u.statusExpiresAt ? new Date(u.statusExpiresAt) : null;
   if (expiresAt && expiresAt.getTime() <= now.getTime()) return null;
-  return { emoji: u.statusEmoji, text: u.statusText, expiresAt };
+  return {
+    emoji: u.statusEmoji ?? null,
+    text: u.statusText ?? null,
+    expiresAt,
+  };
 }
 
 const WEEKDAY: Record<string, number> = {
@@ -125,7 +129,11 @@ export function nextWorkingStart(
  * clock at render time, so a card kept open past the expiry drops the status.
  */
 export function liveCardStatus<
-  S extends { emoji: string | null; text: string | null; expiresAt: string | null },
+  S extends {
+    emoji: string | null;
+    text: string | null;
+    expiresAt: string | null;
+  },
 >(status: S | null, now: Date = new Date()): S | null {
   if (!status) return null;
   const active = activeStatus(
@@ -137,4 +145,54 @@ export function liveCardStatus<
     now
   );
   return active ? status : null;
+}
+
+export type StatusPreset = "30m" | "1h" | "4h" | "today" | "week" | "never";
+
+// UTC instant of local midnight `daysAhead` days after `now`'s local date.
+function localMidnight(now: Date, timeZone: string, daysAhead: number): Date {
+  const { minutes } = zonedClock(timeZone, now);
+  const offsetMs = (() => {
+    const p =
+      new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
+        .formatToParts(now)
+        .find((x) => x.type === "timeZoneName")?.value ?? "GMT";
+    const m = p.match(/GMT([+-])(\d{2}):?(\d{2})?/);
+    if (!m) return 0;
+    const sign = m[1] === "-" ? -1 : 1;
+    return sign * (Number(m[2]) * 60 + Number(m[3] ?? 0)) * 60_000;
+  })();
+  const localNow = now.getTime() + offsetMs;
+  const startOfLocalDay =
+    localNow -
+    (minutes * 60_000 + now.getUTCSeconds() * 1000 + now.getUTCMilliseconds());
+  return new Date(startOfLocalDay + daysAhead * 86_400_000 - offsetMs);
+}
+
+/**
+ * When a status set `now` should expire for the given preset. The offset is
+ * taken at `now`; a DST jump before midnight shifts the result by up to an
+ * hour, which is acceptable for a status.
+ */
+export function expiryFromPreset(
+  preset: StatusPreset,
+  now: Date,
+  timeZone: string
+): Date | null {
+  switch (preset) {
+    case "30m":
+      return new Date(now.getTime() + 30 * 60_000);
+    case "1h":
+      return new Date(now.getTime() + 60 * 60_000);
+    case "4h":
+      return new Date(now.getTime() + 4 * 60 * 60_000);
+    case "today":
+      return localMidnight(now, timeZone, 1);
+    case "week": {
+      const { weekday } = zonedClock(timeZone, now);
+      return localMidnight(now, timeZone, 8 - weekday); // next Monday 00:00
+    }
+    case "never":
+      return null;
+  }
 }

@@ -638,7 +638,10 @@
     "changePassword": "Cambiar contraseña",
     "sessions": "Sesiones activas",
     "signOut": "Cerrar sesión",
-    "ariaLabel": "Menú de usuario"
+    "ariaLabel": "Menú de usuario",
+    "myProfile": "Mi perfil",
+    "setStatus": "Establecer estado",
+    "editStatus": "Editar estado"
   },
   "account": {
     "title": "Cuenta",
@@ -1922,5 +1925,30 @@
     "tzHint": "Tu zona horaria parece ser {zone}. ¿Mostrar las horas en ella?",
     "tzHintUse": "Usarla",
     "tzHintDismiss": "Descartar"
+  },
+  "status": {
+    "title": "Establecer un estado",
+    "emoji": "Emoji",
+    "text": "Estado",
+    "placeholder": "¿Cuál es tu estado?",
+    "clearAfter": "Borrar después de",
+    "clear": "Borrar estado",
+    "save": "Guardar",
+    "set": "Establecer estado",
+    "presets": {
+      "30m": "30 minutos",
+      "1h": "1 hora",
+      "4h": "4 horas",
+      "today": "Hoy",
+      "week": "Esta semana",
+      "never": "No borrar"
+    },
+    "suggestions": {
+      "focus": "Concentrado",
+      "meeting": "En una reunión",
+      "sick": "De baja por enfermedad",
+      "leave": "De vacaciones",
+      "wfh": "Trabajando desde casa"
+    }
   }
 }

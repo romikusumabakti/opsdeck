@@ -638,7 +638,10 @@
     "changePassword": "修改密码",
     "sessions": "活跃会话",
     "signOut": "退出登录",
-    "ariaLabel": "用户菜单"
+    "ariaLabel": "用户菜单",
+    "myProfile": "我的资料",
+    "setStatus": "设置状态",
+    "editStatus": "编辑状态"
   },
   "account": {
     "title": "账户",
@@ -1922,5 +1925,30 @@
     "tzHint": "您的时区似乎是 {zone}。要以该时区显示时间吗？",
     "tzHintUse": "使用",
     "tzHintDismiss": "关闭"
+  },
+  "status": {
+    "title": "设置状态",
+    "emoji": "表情",
+    "text": "状态",
+    "placeholder": "你现在的状态是？",
+    "clearAfter": "清除时间",
+    "clear": "清除状态",
+    "save": "保存",
+    "set": "设置状态",
+    "presets": {
+      "30m": "30 分钟",
+      "1h": "1 小时",
+      "4h": "4 小时",
+      "today": "今天",
+      "week": "本周",
+      "never": "不清除"
+    },
+    "suggestions": {
+      "focus": "专注中",
+      "meeting": "会议中",
+      "sick": "病假",
+      "leave": "休假中",
+      "wfh": "在家办公"
+    }
   }
 }
