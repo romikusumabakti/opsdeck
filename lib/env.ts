@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { BRANDS } from "@/lib/branding";
+import { isValidTimeZone } from "@/lib/timezone";
 
 /**
  * Startup validation for the process environment.
@@ -73,15 +74,12 @@ const hexSecretSchema = z
 
 const urlSchema = z.url();
 
-const timezoneSchema = z.string().refine((v) => {
-  try {
-    // Throws RangeError on an unknown IANA zone.
-    new Intl.DateTimeFormat("en", { timeZone: v });
-    return true;
-  } catch {
-    return false;
-  }
-}, "must be a valid IANA timezone name (e.g. Asia/Jakarta)");
+const timezoneSchema = z
+  .string()
+  .refine(
+    isValidTimeZone,
+    "must be a valid IANA timezone name (e.g. Asia/Jakarta)"
+  );
 
 // --- Group definitions -----------------------------------------------------
 
