@@ -1190,7 +1190,7 @@ export type NewKnowledgeAttachment = InferInsertModel<
 export type KnowledgeDocumentWithMeta = KnowledgeDocument & {
   collection: Pick<KnowledgeCollection, "id" | "name" | "icon">;
   createdBy: Pick<User, "id" | "name"> | null;
-  updatedBy: Pick<User, "id" | "name"> | null;
+  updatedBy: Pick<User, "id" | "name" | "image"> | null;
 };
 
 // Lightweight node for the navigation tree — no body, no FTS columns.
