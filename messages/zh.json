@@ -137,7 +137,8 @@
     "noEnvironment": "未找到环境。",
     "createProject": "新建项目",
     "skipToContent": "跳转到主要内容",
-    "createEnvironment": "新建环境"
+    "createEnvironment": "新建环境",
+    "serverTime": "服务器时间（{zone}）"
   },
   "activeTasks": {
     "trigger": "{count, plural, other {# 个运行中的任务}}",
@@ -510,7 +511,8 @@
       "title": "时间模拟 API",
       "description": "用于在测试环境中控制系统时间的 REST API 参考。"
     },
-    "advancedOptions": "高级选项"
+    "advancedOptions": "高级选项",
+    "browserZone": "时间使用您浏览器的时区（{zone}）"
   },
   "history": {
     "title": "历史记录",
@@ -1886,5 +1888,10 @@
     "teams": "在 Teams 中聊天",
     "deactivated": "已停用",
     "until": "至 {date}"
+  },
+  "profile": {
+    "tzHint": "您的时区似乎是 {zone}。要以该时区显示时间吗？",
+    "tzHintUse": "使用",
+    "tzHintDismiss": "关闭"
   }
 }

@@ -137,7 +137,8 @@
     "noEnvironment": "لم يتم العثور على بيئة.",
     "createProject": "مشروع جديد",
     "skipToContent": "انتقل إلى المحتوى الرئيسي",
-    "createEnvironment": "بيئة جديدة"
+    "createEnvironment": "بيئة جديدة",
+    "serverTime": "وقت الخادم ({zone})"
   },
   "activeTasks": {
     "trigger": "{count, plural, zero {لا مهام قيد التشغيل} one {# مهمة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمةً قيد التشغيل} other {# مهمةً قيد التشغيل}}",
@@ -510,7 +511,8 @@
       "title": "واجهة برمجة محاكاة الوقت",
       "description": "مرجع REST API للتحكم في وقت النظام في بيئات الاختبار."
     },
-    "advancedOptions": "خيارات متقدمة"
+    "advancedOptions": "خيارات متقدمة",
+    "browserZone": "الوقت بحسب المنطقة الزمنية لمتصفحك ({zone})"
   },
   "history": {
     "title": "السجل",
@@ -1886,5 +1888,10 @@
     "teams": "محادثة في Teams",
     "deactivated": "معطّل",
     "until": "حتى {date}"
+  },
+  "profile": {
+    "tzHint": "يبدو أن منطقتك الزمنية هي {zone}. هل تريد عرض الأوقات بها؟",
+    "tzHintUse": "استخدمها",
+    "tzHintDismiss": "تجاهل"
   }
 }

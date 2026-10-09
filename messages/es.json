@@ -137,7 +137,8 @@
     "noEnvironment": "No se encontró ningún entorno.",
     "createProject": "Nuevo proyecto",
     "skipToContent": "Saltar al contenido principal",
-    "createEnvironment": "Nuevo entorno"
+    "createEnvironment": "Nuevo entorno",
+    "serverTime": "Hora del servidor ({zone})"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
@@ -510,7 +511,8 @@
       "title": "API de simulación de tiempo",
       "description": "Referencia de la API REST para controlar la hora del sistema en entornos de prueba."
     },
-    "advancedOptions": "Opciones avanzadas"
+    "advancedOptions": "Opciones avanzadas",
+    "browserZone": "La hora usa la zona de tu navegador ({zone})"
   },
   "history": {
     "title": "Historial",
@@ -1886,5 +1888,10 @@
     "teams": "Chatear en Teams",
     "deactivated": "Desactivado",
     "until": "hasta {date}"
+  },
+  "profile": {
+    "tzHint": "Tu zona horaria parece ser {zone}. ¿Mostrar las horas en ella?",
+    "tzHintUse": "Usarla",
+    "tzHintDismiss": "Descartar"
   }
 }

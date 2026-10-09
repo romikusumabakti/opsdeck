@@ -14,7 +14,7 @@ import {
   listRecentEnvironments,
   type RecentEnvironment,
 } from "@/lib/home/queries";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { effectiveTimeZone } from "@/lib/timezone";
 import { HomeIssueDialogProvider } from "./_components/home-issue-dialog";
 import { MainColumn } from "./_components/main-column";
 import { NewIssueButton } from "./_components/new-issue-button";
@@ -52,7 +52,7 @@ export default async function HomePage({
     new Set(issueProjects.map((p) => p.id))
   );
   const greeting = t(
-    `greeting.${greetingKey(hourIn(APP_TIMEZONE, new Date()))}`,
+    `greeting.${greetingKey(hourIn(effectiveTimeZone(session.user), new Date()))}`,
     { name: firstName(session.user.name) }
   );
 

@@ -137,7 +137,8 @@
     "noEnvironment": "No environment found.",
     "createProject": "New project",
     "skipToContent": "Skip to main content",
-    "createEnvironment": "New environment"
+    "createEnvironment": "New environment",
+    "serverTime": "Server time ({zone})"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# running task} other {# running tasks}}",
@@ -510,7 +511,8 @@
       "title": "Time Mocking API",
       "description": "REST API reference for controlling system time in testing environments."
     },
-    "advancedOptions": "Advanced options"
+    "advancedOptions": "Advanced options",
+    "browserZone": "Time is in your browser's zone ({zone})"
   },
   "history": {
     "title": "History",
@@ -1886,5 +1888,10 @@
     "teams": "Chat in Teams",
     "deactivated": "Deactivated",
     "until": "until {date}"
+  },
+  "profile": {
+    "tzHint": "Your timezone looks like {zone}. Show times in it?",
+    "tzHintUse": "Use it",
+    "tzHintDismiss": "Dismiss"
   }
 }

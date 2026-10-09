@@ -137,7 +137,8 @@
     "noEnvironment": "Environment tidak ditemukan.",
     "createProject": "Proyek baru",
     "skipToContent": "Lewati ke konten utama",
-    "createEnvironment": "Environment baru"
+    "createEnvironment": "Environment baru",
+    "serverTime": "Waktu server ({zone})"
   },
   "activeTasks": {
     "trigger": "{count, plural, one {# tugas berjalan} other {# tugas berjalan}}",
@@ -510,7 +511,8 @@
       "title": "Time Mocking API",
       "description": "Referensi REST API untuk mengontrol waktu sistem di lingkungan testing."
     },
-    "advancedOptions": "Opsi lanjutan"
+    "advancedOptions": "Opsi lanjutan",
+    "browserZone": "Waktu mengikuti zona browser Anda ({zone})"
   },
   "history": {
     "title": "Riwayat",
@@ -1886,5 +1888,10 @@
     "teams": "Chat di Teams",
     "deactivated": "Dinonaktifkan",
     "until": "sampai {date}"
+  },
+  "profile": {
+    "tzHint": "Zona waktu Anda tampaknya {zone}. Tampilkan waktu dalam zona ini?",
+    "tzHintUse": "Gunakan",
+    "tzHintDismiss": "Tutup"
   }
 }
