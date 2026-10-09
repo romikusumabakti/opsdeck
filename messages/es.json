@@ -650,8 +650,7 @@
     },
     "profile": {
       "title": "Perfil",
-      "description": "Tu identidad de cuenta dentro de {{APP_NAME}}.",
-      "nameManagedByAdmin": "Tu nombre lo gestionan los administradores. Contacta con un administrador para actualizarlo."
+      "description": "Cómo te ven tus compañeros en {{APP_NAME}}."
     },
     "security": {
       "title": "Contraseña",
@@ -1890,6 +1889,36 @@
     "until": "hasta {date}"
   },
   "profile": {
+    "name": "Nombre visible",
+    "jobTitle": "Cargo",
+    "jobTitlePlaceholder": "p. ej. Ingeniero de QA",
+    "bio": "Biografía breve",
+    "timezone": "Zona horaria",
+    "tzDefault": "Predeterminada de la organización ({zone})",
+    "tzSearch": "Buscar zonas horarias…",
+    "tzNone": "No se encontró ninguna zona horaria",
+    "detectTimezone": "Detectar",
+    "workingHours": "Horario laboral",
+    "workingDays": "Días laborables",
+    "start": "Inicio",
+    "end": "Fin",
+    "save": "Guardar perfil",
+    "viewPublicProfile": "Ver perfil público",
+    "uploadAvatar": "Subir foto",
+    "useMicrosoftPhoto": "Usar foto de Microsoft",
+    "removeAvatar": "Quitar",
+    "cropTitle": "Recorta tu foto",
+    "zoom": "Zoom",
+    "cancel": "Cancelar",
+    "saveAvatar": "Guardar foto",
+    "avatarNoMicrosoftPhoto": "Tu cuenta de Microsoft no tiene foto.",
+    "avatarError": {
+      "no_file": "Elige primero una imagen.",
+      "too_large": "La imagen supera los 5 MB.",
+      "unsupported_type": "Usa una imagen PNG, JPEG, WebP o AVIF.",
+      "storage": "No se pudo guardar la foto. Inténtalo de nuevo.",
+      "graph": "Microsoft no devolvió tu foto. Inténtalo más tarde."
+    },
     "tzHint": "Tu zona horaria parece ser {zone}. ¿Mostrar las horas en ella?",
     "tzHintUse": "Usarla",
     "tzHintDismiss": "Descartar"

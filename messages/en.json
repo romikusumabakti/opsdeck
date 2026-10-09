@@ -650,8 +650,7 @@
     },
     "profile": {
       "title": "Profile",
-      "description": "Your account identity within {{APP_NAME}}.",
-      "nameManagedByAdmin": "Your name is managed by administrators. Contact an admin to update it."
+      "description": "How you appear to your teammates in {{APP_NAME}}."
     },
     "security": {
       "title": "Password",
@@ -1890,6 +1889,36 @@
     "until": "until {date}"
   },
   "profile": {
+    "name": "Display name",
+    "jobTitle": "Job title",
+    "jobTitlePlaceholder": "e.g. QA Engineer",
+    "bio": "Short bio",
+    "timezone": "Timezone",
+    "tzDefault": "Organisation default ({zone})",
+    "tzSearch": "Search timezones…",
+    "tzNone": "No timezone found",
+    "detectTimezone": "Detect",
+    "workingHours": "Working hours",
+    "workingDays": "Working days",
+    "start": "Start",
+    "end": "End",
+    "save": "Save profile",
+    "viewPublicProfile": "View public profile",
+    "uploadAvatar": "Upload photo",
+    "useMicrosoftPhoto": "Use Microsoft photo",
+    "removeAvatar": "Remove",
+    "cropTitle": "Crop your photo",
+    "zoom": "Zoom",
+    "cancel": "Cancel",
+    "saveAvatar": "Save photo",
+    "avatarNoMicrosoftPhoto": "Your Microsoft account has no photo.",
+    "avatarError": {
+      "no_file": "Choose an image first.",
+      "too_large": "The image is larger than 5 MB.",
+      "unsupported_type": "Use a PNG, JPEG, WebP or AVIF image.",
+      "storage": "The photo couldn't be saved. Try again.",
+      "graph": "Microsoft didn't return your photo. Try again later."
+    },
     "tzHint": "Your timezone looks like {zone}. Show times in it?",
     "tzHintUse": "Use it",
     "tzHintDismiss": "Dismiss"

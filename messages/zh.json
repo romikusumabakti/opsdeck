@@ -650,8 +650,7 @@
     },
     "profile": {
       "title": "个人资料",
-      "description": "您在 {{APP_NAME}} 中的账户身份。",
-      "nameManagedByAdmin": "您的姓名由管理员管理。请联系管理员进行更新。"
+      "description": "您在 {{APP_NAME}} 中向团队成员展示的形象。"
     },
     "security": {
       "title": "密码",
@@ -1890,6 +1889,36 @@
     "until": "至 {date}"
   },
   "profile": {
+    "name": "显示名称",
+    "jobTitle": "职位",
+    "jobTitlePlaceholder": "例如：QA 工程师",
+    "bio": "简短简介",
+    "timezone": "时区",
+    "tzDefault": "组织默认（{zone}）",
+    "tzSearch": "搜索时区…",
+    "tzNone": "未找到时区",
+    "detectTimezone": "自动检测",
+    "workingHours": "工作时间",
+    "workingDays": "工作日",
+    "start": "开始",
+    "end": "结束",
+    "save": "保存资料",
+    "viewPublicProfile": "查看公开资料",
+    "uploadAvatar": "上传照片",
+    "useMicrosoftPhoto": "使用 Microsoft 照片",
+    "removeAvatar": "移除",
+    "cropTitle": "裁剪您的照片",
+    "zoom": "缩放",
+    "cancel": "取消",
+    "saveAvatar": "保存照片",
+    "avatarNoMicrosoftPhoto": "您的 Microsoft 账户没有照片。",
+    "avatarError": {
+      "no_file": "请先选择一张图片。",
+      "too_large": "图片超过 5 MB。",
+      "unsupported_type": "请使用 PNG、JPEG、WebP 或 AVIF 图片。",
+      "storage": "无法保存照片，请重试。",
+      "graph": "Microsoft 未返回您的照片，请稍后再试。"
+    },
     "tzHint": "您的时区似乎是 {zone}。要以该时区显示时间吗？",
     "tzHintUse": "使用",
     "tzHintDismiss": "关闭"

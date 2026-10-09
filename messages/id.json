@@ -650,8 +650,7 @@
     },
     "profile": {
       "title": "Profil",
-      "description": "Identitas akun Anda di {{APP_NAME}}.",
-      "nameManagedByAdmin": "Nama Anda dikelola oleh administrator. Hubungi admin untuk mengubahnya."
+      "description": "Bagaimana Anda terlihat oleh rekan tim di {{APP_NAME}}."
     },
     "security": {
       "title": "Password",
@@ -1890,6 +1889,36 @@
     "until": "sampai {date}"
   },
   "profile": {
+    "name": "Nama tampilan",
+    "jobTitle": "Jabatan",
+    "jobTitlePlaceholder": "mis. QA Engineer",
+    "bio": "Bio singkat",
+    "timezone": "Zona waktu",
+    "tzDefault": "Bawaan organisasi ({zone})",
+    "tzSearch": "Cari zona waktu…",
+    "tzNone": "Zona waktu tidak ditemukan",
+    "detectTimezone": "Deteksi",
+    "workingHours": "Jam kerja",
+    "workingDays": "Hari kerja",
+    "start": "Mulai",
+    "end": "Selesai",
+    "save": "Simpan profil",
+    "viewPublicProfile": "Lihat profil publik",
+    "uploadAvatar": "Unggah foto",
+    "useMicrosoftPhoto": "Gunakan foto Microsoft",
+    "removeAvatar": "Hapus",
+    "cropTitle": "Potong foto Anda",
+    "zoom": "Zoom",
+    "cancel": "Batal",
+    "saveAvatar": "Simpan foto",
+    "avatarNoMicrosoftPhoto": "Akun Microsoft Anda tidak memiliki foto.",
+    "avatarError": {
+      "no_file": "Pilih gambar terlebih dahulu.",
+      "too_large": "Ukuran gambar lebih dari 5 MB.",
+      "unsupported_type": "Gunakan gambar PNG, JPEG, WebP, atau AVIF.",
+      "storage": "Foto tidak dapat disimpan. Coba lagi.",
+      "graph": "Microsoft tidak mengembalikan foto Anda. Coba lagi nanti."
+    },
     "tzHint": "Zona waktu Anda tampaknya {zone}. Tampilkan waktu dalam zona ini?",
     "tzHintUse": "Gunakan",
     "tzHintDismiss": "Tutup"

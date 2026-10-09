@@ -13,8 +13,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { redirect } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth-session";
+import { db } from "@/lib/db";
+import { APP_TIMEZONE } from "@/lib/timezone";
+import type { WorkingHours } from "@/lib/user-display";
 import { PasskeysList } from "./passkeys-list";
-import { ProfileCard } from "./profile-card";
+import { ProfileForm } from "./profile-form";
 import { SessionsList } from "./sessions-list";
 
 export default async function AccountPage({
@@ -36,6 +39,11 @@ export default async function AccountPage({
   const t = await getTranslations("account");
   const tNotif = await getTranslations("notifications");
   const tPasskeys = await getTranslations("account.passkeys");
+
+  const microsoftAccount = await db.query.accounts.findFirst({
+    where: { userId: session.user.id, providerId: "microsoft" },
+    columns: { id: true },
+  });
 
   const defaultTab = tab === "security" || tab === "sessions" ? tab : "profile";
 
@@ -60,15 +68,30 @@ export default async function AccountPage({
         </TabsList>
 
         <TabsContent value="profile" className="flex flex-col gap-6">
-          <ProfileCard
-            user={{
-              id: session.user.id,
-              name: session.user.name,
-              email: session.user.email,
-              emailVerified: session.user.emailVerified,
-              image: session.user.image ?? null,
-            }}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("profile.title")}</CardTitle>
+              <CardDescription>
+                {t("profile.description")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProfileForm
+                user={{
+                  id: session.user.id,
+                  name: session.user.name,
+                  email: session.user.email,
+                  image: session.user.image ?? null,
+                  title: session.user.title ?? null,
+                  bio: session.user.bio ?? null,
+                  timezone: session.user.timezone ?? null,
+                  workingHours: (session.user.workingHours ?? null) as WorkingHours | null,
+                }}
+                appTimeZone={APP_TIMEZONE}
+                hasMicrosoft={Boolean(microsoftAccount)}
+              />
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>{tNotif("title")}</CardTitle>
