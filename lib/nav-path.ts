@@ -5,6 +5,11 @@
 // See docs/superpowers/specs/2026-10-09-project-environment-switcher-design.md.
 
 import {
+  canProject,
+  type ProjectPermissions,
+  type ProjectRole,
+} from "@/lib/permissions";
+import {
   RESERVED_ENV_SLUGS,
   RESERVED_PROJECT_KEYS,
 } from "@/lib/reserved-paths";
@@ -129,4 +134,103 @@ export function groupEnvironmentsByProject<
       environments: environmentsOf(envs, project.id),
     }))
     .filter((group) => group.environments.length > 0);
+}
+
+// Sections that exist identically under every environment. Switching from one
+// of these keeps the user on the same section in the target ("show me area X
+// for another environment"). backup-restore is deliberately excluded: it's a
+// source-specific flow, often mid-operation, so switching drops to the dashboard.
+export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
+  "services",
+  "databases",
+  "mock-time",
+  "mail",
+  "issues",
+  "history",
+  "settings",
+]);
+
+// Project permission each gated environment section needs. The sidebar hides
+// the same entries with this map, so a switch never lands on a 403.
+// `satisfies` keeps the known keys non-optional under noUncheckedIndexedAccess.
+export const SECTION_PERMS = {
+  "mock-time": { clock: ["control"] },
+  mail: { mail: ["read"] },
+  settings: { environment: ["update"] },
+} satisfies Record<string, ProjectPermissions>;
+
+export type SwitchEnvironment = {
+  key: string;
+  slug: string;
+  hasMailpit: boolean;
+};
+
+export function canOpenSection(
+  section: string,
+  env: { hasMailpit: boolean },
+  role: ProjectRole | null
+): boolean {
+  if (!role) return false;
+  if (section === "mail" && !env.hasMailpit) return false;
+  const perm: ProjectPermissions | undefined =
+    SECTION_PERMS[section as keyof typeof SECTION_PERMS];
+  return !perm || canProject(role, perm);
+}
+
+/** Where picking `env` in the environment switcher should go. */
+export function environmentSwitchHref(
+  env: SwitchEnvironment,
+  from: NavPath,
+  role: ProjectRole | null
+): string {
+  const base = `/${env.key}/${env.slug}`;
+  if (
+    from.scope === "env" &&
+    from.section &&
+    PARALLEL_SECTIONS.has(from.section) &&
+    canOpenSection(from.section, env, role)
+  ) {
+    return `${base}/${from.section}`;
+  }
+  return base;
+}
+
+/**
+ * Where picking a project in the project switcher should go: the caller's most
+ * recently opened environment there (same section when it can), the equivalent
+ * project page, or the project overview.
+ */
+export function projectSwitchHref({
+  projectKey,
+  environments,
+  role,
+  from,
+}: {
+  projectKey: string;
+  environments: readonly (SwitchEnvironment & {
+    lastAccessedAt: Date | null;
+  })[];
+  role: ProjectRole | null;
+  from: NavPath;
+}): string {
+  const overview = `/${projectKey}`;
+  if (from.scope === "project") {
+    return from.page === "settings" && canProject(role, SECTION_PERMS.settings)
+      ? `${overview}/settings`
+      : overview;
+  }
+  if (from.scope === "env") {
+    let latest: (typeof environments)[number] | undefined;
+    for (const env of environments) {
+      if (
+        env.lastAccessedAt &&
+        (!latest?.lastAccessedAt ||
+          env.lastAccessedAt.getTime() > latest.lastAccessedAt.getTime())
+      ) {
+        latest = env;
+      }
+    }
+    if (latest) return environmentSwitchHref(latest, from, role);
+  }
+  return overview;
 }

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
+  canOpenSection,
   compareEnvironments,
+  environmentSwitchHref,
   environmentsOf,
   groupEnvironmentsByProject,
   parseNavPath,
+  projectSwitchHref,
   stripProjectPrefix,
 } from "@/lib/nav-path";
 
@@ -164,4 +167,162 @@ describe("groupEnvironmentsByProject", () => {
     // Same-named environments stay in their own project's group.
     expect(groups[1]?.environments.map((e) => e.id)).toEqual(["1"]);
   });
+});
+
+const target = (
+  slug: string,
+  lastAccessedAt: Date | null,
+  hasMailpit = true
+) => ({ key: "SUCOR", slug, hasMailpit, lastAccessedAt });
+
+describe("canOpenSection", () => {
+  it("needs a connected Mailpit for mail", () => {
+    expect(canOpenSection("mail", { hasMailpit: false }, "maintainer")).toBe(
+      false
+    );
+    expect(canOpenSection("mail", { hasMailpit: true }, "maintainer")).toBe(
+      true
+    );
+  });
+  it("checks the section permission against the role", () => {
+    expect(canOpenSection("settings", { hasMailpit: true }, "viewer")).toBe(
+      false
+    );
+    expect(canOpenSection("settings", { hasMailpit: true }, "maintainer")).toBe(
+      true
+    );
+  });
+  it("allows ungated sections for any member", () => {
+    expect(canOpenSection("services", { hasMailpit: false }, "viewer")).toBe(
+      true
+    );
+  });
+  it("denies everything without a role", () => {
+    expect(canOpenSection("settings", { hasMailpit: true }, null)).toBe(false);
+  });
+});
+
+describe("environmentSwitchHref", () => {
+  const dest = { key: "CMEM", slug: "qa", hasMailpit: false };
+
+  it("keeps a parallel section", () => {
+    expect(
+      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/services"), "viewer")
+    ).toBe("/CMEM/qa/services");
+  });
+  it("goes from a log viewer to the target's Services", () => {
+    expect(
+      environmentSwitchHref(
+        dest,
+        parseNavPath("/CMEM/prod/services/db/logs"),
+        "viewer"
+      )
+    ).toBe("/CMEM/qa/services");
+  });
+  it("drops non-parallel sections to the dashboard", () => {
+    expect(
+      environmentSwitchHref(
+        dest,
+        parseNavPath("/CMEM/prod/backup-restore"),
+        "maintainer"
+      )
+    ).toBe("/CMEM/qa");
+  });
+  it("drops mail when the target has no Mailpit", () => {
+    expect(
+      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/mail"), "maintainer")
+    ).toBe("/CMEM/qa");
+  });
+  it("drops a section the role may not open", () => {
+    expect(
+      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/settings"), "viewer")
+    ).toBe("/CMEM/qa");
+  });
+  it("lands on the dashboard from a project-level page", () => {
+    expect(
+      environmentSwitchHref(dest, parseNavPath("/CMEM/settings"), "maintainer")
+    ).toBe("/CMEM/qa");
+  });
+});
+
+describe("projectSwitchHref", () => {
+  const environments = [
+    target("old", new Date("2026-10-01T00:00:00Z")),
+    target("never", null),
+    target("latest", new Date("2026-10-08T00:00:00Z")),
+  ];
+
+  it("lands on the most recently opened environment, same section", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "viewer",
+        from: parseNavPath("/CMEM/prod/services"),
+      })
+    ).toBe("/SUCOR/latest/services");
+  });
+  it("uses the landing environment's dashboard for a non-parallel section", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "maintainer",
+        from: parseNavPath("/CMEM/prod/backup-restore"),
+      })
+    ).toBe("/SUCOR/latest");
+  });
+  it("falls back to the overview when no environment was ever opened", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments: [target("never", null)],
+        role: "viewer",
+        from: parseNavPath("/CMEM/prod/services"),
+      })
+    ).toBe("/SUCOR");
+  });
+  it("falls back to the overview for a project without environments", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments: [],
+        role: "viewer",
+        from: parseNavPath("/CMEM/prod"),
+      })
+    ).toBe("/SUCOR");
+  });
+  it("keeps project settings when permitted", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "maintainer",
+        from: parseNavPath("/CMEM/settings"),
+      })
+    ).toBe("/SUCOR/settings");
+  });
+  it("drops project settings to the overview when not permitted", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "viewer",
+        from: parseNavPath("/CMEM/settings"),
+      })
+    ).toBe("/SUCOR");
+  });
+  it.each(["/CMEM", "/CMEM/issues/42", "/CMEM/environments/new"])(
+    "goes from %s to the overview",
+    (path) => {
+      expect(
+        projectSwitchHref({
+          projectKey: "SUCOR",
+          environments,
+          role: "maintainer",
+          from: parseNavPath(path),
+        })
+      ).toBe("/SUCOR");
+    }
+  );
 });
