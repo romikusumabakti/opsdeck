@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
@@ -23,12 +23,20 @@ export function isUniqueViolation(e: unknown): boolean {
   return err?.code === "23505" || err?.cause?.code === "23505";
 }
 
-async function nameTaken(name: string): Promise<boolean> {
+/** Whether an active user other than `exceptId` already has this name. */
+export async function nameTaken(
+  name: string,
+  exceptId?: string
+): Promise<boolean> {
   const [row] = await db
     .select({ id: users.id })
     .from(users)
     .where(
-      and(eq(users.banned, false), sql`lower(${users.name}) = lower(${name})`)
+      and(
+        eq(users.banned, false),
+        sql`lower(${users.name}) = lower(${name})`,
+        exceptId ? ne(users.id, exceptId) : undefined
+      )
     )
     .limit(1);
   return Boolean(row);

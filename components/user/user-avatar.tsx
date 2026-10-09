@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { avatarSrc } from "@/lib/avatar-url";
+import { avatarSrc, isOwnAvatarUrl } from "@/lib/avatar-url";
 import type { UserRef } from "@/lib/types";
 import { avatarColorIndex, getInitials } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
@@ -49,7 +49,9 @@ export function UserAvatar({
   );
   const style = { width: px, height: px };
 
-  if (user.image && !failed) {
+  // Only our own /api/avatars URL is ever loaded: a foreign URL would make
+  // every viewer's browser fetch it.
+  if (isOwnAvatarUrl(user.image, user.id) && !failed) {
     return (
       // biome-ignore lint/performance/noImgElement: imgproxy already resizes and optimises the avatar.
       <img
