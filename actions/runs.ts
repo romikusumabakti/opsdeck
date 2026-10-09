@@ -10,10 +10,11 @@ import {
 } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environments, type Run, runs } from "@/lib/db/schema";
+import type { UserRef } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
 export type RunWithUser = Run & {
-  user: { id: string; name: string; email: string } | null;
+  user: UserRef | null;
 };
 
 export type ActiveRun = Pick<
@@ -110,7 +111,7 @@ export async function getEnvironmentRuns(
       where: { environmentId: environmentId },
       with: {
         user: {
-          columns: { id: true, name: true, email: true },
+          columns: { id: true, name: true, image: true },
         },
       },
       orderBy: { runAt: "desc" },

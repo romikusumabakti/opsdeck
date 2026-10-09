@@ -29,6 +29,7 @@ export type AccessMatrix = {
   users: {
     id: string;
     name: string;
+    image: string | null;
     email: string;
     role: OrgRole;
     banned: boolean;
@@ -48,6 +49,7 @@ export async function getAccessMatrix(): Promise<AccessMatrix> {
       .select({
         id: users.id,
         name: users.name,
+        image: users.image,
         email: users.email,
         role: users.role,
         banned: users.banned,

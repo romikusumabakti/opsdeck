@@ -24,8 +24,8 @@ import {
 } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
 import { isOrgRole, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
-import { activeStatus } from "@/lib/user-display";
 import type { ActionResponse, UserRef } from "@/lib/types";
+import { activeStatus } from "@/lib/user-display";
 
 const INVITE_EXPIRES_HOURS = 48;
 

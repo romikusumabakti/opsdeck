@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UserName } from "@/components/user/user-name";
 import { useRouter } from "@/i18n/navigation";
 import { PROJECT_ROLES, type ProjectRole } from "@/lib/permissions";
 
@@ -137,7 +138,11 @@ export function ProjectMembersClient({
               <TableRow key={m.userId}>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">{m.name}</span>
+                    <UserName
+                      user={{ id: m.userId, name: m.name, image: m.image }}
+                      avatar="md"
+                      className="font-medium"
+                    />
                     <span className="text-xs text-muted-foreground">
                       {m.email}
                     </span>

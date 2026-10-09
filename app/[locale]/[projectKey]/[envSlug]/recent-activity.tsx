@@ -6,6 +6,7 @@ import { getEnvironmentRuns, type RunWithUser } from "@/actions/runs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UserName } from "@/components/user/user-name";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
 const RECENT_LIMIT = 5;
@@ -81,7 +82,12 @@ function ActivityRow({
         <span className="text-sm truncate">{run.description}</span>
         <span className="text-xs text-muted-foreground">
           {relative}
-          {run.user ? ` · ${run.user.name}` : ""}
+          {run.user ? (
+            <>
+              {" · "}
+              <UserName user={run.user} />
+            </>
+          ) : null}
         </span>
       </div>
       <StatusBadge status={run.status} t={t} />

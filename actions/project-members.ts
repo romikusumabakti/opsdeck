@@ -13,6 +13,7 @@ import { uuidSchema } from "@/lib/validation";
 export type ProjectMemberRow = {
   userId: string;
   name: string;
+  image: string | null;
   email: string;
   role: ProjectRole;
 };
@@ -31,6 +32,7 @@ export async function listProjectMembers(
     .select({
       userId: projectMembers.userId,
       name: userTable.name,
+      image: userTable.image,
       email: userTable.email,
       role: projectMembers.role,
     })

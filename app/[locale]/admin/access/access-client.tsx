@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { UserName } from "@/components/user/user-name";
 import { isInactive } from "@/lib/access";
 import { isOrgRole, ORG_ROLES, type OrgRole } from "@/lib/permissions";
 
@@ -163,7 +164,11 @@ export function AccessClient({
           return (
             <div className={u.banned ? "min-w-0 opacity-50" : "min-w-0"}>
               <div className="flex items-center gap-2">
-                <span className="truncate font-medium">{u.name}</span>
+                <UserName
+                  user={u}
+                  avatar="md"
+                  className="truncate font-medium"
+                />
                 {u.id === selfId && (
                   <Badge variant="secondary" className="text-xs">
                     {tCommon("you")}

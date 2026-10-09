@@ -106,7 +106,8 @@ export function GlobalIssuesClient({
   const [isPending, startTransition] = React.useTransition();
 
   const usersById = React.useMemo(
-    () => Object.fromEntries(
+    () =>
+      Object.fromEntries(
         users.map((u): [string, UserRef] => [
           u.id,
           { id: u.id, name: u.name, image: u.image },
@@ -220,10 +221,10 @@ export function GlobalIssuesClient({
             assigneeId,
             assignee: assigneeId
               ? (usersById[assigneeId] ?? {
-                    id: assigneeId,
-                    name: "",
-                    image: null,
-                  })
+                  id: assigneeId,
+                  name: "",
+                  image: null,
+                })
               : null,
           },
         },

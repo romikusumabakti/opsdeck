@@ -3,6 +3,7 @@ import { Activity } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { type ActivityRow, listActivity } from "@/actions/activity";
 import { PageHeader } from "@/components/page-header";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { requireOrgPage } from "@/lib/authz";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 
@@ -189,7 +190,18 @@ export default async function ActivityPage({
               key={e.id}
               className="flex items-center gap-3 px-3 py-2.5 text-sm"
             >
-              <Activity className="size-4 shrink-0 text-muted-foreground" />
+              {e.actorId && e.actorName ? (
+                <UserAvatar
+                  user={{
+                    id: e.actorId,
+                    name: e.actorName,
+                    image: e.actorImage,
+                  }}
+                  size="sm"
+                />
+              ) : (
+                <Activity className="size-4 shrink-0 text-muted-foreground" />
+              )}
               <span className="flex-1 min-w-0">{message(t, tIssues, e)}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {formatDistanceToNow(new Date(e.createdAt), {
