@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { requireProjectPage } from "@/lib/authz";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import {
   canCreateEnvironment as canCreateEnvironmentIn,
   canProject,
@@ -26,15 +27,6 @@ import {
 import { IssuesClient } from "./[envSlug]/issues/issues-client";
 import { MilestonesClient } from "./milestones-client";
 import { ProjectMembersClient } from "./project-members-client";
-
-// Drop the project-name prefix from an environment label under its own project.
-function stripPrefix(envName: string, projectName: string): string {
-  if (envName.toLowerCase().startsWith(projectName.toLowerCase())) {
-    const rest = envName.slice(projectName.length).replace(/^[\s:–—-]+/, "");
-    return rest.trim() || envName;
-  }
-  return envName;
-}
 
 export default async function ProjectOverviewPage({
   params,
@@ -188,7 +180,7 @@ export default async function ProjectOverviewPage({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="font-medium truncate">
-                              {stripPrefix(env.name, project.name)}
+                              {stripProjectPrefix(env.name, project.name)}
                             </span>
                             {env.kind ? (
                               <Badge

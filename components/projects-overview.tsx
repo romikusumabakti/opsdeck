@@ -28,6 +28,7 @@ import {
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { EnvironmentSummary } from "@/lib/db/schema";
+import { compareEnvironments } from "@/lib/nav-path";
 import {
   canCreateEnvironment as canCreateEnvironmentIn,
   canProject,
@@ -36,16 +37,6 @@ import {
 } from "@/lib/permissions";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
-
-// Kind decides an environment's position within its project so the list reads
-// promotion-order (prod last) instead of alphabetically shuffled per project.
-const KIND_ORDER: Record<string, number> = {
-  dev: 0,
-  qa: 1,
-  sandbox: 2,
-  release: 3,
-  prod: 4,
-};
 
 export function ProjectsOverview({
   projects,
@@ -224,11 +215,7 @@ function ProjectCard({
   const canUpdateEnvironment = canProject(role, { environment: ["update"] });
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");
-  const environments = [...project.environments].sort(
-    (a, b) =>
-      (KIND_ORDER[a.kind ?? ""] ?? 99) - (KIND_ORDER[b.kind ?? ""] ?? 99) ||
-      a.name.localeCompare(b.name)
-  );
+  const environments = [...project.environments].sort(compareEnvironments);
 
   return (
     <Card className="py-0 overflow-hidden">
