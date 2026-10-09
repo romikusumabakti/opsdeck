@@ -16,6 +16,7 @@ export const RESERVED_PROJECT_KEYS = new Set([
   "ISSUES",
   "JIRA",
   "KNOWLEDGE",
+  "PEOPLE",
   "PROJECT",
   "PROJECTS",
   "SERVERS",
