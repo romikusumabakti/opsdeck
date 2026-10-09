@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   ShieldUser,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { AssignedIssueCounts } from "@/actions/issues";
@@ -234,6 +235,16 @@ export function AppSidebar({
                 >
                   <BookOpen />
                   <span>{tNav("knowledge")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/people" />}
+                  isActive={pathname.startsWith("/people")}
+                  tooltip={tNav("people")}
+                >
+                  <UsersRound />
+                  <span>{tNav("people")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {canSeeServers && (

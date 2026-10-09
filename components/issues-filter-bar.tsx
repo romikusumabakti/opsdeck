@@ -53,12 +53,15 @@ export function IssuesFilterBar({
   onChange,
   projects,
   labels,
+  users,
   leading,
 }: {
   filters: Record<string, string>;
   onChange: (patch: FilterPatch) => void;
   projects: FilterOption[];
   labels: FilterOption[];
+  /** Resolves the `assignee` chip's name (e.g. from a profile's "View all"). */
+  users: FilterOption[];
   /** Rendered at the start of the bar — the saved-views control. */
   leading?: React.ReactNode;
 }) {
@@ -119,6 +122,13 @@ export function IssuesFilterBar({
   }
   if (filters.mine === "1") {
     chips.push({ key: "mine", facet: t("assignee"), value: t("me") });
+  }
+  if (filters.assignee && filters.mine !== "1") {
+    chips.push({
+      key: "assignee",
+      facet: t("assignee"),
+      value: nameOf(users, filters.assignee),
+    });
   }
   if (isBoard && filters.group) {
     chips.push({
