@@ -14,6 +14,7 @@ import {
   PROFILE_LIMITS,
   profileInputSchema,
   statusInputSchema,
+  timeZoneSchema,
   uuidSchema,
 } from "@/lib/validation";
 
@@ -121,4 +122,18 @@ export async function adminUpdateProfile(input: {
   revalidatePath("/admin/users");
   revalidatePath(`/people/${input.userId}`);
   return { success: true, message: t("nameUpdated") };
+}
+
+export async function setMyTimeZone(timezone: string): Promise<ActionResponse> {
+  const session = await requireSession();
+  const t = await getTranslations("actionErrors");
+  if (!timeZoneSchema.safeParse(timezone).success) {
+    return { success: false, message: t("invalidInput") };
+  }
+  await db
+    .update(users)
+    .set({ timezone, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+  revalidatePath("/", "layout");
+  return { success: true, message: t("profileUpdated") };
 }

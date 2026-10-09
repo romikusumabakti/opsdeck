@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 function getUtcOffset(date: Date, timeZone: string): string {
@@ -13,6 +14,7 @@ function getUtcOffset(date: Date, timeZone: string): string {
 }
 
 export function ServerTime({ timeZone }: { timeZone: string }) {
+  const t = useTranslations("header");
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -46,11 +48,14 @@ export function ServerTime({ timeZone }: { timeZone: string }) {
   }
 
   const offset = getUtcOffset(now, timeZone);
+  const label = t("serverTime", { zone: timeZone });
 
   return (
     <span
       className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground bg-muted/40 border border-border/50 rounded px-2 py-0.5"
-      title={`${dateFormatter.format(now)}T${timeFormatter.format(now)}${offset} (${timeZone})`}
+      role="timer"
+      aria-label={label}
+      title={`${label}: ${dateFormatter.format(now)}T${timeFormatter.format(now)}${offset} (${timeZone})`}
     >
       <Clock className="size-3 shrink-0" aria-hidden="true" />
       {timeFormatter.format(now)}{" "}
