@@ -9,7 +9,13 @@ import { cn } from "@/lib/utils";
 const SIZES = { xs: 20, sm: 24, md: 32, lg: 64, xl: 128 } as const;
 export type AvatarSize = keyof typeof SIZES;
 
-const TEXT = { xs: "text-[9px]", sm: "text-[10px]", md: "text-xs", lg: "text-xl", xl: "text-4xl" } as const;
+const TEXT = {
+  xs: "text-[9px]",
+  sm: "text-[10px]",
+  md: "text-xs",
+  lg: "text-xl",
+  xl: "text-4xl",
+} as const;
 
 // 100/900 pairs keep initials at AA contrast in both themes.
 const COLORS = [
@@ -37,7 +43,10 @@ export function UserAvatar({
 }) {
   const px = SIZES[size];
   const [failed, setFailed] = useState(false);
-  const box = cn("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full select-none", className);
+  const box = cn(
+    "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full select-none",
+    className
+  );
   const style = { width: px, height: px };
 
   if (user.image && !failed) {
@@ -62,7 +71,12 @@ export function UserAvatar({
       />
     );
   }
-  const initials = cn(box, "font-semibold", TEXT[size], COLORS[avatarColorIndex(user.id)]);
+  const initials = cn(
+    box,
+    "font-semibold",
+    TEXT[size],
+    COLORS[avatarColorIndex(user.id)]
+  );
   if (label) {
     return (
       <span role="img" aria-label={label} className={initials} style={style}>

@@ -14,7 +14,11 @@ export type UserCardData = UserRef & {
   role: string;
   timeZone: string;
   workingHours: { days: number[]; start: string; end: string } | null;
-  status: { emoji: string | null; text: string | null; expiresAt: string | null } | null;
+  status: {
+    emoji: string | null;
+    text: string | null;
+    expiresAt: string | null;
+  } | null;
   jiraUrl: string | null;
   deactivated: boolean;
 };

@@ -23,16 +23,22 @@ export async function GET(
 
   let upstream: Response;
   try {
-    upstream = await fetch(imgproxyUrl(avatarKey(userId, hash), { width: size, fill: true }), {
-      headers: { Accept: request.headers.get("accept") ?? "image/*" },
-    });
+    upstream = await fetch(
+      imgproxyUrl(avatarKey(userId, hash), { width: size, fill: true }),
+      {
+        headers: { Accept: request.headers.get("accept") ?? "image/*" },
+      }
+    );
   } catch (error) {
     console.error(`imgproxy fetch failed for avatar ${userId}/${hash}:`, error);
     return new Response("Image service error", { status: 502 });
   }
-  if (upstream.status === 404) return new Response("Not found", { status: 404 });
+  if (upstream.status === 404)
+    return new Response("Not found", { status: 404 });
   if (!upstream.ok || !upstream.body) {
-    console.error(`imgproxy returned ${upstream.status} for avatar ${userId}/${hash}`);
+    console.error(
+      `imgproxy returned ${upstream.status} for avatar ${userId}/${hash}`
+    );
     return new Response("Image service error", { status: 502 });
   }
   return new Response(upstream.body, {

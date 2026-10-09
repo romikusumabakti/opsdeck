@@ -8,7 +8,9 @@ export async function POST(): Promise<Response> {
   const session = await getServerSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   try {
-    const result = await importMicrosoftAvatar(session.user.id, { force: true });
+    const result = await importMicrosoftAvatar(session.user.id, {
+      force: true,
+    });
     revalidatePath("/", "layout");
     return NextResponse.json({ result });
   } catch (error) {

@@ -27,7 +27,11 @@ type ProfileUser = {
   workingHours: WorkingHours | null;
 };
 
-const DEFAULT_HOURS: WorkingHours = { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" };
+const DEFAULT_HOURS: WorkingHours = {
+  days: [1, 2, 3, 4, 5],
+  start: "09:00",
+  end: "17:00",
+};
 
 export function ProfileForm({
   user,
@@ -52,14 +56,20 @@ export function ProfileForm({
 
   // Weekday labels in the app locale, Monday first (ISO 1..7). Fixed UTC zone
   // so the server and client renders agree.
-  const weekdayFmt = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+  const weekdayFmt = new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    timeZone: "UTC",
+  });
   const weekdays = [1, 2, 3, 4, 5, 6, 7].map((d) => ({
     d,
     label: weekdayFmt.format(new Date(Date.UTC(2024, 0, d))), // 2024-01-01 is a Monday
   }));
 
   /** Sends an avatar request; toasts the mapped error and returns null on failure. */
-  async function sendAvatar(url: string, init: RequestInit): Promise<Response | null> {
+  async function sendAvatar(
+    url: string,
+    init: RequestInit
+  ): Promise<Response | null> {
     const res = await fetch(url, init);
     if (res.ok) return res;
     const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -70,11 +80,13 @@ export function ProfileForm({
   async function uploadAvatar(blob: Blob) {
     const body = new FormData();
     body.set("file", blob, "avatar");
-    if (await sendAvatar("/api/avatars", { method: "POST", body })) router.refresh();
+    if (await sendAvatar("/api/avatars", { method: "POST", body }))
+      router.refresh();
   }
 
   async function removeAvatar() {
-    if (await sendAvatar("/api/avatars", { method: "DELETE" })) router.refresh();
+    if (await sendAvatar("/api/avatars", { method: "DELETE" }))
+      router.refresh();
   }
 
   async function importMicrosoftAvatar() {
@@ -93,7 +105,13 @@ export function ProfileForm({
   function onSave(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const res = await updateProfile({ name, title, bio, timezone, workingHours: hours });
+      const res = await updateProfile({
+        name,
+        title,
+        bio,
+        timezone,
+        workingHours: hours,
+      });
       if (res.success) {
         toast.success(res.message);
         router.refresh();
@@ -106,7 +124,13 @@ export function ProfileForm({
       <div className="flex items-center gap-4">
         <UserAvatar user={user} size="lg" />
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => fileInput.current?.click()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() => fileInput.current?.click()}
+          >
             {t("uploadAvatar")}
           </Button>
           {hasMicrosoft && (
@@ -144,11 +168,23 @@ export function ProfileForm({
           }}
         />
       </div>
-      {cropping && <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onCropped={onCropped} />}
+      {cropping && (
+        <AvatarCropper
+          file={cropping}
+          onCancel={() => setCropping(null)}
+          onCropped={onCropped}
+        />
+      )}
 
       <div className="grid gap-2">
         <Label htmlFor="pf-name">{t("name")}</Label>
-        <Input id="pf-name" value={name} maxLength={PROFILE_LIMITS.name} required onChange={(e) => setName(e.target.value)} />
+        <Input
+          id="pf-name"
+          value={name}
+          maxLength={PROFILE_LIMITS.name}
+          required
+          onChange={(e) => setName(e.target.value)}
+        />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="pf-title">{t("jobTitle")}</Label>
@@ -162,7 +198,13 @@ export function ProfileForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="pf-bio">{t("bio")}</Label>
-        <Textarea id="pf-bio" value={bio} maxLength={PROFILE_LIMITS.bio} rows={3} onChange={(e) => setBio(e.target.value)} />
+        <Textarea
+          id="pf-bio"
+          value={bio}
+          maxLength={PROFILE_LIMITS.bio}
+          rows={3}
+          onChange={(e) => setBio(e.target.value)}
+        />
         <p className="text-end text-xs text-muted-foreground">
           {bio.length}/{PROFILE_LIMITS.bio}
         </p>
@@ -171,12 +213,18 @@ export function ProfileForm({
         <Label>{t("timezone")}</Label>
         <div className="flex gap-2">
           <div className="flex-1">
-            <TimezoneSelect value={timezone} defaultZone={appTimeZone} onChange={setTimezone} />
+            <TimezoneSelect
+              value={timezone}
+              defaultZone={appTimeZone}
+              onChange={setTimezone}
+            />
           </div>
           <Button
             type="button"
             variant="outline"
-            onClick={() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)}
+            onClick={() =>
+              setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+            }
           >
             {t("detectTimezone")}
           </Button>
@@ -185,11 +233,19 @@ export function ProfileForm({
       <div className="grid gap-3">
         <div className="flex items-center justify-between">
           <Label htmlFor="pf-hours">{t("workingHours")}</Label>
-          <Switch id="pf-hours" checked={hours !== null} onCheckedChange={(on) => setHours(on ? DEFAULT_HOURS : null)} />
+          <Switch
+            id="pf-hours"
+            checked={hours !== null}
+            onCheckedChange={(on) => setHours(on ? DEFAULT_HOURS : null)}
+          />
         </div>
         {hours && (
           <>
-            <div className="flex flex-wrap gap-1" role="group" aria-label={t("workingDays")}>
+            <div
+              className="flex flex-wrap gap-1"
+              role="group"
+              aria-label={t("workingDays")}
+            >
               {weekdays.map(({ d, label }) => {
                 const on = hours.days.includes(d);
                 return (
@@ -202,7 +258,9 @@ export function ProfileForm({
                     onClick={() =>
                       setHours({
                         ...hours,
-                        days: on ? hours.days.filter((x) => x !== d) : [...hours.days, d].sort((a, b) => a - b),
+                        days: on
+                          ? hours.days.filter((x) => x !== d)
+                          : [...hours.days, d].sort((a, b) => a - b),
                       })
                     }
                   >
@@ -212,9 +270,21 @@ export function ProfileForm({
               })}
             </div>
             <div className="flex items-center gap-2">
-              <Input type="time" className="w-32" aria-label={t("start")} value={hours.start} onChange={(e) => setHours({ ...hours, start: e.target.value })} />
+              <Input
+                type="time"
+                className="w-32"
+                aria-label={t("start")}
+                value={hours.start}
+                onChange={(e) => setHours({ ...hours, start: e.target.value })}
+              />
               <span aria-hidden>–</span>
-              <Input type="time" className="w-32" aria-label={t("end")} value={hours.end} onChange={(e) => setHours({ ...hours, end: e.target.value })} />
+              <Input
+                type="time"
+                className="w-32"
+                aria-label={t("end")}
+                value={hours.end}
+                onChange={(e) => setHours({ ...hours, end: e.target.value })}
+              />
             </div>
           </>
         )}
@@ -223,7 +293,10 @@ export function ProfileForm({
         <Button type="submit" disabled={pending}>
           {t("save")}
         </Button>
-        <Link href={`/people/${user.id}`} className="text-sm underline underline-offset-2">
+        <Link
+          href={`/people/${user.id}`}
+          className="text-sm underline underline-offset-2"
+        >
           {t("viewPublicProfile")}
         </Link>
       </div>

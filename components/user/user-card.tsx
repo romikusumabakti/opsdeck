@@ -13,7 +13,15 @@ import { liveCardStatus } from "@/lib/user-display";
 import { LocalTime } from "./local-time";
 import { UserAvatar } from "./user-avatar";
 
-export function UserCardBody({ promise, fallbackName, id }: { promise: Promise<UserCardData>; fallbackName: string; id: string }) {
+export function UserCardBody({
+  promise,
+  fallbackName,
+  id,
+}: {
+  promise: Promise<UserCardData>;
+  fallbackName: string;
+  id: string;
+}) {
   const t = useTranslations("people");
   const tRoles = useTranslations("users.role");
   const format = useFormatter();
@@ -27,10 +35,16 @@ export function UserCardBody({ promise, fallbackName, id }: { promise: Promise<U
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-semibold">{card.name}</span>
-            {card.deactivated && <Badge variant="secondary">{t("deactivated")}</Badge>}
+            {card.deactivated && (
+              <Badge variant="secondary">{t("deactivated")}</Badge>
+            )}
           </div>
-          {card.title && <p className="truncate text-muted-foreground">{card.title}</p>}
-          <Badge variant="outline" className="mt-1">{tRoles(card.role)}</Badge>
+          {card.title && (
+            <p className="truncate text-muted-foreground">{card.title}</p>
+          )}
+          <Badge variant="outline" className="mt-1">
+            {tRoles(card.role)}
+          </Badge>
         </div>
       </div>
       {status && (
@@ -38,22 +52,58 @@ export function UserCardBody({ promise, fallbackName, id }: { promise: Promise<U
           {status.emoji} {status.text}
           {status.expiresAt && (
             <span className="text-muted-foreground">
-              {" · "}{t("until", { date: format.dateTime(new Date(status.expiresAt), { dateStyle: "medium", timeStyle: "short" }) })}
+              {" · "}
+              {t("until", {
+                date: format.dateTime(new Date(status.expiresAt), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }),
+              })}
             </span>
           )}
         </p>
       )}
-      <p className="text-xs"><LocalTime timeZone={card.timeZone} workingHours={card.workingHours} /></p>
-      {card.bio && <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-line">{card.bio}</p>}
+      <p className="text-xs">
+        <LocalTime timeZone={card.timeZone} workingHours={card.workingHours} />
+      </p>
+      {card.bio && (
+        <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-line">
+          {card.bio}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" nativeButton={false} render={<a href={`mailto:${card.email}`} />}>
-          <Mail />{t("email")}
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={<a href={`mailto:${card.email}`} />}
+        >
+          <Mail />
+          {t("email")}
         </Button>
-        <Button size="sm" variant="outline" nativeButton={false} render={<a href={teamsChatUrl(card.email)} target="_blank" rel="noreferrer" />}>
-          <MessageSquare />{t("teams")}
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={
+            <a
+              href={teamsChatUrl(card.email)}
+              target="_blank"
+              rel="noreferrer"
+            />
+          }
+        >
+          <MessageSquare />
+          {t("teams")}
         </Button>
-        <Button size="sm" variant="ghost" nativeButton={false} render={<Link href={`/people/${id}`} />}>
-          <SquareArrowOutUpRight />{t("viewProfile")}
+        <Button
+          size="sm"
+          variant="ghost"
+          nativeButton={false}
+          render={<Link href={`/people/${id}`} />}
+        >
+          <SquareArrowOutUpRight />
+          {t("viewProfile")}
         </Button>
       </div>
       <span className="sr-only">{fallbackName}</span>
