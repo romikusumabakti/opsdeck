@@ -33,7 +33,8 @@ export async function updateProfile(input: unknown): Promise<ActionResponse> {
       .set({ ...parsed.data, updatedAt: new Date() })
       .where(eq(users.id, session.user.id));
   } catch (error) {
-    if (isUniqueViolation(error)) return { success: false, message: t("nameTaken") };
+    if (isUniqueViolation(error))
+      return { success: false, message: t("nameTaken") };
     throw error;
   }
 
@@ -54,7 +55,9 @@ export async function setStatus(input: unknown): Promise<ActionResponse> {
   const t = await getTranslations("actionErrors");
   const parsed = statusInputSchema.safeParse(input);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
-  const expiresAt = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null;
+  const expiresAt = parsed.data.expiresAt
+    ? new Date(parsed.data.expiresAt)
+    : null;
   if (expiresAt && expiresAt.getTime() <= Date.now()) {
     return { success: false, message: t("statusExpired") };
   }
@@ -77,7 +80,12 @@ export async function clearStatus(): Promise<ActionResponse> {
   const t = await getTranslations("actionErrors");
   await db
     .update(users)
-    .set({ statusEmoji: null, statusText: null, statusExpiresAt: null, updatedAt: new Date() })
+    .set({
+      statusEmoji: null,
+      statusText: null,
+      statusExpiresAt: null,
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, session.user.id));
   revalidatePath("/", "layout");
   return { success: true, message: t("statusCleared") };
@@ -96,8 +104,10 @@ export async function adminUpdateProfile(input: {
   const name = input.name.trim();
   const title = input.title?.trim() || null;
   if (!name) return { success: false, message: t("nameRequired") };
-  if (name.length > PROFILE_LIMITS.name) return { success: false, message: t("nameTooLong") };
-  if (title && title.length > PROFILE_LIMITS.title) return { success: false, message: t("invalidInput") };
+  if (name.length > PROFILE_LIMITS.name)
+    return { success: false, message: t("nameTooLong") };
+  if (title && title.length > PROFILE_LIMITS.title)
+    return { success: false, message: t("invalidInput") };
 
   let result: { id: string }[];
   try {
@@ -107,10 +117,12 @@ export async function adminUpdateProfile(input: {
       .where(eq(users.id, input.userId))
       .returning({ id: users.id });
   } catch (error) {
-    if (isUniqueViolation(error)) return { success: false, message: t("nameTaken") };
+    if (isUniqueViolation(error))
+      return { success: false, message: t("nameTaken") };
     throw error;
   }
-  if (result.length === 0) return { success: false, message: t("errorGeneric") };
+  if (result.length === 0)
+    return { success: false, message: t("errorGeneric") };
 
   await recordActivity({
     actorId: session.user.id,

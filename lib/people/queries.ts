@@ -3,8 +3,18 @@ import "server-only";
 import { and, count, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { getProjectAccess, projectIdsWhere, projectScope } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { issues, projectMembers, projects, sessions, users } from "@/lib/db/schema";
-import { canOrg, effectiveProjectRole, type ProjectRole } from "@/lib/permissions";
+import {
+  issues,
+  projectMembers,
+  projects,
+  sessions,
+  users,
+} from "@/lib/db/schema";
+import {
+  canOrg,
+  effectiveProjectRole,
+  type ProjectRole,
+} from "@/lib/permissions";
 import { effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus, type WorkingHours } from "@/lib/user-display";
 
@@ -21,14 +31,20 @@ export type PersonSummary = {
   role: string;
   timeZone: string;
   workingHours: WorkingHours | null;
-  status: { emoji: string | null; text: string | null; expiresAt: string | null } | null;
+  status: {
+    emoji: string | null;
+    text: string | null;
+    expiresAt: string | null;
+  } | null;
   lastActiveAt: string | null;
   /** Viewer-visible projects this person can also see. */
   projectIds: string[];
   deactivated: boolean;
 };
 
-export async function listPeople(viewerRole: string | null | undefined): Promise<PersonSummary[]> {
+export async function listPeople(
+  viewerRole: string | null | undefined
+): Promise<PersonSummary[]> {
   const access = await getProjectAccess();
   const visible = Object.keys(access.roles);
   const includeBanned = canOrg(viewerRole, { user: ["list"] });
@@ -88,8 +104,13 @@ export async function listPeople(viewerRole: string | null | undefined): Promise
       role: u.role,
       timeZone: effectiveTimeZone(u),
       workingHours: u.workingHours ?? null,
-      status: status && { ...status, expiresAt: status.expiresAt?.toISOString() ?? null },
-      lastActiveAt: u.lastActiveAt ? new Date(u.lastActiveAt).toISOString() : null,
+      status: status && {
+        ...status,
+        expiresAt: status.expiresAt?.toISOString() ?? null,
+      },
+      lastActiveAt: u.lastActiveAt
+        ? new Date(u.lastActiveAt).toISOString()
+        : null,
       projectIds,
       deactivated: u.banned,
     };
@@ -101,9 +122,15 @@ export async function getPersonProjects(
 ): Promise<{ id: string; key: string; name: string; role: ProjectRole }[]> {
   const access = await getProjectAccess();
   const [target, memberships, visibleProjects] = await Promise.all([
-    db.query.users.findFirst({ where: { id: userId }, columns: { role: true } }),
+    db.query.users.findFirst({
+      where: { id: userId },
+      columns: { role: true },
+    }),
     db
-      .select({ projectId: projectMembers.projectId, role: projectMembers.role })
+      .select({
+        projectId: projectMembers.projectId,
+        role: projectMembers.role,
+      })
       .from(projectMembers)
       .where(eq(projectMembers.userId, userId)),
     db
@@ -150,7 +177,10 @@ export async function listPersonOpenIssues(
       .from(issues)
       .innerJoin(projects, eq(projects.id, issues.projectId))
       .where(where)
-      .orderBy(sql`${issues.status} = 'in_progress' desc`, desc(issues.updatedAt))
+      .orderBy(
+        sql`${issues.status} = 'in_progress' desc`,
+        desc(issues.updatedAt)
+      )
       .limit(limit),
     db.select({ total: count() }).from(issues).where(where),
   ]);
@@ -166,11 +196,23 @@ export type PersonRun = {
   environment: { name: string; slug: string; project: { key: string } };
 };
 
-export async function listPersonRecentRuns(userId: string, limit = 10): Promise<PersonRun[]> {
+export async function listPersonRecentRuns(
+  userId: string,
+  limit = 10
+): Promise<PersonRun[]> {
   const projectIds = await projectIdsWhere();
   const rows = await db.query.runs.findMany({
-    where: { userId, ...(projectIds && { environment: { projectId: projectIds } }) },
-    columns: { id: true, description: true, status: true, kind: true, runAt: true },
+    where: {
+      userId,
+      ...(projectIds && { environment: { projectId: projectIds } }),
+    },
+    columns: {
+      id: true,
+      description: true,
+      status: true,
+      kind: true,
+      runAt: true,
+    },
     with: {
       environment: {
         columns: { name: true, slug: true },
@@ -186,10 +228,16 @@ export async function listPersonRecentRuns(userId: string, limit = 10): Promise<
 /** No project data, so not in SCOPED_READS. */
 export async function getPersonMeta(userId: string) {
   const [row] = await db
-    .select({ createdAt: users.createdAt, lastActiveAt: max(sessions.updatedAt) })
+    .select({
+      createdAt: users.createdAt,
+      lastActiveAt: max(sessions.updatedAt),
+    })
     .from(users)
     .leftJoin(sessions, eq(sessions.userId, users.id))
     .where(eq(users.id, userId))
     .groupBy(users.id);
-  return { createdAt: row?.createdAt ?? new Date(0), lastActiveAt: row?.lastActiveAt ?? null };
+  return {
+    createdAt: row?.createdAt ?? new Date(0),
+    lastActiveAt: row?.lastActiveAt ?? null,
+  };
 }

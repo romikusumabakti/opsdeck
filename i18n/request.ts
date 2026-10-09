@@ -1,7 +1,7 @@
 import { hasLocale } from "next-intl";
 import { getRequestConfig } from "next-intl/server";
-import { ALLOWED_EMAIL_DOMAIN, APP_NAME } from "../lib/branding";
 import { getServerSession } from "../lib/auth-session";
+import { ALLOWED_EMAIL_DOMAIN, APP_NAME } from "../lib/branding";
 import { effectiveTimeZone } from "../lib/timezone";
 import { routing } from "./routing";
 

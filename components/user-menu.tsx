@@ -33,12 +33,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { StatusDialog } from "@/components/user/status-dialog";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
 import { canOrg, type OrgRole } from "@/lib/permissions";
-import { StatusDialog } from "@/components/user/status-dialog";
-import { UserAvatar } from "@/components/user/user-avatar";
 
 export type UserSummary = {
   id: string;

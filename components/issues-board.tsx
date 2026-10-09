@@ -335,9 +335,7 @@ function IssueCard({
           {issue.envName && issue.assignee ? (
             <span aria-hidden="true">·</span>
           ) : null}
-          {issue.assignee ? (
-            <UserName user={issue.assignee} avatar />
-          ) : null}
+          {issue.assignee ? <UserName user={issue.assignee} avatar /> : null}
         </div>
       ) : null}
       <StatusSelect

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
+  APP_TIMEZONE,
   effectiveTimeZone,
   isValidTimeZone,
-  APP_TIMEZONE,
 } from "@/lib/timezone";
 import {
   profileInputSchema,

@@ -43,7 +43,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { type UserSummary, UserMenu } from "@/components/user-menu";
+import { UserMenu, type UserSummary } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { BrandName } from "@/lib/branding";
 import type { EnvironmentListItem } from "@/lib/db/schema";

@@ -211,7 +211,10 @@ export default async function PersonPage({
                     key={p.id}
                     className="flex items-center justify-between gap-2"
                   >
-                    <Link href={`/${p.key}`} className="truncate hover:underline">
+                    <Link
+                      href={`/${p.key}`}
+                      className="truncate hover:underline"
+                    >
                       {p.name}
                     </Link>
                     <Badge variant="outline">{tProject(p.role)}</Badge>
@@ -223,7 +226,9 @@ export default async function PersonPage({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>{t("openIssues", { count: openIssues.total })}</CardTitle>
+            <CardTitle>
+              {t("openIssues", { count: openIssues.total })}
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {openIssues.items.length === 0 ? (
@@ -271,11 +276,14 @@ export default async function PersonPage({
               {runs.map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
                   <Badge
-                    variant={r.status === "failed" ? "destructive" : "secondary"}
+                    variant={
+                      r.status === "failed" ? "destructive" : "secondary"
+                    }
                   >
                     {tHistory(
-                      RUN_STATUS_KEYS[r.status as keyof typeof RUN_STATUS_KEYS] ??
-                        "statusRunning"
+                      RUN_STATUS_KEYS[
+                        r.status as keyof typeof RUN_STATUS_KEYS
+                      ] ?? "statusRunning"
                     )}
                   </Badge>
                   <Link

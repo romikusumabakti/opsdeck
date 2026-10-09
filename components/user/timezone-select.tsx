@@ -11,7 +11,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 /** IANA zone picker. `null` means "use the organisation default". */
 export function TimezoneSelect({
@@ -34,7 +38,14 @@ export function TimezoneSelect({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="outline" className="w-full justify-between font-normal" />}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            className="w-full justify-between font-normal"
+          />
+        }
+      >
         {value ?? t("tzDefault", { zone: defaultZone })}
         <ChevronsUpDown className="opacity-50" />
       </PopoverTrigger>
@@ -43,7 +54,10 @@ export function TimezoneSelect({
           <CommandInput placeholder={t("tzSearch")} />
           <CommandList>
             <CommandEmpty>{t("tzNone")}</CommandEmpty>
-            <CommandItem value={`default ${defaultZone}`} onSelect={() => pick(null)}>
+            <CommandItem
+              value={`default ${defaultZone}`}
+              onSelect={() => pick(null)}
+            >
               {t("tzDefault", { zone: defaultZone })}
             </CommandItem>
             {zones.map((zone) => (

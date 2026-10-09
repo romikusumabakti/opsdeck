@@ -13,17 +13,24 @@ export async function POST(request: Request): Promise<Response> {
 
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "no_file" }, { status: 400 });
-  if (file.size > AVATAR_MAX_BYTES) return NextResponse.json({ error: "too_large" }, { status: 413 });
+  if (!(file instanceof File))
+    return NextResponse.json({ error: "no_file" }, { status: 400 });
+  if (file.size > AVATAR_MAX_BYTES)
+    return NextResponse.json({ error: "too_large" }, { status: 413 });
 
   let result: Awaited<ReturnType<typeof storeAvatar>>;
   try {
-    result = await storeAvatar(session.user.id, Buffer.from(await file.arrayBuffer()), "upload");
+    result = await storeAvatar(
+      session.user.id,
+      Buffer.from(await file.arrayBuffer()),
+      "upload"
+    );
   } catch (error) {
     console.error("Avatar upload failed:", error);
     return NextResponse.json({ error: "storage" }, { status: 502 });
   }
-  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 415 });
+  if (!result.ok)
+    return NextResponse.json({ error: result.error }, { status: 415 });
 
   await recordActivity({
     actorId: session.user.id,

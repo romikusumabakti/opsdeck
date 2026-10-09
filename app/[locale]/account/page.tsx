@@ -71,9 +71,7 @@ export default async function AccountPage({
           <Card>
             <CardHeader>
               <CardTitle>{t("profile.title")}</CardTitle>
-              <CardDescription>
-                {t("profile.description")}
-              </CardDescription>
+              <CardDescription>{t("profile.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               <ProfileForm
@@ -85,7 +83,8 @@ export default async function AccountPage({
                   title: session.user.title ?? null,
                   bio: session.user.bio ?? null,
                   timezone: session.user.timezone ?? null,
-                  workingHours: (session.user.workingHours ?? null) as WorkingHours | null,
+                  workingHours: (session.user.workingHours ??
+                    null) as WorkingHours | null,
                 }}
                 appTimeZone={APP_TIMEZONE}
                 hasMicrosoft={Boolean(microsoftAccount)}
