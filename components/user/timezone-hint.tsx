@@ -12,6 +12,7 @@ const DISMISS_KEY = "tz-hint-dismissed";
 /** Shown once to a user with no saved zone whose browser disagrees with the app's. */
 export function TimezoneHint({ appTimeZone }: { appTimeZone: string }) {
   const t = useTranslations("profile");
+  const tCommon = useTranslations("common");
   const [browserZone, setBrowserZone] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -38,9 +39,13 @@ export function TimezoneHint({ appTimeZone }: { appTimeZone: string }) {
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            const res = await setMyTimeZone(browserZone);
-            if (res.success) dismiss();
-            else toast.error(res.message);
+            try {
+              const res = await setMyTimeZone(browserZone);
+              if (res.success) dismiss();
+              else toast.error(res.message);
+            } catch {
+              toast.error(tCommon("errorGeneric"));
+            }
           })
         }
       >

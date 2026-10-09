@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { clearStatus, setStatus } from "@/actions/profile";
@@ -21,7 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
-import { expiryFromPreset, type StatusPreset } from "@/lib/user-display";
+import {
+  initialStatusExpiry,
+  resolveStatusExpiry,
+  type StatusExpiryChoice,
+  type StatusPreset,
+} from "@/lib/user-display";
 import { PROFILE_LIMITS } from "@/lib/validation";
 
 const SUGGESTIONS = [
@@ -43,22 +48,36 @@ export function StatusDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  current: { emoji: string | null; text: string | null } | null;
+  current: {
+    emoji: string | null;
+    text: string | null;
+    expiresAt: string | null;
+  } | null;
   timeZone: string;
 }) {
   const t = useTranslations("status");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [emoji, setEmoji] = useState(current?.emoji ?? "💬");
+  // 💬 only seeds a brand-new status; an existing one keeps its own emoji.
+  const [emoji, setEmoji] = useState(current ? (current.emoji ?? "") : "💬");
   const [text, setText] = useState(current?.text ?? "");
-  const [preset, setPreset] = useState<StatusPreset>("today");
+  const [preset, setPreset] = useState<StatusExpiryChoice>(() =>
+    initialStatusExpiry(current)
+  );
+  const keepUntil = current?.expiresAt ?? null;
 
   const run = (fn: () => Promise<{ success: boolean; message?: string }>) =>
     startTransition(async () => {
-      const res = await fn();
-      if (!res.success) return void toast.error(res.message);
-      onOpenChange(false);
-      router.refresh();
+      try {
+        const res = await fn();
+        if (!res.success) return void toast.error(res.message);
+        onOpenChange(false);
+        router.refresh();
+      } catch {
+        toast.error(tCommon("errorGeneric"));
+      }
     });
 
   return (
@@ -120,13 +139,23 @@ export function StatusDialog({
           <Select
             value={preset}
             onValueChange={(v) => {
-              if (v) setPreset(v as StatusPreset);
+              if (v) setPreset(v as StatusExpiryChoice);
             }}
           >
             <SelectTrigger aria-label={t("clearAfter")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {keepUntil && (
+                <SelectItem value="keep">
+                  {t("presets.keep", {
+                    date: format.dateTime(new Date(keepUntil), {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }),
+                  })}
+                </SelectItem>
+              )}
               {PRESETS.map((p) => (
                 <SelectItem key={p} value={p}>
                   {t(`presets.${p}`)}
@@ -152,12 +181,14 @@ export function StatusDialog({
                 setStatus({
                   emoji: emoji.trim() || null,
                   text,
-                  expiresAt:
-                    expiryFromPreset(
-                      preset,
-                      new Date(),
-                      timeZone
-                    )?.toISOString() ?? null,
+                  // A kept expiry that has passed meanwhile is refused by
+                  // the action with a clear message.
+                  expiresAt: resolveStatusExpiry(
+                    preset,
+                    keepUntil,
+                    new Date(),
+                    timeZone
+                  ),
                 })
               )
             }

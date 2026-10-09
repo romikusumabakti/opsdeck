@@ -904,7 +904,12 @@
     "colInvitee": "المدعو",
     "colExpires": "تاريخ الانتهاء",
     "colLastActive": "آخر نشاط",
-    "neverActive": "أبدًا"
+    "neverActive": "أبدًا",
+    "removeAvatarAction": "إزالة الصورة",
+    "removeAvatarTitle": "إزالة الصورة؟",
+    "removeAvatarDescription": "ستُزال صورة الملف الشخصي لـ {name} وستظهر الأحرف الأولى من اسمه بدلًا منها. يمكنه رفع صورة جديدة في أي وقت.",
+    "removeAvatarConfirm": "إزالة",
+    "noAvatar": "لا توجد صورة لإزالتها"
   },
   "setup": {
     "title": "الإعداد الأولي",
@@ -1025,7 +1030,8 @@
     "networkAttached": "تم الوصل بالشبكة {network}",
     "networkAttachFailed": "تعذّر وصل الشبكة",
     "networkAlreadyAttached": "موصول بتلك الشبكة بالفعل",
-    "cannotRemoveLastAdmin": "لا يمكن تخفيض آخر مسؤول"
+    "cannotRemoveLastAdmin": "لا يمكن تخفيض آخر مسؤول",
+    "avatarRemoved": "تمت إزالة الصورة"
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1911,7 +1917,9 @@
     "noOpenIssues": "لا توجد مهام مفتوحة مُسندة.",
     "viewAllIssues": "عرض الكل",
     "recentRuns": "عمليات التشغيل الأخيرة",
-    "noRuns": "لا توجد عمليات تشغيل يمكنك رؤيتها."
+    "noRuns": "لا توجد عمليات تشغيل يمكنك رؤيتها.",
+    "workingHoursNow": "ضمن ساعات العمل",
+    "outsideWorkingHours": "خارج ساعات العمل"
   },
   "profile": {
     "name": "الاسم المعروض",
@@ -1963,7 +1971,8 @@
       "4h": "4 ساعات",
       "today": "اليوم",
       "week": "هذا الأسبوع",
-      "never": "عدم المسح"
+      "never": "عدم المسح",
+      "keep": "الإبقاء على الحالي (حتى {date})"
     },
     "suggestions": {
       "focus": "في وضع التركيز",

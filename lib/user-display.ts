@@ -196,3 +196,29 @@ export function expiryFromPreset(
       return null;
   }
 }
+
+/** "keep" re-sends the current status's expiry instead of restarting it. */
+export type StatusExpiryChoice = StatusPreset | "keep";
+
+/**
+ * Editing a status must not silently change when it clears: an existing
+ * status starts on "keep" (or "never" when it had no expiry). A new status
+ * starts on "today".
+ */
+export function initialStatusExpiry(
+  current: { expiresAt: string | null } | null
+): StatusExpiryChoice {
+  if (!current) return "today";
+  return current.expiresAt ? "keep" : "never";
+}
+
+/** ISO expiry to send for a choice; "keep" passes the current one through. */
+export function resolveStatusExpiry(
+  choice: StatusExpiryChoice,
+  currentExpiresAt: string | null,
+  now: Date,
+  timeZone: string
+): string | null {
+  if (choice === "keep") return currentExpiresAt;
+  return expiryFromPreset(choice, now, timeZone)?.toISOString() ?? null;
+}

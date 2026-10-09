@@ -5,9 +5,11 @@ import {
   avatarColorIndex,
   expiryFromPreset,
   getInitials,
+  initialStatusExpiry,
   isWithinWorkingHours,
   liveCardStatus,
   nextWorkingStart,
+  resolveStatusExpiry,
   zonedClock,
 } from "@/lib/user-display";
 
@@ -159,6 +161,26 @@ describe("liveCardStatus", () => {
   });
   it("passes null through", () => {
     expect(liveCardStatus(null, now)).toBeNull();
+  });
+});
+
+describe("status expiry choice", () => {
+  const now = new Date("2026-10-09T03:00:00Z");
+  const kept = "2026-10-09T09:00:00.000Z";
+  it("defaults to keeping whatever the current status has", () => {
+    expect(initialStatusExpiry(null)).toBe("today");
+    expect(initialStatusExpiry({ expiresAt: kept })).toBe("keep");
+    expect(initialStatusExpiry({ expiresAt: null })).toBe("never");
+  });
+  it("keep sends the current expiry unchanged", () => {
+    expect(resolveStatusExpiry("keep", kept, now, "Asia/Jakarta")).toBe(kept);
+    expect(resolveStatusExpiry("keep", null, now, "Asia/Jakarta")).toBeNull();
+  });
+  it("a preset is computed from now", () => {
+    expect(resolveStatusExpiry("1h", kept, now, "Asia/Jakarta")).toBe(
+      "2026-10-09T04:00:00.000Z"
+    );
+    expect(resolveStatusExpiry("never", kept, now, "UTC")).toBeNull();
   });
 });
 
