@@ -117,7 +117,8 @@ New keys in the `header` namespace, added to all five `messages/*.json` (ar, en,
 - `searchProject`, `noProject`, `allProjects`
 - `selectEnvironment`, `noEnvironmentInProject`
 - `switchProject`, `switchEnvironment` (aria-labels with a `{name}` argument)
-- `commandProjects` (palette group heading)
+
+And `commandPalette.projects` (palette group heading).
 
 Reused: `searchEnvironment`, `noEnvironment`, `createEnvironment`, `createProject`, `environmentKinds.*`.
 
@@ -127,5 +128,5 @@ Reused: `searchEnvironment`, `noEnvironment`, `createEnvironment`, `createProjec
   - `parseNavPath`: environment root, environment + section, logs, every project-level page, reserved slugs, global pages, locale-less pathnames as returned by next-intl's `usePathname`.
   - `projectSwitchHref`: with and without MRU, parallel vs non-parallel section, section not permitted in target, project settings with and without permission, issue detail and new environment pages, empty project.
   - `environmentSwitchHref`, `compareEnvironments`, `stripProjectPrefix`.
-- Light component tests (happy-dom is preloaded): environment switcher renders only the given environments in kind order; project switcher renders all projects alphabetically and marks the active one.
+- List shaping is tested through pure helpers (`environmentsOf`, `groupEnvironmentsByProject`) rather than mounted components: the repo has no React testing library, and adding one for two presentational popovers is not worth the dependency.
 - Manual check in the running app: switching project from Services, from project settings and from an issue; switching environment; Ctrl+K grouping.
