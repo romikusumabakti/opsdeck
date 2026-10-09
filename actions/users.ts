@@ -165,6 +165,7 @@ export async function listUsers() {
       email: userTable.email,
       emailVerified: userTable.emailVerified,
       image: userTable.image,
+      title: userTable.title,
       role: userTable.role,
       createdAt: userTable.createdAt,
       lastActiveAt: max(sessions.updatedAt),
@@ -267,35 +268,6 @@ export async function inviteUser(input: {
 
   revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
-}
-
-export async function updateUserName(input: {
-  userId: string;
-  name: string;
-}): Promise<ActionResponse> {
-  await requireOrgPermission({ user: ["update"] });
-  const t = await getTranslations("actionErrors");
-
-  const name = input.name.trim();
-  if (!name) {
-    return { success: false, message: t("nameRequired") };
-  }
-  if (name.length > 100) {
-    return { success: false, message: t("nameTooLong") };
-  }
-
-  const result = await db
-    .update(userTable)
-    .set({ name, updatedAt: new Date() })
-    .where(eq(userTable.id, input.userId))
-    .returning({ id: userTable.id });
-
-  if (result.length === 0) {
-    return { success: false, message: t("errorGeneric") };
-  }
-
-  revalidatePath("/admin/users");
-  return { success: true, message: t("nameUpdated") };
 }
 
 export async function updateUserRole(input: {

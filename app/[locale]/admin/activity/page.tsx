@@ -60,6 +60,8 @@ function message(
         email: String(d.email),
         role: String(d.role),
       });
+    case "profile.updated":
+      return t("profileUpdated", { actor, user: String(d.user) });
     case "user.deleted":
       return t("userDeleted", { actor, user: String(d.user) });
     case "user.invitationRevoked":
