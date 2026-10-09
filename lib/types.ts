@@ -3,6 +3,22 @@ export interface Backup {
   size: string;
 }
 
+/** The minimum needed to render a user as an avatar and a linked name. */
+export type UserRef = { id: string; name: string; image: string | null };
+
+/** Profile fields shown on the hover card. Carries no project data. */
+export type UserCardData = UserRef & {
+  email: string;
+  title: string | null;
+  bio: string | null;
+  role: string;
+  timeZone: string;
+  workingHours: { days: number[]; start: string; end: string } | null;
+  status: { emoji: string | null; text: string | null; expiresAt: string | null } | null;
+  jiraUrl: string | null;
+  deactivated: boolean;
+};
+
 /**
  * The result every mutating server action returns.
  *
