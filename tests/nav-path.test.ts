@@ -173,7 +173,7 @@ const target = (
   slug: string,
   lastAccessedAt: Date | null,
   hasMailpit = true
-) => ({ key: "SUCOR", slug, hasMailpit, lastAccessedAt });
+) => ({ id: slug, key: "SUCOR", slug, hasMailpit, lastAccessedAt });
 
 describe("canOpenSection", () => {
   it("needs a connected Mailpit for mail", () => {
@@ -319,6 +319,57 @@ describe("projectSwitchHref", () => {
         projectSwitchHref({
           projectKey: "SUCOR",
           environments,
+          role: "maintainer",
+          from: parseNavPath(path),
+        })
+      ).toBe("/SUCOR");
+    }
+  );
+});
+
+describe("projectSwitchHref within a session", () => {
+  const environments = [
+    target("old", new Date("2026-10-01T00:00:00Z")),
+    target("latest", new Date("2026-10-08T00:00:00Z")),
+  ];
+
+  // The shell's environment list is loaded once per hard load, so a visit made
+  // since then only exists in the client's session record.
+  it("prefers an environment visited this session over stale server data", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "viewer",
+        from: parseNavPath("/CMEM/prod/services"),
+        visitedAt: { old: Date.parse("2026-10-09T10:00:00Z") },
+      })
+    ).toBe("/SUCOR/old/services");
+  });
+
+  it("treats a session visit as opened for a never-opened environment", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments: [target("never", null)],
+        role: "viewer",
+        from: parseNavPath("/CMEM/prod"),
+        visitedAt: { never: Date.parse("2026-10-09T10:00:00Z") },
+      })
+    ).toBe("/SUCOR/never");
+  });
+});
+
+describe("projectSwitchHref for the active project", () => {
+  // Picking the project you're already in is the way back to its overview,
+  // like the plain project crumb it replaced.
+  it.each(["/SUCOR/latest/services", "/SUCOR/settings", "/SUCOR/issues/7"])(
+    "goes from %s to the overview",
+    (path) => {
+      expect(
+        projectSwitchHref({
+          projectKey: "SUCOR",
+          environments: [target("latest", new Date("2026-10-08T00:00:00Z"))],
           role: "maintainer",
           from: parseNavPath(path),
         })

@@ -45,7 +45,7 @@ Rebuild how users pick a project and an environment in the app header so that sw
 - Trigger: project name (truncated). `aria-label` "Switch project, current: {name}".
 - Popover: cmdk search (matches name and key), list of all visible projects sorted by name (`localeCompare`). Each row: name, key in muted mono text, check mark on the active project. Projects with no environments are listed.
 - Footer: "All projects" (`/projects`), "New project" (when `canOrg(orgRole, { project: ["create"] })`, opens the existing `ProjectCreateDialog`).
-- Selecting the active project only closes the popover.
+- Selecting the active project goes to its overview `/KEY` (the way back the old project crumb link provided); a no-op when already there.
 - Target (see `projectSwitchHref`):
   - **From an environment page:** the target project's environment with the latest `lastAccessedAt`. Keep the current section if it is in `PARALLEL_SECTIONS` and the user's role in the target project has that section's permission (same map the sidebar uses); otherwise that environment's dashboard. If the user never opened an environment in the target project, `/KEY`.
   - **From a project-level page:** `/KEY/settings` → `/NEW/settings` when the target role allows `environment: ["update"]`, else `/NEW`. Every other project-level page (overview, issue detail, new environment) → `/NEW`.

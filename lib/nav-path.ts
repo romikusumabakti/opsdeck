@@ -198,22 +198,31 @@ export function environmentSwitchHref(
 /**
  * Where picking a project in the project switcher should go: the caller's most
  * recently opened environment there (same section when it can), the equivalent
- * project page, or the project overview.
+ * project page, or the project overview. Picking the current project goes to
+ * its overview, like the plain project crumb this replaced.
+ *
+ * `visitedAt` (environment id → epoch ms) carries visits made since the shell's
+ * environment list was loaded: the root layout doesn't re-render on client
+ * navigation, so its `lastAccessedAt` goes stale within a session.
  */
 export function projectSwitchHref({
   projectKey,
   environments,
   role,
   from,
+  visitedAt = {},
 }: {
   projectKey: string;
   environments: readonly (SwitchEnvironment & {
+    id: string;
     lastAccessedAt: Date | null;
   })[];
   role: ProjectRole | null;
   from: NavPath;
+  visitedAt?: Readonly<Record<string, number>>;
 }): string {
   const overview = `/${projectKey}`;
+  if (from.scope !== null && from.projectKey === projectKey) return overview;
   if (from.scope === "project") {
     return from.page === "settings" && canProject(role, SECTION_PERMS.settings)
       ? `${overview}/settings`
@@ -221,13 +230,15 @@ export function projectSwitchHref({
   }
   if (from.scope === "env") {
     let latest: (typeof environments)[number] | undefined;
+    let latestAt = 0;
     for (const env of environments) {
-      if (
-        env.lastAccessedAt &&
-        (!latest?.lastAccessedAt ||
-          env.lastAccessedAt.getTime() > latest.lastAccessedAt.getTime())
-      ) {
+      const at = Math.max(
+        env.lastAccessedAt?.getTime() ?? 0,
+        visitedAt[env.id] ?? 0
+      );
+      if (at > latestAt) {
         latest = env;
+        latestAt = at;
       }
     }
     if (latest) return environmentSwitchHref(latest, from, role);
