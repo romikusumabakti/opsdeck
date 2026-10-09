@@ -1,9 +1,10 @@
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
+import { after } from "next/server";
 import { v7 as uuidv7 } from "uuid";
 import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
@@ -91,8 +92,9 @@ export const auth = betterAuth({
           //     with write or ops rights.
           // Invitations still exist for anyone who needs a higher role up front.
           disableSignUp: false,
-          // Entra hands back a Microsoft Graph photo URL that needs a bearer
-          // token to fetch, so we can't render it in an <img>. Skip the call.
+          // Entra hands back a Graph photo URL that needs a bearer token, so
+          // better-auth can't store a usable `image`. lib/avatars-microsoft
+          // copies the photo into our own store after sign-in instead.
           disableProfilePhoto: true,
           // Don't silently reuse whatever account the browser is already
           // signed into on login.microsoftonline.com.
@@ -154,6 +156,23 @@ export const auth = betterAuth({
       "/passkey/generate-register-options": { window: 60, max: 10 },
       "/passkey/verify-registration": { window: 60, max: 10 },
     },
+  },
+  hooks: {
+    // After a Microsoft sign-in, pull the M365 photo in the background.
+    // after() runs it once the response is sent, so sign-in never waits on
+    // Graph, and a failure only logs. Dynamic import: lib/avatars-microsoft
+    // imports this module.
+    after: createAuthMiddleware(async (ctx) => {
+      if (!ctx.path.startsWith("/callback") || ctx.params?.id !== "microsoft") return;
+      const userId = ctx.context.newSession?.user.id;
+      if (!userId) return;
+      after(async () => {
+        const { importMicrosoftAvatar } = await import("@/lib/avatars-microsoft");
+        await importMicrosoftAvatar(userId).catch((error) =>
+          console.error("Microsoft avatar import failed:", error)
+        );
+      });
+    }),
   },
   databaseHooks: {
     user: {
