@@ -1873,5 +1873,18 @@
     "errorInvalidUser": "Usuario desconocido",
     "errorSelf": "No puedes darte de baja a ti mismo",
     "errorLastAdmin": "No se puede quitar al último administrador"
+  },
+  "people": {
+    "localTime": "{time} hora local",
+    "workingNow": "en horario laboral",
+    "backToday": "fuera del horario laboral, vuelve a las {time}",
+    "backTomorrow": "fuera del horario laboral, vuelve mañana a las {time}",
+    "backOn": "fuera del horario laboral, vuelve el {day} a las {time}",
+    "deletedUser": "Usuario eliminado",
+    "viewProfile": "Ver perfil",
+    "email": "Correo",
+    "teams": "Chatear en Teams",
+    "deactivated": "Desactivado",
+    "until": "hasta {date}"
   }
 }

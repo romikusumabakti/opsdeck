@@ -1873,5 +1873,18 @@
     "errorInvalidUser": "Unknown user",
     "errorSelf": "You can't offboard yourself",
     "errorLastAdmin": "The last admin can't be removed"
+  },
+  "people": {
+    "localTime": "{time} local time",
+    "workingNow": "working hours",
+    "backToday": "outside working hours, back at {time}",
+    "backTomorrow": "outside working hours, back tomorrow {time}",
+    "backOn": "outside working hours, back {day} {time}",
+    "deletedUser": "Deleted user",
+    "viewProfile": "View profile",
+    "email": "Email",
+    "teams": "Chat in Teams",
+    "deactivated": "Deactivated",
+    "until": "until {date}"
   }
 }
