@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
+import { isValidTimeZone } from "@/lib/timezone";
+import type { WorkingHours } from "@/lib/user-display";
 
 export {
   RESERVED_ENV_SLUGS,
@@ -621,3 +623,75 @@ export const mailDeleteTargetSchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("all") }),
 ]);
 export type MailDeleteTarget = z.infer<typeof mailDeleteTargetSchema>;
+
+// --- User profiles ---
+
+export const PROFILE_LIMITS = {
+  name: 100,
+  title: 80,
+  bio: 280,
+  statusText: 80,
+} as const;
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+export const timeZoneSchema = z
+  .string()
+  .refine(isValidTimeZone, "Unknown timezone");
+
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
+
+export const workingHoursSchema = z
+  .object({
+    days: z
+      .array(z.number().int().min(1).max(7))
+      .min(1)
+      .max(7)
+      .refine((d) => new Set(d).size === d.length, "Duplicate day"),
+    start: hhmm,
+    end: hhmm,
+  })
+  // HH:MM strings compare correctly as text. Overnight shifts are out of scope.
+  .refine(
+    (w) => w.start < w.end,
+    "End must be after start"
+  ) satisfies z.ZodType<WorkingHours>;
+
+const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+export const statusEmojiSchema = z
+  .string()
+  .refine(
+    (v) =>
+      [...graphemes.segment(v)].length === 1 &&
+      new TextEncoder().encode(v).length <= 32 &&
+      /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(v),
+    "Pick a single emoji"
+  );
+
+// Trimmed optional text: "" and whitespace become null so the column stays clean.
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .transform((v) => v ?? null);
+
+export const profileInputSchema = z.object({
+  name: z.string().trim().min(1).max(PROFILE_LIMITS.name),
+  title: optionalText(PROFILE_LIMITS.title),
+  bio: optionalText(PROFILE_LIMITS.bio),
+  timezone: timeZoneSchema.nullable(),
+  workingHours: workingHoursSchema.nullable(),
+});
+export type ProfileInput = z.infer<typeof profileInputSchema>;
+
+export const statusInputSchema = z
+  .object({
+    emoji: statusEmojiSchema.nullable(),
+    text: optionalText(PROFILE_LIMITS.statusText),
+    expiresAt: z.iso.datetime({ offset: true }).nullable(),
+  })
+  .refine((s) => s.emoji !== null || s.text !== null, "Status is empty");
+export type StatusInput = z.infer<typeof statusInputSchema>;
