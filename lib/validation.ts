@@ -678,8 +678,20 @@ const optionalText = (max: number) =>
     .nullable()
     .transform((v) => v ?? null);
 
+/**
+ * Trim and collapse runs of whitespace to one space. Names are unique and
+ * resolve @mentions, so "Ana  Maria" must not coexist with "Ana Maria".
+ */
+export function normalizeDisplayName(name: string): string {
+  return name.trim().replace(/\s+/g, " ");
+}
+
 export const profileInputSchema = z.object({
-  name: z.string().trim().min(1).max(PROFILE_LIMITS.name),
+  name: z
+    .string()
+    .overwrite(normalizeDisplayName)
+    .min(1)
+    .max(PROFILE_LIMITS.name),
   title: optionalText(PROFILE_LIMITS.title),
   bio: optionalText(PROFILE_LIMITS.bio),
   timezone: timeZoneSchema.nullable(),

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { disambiguateName, isUniqueViolation } from "@/lib/people/names";
+import {
+  baseDisplayName,
+  disambiguateName,
+  isUniqueViolation,
+} from "@/lib/people/names";
 
 describe("disambiguateName", () => {
   it("keeps the name on attempt 0", () => {
@@ -21,6 +25,19 @@ describe("disambiguateName", () => {
     expect(
       disambiguateName("x".repeat(100), "someone@example.net", 2).length
     ).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("baseDisplayName", () => {
+  it("normalises whitespace", () => {
+    expect(baseDisplayName("  Budi   Santoso ", "budi@example.net")).toBe(
+      "Budi Santoso"
+    );
+  });
+  it("falls back to the email local part when the name is missing", () => {
+    expect(baseDisplayName(null, "budi.s@example.net")).toBe("budi.s");
+    expect(baseDisplayName(undefined, "budi.s@example.net")).toBe("budi.s");
+    expect(baseDisplayName("   ", "budi.s@example.net")).toBe("budi.s");
   });
 });
 
