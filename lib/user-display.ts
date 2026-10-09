@@ -119,3 +119,22 @@ export function nextWorkingStart(
   }
   return null;
 }
+
+/**
+ * Re-checks a status already serialised onto a card (ISO expiry) against the
+ * clock at render time, so a card kept open past the expiry drops the status.
+ */
+export function liveCardStatus<
+  S extends { emoji: string | null; text: string | null; expiresAt: string | null },
+>(status: S | null, now: Date = new Date()): S | null {
+  if (!status) return null;
+  const active = activeStatus(
+    {
+      statusEmoji: status.emoji,
+      statusText: status.text,
+      statusExpiresAt: status.expiresAt,
+    },
+    now
+  );
+  return active ? status : null;
+}

@@ -10,10 +10,17 @@ import { type AvatarSize, UserAvatar } from "./user-avatar";
 import { UserCardBody, UserCardSkeleton } from "./user-card";
 import { loadUserCard } from "./user-card-cache";
 
-class CardBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+class CardBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode; resetKey: unknown },
+  { failed: boolean }
+> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+  // A new request (retry after failure, or a refetch past the cache TTL) clears the error.
+  componentDidUpdate(prev: { resetKey: unknown }) {
+    if (this.state.failed && prev.resetKey !== this.props.resetKey) this.setState({ failed: false });
   }
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
@@ -38,8 +45,10 @@ export function UserName({
   const [promise, setPromise] = useState<Promise<UserCardData> | null>(null);
   if (!user) return <span className={cn("text-muted-foreground", className)}>{t("deletedUser")}</span>;
 
-  // Start fetching on intent, before the open delay elapses.
-  const prefetch = () => setPromise((p) => p ?? loadUserCard(user.id));
+  // Start fetching on intent, before the open delay elapses. loadUserCard dedupes
+  // within its TTL (same promise, stable identity), refetches after it, and
+  // retries after a failure, so the card never pins stale or failed data.
+  const prefetch = () => setPromise(loadUserCard(user.id));
   const size: AvatarSize = avatar === true ? "xs" : avatar || "xs";
 
   return (
@@ -55,7 +64,7 @@ export function UserName({
       </PreviewCardTrigger>
       <PreviewCardContent>
         {promise && (
-          <CardBoundary fallback={<Link href={`/people/${user.id}`} className="font-medium hover:underline">{user.name} · {t("viewProfile")}</Link>}>
+          <CardBoundary resetKey={promise} fallback={<Link href={`/people/${user.id}`} className="font-medium hover:underline">{user.name} · {t("viewProfile")}</Link>}>
             <Suspense fallback={<UserCardSkeleton />}>
               <UserCardBody promise={promise} fallbackName={user.name} id={user.id} />
             </Suspense>

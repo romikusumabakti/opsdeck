@@ -51,6 +51,11 @@ export function UserAvatar({
         height={px}
         loading="lazy"
         decoding="async"
+        // A server-rendered <img> can fail before hydration attaches onError;
+        // the browser has then already settled it as complete with no pixels.
+        ref={(img) => {
+          if (img?.complete && img.naturalWidth === 0) setFailed(true);
+        }}
         onError={() => setFailed(true)}
         className={cn(box, "object-cover bg-muted")}
         style={style}
