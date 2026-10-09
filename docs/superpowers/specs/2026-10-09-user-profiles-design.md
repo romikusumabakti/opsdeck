@@ -39,12 +39,14 @@ New columns on `users`, all nullable:
 | `bio` | text | plain text, ≤ 280 chars, no markdown |
 | `timezone` | text | an IANA zone in `Intl.supportedValuesOf("timeZone")`. `null` = `APP_TIMEZONE` |
 | `working_hours` | jsonb | `{ days: number[]; start: "HH:MM"; end: "HH:MM" }`. `days` are ISO weekdays 1–7, unique, non-empty. `start < end` (no overnight ranges). Typed with `.$type<WorkingHours>()` |
-| `status_emoji` | text | exactly one grapheme (`Intl.Segmenter`), ≤ 16 bytes |
+| `status_emoji` | text | exactly one emoji grapheme (`Intl.Segmenter` + `\p{Extended_Pictographic}`), ≤ 32 UTF-8 bytes so ZWJ sequences fit |
 | `status_text` | text | ≤ 80 chars |
-| `status_expires_at` | timestamptz | `null` = no expiry |
+| `status_expires_at` | timestamp | `null` = no expiry. Plain `timestamp`, like every other timestamp column in the schema |
 | `avatar_source` | text | `'upload' \| 'microsoft' \| 'removed'`, `null` = never set |
 
 Plus a unique index on `lower(name)` where `banned = false`. Before the migration, check the live DB for existing case-insensitive duplicates and resolve them by hand.
+
+**Every creation path picks a free name.** The `databaseHooks.user.create.before` hook rewrites a taken name to `Name (email-local-part)`, then `Name (email-local-part) 2`, and so on. This applies to a first Microsoft sign-in, invitation acceptance, and `/setup`, so a name clash can never block a sign-in. Unbanning or renaming into a taken name returns `nameTaken`.
 
 `image` keeps its better-auth meaning and now holds the app URL `/api/avatars/<userId>/<hash>`.
 
@@ -105,7 +107,7 @@ Admin: `updateUserName` becomes `adminUpdateProfile` (`user:update`). It sets `n
 
 ## Pages
 
-**Visibility rule.** Profile fields are visible to every signed-in user. Anything tied to a project — memberships, issues, activity — is filtered to the projects the **viewer** can read, through the existing scope helpers in `lib/authz.ts`. Banned users are hidden from non-admins (`notFound()` on their profile). Admins see them with a "Deactivated" badge.
+**Visibility rule.** Profile fields are visible to every signed-in user. Anything tied to a project — memberships, issues, runs — is filtered to the projects the **viewer** can read, through the existing scope helpers in `lib/authz.ts`. Banned users are hidden from non-admins (`notFound()` on their profile). Admins see them with a "Deactivated" badge.
 
 ### `/people`
 
@@ -129,7 +131,7 @@ Admin: `updateUserName` becomes `adminUpdateProfile` (`user:update`). It sets `n
 - **About:** the bio, member since, last active (latest `sessions.updatedAt`, as in `listUsers`).
 - **Projects:** the shared projects, with this user's project role.
 - **Assigned open issues:** up to 20, viewer-scoped, with a "View all" link to `/issues?assignee=<id>`. The global issues page only supports `mine=1` today, so add an `assignee` filter that goes through the same scoped query.
-- **Recent activity:** up to 20 entries, viewer-scoped, rendered with the same sentence renderer as `/admin/activity`.
+- **Recent runs:** the user's 10 latest runs (backup, restore, mock-time, test) in viewer-visible environments, with status and relative time. These stand in for "recent activity": `activity_log` has no project column, so it cannot be filtered by viewer, and it stays behind `audit:read`.
 - `user-menu` gains "My profile" (→ `/people/<me>`) and "Set status".
 
 ### `/account?tab=profile`
@@ -186,13 +188,13 @@ Status is deliberately **not** loaded on general list queries. It appears only o
 ## Timezone
 
 - **Display zone.** `i18n/request.ts` and the `NextIntlClientProvider` in `app/[locale]/layout.tsx` use `effectiveTimeZone(session.user)`. Server and client formatters agree, so there is no hydration mismatch. date-fns relative times are zone-free and are unchanged.
-- **Follows the user:** the Home greeting (`hourIn`), the status presets "today" and "this week", and dates in notification emails (the recipient's zone).
+- **Follows the user:** the Home greeting (`hourIn`) and the status presets "today" and "this week". Notification emails print no dates today, so nothing changes there.
 - **Stays on server time:**
   - `ServerTime`, now labelled with its zone
   - backup and cron schedules
   - mock-time
   - run logs
-- **Wall-clock inputs keep their current semantics.** Every input that converts a wall-clock time to an instant gets an explicit zone label, starting with `mock-time/date-time-picker.tsx` and the `components/ui/calendar.tsx` call sites. The implementation plan lists each one.
+- **Wall-clock inputs keep their current semantics.** The only one is `mock-time/date-time-picker.tsx`, which builds a browser-local `Date`. It gets a label naming the browser's zone. The milestone due date is date-only and is unaffected.
 - **One-time hint.** When `user.timezone` is `null` and the browser's zone differs from `APP_TIMEZONE`, a dismissible banner offers to save the browser's zone. The dismissal is stored in `localStorage`.
 
 ## i18n
@@ -226,7 +228,7 @@ New `people` and `profile` namespaces, plus additions to `account` and `actionEr
   - size snapping
   - the signed `rs:fill` imgproxy path
   - format sniffing rejects SVG and GIF
-- **`tests/authz-guards.test.ts`:** extend the structural check to the profile's project, issue and activity queries.
+- **`tests/authz-guards.test.ts`:** extend the structural check to the profile's project, issue and run queries.
 - **`tests/reserved-paths`:** `PEOPLE` is rejected as a project key.
 
 **Manual browser verification:**
