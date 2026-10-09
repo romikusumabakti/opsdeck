@@ -8,6 +8,7 @@ import { useOptimistic, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { adminUpdateProfile } from "@/actions/profile";
 import {
   bulkDeleteUsers,
   bulkRevokeInvitations,
@@ -15,7 +16,6 @@ import {
   inviteUser,
   resendInvitation,
   revokeInvitation,
-  updateUserName,
   updateUserRole,
 } from "@/actions/users";
 import { useDialog } from "@/components/dialog-provider";
@@ -67,6 +67,7 @@ type UserRow = {
   email: string;
   emailVerified: boolean;
   image: string | null;
+  title: string | null;
   role: string;
   createdAt: Date;
   lastActiveAt: Date | null;
@@ -242,9 +243,10 @@ export function UsersClient({
           id: user.id,
           name: trimmed,
         });
-        const result = await updateUserName({
+        const result = await adminUpdateProfile({
           userId: user.id,
           name: trimmed,
+          title: user.title ?? null,
         });
         if (!result.success) {
           toast.error(result.message);
