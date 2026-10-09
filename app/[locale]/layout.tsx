@@ -35,13 +35,14 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { TimezoneHint } from "@/components/user/timezone-hint";
 import { isRtlLocale } from "@/i18n/locales";
 import { routing } from "@/i18n/routing";
 import { getServerSession } from "@/lib/auth-session";
 import { getProjectAccess } from "@/lib/authz";
 import { BRAND_ICON_SRC, brand } from "@/lib/branding";
 import { normalizeOrgRole } from "@/lib/permissions";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import "../globals.css";
 
 const geistSans = Geist({
@@ -149,7 +150,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider
           locale={locale}
           messages={messages}
-          timeZone={APP_TIMEZONE}
+          timeZone={effectiveTimeZone(session?.user)}
         >
           <ThemeProvider
             attribute="class"
@@ -216,6 +217,9 @@ export default async function LocaleLayout({
                           data-scroll-shadow
                           className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
                         >
+                          {!session.user.timezone && (
+                            <TimezoneHint appTimeZone={APP_TIMEZONE} />
+                          )}
                           {children}
                         </main>
                       </SidebarInset>

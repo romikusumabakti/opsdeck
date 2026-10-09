@@ -70,6 +70,11 @@ export function DateTimePicker({
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
   const [open, setOpen] = React.useState(false);
+  // Resolved after mount: the server can't know the browser's zone.
+  const [browserZone, setBrowserZone] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setBrowserZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
 
   // react-day-picker's dropdown layout defaults its year range to end at the
   // current year, so future years are unselectable. Mock-time travel needs the
@@ -126,6 +131,11 @@ export function DateTimePicker({
           onChange={onTimeChange}
           ariaLabel={t("timeLabel")}
         />
+        {browserZone && (
+          <p className="text-xs text-muted-foreground">
+            {t("browserZone", { zone: browserZone })}
+          </p>
+        )}
       </Field>
     </FieldGroup>
   );
