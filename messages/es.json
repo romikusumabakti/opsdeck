@@ -904,7 +904,12 @@
     "colInvitee": "Invitado",
     "colExpires": "Caduca",
     "colLastActive": "Última actividad",
-    "neverActive": "Nunca"
+    "neverActive": "Nunca",
+    "removeAvatarAction": "Quitar foto",
+    "removeAvatarTitle": "¿Quitar la foto?",
+    "removeAvatarDescription": "Se quitará la foto de perfil de {name} y se mostrarán sus iniciales. Puede subir una nueva cuando quiera.",
+    "removeAvatarConfirm": "Quitar",
+    "noAvatar": "No hay foto que quitar"
   },
   "setup": {
     "title": "Configuración inicial",
@@ -1025,7 +1030,8 @@
     "networkAttached": "Conectado a {network}",
     "networkAttachFailed": "No se pudo conectar la red",
     "networkAlreadyAttached": "Ya está conectado a esa red",
-    "cannotRemoveLastAdmin": "No se puede degradar al último administrador"
+    "cannotRemoveLastAdmin": "No se puede degradar al último administrador",
+    "avatarRemoved": "Foto eliminada"
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1911,7 +1917,9 @@
     "noOpenIssues": "No hay incidencias abiertas asignadas.",
     "viewAllIssues": "Ver todas",
     "recentRuns": "Ejecuciones recientes",
-    "noRuns": "No hay ejecuciones que puedas ver."
+    "noRuns": "No hay ejecuciones que puedas ver.",
+    "workingHoursNow": "En horario laboral",
+    "outsideWorkingHours": "Fuera del horario laboral"
   },
   "profile": {
     "name": "Nombre visible",
@@ -1963,7 +1971,8 @@
       "4h": "4 horas",
       "today": "Hoy",
       "week": "Esta semana",
-      "never": "No borrar"
+      "never": "No borrar",
+      "keep": "Mantener la actual (hasta {date})"
     },
     "suggestions": {
       "focus": "Concentrado",

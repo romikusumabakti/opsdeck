@@ -6,11 +6,13 @@ import { getTranslations } from "next-intl/server";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { requireOrgPermission } from "@/lib/authz";
+import { removeAvatar } from "@/lib/avatars";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { isUniqueViolation } from "@/lib/people/names";
 import type { ActionResponse } from "@/lib/types";
 import {
+  normalizeDisplayName,
   PROFILE_LIMITS,
   profileInputSchema,
   statusInputSchema,
@@ -19,7 +21,7 @@ import {
 } from "@/lib/validation";
 
 // Self-service profile edits. Every action here edits only the caller,
-// except adminUpdateProfile, which needs user:update.
+// except adminUpdateProfile and adminRemoveAvatar, which need user:update.
 
 export async function updateProfile(input: unknown): Promise<ActionResponse> {
   const session = await requireSession();
@@ -101,7 +103,7 @@ export async function adminUpdateProfile(input: {
   if (!uuidSchema.safeParse(input.userId).success) {
     return { success: false, message: t("invalidInput") };
   }
-  const name = input.name.trim();
+  const name = normalizeDisplayName(input.name);
   const title = input.title?.trim() || null;
   if (!name) return { success: false, message: t("nameRequired") };
   if (name.length > PROFILE_LIMITS.name)
@@ -134,6 +136,34 @@ export async function adminUpdateProfile(input: {
   revalidatePath("/admin/users");
   revalidatePath(`/people/${input.userId}`);
   return { success: true, message: t("nameUpdated") };
+}
+
+export async function adminRemoveAvatar(input: {
+  userId: string;
+}): Promise<ActionResponse> {
+  const session = await requireOrgPermission({ user: ["update"] });
+  const t = await getTranslations("actionErrors");
+  if (!uuidSchema.safeParse(input.userId).success) {
+    return { success: false, message: t("invalidInput") };
+  }
+  const [target] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+  if (!target) return { success: false, message: t("errorGeneric") };
+
+  await removeAvatar(input.userId);
+  await recordActivity({
+    actorId: session.user.id,
+    action: "profile.updated",
+    entityType: "user",
+    entityId: input.userId,
+    data: { user: target.name },
+  });
+  // The avatar shows wherever the user appears, not just on admin pages.
+  revalidatePath("/", "layout");
+  return { success: true, message: t("avatarRemoved") };
 }
 
 export async function setMyTimeZone(timezone: string): Promise<ActionResponse> {

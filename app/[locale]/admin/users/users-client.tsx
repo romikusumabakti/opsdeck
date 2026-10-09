@@ -1,14 +1,22 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Pencil, Send, Trash2, UserCog, UserPlus } from "lucide-react";
+import {
+  ImageOff,
+  Mail,
+  Pencil,
+  Send,
+  Trash2,
+  UserCog,
+  UserPlus,
+} from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { adminUpdateProfile } from "@/actions/profile";
+import { adminRemoveAvatar, adminUpdateProfile } from "@/actions/profile";
 import {
   bulkDeleteUsers,
   bulkRevokeInvitations,
@@ -134,7 +142,8 @@ export function UsersClient({
   type OptimisticUserAction =
     | { type: "remove"; ids: string[] }
     | { type: "updateRole"; id: string; role: OrgRole }
-    | { type: "updateName"; id: string; name: string };
+    | { type: "updateName"; id: string; name: string }
+    | { type: "removeImage"; id: string };
   const [optimisticUsers, applyOptimisticUsers] = useOptimistic<
     UserRow[],
     OptimisticUserAction
@@ -146,6 +155,9 @@ export function UsersClient({
       return state.map((u) =>
         u.id === action.id ? { ...u, role: action.role } : u
       );
+    }
+    if (action.type === "removeImage") {
+      return state.map((u) => (u.id === action.id ? { ...u, image: null } : u));
     }
     return state.map((u) =>
       u.id === action.id ? { ...u, name: action.name } : u
@@ -254,6 +266,29 @@ export function UsersClient({
           return;
         }
         toast.success(result.message ?? t("renamedSuccess"));
+      });
+    },
+    [dialog, t, tCommon, applyOptimisticUsers]
+  );
+
+  const onRemoveAvatar = React.useCallback(
+    async (user: UserRow) => {
+      const ok = await dialog.confirm({
+        title: t("removeAvatarTitle"),
+        description: t("removeAvatarDescription", { name: user.name }),
+        confirmText: t("removeAvatarConfirm"),
+        cancelText: tCommon("cancel"),
+        destructive: true,
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        applyOptimisticUsers({ type: "removeImage", id: user.id });
+        const result = await adminRemoveAvatar({ userId: user.id });
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(result.message);
       });
     },
     [dialog, t, tCommon, applyOptimisticUsers]
@@ -404,6 +439,9 @@ export function UsersClient({
     (user: UserRow) => {
       const isSelf = user.id === currentUserId;
       const renameLabel = t("renameAction");
+      const removeAvatarLabel = user.image
+        ? t("removeAvatarAction")
+        : t("noAvatar");
       const roleLabel = t("roleChangeTitle");
       const deleteLabel = tCommon("delete");
       // Inline instead of a kebab menu so every action is one click away. Role
@@ -423,6 +461,20 @@ export function UsersClient({
               onClick={() => onRename(user)}
             >
               <Pencil className="size-4" />
+            </Button>
+          )}
+          {/* Same permission as rename (user:update). Disabled rather than
+              absent without a photo, to keep the icon columns aligned. */}
+          {canRename && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={removeAvatarLabel}
+              title={removeAvatarLabel}
+              disabled={isPending || !user.image}
+              onClick={() => onRemoveAvatar(user)}
+            >
+              <ImageOff className="size-4" />
             </Button>
           )}
           {/* A menu rather than an admin/member toggle: there are four roles and
@@ -480,6 +532,7 @@ export function UsersClient({
       onDelete,
       onChangeRole,
       onRename,
+      onRemoveAvatar,
       canRename,
       canSetRole,
       canDelete,

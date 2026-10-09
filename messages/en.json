@@ -904,7 +904,12 @@
     "colInvitee": "Invitee",
     "colExpires": "Expires",
     "colLastActive": "Last active",
-    "neverActive": "Never"
+    "neverActive": "Never",
+    "removeAvatarAction": "Remove photo",
+    "removeAvatarTitle": "Remove photo?",
+    "removeAvatarDescription": "{name}'s profile photo will be removed and their initials shown instead. They can upload a new one at any time.",
+    "removeAvatarConfirm": "Remove",
+    "noAvatar": "No photo to remove"
   },
   "setup": {
     "title": "Initial setup",
@@ -1025,7 +1030,8 @@
     "networkAttached": "Attached to {network}",
     "networkAttachFailed": "Could not attach the network",
     "networkAlreadyAttached": "Already attached to that network",
-    "cannotRemoveLastAdmin": "The last admin can't be demoted"
+    "cannotRemoveLastAdmin": "The last admin can't be demoted",
+    "avatarRemoved": "Photo removed"
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1911,7 +1917,9 @@
     "noOpenIssues": "No open issues assigned.",
     "viewAllIssues": "View all",
     "recentRuns": "Recent runs",
-    "noRuns": "No runs you can see."
+    "noRuns": "No runs you can see.",
+    "workingHoursNow": "Within working hours",
+    "outsideWorkingHours": "Outside working hours"
   },
   "profile": {
     "name": "Display name",
@@ -1963,7 +1971,8 @@
       "4h": "4 hours",
       "today": "Today",
       "week": "This week",
-      "never": "Don't clear"
+      "never": "Don't clear",
+      "keep": "Keep current (until {date})"
     },
     "suggestions": {
       "focus": "Focusing",

@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,6 +37,13 @@ export function AvatarCropper({
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
   const drag = useRef<Offset | null>(null);
+  // toBlob is async; one export at a time.
+  const [saving, setSaving] = useState(false);
+  // A file the browser can't decode (a renamed GIF/SVG, a HEIC photo).
+  const onDecodeError = useEffectEvent(() => {
+    toast.error(t("avatarError.unsupported_type"));
+    onCancel();
+  });
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -54,8 +62,13 @@ export function AvatarCropper({
       );
       setImg(image);
     };
+    image.onerror = () => onDecodeError();
     image.src = url;
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+      URL.revokeObjectURL(url);
+    };
   }, [file]);
 
   const natural = img
@@ -64,12 +77,18 @@ export function AvatarCropper({
   const layout = cropLayout(natural, zoom, VIEW);
 
   function exportCrop() {
-    if (!img) return;
+    if (!img || saving) return;
     const canvas = document.createElement("canvas");
     canvas.width = OUT;
     canvas.height = OUT;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    setSaving(true);
+    const done = (blob: Blob | null) => {
+      if (blob) return onCropped(blob);
+      setSaving(false);
+      toast.error(t("avatarError.storage"));
+    };
     const k = OUT / VIEW;
     ctx.drawImage(
       img,
@@ -80,8 +99,8 @@ export function AvatarCropper({
     );
     canvas.toBlob(
       (blob) => {
-        if (blob?.type === "image/webp") onCropped(blob);
-        else canvas.toBlob((png) => png && onCropped(png), "image/png");
+        if (blob?.type === "image/webp") done(blob);
+        else canvas.toBlob(done, "image/png");
       },
       "image/webp",
       0.9
@@ -158,7 +177,7 @@ export function AvatarCropper({
           <Button variant="outline" onClick={onCancel}>
             {t("cancel")}
           </Button>
-          <Button onClick={exportCrop} disabled={!img}>
+          <Button onClick={exportCrop} disabled={!img || saving}>
             {t("saveAvatar")}
           </Button>
         </DialogFooter>
