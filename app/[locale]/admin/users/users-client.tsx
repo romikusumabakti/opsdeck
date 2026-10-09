@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isOrgRole, ORG_ROLES, type OrgRole } from "@/lib/permissions";
+import { getInitials } from "@/lib/user-display";
 
 type UserRow = {
   id: string;
@@ -79,16 +80,6 @@ type InvitationRow = {
   expiresAt: Date;
   createdAt: Date;
 };
-
-function getInitials(value: string) {
-  return value
-    .split(/\s+/)
-    .map((s) => s[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 export function UsersClient({
   users,
@@ -498,7 +489,7 @@ export function UsersClient({
       return (
         <div className="flex items-center gap-3 min-w-0">
           <span className="size-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold shrink-0">
-            {getInitials(user.name || user.email)}
+            {getInitials(user.name, user.email)}
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">

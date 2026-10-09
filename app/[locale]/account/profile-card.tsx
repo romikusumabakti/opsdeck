@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getInitials } from "@/lib/user-display";
 
 type UserSummary = {
   id: string;
@@ -16,16 +17,6 @@ type UserSummary = {
   emailVerified?: boolean | null;
   image?: string | null;
 };
-
-function getInitials(value: string) {
-  return value
-    .split(/\s+/)
-    .map((s) => s[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 export async function ProfileCard({ user }: { user: UserSummary }) {
   const t = await getTranslations("account.profile");
@@ -40,7 +31,7 @@ export async function ProfileCard({ user }: { user: UserSummary }) {
       <CardContent>
         <div className="flex items-start gap-4">
           <span className="size-16 rounded-full bg-muted flex items-center justify-center text-xl font-semibold shrink-0">
-            {getInitials(user.name || user.email)}
+            {getInitials(user.name, user.email)}
           </span>
           <div className="flex flex-col gap-1.5 min-w-0 flex-1 pt-1">
             <div className="flex items-center gap-2 min-w-0">
