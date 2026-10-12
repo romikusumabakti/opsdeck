@@ -1895,10 +1895,9 @@
   },
   "people": {
     "localTime": "الوقت المحلي {time}",
-    "workingNow": "ضمن ساعات العمل",
-    "backToday": "خارج ساعات العمل، يعود في {time}",
-    "backTomorrow": "خارج ساعات العمل، يعود غدًا في {time}",
-    "backOn": "خارج ساعات العمل، يعود {day} في {time}",
+    "backToday": "يعود في {time}",
+    "backTomorrow": "يعود غدًا في {time}",
+    "backOn": "يعود {day} في {time}",
     "deletedUser": "مستخدم محذوف",
     "viewProfile": "عرض الملف الشخصي",
     "email": "البريد الإلكتروني",

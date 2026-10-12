@@ -134,12 +134,12 @@ export default async function PersonPage({
                 )}
               </p>
             )}
-            <p className="text-sm">
+            <div className="text-sm">
               <LocalTime
                 timeZone={card.timeZone}
                 workingHours={card.workingHours}
               />
-            </p>
+            </div>
             {card.bio && (
               <p className="whitespace-pre-line text-sm">{card.bio}</p>
             )}
