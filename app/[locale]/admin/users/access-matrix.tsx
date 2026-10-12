@@ -9,11 +9,10 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
-import { UserName } from "@/components/user/user-name";
-import { userStatus } from "@/lib/access";
 import { cn } from "@/lib/utils";
 import type { UserRow } from "./types";
-import { RoleBadge, StatusBadge } from "./user-badges";
+import { RoleBadge } from "./user-badges";
+import { UserIdentityCell } from "./user-identity-cell";
 
 // Read-only overview of who can reach which project. Org roles are changed on
 // the Users tab and project roles in each project's members settings, so this
@@ -35,7 +34,6 @@ export function AccessMatrix({
   const t = useTranslations("users");
   const tAccess = useTranslations("access");
   const tRole = useTranslations("projectMembers.role");
-  const tCommon = useTranslations("common");
   const format = useFormatter();
 
   const columns = React.useMemo<DataTableColumnDef<UserRow>[]>(() => {
@@ -68,34 +66,25 @@ export function AccessMatrix({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t("colUser")} />
         ),
-        cell: ({ row }) => {
-          const u = row.original;
-          return (
-            <div className={cn("min-w-0", u.banned && "opacity-50")}>
-              <div className="flex items-center gap-2">
-                <UserName
-                  user={u}
-                  avatar="md"
-                  className="truncate font-medium"
-                />
-                {u.id === currentUserId && (
-                  <Badge variant="secondary" className="text-xs">
-                    {tCommon("you")}
-                  </Badge>
-                )}
-                <StatusBadge status={userStatus(u, now)} />
-              </div>
-              <div className="truncate text-sm text-muted-foreground">
-                {u.email}
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <div className={cn("min-w-0", row.original.banned && "opacity-50")}>
+            <UserIdentityCell
+              user={row.original}
+              isSelf={row.original.id === currentUserId}
+              now={now}
+            />
+          </div>
+        ),
       },
       {
         accessorKey: "role",
         meta: { label: tAccess("colOrgRole") },
-        header: tAccess("colOrgRole"),
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={tAccess("colOrgRole")}
+          />
+        ),
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
       },
       {
@@ -115,7 +104,7 @@ export function AccessMatrix({
       },
       ...projectColumns,
     ];
-  }, [matrix, t, tAccess, tRole, tCommon, format, now, currentUserId]);
+  }, [matrix, t, tAccess, tRole, format, now, currentUserId]);
 
   return (
     <DataTable

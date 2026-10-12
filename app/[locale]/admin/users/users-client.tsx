@@ -111,7 +111,7 @@ export function UsersClient({
   // Split invitations by lifecycle so the "Pending" heading never lies: a link
   // past its expiry lives in its own "Expired" table (resend to renew), while
   // Pending only holds still-actionable invites.
-  const nowMs = Date.now();
+  const nowMs = nowDate.getTime();
   const pendingInvitations = optimisticInvitations.filter(
     (inv) => new Date(inv.expiresAt).getTime() >= nowMs
   );
