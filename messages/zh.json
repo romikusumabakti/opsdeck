@@ -1895,10 +1895,9 @@
   },
   "people": {
     "localTime": "当地时间 {time}",
-    "workingNow": "工作时间",
-    "backToday": "非工作时间，{time} 上线",
-    "backTomorrow": "非工作时间，明天 {time} 上线",
-    "backOn": "非工作时间，{day} {time} 上线",
+    "backToday": "{time} 上线",
+    "backTomorrow": "明天 {time} 上线",
+    "backOn": "{day} {time} 上线",
     "deletedUser": "已删除的用户",
     "viewProfile": "查看资料",
     "email": "发邮件",

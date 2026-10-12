@@ -1895,10 +1895,9 @@
   },
   "people": {
     "localTime": "{time} waktu setempat",
-    "workingNow": "jam kerja",
-    "backToday": "di luar jam kerja, kembali pukul {time}",
-    "backTomorrow": "di luar jam kerja, kembali besok pukul {time}",
-    "backOn": "di luar jam kerja, kembali {day} pukul {time}",
+    "backToday": "kembali pukul {time}",
+    "backTomorrow": "kembali besok pukul {time}",
+    "backOn": "kembali {day} pukul {time}",
     "deletedUser": "Pengguna dihapus",
     "viewProfile": "Lihat profil",
     "email": "Email",

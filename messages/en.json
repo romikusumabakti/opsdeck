@@ -1895,10 +1895,9 @@
   },
   "people": {
     "localTime": "{time} local time",
-    "workingNow": "working hours",
-    "backToday": "outside working hours, back at {time}",
-    "backTomorrow": "outside working hours, back tomorrow {time}",
-    "backOn": "outside working hours, back {day} {time}",
+    "backToday": "back at {time}",
+    "backTomorrow": "back tomorrow {time}",
+    "backOn": "back {day} {time}",
     "deletedUser": "Deleted user",
     "viewProfile": "View profile",
     "email": "Email",

@@ -33,8 +33,15 @@ export function UserCardBody({
       <div className="flex items-start gap-3">
         <UserAvatar user={card} size="lg" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate font-semibold">{card.name}</span>
+          {/* The name is the way to the full profile, as on GitHub or Slack. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Link
+              href={`/people/${id}`}
+              className="truncate font-semibold underline-offset-2 hover:underline"
+            >
+              {card.name}
+            </Link>
+            <Badge variant="outline">{tRoles(card.role)}</Badge>
             {card.deactivated && (
               <Badge variant="secondary">{t("deactivated")}</Badge>
             )}
@@ -42,9 +49,6 @@ export function UserCardBody({
           {card.title && (
             <p className="truncate text-muted-foreground">{card.title}</p>
           )}
-          <Badge variant="outline" className="mt-1">
-            {tRoles(card.role)}
-          </Badge>
         </div>
       </div>
       {status && (
@@ -63,15 +67,15 @@ export function UserCardBody({
           )}
         </p>
       )}
-      <p className="text-xs">
+      <div className="text-xs">
         <LocalTime timeZone={card.timeZone} workingHours={card.workingHours} />
-      </p>
+      </div>
       {card.bio && (
         <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-line">
           {card.bio}
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -104,18 +108,10 @@ export function UserCardBody({
             render={<a href={card.jiraUrl} target="_blank" rel="noreferrer" />}
           >
             <SquareArrowOutUpRight />
-            {t("jira")}
+            {/* Product name, the same in every locale; keeps the row to one line. */}
+            Jira
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="ghost"
-          nativeButton={false}
-          render={<Link href={`/people/${id}`} />}
-        >
-          <SquareArrowOutUpRight />
-          {t("viewProfile")}
-        </Button>
       </div>
       <span className="sr-only">{fallbackName}</span>
     </div>

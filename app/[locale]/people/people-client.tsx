@@ -120,12 +120,12 @@ export function PeopleClient({
                         {p.status.emoji} {p.status.text}
                       </span>
                     )}
-                    <span className="text-xs">
+                    <div className="text-xs">
                       <LocalTime
                         timeZone={p.timeZone}
                         workingHours={p.workingHours}
                       />
-                    </span>
+                    </div>
                     {p.deactivated && (
                       <Badge variant="secondary" className="w-fit">
                         {t("deactivated")}
