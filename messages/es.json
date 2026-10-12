@@ -1895,10 +1895,9 @@
   },
   "people": {
     "localTime": "{time} hora local",
-    "workingNow": "en horario laboral",
-    "backToday": "fuera del horario laboral, vuelve a las {time}",
-    "backTomorrow": "fuera del horario laboral, vuelve mañana a las {time}",
-    "backOn": "fuera del horario laboral, vuelve el {day} a las {time}",
+    "backToday": "vuelve a las {time}",
+    "backTomorrow": "vuelve mañana a las {time}",
+    "backOn": "vuelve el {day} a las {time}",
     "deletedUser": "Usuario eliminado",
     "viewProfile": "Ver perfil",
     "email": "Correo",
