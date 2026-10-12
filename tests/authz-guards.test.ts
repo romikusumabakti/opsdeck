@@ -482,3 +482,71 @@ describe("Home my-issues gates status changes on issue:write", () => {
     expect(list.match(/<StatusSelect/g)?.length).toBe(1);
   });
 });
+
+// /admin/access was merged into /admin/users (Project access tab). The old
+// route only redirects; the users page owns the guard and gates the matrix.
+describe("users and access live on one guarded page", () => {
+  const page = readFileSync("app/[locale]/admin/users/page.tsx", "utf8");
+  it("the users page requires user:list", () => {
+    expect(page).toMatch(/requireOrgPage\(\{ user: \["list"\] \}\)/);
+  });
+  it("the users page fetches the access matrix only for audit:read", () => {
+    expect(page).toMatch(/canOrg\(role, \{ audit: \["read"\] \}\)/);
+    expect(page).toMatch(/canViewAccess\s*\?\s*getAccessMatrix\(\)/);
+    expect(page.match(/getAccessMatrix\(/g)?.length).toBe(1);
+  });
+  it("the users page fetches invitations only for user:invite", () => {
+    expect(page).toMatch(/canInvite\s*\?\s*listPendingInvitations\(\)/);
+  });
+  it("the old access page only redirects to the users page", () => {
+    const old = readFileSync("app/[locale]/admin/access/page.tsx", "utf8");
+    expect(old).not.toMatch(/requireOrgPage|getAccessMatrix/);
+    expect(old).toMatch(/redirect\("\/admin\/users\?tab=access"\)/);
+    expect(existsSync("app/[locale]/admin/access/access-client.tsx")).toBe(
+      false
+    );
+  });
+  it("the admin landing picks users for user:list, else activity", () => {
+    const landing = readFileSync("app/[locale]/admin/page.tsx", "utf8");
+    expect(landing).toMatch(/canOrg\([^)]*\{ user: \["list"\] \}\)/);
+    expect(landing).toMatch(/"\/admin\/users"/);
+    expect(landing).toMatch(/"\/admin\/activity"/);
+    expect(landing).not.toMatch(/\/admin\/access/);
+  });
+  it("nothing links to /admin/access any more", () => {
+    // A quoted route, so the better-auth "plugins/admin/access" import and
+    // prose comments don't count.
+    const LINK = /["'`]\/admin\/access\b/;
+    const roots = ["actions", "lib", "app", "components"];
+    const offenders = roots.flatMap((root) =>
+      Array.from(
+        new Bun.Glob("**/*.{ts,tsx}").scanSync(root),
+        (f) => `${root}/${f}`
+      ).filter((f) => LINK.test(readFileSync(f, "utf8")))
+    );
+    expect(offenders).toEqual([]);
+  });
+  it("access and user reads state their guard first", () => {
+    const access = readFileSync("actions/access.ts", "utf8");
+    const users = readFileSync("actions/users.ts", "utf8");
+    const first = (code: string, guard: RegExp) => {
+      const at = code.search(guard);
+      expect(at).toBeGreaterThan(-1);
+      const query = code.search(/\bdb\s*\./);
+      expect(query).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(query);
+    };
+    first(
+      body(access, "getAccessMatrix"),
+      /requireOrgPermission\(\{ audit: \["read"\] \}\)/
+    );
+    first(
+      body(access, "offboardUser"),
+      /requireOrgPermission\(\{ user: \["offboard"\] \}\)/
+    );
+    first(
+      body(users, "listUsers"),
+      /requireOrgPermission\(\{ user: \["list"\] \}\)/
+    );
+  });
+});

@@ -131,8 +131,7 @@
     "badgeAssignedIssues": "{count, plural, one {# issue assigned to you} other {# issues assigned to you}}",
     "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}",
     "tunnels": "Tunnels",
-    "mail": "Mail",
-    "access": "Access"
+    "mail": "Mail"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -890,6 +889,7 @@
     "resendDescription": "Send a new invitation link to {email}? The previous link will stop working.",
     "resendSuccess": "Invitation resent",
     "listCardTitle": "Users",
+    "tabAccess": "Project access",
     "deleteTitle": "Delete user",
     "deleteDescription": "Delete {name} ({email})? This cannot be undone.",
     "deleteAriaLabel": "Delete user",
@@ -912,6 +912,7 @@
     "colInvitee": "Invitee",
     "colExpires": "Expires",
     "colLastActive": "Last active",
+    "colProjects": "Projects",
     "neverActive": "Never",
     "removeAvatarAction": "Remove photo",
     "removeAvatarTitle": "Remove photo?",
@@ -1875,16 +1876,11 @@
     "selectAll": "Select all on this page"
   },
   "access": {
-    "title": "Access",
-    "subtitle": "Who can reach what, across every project.",
-    "colUser": "User",
     "colOrgRole": "Org role",
-    "colLastSeen": "Last seen",
     "inactive": "Inactive",
     "banned": "Banned",
     "filterInactive": "Inactive > 60 days",
     "filterBanned": "Show banned",
-    "never": "Never",
     "offboard": "Offboard",
     "offboardTitle": "Offboard user",
     "offboardConfirm": "Ban {name}, end their sessions and remove all project memberships and pending invitations?",

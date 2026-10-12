@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull, max, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { assertNotLastAdmin } from "@/lib/access";
@@ -15,47 +15,25 @@ import {
   sessions,
   users,
 } from "@/lib/db/schema";
-import {
-  normalizeOrgRole,
-  normalizeProjectRole,
-  type OrgRole,
-  type ProjectRole,
-} from "@/lib/permissions";
+import { normalizeProjectRole, type ProjectRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
+// The Project access tab of /admin/users: every project plus each user's
+// explicit memberships. User rows (name, role, last active, banned) come from
+// listUsers, which the page already fetches, so they aren't read twice.
 export type AccessMatrix = {
   projects: { id: string; key: string; name: string }[];
-  users: {
-    id: string;
-    name: string;
-    image: string | null;
-    email: string;
-    role: OrgRole;
-    banned: boolean;
-    lastSeen: string | null;
-    memberships: Record<string, ProjectRole>;
-  }[];
+  memberships: Record<string, Record<string, ProjectRole>>;
 };
 
 export async function getAccessMatrix(): Promise<AccessMatrix> {
   await requireOrgPermission({ audit: ["read"] });
-  const [projectRows, userRows, memberRows, lastSeenRows] = await Promise.all([
+  const [projectRows, memberRows] = await Promise.all([
     db
       .select({ id: projects.id, key: projects.key, name: projects.name })
       .from(projects)
       .orderBy(projects.key),
-    db
-      .select({
-        id: users.id,
-        name: users.name,
-        image: users.image,
-        email: users.email,
-        role: users.role,
-        banned: users.banned,
-      })
-      .from(users)
-      .orderBy(users.name),
     db
       .select({
         userId: projectMembers.userId,
@@ -63,29 +41,16 @@ export async function getAccessMatrix(): Promise<AccessMatrix> {
         role: projectMembers.role,
       })
       .from(projectMembers),
-    db
-      .select({ userId: sessions.userId, lastSeen: max(sessions.updatedAt) })
-      .from(sessions)
-      .groupBy(sessions.userId),
   ]);
-  const lastSeen = new Map(lastSeenRows.map((r) => [r.userId, r.lastSeen]));
-  return {
-    projects: projectRows,
-    users: userRows.map((u) => {
-      const memberships: Record<string, ProjectRole> = {};
-      for (const m of memberRows) {
-        const role = m.userId === u.id ? normalizeProjectRole(m.role) : null;
-        if (role) memberships[m.projectId] = role;
-      }
-      return {
-        ...u,
-        banned: u.banned ?? false,
-        role: normalizeOrgRole(u.role),
-        lastSeen: lastSeen.get(u.id)?.toISOString() ?? null,
-        memberships,
-      };
-    }),
-  };
+  const memberships: AccessMatrix["memberships"] = {};
+  for (const m of memberRows) {
+    const role = normalizeProjectRole(m.role);
+    if (!role) continue;
+    const byUser = memberships[m.userId] ?? {};
+    byUser[m.projectId] = role;
+    memberships[m.userId] = byUser;
+  }
+  return { projects: projectRows, memberships };
 }
 
 // Remove a leaver's access in one step: ban (blocks every sign-in path, via the
@@ -143,6 +108,6 @@ export async function offboardUser(userId: string): Promise<ActionResponse> {
     entityId: userId,
     data: { user: target.name, memberships: removed },
   });
-  revalidatePath("/admin/access");
+  revalidatePath("/admin/users");
   return { success: true, message: t("offboarded") };
 }

@@ -131,8 +131,7 @@
     "badgeAssignedIssues": "{count, plural, one {# incidencia asignada a ti} other {# incidencias asignadas a ti}}",
     "badgeActiveRuns": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
     "tunnels": "Túneles",
-    "mail": "Correo",
-    "access": "Acceso"
+    "mail": "Correo"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -890,6 +889,7 @@
     "resendDescription": "¿Enviar un nuevo enlace de invitación a {email}? El enlace anterior dejará de funcionar.",
     "resendSuccess": "Invitación reenviada",
     "listCardTitle": "Usuarios",
+    "tabAccess": "Acceso a proyectos",
     "deleteTitle": "Eliminar usuario",
     "deleteDescription": "¿Eliminar a {name} ({email})? Esto no se puede deshacer.",
     "deleteAriaLabel": "Eliminar usuario",
@@ -912,6 +912,7 @@
     "colInvitee": "Invitado",
     "colExpires": "Caduca",
     "colLastActive": "Última actividad",
+    "colProjects": "Proyectos",
     "neverActive": "Nunca",
     "removeAvatarAction": "Quitar foto",
     "removeAvatarTitle": "¿Quitar la foto?",
@@ -1875,16 +1876,11 @@
     "selectAll": "Seleccionar todo en esta página"
   },
   "access": {
-    "title": "Acceso",
-    "subtitle": "Quién puede acceder a qué, en todos los proyectos.",
-    "colUser": "Usuario",
     "colOrgRole": "Rol de organización",
-    "colLastSeen": "Última actividad",
     "inactive": "Inactivo",
     "banned": "Bloqueado",
     "filterInactive": "Inactivos > 60 días",
     "filterBanned": "Mostrar bloqueados",
-    "never": "Nunca",
     "offboard": "Dar de baja",
     "offboardTitle": "Dar de baja al usuario",
     "offboardConfirm": "¿Bloquear a {name}, cerrar sus sesiones y quitar todas sus membresías e invitaciones pendientes?",

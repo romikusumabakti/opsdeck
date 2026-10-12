@@ -1,7 +1,15 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, inArray, isNull, max } from "drizzle-orm";
+import {
+  and,
+  count,
+  countDistinct,
+  eq,
+  inArray,
+  isNull,
+  max,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getLocale, getTranslations } from "next-intl/server";
 import { assertNotLastAdmin } from "@/lib/access";
@@ -187,9 +195,11 @@ export async function listAssignableUsersAcrossProjects(): Promise<
 export async function listUsers() {
   await requireOrgPermission({ user: ["list"] });
   // Last-active is derived from the most recent session touch per user
-  // (better-auth bumps sessions.updatedAt on activity/refresh). A LEFT JOIN +
-  // MAX keeps it a single query; users with no session yet come back null
-  // ("never signed in"). GROUP BY the users PK lets Postgres carry the other
+  // (better-auth bumps sessions.updatedAt on activity/refresh); users with no
+  // session yet come back null ("never signed in"). projectCount counts
+  // explicit memberships (admin/infra reach every project without one). Both
+  // LEFT JOINs fan out rows, so MAX and COUNT(DISTINCT) keep the aggregates
+  // exact in one query; GROUP BY the users PK lets Postgres carry the other
   // user columns without listing each.
   return db
     .select({
@@ -200,14 +210,19 @@ export async function listUsers() {
       image: userTable.image,
       title: userTable.title,
       role: userTable.role,
+      banned: userTable.banned,
       createdAt: userTable.createdAt,
       lastActiveAt: max(sessions.updatedAt),
+      projectCount: countDistinct(projectMembers.projectId),
     })
     .from(userTable)
     .leftJoin(sessions, eq(sessions.userId, userTable.id))
+    .leftJoin(projectMembers, eq(projectMembers.userId, userTable.id))
     .groupBy(userTable.id)
     .orderBy(userTable.createdAt);
 }
+
+export type UserListRow = Awaited<ReturnType<typeof listUsers>>[number];
 
 export async function listPendingInvitations() {
   await requireOrgPermission({ user: ["invite"] });
