@@ -112,7 +112,7 @@ The sidebar's hover and active states share `--sidebar-accent` (shadcn's `sideba
   - It draws the `BRAND` shape on the 16-unit grid, coloured for `prefers-color-scheme`: light uses the logo step 900 and the status ring-light step; dark uses 200 and ring-dark. `neutral` keeps the current black/white plus 40% colours.
   - The output depends only on the URL, so `Cache-Control: public` is kept.
 - `lib/accent-palette.ts` holds the oklch strings the favicon needs: each colour's 200, 900, ring-light and ring-dark steps. The favicon cannot read page CSS variables, so the values must live in TS. A test asserts that every value equals `node_modules/tailwindcss/theme.css`, so a Tailwind upgrade that shifts the palette fails CI instead of drifting.
-- Pages without a user (sign-in, setup, password reset, invitation, the root 404 and global-error pages) use the brand default accent. `app/not-found.tsx` and `app/global-error.tsx` keep their explicit `<link rel="icon">` with `?accent=` set to the brand default.
+- Pages without a user (sign-in, setup, password reset, invitation, the root 404 and global-error pages) use the brand default accent. `app/not-found.tsx` and `app/global-error.tsx` keep their explicit `<link rel="icon">` to `/brand/icon.svg` with no `accent` param, and the route falls back to the brand default. `global-error` is a client component and cannot read the server-only `BRAND`, so it must not compute the param itself.
 
 ## Picker UI
 
