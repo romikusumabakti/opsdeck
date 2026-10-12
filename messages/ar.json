@@ -131,8 +131,7 @@
     "badgeAssignedIssues": "{count, plural, zero {لا مشكلات مسندة إليك} one {مشكلة واحدة مسندة إليك} two {مشكلتان مسندتان إليك} few {# مشكلات مسندة إليك} many {# مشكلة مسندة إليك} other {# مشكلة مسندة إليك}}",
     "badgeActiveRuns": "{count, plural, zero {لا مهام قيد التشغيل} one {مهمة واحدة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمة قيد التشغيل} other {# مهمة قيد التشغيل}}",
     "tunnels": "الأنفاق",
-    "mail": "البريد",
-    "access": "الوصول"
+    "mail": "البريد"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -890,6 +889,7 @@
     "resendDescription": "إرسال رابط دعوة جديد إلى {email}؟ سيتوقف الرابط السابق عن العمل.",
     "resendSuccess": "تمت إعادة إرسال الدعوة",
     "listCardTitle": "المستخدمون",
+    "tabAccess": "الوصول إلى المشاريع",
     "deleteTitle": "حذف المستخدم",
     "deleteDescription": "حذف {name} ({email})؟ لا يمكن التراجع عن هذا.",
     "deleteAriaLabel": "حذف المستخدم",
@@ -912,6 +912,7 @@
     "colInvitee": "المدعو",
     "colExpires": "تاريخ الانتهاء",
     "colLastActive": "آخر نشاط",
+    "colProjects": "المشاريع",
     "neverActive": "أبدًا",
     "removeAvatarAction": "إزالة الصورة",
     "removeAvatarTitle": "إزالة الصورة؟",
@@ -1875,16 +1876,11 @@
     "selectAll": "تحديد الكل في هذه الصفحة"
   },
   "access": {
-    "title": "الوصول",
-    "subtitle": "من يمكنه الوصول إلى ماذا عبر جميع المشاريع.",
-    "colUser": "المستخدم",
     "colOrgRole": "دور المؤسسة",
-    "colLastSeen": "آخر ظهور",
     "inactive": "غير نشط",
     "banned": "محظور",
     "filterInactive": "غير نشط > 60 يومًا",
     "filterBanned": "إظهار المحظورين",
-    "never": "أبدًا",
     "offboard": "إلغاء الوصول",
     "offboardTitle": "إلغاء وصول المستخدم",
     "offboardConfirm": "حظر {name} وإنهاء جلساته وإزالة جميع عضويات المشاريع والدعوات المعلقة؟",
