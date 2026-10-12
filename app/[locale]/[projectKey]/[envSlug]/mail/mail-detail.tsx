@@ -23,7 +23,7 @@ function formatAddresses(list: MailAddress[]): string {
 
 function Pane({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-col rounded-lg border">
+    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border">
       {children}
     </div>
   );
@@ -111,7 +111,7 @@ export function MailDetailPane({
 
   return (
     <Pane>
-      <div className="flex items-start gap-2 border-b p-4">
+      <div className="flex shrink-0 items-start gap-2 border-b p-4">
         <div className="min-w-0 flex-1 space-y-2">
           <h2 className="break-words text-base font-semibold">
             {message.Subject || t("noSubject")}
@@ -158,7 +158,7 @@ export function MailDetailPane({
       </div>
 
       {files.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2 text-xs">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2 text-xs">
           <span className="text-muted-foreground">{t("attachments")}</span>
           {files.map((file) => (
             <a
@@ -194,7 +194,7 @@ export function MailDetailPane({
           <TabsTrigger value="raw">{t("tabRaw")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="html">
+        <TabsContent value="html" className="flex min-h-0 flex-col">
           {html ? (
             // srcdoc, not src: the app sends frame-ancestors 'none'. No
             // allow-scripts / allow-same-origin — the email can't run code or
@@ -203,16 +203,19 @@ export function MailDetailPane({
               title={message.Subject || t("noSubject")}
               srcDoc={html}
               sandbox="allow-popups allow-popups-to-escape-sandbox"
-              className="h-[60vh] w-full rounded-md border bg-white"
+              className="h-[60svh] w-full rounded-md border bg-white lg:h-auto lg:min-h-0 lg:flex-1"
             />
           ) : (
             <p className="text-sm text-muted-foreground">{t("noHtml")}</p>
           )}
         </TabsContent>
 
-        <TabsContent value="text">
+        <TabsContent
+          value="text"
+          className="max-h-[60svh] min-h-0 overflow-auto lg:max-h-none"
+        >
           {message.Text ? (
-            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words text-sm">
+            <pre className="whitespace-pre-wrap break-words text-sm">
               {message.Text}
             </pre>
           ) : (
@@ -220,8 +223,11 @@ export function MailDetailPane({
           )}
         </TabsContent>
 
-        <TabsContent value="headers">
-          <dl className="max-h-[60vh] overflow-auto text-xs">
+        <TabsContent
+          value="headers"
+          className="max-h-[60svh] min-h-0 overflow-auto lg:max-h-none"
+        >
+          <dl className="text-xs">
             {Object.entries(headers).flatMap(([name, values]) =>
               values.map((value, i) => (
                 <div
@@ -236,9 +242,12 @@ export function MailDetailPane({
           </dl>
         </TabsContent>
 
-        <TabsContent value="raw">
+        <TabsContent
+          value="raw"
+          className="max-h-[60svh] min-h-0 overflow-auto lg:max-h-none"
+        >
           {source?.id !== message.ID || loading ? (
-            <Skeleton className="h-[50vh] w-full" />
+            <Skeleton className="h-[50svh] w-full lg:h-full" />
           ) : source.result.success ? (
             <>
               {source.result.data.truncated && (
@@ -246,7 +255,7 @@ export function MailDetailPane({
                   {t("sourceTruncated")}
                 </p>
               )}
-              <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-all font-mono text-xs">
+              <pre className="whitespace-pre-wrap break-all font-mono text-xs">
                 {source.result.data.source}
               </pre>
             </>
