@@ -3,20 +3,17 @@
 import { Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
-import { UserAvatar } from "@/components/user/user-avatar";
-import { UserName } from "@/components/user/user-name";
-import { userStatus } from "@/lib/access";
 import { cn } from "@/lib/utils";
 import type { UserAction, UserRow } from "./types";
 import { useUserActions } from "./use-user-actions";
-import { RoleBadge, StatusBadge } from "./user-badges";
+import { RoleBadge } from "./user-badges";
+import { UserIdentityCell } from "./user-identity-cell";
 import { type UserPermissions, UserRowActions } from "./user-row-actions";
 
 export function UsersTable({
@@ -38,33 +35,20 @@ export function UsersTable({
 }) {
   const t = useTranslations("users");
   const tAccess = useTranslations("access");
-  const tCommon = useTranslations("common");
   const format = useFormatter();
   const actions = useUserActions({ users, currentUserId, applyOptimistic });
   const { isPending, onBulkDelete } = actions;
 
   const renderIdentity = React.useCallback(
     (user: UserRow, showRole: boolean) => (
-      <div className="flex items-center gap-3 min-w-0">
-        <UserAvatar user={user} size="md" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <UserName user={user} className="font-medium truncate" />
-            {user.id === currentUserId && (
-              <Badge variant="secondary" className="text-xs">
-                {tCommon("you")}
-              </Badge>
-            )}
-            {showRole && <RoleBadge role={user.role} />}
-            <StatusBadge status={userStatus(user, now)} />
-          </div>
-          <div className="text-sm text-muted-foreground truncate">
-            {user.email}
-          </div>
-        </div>
-      </div>
+      <UserIdentityCell
+        user={user}
+        isSelf={user.id === currentUserId}
+        now={now}
+        showRole={showRole}
+      />
     ),
-    [currentUserId, tCommon, now]
+    [currentUserId, now]
   );
 
   const renderActions = React.useCallback(
