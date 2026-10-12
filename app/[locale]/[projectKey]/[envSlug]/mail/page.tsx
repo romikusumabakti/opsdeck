@@ -61,10 +61,15 @@ export default async function Page({
     );
   }
 
+  // From lg up, lock the page to the viewport so the message list and the
+  // reading pane scroll independently instead of the whole page — same cap as
+  // the service logs page: the sticky header (h-14 = 3.5rem) plus main's
+  // vertical padding (py-6 = 3rem). Below lg the panes stack, so the page
+  // scrolls normally and each pane caps its own height.
   return (
-    <>
+    <div className="flex flex-col gap-6 lg:h-[calc(100svh-6.5rem)] lg:min-h-0">
       {header}
       <MailInbox environmentId={environmentId} />
-    </>
+    </div>
   );
 }

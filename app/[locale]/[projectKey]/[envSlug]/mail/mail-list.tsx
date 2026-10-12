@@ -63,7 +63,7 @@ export function MailList({
   }
 
   return (
-    <div className="flex min-h-0 flex-col rounded-lg border">
+    <div className="flex max-h-[70svh] min-h-0 flex-col rounded-lg border lg:max-h-none">
       <div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
         <Checkbox
           checked={allChecked}
@@ -79,7 +79,7 @@ export function MailList({
           {query ? t("emptySearch") : t("empty")}
         </p>
       ) : (
-        <ul className="flex-1 divide-y overflow-y-auto">
+        <ul className="min-h-0 flex-1 divide-y overflow-y-auto">
           {page.messages.map((m) => (
             <li
               key={m.ID}

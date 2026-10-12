@@ -122,7 +122,7 @@ export function MailInbox({ environmentId }: { environmentId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
       <div className="flex flex-wrap items-center gap-2">
         <form className="min-w-64 flex-1" onSubmit={onSearch}>
           <Input
@@ -200,7 +200,7 @@ export function MailInbox({ environmentId }: { environmentId: string }) {
         </Alert>
       )}
 
-      <div className="grid min-h-[60vh] gap-4 lg:grid-cols-[minmax(320px,2fr)_3fr]">
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(320px,2fr)_3fr] lg:grid-rows-[minmax(0,1fr)]">
         <MailList
           page={page}
           query={query}
