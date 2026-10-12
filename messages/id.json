@@ -1927,7 +1927,11 @@
     "recentRuns": "Eksekusi terbaru",
     "noRuns": "Tidak ada eksekusi yang dapat Anda lihat.",
     "workingHoursNow": "Sedang jam kerja",
-    "outsideWorkingHours": "Di luar jam kerja"
+    "outsideWorkingHours": "Di luar jam kerja",
+    "addBio": "Tambahkan bio singkat",
+    "setWorkingHours": "Atur jam kerja Anda",
+    "copyEmail": "Salin email",
+    "showAllProjects": "Tampilkan semua ({count})"
   },
   "profile": {
     "name": "Nama tampilan",

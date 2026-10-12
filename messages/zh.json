@@ -1927,7 +1927,11 @@
     "recentRuns": "最近运行",
     "noRuns": "没有你可以查看的运行记录。",
     "workingHoursNow": "工作时间内",
-    "outsideWorkingHours": "非工作时间"
+    "outsideWorkingHours": "非工作时间",
+    "addBio": "添加简短的个人简介",
+    "setWorkingHours": "设置你的工作时间",
+    "copyEmail": "复制邮箱",
+    "showAllProjects": "显示全部（{count}）"
   },
   "profile": {
     "name": "显示名称",
