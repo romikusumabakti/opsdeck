@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { locales } from "./i18n/locales";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
@@ -49,11 +50,13 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   // These three moved under /admin. Keep old bookmarks working; the locale
-  // prefix is always present (routing.localePrefix === "always").
+  // prefix is always present (routing.localePrefix === "always"). `:locale` is
+  // pinned to real locales: a bare `:locale` also matches `api`, which sent
+  // /api/users/<id>/card to a non-existent /api/admin/users/... route.
   async redirects() {
     return [
       {
-        source: "/:locale/:section(users|jira|activity)/:rest*",
+        source: `/:locale(${locales.join("|")})/:section(users|jira|activity)/:rest*`,
         destination: "/:locale/admin/:section/:rest*",
         permanent: false,
       },
