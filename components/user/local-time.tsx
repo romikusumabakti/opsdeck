@@ -38,10 +38,12 @@ export function LocalTime({
   // Rendered after mount only: the server can't know the viewer's clock minute.
   if (!now) return <span className="text-muted-foreground">&nbsp;</span>;
 
+  // 24-hour, matching the header's server clock and working-hours times.
   const time = format.dateTime(now, {
     timeZone,
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: "h23",
   });
   const offset = new Intl.DateTimeFormat(locale, {
     timeZone,

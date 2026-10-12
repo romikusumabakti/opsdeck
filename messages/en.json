@@ -1927,7 +1927,11 @@
     "recentRuns": "Recent runs",
     "noRuns": "No runs you can see.",
     "workingHoursNow": "Within working hours",
-    "outsideWorkingHours": "Outside working hours"
+    "outsideWorkingHours": "Outside working hours",
+    "addBio": "Add a short bio",
+    "setWorkingHours": "Set your working hours",
+    "copyEmail": "Copy email",
+    "showAllProjects": "Show all ({count})"
   },
   "profile": {
     "name": "Display name",
