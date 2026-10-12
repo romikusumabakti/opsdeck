@@ -131,8 +131,7 @@
     "badgeAssignedIssues": "{count, plural, other {分配给你的 # 个问题}}",
     "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}",
     "tunnels": "隧道",
-    "mail": "邮件",
-    "access": "访问权限"
+    "mail": "邮件"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -890,6 +889,7 @@
     "resendDescription": "向 {email} 发送新的邀请链接？之前的链接将失效。",
     "resendSuccess": "邀请已重新发送",
     "listCardTitle": "用户",
+    "tabAccess": "项目访问权限",
     "deleteTitle": "删除用户",
     "deleteDescription": "删除 {name}（{email}）？此操作无法撤销。",
     "deleteAriaLabel": "删除用户",
@@ -912,6 +912,7 @@
     "colInvitee": "被邀请人",
     "colExpires": "到期时间",
     "colLastActive": "最近活跃",
+    "colProjects": "项目",
     "neverActive": "从未",
     "removeAvatarAction": "移除照片",
     "removeAvatarTitle": "移除照片？",
@@ -1875,16 +1876,11 @@
     "selectAll": "全选本页"
   },
   "access": {
-    "title": "访问权限",
-    "subtitle": "谁可以访问哪些内容（所有项目）。",
-    "colUser": "用户",
     "colOrgRole": "组织角色",
-    "colLastSeen": "最近活动",
     "inactive": "不活跃",
     "banned": "已封禁",
     "filterInactive": "超过 60 天未活动",
     "filterBanned": "显示已封禁",
-    "never": "从未",
     "offboard": "移除访问",
     "offboardTitle": "移除用户访问",
     "offboardConfirm": "封禁 {name}，结束其会话并移除所有项目成员资格和待处理邀请？",

@@ -1,0 +1,133 @@
+"use client";
+
+import { useFormatter, useTranslations } from "next-intl";
+import * as React from "react";
+import type { AccessMatrix as Matrix } from "@/actions/access";
+import { Badge } from "@/components/ui/badge";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  DataTableColumnHeader,
+} from "@/components/ui/data-table";
+import { UserName } from "@/components/user/user-name";
+import { userStatus } from "@/lib/access";
+import { cn } from "@/lib/utils";
+import type { UserRow } from "./types";
+import { RoleBadge, StatusBadge } from "./user-badges";
+
+// Read-only overview of who can reach which project. Org roles are changed on
+// the Users tab and project roles in each project's members settings, so this
+// view has no write path of its own.
+export function AccessMatrix({
+  users,
+  matrix,
+  now,
+  currentUserId,
+  toolbar,
+}: {
+  // Already filtered by the shell (banned/inactive toggles).
+  users: UserRow[];
+  matrix: Matrix;
+  now: Date;
+  currentUserId: string;
+  toolbar: React.ReactNode;
+}) {
+  const t = useTranslations("users");
+  const tAccess = useTranslations("access");
+  const tRole = useTranslations("projectMembers.role");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
+
+  const columns = React.useMemo<DataTableColumnDef<UserRow>[]>(() => {
+    const projectColumns: DataTableColumnDef<UserRow>[] = matrix.projects.map(
+      (p) => ({
+        id: `project-${p.id}`,
+        meta: { label: p.key },
+        header: () => (
+          <span title={p.name} className="font-mono text-xs">
+            {p.key}
+          </span>
+        ),
+        cell: ({ row }) => {
+          const role = matrix.memberships[row.original.id]?.[p.id];
+          return role ? (
+            <Badge variant="secondary" className="text-xs">
+              {tRole(role)}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">–</span>
+          );
+        },
+      })
+    );
+    return [
+      {
+        accessorKey: "name",
+        enableHiding: false,
+        meta: { label: t("colUser") },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("colUser")} />
+        ),
+        cell: ({ row }) => {
+          const u = row.original;
+          return (
+            <div className={cn("min-w-0", u.banned && "opacity-50")}>
+              <div className="flex items-center gap-2">
+                <UserName
+                  user={u}
+                  avatar="md"
+                  className="truncate font-medium"
+                />
+                {u.id === currentUserId && (
+                  <Badge variant="secondary" className="text-xs">
+                    {tCommon("you")}
+                  </Badge>
+                )}
+                <StatusBadge status={userStatus(u, now)} />
+              </div>
+              <div className="truncate text-sm text-muted-foreground">
+                {u.email}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "role",
+        meta: { label: tAccess("colOrgRole") },
+        header: tAccess("colOrgRole"),
+        cell: ({ row }) => <RoleBadge role={row.original.role} />,
+      },
+      {
+        accessorKey: "lastActiveAt",
+        meta: { label: t("colLastActive") },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("colLastActive")} />
+        ),
+        cell: ({ row }) => {
+          const at = row.original.lastActiveAt;
+          return (
+            <span className="text-sm text-muted-foreground">
+              {at ? format.relativeTime(new Date(at), now) : t("neverActive")}
+            </span>
+          );
+        },
+      },
+      ...projectColumns,
+    ];
+  }, [matrix, t, tAccess, tRole, tCommon, format, now, currentUserId]);
+
+  return (
+    <DataTable
+      fillHeight
+      columns={columns}
+      data={users}
+      initialPageSize={25}
+      filterColumn="name"
+      filterPlaceholder={t("searchPlaceholder")}
+      getRowId={(row) => row.id}
+      urlKey="acc"
+      toolbar={toolbar}
+    />
+  );
+}

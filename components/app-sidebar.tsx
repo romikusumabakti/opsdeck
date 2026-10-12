@@ -18,7 +18,6 @@ import {
   Server,
   ServerCog,
   Settings,
-  ShieldCheck,
   ShieldUser,
   Users,
   UsersRound,
@@ -93,12 +92,6 @@ const adminItems: {
   icon: LucideIcon;
   perm: OrgPermissions;
 }[] = [
-  {
-    key: "access",
-    url: "/admin/access",
-    icon: ShieldCheck,
-    perm: { audit: ["read"] },
-  },
   {
     key: "activity",
     url: "/admin/activity",
