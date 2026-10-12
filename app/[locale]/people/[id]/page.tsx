@@ -13,7 +13,7 @@ import {
   getTranslations,
   setRequestLocale,
 } from "next-intl/server";
-import { PageHeader } from "@/components/page-header";
+import { CopyButton } from "@/components/copy-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,8 +30,12 @@ import {
   listPersonOpenIssues,
   listPersonRecentRuns,
 } from "@/lib/people/queries";
-import { canOrg } from "@/lib/permissions";
+import { canOrg, effectiveProjectRole } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
+
+// Both side-by-side lists show this many rows (projects collapse behind
+// "Show all", issues link to the filtered list) so the two cards stay level.
+const LIST_ROWS = 8;
 
 const RUN_STATUS_KEYS = {
   started: "statusRunning",
@@ -64,7 +68,7 @@ export default async function PersonPage({
     format,
   ] = await Promise.all([
     getPersonProjects(id),
-    listPersonOpenIssues(id),
+    listPersonOpenIssues(id, LIST_ROWS),
     listPersonRecentRuns(id),
     getPersonMeta(id),
     getTranslations("people"),
@@ -78,17 +82,40 @@ export default async function PersonPage({
   const isMe = session.user.id === id;
   const canManage = canOrg(session.user.role, { user: ["update"] });
 
+  // A role badge on every project says nothing when the org role already
+  // implies it (an admin is maintainer everywhere), so show only exceptions.
+  const impliedRole = effectiveProjectRole(card.role, null);
+  const shownProjects = projects.slice(0, LIST_ROWS);
+  const moreProjects = projects.slice(LIST_ROWS);
+  const projectItem = (p: (typeof projects)[number]) => (
+    <li key={p.id} className="flex items-center justify-between gap-2">
+      <Link href={`/${p.key}`} className="truncate hover:underline">
+        {p.name}
+      </Link>
+      {p.role !== impliedRole && (
+        <Badge variant="outline">{tProject(p.role)}</Badge>
+      )}
+    </li>
+  );
+
   return (
     <div className="flex max-w-4xl flex-col gap-6">
-      <PageHeader title={card.name} subtitle={card.title ?? undefined} />
       <Card>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <UserAvatar user={card} size="xl" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{tRole(card.role)}</Badge>
-              {card.deactivated && (
-                <Badge variant="secondary">{t("deactivated")}</Badge>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {card.name}
+                </h1>
+                <Badge variant="outline">{tRole(card.role)}</Badge>
+                {card.deactivated && (
+                  <Badge variant="secondary">{t("deactivated")}</Badge>
+                )}
+              </div>
+              {card.title && (
+                <p className="text-muted-foreground">{card.title}</p>
               )}
             </div>
             {card.status && (
@@ -116,6 +143,26 @@ export default async function PersonPage({
             {card.bio && (
               <p className="whitespace-pre-line text-sm">{card.bio}</p>
             )}
+            {isMe && (!card.bio || !card.workingHours) && (
+              <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {!card.bio && (
+                  <Link
+                    href="/account?tab=profile"
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {t("addBio")}
+                  </Link>
+                )}
+                {!card.workingHours && (
+                  <Link
+                    href="/account?tab=profile"
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {t("setWorkingHours")}
+                  </Link>
+                )}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {t("memberSince", {
                 date: format.dateTime(meta.createdAt, { dateStyle: "medium" }),
@@ -130,7 +177,11 @@ export default async function PersonPage({
                   })
                 : t("neverActive")}
             </p>
-            <div className="flex flex-wrap gap-2 pt-1">
+            <p className="flex items-center gap-1 text-sm text-muted-foreground">
+              <span className="truncate">{card.email}</span>
+              <CopyButton value={card.email} label={t("copyEmail")} />
+            </p>
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -138,7 +189,7 @@ export default async function PersonPage({
                 render={<a href={`mailto:${card.email}`} />}
               >
                 <Mail />
-                {card.email}
+                {t("email")}
               </Button>
               <Button
                 size="sm"
@@ -205,22 +256,21 @@ export default async function PersonPage({
                 {t("noSharedProjects")}
               </p>
             ) : (
-              <ul className="flex flex-col gap-2">
-                {projects.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <Link
-                      href={`/${p.key}`}
-                      className="truncate hover:underline"
-                    >
-                      {p.name}
-                    </Link>
-                    <Badge variant="outline">{tProject(p.role)}</Badge>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="flex flex-col gap-2 text-sm">
+                  {shownProjects.map(projectItem)}
+                </ul>
+                {moreProjects.length > 0 && (
+                  <details className="group mt-2">
+                    <summary className="cursor-pointer list-none text-sm underline underline-offset-2 group-open:hidden">
+                      {t("showAllProjects", { count: projects.length })}
+                    </summary>
+                    <ul className="flex flex-col gap-2 text-sm">
+                      {moreProjects.map(projectItem)}
+                    </ul>
+                  </details>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

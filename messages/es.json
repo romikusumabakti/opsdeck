@@ -1927,7 +1927,11 @@
     "recentRuns": "Ejecuciones recientes",
     "noRuns": "No hay ejecuciones que puedas ver.",
     "workingHoursNow": "En horario laboral",
-    "outsideWorkingHours": "Fuera del horario laboral"
+    "outsideWorkingHours": "Fuera del horario laboral",
+    "addBio": "Añade una breve biografía",
+    "setWorkingHours": "Configura tu horario laboral",
+    "copyEmail": "Copiar correo",
+    "showAllProjects": "Mostrar todos ({count})"
   },
   "profile": {
     "name": "Nombre visible",

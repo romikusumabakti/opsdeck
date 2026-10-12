@@ -1927,7 +1927,11 @@
     "recentRuns": "عمليات التشغيل الأخيرة",
     "noRuns": "لا توجد عمليات تشغيل يمكنك رؤيتها.",
     "workingHoursNow": "ضمن ساعات العمل",
-    "outsideWorkingHours": "خارج ساعات العمل"
+    "outsideWorkingHours": "خارج ساعات العمل",
+    "addBio": "أضف نبذة قصيرة",
+    "setWorkingHours": "حدّد ساعات عملك",
+    "copyEmail": "نسخ البريد الإلكتروني",
+    "showAllProjects": "عرض الكل ({count})"
   },
   "profile": {
     "name": "الاسم المعروض",
