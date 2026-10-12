@@ -14,12 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AvailabilityDot } from "@/components/user/availability-dot";
 import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
 import type { PersonSummary } from "@/lib/people/queries";
 import { ORG_ROLES } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 const ALL = "__all";
 
@@ -38,14 +38,20 @@ export function PeopleClient({
 
   const shown = useMemo(() => {
     const needle = q.trim().toLocaleLowerCase();
-    return people.filter(
-      (p) =>
-        (!needle ||
-          [p.name, p.title ?? "", p.email].some((s) =>
-            s.toLocaleLowerCase().includes(needle)
-          )) &&
-        (role === ALL || p.role === role) &&
-        (project === ALL || p.projectIds.includes(project))
+    return (
+      people
+        .filter(
+          (p) =>
+            (!needle ||
+              [p.name, p.title ?? "", p.email].some((s) =>
+                s.toLocaleLowerCase().includes(needle)
+              )) &&
+            (role === ALL || p.role === role) &&
+            (project === ALL || p.projectIds.includes(project))
+        )
+        // Deactivated people (admins only see them) go last; the sort is
+        // stable, so each group keeps the server's name order.
+        .sort((a, b) => Number(a.deactivated) - Number(b.deactivated))
     );
   }, [people, q, role, project]);
 
@@ -94,15 +100,14 @@ export function PeopleClient({
             <li key={p.id}>
               {/* The name link stretches over the whole card (after:inset-0),
                   so the card is one click target with no nested interactives. */}
-              <Card className="relative h-full transition-colors hover:bg-muted/40">
+              <Card
+                className={cn(
+                  "relative h-full transition-colors hover:bg-muted/40",
+                  p.deactivated && "opacity-60"
+                )}
+              >
                 <CardContent className="flex items-start gap-3">
-                  <span className="relative flex shrink-0">
-                    <UserAvatar user={p} size="lg" />
-                    <AvailabilityDot
-                      timeZone={p.timeZone}
-                      workingHours={p.workingHours}
-                    />
-                  </span>
+                  <UserAvatar user={p} size="lg" />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <Link
                       href={`/people/${p.id}`}
@@ -120,16 +125,19 @@ export function PeopleClient({
                         {p.status.emoji} {p.status.text}
                       </span>
                     )}
-                    <div className="text-xs">
-                      <LocalTime
-                        timeZone={p.timeZone}
-                        workingHours={p.workingHours}
-                      />
-                    </div>
-                    {p.deactivated && (
+                    {/* A deactivated account has no hours worth showing. */}
+                    {p.deactivated ? (
                       <Badge variant="secondary" className="w-fit">
                         {t("deactivated")}
                       </Badge>
+                    ) : (
+                      <div className="text-xs">
+                        <LocalTime
+                          timeZone={p.timeZone}
+                          workingHours={p.workingHours}
+                          compact
+                        />
+                      </div>
                     )}
                   </div>
                 </CardContent>
