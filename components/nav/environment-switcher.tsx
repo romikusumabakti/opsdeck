@@ -66,7 +66,9 @@ export function EnvironmentSwitcher({
                 ? t("switchEnvironment", { name: activeLabel })
                 : t("selectEnvironment")
             }
-            className="gap-1.5 h-8 px-2 font-medium min-w-0"
+            // `shrink` overrides Button's shrink-0 so a long name truncates
+            // instead of overflowing the breadcrumb into the header controls.
+            className="gap-1.5 h-8 px-2 font-medium min-w-0 shrink"
           />
         }
       >

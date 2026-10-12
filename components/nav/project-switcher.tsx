@@ -55,7 +55,7 @@ export function ProjectSwitcher({
             role="combobox"
             aria-expanded={open}
             aria-label={t("switchProject", { name: activeProject.name })}
-            className="gap-1.5 h-8 px-2 font-medium min-w-0"
+            className="gap-1.5 h-8 px-2 font-medium min-w-0 shrink"
           />
         }
       >
