@@ -237,7 +237,7 @@ const SidebarUserTrigger = React.forwardRef<
       className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
       {...props}
     >
-      <UserAvatar user={user} size="md" className="rounded-md" />
+      <UserAvatar user={user} size="md" />
       <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
         <span className="truncate font-medium">{user.name}</span>
         <span className="truncate text-xs text-muted-foreground">
