@@ -142,7 +142,7 @@ function getTrailingSegments(
 function Slash() {
   return (
     <span
-      className="text-muted-foreground/50 text-base font-light select-none"
+      className="shrink-0 text-muted-foreground/50 text-base font-light select-none"
       aria-hidden="true"
     >
       /
@@ -159,8 +159,10 @@ function StaticCrumb({
   label: string;
   isLast: boolean;
 }) {
+  // shrink-0: static crumbs are short (the current page); the switchers give
+  // way first when the header runs out of room.
   const base =
-    "text-sm font-medium px-2 h-8 inline-flex items-center rounded-md";
+    "shrink-0 text-sm font-medium px-2 h-8 inline-flex items-center rounded-md";
   if (href && !isLast) {
     return (
       <Link

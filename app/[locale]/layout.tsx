@@ -201,7 +201,7 @@ export default async function LocaleLayout({
                             orgRole={orgRole}
                             projectRoles={projectRoles}
                           />
-                          <div className="ms-auto flex items-center gap-2">
+                          <div className="ms-auto flex shrink-0 items-center gap-2">
                             <ActiveRunsIndicator />
                             <div className="hidden md:flex items-center gap-2 pe-1">
                               <ServerTime timeZone={APP_TIMEZONE} />
