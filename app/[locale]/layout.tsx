@@ -218,11 +218,15 @@ export default async function LocaleLayout({
                             />
                           </div>
                         </header>
+                        {/* `main`, not the document, is the scroller. On navigation
+                            Next scrolls the new page into view with
+                            scrollIntoView(), which aligns to the scrollport edge;
+                            scroll-pt-6 matches py-6 so the top padding survives. */}
                         <main
                           id="main-content"
                           tabIndex={-1}
                           data-scroll-shadow
-                          className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
+                          className="flex-1 min-h-0 overflow-y-auto scroll-pt-6 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
                         >
                           {!session.user.timezone && (
                             <TimezoneHint appTimeZone={APP_TIMEZONE} />
