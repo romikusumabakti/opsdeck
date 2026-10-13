@@ -119,8 +119,9 @@ const adminItems: {
  * The motif in the bottom corner of the menu area. It sits behind the menu
  * (-z-10 inside an isolated wrapper; a positioned layer would otherwise paint
  * over the items), mirrors in RTL where the sidebar is on the right, and is
- * hidden when the sidebar collapses to icons. The wrapper clips it
- * (overflow-hidden) so it never spills above the menu on short viewports.
+ * hidden when the sidebar collapses to icons. It has the same scale as on the
+ * sign-in page; the wrapper clips it (overflow-hidden) to the sidebar, so only
+ * the ornament's corner shows and it never spills above the menu.
  */
 function SidebarMotif() {
   const { motif } = useMotif();
@@ -128,7 +129,7 @@ function SidebarMotif() {
   return (
     <MotifWatermark
       slug={motif}
-      className="absolute inset-x-0 bottom-0 -z-10 aspect-square rtl:-scale-x-100 group-data-[collapsible=icon]:hidden"
+      className="absolute bottom-0 end-0 -z-10 rtl:-scale-x-100 group-data-[collapsible=icon]:hidden"
     />
   );
 }

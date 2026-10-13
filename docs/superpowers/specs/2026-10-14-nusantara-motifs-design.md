@@ -56,13 +56,12 @@ Notes from research:
 
 - **Outside the app shell** (sign-in, setup, forgot/reset password, invite,
   error, not-found): the unauthenticated wrapper in `app/[locale]/layout.tsx`
-  renders the motif in the bottom-right corner and a horizontally mirrored copy
-  in the bottom-left (mirrored, not rotated, so directional motifs stay
-  upright). Size `min(45vw, 520px)`. Below 640px only the bottom-right
-  copy shows, smaller.
-- **Sidebar**: one copy in the bottom-right of `SidebarContent`, as wide as
-  the sidebar, behind the menu (stacking), above the user menu. Hidden when the
-  sidebar collapses to icons.
+  renders the motif upright in the bottom-end corner and rotated 180° in the
+  top-start corner (mirrored in RTL). Below 640px only the bottom one shows.
+- **Sidebar**: one copy at the same size as the sign-in ornament (the component
+  owns its size), anchored bottom-end and clipped to the sidebar, behind the
+  menu (stacking), above the user menu. Hidden when the sidebar collapses to
+  icons.
 
 ### Colour
 
