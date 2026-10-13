@@ -447,7 +447,15 @@
       "no": "否",
       "refresh": "刷新",
       "loading": "加载时钟状态中…",
-      "loadError": "加载时钟状态失败"
+      "loadError": "加载时钟状态失败",
+      "offset": "偏移",
+      "ahead": "快 {duration}",
+      "behind": "慢 {duration}",
+      "inSync": "与真实时间一致"
+    },
+    "target": {
+      "title": "目标日期和时间",
+      "description": "时间旅行会跳转到该时间并继续运行；冻结会让时钟停在该时间。"
     },
     "travel": {
       "title": "时间旅行",
@@ -462,8 +470,8 @@
     },
     "freeze": {
       "title": "冻结",
-      "description": "停止时钟。选择目标时间冻结，或在当前时间冻结。",
-      "submitAt": "在所选时间冻结",
+      "description": "让时钟停在当前时间。",
+      "submitAt": "冻结",
       "submitNow": "在当前时间冻结",
       "submitting": "冻结中…",
       "confirmAt": "在 {dateTime} 冻结时钟？",
@@ -474,11 +482,10 @@
     },
     "advance": {
       "title": "推进",
-      "description": "将冻结的时钟向前（或用负数向后）移动。仅在冻结时可用。",
+      "description": "将冻结的时钟向前或向后移动。仅在冻结时可用。",
       "descriptionLegacy": "将后端服务器时钟相对于当前时间向前（或向后）移动。将重启后端。",
       "amountLabel": "数量",
       "unitLabel": "单位",
-      "directionLabel": "方向",
       "forward": "向前",
       "backward": "向后",
       "submit": "推进",
@@ -497,8 +504,6 @@
     },
     "reset": {
       "title": "重置",
-      "description": "清除模拟并解冻。时钟将恢复到真实时钟时间。",
-      "descriptionLegacy": "在后端服务器上重新启用 NTP，强制立即同步时钟，并重启后端服务。",
       "submit": "重置为真实时间",
       "submitting": "重置中…",
       "confirm": "将时钟重置为真实时间？这将清除所有模拟并解冻。",

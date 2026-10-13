@@ -1,6 +1,6 @@
 "use client";
 
-import { FastForward } from "lucide-react";
+import { FastForward, Rewind } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -18,30 +18,27 @@ export function AdvanceFields({
   idPrefix,
   amount,
   unit,
-  direction,
   disabled,
   submitting,
   onAmountChange,
   onUnitChange,
-  onDirectionChange,
   onSubmit,
 }: {
   idPrefix: string;
   amount: string;
   unit: AdvanceUnit;
-  direction: AdvanceDirection;
   disabled: boolean;
-  submitting: boolean;
+  /** The direction whose request is in flight, if any. */
+  submitting: AdvanceDirection | null;
   onAmountChange: (value: string) => void;
   onUnitChange: (value: AdvanceUnit) => void;
-  onDirectionChange: (value: AdvanceDirection) => void;
-  onSubmit: () => void;
+  onSubmit: (direction: AdvanceDirection) => void;
 }) {
   const t = useTranslations("mockTime");
 
   return (
     <FieldGroup className="flex-row items-end gap-2 flex-wrap">
-      <Field className="flex-1">
+      <Field className="w-28">
         <FieldLabel htmlFor={`${idPrefix}-advance-amount`}>
           {t("advance.amountLabel")}
         </FieldLabel>
@@ -56,7 +53,7 @@ export function AdvanceFields({
           className="tabular-nums"
         />
       </Field>
-      <Field className="flex-1">
+      <Field className="w-32">
         <FieldLabel htmlFor={`${idPrefix}-advance-unit`}>
           {t("advance.unitLabel")}
         </FieldLabel>
@@ -65,7 +62,7 @@ export function AdvanceFields({
           onValueChange={(v) => onUnitChange(v as AdvanceUnit)}
           disabled={disabled}
         >
-          <SelectTrigger id={`${idPrefix}-advance-unit`}>
+          <SelectTrigger id={`${idPrefix}-advance-unit`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -77,28 +74,28 @@ export function AdvanceFields({
           </SelectContent>
         </Select>
       </Field>
-      <Field className="flex-1">
-        <FieldLabel htmlFor={`${idPrefix}-advance-direction`}>
-          {t("advance.directionLabel")}
-        </FieldLabel>
-        <Select
-          value={direction}
-          onValueChange={(v) => onDirectionChange(v as AdvanceDirection)}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={() => onSubmit("backward")}
           disabled={disabled}
         >
-          <SelectTrigger id={`${idPrefix}-advance-direction`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="forward">{t("advance.forward")}</SelectItem>
-            <SelectItem value="backward">{t("advance.backward")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-      <Button onClick={onSubmit} disabled={disabled}>
-        <FastForward className="size-4" />
-        {submitting ? t("advance.submitting") : t("advance.submit")}
-      </Button>
+          <Rewind className="size-4" />
+          {submitting === "backward"
+            ? t("advance.submitting")
+            : t("advance.backward")}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => onSubmit("forward")}
+          disabled={disabled}
+        >
+          {submitting === "forward"
+            ? t("advance.submitting")
+            : t("advance.forward")}
+          <FastForward className="size-4" />
+        </Button>
+      </div>
     </FieldGroup>
   );
 }
