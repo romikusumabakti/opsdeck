@@ -26,6 +26,27 @@ import type { EnvironmentInput } from "@/lib/validation";
 export async function loadEnvironmentWithServers(
   id: string
 ): Promise<EnvironmentWithServers | null> {
+  const env = await loadEncryptedEnvironment(id);
+  if (!env) return null;
+  // SINGLE decryption boundary for environment credentials: secrets are stored
+  // encrypted at rest (lib/secrets) and handed to trusted server-side callers
+  // (SSH/DB ops, mock-time) as plaintext here. Every consumer that needs a
+  // credential loads through this function, so nothing downstream deals with
+  // ciphertext.
+  return {
+    ...env,
+    services: env.services.map(decryptService),
+  };
+}
+
+/**
+ * The stored row with its secret columns still encrypted. Same shape as
+ * EnvironmentWithServers, but the password and API-key fields hold ciphertext,
+ * so it must only be decrypted (above) or sanitized (loadSafeEnvironment).
+ */
+async function loadEncryptedEnvironment(
+  id: string
+): Promise<EnvironmentWithServers | null> {
   const environment = await db.query.environments.findFirst({
     where: { id },
     with: {
@@ -34,16 +55,7 @@ export async function loadEnvironmentWithServers(
       },
     },
   });
-  if (!environment) return null;
-  // SINGLE decryption boundary for environment credentials: secrets are stored
-  // encrypted at rest (lib/secrets) and handed to trusted server-side callers
-  // (SSH/DB ops, mock-time) as plaintext here. Every consumer loads through this
-  // function, so nothing downstream deals with ciphertext.
-  const env = environment as EnvironmentWithServers;
-  return {
-    ...env,
-    services: env.services.map(decryptService),
-  };
+  return (environment as EnvironmentWithServers | undefined) ?? null;
 }
 
 /** Decrypt a service's own secrets and its server's SSH password. */
@@ -91,11 +103,17 @@ export function sanitizeEnvironment(
   };
 }
 
-/** Load an environment and sanitize it in one step for handing to the client. */
+/**
+ * Load an environment and sanitize it in one step for handing to the client.
+ * Never decrypts: sanitizing drops every secret anyway, and the presence flags
+ * read the same from ciphertext (encryptNullable keeps null/"" as-is). So a
+ * secret that can't be decrypted — a rotated SECRETS_KEY, a corrupt value, a
+ * local dev server with its own key — doesn't take the whole page down.
+ */
 export async function loadSafeEnvironment(
   id: string
 ): Promise<SafeEnvironmentWithServers | null> {
-  const environment = await loadEnvironmentWithServers(id);
+  const environment = await loadEncryptedEnvironment(id);
   return environment ? sanitizeEnvironment(environment) : null;
 }
 

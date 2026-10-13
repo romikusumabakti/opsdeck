@@ -148,6 +148,28 @@ describe("sanitizeEnvironment", () => {
     expect(dbService(safe).server.name).toBe("server-11");
     expect(dbService(safe).server.host).toBe("11.example.com");
   });
+
+  // loadSafeEnvironment sanitizes the stored row without decrypting it, so
+  // sanitizing must work on ciphertext — even ciphertext this process's
+  // SECRETS_KEY can't open — and read presence the same way as on plaintext.
+  it("works on rows whose secrets are still encrypted", () => {
+    const undecryptable = "enc:v1:bm90LWEtcmVhbC1jaXBoZXJ0ZXh0";
+    const safe = sanitizeEnvironment(
+      makeProject({
+        services: [
+          makeDbService({
+            dbPassword: undecryptable,
+            server: { ...makeServer("11"), password: undecryptable },
+          }),
+          makeBackendService({ mockTimeApiKey: undecryptable }),
+          makeFrontendService({ mockTimeApiKey: null }),
+        ],
+      })
+    );
+    expect(dbService(safe).hasDbPassword).toBe(true);
+    expect(backendService(safe).hasMockTimeApiKey).toBe(true);
+    expect(JSON.stringify(safe)).not.toContain(undecryptable);
+  });
 });
 
 describe("changedInfraFields", () => {
