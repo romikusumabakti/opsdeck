@@ -118,6 +118,7 @@ export const auth = betterAuth({
       statusExpiresAt: { type: "date", required: false, input: false },
       avatarSource: { type: "string", required: false, input: false },
       accentColor: { type: "string", required: false, input: false },
+      motif: { type: "string", required: false, input: false },
     },
   },
   account: {
