@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { existsSync, readdirSync } from "node:fs";
 import {
   dailyMotif,
   effectiveMotifPreference,
@@ -92,5 +93,18 @@ describe("preferences", () => {
   it("finds a motif and its mask", () => {
     expect(getMotif("pintu-aceh").localName).toBe("Pinto Aceh");
     expect(motifSrc("kawung")).toBe("/motifs/kawung.webp");
+  });
+});
+
+describe("motif assets", () => {
+  it("has a mask for every motif and no orphans", () => {
+    const files = readdirSync("public/motifs").sort();
+    expect(files).toEqual(MOTIF_SLUGS.map((s) => `${s}.webp`).sort());
+  });
+
+  it("has source art for every motif", () => {
+    for (const slug of MOTIF_SLUGS) {
+      expect(existsSync(`design/motifs/${slug}.png`)).toBe(true);
+    }
   });
 });
