@@ -642,14 +642,17 @@
   "userMenu": {
     "users": "用户管理",
     "servers": "服务器管理",
-    "account": "账户",
+    "account": "账户设置",
     "changePassword": "修改密码",
     "sessions": "活跃会话",
     "signOut": "退出登录",
     "ariaLabel": "用户菜单",
     "myProfile": "我的资料",
     "setStatus": "设置状态",
-    "editStatus": "编辑状态"
+    "editStatus": "编辑状态",
+    "theme": "主题",
+    "accent": "强调色",
+    "language": "语言"
   },
   "account": {
     "title": "账户",
