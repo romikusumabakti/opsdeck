@@ -10,6 +10,7 @@ import { requireOrgPermission } from "@/lib/authz";
 import { removeAvatar } from "@/lib/avatars";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { motifPreferenceSchema, storedMotif } from "@/lib/motifs";
 import { isUniqueViolation } from "@/lib/people/names";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -194,6 +195,23 @@ export async function setAccentColor(input: unknown): Promise<ActionResponse> {
     .where(eq(users.id, session.user.id));
 
   // The accent is on <html> and in the favicon link on every page.
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/** Save the caller's background motif. The UI applies it optimistically. */
+export async function setMotif(input: unknown): Promise<ActionResponse> {
+  const session = await requireSession();
+  const t = await getTranslations("actionErrors");
+  const parsed = motifPreferenceSchema.safeParse(input);
+  if (!parsed.success) return { success: false, message: t("invalidInput") };
+
+  await db
+    .update(users)
+    .set({ motif: storedMotif(parsed.data), updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+
+  // The sidebar watermark is rendered by the root layout.
   revalidatePath("/", "layout");
   return { success: true };
 }
