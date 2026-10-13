@@ -20,8 +20,8 @@
       "subject": "Gorga, the carved ornament of the Batak Toba people (North Sumatra) on the gable boards of rumah bolon houses: ribbon-like strokes forming pairs of interlocking spirals that face each other (like curled fern shoots meeting), with a zigzag sawtooth border band (gorga ipon-ipon) of small triangular teeth along the bottom and right edges, drawn as outlines rather than filled shapes. NOT European/Celtic scrollwork, NO acanthus leaves."
     },
     "pucuk-rebung": {
-      "template": "v1",
-      "subject": "Pucuk Rebung (Pucuak Rabuang), the Malay and Minangkabau bamboo-shoot motif from songket textiles and Rumah Gadang carvings: a row of tall isosceles triangles like young bamboo shoots, each filled with nested chevrons and small curling scrolls, arranged as a border band"
+      "template": "v2",
+      "subject": "Pucuk Rebung (Pucuak Rabuang), the Malay and Minangkabau bamboo-shoot motif from songket borders and Rumah Gadang wood carvings: tall, slender isosceles triangles like young bamboo shoots standing in a row along the bottom edge and climbing the right edge, each outlined and filled with a few nested chevrons and small curling tendrils, with small rebung shoots and curling sulur tendrils between them; the shoots get smaller and sparser toward the top-left so the ornament fades out organically — no straight diagonal cut-off edge."
     },
     "megamendung": {
       "template": "v2",
@@ -41,7 +41,7 @@
     },
     "pa-barre-allo": {
       "template": "v2",
-      "subject": "Passura', the carved and painted wall ornament of the Toraja tongkonan house (South Sulawesi), as a LIGHT, airy corner composition: only a few framed panels along the bottom and right edges with plenty of open space between them — one square panel with Pa' Barre Allo (a sun: a circle with short triangular rays), one panel with Pa' Tedong (a stylised, flat, geometric buffalo head with wide curved horns, carved-ornament style, not realistic), a short row of Pa' Bua Kapa' cotton-boll circles, and a few Pa' Daun Bolu betel leaves — thin panel frames, mostly open outlines, no dense rows of repeated cells. Geometric, angular, panel-based. NOT baroque scrolls, NOT acanthus, NOT European flourish, NOT Greek meander, NOT Aztec, NOT a realistic cow face."
+      "subject": "Passura', the carved and painted wall ornament of the Toraja tongkonan house (South Sulawesi), as an elegant corner ornament: a few framed panels clustered in the bottom-right corner — one square panel with Pa' Barre Allo (a sun: a circle with short triangular rays), one with Pa' Tedong (a stylised, flat, geometric buffalo head with wide curved horns, carved-ornament style), a few Pa' Daun Bolu betel leaves and Pa' Bua Kapa' cotton-boll circles — the panels step down in size toward the top-left and toward the left, ending in small single motifs, never a long strip running to the left edge. Thin panel frames, open outlines. Geometric, angular. NOT baroque scrolls, NOT acanthus, NOT European flourish, NOT Greek meander, NOT Aztec, NOT a realistic cow face."
     },
     "mamuli": {
       "template": "v2",
@@ -53,7 +53,7 @@
     },
     "ukiran-asmat": {
       "template": "v2",
-      "subject": "Asmat wood carving from southern Papua as on Asmat shields (jamasj) and canoe prows: mirrored, back-to-back hooked curves and loops — the bipane (double-curved shell nose ornament), the praying-mantis (wenet) limbs as angular bent hooks, hornbill heads and beaks — drawn as outlined relief forms with open interiors (not filled black). Organic, symmetrical. NOT Maori koru, NOT tribal tattoo, NOT Celtic."
+      "subject": "Asmat wood carving from southern Papua as on Asmat shields (jamasj), bis poles and canoe prows: a carved relief panel rising along the right edge and a carved band along the bottom, made of the characteristic Asmat forms — the praying mantis (wenet) as angular, bent, hooked limbs; hornbill heads with long curved beaks; the bipane (double-curved shell nose ornament) as mirrored back-to-back C-curves; flying-fox wing shapes — drawn as outlined relief shapes with open interiors and carved grooves, filling the corner evenly. NOT Maori koru, NOT tribal tattoo, NOT Celtic, NOT Pacific Northwest totem."
     }
   }
 }
