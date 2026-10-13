@@ -25,6 +25,8 @@ import { DialogProvider } from "@/components/dialog-provider";
 import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { MotifInfoPopover } from "@/components/motif-info";
+import { MotifWatermark } from "@/components/motif-watermark";
 import { NavigationGuardProvider } from "@/components/navigation-guard";
 import { NotificationBell } from "@/components/notification-bell";
 import { ServerTime } from "@/components/server-time";
@@ -43,6 +45,7 @@ import { brandIconSrc, effectiveAccent } from "@/lib/accents";
 import { getServerSession } from "@/lib/auth-session";
 import { getProjectAccess } from "@/lib/authz";
 import { brand } from "@/lib/branding";
+import { dailyMotif } from "@/lib/motifs";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus } from "@/lib/user-display";
@@ -139,6 +142,9 @@ export default async function LocaleLayout({
   // default) — both select CSS in globals.css via data-* on <html>.
   const currentBrand = brand();
   const accent = effectiveAccent(session?.user);
+  // Same for everyone on the same WIB day; computed on the server so the
+  // first paint already has it.
+  const todayMotif = dailyMotif(new Date(), APP_TIMEZONE);
 
   return (
     <html
@@ -252,7 +258,18 @@ export default async function LocaleLayout({
                     </ActiveRunsProvider>
                   </AccentProvider>
                 ) : (
-                  <div className="flex flex-col min-h-dvh bg-muted dark:bg-background">
+                  <div className="relative isolate flex flex-col min-h-dvh overflow-hidden bg-muted dark:bg-background">
+                    {/* Corner ornaments, letterhead-style: the motif hugs the
+                        bottom-right, and the same art turned 180° the
+                        top-left. Small screens keep only the bottom one. */}
+                    <MotifWatermark
+                      slug={todayMotif}
+                      className="absolute -z-10 bottom-0 right-0 size-[min(70vw,320px)] sm:size-[min(45vw,520px)]"
+                    />
+                    <MotifWatermark
+                      slug={todayMotif}
+                      className="absolute -z-10 top-0 left-0 hidden sm:block size-[min(45vw,520px)] rotate-180"
+                    />
                     {/* No `min-h-0`: the content must be allowed to push the
                         page taller than the viewport on short screens rather
                         than being clipped under the footer. */}
@@ -262,7 +279,9 @@ export default async function LocaleLayout({
                         while the controls sit at the inline end without
                         overlapping it — `end` keeps that mirrored for RTL. */}
                     <footer className="flex items-center gap-2 px-4 py-4">
-                      <div className="flex-1" />
+                      <div className="flex-1 flex justify-start">
+                        <MotifInfoPopover slug={todayMotif} />
+                      </div>
                       <Copyright className="shrink-0" />
                       <div className="flex-1 flex justify-end">
                         {/* Grouped into a bordered pill so the two icon
