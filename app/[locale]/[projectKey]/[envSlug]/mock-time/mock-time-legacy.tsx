@@ -22,7 +22,7 @@ import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
-import { DateTimePicker } from "./date-time-picker";
+import { BrowserZoneHint, DateTimePicker } from "./date-time-picker";
 import {
   type AdvanceDirection,
   type AdvanceUnit,
@@ -78,17 +78,27 @@ export function MockTimeLegacy({
       if (!silent) setPendingAction("refresh");
       setClockLoading(true);
       setClockError(null);
-      const result = await getClockStateLegacy(environment.id);
-      setClockLoading(false);
-      if (!silent) setPendingAction(null);
-      if (!result.success) {
+      try {
+        const result = await getClockStateLegacy(environment.id);
+        if (!result.success) {
+          setClock(null);
+          setClockError(result.error);
+          return;
+        }
+        setClock(result.data);
+      } catch (err) {
+        // A thrown action (not an ApiResult failure) must not leave the panel
+        // stuck loading with every control disabled.
         setClock(null);
-        setClockError(result.error);
-        return;
+        setClockError(
+          err instanceof Error ? err.message : tCommon("errorGeneric")
+        );
+      } finally {
+        setClockLoading(false);
+        if (!silent) setPendingAction(null);
       }
-      setClock(result.data);
     },
-    [environment]
+    [environment, tCommon]
   );
 
   React.useEffect(() => {
@@ -184,7 +194,9 @@ export function MockTimeLegacy({
   }
 
   const canRunOps = useProjectCan({ clock: ["control"] });
-  const anyPending = pendingAction !== null || !canRunOps;
+  // Don't act on a clock whose state we haven't seen yet.
+  const clockUnknown = clockLoading && !clock;
+  const anyPending = pendingAction !== null || !canRunOps || clockUnknown;
 
   return (
     <div className="flex flex-col gap-6">
@@ -194,7 +206,6 @@ export function MockTimeLegacy({
             clock={clock}
             clockError={clockError}
             clockLoading={clockLoading}
-            refreshing={pendingAction === "refresh"}
             disabled={anyPending}
             sticky={false}
             onRefresh={() => refreshClock(false)}
@@ -232,6 +243,7 @@ export function MockTimeLegacy({
                   : t("travel.submit")}
               </Button>
             </div>
+            <BrowserZoneHint />
           </section>
 
           <Separator />
