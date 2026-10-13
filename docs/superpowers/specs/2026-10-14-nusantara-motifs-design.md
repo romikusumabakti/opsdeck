@@ -56,8 +56,9 @@ Notes from research:
 
 - **Outside the app shell** (sign-in, setup, forgot/reset password, invite,
   error, not-found): the unauthenticated wrapper in `app/[locale]/layout.tsx`
-  renders the motif in the bottom-right corner and the same image rotated 180°
-  in the top-left. Size `min(45vw, 520px)`. Below 640px only the bottom-right
+  renders the motif in the bottom-right corner and a horizontally mirrored copy
+  in the bottom-left (mirrored, not rotated, so directional motifs stay
+  upright). Size `min(45vw, 520px)`. Below 640px only the bottom-right
   copy shows, smaller.
 - **Sidebar**: one copy in the bottom-right of `SidebarContent`, as wide as
   the sidebar, behind the menu (stacking), above the user menu. Hidden when the
