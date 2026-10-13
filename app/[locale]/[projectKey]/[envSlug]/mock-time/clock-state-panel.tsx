@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { ClockState } from "@/actions/mock-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { cn } from "@/lib/utils";
 import { LiveClock } from "./live-clock";
@@ -13,7 +14,6 @@ export function ClockStatePanel({
   clock,
   clockError,
   clockLoading,
-  refreshing,
   disabled,
   showFrozen = false,
   sticky = true,
@@ -22,7 +22,6 @@ export function ClockStatePanel({
   clock: ClockState | null;
   clockError: string | null;
   clockLoading: boolean;
-  refreshing: boolean;
   disabled: boolean;
   showFrozen?: boolean;
   sticky?: boolean;
@@ -51,17 +50,30 @@ export function ClockStatePanel({
           variant="ghost"
           size="sm"
           onClick={onRefresh}
-          disabled={disabled}
+          disabled={disabled || clockLoading}
           aria-label={t("clockState.refresh")}
         >
-          <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw className={cn("size-4", clockLoading && "animate-spin")} />
           {t("clockState.refresh")}
         </Button>
       </div>
       {clockLoading && !clock ? (
-        <p className="text-sm text-muted-foreground">
-          {t("clockState.loading")}
-        </p>
+        <div
+          role="status"
+          aria-label={t("clockState.loading")}
+          className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2"
+        >
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+          {showFrozen ? (
+            <>
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </>
+          ) : null}
+        </div>
       ) : clockError ? (
         <p className="text-sm text-destructive">
           {t("clockState.loadError")}: {clockError}
