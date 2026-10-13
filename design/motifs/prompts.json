@@ -21,7 +21,7 @@
     },
     "pucuk-rebung": {
       "template": "v2",
-      "subject": "Pucuk Rebung (Pucuak Rabuang), the Malay and Minangkabau bamboo-shoot motif from songket borders and Rumah Gadang wood carvings: tall, slender isosceles triangles like young bamboo shoots standing in a row along the bottom edge and climbing the right edge, each outlined and filled with a few nested chevrons and small curling tendrils, with small rebung shoots and curling sulur tendrils between them; the shoots get smaller and sparser toward the top-left so the ornament fades out organically — no straight diagonal cut-off edge."
+      "subject": "Pucuk Rebung (Pucuak Rabuang), the Malay and Minangkabau bamboo-shoot motif from songket borders and Rumah Gadang wood carvings: tall isosceles triangles like young bamboo shoots, each outlined and filled with a few nested chevrons and small curling tendrils, standing in rows that rise toward the bottom-right corner — largest shoots in the corner, smaller ones in front and behind — with curling sulur tendrils between them, fading out organically toward the top-left; no straight diagonal cut-off edge. Composition requirement: a solid corner piece that fills the bottom-right TRIANGLE of the canvas (dense in the corner, thinning toward the diagonal), NOT an L-shaped border running along the two edges with an empty inside corner."
     },
     "megamendung": {
       "template": "v2",
@@ -32,8 +32,8 @@
       "subject": "Batik Kawung from Yogyakarta, Java: four ellipses (stylised sugar-palm fruit) meeting at a centre point to form a four-petal cross, repeated on a square diagonal grid, with a small dot or cross in each gap"
     },
     "batang-garing": {
-      "template": "v1",
-      "subject": "Batang Garing, the tree-of-life motif of the Dayak Ngaju people of Central Kalimantan: a vertical spear-tip-shaped tree pointing upward, with paired branches curving symmetrically on both sides ending in curled tips, standing on a base with curled roots and a sacred jar (guci), surrounded by Dayak curling scroll ornament"
+      "template": "v2",
+      "subject": "Batang Garing, the tree-of-life motif of the Dayak Ngaju people of Central Kalimantan: a vertical spear-tip-shaped tree pointing upward near the right edge, with paired branches curving symmetrically on both sides ending in curled tips, standing on curled roots and a sacred jar (guci) at the bottom, surrounded by Dayak curling scroll ornament (kalung paku fern curls) spreading along the bottom toward the left — everything drawn as OUTLINES with open interiors (double-line strokes), not filled silhouettes. Composition requirement: a solid corner piece that fills the bottom-right TRIANGLE of the canvas (dense in the corner, thinning toward the diagonal), NOT an L-shaped border running along the two edges with an empty inside corner."
     },
     "patra-punggel": {
       "template": "v2",
@@ -53,7 +53,7 @@
     },
     "ukiran-asmat": {
       "template": "v2",
-      "subject": "Asmat wood carving from southern Papua as on Asmat shields (jamasj), bis poles and canoe prows: a carved relief panel rising along the right edge and a carved band along the bottom, made of the characteristic Asmat forms — the praying mantis (wenet) as angular, bent, hooked limbs; hornbill heads with long curved beaks; the bipane (double-curved shell nose ornament) as mirrored back-to-back C-curves; flying-fox wing shapes — drawn as outlined relief shapes with open interiors and carved grooves, filling the corner evenly. NOT Maori koru, NOT tribal tattoo, NOT Celtic, NOT Pacific Northwest totem."
+      "subject": "Asmat wood carving from southern Papua as on Asmat shields (jamasj) and canoe prows: a carved relief corner piece built from the characteristic Asmat forms — the praying mantis (wenet) as angular, bent, hooked limbs; hornbill heads with long curved beaks; the bipane (double-curved shell nose ornament) as mirrored back-to-back C-curves; flying-fox wing shapes — interlocking and filling the corner, drawn as outlined relief shapes with open interiors and carved grooves. NOT Maori koru, NOT tribal tattoo, NOT Celtic, NOT Pacific Northwest totem. Composition requirement: a solid corner piece that fills the bottom-right TRIANGLE of the canvas (dense in the corner, thinning toward the diagonal), NOT an L-shaped border running along the two edges with an empty inside corner."
     }
   }
 }
