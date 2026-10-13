@@ -447,7 +447,15 @@
       "no": "No",
       "refresh": "Actualizar",
       "loading": "Cargando el estado del reloj…",
-      "loadError": "No se pudo cargar el estado del reloj"
+      "loadError": "No se pudo cargar el estado del reloj",
+      "offset": "Desfase",
+      "ahead": "{duration} adelantado",
+      "behind": "{duration} atrasado",
+      "inSync": "Sincronizado con la hora real"
+    },
+    "target": {
+      "title": "Fecha y hora objetivo",
+      "description": "Viajar salta allí y el reloj sigue corriendo. Congelar lo detiene allí."
     },
     "travel": {
       "title": "Viajar",
@@ -462,8 +470,8 @@
     },
     "freeze": {
       "title": "Congelar",
-      "description": "Detén el reloj. Elige un momento en el que congelarlo o congélalo donde está ahora.",
-      "submitAt": "Congelar en el seleccionado",
+      "description": "Detén el reloj donde está ahora mismo.",
+      "submitAt": "Congelar",
       "submitNow": "Congelar en la hora actual",
       "submitting": "Congelando…",
       "confirmAt": "¿Congelar el reloj en {dateTime}?",
@@ -474,11 +482,10 @@
     },
     "advance": {
       "title": "Avanzar",
-      "description": "Desplaza el reloj congelado hacia delante (o hacia atrás con una duración negativa). Solo disponible mientras está congelado.",
+      "description": "Desplaza el reloj congelado hacia delante o hacia atrás. Solo disponible mientras está congelado.",
       "descriptionLegacy": "Desplaza el reloj del servidor backend hacia delante (o hacia atrás) respecto a su hora actual. Reinicia el backend.",
       "amountLabel": "Cantidad",
       "unitLabel": "Unidad",
-      "directionLabel": "Dirección",
       "forward": "Hacia delante",
       "backward": "Hacia atrás",
       "submit": "Avanzar",
@@ -497,8 +504,6 @@
     },
     "reset": {
       "title": "Restablecer",
-      "description": "Descarta la simulación y descongela. El reloj volverá a la hora real.",
-      "descriptionLegacy": "Reactiva NTP en el servidor backend, fuerza una sincronización inmediata del reloj y reinicia el servicio backend.",
       "submit": "Restablecer a la hora real",
       "submitting": "Restableciendo…",
       "confirm": "¿Restablecer el reloj a la hora real? Esto borra cualquier simulación y descongela el reloj.",

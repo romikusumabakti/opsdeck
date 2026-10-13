@@ -447,7 +447,15 @@
       "no": "Tidak",
       "refresh": "Muat ulang",
       "loading": "Memuat status clock…",
-      "loadError": "Gagal memuat status clock"
+      "loadError": "Gagal memuat status clock",
+      "offset": "Selisih",
+      "ahead": "{duration} lebih maju",
+      "behind": "{duration} lebih mundur",
+      "inSync": "Sama dengan waktu nyata"
+    },
+    "target": {
+      "title": "Tanggal & waktu target",
+      "description": "Travel melompat ke sana dan clock tetap berjalan. Bekukan menghentikan clock di sana."
     },
     "travel": {
       "title": "Travel",
@@ -462,8 +470,8 @@
     },
     "freeze": {
       "title": "Bekukan",
-      "description": "Hentikan clock. Pilih target untuk membekukan di titik itu, atau bekukan di waktu sekarang.",
-      "submitAt": "Bekukan di titik yang dipilih",
+      "description": "Hentikan clock di waktunya saat ini.",
+      "submitAt": "Bekukan",
       "submitNow": "Bekukan di waktu sekarang",
       "submitting": "Membekukan…",
       "confirmAt": "Bekukan clock di {dateTime}?",
@@ -474,11 +482,10 @@
     },
     "advance": {
       "title": "Advance",
-      "description": "Geser clock yang sedang dibekukan maju (atau mundur dengan durasi negatif). Hanya tersedia saat dibekukan.",
+      "description": "Geser clock yang sedang dibekukan maju atau mundur. Hanya tersedia saat dibekukan.",
       "descriptionLegacy": "Geser jam server backend maju (atau mundur) relatif terhadap waktu saat ini. Akan me-restart backend.",
       "amountLabel": "Jumlah",
       "unitLabel": "Satuan",
-      "directionLabel": "Arah",
       "forward": "Maju",
       "backward": "Mundur",
       "submit": "Advance",
@@ -497,8 +504,6 @@
     },
     "reset": {
       "title": "Reset",
-      "description": "Buang mock dan unfreeze. Clock kembali ke waktu real.",
-      "descriptionLegacy": "Aktifkan kembali NTP di server backend, paksa sync jam, dan restart service backend.",
       "submit": "Reset ke waktu real",
       "submitting": "Mereset…",
       "confirm": "Reset clock ke waktu real? Ini akan menghapus mock dan unfreeze.",
