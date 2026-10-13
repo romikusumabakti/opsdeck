@@ -116,12 +116,15 @@ const adminItems: {
 ];
 
 /**
- * The motif in the bottom corner of the menu area. It sits behind the menu
+ * The motif in the bottom corner of the sidebar. The sidebar sits at the
+ * screen's start edge, so the ornament hugs the bottom-start corner, which is
+ * the screen corner. The art's own corner is bottom-right, so it is mirrored in
+ * LTR; in RTL the sidebar is on the right and the art needs no mirroring. It
+ * reaches the very bottom, behind the user menu, and sits behind the menu items
  * (-z-10 inside an isolated wrapper; a positioned layer would otherwise paint
- * over the items), mirrors in RTL where the sidebar is on the right, and is
- * hidden when the sidebar collapses to icons. It has the same scale as on the
- * sign-in page; the wrapper clips it (overflow-hidden) to the sidebar, so only
- * the ornament's corner shows and it never spills above the menu.
+ * over them). It is hidden when the sidebar collapses to icons. It has the same
+ * size as on the sign-in page (MotifWatermark owns it); the wrapper clips it
+ * (overflow-hidden) to the sidebar.
  */
 function SidebarMotif() {
   const { motif } = useMotif();
@@ -129,7 +132,7 @@ function SidebarMotif() {
   return (
     <MotifWatermark
       slug={motif}
-      className="absolute bottom-0 end-0 -z-10 rtl:-scale-x-100 group-data-[collapsible=icon]:hidden"
+      className="absolute bottom-0 start-0 -z-10 -scale-x-100 rtl:scale-x-100 group-data-[collapsible=icon]:hidden"
     />
   );
 }
@@ -384,15 +387,14 @@ export function AppSidebar({
             </SidebarGroup>
           )}
         </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <UserMenu user={user} variant="sidebar" />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </div>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <UserMenu user={user} variant="sidebar" />
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 }

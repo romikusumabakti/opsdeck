@@ -62,9 +62,9 @@ Notes from research:
   from 640px up. The height cap keeps short viewports from filling with
   ornament.
 - **Sidebar**: one copy at the same size as the sign-in ornament (the component
-  owns its size), anchored bottom-end and clipped to the sidebar, behind the
-  menu (stacking), above the user menu. Hidden when the sidebar collapses to
-  icons.
+  owns its size), anchored to the bottom-start corner (the screen edge,
+  mirrored as needed), reaching the bottom behind the user menu, clipped to the
+  sidebar, behind the menu items. Hidden when the sidebar collapses to icons.
 
 ### Colour
 
