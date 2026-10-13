@@ -18,8 +18,8 @@ export const ALLOWED_EMAIL_DOMAIN =
   process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "example.com";
 
 /**
- * Brands a deployment can choose from. A brand is a logo (lib/brand-logos.ts)
- * plus a colour theme (the `[data-brand]` token blocks in app/globals.css).
+ * Brands a deployment can choose from. A brand is a logo shape
+ * (lib/brand-logos.ts) and a default accent colour (lib/accents.ts).
  */
 export const BRANDS = ["default", "dss"] as const;
 export type BrandName = (typeof BRANDS)[number];

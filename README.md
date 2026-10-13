@@ -66,18 +66,24 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 > - `BETTER_AUTH_URL` must be the exact origin users visit. Passkeys are bound to it, and the terminal rejects WebSocket upgrades from any other origin.
 > - `NEXT_PUBLIC_*` branding variables are baked in at build time, so changing them means rebuilding the image.
 
-### Brand
+### Brand and accent colour
 
-`BRAND` picks the deployment's brand, which is its logo and colour theme: `default` (neutral grey, a plain grid logo) or `dss` (DSS Consulting navy). The server reads it at runtime, so switching brands takes a `docker compose up -d app`, not a rebuild.
+`BRAND` picks the deployment's brand: its logo shape and the default accent colour. It can be `default` (a plain grid logo, neutral accent) or `dss` (the DSS Panel "D" logo, blue accent). The server reads it at runtime, so switching brands takes a `docker compose up -d app`, not a rebuild.
 
-Logos are code, not image files, so that they can take the theme's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. The favicon at `/brand/icon.svg` is drawn from the same definition and follows the browser's light or dark scheme.
+Each user can pick their own accent colour from the user menu (**Accent color**) or the command palette. The choices are `neutral` plus shadcn/ui's seven colour themes: blue, green, orange, red, rose, violet and yellow. The choice is stored on the user's account (`users.accent_color`), so it follows them across devices; until they pick one, they get the brand's default. The root layout sets `data-accent` on `<html>`.
 
-The theme is the stock shadcn/ui token set in `app/globals.css`. A brand overrides those tokens in a `[data-brand="…"]` block for light mode and a `.dark[data-brand="…"]` block for dark mode; the root layout sets `data-brand` on `<html>`. Components never name brand colours directly. `tests/brand-theme.test.ts` checks that every brand's text and background pairs meet WCAG AA contrast.
+The theme is the stock shadcn/ui token set in `app/globals.css`. Each accent binds its Tailwind palette steps to `--tint-*` variables, and two role blocks map those onto the shadcn tokens:
+- light mode uses step 900 for buttons and step 100 for the active sidebar item;
+- dark mode uses step 300 for buttons and step 950 for the active sidebar item;
+- the focus ring uses step 500 in light mode and 400 in dark mode, or a darker step where 500 falls below 3:1 (green and orange use 600, yellow 700).
+
+Neutral greys, status colours and charts are never tinted. Components never name accent colours directly. `tests/accent-theme.test.ts` checks that every accent keeps text at WCAG AA (4.5:1) and its focus ring at 3:1 in both modes.
+
+Logos are code, not image files, so that they can take the accent's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. The favicon at `/brand/icon.svg?accent=…` is drawn from the same shape in the user's accent, and follows the browser's light or dark scheme. Its colours live in `lib/accent-palette.ts`, which `tests/accent-palette.test.ts` pins to Tailwind's palette.
 
 To add a brand:
-1. Add its name to `BRANDS` in `lib/branding.ts`.
-2. Give it a logo entry in `lib/brand-logos.ts`, with tile geometry, Tailwind fill classes and favicon colours.
-3. Give it light and dark token blocks in `app/globals.css`.
+1. Add its name to `BRANDS` in `lib/branding.ts` and its default accent to `BRAND_DEFAULT_ACCENT` in `lib/accents.ts`.
+2. Give it a logo shape in `lib/brand-logos.ts`.
 
 ## Running with Docker Compose
 
