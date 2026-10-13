@@ -26,6 +26,7 @@ import { HeaderBreadcrumb } from "@/components/header-breadcrumb";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { MotifInfoPopover } from "@/components/motif-info";
+import { MotifProvider } from "@/components/motif-provider";
 import { MotifWatermark } from "@/components/motif-watermark";
 import { NavigationGuardProvider } from "@/components/navigation-guard";
 import { NotificationBell } from "@/components/notification-bell";
@@ -45,7 +46,7 @@ import { brandIconSrc, effectiveAccent } from "@/lib/accents";
 import { getServerSession } from "@/lib/auth-session";
 import { getProjectAccess } from "@/lib/authz";
 import { brand } from "@/lib/branding";
-import { dailyMotif } from "@/lib/motifs";
+import { dailyMotif, effectiveMotifPreference } from "@/lib/motifs";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus } from "@/lib/user-display";
@@ -179,83 +180,89 @@ export default async function LocaleLayout({
                   // One run stream for the whole shell — the header indicator
                   // and the sidebar History badge both read it.
                   <AccentProvider initial={accent}>
-                    <ActiveRunsProvider>
-                      <SidebarProvider defaultOpen={sidebarDefaultOpen}>
-                        <a
-                          href="#main-content"
-                          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                        >
-                          {tHeader("skipToContent")}
-                        </a>
-                        <AppSidebar
-                          environments={environments}
-                          orgRole={orgRole}
-                          projectRoles={projectRoles}
-                          issueCounts={issueCounts}
-                          logo={currentBrand}
-                          side={rtl ? "right" : "left"}
-                          user={{
-                            id: session.user.id,
-                            name: session.user.name,
-                            email: session.user.email,
-                            image: session.user.image ?? null,
-                            status: (() => {
-                              const s = activeStatus(session.user);
-                              return (
-                                s && {
-                                  ...s,
-                                  expiresAt: s.expiresAt?.toISOString() ?? null,
-                                }
-                              );
-                            })(),
-                            timeZone: effectiveTimeZone(session.user),
-                          }}
-                        />
-                        <SidebarInset className="min-w-0">
-                          <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
-                            <SidebarTrigger className="-ms-1" />
-                            <HeaderBreadcrumb
-                              environments={environments}
-                              projects={navProjects}
-                              orgRole={orgRole}
-                              projectRoles={projectRoles}
-                            />
-                            <div className="ms-auto flex shrink-0 items-center gap-2">
-                              <ActiveRunsIndicator />
-                              <div className="hidden md:flex items-center gap-2 pe-1">
-                                <ServerTime timeZone={APP_TIMEZONE} />
-                              </div>
-                              <NotificationBell
-                                initialNotifications={notifications}
-                                initialUnread={unreadCount}
-                              />
-                              <CommandPalette
+                    <MotifProvider
+                      initial={effectiveMotifPreference(session.user)}
+                      today={todayMotif}
+                    >
+                      <ActiveRunsProvider>
+                        <SidebarProvider defaultOpen={sidebarDefaultOpen}>
+                          <a
+                            href="#main-content"
+                            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            {tHeader("skipToContent")}
+                          </a>
+                          <AppSidebar
+                            environments={environments}
+                            orgRole={orgRole}
+                            projectRoles={projectRoles}
+                            issueCounts={issueCounts}
+                            logo={currentBrand}
+                            side={rtl ? "right" : "left"}
+                            user={{
+                              id: session.user.id,
+                              name: session.user.name,
+                              email: session.user.email,
+                              image: session.user.image ?? null,
+                              status: (() => {
+                                const s = activeStatus(session.user);
+                                return (
+                                  s && {
+                                    ...s,
+                                    expiresAt:
+                                      s.expiresAt?.toISOString() ?? null,
+                                  }
+                                );
+                              })(),
+                              timeZone: effectiveTimeZone(session.user),
+                            }}
+                          />
+                          <SidebarInset className="min-w-0">
+                            <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
+                              <SidebarTrigger className="-ms-1" />
+                              <HeaderBreadcrumb
                                 environments={environments}
                                 projects={navProjects}
                                 orgRole={orgRole}
                                 projectRoles={projectRoles}
                               />
-                            </div>
-                          </header>
-                          {/* `main`, not the document, is the scroller. On navigation
+                              <div className="ms-auto flex shrink-0 items-center gap-2">
+                                <ActiveRunsIndicator />
+                                <div className="hidden md:flex items-center gap-2 pe-1">
+                                  <ServerTime timeZone={APP_TIMEZONE} />
+                                </div>
+                                <NotificationBell
+                                  initialNotifications={notifications}
+                                  initialUnread={unreadCount}
+                                />
+                                <CommandPalette
+                                  environments={environments}
+                                  projects={navProjects}
+                                  orgRole={orgRole}
+                                  projectRoles={projectRoles}
+                                />
+                              </div>
+                            </header>
+                            {/* `main`, not the document, is the scroller. On navigation
                             Next scrolls the new page into view with
                             scrollIntoView(), which aligns to the scrollport edge;
                             scroll-pt-6 matches py-6 so the top padding survives. */}
-                          <main
-                            id="main-content"
-                            tabIndex={-1}
-                            data-scroll-shadow
-                            className="flex-1 min-h-0 overflow-y-auto scroll-pt-6 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
-                          >
-                            {!session.user.timezone && (
-                              <TimezoneHint appTimeZone={APP_TIMEZONE} />
-                            )}
-                            {children}
-                          </main>
-                        </SidebarInset>
-                        <KeyboardShortcuts />
-                      </SidebarProvider>
-                    </ActiveRunsProvider>
+                            <main
+                              id="main-content"
+                              tabIndex={-1}
+                              data-scroll-shadow
+                              className="flex-1 min-h-0 overflow-y-auto scroll-pt-6 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
+                            >
+                              {!session.user.timezone && (
+                                <TimezoneHint appTimeZone={APP_TIMEZONE} />
+                              )}
+                              {children}
+                            </main>
+                          </SidebarInset>
+                          <KeyboardShortcuts />
+                        </SidebarProvider>
+                      </ActiveRunsProvider>
+                    </MotifProvider>
                   </AccentProvider>
                 ) : (
                   <div className="relative isolate flex flex-col min-h-dvh overflow-hidden bg-muted dark:bg-background">

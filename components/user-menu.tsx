@@ -3,10 +3,12 @@
 import {
   ChevronsUpDown,
   IdCard,
+  Info,
   Languages,
   LogOut,
   Monitor,
   Moon,
+  Shapes,
   Smile,
   Sun,
   UserRound,
@@ -17,6 +19,8 @@ import * as React from "react";
 import { useTransition } from "react";
 import { AccentDot } from "@/components/accent-dot";
 import { useAccent } from "@/components/accent-provider";
+import { MotifInfoDialog } from "@/components/motif-info";
+import { useMotif } from "@/components/motif-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,6 +43,7 @@ import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ACCENTS, type AccentColor } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
+import { getMotif, MOTIFS, type MotifPreference } from "@/lib/motifs";
 
 export type UserSummary = {
   id: string;
@@ -70,12 +75,21 @@ export function UserMenu({
   const tTheme = useTranslations("themeSwitcher");
   const tAccent = useTranslations("accentSwitcher");
   const { accent, setAccent } = useAccent();
+  const tMotif = useTranslations("motifs");
+  const { preference, motif, today, setPreference } = useMotif();
+  const [aboutMotif, setAboutMotif] = React.useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const currentLocale = useLocale() as Locale;
   const { theme = "system", setTheme } = useTheme();
   const [pending, startTransition] = useTransition();
   const [statusOpen, setStatusOpen] = React.useState(false);
+
+  function motifLabel(p: MotifPreference): string {
+    if (p === "daily") return tMotif("daily");
+    if (p === "none") return tMotif("none");
+    return getMotif(p).name;
+  }
 
   async function onSignOut() {
     await authClient.signOut();
@@ -207,6 +221,49 @@ export function UserMenu({
             </DropdownMenuPortal>
           </DropdownMenuSub>
           <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Shapes />
+              {tMotif("label")}
+              <CurrentValue>{motifLabel(preference)}</CurrentValue>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="max-h-[min(70vh,34rem)] overflow-y-auto">
+                {motif ? (
+                  <>
+                    <DropdownMenuItem onClick={() => setAboutMotif(true)}>
+                      <Info />
+                      {tMotif("about", { name: getMotif(motif).name })}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                <DropdownMenuRadioGroup
+                  value={preference}
+                  onValueChange={(v) => setPreference(v as MotifPreference)}
+                >
+                  <DropdownMenuRadioItem value="daily">
+                    <MotifOption
+                      label={tMotif("daily")}
+                      hint={getMotif(today).name}
+                    />
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="none">
+                    {tMotif("none")}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuSeparator />
+                  {MOTIFS.map((m) => (
+                    <DropdownMenuRadioItem key={m.slug} value={m.slug}>
+                      <MotifOption
+                        label={m.name}
+                        hint={tMotif(`items.${m.slug}.region`)}
+                      />
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
             <DropdownMenuSubTrigger disabled={pending}>
               <Languages />
               {t("language")}
@@ -241,6 +298,13 @@ export function UserMenu({
         current={user.status}
         timeZone={user.timeZone}
       />
+      {motif ? (
+        <MotifInfoDialog
+          slug={motif}
+          open={aboutMotif}
+          onOpenChange={setAboutMotif}
+        />
+      ) : null}
     </>
   );
 }
@@ -252,6 +316,16 @@ function CurrentValue({ children }: { children: React.ReactNode }) {
   return (
     <span className="flex-1 truncate text-end text-xs text-muted-foreground">
       {children}
+    </span>
+  );
+}
+
+/** A two-line radio label: the option and a muted hint under it. */
+function MotifOption({ label, hint }: { label: string; hint: string }) {
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="truncate">{label}</span>
+      <span className="truncate text-xs text-muted-foreground">{hint}</span>
     </span>
   );
 }

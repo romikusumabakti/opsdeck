@@ -2,8 +2,10 @@
 
 import {
   Activity,
+  Ban,
   BookOpen,
   Cable,
+  CalendarDays,
   CircleDot,
   Folder,
   FolderKanban,
@@ -15,6 +17,7 @@ import {
   Plus,
   Search,
   Server,
+  Shapes,
   Sun,
   UserRound,
   Users,
@@ -25,6 +28,7 @@ import { useTheme } from "next-themes";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { AccentDot } from "@/components/accent-dot";
 import { useAccent } from "@/components/accent-provider";
+import { useMotif } from "@/components/motif-provider";
 import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +47,7 @@ import { routing } from "@/i18n/routing";
 import { ACCENTS } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
 import type { EnvironmentListItem } from "@/lib/db/schema";
+import { MOTIFS } from "@/lib/motifs";
 import {
   groupEnvironmentsByProject,
   type NavProject,
@@ -75,6 +80,8 @@ export function CommandPalette({
   const tTheme = useTranslations("themeSwitcher");
   const tAccent = useTranslations("accentSwitcher");
   const { setAccent } = useAccent();
+  const tMotif = useTranslations("motifs");
+  const { setPreference } = useMotif();
   const tHeader = useTranslations("header");
   const modKey = useModKey();
   const { setTheme } = useTheme();
@@ -353,6 +360,37 @@ export function CommandPalette({
               >
                 <AccentDot accent={a} />
                 {tAccent(a)}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+
+          <CommandSeparator />
+          <CommandGroup heading={tMotif("label")}>
+            <CommandItem
+              value="motif daily"
+              onSelect={() => run(() => setPreference("daily"))}
+            >
+              <CalendarDays />
+              {tMotif("daily")}
+            </CommandItem>
+            <CommandItem
+              value="motif none"
+              onSelect={() => run(() => setPreference("none"))}
+            >
+              <Ban />
+              {tMotif("none")}
+            </CommandItem>
+            {MOTIFS.map((m) => (
+              <CommandItem
+                key={m.slug}
+                value={`motif ${m.name} ${tMotif(`items.${m.slug}.region`)}`}
+                onSelect={() => run(() => setPreference(m.slug))}
+              >
+                <Shapes />
+                {m.name}
+                <span className="ms-auto text-xs text-muted-foreground">
+                  {tMotif(`items.${m.slug}.region`)}
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>
