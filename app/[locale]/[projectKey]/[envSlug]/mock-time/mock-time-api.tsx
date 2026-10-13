@@ -50,15 +50,19 @@ export function MockTimeApi({
   const [clockError, setClockError] = React.useState<string | null>(null);
   const [clockLoading, setClockLoading] = React.useState(true);
   const [pendingAction, setPendingAction] = React.useState<
-    null | "travel" | "freezeAt" | "freezeNow" | "advance" | "reset" | "refresh"
+    | null
+    | "travel"
+    | "freezeAt"
+    | "freezeNow"
+    | `advance:${AdvanceDirection}`
+    | "reset"
+    | "refresh"
   >(null);
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   const [advanceAmount, setAdvanceAmount] = React.useState<string>("1");
   const [advanceUnit, setAdvanceUnit] = React.useState<AdvanceUnit>("hours");
-  const [advanceDirection, setAdvanceDirection] =
-    React.useState<AdvanceDirection>("forward");
 
   const combined = React.useMemo(() => {
     const next = new Date(date ?? new Date());
@@ -184,7 +188,7 @@ export function MockTimeApi({
     }
   }
 
-  async function onAdvance() {
+  async function onAdvance(direction: AdvanceDirection) {
     const amount = Number(advanceAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error(t("failureTitle"), {
@@ -192,9 +196,9 @@ export function MockTimeApi({
       });
       return;
     }
-    setPendingAction("advance");
+    setPendingAction(`advance:${direction}`);
     try {
-      const duration = buildDuration(amount, advanceUnit, advanceDirection);
+      const duration = buildDuration(amount, advanceUnit, direction);
       const result = await advanceClock(environment.id, duration);
       if (!result.success) {
         toast.error(t("failureTitle"), { description: result.error });
@@ -243,6 +247,12 @@ export function MockTimeApi({
   const anyPending = pendingAction !== null || !canRunOps || clockUnknown;
   const isFrozen = clock?.frozen === true;
   const isMocked = clock?.mocked === true;
+  const advancing =
+    pendingAction === "advance:forward"
+      ? "forward"
+      : pendingAction === "advance:backward"
+        ? "backward"
+        : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -254,14 +264,29 @@ export function MockTimeApi({
           disabled={anyPending}
           showFrozen
           onRefresh={() => refreshClock(false)}
-        />
+        >
+          {isMocked || isFrozen ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="self-start"
+              onClick={onReset}
+              disabled={anyPending}
+            >
+              <RotateCcw className="size-4" />
+              {pendingAction === "reset"
+                ? t("reset.submitting")
+                : t("reset.submit")}
+            </Button>
+          ) : null}
+        </ClockStatePanel>
 
         <div className="flex flex-col gap-6">
           <section className="flex flex-col gap-3">
             <header className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">{t("travel.title")}</h3>
+              <h3 className="text-sm font-medium">{t("target.title")}</h3>
               <p className="text-xs text-muted-foreground">
-                {t("travel.description")}
+                {t("target.description")}
               </p>
             </header>
             <div className="flex flex-row items-end gap-2 flex-wrap">
@@ -276,12 +301,24 @@ export function MockTimeApi({
                 }}
                 idPrefix="mock-time-api"
               />
-              <Button onClick={onTravel} disabled={anyPending}>
-                <Clock className="size-4" />
-                {pendingAction === "travel"
-                  ? t("travel.submitting")
-                  : t("travel.submit")}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={onTravel} disabled={anyPending}>
+                  <Clock className="size-4" />
+                  {pendingAction === "travel"
+                    ? t("travel.submitting")
+                    : t("travel.submit")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onFreezeAt}
+                  disabled={anyPending}
+                >
+                  <Snowflake className="size-4" />
+                  {pendingAction === "freezeAt"
+                    ? t("freeze.submitting")
+                    : t("freeze.submitAt")}
+                </Button>
+              </div>
             </div>
             <BrowserZoneHint />
           </section>
@@ -312,17 +349,7 @@ export function MockTimeApi({
                     {t("freeze.description")}
                   </p>
                 </header>
-                <div className="flex flex-row gap-2 flex-wrap">
-                  <Button
-                    variant="outline"
-                    onClick={onFreezeAt}
-                    disabled={anyPending}
-                  >
-                    <Snowflake className="size-4" />
-                    {pendingAction === "freezeAt"
-                      ? t("freeze.submitting")
-                      : t("freeze.submitAt")}
-                  </Button>
+                <div>
                   <Button
                     variant="outline"
                     onClick={onFreezeNow}
@@ -354,40 +381,15 @@ export function MockTimeApi({
                   idPrefix="api"
                   amount={advanceAmount}
                   unit={advanceUnit}
-                  direction={advanceDirection}
                   disabled={!isFrozen || anyPending}
-                  submitting={pendingAction === "advance"}
+                  submitting={advancing}
                   onAmountChange={setAdvanceAmount}
                   onUnitChange={setAdvanceUnit}
-                  onDirectionChange={setAdvanceDirection}
                   onSubmit={onAdvance}
                 />
               </section>
-
-              <Separator />
             </>
           )}
-
-          <section className="flex flex-col gap-3">
-            <header className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">{t("reset.title")}</h3>
-              <p className="text-xs text-muted-foreground">
-                {t("reset.description")}
-              </p>
-            </header>
-            <div>
-              <Button
-                variant="destructive"
-                onClick={onReset}
-                disabled={anyPending || (!isMocked && !isFrozen)}
-              >
-                <RotateCcw className="size-4" />
-                {pendingAction === "reset"
-                  ? t("reset.submitting")
-                  : t("reset.submit")}
-              </Button>
-            </div>
-          </section>
         </div>
       </div>
     </div>

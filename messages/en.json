@@ -447,7 +447,15 @@
       "no": "No",
       "refresh": "Refresh",
       "loading": "Loading clock state…",
-      "loadError": "Failed to load clock state"
+      "loadError": "Failed to load clock state",
+      "offset": "Offset",
+      "ahead": "{duration} ahead",
+      "behind": "{duration} behind",
+      "inSync": "In sync with real time"
+    },
+    "target": {
+      "title": "Target date & time",
+      "description": "Travel jumps there and keeps the clock running. Freeze stops it there."
     },
     "travel": {
       "title": "Travel",
@@ -462,8 +470,8 @@
     },
     "freeze": {
       "title": "Freeze",
-      "description": "Stop the clock. Pick a target to freeze it at, or freeze it where it is now.",
-      "submitAt": "Freeze at selected",
+      "description": "Stop the clock where it is right now.",
+      "submitAt": "Freeze",
       "submitNow": "Freeze at current time",
       "submitting": "Freezing…",
       "confirmAt": "Freeze the clock at {dateTime}?",
@@ -474,11 +482,10 @@
     },
     "advance": {
       "title": "Advance",
-      "description": "Shift the frozen clock forward (or backward with a negative duration). Only available while frozen.",
+      "description": "Shift the frozen clock forward or backward. Only available while frozen.",
       "descriptionLegacy": "Shift the backend server clock forward (or backward) relative to its current time. Restarts the backend.",
       "amountLabel": "Amount",
       "unitLabel": "Unit",
-      "directionLabel": "Direction",
       "forward": "Forward",
       "backward": "Backward",
       "submit": "Advance",
@@ -497,8 +504,6 @@
     },
     "reset": {
       "title": "Reset",
-      "description": "Drop the mock and unfreeze. The clock will return to real wall-clock time.",
-      "descriptionLegacy": "Re-enable NTP on the backend server, force an immediate clock sync, and restart the backend service.",
       "submit": "Reset to real time",
       "submitting": "Resetting…",
       "confirm": "Reset the clock back to real time? This clears any mock and unfreezes.",

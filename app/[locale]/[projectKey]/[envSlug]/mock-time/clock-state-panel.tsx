@@ -2,13 +2,14 @@
 
 import { Clock, RefreshCw } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import type * as React from "react";
 import type { ClockState } from "@/actions/mock-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { cn } from "@/lib/utils";
-import { LiveClock } from "./live-clock";
+import { ClockOffset, LiveClock } from "./live-clock";
 
 export function ClockStatePanel({
   clock,
@@ -18,6 +19,7 @@ export function ClockStatePanel({
   showFrozen = false,
   sticky = true,
   onRefresh,
+  children,
 }: {
   clock: ClockState | null;
   clockError: string | null;
@@ -26,6 +28,8 @@ export function ClockStatePanel({
   showFrozen?: boolean;
   sticky?: boolean;
   onRefresh: () => void;
+  /** Actions rendered below the state, e.g. reset. */
+  children?: React.ReactNode;
 }) {
   const t = useTranslations("mockTime");
   const locale = useLocale();
@@ -106,8 +110,23 @@ export function ClockStatePanel({
               </dd>
             </>
           ) : null}
+          {isMocked ? (
+            <>
+              <dt className="text-muted-foreground">
+                {t("clockState.offset")}
+              </dt>
+              <dd className="tabular-nums">
+                <ClockOffset
+                  now={clock.now}
+                  frozen={clock.frozen}
+                  dateFnsLocale={dateFnsLocale}
+                />
+              </dd>
+            </>
+          ) : null}
         </dl>
       ) : null}
+      {children}
     </section>
   );
 }

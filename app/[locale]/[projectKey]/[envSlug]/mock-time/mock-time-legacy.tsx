@@ -51,7 +51,7 @@ export function MockTimeLegacy({
   const [clockLoading, setClockLoading] = React.useState(true);
 
   const [pendingAction, setPendingAction] = React.useState<
-    null | "travel" | "advance" | "reset" | "refresh"
+    null | "travel" | `advance:${AdvanceDirection}` | "reset" | "refresh"
   >(null);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [activeTaskLabel, setActiveTaskLabel] = React.useState<string>("");
@@ -60,8 +60,6 @@ export function MockTimeLegacy({
 
   const [advanceAmount, setAdvanceAmount] = React.useState<string>("1");
   const [advanceUnit, setAdvanceUnit] = React.useState<AdvanceUnit>("hours");
-  const [advanceDirection, setAdvanceDirection] =
-    React.useState<AdvanceDirection>("forward");
 
   const combined = React.useMemo(() => {
     const next = new Date(date ?? new Date());
@@ -135,7 +133,7 @@ export function MockTimeLegacy({
     }
   }
 
-  async function onAdvance() {
+  async function onAdvance(direction: AdvanceDirection) {
     const amount = Number(advanceAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error(t("failureTitle"), {
@@ -143,7 +141,7 @@ export function MockTimeLegacy({
       });
       return;
     }
-    const duration = buildDuration(amount, advanceUnit, advanceDirection);
+    const duration = buildDuration(amount, advanceUnit, direction);
     const ok = await dialog.confirm({
       title: t("advance.title"),
       description: t("advance.confirmLegacy", { duration }),
@@ -151,7 +149,7 @@ export function MockTimeLegacy({
       cancelText: tCommon("cancel"),
     });
     if (!ok) return;
-    setPendingAction("advance");
+    setPendingAction(`advance:${direction}`);
     try {
       const result = await advanceClockLegacy(environment.id, duration);
       if (!result.success) {
@@ -197,6 +195,12 @@ export function MockTimeLegacy({
   // Don't act on a clock whose state we haven't seen yet.
   const clockUnknown = clockLoading && !clock;
   const anyPending = pendingAction !== null || !canRunOps || clockUnknown;
+  const advancing =
+    pendingAction === "advance:forward"
+      ? "forward"
+      : pendingAction === "advance:backward"
+        ? "backward"
+        : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -209,7 +213,20 @@ export function MockTimeLegacy({
             disabled={anyPending}
             sticky={false}
             onRefresh={() => refreshClock(false)}
-          />
+          >
+            <Button
+              variant="destructive"
+              size="sm"
+              className="self-start"
+              onClick={onReset}
+              disabled={anyPending}
+            >
+              <RotateCcw className="size-4" />
+              {pendingAction === "reset"
+                ? t("reset.submitting")
+                : t("reset.submit")}
+            </Button>
+          </ClockStatePanel>
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <Info className="size-4 shrink-0 mt-0.5" />
             <p>{t("legacyWarning")}</p>
@@ -264,52 +281,25 @@ export function MockTimeLegacy({
           </button>
 
           {advancedOpen && (
-            <>
-              <section className="flex flex-col gap-3">
-                <header className="flex flex-col gap-1">
-                  <h3 className="text-sm font-medium">{t("advance.title")}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {t("advance.descriptionLegacy")}
-                  </p>
-                </header>
-                <AdvanceFields
-                  idPrefix="legacy"
-                  amount={advanceAmount}
-                  unit={advanceUnit}
-                  direction={advanceDirection}
-                  disabled={anyPending}
-                  submitting={pendingAction === "advance"}
-                  onAmountChange={setAdvanceAmount}
-                  onUnitChange={setAdvanceUnit}
-                  onDirectionChange={setAdvanceDirection}
-                  onSubmit={onAdvance}
-                />
-              </section>
-
-              <Separator />
-            </>
-          )}
-
-          <section className="flex flex-col gap-3">
-            <header className="flex flex-col gap-1">
-              <h3 className="text-sm font-medium">{t("reset.title")}</h3>
-              <p className="text-xs text-muted-foreground">
-                {t("reset.descriptionLegacy")}
-              </p>
-            </header>
-            <div>
-              <Button
-                onClick={onReset}
+            <section className="flex flex-col gap-3">
+              <header className="flex flex-col gap-1">
+                <h3 className="text-sm font-medium">{t("advance.title")}</h3>
+                <p className="text-xs text-muted-foreground">
+                  {t("advance.descriptionLegacy")}
+                </p>
+              </header>
+              <AdvanceFields
+                idPrefix="legacy"
+                amount={advanceAmount}
+                unit={advanceUnit}
                 disabled={anyPending}
-                variant="destructive"
-              >
-                <RotateCcw className="size-4" />
-                {pendingAction === "reset"
-                  ? t("reset.submitting")
-                  : t("reset.submit")}
-              </Button>
-            </div>
-          </section>
+                submitting={advancing}
+                onAmountChange={setAdvanceAmount}
+                onUnitChange={setAdvanceUnit}
+                onSubmit={onAdvance}
+              />
+            </section>
+          )}
         </div>
       </div>
 
