@@ -4,7 +4,11 @@ import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 import { setAccentColor } from "@/actions/profile";
-import { nextAccentState } from "@/lib/accent-state";
+import {
+  initialAccentState,
+  requestAccent,
+  settleAccent,
+} from "@/lib/accent-state";
 import { type AccentColor, brandIconSrc } from "@/lib/accents";
 
 type AccentContextValue = {
@@ -14,7 +18,11 @@ type AccentContextValue = {
 
 const AccentContext = React.createContext<AccentContextValue | null>(null);
 
-/** Repaint the page and favicon for `accent` without waiting for the server. */
+/**
+ * Repaint the page and favicon for `accent` without waiting for the server.
+ * This writes `data-accent` directly even though the server renders it too;
+ * `revalidatePath` in the save action converges the two once a save lands.
+ */
 function paint(accent: AccentColor) {
   document.documentElement.dataset.accent = accent;
   for (const link of document.querySelectorAll<HTMLLinkElement>(
@@ -26,8 +34,9 @@ function paint(accent: AccentColor) {
 
 /**
  * The signed-in user's accent. `initial` is what the server rendered on
- * <html data-accent>; changes repaint at once and save in the background,
- * rolling back with a toast if the save fails.
+ * <html data-accent>; changes repaint at once and save in the background.
+ * Saves run one after another so the database ends on the latest choice, and
+ * only the latest request may roll the page back (see lib/accent-state.ts).
  */
 export function AccentProvider({
   initial,
@@ -38,33 +47,35 @@ export function AccentProvider({
 }) {
   const t = useTranslations("accentSwitcher");
   const [accent, setAccentState] = React.useState(initial);
-  const [, startTransition] = React.useTransition();
+  // The reducer state lives in a ref so callbacks never read a stale render.
+  const stateRef = React.useRef(initialAccentState(initial));
+  const queueRef = React.useRef<Promise<void>>(Promise.resolve());
+  const tRef = React.useRef(t);
+  tRef.current = t;
 
-  const setAccent = React.useCallback(
-    (requested: AccentColor) => {
-      const optimistic = nextAccentState(accent, requested, "pending");
-      if (!optimistic) return;
-      paint(optimistic.apply);
-      setAccentState(optimistic.apply);
-      startTransition(async () => {
-        let outcome: "saved" | "failed" = "failed";
-        try {
-          outcome = (await setAccentColor(requested)).success
-            ? "saved"
-            : "failed";
-        } catch {
-          outcome = "failed";
-        }
-        const settled = nextAccentState(accent, requested, outcome);
-        if (settled && outcome === "failed") {
-          paint(settled.apply);
-          setAccentState(settled.apply);
-          toast.error(t("saveFailed"));
-        }
-      });
-    },
-    [accent, t]
-  );
+  const setAccent = React.useCallback((requested: AccentColor) => {
+    const req = requestAccent(stateRef.current, requested);
+    if (!req) return;
+    stateRef.current = req.state;
+    paint(requested);
+    setAccentState(requested);
+
+    queueRef.current = queueRef.current.then(async () => {
+      let ok = false;
+      try {
+        ok = (await setAccentColor(requested)).success;
+      } catch {
+        ok = false;
+      }
+      const settled = settleAccent(stateRef.current, req.id, requested, ok);
+      stateRef.current = settled.state;
+      if (settled.repaint) {
+        paint(settled.repaint);
+        setAccentState(settled.repaint);
+      }
+      if (settled.toast) toast.error(tRef.current("saveFailed"));
+    });
+  }, []);
 
   const value = React.useMemo(
     () => ({ accent, setAccent }),
