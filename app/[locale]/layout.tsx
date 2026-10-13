@@ -15,6 +15,7 @@ import {
   listNotifications,
 } from "@/actions/notifications";
 import { listProjects } from "@/actions/project-catalog";
+import { AccentProvider } from "@/components/accent-provider";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
 import { ActiveRunsProvider } from "@/components/active-runs-provider";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -171,83 +172,85 @@ export default async function LocaleLayout({
                 {session ? (
                   // One run stream for the whole shell — the header indicator
                   // and the sidebar History badge both read it.
-                  <ActiveRunsProvider>
-                    <SidebarProvider defaultOpen={sidebarDefaultOpen}>
-                      <a
-                        href="#main-content"
-                        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      >
-                        {tHeader("skipToContent")}
-                      </a>
-                      <AppSidebar
-                        environments={environments}
-                        orgRole={orgRole}
-                        projectRoles={projectRoles}
-                        issueCounts={issueCounts}
-                        logo={currentBrand}
-                        side={rtl ? "right" : "left"}
-                        user={{
-                          id: session.user.id,
-                          name: session.user.name,
-                          email: session.user.email,
-                          image: session.user.image ?? null,
-                          status: (() => {
-                            const s = activeStatus(session.user);
-                            return (
-                              s && {
-                                ...s,
-                                expiresAt: s.expiresAt?.toISOString() ?? null,
-                              }
-                            );
-                          })(),
-                          timeZone: effectiveTimeZone(session.user),
-                        }}
-                      />
-                      <SidebarInset className="min-w-0">
-                        <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
-                          <SidebarTrigger className="-ms-1" />
-                          <HeaderBreadcrumb
-                            environments={environments}
-                            projects={navProjects}
-                            orgRole={orgRole}
-                            projectRoles={projectRoles}
-                          />
-                          <div className="ms-auto flex shrink-0 items-center gap-2">
-                            <ActiveRunsIndicator />
-                            <div className="hidden md:flex items-center gap-2 pe-1">
-                              <ServerTime timeZone={APP_TIMEZONE} />
-                            </div>
-                            <NotificationBell
-                              initialNotifications={notifications}
-                              initialUnread={unreadCount}
-                            />
-                            <CommandPalette
+                  <AccentProvider initial={accent}>
+                    <ActiveRunsProvider>
+                      <SidebarProvider defaultOpen={sidebarDefaultOpen}>
+                        <a
+                          href="#main-content"
+                          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          {tHeader("skipToContent")}
+                        </a>
+                        <AppSidebar
+                          environments={environments}
+                          orgRole={orgRole}
+                          projectRoles={projectRoles}
+                          issueCounts={issueCounts}
+                          logo={currentBrand}
+                          side={rtl ? "right" : "left"}
+                          user={{
+                            id: session.user.id,
+                            name: session.user.name,
+                            email: session.user.email,
+                            image: session.user.image ?? null,
+                            status: (() => {
+                              const s = activeStatus(session.user);
+                              return (
+                                s && {
+                                  ...s,
+                                  expiresAt: s.expiresAt?.toISOString() ?? null,
+                                }
+                              );
+                            })(),
+                            timeZone: effectiveTimeZone(session.user),
+                          }}
+                        />
+                        <SidebarInset className="min-w-0">
+                          <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4">
+                            <SidebarTrigger className="-ms-1" />
+                            <HeaderBreadcrumb
                               environments={environments}
                               projects={navProjects}
                               orgRole={orgRole}
                               projectRoles={projectRoles}
                             />
-                          </div>
-                        </header>
-                        {/* `main`, not the document, is the scroller. On navigation
+                            <div className="ms-auto flex shrink-0 items-center gap-2">
+                              <ActiveRunsIndicator />
+                              <div className="hidden md:flex items-center gap-2 pe-1">
+                                <ServerTime timeZone={APP_TIMEZONE} />
+                              </div>
+                              <NotificationBell
+                                initialNotifications={notifications}
+                                initialUnread={unreadCount}
+                              />
+                              <CommandPalette
+                                environments={environments}
+                                projects={navProjects}
+                                orgRole={orgRole}
+                                projectRoles={projectRoles}
+                              />
+                            </div>
+                          </header>
+                          {/* `main`, not the document, is the scroller. On navigation
                             Next scrolls the new page into view with
                             scrollIntoView(), which aligns to the scrollport edge;
                             scroll-pt-6 matches py-6 so the top padding survives. */}
-                        <main
-                          id="main-content"
-                          tabIndex={-1}
-                          data-scroll-shadow
-                          className="flex-1 min-h-0 overflow-y-auto scroll-pt-6 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
-                        >
-                          {!session.user.timezone && (
-                            <TimezoneHint appTimeZone={APP_TIMEZONE} />
-                          )}
-                          {children}
-                        </main>
-                      </SidebarInset>
-                      <KeyboardShortcuts />
-                    </SidebarProvider>
-                  </ActiveRunsProvider>
+                          <main
+                            id="main-content"
+                            tabIndex={-1}
+                            data-scroll-shadow
+                            className="flex-1 min-h-0 overflow-y-auto scroll-pt-6 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
+                          >
+                            {!session.user.timezone && (
+                              <TimezoneHint appTimeZone={APP_TIMEZONE} />
+                            )}
+                            {children}
+                          </main>
+                        </SidebarInset>
+                        <KeyboardShortcuts />
+                      </SidebarProvider>
+                    </ActiveRunsProvider>
+                  </AccentProvider>
                 ) : (
                   <div className="flex flex-col min-h-dvh bg-muted dark:bg-background">
                     {/* No `min-h-0`: the content must be allowed to push the

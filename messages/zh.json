@@ -775,6 +775,18 @@
     "dark": "深色",
     "system": "系统"
   },
+  "accentSwitcher": {
+    "ariaLabel": "强调色",
+    "neutral": "中性",
+    "blue": "蓝色",
+    "green": "绿色",
+    "orange": "橙色",
+    "red": "红色",
+    "rose": "玫瑰色",
+    "violet": "紫罗兰色",
+    "yellow": "黄色",
+    "saveFailed": "无法保存强调色。"
+  },
   "signIn": {
     "title": "登录",
     "description": "使用您的工作账户继续",

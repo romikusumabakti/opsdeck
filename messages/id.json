@@ -775,6 +775,18 @@
     "dark": "Gelap",
     "system": "Sistem"
   },
+  "accentSwitcher": {
+    "ariaLabel": "Warna aksen",
+    "neutral": "Netral",
+    "blue": "Biru",
+    "green": "Hijau",
+    "orange": "Oranye",
+    "red": "Merah",
+    "rose": "Mawar",
+    "violet": "Ungu",
+    "yellow": "Kuning",
+    "saveFailed": "Gagal menyimpan warna aksen."
+  },
   "signIn": {
     "title": "Masuk",
     "description": "Gunakan akun kantor Anda untuk melanjutkan",
