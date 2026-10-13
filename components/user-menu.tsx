@@ -17,6 +17,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import * as React from "react";
 import { useTransition } from "react";
+import { AccentDot } from "@/components/accent-dot";
+import { useAccent } from "@/components/accent-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,6 +39,7 @@ import { StatusDialog } from "@/components/user/status-dialog";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { ACCENTS, type AccentColor } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
 import { canOrg, type OrgRole } from "@/lib/permissions";
 
@@ -70,6 +73,8 @@ export function UserMenu({
 }) {
   const t = useTranslations("userMenu");
   const tTheme = useTranslations("themeSwitcher");
+  const tAccent = useTranslations("accentSwitcher");
+  const { accent, setAccent } = useAccent();
   const tLocale = useTranslations("localeSwitcher");
   const router = useRouter();
   const pathname = usePathname();
@@ -178,6 +183,27 @@ export function UserMenu({
                     <DropdownMenuRadioItem key={value} value={value}>
                       <Icon className="size-4" />
                       {tTheme(value)}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <AccentDot accent={accent} className="mx-0.5" />
+              {tAccent("ariaLabel")}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={accent}
+                  onValueChange={(v) => setAccent(v as AccentColor)}
+                >
+                  {ACCENTS.map((a) => (
+                    <DropdownMenuRadioItem key={a} value={a}>
+                      <AccentDot accent={a} />
+                      {tAccent(a)}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>

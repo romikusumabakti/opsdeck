@@ -775,6 +775,18 @@
     "dark": "داكن",
     "system": "النظام"
   },
+  "accentSwitcher": {
+    "ariaLabel": "لون التمييز",
+    "neutral": "محايد",
+    "blue": "أزرق",
+    "green": "أخضر",
+    "orange": "برتقالي",
+    "red": "أحمر",
+    "rose": "وردي",
+    "violet": "بنفسجي",
+    "yellow": "أصفر",
+    "saveFailed": "تعذّر حفظ لون التمييز."
+  },
   "signIn": {
     "title": "تسجيل الدخول",
     "description": "استخدم حساب العمل الخاص بك للمتابعة",

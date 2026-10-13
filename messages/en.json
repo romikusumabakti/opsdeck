@@ -775,6 +775,18 @@
     "dark": "Dark",
     "system": "System"
   },
+  "accentSwitcher": {
+    "ariaLabel": "Accent color",
+    "neutral": "Neutral",
+    "blue": "Blue",
+    "green": "Green",
+    "orange": "Orange",
+    "red": "Red",
+    "rose": "Rose",
+    "violet": "Violet",
+    "yellow": "Yellow",
+    "saveFailed": "Couldn't save the accent color."
+  },
   "signIn": {
     "title": "Sign in",
     "description": "Use your work account to continue",

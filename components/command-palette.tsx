@@ -23,6 +23,8 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { AccentDot } from "@/components/accent-dot";
+import { useAccent } from "@/components/accent-provider";
 import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +40,7 @@ import {
 import { useModKey } from "@/hooks/use-is-mac";
 import { useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { ACCENTS } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
@@ -70,6 +73,8 @@ export function CommandPalette({
   const tNav = useTranslations("nav");
   const tUserMenu = useTranslations("userMenu");
   const tTheme = useTranslations("themeSwitcher");
+  const tAccent = useTranslations("accentSwitcher");
+  const { setAccent } = useAccent();
   const tHeader = useTranslations("header");
   const modKey = useModKey();
   const { setTheme } = useTheme();
@@ -336,6 +341,20 @@ export function CommandPalette({
               <Monitor />
               {tTheme("system")}
             </CommandItem>
+          </CommandGroup>
+
+          <CommandSeparator />
+          <CommandGroup heading={tAccent("ariaLabel")}>
+            {ACCENTS.map((a) => (
+              <CommandItem
+                key={a}
+                value={`accent ${a}`}
+                onSelect={() => run(() => setAccent(a))}
+              >
+                <AccentDot accent={a} />
+                {tAccent(a)}
+              </CommandItem>
+            ))}
           </CommandGroup>
 
           <CommandSeparator />
