@@ -119,7 +119,8 @@ const adminItems: {
  * The motif in the bottom corner of the menu area. It sits behind the menu
  * (-z-10 inside an isolated wrapper; a positioned layer would otherwise paint
  * over the items), mirrors in RTL where the sidebar is on the right, and is
- * hidden when the sidebar collapses to icons.
+ * hidden when the sidebar collapses to icons. The wrapper clips it
+ * (overflow-hidden) so it never spills above the menu on short viewports.
  */
 function SidebarMotif() {
   const { motif } = useMotif();
@@ -198,7 +199,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
 
-      <div className="relative isolate flex min-h-0 flex-1 flex-col">
+      <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden">
         <SidebarMotif />
         <SidebarContent>
           <SidebarGroup>
