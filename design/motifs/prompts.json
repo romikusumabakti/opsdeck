@@ -6,18 +6,54 @@
     "background": "transparent",
     "output_format": "png"
   },
-  "template": "A faithful, authentic rendering of the traditional Indonesian ornament: {subject}.\nStyle: monochrome line ornament only, pure solid black (#000000) strokes on a fully transparent background, no shading, no gradients, no grey, no texture, no text, no border, no frame.\nComposition: a corner ornament like a letterhead flourish or document watermark — the motif is anchored in the bottom-right corner and grows from there, filling roughly the bottom-right two thirds and fading out (fewer, sparser elements) toward the top-left, which stays empty.\nAccuracy matters more than decoration: keep the motif's real, recognisable shapes, proportions and symmetry as craftspeople make it; do not invent a generic spiral or mix in other cultures' motifs.",
-  "subjects": {
-    "pintu-aceh": "Pinto Aceh (Pintu Aceh) from Aceh, Sumatra, as on the famous Pinto Aceh gold filigree brooch: a symmetrical gateway outline with a gently curved, pointed roof-like top and stepped shoulders, built of several concentric parallel frames; the fields between frames are filled with tiny filigree spirals and small round dots like gold granulation, plus small Acehnese floral (bungong) sprigs. Fine, delicate jewellery-like linework. NOT Gothic tracery, NOT Thai temple ornament, no large leafy vines.",
-    "gorga": "Gorga, the carved ornament of the Batak Toba people (North Sumatra) on the gable boards of rumah bolon houses: bold ribbon-like strokes of constant width forming tightly packed pairs of interlocking spirals that face each other (like curled fern shoots meeting), compact and dense, combined with a zigzag sawtooth border band (gorga ipon-ipon) of triangular teeth along the edges. Flat graphic bands as if painted in the Batak red-white-black palette. NOT European/Celtic scrollwork, NO acanthus leaves, NO leaves at all.",
-    "pucuk-rebung": "Pucuk Rebung (Pucuak Rabuang), the Malay and Minangkabau bamboo-shoot motif from songket textiles and Rumah Gadang carvings: a row of tall isosceles triangles like young bamboo shoots, each filled with nested chevrons and small curling scrolls, arranged as a border band",
-    "megamendung": "Batik Megamendung from Cirebon, West Java: stacked rain-cloud forms, each cloud built from 5 to 9 concentric parallel outlines with characteristic pointed, triangular cloud tips and gentle curls",
-    "kawung": "Batik Kawung from Yogyakarta, Java: four ellipses (stylised sugar-palm fruit) meeting at a centre point to form a four-petal cross, repeated on a square diagonal grid, with a small dot or cross in each gap",
-    "batang-garing": "Batang Garing, the tree-of-life motif of the Dayak Ngaju people of Central Kalimantan: a vertical spear-tip-shaped tree pointing upward, with paired branches curving symmetrically on both sides ending in curled tips, standing on a base with curled roots and a sacred jar (guci), surrounded by Dayak curling scroll ornament",
-    "patra-punggel": "Patra Punggel from Bali as carved in paras stone on candi bentar temple gates: each unit is a chunky curl that bends back on itself — a bulbous mango-seed-shaped core (batun poh), a crest of serrated rooster-comb lobes (janggar siap), jackfruit-pulp-like rounded serrations (ampas nangka) and a tight piglet-ear curl (kuping guling) at the tip; units chained into a running scroll. Crisp, deep, chunky carving forms. NOT European acanthus, NOT baroque, NOT Thai kranok.",
-    "pa-barre-allo": "Passura' carving of the Toraja people (South Sulawesi) on tongkonan house walls, featuring Pa' Barre Allo: a round sun disc with curved, petal-like rays, set in a rectangular panel; around it Toraja passura' patterns — Pa' Tedong buffalo-horn crescents, Pa' Bulintong round whorls, and curving S-shaped tendrils with rounded hooks — arranged symmetrically in framed panels and bands, like the carved and painted (red, black, white, yellow) wall panels. NOT Greek meander, NOT Aztec, no square key-fret spirals.",
-    "mamuli": "The Mamuli motif from Sumba, East Nusa Tenggara, as woven on hinggi ikat cloth: the omega (Ω)-shaped mamuli ear-ornament form — a closed loop opening into two outward-curling feet — repeated in mirrored rows within horizontal ikat bands with stepped geometric edges",
-    "tenun-tanimbar": "Tais, the warp-ikat cloth of the Tanimbar Islands (Yamdena, Maluku): narrow vertical warp stripes, each holding small repeated motifs with blurred, slightly feathered stepped edges typical of warp ikat — a stylised orchid (anggrek) flower, crescent moons, small paired flag shapes, and twin arrowheads (tunis) — separated by plain thin stripes. Rendered as a single-colour line/silhouette ornament. NOT cross-stitch, NOT embroidery, NOT Nordic knitting patterns.",
-    "ukiran-asmat": "Asmat wood carving from southern Papua as on Asmat shields (jamasj) and canoe prow ornaments: a tall carved panel in relief whose design is made of mirrored, back-to-back hooked curves and loops — the bipane (double-curved shell nose ornament), the praying-mantis (wenet) limbs as angular bent hooks, hornbill-beak curves and flying-fox wing shapes — with open-work cut-outs and carved grooves outlining each form. Organic, bold, symmetrical. NOT Maori koru, NOT tribal tattoo, NOT Celtic."
+  "templates": {
+    "v1": "A faithful, authentic rendering of the traditional Indonesian ornament: {subject}.\nStyle: monochrome line ornament only, pure solid black (#000000) strokes on a fully transparent background, no shading, no gradients, no grey, no texture, no text, no border, no frame.\nComposition: a corner ornament like a letterhead flourish or document watermark — the motif is anchored in the bottom-right corner and grows from there, filling roughly the bottom-right two thirds and fading out (fewer, sparser elements) toward the top-left, which stays empty.\nAccuracy matters more than decoration: keep the motif's real, recognisable shapes, proportions and symmetry as craftspeople make it; do not invent a generic spiral or mix in other cultures' motifs.",
+    "v2": "A faithful, authentic rendering of the traditional Indonesian ornament: {subject}.\nStyle: single-colour line ornament, pure solid black (#000000) on a fully transparent background; no shading, no gradients, no grey, no texture, no text, no border, no frame.\nLine weight (important, must be consistent): every stroke a uniform MEDIUM weight, about 10 to 14 pixels wide on this 1024 px canvas — no hairlines and no very thin double lines, and no large solid black filled areas or heavy silhouettes. Overall the black ink should cover roughly 15 percent of the canvas.\nComposition: a corner ornament like a letterhead flourish or document watermark — anchored in the bottom-right corner, touching the bottom and right edges, filling roughly the bottom-right two thirds and thinning out organically (fewer, sparser elements, natural motif shapes) toward the top-left, which stays empty. Never cut the pattern off along a straight diagonal line.\nAccuracy matters more than decoration: keep the motif's real, recognisable shapes, proportions and symmetry as craftspeople make them; do not invent generic spirals or mix in other cultures' motifs."
+  },
+  "motifs": {
+    "pintu-aceh": {
+      "template": "v2",
+      "subject": "Pinto Aceh (Pintu Aceh) from Aceh, Sumatra, as on the Pinto Aceh gold filigree brooch: a symmetrical gateway outline with a gently curved, pointed roof-like top and stepped shoulders, built of two or three concentric frames; the fields between frames filled with small filigree spirals and round dots like gold granulation, plus small Acehnese floral (bungong) sprigs. NOT Gothic tracery, NOT Thai temple ornament."
+    },
+    "gorga": {
+      "template": "v2",
+      "subject": "Gorga, the carved ornament of the Batak Toba people (North Sumatra) on the gable boards of rumah bolon houses: ribbon-like strokes forming pairs of interlocking spirals that face each other (like curled fern shoots meeting), with a zigzag sawtooth border band (gorga ipon-ipon) of small triangular teeth along the bottom and right edges, drawn as outlines rather than filled shapes. NOT European/Celtic scrollwork, NO acanthus leaves."
+    },
+    "pucuk-rebung": {
+      "template": "v1",
+      "subject": "Pucuk Rebung (Pucuak Rabuang), the Malay and Minangkabau bamboo-shoot motif from songket textiles and Rumah Gadang carvings: a row of tall isosceles triangles like young bamboo shoots, each filled with nested chevrons and small curling scrolls, arranged as a border band"
+    },
+    "megamendung": {
+      "template": "v2",
+      "subject": "Batik Megamendung from Cirebon, West Java: stacked rain-cloud forms with the characteristic pointed, triangular cloud tips and gentle inner curls, each cloud outlined by 3 to 4 concentric parallel outlines spaced well apart (not many thin hairlines)"
+    },
+    "kawung": {
+      "template": "v1",
+      "subject": "Batik Kawung from Yogyakarta, Java: four ellipses (stylised sugar-palm fruit) meeting at a centre point to form a four-petal cross, repeated on a square diagonal grid, with a small dot or cross in each gap"
+    },
+    "batang-garing": {
+      "template": "v1",
+      "subject": "Batang Garing, the tree-of-life motif of the Dayak Ngaju people of Central Kalimantan: a vertical spear-tip-shaped tree pointing upward, with paired branches curving symmetrically on both sides ending in curled tips, standing on a base with curled roots and a sacred jar (guci), surrounded by Dayak curling scroll ornament"
+    },
+    "patra-punggel": {
+      "template": "v2",
+      "subject": "Patra Punggel, the Balinese stone-carving ornament from candi bentar and kori agung temple gates, carved in soft paras sandstone: thick, plump, rounded lobes with deep grooves — each motif a fat mango-seed-shaped bulb (batun poh) from which a rolled curl (kuping guling) springs, edged with rounded scalloped lobes (ampas nangka) and a serrated crest (janggar siap), in the heavy, rounded, sculptural style of Balinese temple reliefs; units repeated along a diagonal running band. Chunky, rounded, Balinese. NOT European acanthus leaves, NOT baroque, NOT rococo, NOT Thai kranok flames."
+    },
+    "pa-barre-allo": {
+      "template": "v2",
+      "subject": "Passura', the carved and painted wall ornament of the Toraja tongkonan house (South Sulawesi), as a LIGHT, airy corner composition: only a few framed panels along the bottom and right edges with plenty of open space between them — one square panel with Pa' Barre Allo (a sun: a circle with short triangular rays), one panel with Pa' Tedong (a stylised, flat, geometric buffalo head with wide curved horns, carved-ornament style, not realistic), a short row of Pa' Bua Kapa' cotton-boll circles, and a few Pa' Daun Bolu betel leaves — thin panel frames, mostly open outlines, no dense rows of repeated cells. Geometric, angular, panel-based. NOT baroque scrolls, NOT acanthus, NOT European flourish, NOT Greek meander, NOT Aztec, NOT a realistic cow face."
+    },
+    "mamuli": {
+      "template": "v2",
+      "subject": "The Mamuli motif from Sumba, East Nusa Tenggara: the omega (Ω)-shaped mamuli gold ear ornament — a closed loop opening into two outward-curling feet with small decorative knobs — shown as a few large outlined mamuli forms arranged in a loose cluster with small Sumbanese ikat accents (stepped diamonds, small hooks) between them, as on hinggi cloth. Outlined, not filled."
+    },
+    "tenun-tanimbar": {
+      "template": "v2",
+      "subject": "Tenun ikat Tanimbar (tais) from the Tanimbar Islands, Maluku: a few large, clearly readable warp-ikat motifs with the characteristic stepped, slightly feathered ikat edges — a stylised orchid (anggrek) flower as the main motif, with crescent moons, small paired flag shapes and twin arrowheads (tunis) as accents — arranged loosely, drawn as bold outlines. NOT cross-stitch, NOT embroidery, NOT Nordic knitting, NOT fleur-de-lis."
+    },
+    "ukiran-asmat": {
+      "template": "v2",
+      "subject": "Asmat wood carving from southern Papua as on Asmat shields (jamasj) and canoe prows: mirrored, back-to-back hooked curves and loops — the bipane (double-curved shell nose ornament), the praying-mantis (wenet) limbs as angular bent hooks, hornbill heads and beaks — drawn as outlined relief forms with open interiors (not filled black). Organic, symmetrical. NOT Maori koru, NOT tribal tattoo, NOT Celtic."
+    }
   }
 }
