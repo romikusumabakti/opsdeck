@@ -266,18 +266,18 @@ export default async function LocaleLayout({
                   </AccentProvider>
                 ) : (
                   <div className="relative isolate flex flex-col min-h-dvh overflow-clip bg-muted dark:bg-background">
-                    {/* Corner ornaments, letterhead-style: the motif hugs the
-                        bottom-right, and a mirrored copy the bottom-left.
-                        Mirrored rather than rotated so directional motifs (a
-                        tree, bamboo shoots, a gate) stay upright. Small screens
-                        keep only the bottom-right one. */}
+                    {/* Corner ornaments, letterhead-style on the diagonal that
+                        follows the reading direction: the motif upright in the
+                        bottom-end corner, where the eye comes to rest, and
+                        turned 180° in the top-start corner. Mirrored in RTL.
+                        Small screens keep only the bottom one. */}
                     <MotifWatermark
                       slug={todayMotif}
-                      className="absolute -z-10 bottom-0 right-0 size-[min(70vw,320px)] sm:size-[min(45vw,520px)]"
+                      className="absolute -z-10 bottom-0 end-0 rtl:-scale-x-100"
                     />
                     <MotifWatermark
                       slug={todayMotif}
-                      className="absolute -z-10 bottom-0 left-0 hidden sm:block size-[min(45vw,520px)] -scale-x-100"
+                      className="absolute -z-10 top-0 start-0 hidden sm:block rotate-180 rtl:-scale-x-100"
                     />
                     {/* No `min-h-0`: the content must be allowed to push the
                         page taller than the viewport on short screens rather
