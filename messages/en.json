@@ -642,14 +642,17 @@
   "userMenu": {
     "users": "User management",
     "servers": "Server management",
-    "account": "Account",
+    "account": "Account settings",
     "changePassword": "Change password",
     "sessions": "Active sessions",
     "signOut": "Sign out",
     "ariaLabel": "User menu",
     "myProfile": "My profile",
     "setStatus": "Set status",
-    "editStatus": "Edit status"
+    "editStatus": "Edit status",
+    "theme": "Theme",
+    "accent": "Accent color",
+    "language": "Language"
   },
   "account": {
     "title": "Account",

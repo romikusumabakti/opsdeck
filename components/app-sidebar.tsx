@@ -363,7 +363,7 @@ export function AppSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <UserMenu user={user} orgRole={orgRole} variant="sidebar" />
+            <UserMenu user={user} variant="sidebar" />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

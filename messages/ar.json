@@ -642,14 +642,17 @@
   "userMenu": {
     "users": "إدارة المستخدمين",
     "servers": "إدارة الخوادم",
-    "account": "الحساب",
+    "account": "إعدادات الحساب",
     "changePassword": "تغيير كلمة المرور",
     "sessions": "الجلسات النشطة",
     "signOut": "تسجيل الخروج",
     "ariaLabel": "قائمة المستخدم",
     "myProfile": "ملفي الشخصي",
     "setStatus": "تعيين الحالة",
-    "editStatus": "تعديل الحالة"
+    "editStatus": "تعديل الحالة",
+    "theme": "المظهر",
+    "accent": "لون التمييز",
+    "language": "اللغة"
   },
   "account": {
     "title": "الحساب",
