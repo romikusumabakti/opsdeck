@@ -48,3 +48,6 @@ next-env.d.ts
 
 # superpowers brainstorming companion
 .superpowers/
+
+# git worktrees for isolated feature work
+.worktrees/
