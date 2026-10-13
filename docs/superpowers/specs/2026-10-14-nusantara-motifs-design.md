@@ -97,7 +97,7 @@ brand default (no user).
   (same fallback idea as `effectiveAccent`).
 - `dailyMotif(date)`: `MOTIFS[daysSinceEpoch(date in APP_TIMEZONE) % 11]` —
   everyone sees the same motif on the same WIB day; it changes at WIB
-  midnight. A page left open past midnight changes on its next navigation.
+  midnight. A page left open past midnight changes on its next full load or refresh.
 - `resolveMotif(pref, date)`: `null` for `none`, the pinned slug, or the daily
   one.
 

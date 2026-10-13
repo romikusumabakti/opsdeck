@@ -33,6 +33,12 @@ describe("MOTIFS", () => {
 });
 
 describe("dailyMotif", () => {
+  it("pins the rotation to the calendar", () => {
+    expect(dailyMotif(new Date("2026-10-14T05:00:00Z"), WIB)).toBe(
+      "batang-garing"
+    );
+  });
+
   it("is the same all day in WIB", () => {
     expect(dailyMotif(new Date("2026-10-13T17:00:00Z"), WIB)).toBe(
       dailyMotif(new Date("2026-10-14T16:59:59Z"), WIB)
