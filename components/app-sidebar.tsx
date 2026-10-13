@@ -29,6 +29,8 @@ import {
   useActiveRuns,
 } from "@/components/active-runs-provider";
 import { BrandLogo } from "@/components/brand-mark";
+import { useMotif } from "@/components/motif-provider";
+import { MotifWatermark } from "@/components/motif-watermark";
 import { SidebarCountBadge } from "@/components/sidebar-count-badge";
 import {
   Sidebar,
@@ -113,6 +115,23 @@ const adminItems: {
   { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
 ];
 
+/**
+ * The motif in the bottom corner of the menu area. It sits behind the menu
+ * (-z-10 inside an isolated wrapper; a positioned layer would otherwise paint
+ * over the items), mirrors in RTL where the sidebar is on the right, and is
+ * hidden when the sidebar collapses to icons.
+ */
+function SidebarMotif() {
+  const { motif } = useMotif();
+  if (!motif) return null;
+  return (
+    <MotifWatermark
+      slug={motif}
+      className="absolute inset-x-0 bottom-0 -z-10 aspect-square rtl:-scale-x-100 group-data-[collapsible=icon]:hidden"
+    />
+  );
+}
+
 export function AppSidebar({
   environments,
   orgRole,
@@ -179,186 +198,191 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/" />}
-                  isActive={pathname === "/"}
-                  tooltip={tNav("home")}
-                >
-                  <House />
-                  <span>{tNav("home")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/projects" />}
-                  isActive={pathname === "/projects"}
-                  tooltip={tNav("projects")}
-                >
-                  <FolderKanban />
-                  <span>{tNav("projects")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/issues" />}
-                  isActive={pathname.startsWith("/issues")}
-                  tooltip={tNav("allIssues")}
-                >
-                  <CircleDot />
-                  <span>{tNav("allIssues")}</span>
-                </SidebarMenuButton>
-                <SidebarCountBadge
-                  count={issueCounts.total}
-                  label={tNav("badgeAssignedIssues", {
-                    count: issueCounts.total,
-                  })}
-                />
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/knowledge" />}
-                  isActive={pathname.startsWith("/knowledge")}
-                  tooltip={tNav("knowledge")}
-                >
-                  <BookOpen />
-                  <span>{tNav("knowledge")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/people" />}
-                  isActive={pathname.startsWith("/people")}
-                  tooltip={tNav("people")}
-                >
-                  <UsersRound />
-                  <span>{tNav("people")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {canSeeServers && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/servers" />}
-                    isActive={pathname.startsWith("/servers")}
-                    tooltip={tNav("servers")}
-                  >
-                    <Server />
-                    <span>{tNav("servers")}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {canSeeStorage && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/storage" />}
-                    isActive={pathname.startsWith("/storage")}
-                    tooltip={tNav("storage")}
-                  >
-                    <HardDrive />
-                    <span>{tNav("storage")}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {canSeeAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/admin" />}
-                    isActive={inAdmin}
-                    tooltip={tNav("admin")}
-                  >
-                    <ShieldUser />
-                    <span>{tNav("admin")}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* The admin sections only appear once you're inside /admin, the same
-            way the environment sections appear inside an environment. */}
-        {inAdmin && (
+      <div className="relative isolate flex min-h-0 flex-1 flex-col">
+        <SidebarMotif />
+        <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>{tNav("admin")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminItems
-                  .filter((item) => canOrg(orgRole, item.perm))
-                  .map((item) => (
-                    <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton
-                        render={<Link href={item.url} />}
-                        isActive={pathname.startsWith(item.url)}
-                        tooltip={tNav(item.key)}
-                      >
-                        <item.icon />
-                        <span>{tNav(item.key)}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/" />}
+                    isActive={pathname === "/"}
+                    tooltip={tNav("home")}
+                  >
+                    <House />
+                    <span>{tNav("home")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/projects" />}
+                    isActive={pathname === "/projects"}
+                    tooltip={tNav("projects")}
+                  >
+                    <FolderKanban />
+                    <span>{tNav("projects")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/issues" />}
+                    isActive={pathname.startsWith("/issues")}
+                    tooltip={tNav("allIssues")}
+                  >
+                    <CircleDot />
+                    <span>{tNav("allIssues")}</span>
+                  </SidebarMenuButton>
+                  <SidebarCountBadge
+                    count={issueCounts.total}
+                    label={tNav("badgeAssignedIssues", {
+                      count: issueCounts.total,
+                    })}
+                  />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/knowledge" />}
+                    isActive={pathname.startsWith("/knowledge")}
+                    tooltip={tNav("knowledge")}
+                  >
+                    <BookOpen />
+                    <span>{tNav("knowledge")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/people" />}
+                    isActive={pathname.startsWith("/people")}
+                    tooltip={tNav("people")}
+                  >
+                    <UsersRound />
+                    <span>{tNav("people")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {canSeeServers && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/servers" />}
+                      isActive={pathname.startsWith("/servers")}
+                      tooltip={tNav("servers")}
+                    >
+                      <Server />
+                      <span>{tNav("servers")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {canSeeStorage && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/storage" />}
+                      isActive={pathname.startsWith("/storage")}
+                      tooltip={tNav("storage")}
+                    >
+                      <HardDrive />
+                      <span>{tNav("storage")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {canSeeAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/admin" />}
+                      isActive={inAdmin}
+                      tooltip={tNav("admin")}
+                    >
+                      <ShieldUser />
+                      <span>{tNav("admin")}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
 
-        {activeEnv && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="truncate">
-              {activeEnv.name}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {projectItems
-                  .filter(
-                    (item) => !item.perm || canProject(envRole, item.perm)
-                  )
-                  // Mail only exists once a Mailpit is connected.
-                  .filter((item) => item.key !== "mail" || activeEnv.hasMailpit)
-                  .map((item) => {
-                    const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
-                    const isActive =
-                      item.url === ""
-                        ? pathname === itemPath
-                        : pathname.startsWith(itemPath);
-                    return (
+          {/* The admin sections only appear once you're inside /admin, the same
+            way the environment sections appear inside an environment. */}
+          {inAdmin && (
+            <SidebarGroup>
+              <SidebarGroupLabel>{tNav("admin")}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminItems
+                    .filter((item) => canOrg(orgRole, item.perm))
+                    .map((item) => (
                       <SidebarMenuItem key={item.key}>
                         <SidebarMenuButton
-                          render={<Link href={itemPath} />}
-                          isActive={isActive}
+                          render={<Link href={item.url} />}
+                          isActive={pathname.startsWith(item.url)}
                           tooltip={tNav(item.key)}
                         >
                           <item.icon />
                           <span>{tNav(item.key)}</span>
                         </SidebarMenuButton>
-                        {item.key === "issues" && (
-                          <SidebarCountBadge
-                            count={envIssueCount}
-                            label={tNav("badgeAssignedIssues", {
-                              count: envIssueCount,
-                            })}
-                          />
-                        )}
-                        {item.key === "history" && (
-                          <SidebarCountBadge
-                            count={envRunCount}
-                            variant="active"
-                            label={tNav("badgeActiveRuns", {
-                              count: envRunCount,
-                            })}
-                          />
-                        )}
                       </SidebarMenuItem>
-                    );
-                  })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-      </SidebarContent>
+                    ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
+          {activeEnv && (
+            <SidebarGroup>
+              <SidebarGroupLabel className="truncate">
+                {activeEnv.name}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {projectItems
+                    .filter(
+                      (item) => !item.perm || canProject(envRole, item.perm)
+                    )
+                    // Mail only exists once a Mailpit is connected.
+                    .filter(
+                      (item) => item.key !== "mail" || activeEnv.hasMailpit
+                    )
+                    .map((item) => {
+                      const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
+                      const isActive =
+                        item.url === ""
+                          ? pathname === itemPath
+                          : pathname.startsWith(itemPath);
+                      return (
+                        <SidebarMenuItem key={item.key}>
+                          <SidebarMenuButton
+                            render={<Link href={itemPath} />}
+                            isActive={isActive}
+                            tooltip={tNav(item.key)}
+                          >
+                            <item.icon />
+                            <span>{tNav(item.key)}</span>
+                          </SidebarMenuButton>
+                          {item.key === "issues" && (
+                            <SidebarCountBadge
+                              count={envIssueCount}
+                              label={tNav("badgeAssignedIssues", {
+                                count: envIssueCount,
+                              })}
+                            />
+                          )}
+                          {item.key === "history" && (
+                            <SidebarCountBadge
+                              count={envRunCount}
+                              variant="active"
+                              label={tNav("badgeActiveRuns", {
+                                count: envRunCount,
+                              })}
+                            />
+                          )}
+                        </SidebarMenuItem>
+                      );
+                    })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+        </SidebarContent>
+      </div>
 
       <SidebarFooter>
         <SidebarMenu>
