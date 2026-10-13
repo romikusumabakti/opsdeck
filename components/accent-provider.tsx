@@ -8,6 +8,8 @@ import {
   initialAccentState,
   requestAccent,
   settleAccent,
+  skipAccent,
+  syncAccent,
 } from "@/lib/accent-state";
 import { type AccentColor, brandIconSrc } from "@/lib/accents";
 
@@ -60,22 +62,40 @@ export function AccentProvider({
     paint(requested);
     setAccentState(requested);
 
-    queueRef.current = queueRef.current.then(async () => {
-      let ok = false;
-      try {
-        ok = (await setAccentColor(requested)).success;
-      } catch {
-        ok = false;
-      }
-      const settled = settleAccent(stateRef.current, req.id, requested, ok);
-      stateRef.current = settled.state;
-      if (settled.repaint) {
-        paint(settled.repaint);
-        setAccentState(settled.repaint);
-      }
-      if (settled.toast) toast.error(tRef.current("saveFailed"));
-    });
+    // The chain never rejects, so one failure cannot stall later saves.
+    queueRef.current = queueRef.current
+      .then(async () => {
+        // A newer pick will save instead; skipping avoids replaying this colour.
+        if (req.id !== stateRef.current.latest) {
+          stateRef.current = skipAccent(stateRef.current);
+          return;
+        }
+        let ok = false;
+        try {
+          ok = (await setAccentColor(requested)).success;
+        } catch {
+          ok = false;
+        }
+        const settled = settleAccent(stateRef.current, req.id, requested, ok);
+        stateRef.current = settled.state;
+        if (settled.repaint) {
+          paint(settled.repaint);
+          setAccentState(settled.repaint);
+        }
+        if (settled.toast) toast.error(tRef.current("saveFailed"));
+      })
+      .catch(() => {});
   }, []);
+
+  // Follow the server when it renders a different accent (another device, a
+  // refresh), unless a save of ours is still pending.
+  React.useEffect(() => {
+    const next = syncAccent(stateRef.current, initial);
+    if (next === stateRef.current) return;
+    stateRef.current = next;
+    paint(initial);
+    setAccentState(initial);
+  }, [initial]);
 
   const value = React.useMemo(
     () => ({ accent, setAccent }),

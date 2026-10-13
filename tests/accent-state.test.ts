@@ -4,6 +4,8 @@ import {
   initialAccentState,
   requestAccent,
   settleAccent,
+  skipAccent,
+  syncAccent,
 } from "@/lib/accent-state";
 import type { AccentColor } from "@/lib/accents";
 
@@ -19,6 +21,7 @@ describe("accent state", () => {
       shown: "blue",
       confirmed: "blue",
       latest: 0,
+      inFlight: 0,
     });
   });
 
@@ -29,13 +32,23 @@ describe("accent state", () => {
   it("shows a request at once and numbers it", () => {
     const r = request(initialAccentState("blue"), "rose");
     expect(r.id).toBe(1);
-    expect(r.state).toEqual({ shown: "rose", confirmed: "blue", latest: 1 });
+    expect(r.state).toEqual({
+      shown: "rose",
+      confirmed: "blue",
+      latest: 1,
+      inFlight: 1,
+    });
   });
 
   it("confirms a successful save with no repaint or toast", () => {
     const r = request(initialAccentState("blue"), "rose");
     const s = settleAccent(r.state, r.id, "rose", true);
-    expect(s.state).toEqual({ shown: "rose", confirmed: "rose", latest: 1 });
+    expect(s.state).toEqual({
+      shown: "rose",
+      confirmed: "rose",
+      latest: 1,
+      inFlight: 0,
+    });
     expect(s.repaint).toBeNull();
     expect(s.toast).toBe(false);
   });
@@ -52,7 +65,7 @@ describe("accent state", () => {
     const a = request(initialAccentState("blue"), "rose");
     const b = request(a.state, "green");
     const s = settleAccent(b.state, a.id, "rose", false);
-    expect(s.state).toEqual(b.state);
+    expect(s.state).toEqual({ ...b.state, inFlight: 1 });
     expect(s.repaint).toBeNull();
     expect(s.toast).toBe(false);
   });
@@ -73,8 +86,51 @@ describe("accent state", () => {
     const b = request(a.state, "green");
     const afterGreen = settleAccent(b.state, b.id, "green", true);
     const s = settleAccent(afterGreen.state, a.id, "rose", false);
-    expect(s.state).toEqual({ shown: "green", confirmed: "green", latest: 2 });
+    expect(s.state).toEqual({
+      shown: "green",
+      confirmed: "green",
+      latest: 2,
+      inFlight: 0,
+    });
     expect(s.repaint).toBeNull();
     expect(s.toast).toBe(false);
+  });
+
+  it("skipping a superseded request leaves nothing in flight and no rollback", () => {
+    const a = request(initialAccentState("blue"), "rose");
+    const b = request(a.state, "green");
+    const skipped = skipAccent(b.state);
+    expect(skipped.inFlight).toBe(1);
+    const s = settleAccent(skipped, b.id, "green", true);
+    expect(s.state).toEqual({
+      shown: "green",
+      confirmed: "green",
+      latest: 2,
+      inFlight: 0,
+    });
+  });
+
+  it("syncs to the server accent when idle", () => {
+    const synced = syncAccent(initialAccentState("blue"), "rose");
+    expect(synced.shown).toBe("rose");
+    expect(synced.confirmed).toBe("rose");
+    // and picking the old value is then a real change, not a no-op
+    expect(requestAccent(synced, "blue")).not.toBeNull();
+  });
+
+  it("returns the same state when already in sync", () => {
+    const state = initialAccentState("blue");
+    expect(syncAccent(state, "blue")).toBe(state);
+  });
+
+  it("ignores the server accent while a request is pending", () => {
+    const r = request(initialAccentState("blue"), "rose");
+    expect(syncAccent(r.state, "green")).toBe(r.state);
+  });
+
+  it("syncs again once the pending request settles", () => {
+    const r = request(initialAccentState("blue"), "rose");
+    const done = settleAccent(r.state, r.id, "rose", true);
+    expect(syncAccent(done.state, "green").shown).toBe("green");
   });
 });
