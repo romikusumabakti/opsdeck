@@ -795,6 +795,73 @@
     "yellow": "Amarillo",
     "saveFailed": "No se pudo guardar el color de acento."
   },
+  "motifs": {
+    "label": "Motivo",
+    "daily": "Diario",
+    "none": "Ninguno",
+    "about": "Acerca de {name}…",
+    "localName": "Nombre local: {name}",
+    "source": "Fuente",
+    "aiNote": "Esta ilustración es una interpretación de la IA del motivo, no una reproducción de una pieza original.",
+    "saveFailed": "No se pudo guardar el motivo.",
+    "items": {
+      "pintu-aceh": {
+        "region": "Aceh",
+        "medium": "Joyería de filigrana de oro y tallado",
+        "meaning": "Inspirado en el Pintô Khôp, la puerta que el sultán Iskandar Muda mandó construir en el jardín del palacio para su reina de Pahang. En 1935 el orfebre Mahmud Ibrahim convirtió su silueta en el broche Pinto Aceh, y el motivo pasó de la joyería a las puertas y al tallado. Reconocido como Patrimonio Cultural Inmaterial de Indonesia en 2015."
+      },
+      "gorga": {
+        "region": "Batak Toba, Sumatra del Norte",
+        "medium": "Madera tallada y pintada",
+        "meaning": "Los gorga son los tallados de los frontones de las casas batak toba, pintados de rojo, blanco y negro. Este sigue el Simeol-eol, cuyos zarcillos ondulantes simbolizan la alegría, la salud y una vida larga con muchos descendientes."
+      },
+      "pucuk-rebung": {
+        "region": "Malayo y minangkabau, Sumatra Occidental",
+        "medium": "Songket y tallado en madera",
+        "meaning": "Hileras de brotes jóvenes de bambú en los bordes del songket y en los tallados de la Rumah Gadang. El dicho minang que lo inspira — ketek baguno, gadang tapakai, útil de pequeño y aprovechado de grande — lo convierte en un deseo de vida con propósito."
+      },
+      "megamendung": {
+        "region": "Cirebon, Java Occidental",
+        "medium": "Batik dibujado a mano (batik tulis)",
+        "meaning": "Nubes de lluvia en capas con puntas afiladas, de la tradición batik costera de Cirebon, con influencia china. Las nubes traen la lluvia que fertiliza la tierra, por lo que el motivo se interpreta como paciencia, calma y un liderazgo que protege."
+      },
+      "kawung": {
+        "region": "Java, Yogyakarta",
+        "medium": "Batik",
+        "meaning": "Cuatro óvalos, como el fruto de la palma de azúcar (kawung), que se encuentran en el centro. Antes solo se vestía dentro del palacio; simboliza la pureza y el autocontrol, y la armonía entre uno mismo y el universo."
+      },
+      "batang-garing": {
+        "region": "Dayak Ngaju, Kalimantan Central",
+        "medium": "Tallado y pintura",
+        "meaning": "El árbol de la vida de los dayak ngaju, tomado de la escritura kaharingan Panaturan y emblema de Palangka Raya. Su copa en forma de punta de lanza apunta al mundo superior, y sus raíces y la jarra, al inframundo: equilibrio entre las personas, la naturaleza y Dios."
+      },
+      "patra-punggel": {
+        "region": "Bali",
+        "medium": "Tallado en piedra y madera",
+        "meaning": "La punta enroscada de una fronda joven de helecho (liking paku), formada por partes con nombre como batun poh y kuping guling. Recorre las puertas de los templos y las casas balinesas y se interpreta como armonía y pureza de la naturaleza."
+      },
+      "pa-barre-allo": {
+        "region": "Toraja, Sulawesi del Sur",
+        "medium": "Madera tallada y pintada",
+        "meaning": "Un sol de rayos radiantes, uno de los tallados passura' en las paredes de una casa tongkonan. Expresa el deseo de una familia noble y unida cuyos descendientes sean una bendición para los demás."
+      },
+      "mamuli": {
+        "region": "Sumba, Nusa Tenggara Oriental",
+        "medium": "Tejido ikat (hinggi)",
+        "meaning": "El mamuli, con forma de Ω, es un adorno de oro que se intercambia en los regalos de boda sumbaneses; tejido en la tela hinggi se convierte en motivo. Encarna el principio femenino, la fertilidad y la vida."
+      },
+      "tenun-tanimbar": {
+        "region": "Islas Tanimbar, Molucas",
+        "medium": "Tejido ikat (tais)",
+        "meaning": "El ikat de Tanimbar cuenta con Indicación Geográfica desde 2017. Su motivo principal es la orquídea, símbolo de belleza, dignidad y perseverancia; las pequeñas puntas de flecha gemelas (tunis) representan la vigilancia."
+      },
+      "ukiran-asmat": {
+        "region": "Asmat, Papúa del Sur",
+        "medium": "Tallado en madera",
+        "meaning": "Los escudos, las proas de canoa y los postes ancestrales tallados por los asmat son conocidos en todo el mundo. En ellos se repiten formas animales como el cálao y la mantis religiosa, que transmiten la presencia de los antepasados."
+      }
+    }
+  },
   "signIn": {
     "title": "Iniciar sesión",
     "description": "Usa tu cuenta de trabajo para continuar",

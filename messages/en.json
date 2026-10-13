@@ -795,6 +795,73 @@
     "yellow": "Yellow",
     "saveFailed": "Couldn't save the accent color."
   },
+  "motifs": {
+    "label": "Motif",
+    "daily": "Daily",
+    "none": "None",
+    "about": "About {name}…",
+    "localName": "Local name: {name}",
+    "source": "Source",
+    "aiNote": "This illustration is an AI interpretation of the motif, not a reproduction of an artefact.",
+    "saveFailed": "Couldn't save the motif.",
+    "items": {
+      "pintu-aceh": {
+        "region": "Aceh",
+        "medium": "Gold filigree jewellery and carving",
+        "meaning": "Modelled on the Pintô Khôp, the gate Sultan Iskandar Muda built in the palace garden for his queen from Pahang. In 1935 the goldsmith Mahmud Ibrahim turned its outline into the Pinto Aceh brooch, and the motif spread from jewellery to doors and carving. Listed as Indonesian Intangible Cultural Heritage in 2015."
+      },
+      "gorga": {
+        "region": "Batak Toba, North Sumatra",
+        "medium": "Carved and painted wood",
+        "meaning": "Gorga are the carvings on the gables of Batak Toba houses, painted in red, white and black. This one follows Simeol-eol, whose swaying tendrils stand for joy, health and a long life with many descendants."
+      },
+      "pucuk-rebung": {
+        "region": "Malay and Minangkabau, West Sumatra",
+        "medium": "Songket and wood carving",
+        "meaning": "Rows of young bamboo shoots along the borders of songket and on Rumah Gadang carvings. The Minang saying behind it — ketek baguno, gadang tapakai, useful when small and put to use when grown — makes it a wish for a life of purpose."
+      },
+      "megamendung": {
+        "region": "Cirebon, West Java",
+        "medium": "Hand-drawn batik (batik tulis)",
+        "meaning": "Layered rain clouds with pointed tips, from Cirebon's coastal batik tradition with its Chinese influence. Clouds bring the rain that makes the land fertile, so the motif is read as patience, calm and sheltering leadership."
+      },
+      "kawung": {
+        "region": "Java, Yogyakarta",
+        "medium": "Batik",
+        "meaning": "Four ovals like the fruit of the sugar palm (kawung) meeting at a centre. Once worn only within the palace, it stands for purity and self-control, and for harmony between the self and the universe."
+      },
+      "batang-garing": {
+        "region": "Dayak Ngaju, Central Kalimantan",
+        "medium": "Carving and painting",
+        "meaning": "The tree of life of the Dayak Ngaju, from the Kaharingan scripture Panaturan, and the emblem of Palangka Raya. Its spear-tip crown points to the upper world and its roots and jar to the underworld: balance between people, nature and God."
+      },
+      "patra-punggel": {
+        "region": "Bali",
+        "medium": "Stone and wood carving",
+        "meaning": "The curled tip of a young fern frond (liking paku), built from named parts such as batun poh and kuping guling. It runs along Balinese temple gates and houses and is read as harmony and purity in nature."
+      },
+      "pa-barre-allo": {
+        "region": "Toraja, South Sulawesi",
+        "medium": "Carved and painted wood",
+        "meaning": "A sun with radiating rays, one of the passura' carvings on the walls of a tongkonan house. It expresses the hope for a noble, united family whose descendants become a blessing to others."
+      },
+      "mamuli": {
+        "region": "Sumba, East Nusa Tenggara",
+        "medium": "Ikat weaving (hinggi)",
+        "meaning": "The Ω-shaped mamuli is a gold ornament exchanged in Sumbanese marriage gifts; woven into hinggi cloth it becomes a motif. It embodies the feminine principle, fertility and life."
+      },
+      "tenun-tanimbar": {
+        "region": "Tanimbar Islands, Maluku",
+        "medium": "Ikat weaving (tais)",
+        "meaning": "Tanimbar ikat has held a Geographical Indication since 2017. Its main motif is the orchid, for beauty, dignity and perseverance; the small twin arrowheads (tunis) stand for vigilance."
+      },
+      "ukiran-asmat": {
+        "region": "Asmat, South Papua",
+        "medium": "Wood carving",
+        "meaning": "The shields, canoe prows and ancestor poles carved by the Asmat are known worldwide. Animal forms such as the hornbill and the praying mantis recur in them and carry the presence of the ancestors."
+      }
+    }
+  },
   "signIn": {
     "title": "Sign in",
     "description": "Use your work account to continue",
