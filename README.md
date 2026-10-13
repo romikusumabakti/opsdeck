@@ -94,6 +94,17 @@ To add a brand:
 1. Add its name to `BRANDS` in `lib/branding.ts` and its default accent to `BRAND_DEFAULT_ACCENT` in `lib/accents.ts`.
 2. Give it a logo shape in `lib/brand-logos.ts`.
 
+### Background motifs
+
+Faint Nusantara ornaments sit in the corners of the pages outside the app (sign-in, setup, password reset, invitations, errors) and at the bottom of the sidebar. There are eleven, one per major region, ordered west to east: Pintu Aceh, Gorga, Pucuk Rebung, Megamendung, Kawung, Batang Garing, Patra Punggel, Pa' Barre Allo, Mamuli, Tenun Tanimbar and Ukiran Asmat. Everyone sees the same motif each day (it changes at midnight `APP_TIMEZONE`); each user can pin one or turn them off from the user menu (**Motif**) or the command palette, stored in `users.motif`. The ⓘ button outside the app and **About …** in the menu show a short cultural note.
+
+The images are masks: `components/motif-watermark.tsx` paints `--primary` through them, so they follow the theme and accent. The source art in `design/motifs/` was generated with `gpt-image-2.5-sunburst` (prompts in `design/motifs/prompts.json`).
+
+To add or replace a motif:
+1. Put a black-on-transparent PNG at `design/motifs/<slug>.png` and run `node scripts/build-motifs.mjs`.
+2. For a new motif, add it to `MOTIFS` in `lib/motifs.ts` at its place by longitude.
+3. Add its `items.<slug>` caption to `motifs` in all five `messages/*.json` files.
+
 ## Running with Docker Compose
 
 ```sh
