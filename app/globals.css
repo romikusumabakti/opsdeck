@@ -79,6 +79,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Logo colours (components/brand-mark.tsx). Neutral is black/white;
+     coloured accents override both in the role blocks below. */
+  --logo: var(--foreground);
+  --logo-status: color-mix(in oklab, var(--foreground) 40%, transparent);
 }
 
 .dark {
@@ -116,68 +120,102 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* Brand themes. The root layout sets data-brand on <html> from BRAND
-   (lib/branding.ts); each brand overrides the stock tokens above for light
-   (:not(.dark)) and dark mode. The selectors outrank :root and .dark, so the
-   order of these blocks doesn't matter. Status colours (destructive, success)
-   and charts stay stock. tests/brand-theme.test.ts holds every text pair here
-   to WCAG AA. */
-
-/* DSS Consulting: navy #203864 accents on navy-tinted neutrals (hue ~262),
-   matching the logo. Dark mode keeps the stock lightness steps with only a
-   faint navy cast (chroma ~0.015): a full-strength tint read as "all blue"
-   across a whole screen. */
-[data-brand="dss"]:not(.dark) {
-  --foreground: oklch(0.22 0.047 261.7);
-  --card-foreground: oklch(0.22 0.047 261.7);
-  --popover-foreground: oklch(0.22 0.047 261.7);
-  --primary: oklch(0.346 0.083 261.5);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.967 0.009 264.5);
-  --secondary-foreground: oklch(0.346 0.083 261.5);
-  --muted: oklch(0.967 0.009 264.5);
-  --muted-foreground: oklch(0.526 0.036 261.6);
-  --accent: oklch(0.951 0.013 262.4);
-  --accent-foreground: oklch(0.22 0.047 261.7);
-  --border: oklch(0.927 0.013 262.4);
-  --input: oklch(0.927 0.013 262.4);
-  --ring: oklch(0.569 0.163 262.2);
-  --sidebar: oklch(0.976 0.006 264.5);
-  --sidebar-foreground: oklch(0.22 0.047 261.7);
-  --sidebar-primary: oklch(0.346 0.083 261.5);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.942 0.016 262.8);
-  --sidebar-accent-foreground: oklch(0.346 0.083 261.5);
-  --sidebar-border: oklch(0.927 0.013 262.4);
-  --sidebar-ring: oklch(0.569 0.163 262.2);
+/* Accent colours. The root layout sets data-accent on <html> from the user's
+   choice (lib/accents.ts), falling back to the brand default. Each colour
+   binds its Tailwind steps to --tint-*; the two role blocks then map those to
+   the shadcn tokens for every colour except neutral, which stays stock.
+   Steps: primary 900 light / 300 dark; ring 500 / 400 unless that falls
+   below 3:1 against the page (green and orange 600, yellow 700 in light).
+   lib/accent-palette.ts mirrors these for the favicon, and
+   tests/accent-theme.test.ts checks contrast and that both agree. */
+[data-accent="blue"] {
+  --tint-100: var(--color-blue-100);
+  --tint-200: var(--color-blue-200);
+  --tint-300: var(--color-blue-300);
+  --tint-900: var(--color-blue-900);
+  --tint-950: var(--color-blue-950);
+  --tint-ring-light: var(--color-blue-500);
+  --tint-ring-dark: var(--color-blue-400);
+}
+[data-accent="green"] {
+  --tint-100: var(--color-green-100);
+  --tint-200: var(--color-green-200);
+  --tint-300: var(--color-green-300);
+  --tint-900: var(--color-green-900);
+  --tint-950: var(--color-green-950);
+  --tint-ring-light: var(--color-green-600);
+  --tint-ring-dark: var(--color-green-400);
+}
+[data-accent="orange"] {
+  --tint-100: var(--color-orange-100);
+  --tint-200: var(--color-orange-200);
+  --tint-300: var(--color-orange-300);
+  --tint-900: var(--color-orange-900);
+  --tint-950: var(--color-orange-950);
+  --tint-ring-light: var(--color-orange-600);
+  --tint-ring-dark: var(--color-orange-400);
+}
+[data-accent="red"] {
+  --tint-100: var(--color-red-100);
+  --tint-200: var(--color-red-200);
+  --tint-300: var(--color-red-300);
+  --tint-900: var(--color-red-900);
+  --tint-950: var(--color-red-950);
+  --tint-ring-light: var(--color-red-500);
+  --tint-ring-dark: var(--color-red-400);
+}
+[data-accent="rose"] {
+  --tint-100: var(--color-rose-100);
+  --tint-200: var(--color-rose-200);
+  --tint-300: var(--color-rose-300);
+  --tint-900: var(--color-rose-900);
+  --tint-950: var(--color-rose-950);
+  --tint-ring-light: var(--color-rose-500);
+  --tint-ring-dark: var(--color-rose-400);
+}
+[data-accent="violet"] {
+  --tint-100: var(--color-violet-100);
+  --tint-200: var(--color-violet-200);
+  --tint-300: var(--color-violet-300);
+  --tint-900: var(--color-violet-900);
+  --tint-950: var(--color-violet-950);
+  --tint-ring-light: var(--color-violet-500);
+  --tint-ring-dark: var(--color-violet-400);
+}
+[data-accent="yellow"] {
+  --tint-100: var(--color-yellow-100);
+  --tint-200: var(--color-yellow-200);
+  --tint-300: var(--color-yellow-300);
+  --tint-900: var(--color-yellow-900);
+  --tint-950: var(--color-yellow-950);
+  --tint-ring-light: var(--color-yellow-700);
+  --tint-ring-dark: var(--color-yellow-400);
 }
 
-.dark[data-brand="dss"] {
-  --background: oklch(0.15 0.012 265);
-  --foreground: oklch(0.97 0.006 262);
-  --card: oklch(0.205 0.014 265);
-  --card-foreground: oklch(0.97 0.006 262);
-  --popover: oklch(0.205 0.014 265);
-  --popover-foreground: oklch(0.97 0.006 262);
-  --primary: oklch(0.811 0.071 262.5);
-  --primary-foreground: oklch(0.233 0.052 261.2);
-  --secondary: oklch(0.265 0.016 265);
-  --secondary-foreground: oklch(0.97 0.006 262);
-  --muted: oklch(0.265 0.016 265);
-  --muted-foreground: oklch(0.715 0.018 262);
-  --accent: oklch(0.275 0.018 265);
-  --accent-foreground: oklch(0.97 0.006 262);
-  --border: oklch(0.88 0.02 262 / 10%);
-  --input: oklch(0.88 0.02 262 / 15%);
-  --ring: oklch(0.73 0.112 260.7);
-  --sidebar: oklch(0.19 0.014 265);
-  --sidebar-foreground: oklch(0.97 0.006 262);
-  --sidebar-primary: oklch(0.811 0.071 262.5);
-  --sidebar-primary-foreground: oklch(0.233 0.052 261.2);
-  --sidebar-accent: oklch(0.275 0.022 265);
-  --sidebar-accent-foreground: oklch(0.97 0.006 262);
-  --sidebar-border: oklch(0.88 0.02 262 / 10%);
-  --sidebar-ring: oklch(0.73 0.112 260.7);
+[data-accent]:not([data-accent="neutral"]):not(.dark) {
+  --primary: var(--tint-900);
+  --primary-foreground: oklch(1 0 0);
+  --ring: var(--tint-ring-light);
+  --sidebar-primary: var(--tint-900);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: var(--tint-100);
+  --sidebar-accent-foreground: var(--tint-900);
+  --sidebar-ring: var(--tint-ring-light);
+  --logo: var(--tint-900);
+  --logo-status: var(--tint-ring-light);
+}
+
+.dark[data-accent]:not([data-accent="neutral"]) {
+  --primary: var(--tint-300);
+  --primary-foreground: oklch(0.145 0 0);
+  --ring: var(--tint-ring-dark);
+  --sidebar-primary: var(--tint-300);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
+  --sidebar-accent: var(--tint-950);
+  --sidebar-accent-foreground: var(--tint-200);
+  --sidebar-ring: var(--tint-ring-dark);
+  --logo: var(--tint-200);
+  --logo-status: var(--tint-ring-dark);
 }
 
 @layer base {
