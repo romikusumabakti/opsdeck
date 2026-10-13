@@ -21,7 +21,7 @@ export function MotifWatermark({
     <div
       aria-hidden="true"
       className={cn(
-        "pointer-events-none size-[min(60vw,14rem)] select-none bg-primary opacity-[0.06] dark:opacity-[0.08] print:hidden forced-colors:hidden sm:size-[min(30vw,45vh,20rem)]",
+        "pointer-events-none size-[min(60vw,14rem)] select-none bg-primary opacity-[0.06] dark:opacity-[0.08] print:hidden forced-colors:hidden sm:size-[min(36vw,60vh,26rem)]",
         className
       )}
       style={{
