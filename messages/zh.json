@@ -795,6 +795,73 @@
     "yellow": "黄色",
     "saveFailed": "无法保存强调色。"
   },
+  "motifs": {
+    "label": "纹样",
+    "daily": "每日",
+    "none": "无",
+    "about": "关于{name}…",
+    "localName": "当地名称：{name}",
+    "source": "来源",
+    "aiNote": "此插图是 AI 对该纹样的诠释，并非文物的复制品。",
+    "saveFailed": "无法保存纹样。",
+    "items": {
+      "pintu-aceh": {
+        "region": "亚齐",
+        "medium": "金银丝工艺首饰与雕刻",
+        "meaning": "以 Pintô Khôp 为蓝本。这座园门由苏丹 Iskandar Muda 在王宫花园中为来自 Pahang 的王后所建。1935 年，金匠 Mahmud Ibrahim 将其轮廓制成 Pinto Aceh 胸针，此后这一纹样从首饰传到门扇与雕刻上。2015 年被列为印度尼西亚非物质文化遗产。"
+      },
+      "gorga": {
+        "region": "Batak Toba，北苏门答腊",
+        "medium": "彩绘木雕",
+        "meaning": "Gorga 是 Batak Toba 房屋山墙上的雕刻，以红、白、黑三色彩绘。这一款取自 Simeol-eol，其摇曳的卷须象征喜乐、健康以及多子多孙的长寿人生。"
+      },
+      "pucuk-rebung": {
+        "region": "马来与 Minangkabau，西苏门答腊",
+        "medium": "songket 织锦与木雕",
+        "meaning": "成排的嫩竹笋出现在 songket 的边饰和 Rumah Gadang 的雕刻上。其背后的 Minang 谚语 ketek baguno, gadang tapakai，意为小时有用、长大被用，寄托着活得有价值的愿望。"
+      },
+      "megamendung": {
+        "region": "Cirebon，西爪哇",
+        "medium": "手绘蜡染（batik tulis）",
+        "meaning": "层层叠叠、顶端尖锐的雨云，源自 Cirebon 沿海蜡染传统，带有中国文化的影响。云带来滋润大地的雨水，因此这一纹样被解读为耐心、平和与庇护他人的领导力。"
+      },
+      "kawung": {
+        "region": "爪哇，日惹",
+        "medium": "蜡染",
+        "meaning": "四个椭圆形如糖棕果实（kawung），在中心相接。它曾只在王宫内穿用，象征纯洁与自制，也象征个人与宇宙的和谐。"
+      },
+      "batang-garing": {
+        "region": "Dayak Ngaju，中加里曼丹",
+        "medium": "雕刻与绘画",
+        "meaning": "Dayak Ngaju 的生命之树，出自 Kaharingan 经典 Panaturan，也是 Palangka Raya 的市徽。矛尖形的树冠指向上界，树根与陶罐指向下界：象征人、自然与神之间的平衡。"
+      },
+      "patra-punggel": {
+        "region": "巴厘岛",
+        "medium": "石雕与木雕",
+        "meaning": "幼嫩蕨叶卷曲的尖端（liking paku），由 batun poh、kuping guling 等有名称的部分组成。它装饰巴厘岛的寺庙门和住宅，被解读为自然的和谐与纯净。"
+      },
+      "pa-barre-allo": {
+        "region": "Toraja，南苏拉威西",
+        "medium": "彩绘木雕",
+        "meaning": "放射光芒的太阳，是 tongkonan 房屋墙壁上的 passura' 雕刻之一。它寄托了对高贵、团结的家族的期望，愿子孙成为他人的祝福。"
+      },
+      "mamuli": {
+        "region": "松巴岛，东努沙登加拉",
+        "medium": "扎染织布（hinggi）",
+        "meaning": "Ω 形的 mamuli 是松巴婚礼互赠礼物中的金饰；织入 hinggi 布后便成为一种纹样。它象征女性原则、生育与生命。"
+      },
+      "tenun-tanimbar": {
+        "region": "Tanimbar 群岛，马鲁古",
+        "medium": "扎染织布（tais）",
+        "meaning": "Tanimbar 扎染织物自 2017 年起获得地理标志。其主要纹样是兰花，象征美丽、尊严与坚韧；小巧的双箭头（tunis）则象征警觉。"
+      },
+      "ukiran-asmat": {
+        "region": "Asmat，南巴布亚",
+        "medium": "木雕",
+        "meaning": "Asmat 人雕刻的盾牌、独木舟船首和祖先柱闻名世界。犀鸟、螳螂等动物形象在其中反复出现，承载着祖先的临在。"
+      }
+    }
+  },
   "signIn": {
     "title": "登录",
     "description": "使用您的工作账户继续",
