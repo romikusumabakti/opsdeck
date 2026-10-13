@@ -7,6 +7,7 @@ import { listMilestones } from "@/actions/milestones";
 import { getProjectByKeyWithEnvironments } from "@/actions/project-catalog";
 import {
   listMemberCandidates,
+  listOrgWideAccess,
   listProjectMembers,
 } from "@/actions/project-members";
 import { getEnvironmentsLastActivity } from "@/actions/runs";
@@ -64,12 +65,13 @@ export default async function ProjectOverviewPage({
   // Membership management follows the project role (maintainers, plus org
   // admin/infra who are implicit maintainers everywhere).
   const canManageMembers = canProject(role, { member: ["manage"] });
-  const [members, memberCandidates] = canManageMembers
+  const [members, memberCandidates, orgWideAccess] = canManageMembers
     ? await Promise.all([
         listProjectMembers(project.id),
         listMemberCandidates(project.id),
+        listOrgWideAccess(project.id),
       ])
-    : [[], []];
+    : [[], [], []];
 
   const environments = [...project.environments].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -254,8 +256,10 @@ export default async function ProjectOverviewPage({
           <TabsContent value="members" className="flex flex-1 min-h-0 flex-col">
             <ProjectMembersClient
               projectId={project.id}
+              projectName={project.name}
               initialMembers={members}
               memberCandidates={memberCandidates}
+              orgWideAccess={orgWideAccess}
             />
           </TabsContent>
         ) : null}

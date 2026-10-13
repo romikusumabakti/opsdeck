@@ -1553,7 +1553,17 @@
     "removedSuccess": "Member removed",
     "errorInvalidInput": "Invalid input",
     "errorInvalidRole": "Invalid role",
-    "errorAddFailed": "Failed to add member"
+    "errorAddFailed": "Failed to add member",
+    "roleDescription": {
+      "viewer": "View the project and read service logs",
+      "contributor": "Work on issues, back up and restore databases, control the clock",
+      "maintainer": "Everything, plus manage services, databases, environments and members"
+    },
+    "removeConfirmTitle": "Remove {name} from {project}?",
+    "removeConfirmDescription": "They lose access to this project, unless their organisation role still grants it.",
+    "removeMember": "Remove {name}",
+    "orgAccessTitle": "Also has access through their organisation role",
+    "orgAccessDescription": "Admins and infra are maintainers on every project; observers can view every project. Change org roles in Admin → Access."
   },
   "milestones": {
     "add": "Add",

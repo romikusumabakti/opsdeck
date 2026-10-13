@@ -1,12 +1,19 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 import { recordActivity } from "@/lib/activity";
+import { ORG_WIDE_VISIBLE_ROLES } from "@/lib/assignees";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
-import { isProjectRole, type ProjectRole } from "@/lib/permissions";
+import {
+  implicitProjectRole,
+  isProjectRole,
+  normalizeOrgRole,
+  type OrgRole,
+  type ProjectRole,
+} from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
@@ -41,6 +48,44 @@ export async function listProjectMembers(
     .where(eq(projectMembers.projectId, projectId))
     .orderBy(userTable.name);
   return rows as ProjectMemberRow[];
+}
+
+export type OrgWideAccessRow = {
+  userId: string;
+  name: string;
+  image: string | null;
+  orgRole: OrgRole;
+  role: ProjectRole;
+};
+
+// People who reach this project through their org role (admin/infra are
+// maintainers everywhere, observers viewers) whether or not they hold a
+// membership. The members tab lists them so "who can see this project?" has a
+// complete answer; the page drops anyone already in the members table.
+export async function listOrgWideAccess(
+  projectId: string
+): Promise<OrgWideAccessRow[]> {
+  await requireProjectPermission({ projectId }, { member: ["manage"] });
+  const rows = await db
+    .select({
+      userId: userTable.id,
+      name: userTable.name,
+      image: userTable.image,
+      orgRole: userTable.role,
+    })
+    .from(userTable)
+    .where(
+      and(
+        eq(userTable.banned, false),
+        inArray(userTable.role, ORG_WIDE_VISIBLE_ROLES)
+      )
+    )
+    .orderBy(userTable.name);
+  return rows.flatMap((r) => {
+    const orgRole = normalizeOrgRole(r.orgRole);
+    const role = implicitProjectRole(orgRole);
+    return role ? [{ ...r, orgRole, role }] : [];
+  });
 }
 
 // Everyone who could be added to the project: every non-banned user, by name.

@@ -1553,7 +1553,17 @@
     "removedSuccess": "Miembro eliminado",
     "errorInvalidInput": "Entrada no válida",
     "errorInvalidRole": "Rol no válido",
-    "errorAddFailed": "No se pudo añadir el miembro"
+    "errorAddFailed": "No se pudo añadir el miembro",
+    "roleDescription": {
+      "viewer": "Ver el proyecto y leer los registros de servicios",
+      "contributor": "Trabajar en incidencias, respaldar y restaurar bases de datos, controlar el reloj",
+      "maintainer": "Todo lo anterior, más gestionar servicios, bases de datos, entornos y miembros"
+    },
+    "removeConfirmTitle": "¿Quitar a {name} de {project}?",
+    "removeConfirmDescription": "Perderá el acceso a este proyecto, salvo que su rol en la organización todavía se lo conceda.",
+    "removeMember": "Quitar a {name}",
+    "orgAccessTitle": "También tienen acceso por su rol en la organización",
+    "orgAccessDescription": "Los administradores e infra son mantenedores en todos los proyectos; los observadores pueden ver todos los proyectos. Cambia los roles en Admin → Acceso."
   },
   "milestones": {
     "add": "Añadir",

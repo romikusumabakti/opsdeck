@@ -1553,7 +1553,17 @@
     "removedSuccess": "Anggota dihapus",
     "errorInvalidInput": "Masukan tidak valid",
     "errorInvalidRole": "Peran tidak valid",
-    "errorAddFailed": "Gagal menambahkan anggota"
+    "errorAddFailed": "Gagal menambahkan anggota",
+    "roleDescription": {
+      "viewer": "Melihat project dan membaca log service",
+      "contributor": "Mengerjakan issue, backup dan restore database, mengatur waktu",
+      "maintainer": "Semuanya, ditambah mengelola service, database, environment, dan anggota"
+    },
+    "removeConfirmTitle": "Hapus {name} dari {project}?",
+    "removeConfirmDescription": "Dia akan kehilangan akses ke project ini, kecuali role organisasinya masih memberikan akses.",
+    "removeMember": "Hapus {name}",
+    "orgAccessTitle": "Juga punya akses lewat role organisasi",
+    "orgAccessDescription": "Admin dan infra adalah maintainer di semua project; observer bisa melihat semua project. Ubah role organisasi di Admin → Access."
   },
   "milestones": {
     "add": "Tambah",

@@ -1553,7 +1553,17 @@
     "removedSuccess": "已移除成员",
     "errorInvalidInput": "输入无效",
     "errorInvalidRole": "角色无效",
-    "errorAddFailed": "添加成员失败"
+    "errorAddFailed": "添加成员失败",
+    "roleDescription": {
+      "viewer": "查看项目并读取服务日志",
+      "contributor": "处理问题、备份和恢复数据库、控制时钟",
+      "maintainer": "以上全部，并可管理服务、数据库、环境和成员"
+    },
+    "removeConfirmTitle": "将 {name} 从 {project} 中移除？",
+    "removeConfirmDescription": "对方将失去此项目的访问权限，除非其组织角色仍授予访问权限。",
+    "removeMember": "移除 {name}",
+    "orgAccessTitle": "通过组织角色同样拥有访问权限",
+    "orgAccessDescription": "管理员和基础设施角色在所有项目中都是维护者；观察者可以查看所有项目。可在“管理 → 访问”中更改组织角色。"
   },
   "milestones": {
     "add": "添加",
