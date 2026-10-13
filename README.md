@@ -81,6 +81,15 @@ Neutral greys, status colours and charts are never tinted. Components never name
 
 Logos are code, not image files, so that they can take the accent's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. The favicon at `/brand/icon.svg?accent=…` is drawn from the same shape in the user's accent, and follows the browser's light or dark scheme. Its colours live in `lib/accent-palette.ts`, which `tests/accent-palette.test.ts` pins to Tailwind's palette.
 
+To add an accent colour:
+1. Add its name to `ACCENTS` in `lib/accents.ts`.
+2. Add a `[data-accent="…"]` binding block in `app/globals.css`.
+3. Add its steps and values to `ACCENT_STEPS` and `ACCENT_PALETTE` in `lib/accent-palette.ts`.
+4. Add its swatch classes in `components/accent-dot.tsx`.
+5. Add its name to `accentSwitcher` in all five `messages/*.json` files.
+
+The tests then check contrast and palette agreement.
+
 To add a brand:
 1. Add its name to `BRANDS` in `lib/branding.ts` and its default accent to `BRAND_DEFAULT_ACCENT` in `lib/accents.ts`.
 2. Give it a logo shape in `lib/brand-logos.ts`.

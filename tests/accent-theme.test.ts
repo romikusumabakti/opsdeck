@@ -106,6 +106,41 @@ describe("accent themes", () => {
     }
   });
 
+  it("bind every --tint-* to the accent's own palette", () => {
+    for (const accent of TINTED) {
+      const binding = must(block(`[data-accent="${accent}"]`), accent);
+      const tints = Object.entries(binding).filter(([n]) =>
+        n.startsWith("tint-")
+      );
+      expect(tints.length).toBeGreaterThan(0);
+      for (const [name, value] of tints) {
+        expect({
+          accent,
+          name,
+          own: value.startsWith(`var(--color-${accent}-`),
+        }).toEqual({ accent, name, own: true });
+      }
+    }
+  });
+
+  it("point the logo at the logo steps and the status tile at the ring", () => {
+    expect(ROLE_LIGHT["logo-status"]).toBe("var(--tint-ring-light)");
+    expect(ROLE_DARK["logo-status"]).toBe("var(--tint-ring-dark)");
+    for (const accent of TINTED) {
+      const binding = must(block(`[data-accent="${accent}"]`), accent);
+      const steps = ACCENT_STEPS[accent];
+      // The role blocks name a fixed tint; it must be the step the favicon uses.
+      expect(ROLE_LIGHT.logo).toBe("var(--tint-900)");
+      expect(binding["tint-900"]).toBe(
+        `var(--color-${accent}-${steps.logoLight})`
+      );
+      expect(ROLE_DARK.logo).toBe("var(--tint-200)");
+      expect(binding["tint-200"]).toBe(
+        `var(--color-${accent}-${steps.logoDark})`
+      );
+    }
+  });
+
   for (const accent of TINTED) {
     for (const mode of ["light", "dark"] as const) {
       it(`${accent} (${mode}) keeps text at AA and the ring at 3:1`, () => {
