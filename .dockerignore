@@ -19,5 +19,7 @@ build
 # NOTE: do not ignore `docs` — the mock-time page reads docs/time-mocking-api.md
 # at runtime, and the Dockerfile copies it into the image.
 tests
+# Source PNGs for scripts/build-motifs.mjs only; never needed by the image.
+design
 *.tsbuildinfo
 README.md

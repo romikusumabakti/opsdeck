@@ -265,7 +265,7 @@ export default async function LocaleLayout({
                     </MotifProvider>
                   </AccentProvider>
                 ) : (
-                  <div className="relative isolate flex flex-col min-h-dvh overflow-hidden bg-muted dark:bg-background">
+                  <div className="relative isolate flex flex-col min-h-dvh overflow-clip bg-muted dark:bg-background">
                     {/* Corner ornaments, letterhead-style: the motif hugs the
                         bottom-right, and a mirrored copy the bottom-left.
                         Mirrored rather than rotated so directional motifs (a
