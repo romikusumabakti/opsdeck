@@ -98,7 +98,7 @@ To add a brand:
 
 Faint Nusantara ornaments sit in the corners of the pages outside the app (sign-in, setup, password reset, invitations, errors) and at the bottom of the sidebar. There are eleven, one per major region, ordered west to east: Pintu Aceh, Gorga, Pucuk Rebung, Megamendung, Kawung, Batang Garing, Patra Punggel, Pa' Barre Allo, Mamuli, Tenun Tanimbar and Ukiran Asmat. Everyone sees the same motif each day (it changes at midnight `APP_TIMEZONE`); each user can pin one or turn them off from the user menu (**Motif**) or the command palette, stored in `users.motif`. The ⓘ button outside the app and **About …** in the menu show a short cultural note.
 
-The images are masks: `components/motif-watermark.tsx` paints `--primary` through them, so they follow the theme and accent. The source art in `design/motifs/` was generated with `gpt-image-2.5-sunburst` (prompts in `design/motifs/prompts.json`).
+The images are masks: `components/motif-watermark.tsx` paints `--ring` (the accent's saturated step) through them, so they follow the theme and accent. The source art in `design/motifs/` was generated with `gpt-image-2.5-sunburst` (prompts in `design/motifs/prompts.json`).
 
 To add or replace a motif:
 1. Put a black-on-transparent PNG at `design/motifs/<slug>.png` and run `node scripts/build-motifs.mjs`.

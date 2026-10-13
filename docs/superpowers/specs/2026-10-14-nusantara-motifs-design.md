@@ -69,9 +69,11 @@ Notes from research:
 ### Colour
 
 A `<div>` with `mask-image: url(/motifs/<slug>.webp)` (no-repeat, contain,
-anchored to its corner) and `background-color: var(--primary)`, so one asset
-serves every accent × light/dark and repaints instantly when the accent
-changes. Opacity ≈6% light, ≈8% dark — final values tuned during visual QA;
+anchored to its corner) and `background-color: var(--ring)` (the accent's saturated step, not `--primary`,
+whose light-mode 900 step reads as grey at watermark opacity), so one asset
+serves every accent × light/dark, the ornament carries the accent's hue, and it
+repaints instantly when the accent changes. Opacity ≈10% light, ≈12% dark —
+final values tuned during visual QA;
 text contrast is unaffected. Decorative: `aria-hidden`,
 `pointer-events: none`, `print:hidden`. Outside the app shell the accent is the
 brand default (no user).
