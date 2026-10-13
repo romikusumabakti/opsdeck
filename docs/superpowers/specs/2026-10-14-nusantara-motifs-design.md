@@ -58,6 +58,9 @@ Notes from research:
   error, not-found): the unauthenticated wrapper in `app/[locale]/layout.tsx`
   renders the motif upright in the bottom-end corner and rotated 180° in the
   top-start corner (mirrored in RTL). Below 640px only the bottom one shows.
+- **Size**: `min(60vw, 14rem)` below 640px, `min(30vw, 45vh, 20rem)` (≤ 320px)
+  from 640px up. The height cap keeps short viewports from filling with
+  ornament.
 - **Sidebar**: one copy at the same size as the sign-in ornament (the component
   owns its size), anchored bottom-end and clipped to the sidebar, behind the
   menu (stacking), above the user menu. Hidden when the sidebar collapses to
