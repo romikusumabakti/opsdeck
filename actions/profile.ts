@@ -3,6 +3,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
+import { accentSchema } from "@/lib/accents";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { requireOrgPermission } from "@/lib/authz";
@@ -178,4 +179,21 @@ export async function setMyTimeZone(timezone: string): Promise<ActionResponse> {
     .where(eq(users.id, session.user.id));
   revalidatePath("/", "layout");
   return { success: true, message: t("profileUpdated") };
+}
+
+/** Save the caller's accent colour. The UI applies it optimistically. */
+export async function setAccentColor(input: unknown): Promise<ActionResponse> {
+  const session = await requireSession();
+  const t = await getTranslations("actionErrors");
+  const parsed = accentSchema.safeParse(input);
+  if (!parsed.success) return { success: false, message: t("invalidInput") };
+
+  await db
+    .update(users)
+    .set({ accentColor: parsed.data, updatedAt: new Date() })
+    .where(eq(users.id, session.user.id));
+
+  // The accent is on <html> and in the favicon link on every page.
+  revalidatePath("/", "layout");
+  return { success: true };
 }

@@ -38,9 +38,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { TimezoneHint } from "@/components/user/timezone-hint";
 import { isRtlLocale } from "@/i18n/locales";
 import { routing } from "@/i18n/routing";
+import { brandIconSrc, effectiveAccent } from "@/lib/accents";
 import { getServerSession } from "@/lib/auth-session";
 import { getProjectAccess } from "@/lib/authz";
-import { BRAND_ICON_SRC, brand } from "@/lib/branding";
+import { brand } from "@/lib/branding";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus } from "@/lib/user-display";
@@ -73,10 +74,17 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "app" });
+  // getServerSession is request-cached, so this costs no extra lookup.
+  const session = await getServerSession();
   return {
     title: t("name"),
     description: t("name"),
-    icons: { icon: { url: BRAND_ICON_SRC, type: "image/svg+xml" } },
+    icons: {
+      icon: {
+        url: brandIconSrc(effectiveAccent(session?.user)),
+        type: "image/svg+xml",
+      },
+    },
   };
 }
 
@@ -126,14 +134,17 @@ export default async function LocaleLayout({
   const sidebarStateCookie = (await cookies()).get("sidebar_state")?.value;
   const sidebarDefaultOpen = sidebarStateCookie !== "false";
 
-  // Selects the brand's token blocks in globals.css (logo and colour theme).
+  // Logo shape (BRAND) and accent colour (the user's choice, else the brand
+  // default) — both select CSS in globals.css via data-* on <html>.
   const currentBrand = brand();
+  const accent = effectiveAccent(session?.user);
 
   return (
     <html
       lang={locale}
       dir={rtl ? "rtl" : "ltr"}
       data-brand={currentBrand}
+      data-accent={accent}
       suppressHydrationWarning
     >
       <body

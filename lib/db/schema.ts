@@ -19,6 +19,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { AccentColor } from "@/lib/accents";
 import type { WorkingHours } from "@/lib/user-display";
 
 export const serviceTypeEnum = pgEnum("service_type", [
@@ -666,6 +667,8 @@ export const users = pgTable(
     statusExpiresAt: timestamp("status_expires_at"),
     // Where `image` came from. 'removed' blocks the Microsoft re-import.
     avatarSource: text("avatar_source").$type<AvatarSource>(),
+    // lib/accents.ts ACCENTS; null = the brand default (effectiveAccent).
+    accentColor: text("accent_color").$type<AccentColor>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
