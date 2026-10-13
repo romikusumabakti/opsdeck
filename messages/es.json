@@ -642,14 +642,17 @@
   "userMenu": {
     "users": "Gestión de usuarios",
     "servers": "Gestión de servidores",
-    "account": "Cuenta",
+    "account": "Configuración de la cuenta",
     "changePassword": "Cambiar contraseña",
     "sessions": "Sesiones activas",
     "signOut": "Cerrar sesión",
     "ariaLabel": "Menú de usuario",
     "myProfile": "Mi perfil",
     "setStatus": "Establecer estado",
-    "editStatus": "Editar estado"
+    "editStatus": "Editar estado",
+    "theme": "Tema",
+    "accent": "Color de acento",
+    "language": "Idioma"
   },
   "account": {
     "title": "Cuenta",

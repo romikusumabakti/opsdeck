@@ -642,14 +642,17 @@
   "userMenu": {
     "users": "Manajemen pengguna",
     "servers": "Manajemen server",
-    "account": "Akun",
+    "account": "Pengaturan akun",
     "changePassword": "Ubah password",
     "sessions": "Sesi aktif",
     "signOut": "Keluar",
     "ariaLabel": "Menu pengguna",
     "myProfile": "Profil saya",
     "setStatus": "Atur status",
-    "editStatus": "Ubah status"
+    "editStatus": "Ubah status",
+    "theme": "Tema",
+    "accent": "Warna aksen",
+    "language": "Bahasa"
   },
   "account": {
     "title": "Akun",

@@ -7,11 +7,9 @@ import {
   LogOut,
   Monitor,
   Moon,
-  Server,
   Smile,
   Sun,
   UserRound,
-  Users,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -41,7 +39,6 @@ import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ACCENTS, type AccentColor } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
-import { canOrg, type OrgRole } from "@/lib/permissions";
 
 export type UserSummary = {
   id: string;
@@ -64,18 +61,15 @@ const themeOptions = [
 
 export function UserMenu({
   user,
-  orgRole,
   variant = "avatar",
 }: {
   user: UserSummary;
-  orgRole: OrgRole;
   variant?: "avatar" | "sidebar";
 }) {
   const t = useTranslations("userMenu");
   const tTheme = useTranslations("themeSwitcher");
   const tAccent = useTranslations("accentSwitcher");
   const { accent, setAccent } = useAccent();
-  const tLocale = useTranslations("localeSwitcher");
   const router = useRouter();
   const pathname = usePathname();
   const currentLocale = useLocale() as Locale;
@@ -125,42 +119,42 @@ export function UserMenu({
         >
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-sm font-medium truncate">{user.name}</span>
-              <span className="text-xs text-muted-foreground truncate">
-                {user.email}
+              <span className="text-sm font-medium text-foreground truncate">
+                {user.name}
               </span>
-              {user.status && (
-                <span className="text-xs truncate">
-                  {user.status.emoji} {user.status.text}
-                </span>
-              )}
+              <span className="text-xs truncate">{user.email}</span>
             </div>
           </DropdownMenuLabel>
+          {/* The status doubles as its own edit control, GitHub-style. */}
+          <DropdownMenuItem onClick={() => setStatusOpen(true)}>
+            {user.status ? (
+              <>
+                <span className="sr-only">{t("editStatus")}: </span>
+                {user.status.emoji ? (
+                  <span className="w-4 text-center leading-none">
+                    {user.status.emoji}
+                  </span>
+                ) : (
+                  <Smile />
+                )}
+                <span className="truncate">{user.status.text}</span>
+              </>
+            ) : (
+              <>
+                <Smile />
+                <span className="text-muted-foreground">{t("setStatus")}</span>
+              </>
+            )}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => router.push(`/people/${user.id}`)}>
             <IdCard />
             {t("myProfile")}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setStatusOpen(true)}>
-            <Smile />
-            {user.status ? t("editStatus") : t("setStatus")}
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push("/account")}>
             <UserRound />
             {t("account")}
           </DropdownMenuItem>
-          {canOrg(orgRole, { user: ["list"] }) && (
-            <DropdownMenuItem onClick={() => router.push("/admin/users")}>
-              <Users />
-              {t("users")}
-            </DropdownMenuItem>
-          )}
-          {canOrg(orgRole, { server: ["read"] }) && (
-            <DropdownMenuItem onClick={() => router.push("/servers")}>
-              <Server />
-              {t("servers")}
-            </DropdownMenuItem>
-          )}
           <DropdownMenuSeparator />
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
@@ -171,7 +165,8 @@ export function UserMenu({
               ) : (
                 <Monitor />
               )}
-              {tTheme("ariaLabel")}
+              {t("theme")}
+              <CurrentValue>{tTheme(theme)}</CurrentValue>
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
@@ -192,7 +187,8 @@ export function UserMenu({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <AccentDot accent={accent} className="mx-0.5" />
-              {tAccent("ariaLabel")}
+              {t("accent")}
+              <CurrentValue>{tAccent(accent)}</CurrentValue>
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
@@ -213,7 +209,8 @@ export function UserMenu({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger disabled={pending}>
               <Languages />
-              {tLocale("ariaLabel")}
+              {t("language")}
+              <CurrentValue>{localeLabels[currentLocale]}</CurrentValue>
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
@@ -231,7 +228,7 @@ export function UserMenu({
             </DropdownMenuPortal>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={onSignOut}>
+          <DropdownMenuItem onClick={onSignOut}>
             <LogOut />
             {t("signOut")}
           </DropdownMenuItem>
@@ -245,6 +242,17 @@ export function UserMenu({
         timeZone={user.timeZone}
       />
     </>
+  );
+}
+
+// The active choice, shown before a preference submenu's chevron. It takes
+// all the free space (rather than `ms-auto`) so the chevron's own auto margin
+// gets none, keeping every value flush against its chevron.
+function CurrentValue({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex-1 truncate text-end text-xs text-muted-foreground">
+      {children}
+    </span>
   );
 }
 
