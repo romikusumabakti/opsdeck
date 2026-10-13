@@ -775,6 +775,18 @@
     "dark": "Oscuro",
     "system": "Sistema"
   },
+  "accentSwitcher": {
+    "ariaLabel": "Color de acento",
+    "neutral": "Neutro",
+    "blue": "Azul",
+    "green": "Verde",
+    "orange": "Naranja",
+    "red": "Rojo",
+    "rose": "Rosa",
+    "violet": "Violeta",
+    "yellow": "Amarillo",
+    "saveFailed": "No se pudo guardar el color de acento."
+  },
   "signIn": {
     "title": "Iniciar sesión",
     "description": "Usa tu cuenta de trabajo para continuar",
