@@ -1,10 +1,13 @@
+import { ACCENT_PALETTE } from "@/lib/accent-palette";
+import type { AccentColor } from "@/lib/accents";
 import type { BrandName } from "@/lib/branding";
 
 /**
- * The logos a deployment can pick with BRAND. Every logo is the same
- * four-tile grid — top-left, top-right, bottom-left, and the bottom-right
- * "status" tile that animates while runs are active — so the motion in
- * globals.css works for all of them and only shape and colour differ.
+ * Logo shapes per brand (BRAND). Every logo is the same four-tile grid — top-
+ * left, top-right, bottom-left, and the bottom-right "status" tile that
+ * animates while runs are active — so the motion in globals.css works for all
+ * of them and only the shape differs. Colour comes from the user's accent:
+ * --logo / --logo-status in the app, ACCENT_PALETTE for the favicon.
  *
  * Geometry is drawn twice, each on a whole-pixel grid for the sizes it is shown
  * at, so no edge lands on half a pixel and blurs:
@@ -15,13 +18,7 @@ import type { BrandName } from "@/lib/branding";
 type Tiles = { tl: string; tr: string; bl: string; br: string };
 type Colors = { fg: string; status: string };
 
-type LogoDef = {
-  tiles: (unit: Grid) => Tiles;
-  /** Tailwind fill classes for the in-app logo, following the app theme. */
-  fill: Colors;
-  /** Favicon colours, following the browser's scheme (it can't see the app's). */
-  icon: { light: Colors; dark: Colors };
-};
+type LogoDef = { tiles: (unit: Grid) => Tiles };
 
 type Grid = { tile: number; gap: number; radius: number };
 
@@ -64,27 +61,11 @@ function grid(
 }
 
 export const BRAND_LOGO_DEFS: Record<BrandName, LogoDef> = {
-  // Neutral product mark: a plain dashboard grid in the theme's text colour.
-  default: {
-    tiles: (g) => grid(g, { tr: g.radius, br: g.radius }),
-    fill: { fg: "fill-foreground", status: "fill-foreground/40" },
-    icon: {
-      light: { fg: "#171717", status: "rgba(23,23,23,.4)" },
-      dark: { fg: "#fafafa", status: "rgba(250,250,250,.4)" },
-    },
-  },
+  // Neutral product mark: a plain dashboard grid.
+  default: { tiles: (g) => grid(g, { tr: g.radius, br: g.radius }) },
   // DSS Panel: the right-hand tiles round their outer corners into a "D".
-  // DSS Consulting navy in light mode, a navy-tinted white in dark mode.
   dss: {
     tiles: (g) => grid(g, { tr: g.tile - g.radius, br: g.tile - g.radius }),
-    fill: {
-      fg: "fill-[#203864] dark:fill-[#e8edf6]",
-      status: "fill-[#3f72d6] dark:fill-[#7fa8ee]",
-    },
-    icon: {
-      light: { fg: "#203864", status: "#3f72d6" },
-      dark: { fg: "#e8edf6", status: "#7fa8ee" },
-    },
   },
 };
 
@@ -92,10 +73,24 @@ export function logoTiles(logo: BrandName): Tiles {
   return BRAND_LOGO_DEFS[logo].tiles(GRID_24);
 }
 
+const NEUTRAL_ICON: { light: Colors; dark: Colors } = {
+  light: { fg: "#171717", status: "rgba(23,23,23,.4)" },
+  dark: { fg: "#fafafa", status: "rgba(250,250,250,.4)" },
+};
+
+function iconColors(accent: AccentColor): { light: Colors; dark: Colors } {
+  if (accent === "neutral") return NEUTRAL_ICON;
+  const p = ACCENT_PALETTE[accent];
+  return {
+    light: { fg: p.logoLight, status: p.ringLight },
+    dark: { fg: p.logoDark, status: p.ringDark },
+  };
+}
+
 /** The favicon: static, on the 16-unit grid, coloured by the browser scheme. */
-export function renderBrandIcon(logo: BrandName): string {
-  const { tiles, icon } = BRAND_LOGO_DEFS[logo];
-  const t = tiles(GRID_16);
+export function renderBrandIcon(logo: BrandName, accent: AccentColor): string {
+  const t = BRAND_LOGO_DEFS[logo].tiles(GRID_16);
+  const icon = iconColors(accent);
   const size = GRID_16.tile * 2 + GRID_16.gap;
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}">`,
