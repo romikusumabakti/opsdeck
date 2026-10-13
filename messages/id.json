@@ -795,6 +795,73 @@
     "yellow": "Kuning",
     "saveFailed": "Gagal menyimpan warna aksen."
   },
+  "motifs": {
+    "label": "Motif",
+    "daily": "Harian",
+    "none": "Tanpa motif",
+    "about": "Tentang {name}…",
+    "localName": "Nama lokal: {name}",
+    "source": "Sumber",
+    "aiNote": "Ilustrasi ini adalah interpretasi AI atas motifnya, bukan reproduksi artefak.",
+    "saveFailed": "Gagal menyimpan motif.",
+    "items": {
+      "pintu-aceh": {
+        "region": "Aceh",
+        "medium": "Perhiasan filigri emas dan ukiran",
+        "meaning": "Meniru Pintô Khôp, gerbang yang dibangun Sultan Iskandar Muda di taman istana untuk permaisurinya dari Pahang. Pada 1935 pandai emas Mahmud Ibrahim menjadikan bentuknya bros Pinto Aceh, lalu motif ini menyebar dari perhiasan ke pintu dan ukiran. Ditetapkan sebagai Warisan Budaya Takbenda Indonesia pada 2015."
+      },
+      "gorga": {
+        "region": "Batak Toba, Sumatera Utara",
+        "medium": "Ukiran kayu berwarna",
+        "meaning": "Gorga adalah ukiran pada dinding depan rumah Batak Toba, diwarnai merah, putih, dan hitam. Yang ini mengikuti Simeol-eol, sulur melambai yang melambangkan sukacita, kesehatan, dan umur panjang dengan banyak keturunan."
+      },
+      "pucuk-rebung": {
+        "region": "Melayu dan Minangkabau, Sumatera Barat",
+        "medium": "Songket dan ukiran kayu",
+        "meaning": "Deretan rebung muda di pinggiran songket dan ukiran Rumah Gadang. Pepatah Minang di baliknya — ketek baguno, gadang tapakai, kecil berguna, besar terpakai — menjadikannya harapan akan hidup yang bermanfaat."
+      },
+      "megamendung": {
+        "region": "Cirebon, Jawa Barat",
+        "medium": "Batik tulis",
+        "meaning": "Awan hujan berlapis dengan ujung runcing, dari tradisi batik pesisiran Cirebon yang dipengaruhi budaya Tionghoa. Awan membawa hujan yang menyuburkan tanah, sehingga motif ini dimaknai sebagai kesabaran, ketenangan, dan kepemimpinan yang mengayomi."
+      },
+      "kawung": {
+        "region": "Jawa, Yogyakarta",
+        "medium": "Batik",
+        "meaning": "Empat bentuk lonjong seperti buah aren (kawung) yang bertemu di satu titik. Dahulu hanya dikenakan di lingkungan keraton, motif ini melambangkan kesucian dan pengendalian diri, serta keselarasan antara diri dan semesta."
+      },
+      "batang-garing": {
+        "region": "Dayak Ngaju, Kalimantan Tengah",
+        "medium": "Ukiran dan lukisan",
+        "meaning": "Pohon kehidupan Dayak Ngaju dari kitab Kaharingan Panaturan, sekaligus lambang Kota Palangka Raya. Pucuknya yang serupa mata tombak menunjuk dunia atas, akar dan gucinya dunia bawah: keseimbangan antara manusia, alam, dan Tuhan."
+      },
+      "patra-punggel": {
+        "region": "Bali",
+        "medium": "Ukiran batu dan kayu",
+        "meaning": "Ujung pakis muda yang melengkung (liking paku), tersusun dari bagian-bagian bernama seperti batun poh dan kuping guling. Menghiasi gerbang pura dan rumah Bali, motif ini dimaknai sebagai keselarasan dan kesucian alam."
+      },
+      "pa-barre-allo": {
+        "region": "Toraja, Sulawesi Selatan",
+        "medium": "Ukiran kayu berwarna",
+        "meaning": "Matahari dengan sinar memancar, salah satu ukiran passura' di dinding tongkonan. Motif ini mengungkapkan harapan akan keluarga yang mulia dan bersatu, yang keturunannya menjadi berkat bagi sesama."
+      },
+      "mamuli": {
+        "region": "Sumba, Nusa Tenggara Timur",
+        "medium": "Tenun ikat (hinggi)",
+        "meaning": "Mamuli berbentuk Ω adalah perhiasan emas yang dipertukarkan dalam adat perkawinan Sumba; ditenun pada kain hinggi, ia menjadi motif. Mamuli melambangkan prinsip feminin, kesuburan, dan kehidupan."
+      },
+      "tenun-tanimbar": {
+        "region": "Kepulauan Tanimbar, Maluku",
+        "medium": "Tenun ikat (tais)",
+        "meaning": "Tenun ikat Tanimbar memperoleh Indikasi Geografis pada 2017. Motif utamanya bunga anggrek, lambang kecantikan, keagungan, dan keuletan; mata panah kembar kecil (tunis) melambangkan kewaspadaan."
+      },
+      "ukiran-asmat": {
+        "region": "Asmat, Papua Selatan",
+        "medium": "Ukiran kayu",
+        "meaning": "Perisai, haluan perahu, dan tiang leluhur ukiran suku Asmat dikenal di seluruh dunia. Bentuk hewan seperti burung enggang dan belalang sembah berulang di dalamnya dan menghadirkan para leluhur."
+      }
+    }
+  },
   "signIn": {
     "title": "Masuk",
     "description": "Gunakan akun kantor Anda untuk melanjutkan",
