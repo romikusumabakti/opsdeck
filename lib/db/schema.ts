@@ -20,6 +20,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AccentColor } from "@/lib/accents";
+import type { MotifPreference } from "@/lib/motifs";
 import type { WorkingHours } from "@/lib/user-display";
 
 export const serviceTypeEnum = pgEnum("service_type", [
@@ -669,6 +670,9 @@ export const users = pgTable(
     avatarSource: text("avatar_source").$type<AvatarSource>(),
     // lib/accents.ts ACCENTS; null = the brand default (effectiveAccent).
     accentColor: text("accent_color").$type<AccentColor>(),
+    // lib/motifs.ts: 'none' or a motif slug; null = daily rotation
+    // (effectiveMotifPreference).
+    motif: text("motif").$type<Exclude<MotifPreference, "daily">>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
