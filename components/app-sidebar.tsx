@@ -123,17 +123,22 @@ const adminItems: {
  * reaches the very bottom, behind the user menu, and sits behind the menu items
  * (-z-10 inside an isolated wrapper; a positioned layer would otherwise paint
  * over them). It is hidden when the sidebar collapses to icons. It has the same
- * size as on the sign-in page (MotifWatermark owns it); the wrapper clips it
- * (overflow-hidden) to the sidebar.
+ * size as on the sign-in page (MotifWatermark owns it), so it is wider than
+ * the sidebar and gets clipped.
+ *
+ * The mirror sits on a layer exactly the sidebar's size that does its own
+ * clipping, not on the oversized ornament: Firefox applied the sidebar's clip
+ * to a mirrored, oversized box in its unmirrored coordinates and drew only a
+ * strip of it on screen. Mirroring a box that matches the clip maps the clip
+ * onto itself, so the result is the same either way.
  */
 function SidebarMotif() {
   const { motif } = useMotif();
   if (!motif) return null;
   return (
-    <MotifWatermark
-      slug={motif}
-      className="absolute bottom-0 start-0 -z-10 -scale-x-100 rtl:scale-x-100 group-data-[collapsible=icon]:hidden"
-    />
+    <div className="absolute inset-0 -z-10 overflow-hidden -scale-x-100 rtl:scale-x-100 group-data-[collapsible=icon]:hidden">
+      <MotifWatermark slug={motif} className="absolute right-0 bottom-0" />
+    </div>
   );
 }
 
