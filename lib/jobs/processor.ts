@@ -59,6 +59,13 @@ import {
   uploadRemoteFile,
 } from "@/lib/ssh";
 
+// Bound for worker steps that move a whole database: dump, recreate, load, and
+// staging a dump file across hosts. Their run time grows with the data, so the
+// 10s default (sized for page renders) failed healthy restores as soon as the
+// load crossed it. Generous enough for any real dump, still finite so a wedged
+// psql or sqlcmd can't hold a worker slot forever.
+const DATA_COMMAND_TIMEOUT_MS = 30 * 60_000;
+
 // Appends a step's label to the run output before running it, and on failure
 // logs `✗ label — message` then re-throws so the handler's catch marks the
 // run failed. (The old Inngest version wrapped each call in step.run for
@@ -251,7 +258,7 @@ async function runPostgresBackup(
     runAsUser: "postgres",
     sudoPassword: credentials.password,
   });
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
   return fname;
 }
 
@@ -279,7 +286,7 @@ async function runMssqlBackup(
     db.serviceType,
     db.serviceName
   );
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
   return fname;
 }
 
@@ -309,7 +316,7 @@ async function runMysqlBackup(
     runAsUser: dbOsUser(db.dbType),
     sudoPassword: credentials.password,
   });
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
   return fname;
 }
 
@@ -543,14 +550,16 @@ async function transferBackupToTarget(
 
   await executeRemoteCommand(
     srcCreds,
-    buildExtractCommand(sourceEnvironment, sourceFile, srcHostTmp)
+    buildExtractCommand(sourceEnvironment, sourceFile, srcHostTmp),
+    DATA_COMMAND_TIMEOUT_MS
   );
   try {
     await downloadRemoteFile(srcCreds, srcHostTmp, localTmp);
     await uploadRemoteFile(dstCreds, localTmp, dstHostTmp);
     await executeRemoteCommand(
       dstCreds,
-      buildPlaceCommand(targetProject, dstHostTmp, dst)
+      buildPlaceCommand(targetProject, dstHostTmp, dst),
+      DATA_COMMAND_TIMEOUT_MS
     );
   } finally {
     // Drop the transient temps on both hosts and the panel regardless of
@@ -733,7 +742,7 @@ async function runPostgresRecreateDatabase(
     runAsUser: "postgres",
     sudoPassword: credentials.password,
   });
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 
 async function runPostgresRestore(
@@ -749,7 +758,7 @@ async function runPostgresRestore(
     runAsUser: "postgres",
     sudoPassword: credentials.password,
   });
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 
 async function runMysqlRecreateDatabase(
@@ -766,7 +775,7 @@ async function runMysqlRecreateDatabase(
     dbSvc.serviceType,
     dbSvc.serviceName
   );
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 
 async function runMysqlRestore(
@@ -791,7 +800,7 @@ async function runMysqlRestore(
     runAsUser: dbOsUser(dbSvc.dbType),
     sudoPassword: credentials.password,
   });
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 
 async function handleControlService(
@@ -888,7 +897,7 @@ async function runMssqlRestore(
     dbSvc.serviceType,
     dbSvc.serviceName
   );
-  await executeRemoteCommand(credentials, cmd);
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 
 async function handleCreateDatabase(
