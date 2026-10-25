@@ -148,7 +148,7 @@ User avatars share the same bucket under the `avatars/` prefix and are served th
 
 ## Local development
 
-Requirements: Bun ≥ 1.3, Node 24 (Turbopack needs a real `node` to build), and a PostgreSQL instance.
+Requirements: Bun ≥ 1.3, Node 24 (only for `scripts/build-motifs.mjs`), and a PostgreSQL instance.
 
 ```sh
 bun install
