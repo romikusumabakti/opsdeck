@@ -1,7 +1,7 @@
-import { config } from "dotenv";
+import { existsSync } from "node:fs";
 import type { Config } from "drizzle-kit";
 
-config({ path: ".env.local" });
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 export default {
   schema: "./lib/db/schema.ts",
