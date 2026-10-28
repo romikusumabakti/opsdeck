@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans_Arabic } from "next/font/google";
+import { IBM_Plex_Sans_Arabic, Inter, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
@@ -52,18 +52,18 @@ import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus } from "@/lib/user-display";
 import "../globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
-const notoSansArabic = Noto_Sans_Arabic({
-  variable: "--font-noto-sans-arabic",
+const plexSansArabic = IBM_Plex_Sans_Arabic({
+  variable: "--font-plex-sans-arabic",
   subsets: ["arabic"],
   weight: ["400", "500", "600", "700"],
 });
@@ -156,10 +156,10 @@ export default async function LocaleLayout({
       suppressHydrationWarning
     >
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${notoSansArabic.variable} antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} ${plexSansArabic.variable} antialiased`}
         style={
           rtl
-            ? { fontFamily: "var(--font-noto-sans-arabic), sans-serif" }
+            ? { fontFamily: "var(--font-plex-sans-arabic), sans-serif" }
             : undefined
         }
       >
