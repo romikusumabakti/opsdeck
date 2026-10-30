@@ -13,12 +13,13 @@ export default async function globalSetup() {
     throw new Error("DATABASE_URL must point at an *_e2e database");
   }
   const parsed = new URL(url);
-  // A query-string database name could override the path, so the path would
-  // no longer be what the connection actually uses.
-  for (const key of ["database", "dbname"]) {
-    if (parsed.searchParams.has(key)) {
-      throw new Error(`Refusing to run: DATABASE_URL must not set "${key}"`);
-    }
+  // Fail closed: postgres.js lets query parameters (`host`, `hostaddr`,
+  // `database`, `options`, ...) override the URL's own host and path, which
+  // would defeat the checks below. A plain URL has none.
+  if (parsed.search !== "") {
+    throw new Error(
+      "Refusing to run: DATABASE_URL must not carry a query string"
+    );
   }
   const dbName = decodeURIComponent(parsed.pathname.slice(1));
   if (!dbName.endsWith("_e2e")) {
@@ -28,11 +29,25 @@ export default async function globalSetup() {
   }
   // CI service containers are on localhost too, so a loopback host is always
   // required: never reset a database on another machine.
-  const host = parsed.hostname.replace(/^\[|\]$/g, "");
-  if (!["localhost", "127.0.0.1", "::1"].includes(host)) {
-    throw new Error(
-      `Refusing to reset a database on "${host}": the e2e suite only runs against a loopback host`
+  const isLoopback = (h: string) =>
+    ["localhost", "127.0.0.1", "::1"].includes(
+      h
+        .toLowerCase()
+        .replace(/^\[|\]$/g, "")
+        .replace(/\.$/, "")
     );
+  if (!isLoopback(parsed.hostname)) {
+    throw new Error(
+      `Refusing to reset a database on "${parsed.hostname}": the e2e suite only runs against a loopback host`
+    );
+  }
+  // The URL's host wins over these today; check anyway so a client change
+  // cannot silently redirect the reset.
+  for (const name of ["PGHOST", "PGHOSTADDR"]) {
+    const value = process.env[name];
+    if (value && !isLoopback(value)) {
+      throw new Error(`Refusing to run: ${name} is set to "${value}"`);
+    }
   }
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
