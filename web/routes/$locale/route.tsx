@@ -32,17 +32,18 @@ export const Route = createFileRoute("/$locale")({
     },
     stringify: ({ locale }) => ({ locale }),
   },
-  // Runs on every navigation, so a session that died since the last page is
-  // caught on the next one. `/api/me` comes from the cache when fresh.
+  // Runs on every navigation. `query()` answers from the cache while the
+  // entry is younger than meQuery's staleTime and refetches `/api/me`
+  // otherwise, so a session that died since is caught within a few seconds —
+  // at once if an API call already got a 401, which clears the entry.
   beforeLoad: async ({ location, context: { queryClient } }) => {
-    const me = await queryClient.ensureQueryData(meQuery());
+    const me = await queryClient.query(meQuery());
     const redirect = authGate(location, me);
     if (redirect) throw redirect;
   },
   loader: async ({ params: { locale }, context: { queryClient } }) => {
-    const [, bootstrap, catalogue] = await Promise.all([
-      queryClient.ensureQueryData(meQuery()),
-      queryClient.ensureQueryData(bootstrapQuery()),
+    const [bootstrap, catalogue] = await Promise.all([
+      queryClient.query(bootstrapQuery()),
       loadCatalogue(locale),
     ]);
     return { messages: applyBranding(catalogue, bootstrap) };

@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, createApiFetch, orFailure } from "@/web/api/client";
+import { invalidateAfterMutation, ME_QUERY_KEY } from "@/web/query-client";
 
 function setup(response: Response, pathname = "/en/servers", search = "") {
   const queryClient = new QueryClient();
@@ -17,7 +18,7 @@ function setup(response: Response, pathname = "/en/servers", search = "") {
     location: () => ({ pathname, search }),
     fetch,
   });
-  return { apiFetch, invalidate, navigate, fetch };
+  return { apiFetch, invalidate, navigate, fetch, queryClient };
 }
 
 const ok = () => Response.json({ success: true });
@@ -72,6 +73,17 @@ describe("apiFetch", () => {
       status: 401,
     });
     expect(navigate).toHaveBeenCalledWith("/en/sign-in?redirect=%2Fservers");
+  });
+
+  // A revoked session must not survive in the cache: the $locale gate and the
+  // shell read `/api/me` from it.
+  it("forgets the cached user on a 401", async () => {
+    const { apiFetch, queryClient } = setup(
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
+    queryClient.setQueryData(ME_QUERY_KEY, { user: { id: "u1" } });
+    await expect(apiFetch("/api/servers/get-servers")).rejects.toThrow();
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
   });
 
   it("keeps the query string in the sign-in redirect", async () => {
@@ -153,5 +165,36 @@ describe("orFailure", () => {
         throw new TypeError("Failed to fetch");
       }, fail)
     ).rejects.toBeInstanceOf(TypeError);
+  });
+});
+
+describe("invalidateAfterMutation", () => {
+  function cache() {
+    const client = new QueryClient();
+    const seed = (key: string[], meta?: Record<string, boolean>) =>
+      client.getQueryCache().build(client, { queryKey: key, meta }).setData(1);
+    seed(["labels", "listLabels"]);
+    seed(["session", "getBootstrap"], { fixed: true });
+    seed(["backups", "getBackupList"], { remoteProbe: true });
+    return client;
+  }
+  const stale = (client: QueryClient, key: string[]) =>
+    client.getQueryState(key)?.isInvalidated;
+
+  it("skips the bootstrap and other modules' remote probes", async () => {
+    const client = cache();
+    await invalidateAfterMutation(client, "/api/labels/set-issue-labels");
+    expect(stale(client, ["labels", "listLabels"])).toBe(true);
+    expect(stale(client, ["session", "getBootstrap"])).toBe(false);
+    expect(stale(client, ["backups", "getBackupList"])).toBe(false);
+  });
+
+  it("refetches a remote probe after its own module's mutation", async () => {
+    const client = cache();
+    await invalidateAfterMutation(
+      client,
+      "/api/backups/create-database-backup"
+    );
+    expect(stale(client, ["backups", "getBackupList"])).toBe(true);
   });
 });

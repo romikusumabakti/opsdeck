@@ -8,6 +8,11 @@ declare module "@tanstack/react-query" {
        * fetch. See `REMOTE_PROBE`.
        */
       remoteProbe?: boolean;
+      /**
+       * Fixed for the life of the server process (bootstrap): no mutation
+       * can change it, so the refetch after a mutation skips it.
+       */
+      fixed?: boolean;
     };
   }
 }
@@ -32,7 +37,7 @@ export const REMOTE_PROBE = {
 /**
  * The SPA's query cache.
  *
- * staleTime 30s: a route loader's `ensureQueryData` and the component's
+ * staleTime 30s: a route loader's `queryClient.query()` and the component's
  * `useSuspenseQuery` read the same entry without a second fetch on mount, and
  * moving between pages reuses what was just loaded. Freshness comes from
  * elsewhere: every successful mutation refetches the active queries (web/api/
@@ -62,9 +67,16 @@ export function createQueryClient(): QueryClient {
 export const queryClient = createQueryClient();
 
 /**
+ * `/api/me`'s cache key. Here rather than in web/api/session.ts so the API
+ * client can clear it on a 401 without importing the module built on it.
+ */
+export const ME_QUERY_KEY = ["session", "getMe"] as const;
+
+/**
  * The refetch that replaces `revalidatePath("/", "layout")`: after a
  * successful mutation under `/api/<module>/...`, every query is marked stale
- * and the active ones refetch — except another module's remote probes.
+ * and the active ones refetch — except another module's remote probes and
+ * the fixed bootstrap.
  */
 export function invalidateAfterMutation(
   client: QueryClient,
@@ -73,6 +85,7 @@ export function invalidateAfterMutation(
   const module = path.split("/")[2];
   return client.invalidateQueries({
     predicate: (query: Query) =>
-      query.meta?.remoteProbe !== true || query.queryKey[0] === module,
+      query.meta?.fixed !== true &&
+      (query.meta?.remoteProbe !== true || query.queryKey[0] === module),
   });
 }

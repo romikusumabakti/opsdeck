@@ -97,6 +97,17 @@ describe("production static serving", () => {
     expect(res.status).toBe(404);
   });
 
+  it("answers a /brand miss with 404, not the SPA", async () => {
+    const res = await app().request("/brand/nope.png");
+    expect(res.status).toBe(404);
+  });
+
+  it("revalidates index.html requested by name", async () => {
+    const res = await app().request("/index.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+  });
+
   it("serves files from public/", async () => {
     const res = await app().request("/motifs/kawung.svg");
     expect(res.status).toBe(200);
