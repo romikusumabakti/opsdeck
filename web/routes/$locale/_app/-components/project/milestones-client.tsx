@@ -1,16 +1,8 @@
-"use client";
-
 import { format } from "date-fns";
 import { CircleCheck, CircleDot, Plus, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import {
-  createMilestone,
-  deleteMilestone,
-  type MilestoneWithCount,
-  setMilestoneClosed,
-} from "@/actions/milestones";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -23,6 +15,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import {
+  createMilestone,
+  deleteMilestone,
+  type MilestoneWithCount,
+  setMilestoneClosed,
+} from "@/web/api/milestones";
 
 export function MilestonesClient({
   projectId,

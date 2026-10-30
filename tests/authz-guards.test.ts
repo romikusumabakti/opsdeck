@@ -487,7 +487,7 @@ describe("Home my-issues gates status changes on issue:write", () => {
   });
   it("the list renders StatusSelect only when canWrite", () => {
     const list = readFileSync(
-      "app/[locale]/(home)/_components/my-issues-list.tsx",
+      "web/routes/$locale/_app/-components/home/my-issues-list.tsx",
       "utf8"
     );
     expect(list).toMatch(/i\.canWrite \? \(\s*<StatusSelect/);

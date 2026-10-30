@@ -1,7 +1,7 @@
 import { ChevronRight, ServerCog } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { Link } from "@/i18n/navigation";
-import type { RecentEnvironment } from "@/lib/home/queries";
+import type { RecentEnvironment } from "@/web/api/home";
 import { BackupButton } from "./backup-button";
 import { CompactSection, HomeSection } from "./home-section";
 import { SectionError } from "./section-error";

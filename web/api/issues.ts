@@ -168,3 +168,8 @@ export type AssignedIssueCounts = Awaited<
 export type GlobalIssue = Awaited<
   ReturnType<typeof listAllIssues>
 >["rows"][number];
+export type IssueWithMeta = Awaited<ReturnType<typeof listIssues>>[number];
+export type IssueDetail = NonNullable<
+  Awaited<ReturnType<typeof getIssueDetail>>
+>;
+export type IssueFormOptions = Awaited<ReturnType<typeof getIssueFormOptions>>;

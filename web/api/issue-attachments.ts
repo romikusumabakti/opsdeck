@@ -28,3 +28,6 @@ export async function deleteIssueAttachment(
     (message) => ({ success: false, message }) as const
   );
 }
+export type IssueAttachmentRow = Awaited<
+  ReturnType<typeof listIssueAttachments>
+>[number];

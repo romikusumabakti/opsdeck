@@ -25,3 +25,4 @@ export async function recordTestRun(data: Body<"record-test-run">["data"]) {
     (message) => ({ success: false, message }) as const
   );
 }
+export type TestRunRow = Awaited<ReturnType<typeof listIssueTestRuns>>[number];

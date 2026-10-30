@@ -1,17 +1,15 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import { Check, CircleAlert, FilePlus2 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { acknowledgeAttentionGroup, unacknowledgeRuns } from "@/actions/home";
+import { useLocale, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { failurePrefill } from "@/lib/home/attention";
-import type { AttentionGroup } from "@/lib/home/queries";
+import type { AttentionGroup } from "@/web/api/home";
+import { acknowledgeAttentionGroup, unacknowledgeRuns } from "@/web/api/home";
 import { useIssueDialog } from "./home-issue-dialog";
 
 const groupId = (g: AttentionGroup) => `${g.environmentId}\u0000${g.key}`;

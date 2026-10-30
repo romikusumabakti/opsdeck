@@ -78,3 +78,9 @@ export async function removeProjectMember(
     (message) => ({ success: false, message }) as const
   );
 }
+export type ProjectMemberRow = Awaited<
+  ReturnType<typeof listProjectMembers>
+>[number];
+export type OrgWideAccessRow = Awaited<
+  ReturnType<typeof listOrgWideAccess>
+>[number];

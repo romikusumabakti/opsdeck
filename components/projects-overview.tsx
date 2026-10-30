@@ -252,6 +252,7 @@ function ProjectCard({
                 <Button
                   variant="ghost"
                   size="sm"
+                  nativeButton={false}
                   render={<Link href={`/${project.key}/environments/new`} />}
                 >
                   <Plus className="size-4" />
@@ -265,6 +266,7 @@ function ProjectCard({
                   variant="ghost"
                   size="icon-sm"
                   aria-label={tOv("editProject")}
+                  nativeButton={false}
                   render={<Link href={`/${project.key}/settings`} />}
                 >
                   <Settings className="size-4" />

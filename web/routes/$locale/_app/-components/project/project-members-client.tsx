@@ -1,16 +1,7 @@
-"use client";
-
 import { Trash2, UserPlus } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import {
-  addProjectMember,
-  type OrgWideAccessRow,
-  type ProjectMemberRow,
-  removeProjectMember,
-  updateProjectMemberRole,
-} from "@/actions/project-members";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +25,13 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import { useRouter } from "@/i18n/navigation";
 import { PROJECT_ROLES, type ProjectRole } from "@/lib/permissions";
+import {
+  addProjectMember,
+  type OrgWideAccessRow,
+  type ProjectMemberRow,
+  removeProjectMember,
+  updateProjectMemberRole,
+} from "@/web/api/project-members";
 
 // A project-role picker whose options explain what each role may do. The
 // explicit `items` keeps the closed trigger to the bare role name.
