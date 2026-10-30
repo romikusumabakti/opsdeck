@@ -1,8 +1,5 @@
-"use client";
-
-import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
-import type { AccessMatrix as Matrix } from "@/actions/access";
+import { useFormatter, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import {
   DataTable,
@@ -10,6 +7,7 @@ import {
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
+import type { AccessMatrix as Matrix } from "@/web/api/access";
 import type { UserRow } from "./types";
 import { RoleBadge } from "./user-badges";
 import { UserIdentityCell } from "./user-identity-cell";

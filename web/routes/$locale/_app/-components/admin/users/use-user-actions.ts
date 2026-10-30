@@ -1,14 +1,12 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { offboardUser } from "@/actions/access";
-import { adminRemoveAvatar, adminUpdateProfile } from "@/actions/profile";
-import { bulkDeleteUsers, deleteUser, updateUserRole } from "@/actions/users";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import type { OrgRole } from "@/lib/permissions";
+import { offboardUser } from "@/web/api/access";
+import { adminRemoveAvatar, adminUpdateProfile } from "@/web/api/profile";
+import { bulkDeleteUsers, deleteUser, updateUserRole } from "@/web/api/users";
 import type { UserAction, UserRow } from "./types";
 
 // Confirm-then-act handlers for the Users tab. Each applies its optimistic

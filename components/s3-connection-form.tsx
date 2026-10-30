@@ -21,13 +21,16 @@ import { Switch } from "@/components/ui/switch";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 import {
   createS3Connection,
   testS3ConnectionAction,
   updateS3Connection,
 } from "@/web/api/s3-connections";
 
-type Mode = { type: "create" } | { type: "edit"; connection: SafeS3Connection };
+type Mode =
+  | { type: "create" }
+  | { type: "edit"; connection: Serialized<SafeS3Connection> };
 
 type TestState =
   | { kind: "idle" }

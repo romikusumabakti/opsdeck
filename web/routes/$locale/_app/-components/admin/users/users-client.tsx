@@ -1,15 +1,13 @@
-"use client";
-
 import { UserPlus } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic } from "react";
-import type { AccessMatrix as Matrix } from "@/actions/access";
+import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePathname, useRouter, useSearchParams } from "@/i18n/navigation";
 import { filterUsers, parseUsersTab, type UsersTab } from "@/lib/access";
+import type { AccessMatrix as Matrix } from "@/web/api/access";
 import { AccessMatrix } from "./access-matrix";
 import { InvitationsTable } from "./invitations-table";
 import { InviteDialog } from "./invite-dialog";
@@ -74,7 +72,7 @@ export function UsersClient({
   matrix: Matrix | null;
   now: string;
   currentUserId: string;
-  // Computed on the server with canOrg; the actions enforce the same checks.
+  // Computed from the caller's org role; the endpoints enforce the same checks.
   canInvite: boolean;
   canRename: boolean;
   canSetRole: boolean;
@@ -83,6 +81,8 @@ export function UsersClient({
 }) {
   const t = useTranslations("users");
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [filters, setFilters] = React.useState<UserFilterState>({
     showBanned: false,
@@ -130,19 +130,21 @@ export function UsersClient({
   ];
   const tab = parseUsersTab(searchParams.get("tab"), visibleTabs);
 
-  const onTabChange = React.useCallback((value: unknown) => {
-    const params = new URLSearchParams(window.location.search);
-    if (value === "users") params.delete("tab");
-    else params.set("tab", String(value));
-    const query = params.toString();
-    // The native history API syncs with useSearchParams without a server
-    // round-trip; replace rather than push so tabs don't pile up in history.
-    window.history.replaceState(
-      null,
-      "",
-      `${window.location.pathname}${query ? `?${query}` : ""}`
-    );
-  }, []);
+  const onTabChange = React.useCallback(
+    (value: unknown) => {
+      // Read the live URL, not `searchParams`: the table writes its own state
+      // (`?usr_q=` ...) into it in the same tick. Replace rather than push so
+      // tabs don't pile up in history.
+      const params = new URLSearchParams(window.location.search);
+      if (value === "users") params.delete("tab");
+      else params.set("tab", String(value));
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [router, pathname]
+  );
 
   const filterBar = (idPrefix: string) => (
     <UserFilters idPrefix={idPrefix} value={filters} onChange={setFilters} />

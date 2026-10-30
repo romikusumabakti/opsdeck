@@ -83,3 +83,5 @@ export async function deleteServer(id: Body<"delete-server">["id"]) {
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type ServerRow = Awaited<ReturnType<typeof getServers>>[number];

@@ -72,3 +72,7 @@ export async function testS3ConnectionAction(
     (message) => ({ ok: false, message }) as const
   );
 }
+
+export type S3ConnectionRow = Awaited<
+  ReturnType<typeof getS3Connections>
+>[number];

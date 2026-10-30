@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Eye,
   FolderOpen,
@@ -9,11 +7,10 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
-import { deleteS3Connection } from "@/actions/s3-connections";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +27,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
-import type { SafeS3Connection } from "@/lib/db/schema";
+import {
+  deleteS3Connection,
+  type S3ConnectionRow as SafeS3Connection,
+} from "@/web/api/s3-connections";
 
 // What the caller may do beyond listing (storage:read), from the page.
 export type StorageCapabilities = { manage: boolean; files: boolean };
@@ -139,7 +139,10 @@ export function StorageClient({
           description={t("empty")}
           action={
             can.manage ? (
-              <Button render={<Link href="/storage/new" />}>
+              <Button
+                nativeButton={false}
+                render={<Link href="/storage/new" />}
+              >
                 <Plus className="size-4" />
                 {t("addConnection")}
               </Button>
@@ -190,6 +193,7 @@ function ConnectionActions({
     <div className="flex items-center justify-end gap-1">
       {can.files ? (
         <Button
+          nativeButton={false}
           variant="ghost"
           size="icon-sm"
           aria-label={browseLabel}

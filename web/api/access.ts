@@ -23,3 +23,5 @@ export async function offboardUser(userId: Body<"offboard-user">["userId"]) {
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type AccessMatrix = Awaited<ReturnType<typeof getAccessMatrix>>;

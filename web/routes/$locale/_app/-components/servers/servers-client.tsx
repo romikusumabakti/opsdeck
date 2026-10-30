@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Eye,
   FolderOpen,
@@ -10,11 +8,10 @@ import {
   SquareTerminal,
   Trash2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
-import { bulkDeleteServers, deleteServer } from "@/actions/servers";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +28,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
-import type { Server } from "@/lib/db/schema";
+import {
+  bulkDeleteServers,
+  deleteServer,
+  type ServerRow as Server,
+} from "@/web/api/servers";
 
 // What the caller may do beyond listing (server:read), from the page.
 export type ServerCapabilities = {
@@ -224,7 +225,10 @@ export function ServersClient({
           description={t("empty")}
           action={
             can.manage ? (
-              <Button render={<Link href="/servers/new" />}>
+              <Button
+                nativeButton={false}
+                render={<Link href="/servers/new" />}
+              >
                 <Plus className="size-4" />
                 {t("addServer")}
               </Button>
@@ -293,6 +297,7 @@ function ServerActions({
     <div className="flex items-center justify-end gap-1">
       {can.files ? (
         <Button
+          nativeButton={false}
           variant="ghost"
           size="icon-sm"
           aria-label={browseLabel}

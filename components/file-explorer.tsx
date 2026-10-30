@@ -1474,6 +1474,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
           </DropdownMenu>
           {source.kind === "sftp" && (
             <Button
+              nativeButton={false}
               type="button"
               variant="outline"
               size="sm"

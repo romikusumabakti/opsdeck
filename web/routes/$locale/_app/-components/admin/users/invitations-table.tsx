@@ -1,15 +1,8 @@
-"use client";
-
 import { Mail, Send, Trash2 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import {
-  bulkRevokeInvitations,
-  resendInvitation,
-  revokeInvitation,
-} from "@/actions/users";
+import { useFormatter, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +11,11 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
+import {
+  bulkRevokeInvitations,
+  resendInvitation,
+  revokeInvitation,
+} from "@/web/api/users";
 import type { InvitationAction, InvitationRow } from "./types";
 import { RoleBadge } from "./user-badges";
 
@@ -74,7 +72,7 @@ export function InvitationsTable({
         applyOptimistic({
           type: "renew",
           id: inv.id,
-          expiresAt: new Date(Date.now() + 48 * 3600 * 1000),
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
         });
         const result = await resendInvitation(inv.id);
         if (!result.success) {

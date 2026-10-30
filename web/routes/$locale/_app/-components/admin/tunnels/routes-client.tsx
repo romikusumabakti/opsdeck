@@ -1,5 +1,3 @@
-"use client";
-
 import {
   AlertTriangle,
   CircleCheck,
@@ -10,16 +8,10 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import {
-  attachTunnelNetwork,
-  deleteTunnelRoute,
-  type RouteRow,
-  type TunnelRoutesView,
-} from "@/actions/tunnels";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { TunnelRouteDialog } from "@/components/tunnel-route-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -35,10 +27,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
-import type { TunnelWithContext } from "@/lib/db/schema";
-import type { ContainerInfo } from "@/lib/tunnels/remote";
-
-export type OriginCandidate = ContainerInfo & { reachable: boolean };
+import {
+  attachTunnelNetwork,
+  deleteTunnelRoute,
+  type OriginCandidate,
+  type RouteRow,
+  type TunnelRoutesView,
+  type TunnelRow as TunnelWithContext,
+} from "@/web/api/tunnels";
 
 export function RoutesClient({
   tunnel,

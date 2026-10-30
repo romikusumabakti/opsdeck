@@ -160,3 +160,11 @@ export async function attachTunnelNetwork(
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type TunnelRoutesView = Awaited<ReturnType<typeof getTunnelRoutes>>;
+export type RouteRow = TunnelRoutesView["routes"][number];
+export type OriginCandidate = Awaited<
+  ReturnType<typeof getOriginCandidates>
+>[number];
+export type TunnelRow = Awaited<ReturnType<typeof getTunnels>>[number];
+export type ZoneRow = Awaited<ReturnType<typeof getCloudflareZones>>[number];

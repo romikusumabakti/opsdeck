@@ -1,8 +1,6 @@
-"use client";
-
 import { Trash2 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
+import { useFormatter, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -64,7 +62,7 @@ export function UsersTable({
   );
 
   const renderLastActive = React.useCallback(
-    (at: Date | null) => {
+    (at: string | null) => {
       if (!at) {
         return (
           <span className="text-sm text-muted-foreground">
