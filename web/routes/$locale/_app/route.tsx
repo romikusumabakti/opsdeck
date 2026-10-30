@@ -55,8 +55,9 @@ export const Route = createFileRoute("/$locale/_app")({
 
 function AppShell() {
   const me = useMe();
-  // Signing out clears the cache and refetches `/api/me` before navigating
-  // away; render nothing in that moment rather than a shell with no user.
+  // Signing out refetches `/api/me` in place (resetSession) before navigating
+  // away, so the shell re-renders with null for a moment: render nothing
+  // then rather than a shell with no user.
   if (!me) return null;
   return <SignedInShell me={me} />;
 }
