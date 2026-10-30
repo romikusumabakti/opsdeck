@@ -5,7 +5,7 @@ import type { BrandName } from "@/lib/branding";
 /**
  * Logo shapes per brand (BRAND). Every logo is the same four-tile grid — top-
  * left, top-right, bottom-left, and the bottom-right "status" tile that
- * animates while runs are active — so the motion in globals.css works for all
+ * animates while runs are active — so the motion in web/styles.css works for all
  * of them and only the shape differs. Colour comes from the user's accent:
  * --logo / --logo-status in the app, ACCENT_PALETTE for the favicon.
  *

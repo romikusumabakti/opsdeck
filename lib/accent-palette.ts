@@ -12,7 +12,7 @@ type Steps = {
  * Tailwind steps per accent for the logo and focus ring. Logo: 900 light, 200
  * dark. Ring: 500 light and 400 dark, except where that falls below 3:1
  * against the page background (WCAG 1.4.11): green and orange use 600, yellow
- * 700. app/globals.css binds the same steps; tests/accent-theme.test.ts checks
+ * 700. web/styles.css binds the same steps; tests/accent-theme.test.ts checks
  * both agree.
  */
 export const ACCENT_STEPS: Record<TintedAccent, Steps> = {

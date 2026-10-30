@@ -5,7 +5,7 @@ import { BRAND_ICON_SRC, type BrandName, brand } from "@/lib/branding";
  * Accent colours a user can pick: shadcn/ui's seven colour themes plus
  * `neutral` (the stock black/white tokens). The choice is stored per user in
  * `users.accent_color`, set on <html data-accent> by the root layout, and
- * mapped to Tailwind palette steps in app/globals.css.
+ * mapped to Tailwind palette steps in web/styles.css.
  */
 export const ACCENTS = [
   "neutral",
