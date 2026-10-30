@@ -87,3 +87,11 @@ export const getMailConfiguredQuery = (
     queryKey: ["mail", "getMailConfigured", args],
     queryFn: () => getMailConfigured(...args),
   });
+
+export type MailResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; notFound?: boolean };
+export type MailDetail = Extract<
+  Awaited<ReturnType<typeof getMail>>,
+  { success: true }
+>["data"];

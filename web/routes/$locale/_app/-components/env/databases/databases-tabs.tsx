@@ -1,23 +1,21 @@
-"use client";
-
 import {
   AlertTriangle,
   Database,
   DatabaseBackup,
   DatabaseZap,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
-import type { DatabaseEntry } from "@/actions/databases";
+import { useTranslations } from "use-intl";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type {
-  EnvironmentSummary,
-  SafeEnvironmentWithServers,
-} from "@/lib/db/schema";
 import { dbService } from "@/lib/services";
 import type { Backup } from "@/lib/types";
-import { BackupDatabase } from "../backup-database/backup-database";
-import { RestoreDatabase } from "../restore-database/restore-database";
+import type { DatabaseEntry } from "@/web/api/databases";
+import type {
+  EnvironmentListItem,
+  EnvironmentWithServers,
+} from "@/web/api/environments";
+import { BackupDatabase } from "../backup-database";
+import { RestoreDatabase } from "../restore-database";
 import { ManageDatabases } from "./manage-databases";
 
 export function DatabasesTabs({
@@ -31,10 +29,10 @@ export function DatabasesTabs({
   canBackup,
   canRestore,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   databases: DatabaseEntry[];
   backups: Backup[];
-  allProjects: EnvironmentSummary[];
+  allProjects: EnvironmentListItem[];
   listError: string | null;
   backupListError: string | null;
   defaultTab?: "manage" | "backup" | "restore";

@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
   LogContent,
   type LogLevel,
@@ -34,6 +33,7 @@ import {
   type ServiceRole,
 } from "@/lib/services";
 import { cn } from "@/lib/utils";
+import type { EnvironmentWithServers } from "@/web/api/environments";
 
 export type LevelFilter = "all" | NonNullable<LogLevel>;
 
@@ -76,7 +76,7 @@ const BOTTOM_THRESHOLD_PX = 16;
 const STATE_SYNC_DEBOUNCE_MS = 350;
 
 type Props = {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   role: ServiceRole;
   serviceName: string;
   // Seed view state (defaults: tail=200, q="", level="all", view="pretty").

@@ -1,19 +1,17 @@
-"use client";
-
 import { Download, Paperclip, Trash2 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useEffectEvent, useState, useTransition } from "react";
-import {
-  getMail,
-  getMailSource,
-  type MailDetail,
-  type MailResult,
-} from "@/actions/mail";
+import { useFormatter, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { MailAddress } from "@/lib/mailpit/schemas";
 import { formatBytes } from "@/lib/utils";
+import {
+  getMail,
+  getMailSource,
+  type MailDetail,
+  type MailResult,
+} from "@/web/api/mail";
 
 function formatAddresses(list: MailAddress[]): string {
   return list

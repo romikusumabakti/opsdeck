@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, type Locale } from "date-fns";
 import {
   ArrowDownRight,
@@ -11,26 +12,20 @@ import {
   Minus,
   TrendingUp,
 } from "lucide-react";
-import { getFormatter, getLocale, getTranslations } from "next-intl/server";
-import { getEnvironmentKpis, type KpiEntry } from "@/actions/runs";
+import { useFormatter, useLocale, useTranslations } from "use-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Run } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+import { getEnvironmentKpisQuery, type KpiEntry } from "@/web/api/runs";
 
-export async function DashboardKpis({
-  environmentId,
-}: {
-  environmentId: string;
-}) {
-  const [kpis, t, locale, format] = await Promise.all([
-    getEnvironmentKpis(environmentId),
-    getTranslations("dashboard.kpis"),
-    getLocale(),
-    getFormatter(),
-  ]);
+export function DashboardKpis({ environmentId }: { environmentId: string }) {
+  const kpis = useSuspenseQuery(getEnvironmentKpisQuery(environmentId)).data;
+  const t = useTranslations("dashboard.kpis");
+  const locale = useLocale();
+  const format = useFormatter();
   const dateFnsLocale = getDateFnsLocale(locale);
 
   return (
@@ -89,7 +84,7 @@ function KpiCard({
   label: string;
   entry: KpiEntry;
   dateFnsLocale: Locale | undefined;
-  format: Awaited<ReturnType<typeof getFormatter>>;
+  format: ReturnType<typeof useFormatter>;
   emptyText: string;
 }) {
   return (

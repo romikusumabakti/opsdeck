@@ -96,3 +96,8 @@ export const resolveEnvironmentQuery = (
 export type EnvironmentListItem = Awaited<
   ReturnType<typeof listEnvironments>
 >[number];
+
+/** An environment with its services as the API sends it (dates as ISO strings). */
+export type EnvironmentWithServers = NonNullable<
+  Awaited<ReturnType<typeof getEnvironmentById>>
+>;

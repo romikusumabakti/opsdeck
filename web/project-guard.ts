@@ -43,3 +43,14 @@ export async function requireProjectRole(
   }
   return role;
 }
+
+/**
+ * The same page guard for a role already in hand (the environment layout puts
+ * the caller's role in the route context): a 404 when it lacks `perms`.
+ */
+export function requireRole(
+  role: ProjectRole,
+  perms: ProjectPermissions
+): void {
+  if (!canProject(role, perms)) throw notFound();
+}

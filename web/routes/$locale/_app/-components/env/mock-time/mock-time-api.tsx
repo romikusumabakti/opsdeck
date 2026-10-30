@@ -1,10 +1,15 @@
-"use client";
-
 import { format } from "date-fns";
 import { ChevronDown, Clock, RotateCcw, Snowflake } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
+import { useLocale, useTranslations } from "use-intl";
+import { useDialog } from "@/components/dialog-provider";
+import { useProjectCan } from "@/components/project-role";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { cn } from "@/lib/utils";
+import type { EnvironmentWithServers } from "@/web/api/environments";
 import {
   advanceClock,
   type ClockState,
@@ -12,14 +17,7 @@ import {
   getClockState,
   resetClock,
   travelClock,
-} from "@/actions/mock-time";
-import { useDialog } from "@/components/dialog-provider";
-import { useProjectCan } from "@/components/project-role";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
-import { cn } from "@/lib/utils";
+} from "@/web/api/mock-time";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
 import { BrowserZoneHint, DateTimePicker } from "./date-time-picker";
@@ -32,7 +30,7 @@ import {
 export function MockTimeApi({
   environment,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");

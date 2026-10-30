@@ -1,13 +1,11 @@
-"use client";
-
 import {
   format,
   formatDuration,
   intervalToDuration,
   type Locale,
 } from "date-fns";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 
 /**
  * Renders a ticking clock label. The per-second state lives here so the tick

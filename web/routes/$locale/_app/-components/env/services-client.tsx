@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Atom,
   CircleAlert,
@@ -13,14 +11,9 @@ import {
   ServerCog,
   Square,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  controlService,
-  getAllServiceStatuses,
-  type ServiceStatusResult,
-} from "@/actions/services";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { PageHeader } from "@/components/page-header";
@@ -36,7 +29,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
   backendService,
   dbService,
@@ -46,6 +38,12 @@ import {
   type ServiceType,
 } from "@/lib/services";
 import { cn } from "@/lib/utils";
+import type { EnvironmentWithServers } from "@/web/api/environments";
+import {
+  controlService,
+  getAllServiceStatuses,
+  type ServiceStatusResult,
+} from "@/web/api/services";
 
 type RoleMeta = {
   role: ServiceRole;
@@ -62,7 +60,7 @@ export function ServicesClient({
   environment,
   envPath,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   // Readable base path of the environment (`/[projectKey]/[envSlug]`).
   envPath: string;
 }) {
@@ -161,7 +159,7 @@ function ServiceCard({
   loading,
   onRefresh,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   envPath: string;
   meta: RoleMeta;
   status: ServiceStatusResult | null;
@@ -314,6 +312,7 @@ function ServiceCard({
                   aria-label={t("actions.viewLogs")}
                 />
               }
+              nativeButton={false}
               size="sm"
               variant="ghost"
               className="col-span-2"

@@ -132,3 +132,8 @@ export async function resetClockLegacy(
     (message) => ({ success: false, mode: "legacy", error: message }) as const
   );
 }
+
+export type ClockState = Extract<
+  Awaited<ReturnType<typeof getClockState>>,
+  { success: true }
+>["data"];

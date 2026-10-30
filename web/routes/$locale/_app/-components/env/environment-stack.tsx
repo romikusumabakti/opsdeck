@@ -1,19 +1,12 @@
-"use client";
-
 import { ArrowRight, Atom, Boxes, Database, Plug, Tag } from "lucide-react";
-import Link from "next/link";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  getAllServiceStatuses,
-  type ServiceStatusResult,
-} from "@/actions/services";
+import { useTranslations } from "use-intl";
 import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { Link } from "@/i18n/navigation";
 import {
   backendService,
   dbService,
@@ -21,6 +14,11 @@ import {
   type ServiceRole,
   type ServiceType,
 } from "@/lib/services";
+import type { EnvironmentWithServers } from "@/web/api/environments";
+import {
+  getAllServiceStatuses,
+  type ServiceStatusResult,
+} from "@/web/api/services";
 
 type RoleMeta = {
   role: ServiceRole;
@@ -38,7 +36,7 @@ export function EnvironmentStack({
   environment,
   envPath,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   // Readable base path of the environment (`/[projectKey]/[envSlug]`).
   envPath: string;
 }) {
