@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import { app, createBaseApp } from "@/server/app";
 import { getLocale } from "@/server/context";
@@ -63,5 +63,65 @@ describe("outside a request", () => {
 
   it("has no session", async () => {
     expect(await getServerSession()).toBeNull();
+  });
+});
+
+describe("CSRF origin check", () => {
+  const MUTATION = "/api/notifications/mark-all-notifications-read";
+  const saved = process.env.BETTER_AUTH_URL;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.BETTER_AUTH_URL;
+    else process.env.BETTER_AUTH_URL = saved;
+  });
+
+  // What a cross-site <form method="post"> sends: a form content type, the
+  // attacker's Origin, and no same-origin Sec-Fetch-Site.
+  function formPost(origin: string, extra: Record<string, string> = {}) {
+    return app.request(`http://localhost${MUTATION}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Origin: origin,
+        ...extra,
+      },
+      body: "x=1",
+    });
+  }
+
+  it("refuses a cross-origin form POST", async () => {
+    delete process.env.BETTER_AUTH_URL;
+    const res = await formPost("https://evil.example");
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses a bodyless POST from another origin", async () => {
+    delete process.env.BETTER_AUTH_URL;
+    const res = await app.request(`http://localhost${MUTATION}`, {
+      method: "POST",
+      headers: { Origin: "https://evil.example" },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("lets a same-origin form POST through to the session check", async () => {
+    delete process.env.BETTER_AUTH_URL;
+    const res = await formPost("http://localhost");
+    expect(res.status).toBe(401);
+  });
+
+  it("lets a request the browser marks same-origin through", async () => {
+    process.env.BETTER_AUTH_URL = "https://panel.example.com";
+    const res = await formPost("https://elsewhere.example", {
+      "Sec-Fetch-Site": "same-origin",
+    });
+    expect(res.status).toBe(401);
+  });
+
+  // Behind the tunnel and Caddy the request URL is the container's, so the
+  // public origin comes from BETTER_AUTH_URL.
+  it("trusts the BETTER_AUTH_URL origin when it is set", async () => {
+    process.env.BETTER_AUTH_URL = "https://panel.example.com/some/path";
+    expect((await formPost("https://panel.example.com")).status).toBe(401);
+    expect((await formPost("http://localhost")).status).toBe(403);
   });
 });
