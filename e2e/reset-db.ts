@@ -4,10 +4,16 @@ import postgres from "postgres";
 /**
  * Resets the database to a freshly migrated, empty schema before the suite.
  *
+ * Run as the first step of playwright.config.ts's `webServer.command`, so it
+ * finishes before the server (and its job worker) connects: Playwright starts
+ * `webServer` before `globalSetup`, which would drop the schema under a
+ * running server. Started with `--no-env-file`, so only the environment the
+ * config hands over counts, never a developer's .env.local.
+ *
  * Destructive by design, so it refuses to touch anything whose name does not
  * end in `_e2e`. That check runs before any connection is opened.
  */
-export default async function globalSetup() {
+async function resetDatabase() {
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error("DATABASE_URL must point at an *_e2e database");
@@ -70,4 +76,11 @@ export default async function globalSetup() {
   if (result.status !== 0) {
     throw new Error("drizzle-kit migrate failed");
   }
+}
+
+try {
+  await resetDatabase();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
 }
