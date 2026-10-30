@@ -23,6 +23,7 @@
     "db:studio": "drizzle-kit studio",
     "test": "bun --bun vitest run",
     "test:watch": "bun --bun vitest",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -98,6 +99,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.48",
     "@types/bun": "^1.4.2",

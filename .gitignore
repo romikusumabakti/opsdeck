@@ -52,3 +52,8 @@ next-env.d.ts
 
 # git worktrees for isolated feature work
 .worktrees/
+
+# playwright
+/playwright-report/
+/test-results/
+/e2e/.auth/
