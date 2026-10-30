@@ -248,7 +248,6 @@ export function EnvironmentForm({
       }
       toast.success(t("savedSuccess"));
       form.reset({ ...form.getValues(), ...values });
-      router.refresh();
       return;
     }
     const { dbPassword, backendMockTimeApiKey, ...rest } = values;
@@ -323,7 +322,6 @@ export function EnvironmentForm({
         backendMockTimeApiKey: "",
       });
     }
-    router.refresh();
   }
 
   const loading = form.formState.isSubmitting;

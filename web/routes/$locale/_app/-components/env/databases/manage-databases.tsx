@@ -250,8 +250,9 @@ export function ManageDatabases({
         onOpenChange={(open) => {
           if (!open) {
             setActiveTaskId(null);
-            // Refresh so the database list reflects the create/drop result.
-            router.refresh();
+            // The run finished out of band: refetch the database list (a
+            // remote probe) so it reflects the create/drop result.
+            router.refresh({ includeRemote: true });
           }
         }}
         title={taskTitle}

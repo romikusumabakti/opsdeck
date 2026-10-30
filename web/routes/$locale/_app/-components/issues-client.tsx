@@ -88,6 +88,14 @@ export function IssuesClient({
   const [issues, setIssues] = React.useState(initialIssues);
   React.useEffect(() => setIssues(initialIssues), [initialIssues]);
 
+  // A failed inline edit: drop the optimistic value and refetch in case the
+  // failure was the issue changing underneath. The refetch alone can't undo
+  // it — unchanged data keeps its identity, so the effect above never fires.
+  function revert() {
+    setIssues(initialIssues);
+    router.refresh();
+  }
+
   const [query, setQuery] = React.useState("");
   const [createOpen, setCreateOpen] = React.useState(false);
   const [view, setView] = React.useState<"table" | "board">("table");
@@ -143,11 +151,10 @@ export function IssuesClient({
     const result = await setIssueStatus(id, status);
     if (!result.success) {
       toast.error(t("updateFailed"));
-      router.refresh();
+      revert();
       return;
     }
     toast.success(t("statusUpdated"));
-    router.refresh();
   }
 
   async function onAssigneeChange(id: string, assigneeId: string | null) {
@@ -168,8 +175,10 @@ export function IssuesClient({
       )
     );
     const result = await updateIssue(id, { assigneeId });
-    if (!result.success) toast.error(t("updateFailed"));
-    router.refresh();
+    if (!result.success) {
+      toast.error(t("updateFailed"));
+      revert();
+    }
   }
 
   async function onPriorityChange(id: string, priority: Priority) {
@@ -177,8 +186,10 @@ export function IssuesClient({
       prev.map((i) => (i.id === id ? { ...i, priority } : i))
     );
     const result = await updateIssue(id, { priority });
-    if (!result.success) toast.error(t("updateFailed"));
-    router.refresh();
+    if (!result.success) {
+      toast.error(t("updateFailed"));
+      revert();
+    }
   }
 
   const usersById = React.useMemo(
@@ -222,7 +233,6 @@ export function IssuesClient({
     if (!result.success) toast.error(t("updateFailed"));
     else toast.success(t("statusUpdated"));
     setSelected(new Set());
-    router.refresh();
   }
 
   async function onBulkDelete() {
@@ -239,7 +249,6 @@ export function IssuesClient({
     if (!result.success) toast.error(t("updateFailed"));
     else toast.success(t("bulkDeleted"));
     setSelected(new Set());
-    router.refresh();
   }
 
   // Keyboard-first navigation of the table (Linear-style). Ignores keys while a
@@ -556,7 +565,6 @@ export function IssuesClient({
         defaultEnvironmentId={currentEnvironmentId}
         onCreated={() => {
           setCreateOpen(false);
-          router.refresh();
         }}
       />
     </div>

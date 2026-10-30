@@ -88,12 +88,12 @@ export function ProfileForm({
     const body = new FormData();
     body.set("file", blob, "avatar");
     if (await sendAvatar("/api/avatars", { method: "POST", body }))
-      router.refresh();
+      router.refresh({ includeRemote: true });
   }
 
   async function removeAvatar() {
     if (await sendAvatar("/api/avatars", { method: "DELETE" }))
-      router.refresh();
+      router.refresh({ includeRemote: true });
   }
 
   async function importMicrosoftAvatar() {
@@ -103,7 +103,7 @@ export function ProfileForm({
       result?: string;
     };
     if (result === "no_photo") toast.info(t("avatarNoMicrosoftPhoto"));
-    else router.refresh();
+    else router.refresh({ includeRemote: true });
   }
 
   function onCropped(blob: Blob) {
@@ -124,7 +124,6 @@ export function ProfileForm({
         });
         if (res.success) {
           toast.success(res.message);
-          router.refresh();
         } else toast.error(res.message);
       } catch {
         toast.error(tCommon("errorGeneric"));

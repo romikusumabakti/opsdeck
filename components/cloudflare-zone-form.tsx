@@ -95,7 +95,6 @@ export function CloudflareZoneForm({ mode }: { mode: Mode }) {
       }
       toast.success(result.message ?? "");
       router.push("/admin/tunnels/zones");
-      router.refresh();
       return;
     }
 
@@ -109,7 +108,6 @@ export function CloudflareZoneForm({ mode }: { mode: Mode }) {
     }
     toast.success(result.message ?? "");
     router.push("/admin/tunnels/zones");
-    router.refresh();
   }
 
   const loading = form.formState.isSubmitting;

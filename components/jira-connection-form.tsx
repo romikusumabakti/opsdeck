@@ -120,7 +120,6 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
       }
       toast.success(result.message ?? "");
       router.push("/admin/jira");
-      router.refresh();
       return;
     }
 
@@ -134,7 +133,6 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
     }
     toast.success(result.message ?? "");
     router.push("/admin/jira");
-    router.refresh();
   }
 
   const loading = form.formState.isSubmitting;

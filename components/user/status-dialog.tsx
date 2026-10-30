@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from "@/i18n/navigation";
 import {
   initialStatusExpiry,
   resolveStatusExpiry,
@@ -56,7 +55,6 @@ export function StatusDialog({
   const t = useTranslations("status");
   const tCommon = useTranslations("common");
   const format = useFormatter();
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   // 💬 only seeds a brand-new status; an existing one keeps its own emoji.
   const [emoji, setEmoji] = useState(current ? (current.emoji ?? "") : "💬");
@@ -72,7 +70,6 @@ export function StatusDialog({
         const res = await fn();
         if (!res.success) return void toast.error(res.message);
         onOpenChange(false);
-        router.refresh();
       } catch {
         toast.error(tCommon("errorGeneric"));
       }

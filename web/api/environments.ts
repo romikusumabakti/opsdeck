@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { api, orFailure, type PostJson } from "@/web/api/client";
+import { api, NO_REFETCH, orFailure, type PostJson } from "@/web/api/client";
 
 const routes = api.api.environments;
 type Body<K extends keyof typeof routes> = PostJson<typeof routes, K>;
@@ -41,11 +41,18 @@ export const getEnvironmentByIdQuery = (
     queryFn: () => getEnvironmentById(...args),
   });
 
+/**
+ * Bookkeeping (the switcher's and Home's recency order): skips the refetch
+ * after a mutation, since nothing on the current screen shows it.
+ */
 export async function recordEnvironmentAccess(
   environmentId: Body<"record-environment-access">["environmentId"]
 ) {
   return parseResponse(
-    routes["record-environment-access"].$post({ json: { environmentId } })
+    routes["record-environment-access"].$post(
+      { json: { environmentId } },
+      NO_REFETCH
+    )
   );
 }
 

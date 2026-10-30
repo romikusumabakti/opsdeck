@@ -1,4 +1,9 @@
-import { type Query, QueryClient } from "@tanstack/react-query";
+import {
+  type Query,
+  QueryClient,
+  type QueryExecuteOptions,
+  type QueryKey,
+} from "@tanstack/react-query";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -72,6 +77,48 @@ export const queryClient = createQueryClient();
  */
 export const ME_QUERY_KEY = ["session", "getMe"] as const;
 
+export type RefetchScope = {
+  /**
+   * The module (`/api/<module>/...`) whose data just changed: its own remote
+   * probes refetch along with everything else.
+   */
+  module?: string;
+  /**
+   * Refetch every remote probe too — the explicit "reload everything" after
+   * a change the query cache never saw (a raw upload, a finished background
+   * run, a user's refresh button).
+   */
+  includeRemote?: boolean;
+};
+
+/**
+ * Which cached queries a refetch of "whatever may have changed" covers: all
+ * of them except the fixed bootstrap and — unless `includeRemote` is set or
+ * the probe belongs to `module` — the remote probes. The one rule behind the
+ * refetch after a mutation and `router.refresh()` (i18n/navigation.ts).
+ */
+export function refetchPredicate({
+  module,
+  includeRemote = false,
+}: RefetchScope = {}): (query: Query) => boolean {
+  return (query) =>
+    query.meta?.fixed !== true &&
+    (includeRemote ||
+      query.meta?.remoteProbe !== true ||
+      (module !== undefined && query.queryKey[0] === module));
+}
+
+/**
+ * Mark the queries in `scope` stale; the active ones refetch, and the promise
+ * resolves once they have.
+ */
+export function refetchChanged(
+  client: QueryClient,
+  scope?: RefetchScope
+): Promise<void> {
+  return client.invalidateQueries({ predicate: refetchPredicate(scope) });
+}
+
 /**
  * The refetch that replaces `revalidatePath("/", "layout")`: after a
  * successful mutation under `/api/<module>/...`, every query is marked stale
@@ -82,10 +129,35 @@ export function invalidateAfterMutation(
   client: QueryClient,
   path: string
 ): Promise<void> {
-  const module = path.split("/")[2];
-  return client.invalidateQueries({
-    predicate: (query: Query) =>
-      query.meta?.fixed !== true &&
-      (query.meta?.remoteProbe !== true || query.queryKey[0] === module),
-  });
+  return refetchChanged(client, { module: path.split("/")[2] });
+}
+
+/**
+ * A route loader's read. With nothing cached it fetches, and the navigation
+ * waits for it (and fails if it fails). With data cached — of any age — it
+ * resolves at once with that data, so a navigation never waits on (or lands on
+ * the error page because of) a refetch; a stale entry is refetched in the
+ * background, and the component's `useSuspenseQuery` picks the result up. A
+ * failed background refetch keeps the cached data on screen.
+ */
+export function loaderQuery<
+  TQueryFnData,
+  TError,
+  TData,
+  TQueryKey extends QueryKey,
+>(
+  client: QueryClient,
+  options: QueryExecuteOptions<
+    TQueryFnData,
+    TError,
+    TData,
+    TQueryFnData,
+    TQueryKey
+  >
+): Promise<TData> {
+  if (client.getQueryState(options.queryKey)?.data === undefined) {
+    return client.query(options);
+  }
+  client.query(options).catch(() => {});
+  return client.query({ ...options, staleTime: "static" });
 }

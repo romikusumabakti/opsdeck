@@ -3,13 +3,11 @@ import { useState } from "react";
 import { useTranslations } from "use-intl";
 import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "@/i18n/navigation";
 
 // The "New project" CTA on the projects landing — creates a logical project
 // (the parent), distinct from "New environment" which registers a deployment.
 export function NewProjectButton() {
   const t = useTranslations("home");
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   return (
@@ -23,7 +21,6 @@ export function NewProjectButton() {
         onOpenChange={setOpen}
         onCreated={() => {
           setOpen(false);
-          router.refresh();
         }}
       />
     </>

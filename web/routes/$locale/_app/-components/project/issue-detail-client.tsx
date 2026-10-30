@@ -105,7 +105,6 @@ export function IssueDetailClient({
     }
     setTestNote("");
     toast.success(t("testRecorded"));
-    router.refresh();
   }
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -130,7 +129,8 @@ export function IssueDetailClient({
         return;
       }
       toast.success(t("attachmentAdded"));
-      router.refresh();
+      // A raw upload, outside the API client's refetch.
+      router.refresh({ includeRemote: true });
     } catch {
       toast.error(t("attachmentFailed"));
     } finally {
@@ -141,13 +141,11 @@ export function IssueDetailClient({
   async function onDeleteAttachment(id: string) {
     const result = await deleteIssueAttachment(id);
     if (!result.success) toast.error(t("saveFailed"));
-    else router.refresh();
   }
 
   async function onLabelsChange(ids: string[]) {
     setLabelIds(ids);
     await setIssueLabels(issue.id, ids);
-    router.refresh();
   }
 
   const selectedLabels = allLabels.filter((l) => labelIds.includes(l.id));
@@ -165,7 +163,6 @@ export function IssueDetailClient({
     } else if (okMsg) {
       toast.success(okMsg);
     }
-    router.refresh();
   }
 
   async function saveTitle() {
@@ -191,7 +188,6 @@ export function IssueDetailClient({
     }
     setComment("");
     toast.success(t("commentAdded"));
-    router.refresh();
   }
 
   const ago = (d: Date | string) =>

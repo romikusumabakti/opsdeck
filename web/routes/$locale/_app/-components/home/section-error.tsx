@@ -8,7 +8,11 @@ export function SectionError() {
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-6 text-sm text-muted-foreground">
       <span>{t("error.load")}</span>
-      <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => router.refresh({ includeRemote: true })}
+      >
         {t("error.retry")}
       </Button>
     </div>

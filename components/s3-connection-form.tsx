@@ -116,7 +116,6 @@ export function S3ConnectionForm({
       }
       toast.success(result.message ?? "");
       router.push("/storage");
-      router.refresh();
       return;
     }
 
@@ -145,7 +144,6 @@ export function S3ConnectionForm({
     }
     toast.success(result.message ?? "");
     router.push("/storage");
-    router.refresh();
   }
 
   const loading = form.formState.isSubmitting;

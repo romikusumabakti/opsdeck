@@ -39,7 +39,6 @@ export function DeleteEnvironmentCard({
       }
       toast.success(t("deletedSuccess", { name: environment.name }));
       router.push("/");
-      router.refresh();
     });
   }
 

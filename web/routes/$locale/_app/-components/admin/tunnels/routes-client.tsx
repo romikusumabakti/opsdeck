@@ -26,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useRouter } from "@/i18n/navigation";
 import {
   attachTunnelNetwork,
   deleteTunnelRoute,
@@ -51,7 +50,6 @@ export function RoutesClient({
   const t = useTranslations("tunnels");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = React.useState(false);
 
@@ -77,10 +75,9 @@ export function RoutesClient({
           return;
         }
         toast.success(result.message ?? "");
-        router.refresh();
       });
     },
-    [dialog, t, tCommon, tunnel.id, router]
+    [dialog, t, tCommon, tunnel.id]
   );
 
   const onAttachNetwork = React.useCallback(
@@ -105,10 +102,9 @@ export function RoutesClient({
           return;
         }
         toast.success(result.message ?? "");
-        router.refresh();
       });
     },
-    [dialog, t, tCommon, tunnel.id, tunnel.containerName, router]
+    [dialog, t, tCommon, tunnel.id, tunnel.containerName]
   );
 
   if (view.error) {
@@ -268,7 +264,6 @@ export function RoutesClient({
         tunnel={tunnel}
         candidates={candidates}
         existing={view.routes.map((r) => r.hostname)}
-        onDone={() => router.refresh()}
       />
     </div>
   );

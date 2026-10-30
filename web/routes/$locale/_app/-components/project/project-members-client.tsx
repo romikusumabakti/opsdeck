@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
-import { useRouter } from "@/i18n/navigation";
 import { PROJECT_ROLES, type ProjectRole } from "@/lib/permissions";
 import {
   addProjectMember,
@@ -89,7 +88,6 @@ export function ProjectMembersClient({
 }) {
   const t = useTranslations("projectMembers");
   const tOrgRole = useTranslations("users.role");
-  const router = useRouter();
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
   const [addUserId, setAddUserId] = useState<string>("");
@@ -115,7 +113,6 @@ export function ProjectMembersClient({
       const result = await action();
       if (result.success) {
         if (result.message) toast.success(result.message);
-        router.refresh();
       } else {
         toast.error(result.message ?? t("errorAddFailed"));
       }

@@ -101,7 +101,6 @@ export function TunnelForm({
     }
     toast.success(result.message ?? "");
     router.push("/admin/tunnels");
-    router.refresh();
   }
 
   const loading = form.formState.isSubmitting;

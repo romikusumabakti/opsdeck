@@ -21,7 +21,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useRouter } from "@/i18n/navigation";
 import { createSavedView, deleteSavedView } from "@/web/api/saved-views";
 
 export type SavedViewItem = {
@@ -52,7 +51,6 @@ export function IssuesSavedViews({
   const t = useTranslations("issues");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
-  const router = useRouter();
 
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -71,7 +69,6 @@ export function IssuesSavedViews({
     toast.success(t("viewSaved"));
     setName("");
     setOpen(false);
-    router.refresh();
   }
 
   async function onDelete(view: SavedViewItem) {
@@ -89,7 +86,6 @@ export function IssuesSavedViews({
       return;
     }
     toast.success(t("viewDeleted"));
-    router.refresh();
   }
 
   return (

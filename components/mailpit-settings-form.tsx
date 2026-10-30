@@ -17,7 +17,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { useRouter } from "@/i18n/navigation";
 import {
   type MailpitSettings,
   saveMailpitSettings,
@@ -33,7 +32,6 @@ export function MailpitSettingsForm({
 }) {
   const t = useTranslations("mailpitSettings");
   const tCommon = useTranslations("common");
-  const router = useRouter();
   const [testing, startTesting] = useTransition();
 
   const schema = z.object({
@@ -84,7 +82,6 @@ export function MailpitSettingsForm({
     }
     toast.success(values.url.trim() ? t("saved") : t("removed"));
     form.reset({ ...values, password: "" });
-    router.refresh();
   }
 
   function onTest() {
