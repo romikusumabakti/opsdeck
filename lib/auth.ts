@@ -43,9 +43,17 @@ const microsoftClientId = process.env.MICROSOFT_CLIENT_ID;
 const microsoftClientSecret = process.env.MICROSOFT_CLIENT_SECRET;
 const microsoftTenantId = process.env.MICROSOFT_TENANT_ID;
 
+// `bun run dev` serves the SPA from Vite on its own port and proxies /api to
+// this server, so the browser's requests carry Vite's Origin rather than
+// BETTER_AUTH_URL's, and better-auth would refuse them. Development only: in
+// production the same server serves the SPA, and the origin is BASE_URL.
+const DEV_ORIGINS =
+  process.env.NODE_ENV === "production" ? [] : ["http://localhost:5173"];
+
 export const auth = betterAuth({
   appName: APP_NAME,
   baseURL: BASE_URL,
+  trustedOrigins: DEV_ORIGINS,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",

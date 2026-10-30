@@ -1,10 +1,8 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, Fingerprint, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useLocale, useTranslations } from "use-intl";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -19,13 +17,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
-import { Link, useRouter } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/locales";
+import { Link, localizeHref, useRouter } from "@/i18n/navigation";
 import {
   authClient,
   isPasskeyAutofillSupported,
   isPasskeySupported,
 } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { resetSession } from "@/web/api/session";
 
 /**
  * The password form is mounted, not unhidden, so it would otherwise appear in
@@ -93,14 +93,13 @@ export function SignInForm({
   oauthError?: string;
 }) {
   const t = useTranslations("signIn");
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [microsoftPending, setMicrosoftPending] = useState(false);
   const [passkeyPending, setPasskeyPending] = useState(false);
 
-  // Whether this browser does WebAuthn at all. Resolved after mount, never
-  // during render: the server has no `window`, so deciding on the server would
-  // either mismatch on hydration or render a button that then vanishes.
-  const [passkeySupported, setPasskeySupported] = useState(false);
+  // Whether this browser does WebAuthn at all.
+  const [passkeySupported] = useState(isPasskeySupported);
 
   // One conditional ceremony per page load. Guards against React's development
   // double-invoke of effects starting a second one that aborts the first.
@@ -147,9 +146,12 @@ export function SignInForm({
   const busy =
     form.formState.isSubmitting || microsoftPending || passkeyPending;
 
-  useEffect(() => {
-    setPasskeySupported(isPasskeySupported());
-  }, []);
+  // Signed in: load the new session (dropping anything cached while signed
+  // out) so the gate lets the target page through, then go there.
+  const enterApp = useCallback(async () => {
+    await resetSession();
+    router.push(redirectTo || "/");
+  }, [redirectTo, router]);
 
   // Conditional UI ("passkey autofill"): the browser offers this site's
   // passkeys from the email field's own autofill dropdown, so a returning user
@@ -165,13 +167,12 @@ export function SignInForm({
       autofillStarted.current = true;
       const { error } = await authClient.signIn.passkey({ autoFill: true });
       if (cancelled || error) return;
-      router.push(redirectTo || "/");
-      router.refresh();
+      await enterApp();
     })();
     return () => {
       cancelled = true;
     };
-  }, [emailExpanded, redirectTo, router]);
+  }, [emailExpanded, enterApp]);
 
   async function onSubmit(values: z.infer<typeof schema>) {
     setSubmitError(null);
@@ -182,8 +183,7 @@ export function SignInForm({
       return;
     }
 
-    router.push(redirectTo || "/");
-    router.refresh();
+    await enterApp();
   }
 
   async function onPasskeySignIn() {
@@ -197,8 +197,7 @@ export function SignInForm({
     setPasskeyPending(false);
 
     if (!error) {
-      router.push(redirectTo || "/");
-      router.refresh();
+      await enterApp();
       return;
     }
 
@@ -217,12 +216,12 @@ export function SignInForm({
     setSubmitError(null);
     setMicrosoftPending(true);
 
-    // Both URLs are plain browser redirects handled outside the i18n router,
-    // so they carry no locale prefix — the proxy re-adds the user's locale.
+    // Both URLs are plain browser redirects that load the app afresh, so
+    // they carry the locale the user is reading in.
     const { error } = await authClient.signIn.social({
       provider: "microsoft",
-      callbackURL: redirectTo || "/",
-      errorCallbackURL: "/sign-in",
+      callbackURL: localizeHref(redirectTo || "/", locale),
+      errorCallbackURL: localizeHref("/sign-in", locale),
     });
 
     // On success the browser navigates away, so only the failure path needs to
