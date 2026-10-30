@@ -1,5 +1,3 @@
-import "server-only";
-
 import { Readable } from "node:stream";
 import { MAX_EDITABLE_BYTES } from "@/lib/validation";
 import type { StorageBackend } from "./types";

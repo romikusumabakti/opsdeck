@@ -1,5 +1,3 @@
-import "server-only";
-
 import type { Readable } from "node:stream";
 import type { FileEntryWithStats, SFTPWrapper, Stats } from "ssh2";
 import { basename, confineSftpPath } from "./path";

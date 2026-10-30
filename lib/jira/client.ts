@@ -1,5 +1,3 @@
-import "server-only";
-
 import type { z } from "zod";
 import {
   ISSUE_FIELDS,

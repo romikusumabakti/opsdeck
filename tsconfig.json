@@ -22,26 +22,21 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": ["./*"]
-    },
-    // Owned by Next, not by us: `next build` rewrites this key back in on every
-    // run, so removing it is churn even though postcss.config.mjs is the only
-    // non-TS file and `include` doesn't match it.
-    "allowJs": true
+    }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
-  "exclude": ["node_modules"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
+  // The Next.js tree is on its way out: these files are replaced by server/ and
+  // the Vite client, and deleted at the cutover. Until then they still import
+  // next/* and are not typechecked.
+  "exclude": [
+    "node_modules",
+    "app",
+    "actions",
+    "proxy.ts",
+    "instrumentation.ts",
+    "next.config.ts",
+    "next-env.d.ts"
+  ]
 }

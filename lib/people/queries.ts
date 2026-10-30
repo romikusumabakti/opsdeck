@@ -1,5 +1,3 @@
-import "server-only";
-
 import { and, count, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { getProjectAccess, projectIdsWhere, projectScope } from "@/lib/authz";
 import { db } from "@/lib/db";

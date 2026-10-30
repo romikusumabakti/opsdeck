@@ -1,5 +1,3 @@
-import "server-only";
-
 import { eq } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
 import { db } from "@/lib/db";

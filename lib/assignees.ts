@@ -1,5 +1,3 @@
-import "server-only";
-
 import { and, eq, exists, inArray, or, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projectMembers, users as userTable } from "@/lib/db/schema";

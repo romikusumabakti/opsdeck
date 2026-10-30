@@ -11,10 +11,10 @@ import {
 // tty bytes in both directions. The WebSocket frame type is the discriminator,
 // so stdin/stdout need no envelope and no length prefix.
 //
-// This module deliberately does NOT import "server-only": the client component
-// imports the message types from here, and while `import type` is erased, a
-// guard that only holds by convention is worth less than one that can't be
-// broken. Everything here is pure — no db, no fs, no sockets.
+// The client component imports the message types from here, so everything in
+// this module stays pure — no db, no fs, no sockets. `import type` is erased,
+// but a boundary that only holds by convention is worth less than one that
+// can't be broken.
 
 export type ClientMessage =
   | {

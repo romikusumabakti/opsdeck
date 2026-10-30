@@ -1,5 +1,3 @@
-import "server-only";
-
 import { basename, joinPath } from "./path";
 import type { ExplorerEntry, StorageBackend } from "./types";
 

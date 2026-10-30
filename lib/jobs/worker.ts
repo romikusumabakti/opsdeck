@@ -24,7 +24,7 @@ const globalForWorker = globalThis as unknown as {
 
 // Starts the BullMQ worker that drains the runs queue. Idempotent: a second
 // call returns the existing worker. No-op (returns null) when REDIS_URL is
-// unset so the app still boots for local `next dev` without Redis — only the
+// unset so the app still boots for local development without Redis — only the
 // background operations are unavailable.
 export function startWorker(): Worker | null {
   if (globalForWorker.__tasksWorker) return globalForWorker.__tasksWorker;

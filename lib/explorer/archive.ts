@@ -1,5 +1,3 @@
-import "server-only";
-
 import type { Readable } from "node:stream";
 import { ZipFile } from "yazl";
 import type { Tree } from "./ops";

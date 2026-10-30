@@ -1,5 +1,3 @@
-import "server-only";
-
 import { routeProjectGuard } from "@/lib/authz";
 import { uuidSchema } from "@/lib/validation";
 import type { MailpitConfig } from "./client";

@@ -1,5 +1,3 @@
-import "server-only";
-
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 // App-level encryption for secrets at rest: SSH passwords, the database admin

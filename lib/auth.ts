@@ -2,10 +2,8 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { eq } from "drizzle-orm";
-import { after } from "next/server";
 import { v7 as uuidv7 } from "uuid";
 import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
@@ -199,22 +197,19 @@ export const auth = betterAuth({
       }
     }),
     // After a Microsoft sign-in, pull the M365 photo in the background.
-    // after() runs it once the response is sent, so sign-in never waits on
-    // Graph, and a failure only logs. Dynamic import: lib/avatars-microsoft
-    // imports this module.
+    // Fire-and-forget: not awaited, so sign-in never waits on Graph, and a
+    // failure only logs. Dynamic import: lib/avatars-microsoft imports this
+    // module.
     after: createAuthMiddleware(async (ctx) => {
       if (!ctx.path.startsWith("/callback") || ctx.params?.id !== "microsoft")
         return;
       const userId = ctx.context.newSession?.user.id;
       if (!userId) return;
-      after(async () => {
-        const { importMicrosoftAvatar } = await import(
-          "@/lib/avatars-microsoft"
-        );
-        await importMicrosoftAvatar(userId).catch((error) =>
+      void import("@/lib/avatars-microsoft")
+        .then(({ importMicrosoftAvatar }) => importMicrosoftAvatar(userId))
+        .catch((error) =>
           console.error("Microsoft avatar import failed:", error)
         );
-      });
     }),
   },
   databaseHooks: {
@@ -283,7 +278,6 @@ export const auth = betterAuth({
         userVerification: "preferred",
       },
     }),
-    nextCookies(),
   ],
 });
 

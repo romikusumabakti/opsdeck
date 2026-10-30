@@ -9,13 +9,12 @@ import {
 } from "@/lib/terminal/server";
 import { openSshShell } from "@/lib/terminal/ssh-shell";
 
-// Entry point for the terminal sidecar. Bundled by the Dockerfile with
-// `--conditions react-server`, which resolves the "server-only" guard in
-// lib/db, lib/secrets and lib/activity to its empty stub — so this process
-// reuses the app's data layer verbatim instead of duplicating it.
+// Entry point for the terminal sidecar. Bundled by the Dockerfile as its own
+// process, reusing the app's data layer (lib/db, lib/secrets, lib/activity)
+// verbatim instead of duplicating it.
 
 // Validated here rather than in lib/env.ts: `validateEnv()` runs only in the
-// Next app process (from instrumentation.ts), which never reads this variable.
+// app server process (from server/index.ts), which never reads this variable.
 // A check there would be dead code; this is the process that would break.
 const port = Number(process.env.TERMINAL_WS_PORT ?? 3001);
 if (!Number.isInteger(port) || port <= 0 || port >= 65_536) {
