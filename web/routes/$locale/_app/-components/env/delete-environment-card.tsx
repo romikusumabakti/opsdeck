@@ -1,14 +1,12 @@
-"use client";
-
 import { Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { deleteEnvironment } from "@/actions/environments";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import type { Environment } from "@/lib/db/schema";
+import { deleteEnvironment } from "@/web/api/environments";
 
 export function DeleteEnvironmentCard({
   environment,

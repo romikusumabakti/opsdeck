@@ -1,15 +1,7 @@
-"use client";
-
 import { Database, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  createDatabase,
-  type DatabaseEntry,
-  dropDatabase,
-  renameDatabase,
-} from "@/actions/databases";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
@@ -19,8 +11,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { formatBytes } from "@/lib/utils";
+import {
+  createDatabase,
+  type DatabaseEntry,
+  dropDatabase,
+  renameDatabase,
+} from "@/web/api/databases";
+import type { EnvironmentWithServers } from "@/web/api/environments";
 
 // Above this many databases the list gets a search box — small lists don't
 // need one and the extra control just adds noise.
@@ -30,7 +28,7 @@ export function ManageDatabases({
   environment,
   databases,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   databases: DatabaseEntry[];
 }) {
   const t = useTranslations("databases");

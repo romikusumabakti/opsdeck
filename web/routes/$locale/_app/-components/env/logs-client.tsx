@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import {
   type LevelFilter,
@@ -7,8 +5,8 @@ import {
   type LogViewerState,
 } from "@/components/log-viewer";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import type { LogLines, ServiceRole } from "@/lib/services";
+import type { EnvironmentWithServers } from "@/web/api/environments";
 
 export type InitialLogState = {
   tail: LogLines;
@@ -18,7 +16,7 @@ export type InitialLogState = {
 };
 
 type Props = {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   role: ServiceRole;
   serviceName: string;
   initial: InitialLogState;

@@ -1,5 +1,3 @@
-"use client";
-
 import {
   ArrowUpDown,
   CheckCircle2,
@@ -7,14 +5,14 @@ import {
   History as HistoryIcon,
   Loader2,
 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
-import type { RunWithUser } from "@/actions/runs";
+import { useFormatter, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { UserName } from "@/components/user/user-name";
+import type { RunWithUser } from "@/web/api/runs";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;

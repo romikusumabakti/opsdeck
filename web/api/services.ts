@@ -30,3 +30,7 @@ export async function controlService(
     routes["control-service"].$post({ json: { environmentId, role, action } })
   );
 }
+
+export type ServiceStatusResult = Awaited<
+  ReturnType<typeof getAllServiceStatuses>
+>[number];

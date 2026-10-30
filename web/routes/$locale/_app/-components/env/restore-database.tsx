@@ -1,11 +1,7 @@
-"use client";
-
 import { Check, ChevronDown, ChevronsUpDown, RotateCcw } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { getBackupList, restoreDatabaseBackup } from "@/actions/backups";
-import type { DatabaseEntry } from "@/actions/databases";
+import { useTranslations } from "use-intl";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
@@ -26,10 +22,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { Environment, SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { backendService, dbService } from "@/lib/services";
 import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { getBackupList, restoreDatabaseBackup } from "@/web/api/backups";
+import type { DatabaseEntry } from "@/web/api/databases";
+import type {
+  EnvironmentListItem,
+  EnvironmentWithServers,
+} from "@/web/api/environments";
 
 export function RestoreDatabase({
   environment,
@@ -37,12 +38,12 @@ export function RestoreDatabase({
   databases,
   sourceEnvironments,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   backups: Backup[];
   databases: DatabaseEntry[];
   // Other projects sharing this environment's DB location, offered as alternative
   // backup sources. Empty when the environment has no compatible siblings.
-  sourceEnvironments: Environment[];
+  sourceEnvironments: EnvironmentListItem[];
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");

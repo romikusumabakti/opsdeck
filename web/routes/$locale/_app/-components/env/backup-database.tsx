@@ -1,12 +1,7 @@
-"use client";
-
 import { ChevronDown, Database, FileArchive } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { createDatabaseBackup, revalidateBackupList } from "@/actions/backups";
-import type { DatabaseEntry } from "@/actions/databases";
+import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
 import { useDialog } from "@/components/dialog-provider";
@@ -16,9 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import { useRouter } from "@/i18n/navigation";
 import { dbService } from "@/lib/services";
 import { cn } from "@/lib/utils";
+import { createDatabaseBackup } from "@/web/api/backups";
+import type { DatabaseEntry } from "@/web/api/databases";
+import type { EnvironmentWithServers } from "@/web/api/environments";
 
 // Matches the marker emitted by lib/jobs/processor.ts after a successful dump.
 // Kept here as a single source of truth for the parser — if the marker text
@@ -35,7 +33,7 @@ export function BackupDatabase({
   databases,
   fixedDatabase,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
   databases: DatabaseEntry[];
   // When set (e.g. the Databases row action), this database is the fixed
   // source and the in-panel picker is hidden.
@@ -90,10 +88,9 @@ export function BackupDatabase({
   }
 
   async function onTaskSuccess(snapshot: { output: string }) {
-    // Drop the `unstable_cache` backup listing first, then refresh: `router.refresh()`
-    // alone only re-runs the server component, which still reads the stale cached
-    // list — so the just-created file wouldn't appear until the 30s revalidate.
-    await revalidateBackupList(environment.id);
+    // The run finished out of band, so no mutation response invalidated the
+    // backup listing (a remote probe with a 30s staleTime): refetch it now so
+    // the just-created file shows up.
     router.refresh();
     const filename = extractFilename(snapshot.output);
     if (!filename) return;

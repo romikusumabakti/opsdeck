@@ -1,17 +1,18 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { formatDistanceToNow, type Locale } from "date-fns";
 import { Activity, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
-import Link from "next/link";
-import { getLocale, getTranslations } from "next-intl/server";
-import { getEnvironmentRuns, type RunWithUser } from "@/actions/runs";
+import { useLocale, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserName } from "@/components/user/user-name";
+import { Link } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { getEnvironmentRunsQuery, type RunWithUser } from "@/web/api/runs";
 
 const RECENT_LIMIT = 5;
 
-export async function RecentActivity({
+export function RecentActivity({
   environmentId,
   envPath,
 }: {
@@ -21,9 +22,11 @@ export async function RecentActivity({
 }) {
   // Re-uses the existing query so we don't multiply DB round-trips. Trimmed
   // here rather than via SQL because the list is bounded by environment scope.
-  const runs = (await getEnvironmentRuns(environmentId)).slice(0, RECENT_LIMIT);
-  const t = await getTranslations("dashboard.recentActivity");
-  const locale = await getLocale();
+  const runs = useSuspenseQuery(
+    getEnvironmentRunsQuery(environmentId)
+  ).data.slice(0, RECENT_LIMIT);
+  const t = useTranslations("dashboard.recentActivity");
+  const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
 
   return (

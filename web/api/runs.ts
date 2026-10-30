@@ -70,3 +70,8 @@ export type ActiveRun = Awaited<ReturnType<typeof getActiveRuns>>[number];
 export type EnvironmentActivity = Awaited<
   ReturnType<typeof getEnvironmentsLastActivity>
 >[string];
+export type RunWithUser = Awaited<
+  ReturnType<typeof getEnvironmentRuns>
+>[number];
+export type EnvironmentKpis = Awaited<ReturnType<typeof getEnvironmentKpis>>;
+export type KpiEntry = EnvironmentKpis["lastBackup"];

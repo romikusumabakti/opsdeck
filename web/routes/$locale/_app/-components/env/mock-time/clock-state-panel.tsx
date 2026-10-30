@@ -1,14 +1,12 @@
-"use client";
-
 import { Clock, RefreshCw } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import type * as React from "react";
-import type { ClockState } from "@/actions/mock-time";
+import { useLocale, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { cn } from "@/lib/utils";
+import type { ClockState } from "@/web/api/mock-time";
 import { ClockOffset, LiveClock } from "./live-clock";
 
 export function ClockStatePanel({

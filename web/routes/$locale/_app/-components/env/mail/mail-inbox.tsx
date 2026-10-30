@@ -1,7 +1,4 @@
-"use client";
-
 import { RefreshCw, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
@@ -10,7 +7,7 @@ import {
   useTransition,
 } from "react";
 import { toast } from "sonner";
-import { deleteMail, listMail } from "@/actions/mail";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -18,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { MAIL_PAGE_SIZE, type MessagesPage } from "@/lib/mailpit/schemas";
 import { cn } from "@/lib/utils";
 import type { MailDeleteTarget } from "@/lib/validation";
+import { deleteMail, listMail } from "@/web/api/mail";
 import { MailDetailPane } from "./mail-detail";
 import { MailList } from "./mail-list";
 

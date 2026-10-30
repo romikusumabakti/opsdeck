@@ -1,25 +1,23 @@
-"use client";
-
 import { format } from "date-fns";
 import { ChevronDown, Clock, Info, RotateCcw } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  advanceClockLegacy,
-  type ClockState,
-  getClockStateLegacy,
-  mockProjectTimeLegacy,
-  resetClockLegacy,
-} from "@/actions/mock-time";
+import { useLocale, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+import type { EnvironmentWithServers } from "@/web/api/environments";
+import {
+  advanceClockLegacy,
+  type ClockState,
+  getClockStateLegacy,
+  mockProjectTimeLegacy,
+  resetClockLegacy,
+} from "@/web/api/mock-time";
 import { AdvanceFields } from "./advance-fields";
 import { ClockStatePanel } from "./clock-state-panel";
 import { BrowserZoneHint, DateTimePicker } from "./date-time-picker";
@@ -32,7 +30,7 @@ import {
 export function MockTimeLegacy({
   environment,
 }: {
-  environment: SafeEnvironmentWithServers;
+  environment: EnvironmentWithServers;
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
