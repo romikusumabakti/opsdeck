@@ -3,11 +3,27 @@ import { AUTH_FILE } from "./support";
 
 test.use({ storageState: AUTH_FILE });
 
+// The saved session also carries the NEXT_LOCALE cookie of the last locale it
+// visited (auth.spec.ts ends in /id), so each case states its own.
 test("legacy unprefixed URLs redirect to the locale-prefixed page", async ({
   page,
+  context,
 }) => {
+  await context.clearCookies({ name: "NEXT_LOCALE" });
   await page.goto("/servers");
   await expect(page).toHaveURL(/\/en\/servers$/);
+});
+
+test("an unprefixed URL lands in the NEXT_LOCALE cookie's locale", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([
+    { name: "NEXT_LOCALE", value: "id", url: baseURL ?? "" },
+  ]);
+  await page.goto("/servers");
+  await expect(page).toHaveURL(/\/id\/servers$/);
 });
 
 test("the old /users URL redirects to the admin section", async ({ page }) => {
