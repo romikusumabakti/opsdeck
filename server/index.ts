@@ -32,4 +32,14 @@ export default {
   // Bun closes a connection after 10 s without traffic by default, which cuts
   // the SSE streams (run logs, mail events) mid-run. 0 disables the timeout.
   idleTimeout: 0,
+  // Bun rejects bodies over 128 MiB by default; the limit is stated here so it
+  // is a decision. The upload routes enforce their own, smaller caps with a
+  // proper 413 (issue attachments 25 MiB, knowledge images 10 MiB, avatars
+  // 5 MiB — lib/validation.ts), which this must stay above. The file
+  // explorer's upload (server/routes/explorer.ts) has no cap of its own, as
+  // under Next: it moves deploy artifacts and dumps onto servers and buckets.
+  // It parses the form in memory, so this is what bounds it. Behind
+  // Cloudflare the edge caps request bodies lower still (100 MB on the Free
+  // and Pro plans).
+  maxRequestBodySize: 512 * 1024 * 1024,
 };
