@@ -22,9 +22,8 @@ const THEMES = {
 } as const;
 
 // Must match the `handle /ws/terminal*` route in the Caddyfile. Deliberately a
-// constant and not an env var: NEXT_PUBLIC_* values are inlined into the client
-// bundle at BUILD time, so a runtime override would silently do nothing — a
-// knob that looks configurable and isn't is worse than a documented constant.
+// constant and not an env var: it has to agree with the Caddyfile, so a
+// runtime override would be a knob that looks configurable and isn't.
 const WS_PATH = "/ws/terminal";
 // 1s, 2s, 4s, 8s, then give up and let the user retry by hand — past the 60s
 // grace window there is nothing left to reattach to anyway.

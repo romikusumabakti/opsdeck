@@ -27,15 +27,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
-  // The Next.js tree is on its way out: these files are replaced by server/ and
-  // the Vite client, and deleted at the cutover. Until then they still import
-  // next/* and are not typechecked.
-  "exclude": [
-    "node_modules",
-    "app",
-    "proxy.ts",
-    "instrumentation.ts",
-    "next.config.ts",
-    "next-env.d.ts"
-  ]
+  "exclude": ["node_modules", "dist"]
 }

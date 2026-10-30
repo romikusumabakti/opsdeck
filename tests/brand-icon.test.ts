@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { GET } from "@/app/brand/icon.svg/route";
+import { app } from "@/server/app";
 
 const saved = process.env.BRAND;
 afterEach(() => {
@@ -10,7 +10,7 @@ afterEach(() => {
 async function fetchIcon(query: string, brand?: string) {
   if (brand === undefined) delete process.env.BRAND;
   else process.env.BRAND = brand;
-  const res = GET(new Request(`http://localhost/brand/icon.svg${query}`));
+  const res = await app.request(`/brand/icon.svg${query}`);
   return { res, body: await res.text() };
 }
 

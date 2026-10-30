@@ -26,9 +26,8 @@ services:
     container_name: opsdeck-app
     restart: always
     # No published port: the app is internal. Caddy (below) is the only public
-    # surface — it terminates TLS and forwards with X-Forwarded-* headers so
-    # Next derives the public host/port (no more internal :3000 leaking into
-    # redirects).
+    # surface — it terminates TLS and forwards the request to the app.
+    # The app's redirects are path-only, so no internal port leaks into them.
     expose:
       - "3000"
     environment:
@@ -48,20 +47,26 @@ services:
       # the app throws on create/read of any secret when unset. Generate once
       # with `openssl rand -base64 32`; keep stable (rotating orphans ciphertext).
       SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
-      # Whitelabel branding — surfaced to the client via NEXT_PUBLIC_*
-      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME-}
-      NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME-}
-      NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN: ${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}
+      # Whitelabel branding — read by the server at runtime and sent to the
+      # client, so a change takes a restart, not a rebuild. The pre-Vite
+      # NEXT_PUBLIC_* names still work as a fallback, so an existing .env
+      # keeps working.
+      APP_NAME: ${APP_NAME:-${NEXT_PUBLIC_APP_NAME-}}
+      COMPANY_NAME: ${COMPANY_NAME:-${NEXT_PUBLIC_COMPANY_NAME-}}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}}
+      # IANA zone for the app's own clock (daily motif, default display zone).
+      # Empty means the app default, Asia/Jakarta.
+      APP_TIMEZONE: ${APP_TIMEZONE-}
       # Brand — logo and colour theme: one of lib/branding.ts BRANDS.
       # Read by the server at runtime, so changing it takes a restart, not a rebuild.
       BRAND: ${BRAND-}
       # Email (Resend) — optional; email features disabled if empty.
       # When EMAIL_FROM is unset, lib/branding.ts derives a default from
-      # NEXT_PUBLIC_APP_NAME + NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN.
+      # APP_NAME + ALLOWED_EMAIL_DOMAIN.
       RESEND_API_KEY: ${RESEND_API_KEY-}
       EMAIL_FROM: ${EMAIL_FROM-}
-      # Background jobs (BullMQ). The in-process worker (started via Next's
-      # instrumentation hook) and the enqueue side both connect to Valkey over
+      # Background jobs (BullMQ). The in-process worker (started by the
+      # server at boot) and the enqueue side both connect to Valkey over
       # the compose network. Valkey is Redis-compatible; BullMQ speaks the Redis
       # protocol.
       REDIS_URL: ${REDIS_URL:-redis://valkey:6379}
@@ -107,15 +112,14 @@ services:
   terminal:
     # Same image as `app` (declaring both build+image means compose builds it
     # once and reuses it), different entrypoint: this process owns the
-    # WebSocket terminal sessions. Next 16 can't serve WebSockets from a route
-    # handler, and keeping the sockets out of the app process means a redeploy
-    # or a recompile can't kill a live root shell.
+    # WebSocket terminal sessions. Keeping the sockets out of the app process
+    # means a redeploy or a restart of the app can't kill a live root shell.
     build:
       context: .
     image: opsdeck-app:local
     container_name: opsdeck-terminal
     restart: always
-    command: ["bun", "terminal-server.js"]
+    command: ["bun", "dist/terminal-server.js"]
     # Internal only. Caddy is the single public surface.
     expose:
       - "3001"

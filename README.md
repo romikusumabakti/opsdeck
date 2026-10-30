@@ -18,7 +18,7 @@ A self-hosted, whitelabel hub where a delivery team (PM, BA, QA, Dev and DevOps)
 
 ## Stack
 
-Next.js 16 (App Router) · React 19 · Bun · Drizzle ORM + PostgreSQL 18 · BullMQ + Valkey · better-auth · Tailwind CSS 4 + shadcn/ui · next-intl · Garage (S3) + imgproxy · Biome
+Vite + React 19 (TanStack Router) · Hono on Bun · Drizzle ORM + PostgreSQL 18 · BullMQ + Valkey · better-auth · Tailwind CSS 4 + shadcn/ui · use-intl · Garage (S3) + imgproxy · Biome
 
 ## Architecture
 
@@ -39,8 +39,8 @@ Next.js 16 (App Router) · React 19 · Bun · Drizzle ORM + PostgreSQL 18 · Bul
 
 | Service    | Purpose                                                                 |
 | ---------- | ----------------------------------------------------------------------- |
-| `app`      | Next.js standalone server. The BullMQ worker starts inside it from `instrumentation.ts`. |
-| `terminal` | Same image, running `terminal-server.js`. It holds the WebSocket terminal sessions, because Next can't serve WebSockets and keeping the sockets in their own process means a redeploy can't kill a live shell. |
+| `app`      | Hono server on Bun (`dist/server/index.js`). It serves the API and the built SPA, and the BullMQ worker starts inside it. |
+| `terminal` | Same image, running `bun dist/terminal-server.js`. It holds the WebSocket terminal sessions; keeping the sockets in their own process means a redeploy of the app can't kill a live shell. |
 | `caddy`    | Public edge on `127.0.0.1:80`, plain HTTP. TLS is expected to end upstream (for example at cloudflared). |
 | `postgres` | Main database, published on `127.0.0.1:5432` for migrations.          |
 | `valkey`   | Redis-compatible queue backend for BullMQ.                              |
@@ -49,7 +49,7 @@ Next.js 16 (App Router) · React 19 · Bun · Drizzle ORM + PostgreSQL 18 · Bul
 
 ## Configuration
 
-Copy `.env.example` to `.env` (Compose) or `.env.local` (host `next dev`) and fill it in. Each variable is documented inline. At startup the app validates its environment (`lib/env.ts`):
+Copy `.env.example` to `.env` (Compose) or `.env.local` (host `bun run dev`) and fill it in. Each variable is documented inline. At startup the app validates its environment (`lib/env.ts`):
 
 - It refuses to boot if a core variable is missing, a value is malformed or a feature is only half configured.
 - Optional features (Microsoft sign-in, Resend email, S3 keys) that are left blank are disabled, and the app logs an `[env]` warning.
@@ -64,7 +64,7 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 > [!WARNING]
 > - `SECRETS_KEY` encrypts stored credentials (SSH and database passwords, S3 keys). If you rotate it, the existing secrets can no longer be decrypted and have to be re-entered.
 > - `BETTER_AUTH_URL` must be the exact origin users visit. Passkeys are bound to it, and the terminal rejects WebSocket upgrades from any other origin.
-> - `NEXT_PUBLIC_*` branding variables are baked in at build time, so changing them means rebuilding the image.
+> - The branding variables (`APP_NAME`, `COMPANY_NAME`, `ALLOWED_EMAIL_DOMAIN`) are read at runtime, so changing them takes a restart, not a rebuild. They used to be `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_COMPANY_NAME` and `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`; `compose.yaml` still honours the old names as a fallback.
 
 ### Brand and accent colour
 
@@ -72,7 +72,7 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 
 Each user can pick their own accent colour from the user menu (**Accent color**) or the command palette. The choices are `neutral` plus shadcn/ui's seven colour themes: blue, green, orange, red, rose, violet and yellow. The choice is stored on the user's account (`users.accent_color`), so it follows them across devices; until they pick one, they get the brand's default. The root layout sets `data-accent` on `<html>`.
 
-The theme is the stock shadcn/ui token set in `app/globals.css`. Each accent binds its Tailwind palette steps to `--tint-*` variables, and two role blocks map those onto the shadcn tokens:
+The theme is the stock shadcn/ui token set in `web/styles.css`. Each accent binds its Tailwind palette steps to `--tint-*` variables, and two role blocks map those onto the shadcn tokens:
 - light mode uses step 900 for buttons and step 100 for the active sidebar item;
 - dark mode uses step 300 for buttons and step 950 for the active sidebar item;
 - the focus ring uses step 500 in light mode and 400 in dark mode, or a darker step where 500 falls below 3:1 (green and orange use 600, yellow 700).
@@ -83,7 +83,7 @@ Logos are code, not image files, so that they can take the accent's colours and 
 
 To add an accent colour:
 1. Add its name to `ACCENTS` in `lib/accents.ts`.
-2. Add a `[data-accent="…"]` binding block in `app/globals.css`.
+2. Add a `[data-accent="…"]` binding block in `web/styles.css`.
 3. Add its steps and values to `ACCENT_STEPS` and `ACCENT_PALETTE` in `lib/accent-palette.ts`.
 4. Add its swatch classes in `components/accent-dot.tsx`.
 5. Add its name to `accentSwitcher` in all five `messages/*.json` files.
@@ -154,9 +154,11 @@ Requirements: Bun ≥ 1.3, Node 24 (only for `scripts/build-motifs.mjs`), and a 
 bun install
 cp .env.example .env.local        # set DATABASE_URL host to localhost
 bun run db:migrate
-bun run dev                       # http://localhost:3000
+bun run dev                       # http://localhost:5173
 bun run terminal                  # web-terminal sidecar on :3001 (optional)
 ```
+
+`bun run dev` starts two processes: Vite on 5173 (the SPA, with hot reload) and the Hono API on 3000. Vite proxies `/api`, `/brand` and `/ws/terminal` to the API and the terminal sidecar, so open http://localhost:5173. If port 3000 is taken, set `PORT` (for example `PORT=3100 bun run dev`): the server listens on it, and Vite reads the same variable for its proxy target, so both stay in step.
 
 Valkey publishes no host port, so background jobs only run in host dev if `REDIS_URL` points at a Redis/Valkey instance you can reach. When `REDIS_URL` is unset, the worker is disabled and the rest of the app still works.
 
@@ -164,9 +166,10 @@ Valkey publishes no host port, so background jobs only run in host dev if `REDIS
 
 | Command                      | Description                                        |
 | ---------------------------- | -------------------------------------------------- |
-| `bun run dev` / `build` / `start` | Next.js dev server, production build, server  |
+| `bun run dev`                | Vite (5173) and the Hono API (3000) in parallel   |
+| `bun run build` / `start`    | Production build into `dist/`, and run it         |
 | `bun run terminal`           | Run the web-terminal WebSocket sidecar            |
-| `bun test`                   | Unit tests (happy-dom; no database needed)        |
+| `bun run test`               | Unit tests (Vitest; no database needed)           |
 | `bun run typecheck`          | `tsc --noEmit`                                    |
 | `bun run lint` / `format` / `check` | Biome                                       |
 | `bun run db:generate`        | Generate a migration from `lib/db/schema.ts`      |
@@ -182,14 +185,13 @@ Each user-facing string must be added to all five files in `messages/`: `ar`, `e
 ## Project layout
 
 ```
-app/[locale]/     Pages (every URL is locale-prefixed)
-app/api/          Route handlers: health, run streams, Jira webhook, uploads, terminal tickets
-actions/          Server actions
+web/              The SPA: TanStack Router file routes (web/routes), API client, providers
+server/           The Hono API: routes, services, middleware, static serving
 components/       UI components (shadcn/ui in components/ui)
 lib/              Domain logic: db schema, auth, jobs, jira, terminal, tunnels, mailpit, explorer
 drizzle/          SQL migrations
 messages/         i18n message catalogs
-tests/            bun test suites + fixtures
+tests/            Vitest suites + fixtures
 docs/             Design docs and guides
 ```
 

@@ -8,12 +8,8 @@
   "files": {
     "includes": [
       "**",
-      "!.next",
       "!.bun",
       "!node_modules",
-      "!build",
-      "!out",
-      "!next-env.d.ts",
       "!tsconfig.tsbuildinfo",
       "!components/ui",
       "!drizzle",

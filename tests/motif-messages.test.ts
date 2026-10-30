@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { routing } from "@/i18n/routing";
+import { locales } from "@/i18n/locales";
 import { MOTIF_SLUGS } from "@/lib/motifs";
 
 type Motifs = Record<string, unknown> & {
@@ -16,7 +16,7 @@ const KEYS = ["region", "medium", "meaning"];
 describe("motifs messages", () => {
   const en = motifs("en");
 
-  for (const locale of routing.locales) {
+  for (const locale of locales) {
     it(`${locale} has every motifs key`, () => {
       const m = motifs(locale);
       expect(Object.keys(m).sort()).toEqual(Object.keys(en).sort());

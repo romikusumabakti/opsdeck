@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * Read-only renderer for the knowledge base's markdown source. Mirrors the
  * component-override styling used elsewhere (mock-time api docs) since the
  * project has no Tailwind typography plugin. Internal `/knowledge/...` links are
- * routed through next-intl's locale-aware <Link>; everything else opens in a new
+ * routed through the app's locale-aware <Link>; everything else opens in a new
  * tab with safe rel.
  */
 export function MarkdownContent({
@@ -147,7 +147,7 @@ export function MarkdownContent({
           img: ({ src, alt, ...props }) => (
             // Attachments resolve through /api/knowledge/asset/<id> (auth-gated).
             // Lazy + async so a doc full of screenshots doesn't block first paint.
-            // biome-ignore lint/performance/noImgElement: next/image can't size remote auth-gated assets here
+            // biome-ignore lint/performance/noImgElement: a sized image component can't handle remote auth-gated assets here
             <img
               src={typeof src === "string" ? src : undefined}
               alt={alt ?? ""}

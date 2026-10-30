@@ -1,6 +1,9 @@
 import { existsSync, globSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+// The pages: TanStack file routes, where each page's guard and gating live.
+const APP = "web/routes/$locale/_app";
+
 // Cross-project reads must filter to the caller's projects. The DB lookups are
 // thin, so the cheapest durable check is structural: each listed function must
 // mention one of the scope helpers. Add a function here when you add a
@@ -258,7 +261,7 @@ const ACCESS_AUDIT: Record<string, string> = {
 
 describe("access changes are recorded in the activity log", () => {
   const source = readFileSync("server/services/users.ts", "utf8");
-  const page = readFileSync("app/[locale]/admin/activity/page.tsx", "utf8");
+  const page = readFileSync(`${APP}/admin.activity.tsx`, "utf8");
   for (const [fn, action] of Object.entries(ACCESS_AUDIT)) {
     it(`${fn} records ${action}`, () => {
       const code = body(source, fn);
@@ -269,8 +272,8 @@ describe("access changes are recorded in the activity log", () => {
   }
 });
 
-// The old catch-all helpers have been removed. Everything under server, lib, app
-// and components is scanned to ensure no legacy helper calls remain.
+// The old catch-all helpers have been removed. Everything under server, lib,
+// components and web is scanned to ensure no legacy helper calls remain.
 describe("no legacy authorization helpers outside lib/auth-session", () => {
   const LEGACY =
     /\b(requireAdmin|isAdmin|requireCapability|getEffectiveRole|roleHasCapability|useCanRunOps)\(/;
@@ -279,7 +282,6 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
     "server/services",
     "server/routes",
     "lib",
-    "app",
     "components",
     "web",
   ];
@@ -324,18 +326,20 @@ describe("environment infrastructure bindings need server:manage", () => {
   });
   it("the new-environment page requires server:manage", () => {
     expect(
-      readFileSync(
-        "app/[locale]/[projectKey]/environments/new/page.tsx",
-        "utf8"
-      )
-    ).toMatch(/requireOrgPage\(\{ server: \["manage"\] \}\)/);
+      readFileSync(`${APP}/$projectKey.environments.new.tsx`, "utf8")
+    ).toMatch(
+      /requireProjectRole\([\s\S]*\{ environment: \["create"\] \},\s*\{ server: \["manage"\] \}/
+    );
   });
   it("the settings page only fetches servers for server:manage", () => {
     const page = readFileSync(
-      "app/[locale]/[projectKey]/[envSlug]/settings/page.tsx",
+      `${APP}/$projectKey.$envSlug.settings.tsx`,
       "utf8"
     );
-    expect(page).toMatch(/canManageServers \? getServers\(\)/);
+    expect(page).toMatch(
+      /canOrg\(me\?\.orgRole, \{ server: \["manage"\] \}\)\s*\?\s*queryClient\.query\(getServersQuery\(\)\)/
+    );
+    expect(page).toMatch(/enabled: canManageServers/);
   });
   it("listServerOptions is gone", () => {
     expect(readFileSync("server/services/servers.ts", "utf8")).not.toMatch(
@@ -349,39 +353,41 @@ describe("environment infrastructure bindings need server:manage", () => {
 describe("render-time permissioned reads are gated", () => {
   it("the databases page lists backups only for database:backup", () => {
     const page = readFileSync(
-      "app/[locale]/[projectKey]/[envSlug]/databases/page.tsx",
+      `${APP}/$projectKey.$envSlug.databases.tsx`,
       "utf8"
     );
-    expect(page).toMatch(/canProject\(role, \{ database: \["backup"\] \}\)/);
-    expect(page).toMatch(/canBackup\s*\?\s*getBackupList\(/);
-    expect(page.match(/getBackupList\(/g)?.length).toBe(1);
+    expect(page).toMatch(
+      /canProject\(role, \{ database: \["backup"\] \}\)\)\s*\{\s*void queryClient\.prefetchQuery\(getBackupListQuery\(/
+    );
+    expect(page).toMatch(/canBackup \? getBackupListQuery\(/);
+    expect(page.match(/getBackupListQuery\(/g)?.length).toBe(2);
   });
 });
 
 // Observers can read servers, storage and tunnels but not manage them; the
 // pages must hide controls that would only throw ForbiddenError.
 const ORG_READ_PAGES: Record<string, RegExp[]> = {
-  "app/[locale]/servers/page.tsx": [
+  [`${APP}/servers.index.tsx`]: [
     /server: \["manage"\]/,
     /server: \["terminal"\]/,
     /server: \["files"\]/,
   ],
-  "app/[locale]/servers/[id]/page.tsx": [
+  [`${APP}/servers.$id.index.tsx`]: [
     /server: \["manage"\]/,
     /readOnly=\{!canManage\}/,
   ],
-  "app/[locale]/storage/page.tsx": [
+  [`${APP}/storage.index.tsx`]: [
     /storage: \["manage"\]/,
     /storage: \["files"\]/,
   ],
-  "app/[locale]/storage/[id]/page.tsx": [
+  [`${APP}/storage.$id.index.tsx`]: [
     /storage: \["manage"\]/,
     /storage: \["files"\]/,
     /readOnly=\{!canManage\}/,
   ],
-  "app/[locale]/admin/tunnels/page.tsx": [/tunnel: \["manage"\]/],
-  "app/[locale]/admin/tunnels/[id]/page.tsx": [/tunnel: \["manage"\]/],
-  "app/[locale]/admin/tunnels/zones/page.tsx": [/tunnel: \["manage"\]/],
+  [`${APP}/admin.tunnels.index.tsx`]: [/tunnel: \["manage"\]/],
+  [`${APP}/admin.tunnels.$id.index.tsx`]: [/tunnel: \["manage"\]/],
+  [`${APP}/admin.tunnels.zones.index.tsx`]: [/tunnel: \["manage"\]/],
 };
 
 describe("org read pages gate their management controls", () => {
@@ -414,7 +420,7 @@ describe("old role module is gone", () => {
   });
   it("nothing imports @/lib/roles", () => {
     const files = Array.from(
-      globSync("{server,app,lib,components,web,tests}/**/*.{ts,tsx}", {
+      globSync("{server,lib,components,web,tests}/**/*.{ts,tsx}", {
         cwd: ".",
       })
     );
@@ -498,28 +504,31 @@ describe("Home my-issues gates status changes on issue:write", () => {
 // /admin/access was merged into /admin/users (Project access tab). The old
 // route only redirects; the users page owns the guard and gates the matrix.
 describe("users and access live on one guarded page", () => {
-  const page = readFileSync("app/[locale]/admin/users/page.tsx", "utf8");
+  const page = readFileSync(`${APP}/admin.users.tsx`, "utf8");
   it("the users page requires user:list", () => {
-    expect(page).toMatch(/requireOrgPage\(\{ user: \["list"\] \}\)/);
-  });
-  it("the users page fetches the access matrix only for audit:read", () => {
-    expect(page).toMatch(/canOrg\(role, \{ audit: \["read"\] \}\)/);
-    expect(page).toMatch(/canViewAccess\s*\?\s*getAccessMatrix\(\)/);
-    expect(page.match(/getAccessMatrix\(/g)?.length).toBe(1);
-  });
-  it("the users page fetches invitations only for user:invite", () => {
-    expect(page).toMatch(/canInvite\s*\?\s*listPendingInvitations\(\)/);
-  });
-  it("the old access page only redirects to the users page", () => {
-    const old = readFileSync("app/[locale]/admin/access/page.tsx", "utf8");
-    expect(old).not.toMatch(/requireOrgPage|getAccessMatrix/);
-    expect(old).toMatch(/redirect\("\/admin\/users\?tab=access"\)/);
-    expect(existsSync("app/[locale]/admin/access/access-client.tsx")).toBe(
-      false
+    expect(page).toMatch(
+      /requireOrgRole\(queryClient, \{ user: \["list"\] \}\)/
     );
   });
+  it("the users page fetches the access matrix only for audit:read", () => {
+    expect(page).toMatch(
+      /canOrg\(role, \{ audit: \["read"\] \}\)\s*\?\s*queryClient\.query\(getAccessMatrixQuery\(\)\)/
+    );
+    expect(page).toMatch(/enabled: canViewAccess/);
+  });
+  it("the users page fetches invitations only for user:invite", () => {
+    expect(page).toMatch(
+      /canOrg\(role, \{ user: \["invite"\] \}\)\s*\?\s*queryClient\.query\(listPendingInvitationsQuery\(\)\)/
+    );
+    expect(page).toMatch(/enabled: canInvite/);
+  });
+  it("the old access page only redirects to the users page", () => {
+    const old = readFileSync(`${APP}/admin.access.tsx`, "utf8");
+    expect(old).not.toMatch(/requireOrgRole|getAccessMatrix/);
+    expect(old).toMatch(/redirect\("\/admin\/users\?tab=access", locale\)/);
+  });
   it("the admin landing picks users for user:list, else activity", () => {
-    const landing = readFileSync("app/[locale]/admin/page.tsx", "utf8");
+    const landing = readFileSync(`${APP}/admin.index.tsx`, "utf8");
     expect(landing).toMatch(/canOrg\([^)]*\{ user: \["list"\] \}\)/);
     expect(landing).toMatch(/"\/admin\/users"/);
     expect(landing).toMatch(/"\/admin\/activity"/);
@@ -533,8 +542,8 @@ describe("users and access live on one guarded page", () => {
       "server/services",
       "server/routes",
       "lib",
-      "app",
       "components",
+      "web",
     ];
     const offenders = roots.flatMap((root) =>
       Array.from(

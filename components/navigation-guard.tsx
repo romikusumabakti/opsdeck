@@ -16,7 +16,7 @@ const NavigationGuardContext = React.createContext<GuardContextValue | null>(
  *
  * Forms register a predicate (via {@link useNavigationGuard}) that returns
  * `true` while they hold unsaved changes. A capture-phase click listener
- * intercepts internal anchor navigations (next-intl `<Link>` renders an
+ * intercepts internal anchor navigations (the locale-aware `<Link>` renders an
  * `<a>`, so sidebar/breadcrumb/command items are covered) and asks for
  * confirmation before leaving. Tab close / reload stay covered separately by
  * {@link useUnsavedChanges}'s `beforeunload` handler.
