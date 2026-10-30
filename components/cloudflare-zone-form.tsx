@@ -20,13 +20,16 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeCloudflareZone } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 import {
   createCloudflareZone,
   testCloudflareZone,
   updateCloudflareZone,
 } from "@/web/api/tunnels";
 
-type Mode = { type: "create" } | { type: "edit"; zone: SafeCloudflareZone };
+type Mode =
+  | { type: "create" }
+  | { type: "edit"; zone: Serialized<SafeCloudflareZone> };
 
 type TestState =
   | { kind: "idle" }

@@ -18,6 +18,7 @@ import { Route as LocaleSetupRouteImport } from './routes/$locale/setup'
 import { Route as LocaleSignInRouteImport } from './routes/$locale/sign-in'
 import { Route as LocaleAppIndexRouteImport } from './routes/$locale/_app/index'
 import { Route as LocaleAppSplatRouteImport } from './routes/$locale/_app/$'
+import { Route as LocaleAppAdminRouteRouteImport } from './routes/$locale/_app/admin.route'
 import { Route as LocaleAppIssuesRouteImport } from './routes/$locale/_app/issues'
 import { Route as LocaleAppKnowledgeRouteRouteImport } from './routes/$locale/_app/knowledge.route'
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
@@ -26,12 +27,20 @@ import { Route as LocaleAppProjectKeyEnvSlugRouteRouteImport } from './routes/$l
 import { Route as LocaleAppProjectKeySettingsRouteImport } from './routes/$locale/_app/$projectKey.settings'
 import { Route as LocaleAppAccountIndexRouteImport } from './routes/$locale/_app/account.index'
 import { Route as LocaleAppAccountChangePasswordRouteImport } from './routes/$locale/_app/account.change-password'
+import { Route as LocaleAppAdminIndexRouteImport } from './routes/$locale/_app/admin.index'
+import { Route as LocaleAppAdminAccessRouteImport } from './routes/$locale/_app/admin.access'
+import { Route as LocaleAppAdminActivityRouteImport } from './routes/$locale/_app/admin.activity'
+import { Route as LocaleAppAdminUsersRouteImport } from './routes/$locale/_app/admin.users'
 import { Route as LocaleAppEnvironmentsNewRouteImport } from './routes/$locale/_app/environments.new'
 import { Route as LocaleAppKnowledgeIndexRouteImport } from './routes/$locale/_app/knowledge.index'
 import { Route as LocaleAppKnowledgeNewRouteImport } from './routes/$locale/_app/knowledge.new'
 import { Route as LocaleAppPeopleIndexRouteImport } from './routes/$locale/_app/people.index'
 import { Route as LocaleAppPeopleIdRouteImport } from './routes/$locale/_app/people.$id'
 import { Route as LocaleAppProjectsIndexRouteImport } from './routes/$locale/_app/projects.index'
+import { Route as LocaleAppServersIndexRouteImport } from './routes/$locale/_app/servers.index'
+import { Route as LocaleAppServersNewRouteImport } from './routes/$locale/_app/servers.new'
+import { Route as LocaleAppStorageIndexRouteImport } from './routes/$locale/_app/storage.index'
+import { Route as LocaleAppStorageNewRouteImport } from './routes/$locale/_app/storage.new'
 import { Route as LocaleAppProjectKeyEnvSlugIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.index'
 import { Route as LocaleAppProjectKeyEnvSlugBackupDatabaseRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-database'
 import { Route as LocaleAppProjectKeyEnvSlugBackupRestoreRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-restore'
@@ -44,12 +53,27 @@ import { Route as LocaleAppProjectKeyEnvSlugRestoreDatabaseRouteImport } from '.
 import { Route as LocaleAppProjectKeyEnvSlugSettingsRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.settings'
 import { Route as LocaleAppProjectKeyEnvironmentsNewRouteImport } from './routes/$locale/_app/$projectKey.environments.new'
 import { Route as LocaleAppProjectKeyIssuesNumberRouteImport } from './routes/$locale/_app/$projectKey.issues.$number'
+import { Route as LocaleAppAdminJiraIndexRouteImport } from './routes/$locale/_app/admin.jira.index'
+import { Route as LocaleAppAdminJiraIdRouteImport } from './routes/$locale/_app/admin.jira.$id'
+import { Route as LocaleAppAdminJiraNewRouteImport } from './routes/$locale/_app/admin.jira.new'
+import { Route as LocaleAppAdminTunnelsIndexRouteImport } from './routes/$locale/_app/admin.tunnels.index'
+import { Route as LocaleAppAdminTunnelsNewRouteImport } from './routes/$locale/_app/admin.tunnels.new'
 import { Route as LocaleAppKnowledgeSlugIndexRouteImport } from './routes/$locale/_app/knowledge.$slug.index'
 import { Route as LocaleAppKnowledgeSlugEditRouteImport } from './routes/$locale/_app/knowledge.$slug.edit'
 import { Route as LocaleAppKnowledgeSlugHistoryRouteImport } from './routes/$locale/_app/knowledge.$slug.history'
 import { Route as LocaleAppProjectsKeyIndexRouteImport } from './routes/$locale/_app/projects.$key.index'
 import { Route as LocaleAppProjectsKeySplatRouteImport } from './routes/$locale/_app/projects.$key.$'
+import { Route as LocaleAppServersIdIndexRouteImport } from './routes/$locale/_app/servers.$id.index'
+import { Route as LocaleAppServersIdFilesRouteImport } from './routes/$locale/_app/servers.$id.files'
+import { Route as LocaleAppServersIdTerminalRouteImport } from './routes/$locale/_app/servers.$id.terminal'
+import { Route as LocaleAppStorageIdIndexRouteImport } from './routes/$locale/_app/storage.$id.index'
+import { Route as LocaleAppStorageIdFilesRouteImport } from './routes/$locale/_app/storage.$id.files'
 import { Route as LocaleAppProjectKeyEnvSlugServicesIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.services.index'
+import { Route as LocaleAppAdminTunnelsIdIndexRouteImport } from './routes/$locale/_app/admin.tunnels.$id.index'
+import { Route as LocaleAppAdminTunnelsIdEditRouteImport } from './routes/$locale/_app/admin.tunnels.$id.edit'
+import { Route as LocaleAppAdminTunnelsZonesIndexRouteImport } from './routes/$locale/_app/admin.tunnels.zones.index'
+import { Route as LocaleAppAdminTunnelsZonesIdRouteImport } from './routes/$locale/_app/admin.tunnels.zones.$id'
+import { Route as LocaleAppAdminTunnelsZonesNewRouteImport } from './routes/$locale/_app/admin.tunnels.zones.new'
 import { Route as LocaleAppProjectKeyEnvSlugServicesRoleLogsRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.services.$role.logs'
 
 const IndexRoute = IndexRouteImport.update({
@@ -96,6 +120,11 @@ const LocaleAppSplatRoute = LocaleAppSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => LocaleAppRouteRoute,
 } as any)
+const LocaleAppAdminRouteRoute = LocaleAppAdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
 const LocaleAppIssuesRoute = LocaleAppIssuesRouteImport.update({
   id: '/issues',
   path: '/issues',
@@ -140,6 +169,26 @@ const LocaleAppAccountChangePasswordRoute =
     path: '/account/change-password',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
+const LocaleAppAdminIndexRoute = LocaleAppAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminAccessRoute = LocaleAppAdminAccessRouteImport.update({
+  id: '/access',
+  path: '/access',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminActivityRoute = LocaleAppAdminActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminUsersRoute = LocaleAppAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
 const LocaleAppEnvironmentsNewRoute =
   LocaleAppEnvironmentsNewRouteImport.update({
     id: '/environments/new',
@@ -169,6 +218,26 @@ const LocaleAppPeopleIdRoute = LocaleAppPeopleIdRouteImport.update({
 const LocaleAppProjectsIndexRoute = LocaleAppProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppServersIndexRoute = LocaleAppServersIndexRouteImport.update({
+  id: '/servers/',
+  path: '/servers/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppServersNewRoute = LocaleAppServersNewRouteImport.update({
+  id: '/servers/new',
+  path: '/servers/new',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppStorageIndexRoute = LocaleAppStorageIndexRouteImport.update({
+  id: '/storage/',
+  path: '/storage/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppStorageNewRoute = LocaleAppStorageNewRouteImport.update({
+  id: '/storage/new',
+  path: '/storage/new',
   getParentRoute: () => LocaleAppRouteRoute,
 } as any)
 const LocaleAppProjectKeyEnvSlugIndexRoute =
@@ -243,6 +312,33 @@ const LocaleAppProjectKeyIssuesNumberRoute =
     path: '/$projectKey/issues/$number',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
+const LocaleAppAdminJiraIndexRoute = LocaleAppAdminJiraIndexRouteImport.update({
+  id: '/jira/',
+  path: '/jira/',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminJiraIdRoute = LocaleAppAdminJiraIdRouteImport.update({
+  id: '/jira/$id',
+  path: '/jira/$id',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminJiraNewRoute = LocaleAppAdminJiraNewRouteImport.update({
+  id: '/jira/new',
+  path: '/jira/new',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminTunnelsIndexRoute =
+  LocaleAppAdminTunnelsIndexRouteImport.update({
+    id: '/tunnels/',
+    path: '/tunnels/',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminTunnelsNewRoute =
+  LocaleAppAdminTunnelsNewRouteImport.update({
+    id: '/tunnels/new',
+    path: '/tunnels/new',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
 const LocaleAppKnowledgeSlugIndexRoute =
   LocaleAppKnowledgeSlugIndexRouteImport.update({
     id: '/$slug/',
@@ -273,11 +369,67 @@ const LocaleAppProjectsKeySplatRoute =
     path: '/projects/$key/$',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
+const LocaleAppServersIdIndexRoute = LocaleAppServersIdIndexRouteImport.update({
+  id: '/servers/$id/',
+  path: '/servers/$id/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppServersIdFilesRoute = LocaleAppServersIdFilesRouteImport.update({
+  id: '/servers/$id/files',
+  path: '/servers/$id/files',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppServersIdTerminalRoute =
+  LocaleAppServersIdTerminalRouteImport.update({
+    id: '/servers/$id/terminal',
+    path: '/servers/$id/terminal',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppStorageIdIndexRoute = LocaleAppStorageIdIndexRouteImport.update({
+  id: '/storage/$id/',
+  path: '/storage/$id/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppStorageIdFilesRoute = LocaleAppStorageIdFilesRouteImport.update({
+  id: '/storage/$id/files',
+  path: '/storage/$id/files',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
 const LocaleAppProjectKeyEnvSlugServicesIndexRoute =
   LocaleAppProjectKeyEnvSlugServicesIndexRouteImport.update({
     id: '/services/',
     path: '/services/',
     getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
+  } as any)
+const LocaleAppAdminTunnelsIdIndexRoute =
+  LocaleAppAdminTunnelsIdIndexRouteImport.update({
+    id: '/tunnels/$id/',
+    path: '/tunnels/$id/',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminTunnelsIdEditRoute =
+  LocaleAppAdminTunnelsIdEditRouteImport.update({
+    id: '/tunnels/$id/edit',
+    path: '/tunnels/$id/edit',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminTunnelsZonesIndexRoute =
+  LocaleAppAdminTunnelsZonesIndexRouteImport.update({
+    id: '/tunnels/zones/',
+    path: '/tunnels/zones/',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminTunnelsZonesIdRoute =
+  LocaleAppAdminTunnelsZonesIdRouteImport.update({
+    id: '/tunnels/zones/$id',
+    path: '/tunnels/zones/$id',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminTunnelsZonesNewRoute =
+  LocaleAppAdminTunnelsZonesNewRouteImport.update({
+    id: '/tunnels/zones/new',
+    path: '/tunnels/zones/new',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
   } as any)
 const LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute =
   LocaleAppProjectKeyEnvSlugServicesRoleLogsRouteImport.update({
@@ -293,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/$locale/reset-password': typeof LocaleResetPasswordRoute
   '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/admin': typeof LocaleAppAdminRouteRouteWithChildren
   '/$locale/knowledge': typeof LocaleAppKnowledgeRouteRouteWithChildren
   '/$locale/$': typeof LocaleAppSplatRoute
   '/$locale/issues': typeof LocaleAppIssuesRoute
@@ -301,14 +454,22 @@ export interface FileRoutesByFullPath {
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
+  '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
+  '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
   '/$locale/knowledge/new': typeof LocaleAppKnowledgeNewRoute
   '/$locale/people/$id': typeof LocaleAppPeopleIdRoute
+  '/$locale/servers/new': typeof LocaleAppServersNewRoute
+  '/$locale/storage/new': typeof LocaleAppStorageNewRoute
   '/$locale/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
   '/$locale/account/': typeof LocaleAppAccountIndexRoute
+  '/$locale/admin/': typeof LocaleAppAdminIndexRoute
   '/$locale/knowledge/': typeof LocaleAppKnowledgeIndexRoute
   '/$locale/people/': typeof LocaleAppPeopleIndexRoute
   '/$locale/projects/': typeof LocaleAppProjectsIndexRoute
+  '/$locale/servers/': typeof LocaleAppServersIndexRoute
+  '/$locale/storage/': typeof LocaleAppStorageIndexRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -320,13 +481,28 @@ export interface FileRoutesByFullPath {
   '/$locale/$projectKey/$envSlug/settings': typeof LocaleAppProjectKeyEnvSlugSettingsRoute
   '/$locale/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
   '/$locale/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/admin/jira/$id': typeof LocaleAppAdminJiraIdRoute
+  '/$locale/admin/jira/new': typeof LocaleAppAdminJiraNewRoute
+  '/$locale/admin/tunnels/new': typeof LocaleAppAdminTunnelsNewRoute
   '/$locale/knowledge/$slug/edit': typeof LocaleAppKnowledgeSlugEditRoute
   '/$locale/knowledge/$slug/history': typeof LocaleAppKnowledgeSlugHistoryRoute
   '/$locale/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
+  '/$locale/servers/$id/files': typeof LocaleAppServersIdFilesRoute
+  '/$locale/servers/$id/terminal': typeof LocaleAppServersIdTerminalRoute
+  '/$locale/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/admin/jira/': typeof LocaleAppAdminJiraIndexRoute
+  '/$locale/admin/tunnels/': typeof LocaleAppAdminTunnelsIndexRoute
   '/$locale/knowledge/$slug/': typeof LocaleAppKnowledgeSlugIndexRoute
   '/$locale/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
+  '/$locale/servers/$id/': typeof LocaleAppServersIdIndexRoute
+  '/$locale/storage/$id/': typeof LocaleAppStorageIdIndexRoute
+  '/$locale/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
+  '/$locale/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
+  '/$locale/admin/tunnels/zones/new': typeof LocaleAppAdminTunnelsZonesNewRoute
   '/$locale/$projectKey/$envSlug/services/': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
+  '/$locale/admin/tunnels/$id/': typeof LocaleAppAdminTunnelsIdIndexRoute
+  '/$locale/admin/tunnels/zones/': typeof LocaleAppAdminTunnelsZonesIndexRoute
   '/$locale/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
 }
 export interface FileRoutesByTo {
@@ -341,14 +517,22 @@ export interface FileRoutesByTo {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
+  '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
+  '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
   '/$locale/knowledge/new': typeof LocaleAppKnowledgeNewRoute
   '/$locale/people/$id': typeof LocaleAppPeopleIdRoute
+  '/$locale/servers/new': typeof LocaleAppServersNewRoute
+  '/$locale/storage/new': typeof LocaleAppStorageNewRoute
   '/$locale/$projectKey': typeof LocaleAppProjectKeyIndexRoute
   '/$locale/account': typeof LocaleAppAccountIndexRoute
+  '/$locale/admin': typeof LocaleAppAdminIndexRoute
   '/$locale/knowledge': typeof LocaleAppKnowledgeIndexRoute
   '/$locale/people': typeof LocaleAppPeopleIndexRoute
   '/$locale/projects': typeof LocaleAppProjectsIndexRoute
+  '/$locale/servers': typeof LocaleAppServersIndexRoute
+  '/$locale/storage': typeof LocaleAppStorageIndexRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -360,13 +544,28 @@ export interface FileRoutesByTo {
   '/$locale/$projectKey/$envSlug/settings': typeof LocaleAppProjectKeyEnvSlugSettingsRoute
   '/$locale/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
   '/$locale/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/admin/jira/$id': typeof LocaleAppAdminJiraIdRoute
+  '/$locale/admin/jira/new': typeof LocaleAppAdminJiraNewRoute
+  '/$locale/admin/tunnels/new': typeof LocaleAppAdminTunnelsNewRoute
   '/$locale/knowledge/$slug/edit': typeof LocaleAppKnowledgeSlugEditRoute
   '/$locale/knowledge/$slug/history': typeof LocaleAppKnowledgeSlugHistoryRoute
   '/$locale/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
+  '/$locale/servers/$id/files': typeof LocaleAppServersIdFilesRoute
+  '/$locale/servers/$id/terminal': typeof LocaleAppServersIdTerminalRoute
+  '/$locale/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/admin/jira': typeof LocaleAppAdminJiraIndexRoute
+  '/$locale/admin/tunnels': typeof LocaleAppAdminTunnelsIndexRoute
   '/$locale/knowledge/$slug': typeof LocaleAppKnowledgeSlugIndexRoute
   '/$locale/projects/$key': typeof LocaleAppProjectsKeyIndexRoute
+  '/$locale/servers/$id': typeof LocaleAppServersIdIndexRoute
+  '/$locale/storage/$id': typeof LocaleAppStorageIdIndexRoute
+  '/$locale/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
+  '/$locale/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
+  '/$locale/admin/tunnels/zones/new': typeof LocaleAppAdminTunnelsZonesNewRoute
   '/$locale/$projectKey/$envSlug/services': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
+  '/$locale/admin/tunnels/$id': typeof LocaleAppAdminTunnelsIdIndexRoute
+  '/$locale/admin/tunnels/zones': typeof LocaleAppAdminTunnelsZonesIndexRoute
   '/$locale/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
 }
 export interface FileRoutesById {
@@ -378,6 +577,7 @@ export interface FileRoutesById {
   '/$locale/reset-password': typeof LocaleResetPasswordRoute
   '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/_app/admin': typeof LocaleAppAdminRouteRouteWithChildren
   '/$locale/_app/knowledge': typeof LocaleAppKnowledgeRouteRouteWithChildren
   '/$locale/_app/$': typeof LocaleAppSplatRoute
   '/$locale/_app/issues': typeof LocaleAppIssuesRoute
@@ -386,14 +586,22 @@ export interface FileRoutesById {
   '/$locale/_app/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
   '/$locale/_app/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
+  '/$locale/_app/admin/access': typeof LocaleAppAdminAccessRoute
+  '/$locale/_app/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/_app/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/_app/environments/new': typeof LocaleAppEnvironmentsNewRoute
   '/$locale/_app/knowledge/new': typeof LocaleAppKnowledgeNewRoute
   '/$locale/_app/people/$id': typeof LocaleAppPeopleIdRoute
+  '/$locale/_app/servers/new': typeof LocaleAppServersNewRoute
+  '/$locale/_app/storage/new': typeof LocaleAppStorageNewRoute
   '/$locale/_app/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
   '/$locale/_app/account/': typeof LocaleAppAccountIndexRoute
+  '/$locale/_app/admin/': typeof LocaleAppAdminIndexRoute
   '/$locale/_app/knowledge/': typeof LocaleAppKnowledgeIndexRoute
   '/$locale/_app/people/': typeof LocaleAppPeopleIndexRoute
   '/$locale/_app/projects/': typeof LocaleAppProjectsIndexRoute
+  '/$locale/_app/servers/': typeof LocaleAppServersIndexRoute
+  '/$locale/_app/storage/': typeof LocaleAppStorageIndexRoute
   '/$locale/_app/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/_app/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/_app/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -405,13 +613,28 @@ export interface FileRoutesById {
   '/$locale/_app/$projectKey/$envSlug/settings': typeof LocaleAppProjectKeyEnvSlugSettingsRoute
   '/$locale/_app/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
   '/$locale/_app/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/_app/admin/jira/$id': typeof LocaleAppAdminJiraIdRoute
+  '/$locale/_app/admin/jira/new': typeof LocaleAppAdminJiraNewRoute
+  '/$locale/_app/admin/tunnels/new': typeof LocaleAppAdminTunnelsNewRoute
   '/$locale/_app/knowledge/$slug/edit': typeof LocaleAppKnowledgeSlugEditRoute
   '/$locale/_app/knowledge/$slug/history': typeof LocaleAppKnowledgeSlugHistoryRoute
   '/$locale/_app/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
+  '/$locale/_app/servers/$id/files': typeof LocaleAppServersIdFilesRoute
+  '/$locale/_app/servers/$id/terminal': typeof LocaleAppServersIdTerminalRoute
+  '/$locale/_app/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/_app/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/_app/admin/jira/': typeof LocaleAppAdminJiraIndexRoute
+  '/$locale/_app/admin/tunnels/': typeof LocaleAppAdminTunnelsIndexRoute
   '/$locale/_app/knowledge/$slug/': typeof LocaleAppKnowledgeSlugIndexRoute
   '/$locale/_app/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
+  '/$locale/_app/servers/$id/': typeof LocaleAppServersIdIndexRoute
+  '/$locale/_app/storage/$id/': typeof LocaleAppStorageIdIndexRoute
+  '/$locale/_app/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
+  '/$locale/_app/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
+  '/$locale/_app/admin/tunnels/zones/new': typeof LocaleAppAdminTunnelsZonesNewRoute
   '/$locale/_app/$projectKey/$envSlug/services/': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
+  '/$locale/_app/admin/tunnels/$id/': typeof LocaleAppAdminTunnelsIdIndexRoute
+  '/$locale/_app/admin/tunnels/zones/': typeof LocaleAppAdminTunnelsZonesIndexRoute
   '/$locale/_app/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
 }
 export interface FileRouteTypes {
@@ -423,6 +646,7 @@ export interface FileRouteTypes {
     | '/$locale/reset-password'
     | '/$locale/setup'
     | '/$locale/sign-in'
+    | '/$locale/admin'
     | '/$locale/knowledge'
     | '/$locale/$'
     | '/$locale/issues'
@@ -431,14 +655,22 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug'
     | '/$locale/$projectKey/settings'
     | '/$locale/account/change-password'
+    | '/$locale/admin/access'
+    | '/$locale/admin/activity'
+    | '/$locale/admin/users'
     | '/$locale/environments/new'
     | '/$locale/knowledge/new'
     | '/$locale/people/$id'
+    | '/$locale/servers/new'
+    | '/$locale/storage/new'
     | '/$locale/$projectKey/'
     | '/$locale/account/'
+    | '/$locale/admin/'
     | '/$locale/knowledge/'
     | '/$locale/people/'
     | '/$locale/projects/'
+    | '/$locale/servers/'
+    | '/$locale/storage/'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
@@ -450,13 +682,28 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug/settings'
     | '/$locale/$projectKey/environments/new'
     | '/$locale/$projectKey/issues/$number'
+    | '/$locale/admin/jira/$id'
+    | '/$locale/admin/jira/new'
+    | '/$locale/admin/tunnels/new'
     | '/$locale/knowledge/$slug/edit'
     | '/$locale/knowledge/$slug/history'
     | '/$locale/projects/$key/$'
+    | '/$locale/servers/$id/files'
+    | '/$locale/servers/$id/terminal'
+    | '/$locale/storage/$id/files'
     | '/$locale/$projectKey/$envSlug/'
+    | '/$locale/admin/jira/'
+    | '/$locale/admin/tunnels/'
     | '/$locale/knowledge/$slug/'
     | '/$locale/projects/$key/'
+    | '/$locale/servers/$id/'
+    | '/$locale/storage/$id/'
+    | '/$locale/admin/tunnels/$id/edit'
+    | '/$locale/admin/tunnels/zones/$id'
+    | '/$locale/admin/tunnels/zones/new'
     | '/$locale/$projectKey/$envSlug/services/'
+    | '/$locale/admin/tunnels/$id/'
+    | '/$locale/admin/tunnels/zones/'
     | '/$locale/$projectKey/$envSlug/services/$role/logs'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -471,14 +718,22 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/$projectKey/settings'
     | '/$locale/account/change-password'
+    | '/$locale/admin/access'
+    | '/$locale/admin/activity'
+    | '/$locale/admin/users'
     | '/$locale/environments/new'
     | '/$locale/knowledge/new'
     | '/$locale/people/$id'
+    | '/$locale/servers/new'
+    | '/$locale/storage/new'
     | '/$locale/$projectKey'
     | '/$locale/account'
+    | '/$locale/admin'
     | '/$locale/knowledge'
     | '/$locale/people'
     | '/$locale/projects'
+    | '/$locale/servers'
+    | '/$locale/storage'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
@@ -490,13 +745,28 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug/settings'
     | '/$locale/$projectKey/environments/new'
     | '/$locale/$projectKey/issues/$number'
+    | '/$locale/admin/jira/$id'
+    | '/$locale/admin/jira/new'
+    | '/$locale/admin/tunnels/new'
     | '/$locale/knowledge/$slug/edit'
     | '/$locale/knowledge/$slug/history'
     | '/$locale/projects/$key/$'
+    | '/$locale/servers/$id/files'
+    | '/$locale/servers/$id/terminal'
+    | '/$locale/storage/$id/files'
     | '/$locale/$projectKey/$envSlug'
+    | '/$locale/admin/jira'
+    | '/$locale/admin/tunnels'
     | '/$locale/knowledge/$slug'
     | '/$locale/projects/$key'
+    | '/$locale/servers/$id'
+    | '/$locale/storage/$id'
+    | '/$locale/admin/tunnels/$id/edit'
+    | '/$locale/admin/tunnels/zones/$id'
+    | '/$locale/admin/tunnels/zones/new'
     | '/$locale/$projectKey/$envSlug/services'
+    | '/$locale/admin/tunnels/$id'
+    | '/$locale/admin/tunnels/zones'
     | '/$locale/$projectKey/$envSlug/services/$role/logs'
   id:
     | '__root__'
@@ -507,6 +777,7 @@ export interface FileRouteTypes {
     | '/$locale/reset-password'
     | '/$locale/setup'
     | '/$locale/sign-in'
+    | '/$locale/_app/admin'
     | '/$locale/_app/knowledge'
     | '/$locale/_app/$'
     | '/$locale/_app/issues'
@@ -515,14 +786,22 @@ export interface FileRouteTypes {
     | '/$locale/_app/$projectKey/$envSlug'
     | '/$locale/_app/$projectKey/settings'
     | '/$locale/_app/account/change-password'
+    | '/$locale/_app/admin/access'
+    | '/$locale/_app/admin/activity'
+    | '/$locale/_app/admin/users'
     | '/$locale/_app/environments/new'
     | '/$locale/_app/knowledge/new'
     | '/$locale/_app/people/$id'
+    | '/$locale/_app/servers/new'
+    | '/$locale/_app/storage/new'
     | '/$locale/_app/$projectKey/'
     | '/$locale/_app/account/'
+    | '/$locale/_app/admin/'
     | '/$locale/_app/knowledge/'
     | '/$locale/_app/people/'
     | '/$locale/_app/projects/'
+    | '/$locale/_app/servers/'
+    | '/$locale/_app/storage/'
     | '/$locale/_app/$projectKey/$envSlug/backup-database'
     | '/$locale/_app/$projectKey/$envSlug/backup-restore'
     | '/$locale/_app/$projectKey/$envSlug/databases'
@@ -534,13 +813,28 @@ export interface FileRouteTypes {
     | '/$locale/_app/$projectKey/$envSlug/settings'
     | '/$locale/_app/$projectKey/environments/new'
     | '/$locale/_app/$projectKey/issues/$number'
+    | '/$locale/_app/admin/jira/$id'
+    | '/$locale/_app/admin/jira/new'
+    | '/$locale/_app/admin/tunnels/new'
     | '/$locale/_app/knowledge/$slug/edit'
     | '/$locale/_app/knowledge/$slug/history'
     | '/$locale/_app/projects/$key/$'
+    | '/$locale/_app/servers/$id/files'
+    | '/$locale/_app/servers/$id/terminal'
+    | '/$locale/_app/storage/$id/files'
     | '/$locale/_app/$projectKey/$envSlug/'
+    | '/$locale/_app/admin/jira/'
+    | '/$locale/_app/admin/tunnels/'
     | '/$locale/_app/knowledge/$slug/'
     | '/$locale/_app/projects/$key/'
+    | '/$locale/_app/servers/$id/'
+    | '/$locale/_app/storage/$id/'
+    | '/$locale/_app/admin/tunnels/$id/edit'
+    | '/$locale/_app/admin/tunnels/zones/$id'
+    | '/$locale/_app/admin/tunnels/zones/new'
     | '/$locale/_app/$projectKey/$envSlug/services/'
+    | '/$locale/_app/admin/tunnels/$id/'
+    | '/$locale/_app/admin/tunnels/zones/'
     | '/$locale/_app/$projectKey/$envSlug/services/$role/logs'
   fileRoutesById: FileRoutesById
 }
@@ -614,6 +908,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppSplatRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/admin': {
+      id: '/$locale/_app/admin'
+      path: '/admin'
+      fullPath: '/$locale/admin'
+      preLoaderRoute: typeof LocaleAppAdminRouteRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
     '/$locale/_app/issues': {
       id: '/$locale/_app/issues'
       path: '/issues'
@@ -670,6 +971,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppAccountChangePasswordRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/admin/': {
+      id: '/$locale/_app/admin/'
+      path: '/'
+      fullPath: '/$locale/admin/'
+      preLoaderRoute: typeof LocaleAppAdminIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/access': {
+      id: '/$locale/_app/admin/access'
+      path: '/access'
+      fullPath: '/$locale/admin/access'
+      preLoaderRoute: typeof LocaleAppAdminAccessRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/activity': {
+      id: '/$locale/_app/admin/activity'
+      path: '/activity'
+      fullPath: '/$locale/admin/activity'
+      preLoaderRoute: typeof LocaleAppAdminActivityRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/users': {
+      id: '/$locale/_app/admin/users'
+      path: '/users'
+      fullPath: '/$locale/admin/users'
+      preLoaderRoute: typeof LocaleAppAdminUsersRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
     '/$locale/_app/environments/new': {
       id: '/$locale/_app/environments/new'
       path: '/environments/new'
@@ -710,6 +1039,34 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/$locale/projects/'
       preLoaderRoute: typeof LocaleAppProjectsIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/servers/': {
+      id: '/$locale/_app/servers/'
+      path: '/servers'
+      fullPath: '/$locale/servers/'
+      preLoaderRoute: typeof LocaleAppServersIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/servers/new': {
+      id: '/$locale/_app/servers/new'
+      path: '/servers/new'
+      fullPath: '/$locale/servers/new'
+      preLoaderRoute: typeof LocaleAppServersNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/storage/': {
+      id: '/$locale/_app/storage/'
+      path: '/storage'
+      fullPath: '/$locale/storage/'
+      preLoaderRoute: typeof LocaleAppStorageIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/storage/new': {
+      id: '/$locale/_app/storage/new'
+      path: '/storage/new'
+      fullPath: '/$locale/storage/new'
+      preLoaderRoute: typeof LocaleAppStorageNewRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/$projectKey/$envSlug/': {
@@ -796,6 +1153,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectKeyIssuesNumberRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/admin/jira/': {
+      id: '/$locale/_app/admin/jira/'
+      path: '/jira'
+      fullPath: '/$locale/admin/jira/'
+      preLoaderRoute: typeof LocaleAppAdminJiraIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/jira/$id': {
+      id: '/$locale/_app/admin/jira/$id'
+      path: '/jira/$id'
+      fullPath: '/$locale/admin/jira/$id'
+      preLoaderRoute: typeof LocaleAppAdminJiraIdRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/jira/new': {
+      id: '/$locale/_app/admin/jira/new'
+      path: '/jira/new'
+      fullPath: '/$locale/admin/jira/new'
+      preLoaderRoute: typeof LocaleAppAdminJiraNewRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/': {
+      id: '/$locale/_app/admin/tunnels/'
+      path: '/tunnels'
+      fullPath: '/$locale/admin/tunnels/'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/new': {
+      id: '/$locale/_app/admin/tunnels/new'
+      path: '/tunnels/new'
+      fullPath: '/$locale/admin/tunnels/new'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsNewRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
     '/$locale/_app/knowledge/$slug/': {
       id: '/$locale/_app/knowledge/$slug/'
       path: '/$slug'
@@ -831,12 +1223,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectsKeySplatRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/servers/$id/': {
+      id: '/$locale/_app/servers/$id/'
+      path: '/servers/$id'
+      fullPath: '/$locale/servers/$id/'
+      preLoaderRoute: typeof LocaleAppServersIdIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/servers/$id/files': {
+      id: '/$locale/_app/servers/$id/files'
+      path: '/servers/$id/files'
+      fullPath: '/$locale/servers/$id/files'
+      preLoaderRoute: typeof LocaleAppServersIdFilesRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/servers/$id/terminal': {
+      id: '/$locale/_app/servers/$id/terminal'
+      path: '/servers/$id/terminal'
+      fullPath: '/$locale/servers/$id/terminal'
+      preLoaderRoute: typeof LocaleAppServersIdTerminalRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/storage/$id/': {
+      id: '/$locale/_app/storage/$id/'
+      path: '/storage/$id'
+      fullPath: '/$locale/storage/$id/'
+      preLoaderRoute: typeof LocaleAppStorageIdIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/storage/$id/files': {
+      id: '/$locale/_app/storage/$id/files'
+      path: '/storage/$id/files'
+      fullPath: '/$locale/storage/$id/files'
+      preLoaderRoute: typeof LocaleAppStorageIdFilesRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
     '/$locale/_app/$projectKey/$envSlug/services/': {
       id: '/$locale/_app/$projectKey/$envSlug/services/'
       path: '/services'
       fullPath: '/$locale/$projectKey/$envSlug/services/'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugServicesIndexRouteImport
       parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/$id/': {
+      id: '/$locale/_app/admin/tunnels/$id/'
+      path: '/tunnels/$id'
+      fullPath: '/$locale/admin/tunnels/$id/'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsIdIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/$id/edit': {
+      id: '/$locale/_app/admin/tunnels/$id/edit'
+      path: '/tunnels/$id/edit'
+      fullPath: '/$locale/admin/tunnels/$id/edit'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsIdEditRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/zones/': {
+      id: '/$locale/_app/admin/tunnels/zones/'
+      path: '/tunnels/zones'
+      fullPath: '/$locale/admin/tunnels/zones/'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsZonesIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/zones/$id': {
+      id: '/$locale/_app/admin/tunnels/zones/$id'
+      path: '/tunnels/zones/$id'
+      fullPath: '/$locale/admin/tunnels/zones/$id'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsZonesIdRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/tunnels/zones/new': {
+      id: '/$locale/_app/admin/tunnels/zones/new'
+      path: '/tunnels/zones/new'
+      fullPath: '/$locale/admin/tunnels/zones/new'
+      preLoaderRoute: typeof LocaleAppAdminTunnelsZonesNewRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
     }
     '/$locale/_app/$projectKey/$envSlug/services/$role/logs': {
       id: '/$locale/_app/$projectKey/$envSlug/services/$role/logs'
@@ -847,6 +1309,43 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface LocaleAppAdminRouteRouteChildren {
+  LocaleAppAdminAccessRoute: typeof LocaleAppAdminAccessRoute
+  LocaleAppAdminActivityRoute: typeof LocaleAppAdminActivityRoute
+  LocaleAppAdminUsersRoute: typeof LocaleAppAdminUsersRoute
+  LocaleAppAdminIndexRoute: typeof LocaleAppAdminIndexRoute
+  LocaleAppAdminJiraIdRoute: typeof LocaleAppAdminJiraIdRoute
+  LocaleAppAdminJiraNewRoute: typeof LocaleAppAdminJiraNewRoute
+  LocaleAppAdminTunnelsNewRoute: typeof LocaleAppAdminTunnelsNewRoute
+  LocaleAppAdminJiraIndexRoute: typeof LocaleAppAdminJiraIndexRoute
+  LocaleAppAdminTunnelsIndexRoute: typeof LocaleAppAdminTunnelsIndexRoute
+  LocaleAppAdminTunnelsIdEditRoute: typeof LocaleAppAdminTunnelsIdEditRoute
+  LocaleAppAdminTunnelsZonesIdRoute: typeof LocaleAppAdminTunnelsZonesIdRoute
+  LocaleAppAdminTunnelsZonesNewRoute: typeof LocaleAppAdminTunnelsZonesNewRoute
+  LocaleAppAdminTunnelsIdIndexRoute: typeof LocaleAppAdminTunnelsIdIndexRoute
+  LocaleAppAdminTunnelsZonesIndexRoute: typeof LocaleAppAdminTunnelsZonesIndexRoute
+}
+
+const LocaleAppAdminRouteRouteChildren: LocaleAppAdminRouteRouteChildren = {
+  LocaleAppAdminAccessRoute: LocaleAppAdminAccessRoute,
+  LocaleAppAdminActivityRoute: LocaleAppAdminActivityRoute,
+  LocaleAppAdminUsersRoute: LocaleAppAdminUsersRoute,
+  LocaleAppAdminIndexRoute: LocaleAppAdminIndexRoute,
+  LocaleAppAdminJiraIdRoute: LocaleAppAdminJiraIdRoute,
+  LocaleAppAdminJiraNewRoute: LocaleAppAdminJiraNewRoute,
+  LocaleAppAdminTunnelsNewRoute: LocaleAppAdminTunnelsNewRoute,
+  LocaleAppAdminJiraIndexRoute: LocaleAppAdminJiraIndexRoute,
+  LocaleAppAdminTunnelsIndexRoute: LocaleAppAdminTunnelsIndexRoute,
+  LocaleAppAdminTunnelsIdEditRoute: LocaleAppAdminTunnelsIdEditRoute,
+  LocaleAppAdminTunnelsZonesIdRoute: LocaleAppAdminTunnelsZonesIdRoute,
+  LocaleAppAdminTunnelsZonesNewRoute: LocaleAppAdminTunnelsZonesNewRoute,
+  LocaleAppAdminTunnelsIdIndexRoute: LocaleAppAdminTunnelsIdIndexRoute,
+  LocaleAppAdminTunnelsZonesIndexRoute: LocaleAppAdminTunnelsZonesIndexRoute,
+}
+
+const LocaleAppAdminRouteRouteWithChildren =
+  LocaleAppAdminRouteRoute._addFileChildren(LocaleAppAdminRouteRouteChildren)
 
 interface LocaleAppKnowledgeRouteRouteChildren {
   LocaleAppKnowledgeNewRoute: typeof LocaleAppKnowledgeNewRoute
@@ -917,6 +1416,7 @@ const LocaleAppProjectKeyEnvSlugRouteRouteWithChildren =
   )
 
 interface LocaleAppRouteRouteChildren {
+  LocaleAppAdminRouteRoute: typeof LocaleAppAdminRouteRouteWithChildren
   LocaleAppKnowledgeRouteRoute: typeof LocaleAppKnowledgeRouteRouteWithChildren
   LocaleAppSplatRoute: typeof LocaleAppSplatRoute
   LocaleAppIssuesRoute: typeof LocaleAppIssuesRoute
@@ -926,17 +1426,27 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppAccountChangePasswordRoute: typeof LocaleAppAccountChangePasswordRoute
   LocaleAppEnvironmentsNewRoute: typeof LocaleAppEnvironmentsNewRoute
   LocaleAppPeopleIdRoute: typeof LocaleAppPeopleIdRoute
+  LocaleAppServersNewRoute: typeof LocaleAppServersNewRoute
+  LocaleAppStorageNewRoute: typeof LocaleAppStorageNewRoute
   LocaleAppProjectKeyIndexRoute: typeof LocaleAppProjectKeyIndexRoute
   LocaleAppAccountIndexRoute: typeof LocaleAppAccountIndexRoute
   LocaleAppPeopleIndexRoute: typeof LocaleAppPeopleIndexRoute
   LocaleAppProjectsIndexRoute: typeof LocaleAppProjectsIndexRoute
+  LocaleAppServersIndexRoute: typeof LocaleAppServersIndexRoute
+  LocaleAppStorageIndexRoute: typeof LocaleAppStorageIndexRoute
   LocaleAppProjectKeyEnvironmentsNewRoute: typeof LocaleAppProjectKeyEnvironmentsNewRoute
   LocaleAppProjectKeyIssuesNumberRoute: typeof LocaleAppProjectKeyIssuesNumberRoute
   LocaleAppProjectsKeySplatRoute: typeof LocaleAppProjectsKeySplatRoute
+  LocaleAppServersIdFilesRoute: typeof LocaleAppServersIdFilesRoute
+  LocaleAppServersIdTerminalRoute: typeof LocaleAppServersIdTerminalRoute
+  LocaleAppStorageIdFilesRoute: typeof LocaleAppStorageIdFilesRoute
   LocaleAppProjectsKeyIndexRoute: typeof LocaleAppProjectsKeyIndexRoute
+  LocaleAppServersIdIndexRoute: typeof LocaleAppServersIdIndexRoute
+  LocaleAppStorageIdIndexRoute: typeof LocaleAppStorageIdIndexRoute
 }
 
 const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
+  LocaleAppAdminRouteRoute: LocaleAppAdminRouteRouteWithChildren,
   LocaleAppKnowledgeRouteRoute: LocaleAppKnowledgeRouteRouteWithChildren,
   LocaleAppSplatRoute: LocaleAppSplatRoute,
   LocaleAppIssuesRoute: LocaleAppIssuesRoute,
@@ -947,15 +1457,24 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppAccountChangePasswordRoute: LocaleAppAccountChangePasswordRoute,
   LocaleAppEnvironmentsNewRoute: LocaleAppEnvironmentsNewRoute,
   LocaleAppPeopleIdRoute: LocaleAppPeopleIdRoute,
+  LocaleAppServersNewRoute: LocaleAppServersNewRoute,
+  LocaleAppStorageNewRoute: LocaleAppStorageNewRoute,
   LocaleAppProjectKeyIndexRoute: LocaleAppProjectKeyIndexRoute,
   LocaleAppAccountIndexRoute: LocaleAppAccountIndexRoute,
   LocaleAppPeopleIndexRoute: LocaleAppPeopleIndexRoute,
   LocaleAppProjectsIndexRoute: LocaleAppProjectsIndexRoute,
+  LocaleAppServersIndexRoute: LocaleAppServersIndexRoute,
+  LocaleAppStorageIndexRoute: LocaleAppStorageIndexRoute,
   LocaleAppProjectKeyEnvironmentsNewRoute:
     LocaleAppProjectKeyEnvironmentsNewRoute,
   LocaleAppProjectKeyIssuesNumberRoute: LocaleAppProjectKeyIssuesNumberRoute,
   LocaleAppProjectsKeySplatRoute: LocaleAppProjectsKeySplatRoute,
+  LocaleAppServersIdFilesRoute: LocaleAppServersIdFilesRoute,
+  LocaleAppServersIdTerminalRoute: LocaleAppServersIdTerminalRoute,
+  LocaleAppStorageIdFilesRoute: LocaleAppStorageIdFilesRoute,
   LocaleAppProjectsKeyIndexRoute: LocaleAppProjectsKeyIndexRoute,
+  LocaleAppServersIdIndexRoute: LocaleAppServersIdIndexRoute,
+  LocaleAppStorageIdIndexRoute: LocaleAppStorageIdIndexRoute,
 }
 
 const LocaleAppRouteRouteWithChildren = LocaleAppRouteRoute._addFileChildren(

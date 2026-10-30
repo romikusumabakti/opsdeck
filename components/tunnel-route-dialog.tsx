@@ -21,11 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TunnelWithContext } from "@/lib/db/schema";
-import type { ContainerInfo } from "@/lib/tunnels/remote";
-import { attachTunnelNetwork, createTunnelRoute } from "@/web/api/tunnels";
-
-type Candidate = ContainerInfo & { reachable: boolean };
+import {
+  attachTunnelNetwork,
+  type OriginCandidate as Candidate,
+  createTunnelRoute,
+  type TunnelRow as TunnelWithContext,
+} from "@/web/api/tunnels";
 
 // One flat DNS label. Mirrors subdomainLabelSchema on the server — kept here as
 // well so the operator sees the rule while typing rather than after submitting.

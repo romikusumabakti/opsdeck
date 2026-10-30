@@ -27,6 +27,7 @@ import {
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeJiraConnection } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 import {
   createJiraConnection,
   testJiraConnection,
@@ -35,7 +36,7 @@ import {
 
 type Mode =
   | { type: "create" }
-  | { type: "edit"; connection: SafeJiraConnection };
+  | { type: "edit"; connection: Serialized<SafeJiraConnection> };
 
 type TestState =
   | { kind: "idle" }

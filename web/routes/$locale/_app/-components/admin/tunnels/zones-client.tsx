@@ -1,13 +1,9 @@
-"use client";
-
-import { Cable, Pencil, Plus, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
-import { deleteJiraConnection } from "@/actions/jira";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -16,29 +12,34 @@ import {
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
-import type { SafeJiraConnection } from "@/lib/db/schema";
+import {
+  deleteCloudflareZone,
+  type ZoneRow as SafeCloudflareZone,
+} from "@/web/api/tunnels";
 
-export function JiraClient({
-  connections,
+export function ZonesClient({
+  zones,
+  canManage,
 }: {
-  connections: SafeJiraConnection[];
+  zones: SafeCloudflareZone[];
+  canManage: boolean;
 }) {
-  const t = useTranslations("jira");
+  const t = useTranslations("zones");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
 
   const [optimistic, removeOptimistic] = useOptimistic<
-    SafeJiraConnection[],
+    SafeCloudflareZone[],
     string[]
-  >(connections, (state, ids) => state.filter((c) => !ids.includes(c.id)));
+  >(zones, (state, ids) => state.filter((z) => !ids.includes(z.id)));
 
   const onDelete = React.useCallback(
-    async (conn: SafeJiraConnection) => {
+    async (zone: SafeCloudflareZone) => {
       const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
-        description: t("deleteDescription", { name: conn.name }),
-        phrase: conn.name,
+        description: t("deleteDescription", { name: zone.name }),
+        phrase: zone.name,
         phraseLabel: tCommon("confirmTypingLabel"),
         placeholder: tCommon("confirmTypingPlaceholder"),
         confirmText: tCommon("delete"),
@@ -46,8 +47,8 @@ export function JiraClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimistic([conn.id]);
-        const result = await deleteJiraConnection(conn.id);
+        removeOptimistic([zone.id]);
+        const result = await deleteCloudflareZone(zone.id);
         if (!result.success) {
           toast.error(result.message);
           return;
@@ -58,7 +59,7 @@ export function JiraClient({
     [dialog, t, tCommon, removeOptimistic]
   );
 
-  const columns = React.useMemo<DataTableColumnDef<SafeJiraConnection>[]>(
+  const columns = React.useMemo<DataTableColumnDef<SafeCloudflareZone>[]>(
     () => [
       {
         accessorKey: "name",
@@ -67,29 +68,17 @@ export function JiraClient({
           <DataTableColumnHeader column={column} title={t("colName")} />
         ),
         cell: ({ row }) => (
-          <span className="font-medium">{row.getValue("name")}</span>
+          <span className="font-mono font-medium">{row.getValue("name")}</span>
         ),
       },
       {
-        accessorKey: "baseUrl",
-        meta: { label: t("colBaseUrl") },
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t("colBaseUrl")} />
-        ),
+        accessorKey: "zoneId",
+        meta: { label: t("colZoneId") },
+        header: t("colZoneId"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.getValue("baseUrl")}</span>
-        ),
-      },
-      {
-        accessorKey: "flavor",
-        meta: { label: t("colFlavor") },
-        header: t("colFlavor"),
-        cell: ({ row }) => (
-          <Badge variant="secondary">
-            {row.original.flavor === "cloud"
-              ? t("flavorCloud")
-              : t("flavorDatacenter")}
-          </Badge>
+          <span className="font-mono text-xs text-muted-foreground">
+            {row.getValue("zoneId")}
+          </span>
         ),
       },
       {
@@ -99,12 +88,13 @@ export function JiraClient({
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
             <Button
+              nativeButton={false}
               variant="ghost"
               size="icon-sm"
               aria-label={tCommon("edit")}
               title={tCommon("edit")}
               disabled={isPending}
-              render={<Link href={`/admin/jira/${row.original.id}`} />}
+              render={<Link href={`/admin/tunnels/zones/${row.original.id}`} />}
             >
               <Pencil className="size-4" />
             </Button>
@@ -124,19 +114,27 @@ export function JiraClient({
     ],
     [t, tCommon, isPending, onDelete]
   );
+  const visibleColumns = canManage
+    ? columns
+    : columns.filter((c) => c.id !== "actions");
 
   if (optimistic.length === 0) {
     return (
       <div className="rounded-lg border bg-card">
         <EmptyState
-          icon={Cable}
+          icon={KeyRound}
           title={t("emptyTitle")}
           description={t("empty")}
           action={
-            <Button render={<Link href="/admin/jira/new" />}>
-              <Plus className="size-4" />
-              {t("addConnection")}
-            </Button>
+            canManage ? (
+              <Button
+                nativeButton={false}
+                render={<Link href="/admin/tunnels/zones/new" />}
+              >
+                <Plus className="size-4" />
+                {t("addZone")}
+              </Button>
+            ) : undefined
           }
         />
       </div>
@@ -145,13 +143,12 @@ export function JiraClient({
 
   return (
     <DataTable
-      fillHeight
-      columns={columns}
+      columns={visibleColumns}
       data={optimistic}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
-      urlKey="jira"
+      urlKey="zones"
     />
   );
 }

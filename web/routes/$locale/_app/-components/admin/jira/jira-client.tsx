@@ -1,12 +1,10 @@
-"use client";
-
-import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { Cable, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
-import { deleteTunnel } from "@/actions/tunnels";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -15,35 +13,32 @@ import {
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
-import type { TunnelWithContext } from "@/lib/db/schema";
+import {
+  deleteJiraConnection,
+  type JiraConnectionRow as SafeJiraConnection,
+} from "@/web/api/jira";
 
-export function TunnelsClient({
-  tunnels,
-  hasZones,
-  canManage,
+export function JiraClient({
+  connections,
 }: {
-  tunnels: TunnelWithContext[];
-  hasZones: boolean;
-  canManage: boolean;
+  connections: SafeJiraConnection[];
 }) {
-  const t = useTranslations("tunnels");
+  const t = useTranslations("jira");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
 
   const [optimistic, removeOptimistic] = useOptimistic<
-    TunnelWithContext[],
+    SafeJiraConnection[],
     string[]
-  >(tunnels, (state, ids) => state.filter((row) => !ids.includes(row.id)));
+  >(connections, (state, ids) => state.filter((c) => !ids.includes(c.id)));
 
   const onDelete = React.useCallback(
-    async (tunnel: TunnelWithContext) => {
+    async (conn: SafeJiraConnection) => {
       const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
-        // Spelled out because the wording matters: this removes the panel's
-        // record, not the tunnel. Every hostname keeps working afterwards.
-        description: t("deleteDescription", { name: tunnel.name }),
-        phrase: tunnel.name,
+        description: t("deleteDescription", { name: conn.name }),
+        phrase: conn.name,
         phraseLabel: tCommon("confirmTypingLabel"),
         placeholder: tCommon("confirmTypingPlaceholder"),
         confirmText: tCommon("delete"),
@@ -51,8 +46,8 @@ export function TunnelsClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimistic([tunnel.id]);
-        const result = await deleteTunnel(tunnel.id);
+        removeOptimistic([conn.id]);
+        const result = await deleteJiraConnection(conn.id);
         if (!result.success) {
           toast.error(result.message);
           return;
@@ -63,7 +58,7 @@ export function TunnelsClient({
     [dialog, t, tCommon, removeOptimistic]
   );
 
-  const columns = React.useMemo<DataTableColumnDef<TunnelWithContext>[]>(
+  const columns = React.useMemo<DataTableColumnDef<SafeJiraConnection>[]>(
     () => [
       {
         accessorKey: "name",
@@ -72,43 +67,29 @@ export function TunnelsClient({
           <DataTableColumnHeader column={column} title={t("colName")} />
         ),
         cell: ({ row }) => (
-          <Link
-            href={`/admin/tunnels/${row.original.id}`}
-            className="font-medium hover:underline"
-          >
-            {row.getValue("name")}
-          </Link>
+          <span className="font-medium">{row.getValue("name")}</span>
         ),
       },
       {
-        id: "server",
-        meta: { label: t("colServer") },
-        header: t("colServer"),
+        accessorKey: "baseUrl",
+        meta: { label: t("colBaseUrl") },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("colBaseUrl")} />
+        ),
         cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.server.name}
-            <span className="text-muted-foreground font-mono text-xs ml-2">
-              {row.original.server.host}
-            </span>
-          </span>
+          <span className="font-mono text-xs">{row.getValue("baseUrl")}</span>
         ),
       },
       {
-        id: "zone",
-        meta: { label: t("colZone") },
-        header: t("colZone"),
+        accessorKey: "flavor",
+        meta: { label: t("colFlavor") },
+        header: t("colFlavor"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.zone.name}</span>
-        ),
-      },
-      {
-        accessorKey: "stackDir",
-        meta: { label: t("colStackDir") },
-        header: t("colStackDir"),
-        cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
-            {row.getValue("stackDir")}
-          </span>
+          <Badge variant="secondary">
+            {row.original.flavor === "cloud"
+              ? t("flavorCloud")
+              : t("flavorDatacenter")}
+          </Badge>
         ),
       },
       {
@@ -118,12 +99,13 @@ export function TunnelsClient({
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
             <Button
+              nativeButton={false}
               variant="ghost"
               size="icon-sm"
               aria-label={tCommon("edit")}
               title={tCommon("edit")}
               disabled={isPending}
-              render={<Link href={`/admin/tunnels/${row.original.id}/edit`} />}
+              render={<Link href={`/admin/jira/${row.original.id}`} />}
             >
               <Pencil className="size-4" />
             </Button>
@@ -143,29 +125,22 @@ export function TunnelsClient({
     ],
     [t, tCommon, isPending, onDelete]
   );
-  const visibleColumns = canManage
-    ? columns
-    : columns.filter((c) => c.id !== "actions");
 
   if (optimistic.length === 0) {
     return (
       <div className="rounded-lg border bg-card">
         <EmptyState
-          icon={Cloud}
+          icon={Cable}
           title={t("emptyTitle")}
-          description={hasZones ? t("empty") : t("emptyNoZone")}
+          description={t("empty")}
           action={
-            !canManage ? undefined : hasZones ? (
-              <Button render={<Link href="/admin/tunnels/new" />}>
-                <Plus className="size-4" />
-                {t("addTunnel")}
-              </Button>
-            ) : (
-              <Button render={<Link href="/admin/tunnels/zones/new" />}>
-                <Plus className="size-4" />
-                {t("addZone")}
-              </Button>
-            )
+            <Button
+              nativeButton={false}
+              render={<Link href="/admin/jira/new" />}
+            >
+              <Plus className="size-4" />
+              {t("addConnection")}
+            </Button>
           }
         />
       </div>
@@ -175,12 +150,12 @@ export function TunnelsClient({
   return (
     <DataTable
       fillHeight
-      columns={visibleColumns}
+      columns={columns}
       data={optimistic}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
-      urlKey="tunnels"
+      urlKey="jira"
     />
   );
 }

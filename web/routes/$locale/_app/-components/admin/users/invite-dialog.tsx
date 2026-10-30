@@ -1,14 +1,11 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { inviteUser } from "@/actions/users";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ORG_ROLES } from "@/lib/permissions";
+import { inviteUser } from "@/web/api/users";
 import type { InvitationAction } from "./types";
 
 const EMPTY = { name: "", email: "", role: "member" as const };
@@ -85,8 +83,8 @@ export function InviteDialog({
           name: values.name,
           email: values.email,
           role: values.role,
-          expiresAt: new Date(Date.now() + 48 * 3600 * 1000),
-          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
         },
       });
       const result = await inviteUser(values);

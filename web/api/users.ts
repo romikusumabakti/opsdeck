@@ -204,3 +204,7 @@ export const getUserCardQuery = (...args: Parameters<typeof getUserCard>) =>
   });
 
 export type PersonSummary = Awaited<ReturnType<typeof listPeople>>[number];
+export type UserListRow = Awaited<ReturnType<typeof listUsers>>[number];
+export type PendingInvitation = Awaited<
+  ReturnType<typeof listPendingInvitations>
+>[number];

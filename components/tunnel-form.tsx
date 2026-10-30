@@ -24,12 +24,13 @@ import {
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { Tunnel } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 import { createTunnel, updateTunnel } from "@/web/api/tunnels";
 
 export type ServerOption = { id: string; name: string; host: string };
 export type ZoneOption = { id: string; name: string };
 
-type Mode = { type: "create" } | { type: "edit"; tunnel: Tunnel };
+type Mode = { type: "create" } | { type: "edit"; tunnel: Serialized<Tunnel> };
 
 /**
  * Register an EXISTING tunnel with the panel.

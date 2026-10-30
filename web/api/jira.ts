@@ -127,3 +127,7 @@ export async function syncJiraProjectNow(
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type JiraConnectionRow = Awaited<
+  ReturnType<typeof getJiraConnections>
+>[number];
