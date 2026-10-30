@@ -12,6 +12,12 @@ const PUBLIC_FIRST_SEGMENTS = new Set([
   "reset-password",
 ]);
 
+/** Whether `path` (without its locale) is one of those pages. */
+export function isPublicPath(path: string): boolean {
+  const first = path.split(/[/?#]/)[1] ?? "";
+  return PUBLIC_FIRST_SEGMENTS.has(first);
+}
+
 /**
  * The `$locale` route's sign-in check. Pure: it takes the location and the
  * `/api/me` answer and returns the redirect to throw, or null to let the page
