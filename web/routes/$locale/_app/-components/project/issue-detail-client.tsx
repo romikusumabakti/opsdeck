@@ -1,5 +1,3 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import {
   CircleCheck,
@@ -8,17 +6,9 @@ import {
   Paperclip,
   Trash2,
 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  deleteIssueAttachment,
-  type IssueAttachmentRow,
-} from "@/actions/issue-attachments";
-import type { IssueDetail } from "@/actions/issues";
-import { addComment, updateIssue } from "@/actions/issues";
-import { setIssueLabels } from "@/actions/labels";
-import { recordTestRun, type TestRunRow } from "@/actions/test-runs";
+import { useLocale, useTranslations } from "use-intl";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -48,7 +38,16 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import type { LabelLite } from "@/lib/db/schema";
 import { formatBytes } from "@/lib/utils";
+import {
+  deleteIssueAttachment,
+  type IssueAttachmentRow,
+} from "@/web/api/issue-attachments";
+import type { IssueDetail } from "@/web/api/issues";
+import { addComment, updateIssue } from "@/web/api/issues";
+import { setIssueLabels } from "@/web/api/labels";
+import { recordTestRun, type TestRunRow } from "@/web/api/test-runs";
 
 type EnvOption = { id: string; name: string };
 const NONE = "none";
@@ -70,7 +69,7 @@ export function IssueDetailClient({
   siblings: { id: string; number: number; title: string }[];
   attachments: IssueAttachmentRow[];
   testRuns: TestRunRow[];
-  allLabels: { id: string; name: string; color: string; createdAt: Date }[];
+  allLabels: LabelLite[];
 }) {
   const t = useTranslations("issueDetail");
   const tIssues = useTranslations("issues");
@@ -195,7 +194,7 @@ export function IssueDetailClient({
     router.refresh();
   }
 
-  const ago = (d: Date) =>
+  const ago = (d: Date | string) =>
     formatDistanceToNow(new Date(d), { addSuffix: true, locale: dfl });
 
   return (

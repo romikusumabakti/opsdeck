@@ -1,11 +1,9 @@
-"use client";
-
 import { DatabaseBackup } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { createDatabaseBackup } from "@/actions/backups";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
+import { createDatabaseBackup } from "@/web/api/backups";
 
 // The new run shows up in the Running rail through the shared SSE stream.
 export function BackupButton({ environmentId }: { environmentId: string }) {

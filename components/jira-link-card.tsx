@@ -32,15 +32,20 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useRouter } from "@/i18n/navigation";
-import type {
-  JiraLinkWithConnection,
-  SafeJiraConnection,
-} from "@/lib/db/schema";
+import type { SafeJiraConnection as SafeJiraConnectionRow } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 import {
+  type getJiraLink,
   saveJiraLink,
   syncJiraProjectNow,
   unlinkJiraProject,
 } from "@/web/api/jira";
+
+// The API's wire shapes: dates arrive as ISO strings.
+type SafeJiraConnection = Serialized<SafeJiraConnectionRow>;
+type JiraLinkWithConnection = NonNullable<
+  Awaited<ReturnType<typeof getJiraLink>>
+>;
 
 /**
  * The Jira tab of project settings: bind this project to a Jira project, and

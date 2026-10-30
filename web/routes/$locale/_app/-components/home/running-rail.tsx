@@ -1,8 +1,6 @@
-"use client";
-
 import { Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { useActiveRuns } from "@/components/active-runs-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useRouter } from "@/i18n/navigation";

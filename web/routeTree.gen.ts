@@ -19,6 +19,14 @@ import { Route as LocaleSignInRouteImport } from './routes/$locale/sign-in'
 import { Route as LocaleAppIndexRouteImport } from './routes/$locale/_app/index'
 import { Route as LocaleAppSplatRouteImport } from './routes/$locale/_app/$'
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
+import { Route as LocaleAppProjectKeyIndexRouteImport } from './routes/$locale/_app/$projectKey.index'
+import { Route as LocaleAppProjectKeySettingsRouteImport } from './routes/$locale/_app/$projectKey.settings'
+import { Route as LocaleAppEnvironmentsNewRouteImport } from './routes/$locale/_app/environments.new'
+import { Route as LocaleAppProjectsIndexRouteImport } from './routes/$locale/_app/projects.index'
+import { Route as LocaleAppProjectKeyEnvironmentsNewRouteImport } from './routes/$locale/_app/$projectKey.environments.new'
+import { Route as LocaleAppProjectKeyIssuesNumberRouteImport } from './routes/$locale/_app/$projectKey.issues.$number'
+import { Route as LocaleAppProjectsKeyIndexRouteImport } from './routes/$locale/_app/projects.$key.index'
+import { Route as LocaleAppProjectsKeySplatRouteImport } from './routes/$locale/_app/projects.$key.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -69,6 +77,53 @@ const LocaleAcceptInviteTokenRoute = LocaleAcceptInviteTokenRouteImport.update({
   path: '/accept-invite/$token',
   getParentRoute: () => LocaleRouteRoute,
 } as any)
+const LocaleAppProjectKeyIndexRoute =
+  LocaleAppProjectKeyIndexRouteImport.update({
+    id: '/$projectKey/',
+    path: '/$projectKey/',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeySettingsRoute =
+  LocaleAppProjectKeySettingsRouteImport.update({
+    id: '/$projectKey/settings',
+    path: '/$projectKey/settings',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppEnvironmentsNewRoute =
+  LocaleAppEnvironmentsNewRouteImport.update({
+    id: '/environments/new',
+    path: '/environments/new',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectsIndexRoute = LocaleAppProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppProjectKeyEnvironmentsNewRoute =
+  LocaleAppProjectKeyEnvironmentsNewRouteImport.update({
+    id: '/$projectKey/environments/new',
+    path: '/$projectKey/environments/new',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeyIssuesNumberRoute =
+  LocaleAppProjectKeyIssuesNumberRouteImport.update({
+    id: '/$projectKey/issues/$number',
+    path: '/$projectKey/issues/$number',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectsKeyIndexRoute =
+  LocaleAppProjectsKeyIndexRouteImport.update({
+    id: '/projects/$key/',
+    path: '/projects/$key/',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectsKeySplatRoute =
+  LocaleAppProjectsKeySplatRouteImport.update({
+    id: '/projects/$key/$',
+    path: '/projects/$key/$',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +135,14 @@ export interface FileRoutesByFullPath {
   '/$locale/$': typeof LocaleAppSplatRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/': typeof LocaleAppIndexRoute
+  '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
+  '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
+  '/$locale/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
+  '/$locale/projects/': typeof LocaleAppProjectsIndexRoute
+  '/$locale/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
+  '/$locale/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
+  '/$locale/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -90,6 +153,14 @@ export interface FileRoutesByTo {
   '/$locale/sign-in': typeof LocaleSignInRoute
   '/$locale/$': typeof LocaleAppSplatRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
+  '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
+  '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
+  '/$locale/$projectKey': typeof LocaleAppProjectKeyIndexRoute
+  '/$locale/projects': typeof LocaleAppProjectsIndexRoute
+  '/$locale/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
+  '/$locale/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
+  '/$locale/projects/$key': typeof LocaleAppProjectsKeyIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -103,6 +174,14 @@ export interface FileRoutesById {
   '/$locale/_app/$': typeof LocaleAppSplatRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/_app/': typeof LocaleAppIndexRoute
+  '/$locale/_app/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
+  '/$locale/_app/environments/new': typeof LocaleAppEnvironmentsNewRoute
+  '/$locale/_app/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
+  '/$locale/_app/projects/': typeof LocaleAppProjectsIndexRoute
+  '/$locale/_app/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
+  '/$locale/_app/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/_app/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
+  '/$locale/_app/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -116,6 +195,14 @@ export interface FileRouteTypes {
     | '/$locale/$'
     | '/$locale/accept-invite/$token'
     | '/$locale/'
+    | '/$locale/$projectKey/settings'
+    | '/$locale/environments/new'
+    | '/$locale/$projectKey/'
+    | '/$locale/projects/'
+    | '/$locale/$projectKey/environments/new'
+    | '/$locale/$projectKey/issues/$number'
+    | '/$locale/projects/$key/$'
+    | '/$locale/projects/$key/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -126,6 +213,14 @@ export interface FileRouteTypes {
     | '/$locale/sign-in'
     | '/$locale/$'
     | '/$locale/accept-invite/$token'
+    | '/$locale/$projectKey/settings'
+    | '/$locale/environments/new'
+    | '/$locale/$projectKey'
+    | '/$locale/projects'
+    | '/$locale/$projectKey/environments/new'
+    | '/$locale/$projectKey/issues/$number'
+    | '/$locale/projects/$key/$'
+    | '/$locale/projects/$key'
   id:
     | '__root__'
     | '/'
@@ -138,6 +233,14 @@ export interface FileRouteTypes {
     | '/$locale/_app/$'
     | '/$locale/accept-invite/$token'
     | '/$locale/_app/'
+    | '/$locale/_app/$projectKey/settings'
+    | '/$locale/_app/environments/new'
+    | '/$locale/_app/$projectKey/'
+    | '/$locale/_app/projects/'
+    | '/$locale/_app/$projectKey/environments/new'
+    | '/$locale/_app/$projectKey/issues/$number'
+    | '/$locale/_app/projects/$key/$'
+    | '/$locale/_app/projects/$key/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -217,17 +320,90 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAcceptInviteTokenRouteImport
       parentRoute: typeof LocaleRouteRoute
     }
+    '/$locale/_app/$projectKey/': {
+      id: '/$locale/_app/$projectKey/'
+      path: '/$projectKey'
+      fullPath: '/$locale/$projectKey/'
+      preLoaderRoute: typeof LocaleAppProjectKeyIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/settings': {
+      id: '/$locale/_app/$projectKey/settings'
+      path: '/$projectKey/settings'
+      fullPath: '/$locale/$projectKey/settings'
+      preLoaderRoute: typeof LocaleAppProjectKeySettingsRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/environments/new': {
+      id: '/$locale/_app/environments/new'
+      path: '/environments/new'
+      fullPath: '/$locale/environments/new'
+      preLoaderRoute: typeof LocaleAppEnvironmentsNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/projects/': {
+      id: '/$locale/_app/projects/'
+      path: '/projects'
+      fullPath: '/$locale/projects/'
+      preLoaderRoute: typeof LocaleAppProjectsIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/environments/new': {
+      id: '/$locale/_app/$projectKey/environments/new'
+      path: '/$projectKey/environments/new'
+      fullPath: '/$locale/$projectKey/environments/new'
+      preLoaderRoute: typeof LocaleAppProjectKeyEnvironmentsNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/issues/$number': {
+      id: '/$locale/_app/$projectKey/issues/$number'
+      path: '/$projectKey/issues/$number'
+      fullPath: '/$locale/$projectKey/issues/$number'
+      preLoaderRoute: typeof LocaleAppProjectKeyIssuesNumberRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/projects/$key/': {
+      id: '/$locale/_app/projects/$key/'
+      path: '/projects/$key'
+      fullPath: '/$locale/projects/$key/'
+      preLoaderRoute: typeof LocaleAppProjectsKeyIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/projects/$key/$': {
+      id: '/$locale/_app/projects/$key/$'
+      path: '/projects/$key/$'
+      fullPath: '/$locale/projects/$key/$'
+      preLoaderRoute: typeof LocaleAppProjectsKeySplatRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
   }
 }
 
 interface LocaleAppRouteRouteChildren {
   LocaleAppSplatRoute: typeof LocaleAppSplatRoute
   LocaleAppIndexRoute: typeof LocaleAppIndexRoute
+  LocaleAppProjectKeySettingsRoute: typeof LocaleAppProjectKeySettingsRoute
+  LocaleAppEnvironmentsNewRoute: typeof LocaleAppEnvironmentsNewRoute
+  LocaleAppProjectKeyIndexRoute: typeof LocaleAppProjectKeyIndexRoute
+  LocaleAppProjectsIndexRoute: typeof LocaleAppProjectsIndexRoute
+  LocaleAppProjectKeyEnvironmentsNewRoute: typeof LocaleAppProjectKeyEnvironmentsNewRoute
+  LocaleAppProjectKeyIssuesNumberRoute: typeof LocaleAppProjectKeyIssuesNumberRoute
+  LocaleAppProjectsKeySplatRoute: typeof LocaleAppProjectsKeySplatRoute
+  LocaleAppProjectsKeyIndexRoute: typeof LocaleAppProjectsKeyIndexRoute
 }
 
 const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppSplatRoute: LocaleAppSplatRoute,
   LocaleAppIndexRoute: LocaleAppIndexRoute,
+  LocaleAppProjectKeySettingsRoute: LocaleAppProjectKeySettingsRoute,
+  LocaleAppEnvironmentsNewRoute: LocaleAppEnvironmentsNewRoute,
+  LocaleAppProjectKeyIndexRoute: LocaleAppProjectKeyIndexRoute,
+  LocaleAppProjectsIndexRoute: LocaleAppProjectsIndexRoute,
+  LocaleAppProjectKeyEnvironmentsNewRoute:
+    LocaleAppProjectKeyEnvironmentsNewRoute,
+  LocaleAppProjectKeyIssuesNumberRoute: LocaleAppProjectKeyIssuesNumberRoute,
+  LocaleAppProjectsKeySplatRoute: LocaleAppProjectsKeySplatRoute,
+  LocaleAppProjectsKeyIndexRoute: LocaleAppProjectsKeyIndexRoute,
 }
 
 const LocaleAppRouteRouteWithChildren = LocaleAppRouteRoute._addFileChildren(

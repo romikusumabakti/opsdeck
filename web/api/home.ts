@@ -90,3 +90,16 @@ export async function unacknowledgeRuns(
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type AttentionGroup = Awaited<
+  ReturnType<typeof getAttentionGroups>
+>[number];
+export type MyIssue = Awaited<
+  ReturnType<typeof listMyOpenIssues>
+>["items"][number];
+export type RecentEnvironment = Awaited<
+  ReturnType<typeof listRecentEnvironments>
+>[number];
+export type IssueProject = Awaited<
+  ReturnType<typeof listIssueProjects>
+>[number];

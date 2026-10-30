@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { Label, LabelLite } from "@/lib/db/schema";
+import type { LabelLite } from "@/lib/db/schema";
 
 // A colored label pill. Color is a hex string; we tint the background and
 // border from it (Tailwind can't express dynamic colors, so inline style).
@@ -65,7 +65,7 @@ export function LabelPicker({
   selected,
   onChange,
 }: {
-  allLabels: Label[];
+  allLabels: LabelLite[];
   selected: string[];
   onChange: (labelIds: string[]) => void;
 }) {

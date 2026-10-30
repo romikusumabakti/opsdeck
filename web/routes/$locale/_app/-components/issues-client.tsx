@@ -1,17 +1,8 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import { CircleDot, LayoutGrid, List, Plus, Search } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import type { IssueWithMeta } from "@/actions/issues";
-import {
-  bulkDeleteIssues,
-  bulkSetStatus,
-  setIssueStatus,
-  updateIssue,
-} from "@/actions/issues";
+import { useLocale, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import {
   IssueCreateDialog,
@@ -55,6 +46,13 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
 import type { UserRef } from "@/lib/types";
+import type { IssueWithMeta } from "@/web/api/issues";
+import {
+  bulkDeleteIssues,
+  bulkSetStatus,
+  setIssueStatus,
+  updateIssue,
+} from "@/web/api/issues";
 
 export function IssuesClient({
   projectId,

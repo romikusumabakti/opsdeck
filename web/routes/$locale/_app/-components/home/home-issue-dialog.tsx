@@ -1,9 +1,6 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { getIssueFormOptions, type IssueFormOptions } from "@/actions/issues";
+import { useTranslations } from "use-intl";
 import {
   IssueCreateDialog,
   type IssueDefaults,
@@ -16,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
-import type { IssueProject } from "@/lib/home/queries";
+import type { IssueProject } from "@/web/api/home";
+import { getIssueFormOptions, type IssueFormOptions } from "@/web/api/issues";
 
 export type IssuePrefill = {
   projectId?: string;

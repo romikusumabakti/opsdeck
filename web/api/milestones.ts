@@ -56,3 +56,6 @@ export async function deleteMilestone(id: Body<"delete-milestone">["id"]) {
     (message) => ({ success: false, message }) as const
   );
 }
+export type MilestoneWithCount = Awaited<
+  ReturnType<typeof listMilestones>
+>[number];

@@ -38,6 +38,24 @@ describe("resolveRedirect", () => {
     expect(resolveRedirect(path)).toEqual({ to, status: 308 });
   });
 
+  // Ported from the app/[locale]/project and projects/[key] shims: projects
+  // moved to the root namespace, and an issue number used to follow the key.
+  it.each([
+    ["/en/projects/tmem", "/en/TMEM"],
+    ["/id/projects/TMEM", "/id/TMEM"],
+    ["/en/projects/tmem/issues/42", "/en/TMEM/issues/42"],
+    ["/en/projects/tmem/dev/services", "/en/TMEM/dev/services"],
+    ["/en/project/tmem", "/en/TMEM"],
+    ["/en/project/TMEM/42", "/en/TMEM/issues/42"],
+    ["/en/project/TMEM/42/extra", "/en/TMEM/issues/42/extra"],
+    ["/en/project/TMEM/settings", "/en/TMEM/settings"],
+    ["/en/project/tmem/", "/en/TMEM"],
+    // The flat create-environment URL, once /projects/new.
+    ["/en/projects/new", "/en/environments/new"],
+  ])("moves the legacy project URL %s to %s", (path, to) => {
+    expect(resolveRedirect(path)).toEqual({ to, status: 308 });
+  });
+
   it.each([
     "/en/servers",
     "/en",
@@ -46,7 +64,6 @@ describe("resolveRedirect", () => {
     "/en/TMEM/dev/services/db/logs",
     "/en/TMEM/issues/42",
     "/en/projects",
-    "/en/projects/new",
     "/en/issues",
     "/en/servers/abc",
     "/en/storage/new",
@@ -54,7 +71,8 @@ describe("resolveRedirect", () => {
     "/en/account/change-password",
     "/en/sign-in",
     "/en/environments/new",
-    "/en/project/TMEM",
+    "/en/projects/0199a1b2-0000-7000-8000-000000000001",
+    "/en/projects/0199a1b2-0000-7000-8000-000000000001/services",
     "/en/admin",
     "/en/admin/users",
     "/en/admin/jira/new",

@@ -1,17 +1,15 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { setIssueStatus } from "@/actions/issues";
+import { useTranslations } from "use-intl";
 import {
   STATUS_DOT,
   type Status,
   StatusSelect,
 } from "@/components/issues-board";
 import { Link } from "@/i18n/navigation";
-import type { MyIssue } from "@/lib/home/queries";
 import { cn } from "@/lib/utils";
+import type { MyIssue } from "@/web/api/home";
+import { setIssueStatus } from "@/web/api/issues";
 
 export function MyIssuesList({ items }: { items: MyIssue[] }) {
   const t = useTranslations("homePage");
