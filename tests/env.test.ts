@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { requireEnv, validateEnv } from "@/lib/env";
 
 // validateEnv reads process.env at call time, so each case builds the whole

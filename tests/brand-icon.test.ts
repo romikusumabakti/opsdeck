@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "vitest";
 import { GET } from "@/app/brand/icon.svg/route";
 
 const saved = process.env.BRAND;
@@ -19,8 +19,8 @@ describe("GET /brand/icon.svg", () => {
     const { res, body } = await fetchIcon("?accent=blue", "dss");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
-    expect(res.headers.get("cache-control")).toStartWith("public");
-    expect(body).toStartWith("<svg");
+    expect(res.headers.get("cache-control")).toMatch(/^public/);
+    expect(body).toMatch(/^<svg/);
   });
 
   it("colours the mark with the requested accent", async () => {

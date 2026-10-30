@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import ssh2 from "ssh2";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mintTicket } from "@/lib/terminal/protocol";
 import { createTerminalHandlers } from "@/lib/terminal/server";
 import { DEFAULT_LIMITS, SessionRegistry } from "@/lib/terminal/session";
@@ -544,15 +545,15 @@ describe("terminal sidecar", () => {
 
       // Wait for the reattach's loadServer call to be parked on the gate,
       // then close the client before it resolves.
-      await Bun.sleep(50);
+      await sleep(50);
       expect(releaseSecondLoad).toBeDefined();
       second.ws.close();
-      await Bun.sleep(50);
+      await sleep(50);
       releaseSecondLoad?.();
 
       // Give onHello's continuation a moment to run attach() and the
       // readyState guard after it.
-      await Bun.sleep(100);
+      await sleep(100);
 
       const session = registry.get(ready.sessionId);
       expect(session).toBeDefined();

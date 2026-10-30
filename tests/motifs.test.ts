@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { existsSync, readdirSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import {
   dailyMotif,
   effectiveMotifPreference,
@@ -28,7 +28,7 @@ describe("MOTIFS", () => {
   });
 
   it("links every motif to an https source", () => {
-    for (const m of MOTIFS) expect(m.sourceUrl).toStartWith("https://");
+    for (const m of MOTIFS) expect(m.sourceUrl).toMatch(/^https:\/\//);
   });
 });
 

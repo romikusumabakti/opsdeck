@@ -1,4 +1,3 @@
-import { describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -9,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import {
   buildExtractCommand,
   buildMssqlMoveClauses,
@@ -352,9 +352,11 @@ describe("Postgres statements", () => {
     });
 
     it("stops on the first error and discards psql's command tags", () => {
-      expect(pgRestorePipeline("car2", "/b/c.sql", false)).toEndWith(
-        "| psql -X -q -v ON_ERROR_STOP=on -U postgres -d 'car2' > /dev/null"
-      );
+      expect(
+        pgRestorePipeline("car2", "/b/c.sql", false).endsWith(
+          "| psql -X -q -v ON_ERROR_STOP=on -U postgres -d 'car2' > /dev/null"
+        )
+      ).toBe(true);
     });
 
     it("aborts when the role list can't be read", () => {

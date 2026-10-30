@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { describe, expect, it } from "vitest";
 import { parseDocument } from "yaml";
 import {
   addRoute,
@@ -16,9 +17,10 @@ import {
 // risk of this feature, so the fixture is the genuine article rather than a
 // tidied sample. Pinned deliberately: the live file keeps growing, and this
 // test is about the shapes an operator writes, not about today's route list.
-const FIXTURE = await Bun.file(
-  new URL("./fixtures/tunnel-config.yml", import.meta.url)
-).text();
+const FIXTURE = await readFile(
+  new URL("./fixtures/tunnel-config.yml", import.meta.url),
+  "utf8"
+);
 
 describe("round-trip fidelity", () => {
   // The load-bearing test for the whole approach. If parsing and re-serializing

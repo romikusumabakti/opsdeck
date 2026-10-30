@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { parseJobPayload } from "@/lib/jobs/payloads";
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789ab";

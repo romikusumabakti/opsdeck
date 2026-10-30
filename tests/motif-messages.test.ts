@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { routing } from "@/i18n/routing";
 import { MOTIF_SLUGS } from "@/lib/motifs";
 

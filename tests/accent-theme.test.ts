@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { ACCENT_STEPS, type TintedAccent } from "@/lib/accent-palette";
 import { ACCENTS } from "@/lib/accents";
 
@@ -9,9 +9,12 @@ import { ACCENTS } from "@/lib/accents";
 // app/globals.css and resolves var(--color-*) from the installed Tailwind
 // palette, so the numbers are the ones a browser renders.
 
-const css = readFileSync(join(import.meta.dir, "../app/globals.css"), "utf8");
+const css = readFileSync(
+  join(import.meta.dirname, "../app/globals.css"),
+  "utf8"
+);
 const theme = readFileSync(
-  join(import.meta.dir, "../node_modules/tailwindcss/theme.css"),
+  join(import.meta.dirname, "../node_modules/tailwindcss/theme.css"),
   "utf8"
 );
 

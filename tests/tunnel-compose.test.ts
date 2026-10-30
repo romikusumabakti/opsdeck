@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { describe, expect, it } from "vitest";
 import { parseDocument } from "yaml";
 import {
   addExternalNetwork,
@@ -9,9 +10,10 @@ import {
 } from "@/lib/tunnels/compose";
 
 // The real compose.yml of the `apps-tunnel` stack on 192.168.55.136.
-const FIXTURE = await Bun.file(
-  new URL("./fixtures/tunnel-compose.yml", import.meta.url)
-).text();
+const FIXTURE = await readFile(
+  new URL("./fixtures/tunnel-compose.yml", import.meta.url),
+  "utf8"
+);
 
 describe("round-trip fidelity", () => {
   it("re-serializes an unmodified production compose file byte for byte", () => {

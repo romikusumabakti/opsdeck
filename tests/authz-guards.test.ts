@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 
 // Cross-project reads must filter to the caller's projects. The DB lookups are
 // thin, so the cheapest durable check is structural: each listed function must
@@ -189,7 +189,7 @@ describe("mention notifications only reach users who can see the project", () =>
   });
   it("notifyIssueMention is only called from addComment", () => {
     const files = Array.from(
-      new Bun.Glob("**/*.{ts,tsx}").scanSync("actions"),
+      globSync("**/*.{ts,tsx}", { cwd: "actions" }),
       (f) => `actions/${f}`
     );
     const callers = files.filter((f) =>
@@ -276,7 +276,7 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
   const roots = ["actions", "lib", "app", "components"];
   const files = roots.flatMap((root) => [
     ...Array.from(
-      new Bun.Glob("**/*.{ts,tsx}").scanSync(root),
+      globSync("**/*.{ts,tsx}", { cwd: root }),
       (f) => `${root}/${f}`
     ),
   ]);
@@ -405,9 +405,7 @@ describe("old role module is gone", () => {
   });
   it("nothing imports @/lib/roles", () => {
     const files = Array.from(
-      new Bun.Glob("{actions,app,lib,components,tests}/**/*.{ts,tsx}").scanSync(
-        "."
-      )
+      globSync("{actions,app,lib,components,tests}/**/*.{ts,tsx}", { cwd: "." })
     );
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -520,7 +518,7 @@ describe("users and access live on one guarded page", () => {
     const roots = ["actions", "lib", "app", "components"];
     const offenders = roots.flatMap((root) =>
       Array.from(
-        new Bun.Glob("**/*.{ts,tsx}").scanSync(root),
+        globSync("**/*.{ts,tsx}", { cwd: root }),
         (f) => `${root}/${f}`
       ).filter((f) => LINK.test(readFileSync(f, "utf8")))
     );

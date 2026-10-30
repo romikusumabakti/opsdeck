@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { checkProjectAccess, resolveProjectAccess } from "@/lib/authz";
 
 const ALL = ["p1", "p2", "p3"];
