@@ -186,14 +186,18 @@ export function getPathname({
 }
 
 /**
- * Redirect from a route's `beforeLoad` or `loader`, keeping the locale of the
- * URL being loaded. Throws, like next-intl's server `redirect`.
+ * Redirect from a route's `beforeLoad` or `loader`, keeping the locale. Throws,
+ * like next-intl's server `redirect`.
+ *
+ * Pass the route's `params.locale`: during an intent preload the loader runs
+ * for a URL the address bar doesn't show yet, which may be in another locale.
+ * Without it the address bar's locale is used — right for a navigation that
+ * has already committed, which is when a beforeLoad/loader redirect matters.
  */
-export function redirect(href: string): never {
-  // The router commits the URL before it runs loaders, so the address bar
-  // already holds the locale being loaded.
-  const locale = localeFromPath(window.location.pathname);
-  throw routerRedirect({ href: localizeHref(href, locale) });
+export function redirect(href: string, locale?: Locale): never {
+  throw routerRedirect({
+    href: localizeHref(href, locale ?? localeFromPath(window.location.pathname)),
+  });
 }
 
 /**

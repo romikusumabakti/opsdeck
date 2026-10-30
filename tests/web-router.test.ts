@@ -49,6 +49,30 @@ describe("web route tree", () => {
     });
   });
 
+  // The session dies while the tab is open: the next navigation must reach
+  // sign-in, not pass the gate on the cached user.
+  it("gates again once a 401 has cleared the cached user", async () => {
+    const router = await load("/id/servers", signedIn);
+    expect(router.state.location.pathname).toBe("/id/servers");
+    const { queryClient } = router.options.context as {
+      queryClient: ReturnType<typeof createQueryClient>;
+    };
+    queryClient.setQueryData(meQuery().queryKey, null);
+    await router.navigate({ href: "/id/servers/abc" });
+    expect(router.state.location.pathname).toBe("/id/sign-in");
+    expect(router.state.location.search).toEqual({
+      redirect: "/servers/abc",
+    });
+  });
+
+  it("drops an unsafe redirect target on sign-in", async () => {
+    const router = await load("/en/sign-in?redirect=%2F%2Fevil.example", null);
+    const signIn = router.state.matches.find(
+      (m) => m.routeId === "/$locale/sign-in"
+    );
+    expect(signIn?.search).toEqual({ redirect: undefined });
+  });
+
   it("brands the locale's messages", async () => {
     const router = await load("/en/sign-in", null);
     const match = router.state.matches.find((m) => m.routeId === "/$locale");

@@ -98,7 +98,7 @@
               "options": {
                 "paths": {
                   "@/server/app": {
-                    "importNames": ["app", "createBaseApp"],
+                    "allowImportNames": ["AppType"],
                     "message": "Only `import type { AppType }` may come from the server app; the app itself is server code."
                   }
                 },
@@ -106,6 +106,7 @@
                   {
                     "group": [
                       "@/server/**",
+                      "**/server/**",
                       "!@/server/app",
                       "@/lib/db",
                       "@/lib/db/**",
@@ -121,7 +122,7 @@
                   },
                   {
                     "group": ["@/lib/db/schema"],
-                    "importNamePattern": "[a-z].*",
+                    "importNamePattern": "[a-z].*|\\*",
                     "message": "Only the schema's row types (PascalCase) may be imported here; its tables and enums are server code."
                   }
                 ]

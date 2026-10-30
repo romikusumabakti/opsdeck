@@ -20,6 +20,9 @@ type StaticOptions = {
   publicDir?: string;
 };
 
+// Never pages: the API, the favicon route and the built assets.
+const NOT_PAGES = /^\/(api|brand|assets)(?=\/|$)/;
+
 // Content-hashed by Vite, so a URL's bytes never change.
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
@@ -52,17 +55,21 @@ export function mountStatic(
     if (c.res.ok) c.header("Cache-Control", IMMUTABLE);
   });
   app.get("/assets/*", files(clientDir), (c) => c.notFound());
+  // The shell itself, whichever way it is asked for: revalidated on every
+  // load, so a deploy's new asset hashes are picked up at once.
+  app.use("/index.html", async (c, next) => {
+    await next();
+    if (c.res.ok) c.header("Cache-Control", "no-cache");
+  });
   app.get("*", files(clientDir), files(publicDir), async (c) => {
-    if (c.req.path === "/api" || c.req.path.startsWith("/api/")) {
-      return c.notFound();
-    }
+    // A miss under a non-page prefix is a 404, not the SPA: a script, image
+    // or API client must never get index.html with a 200.
+    if (NOT_PAGES.test(c.req.path)) return c.notFound();
     const redirect = resolveRedirect(c.req.path);
     if (redirect) {
       const query = new URL(c.req.url).search;
       return c.redirect(redirect.to + query, redirect.status);
     }
-    // Revalidated on every load, so a deploy's new asset hashes are picked up
-    // at once; the assets themselves are cached for good.
     c.header("Cache-Control", "no-cache");
     return c.body(await Bun.file(indexHtml).text(), 200, {
       "Content-Type": "text/html; charset=utf-8",

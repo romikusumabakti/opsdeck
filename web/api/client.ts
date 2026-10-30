@@ -3,14 +3,19 @@ import { hc, type InferRequestType } from "hono/client";
 import { hasLocale } from "use-intl";
 import { defaultLocale, locales } from "@/i18n/locales";
 import type { AppType } from "@/server/app";
-import { invalidateAfterMutation, queryClient } from "@/web/query-client";
+import {
+  invalidateAfterMutation,
+  ME_QUERY_KEY,
+  queryClient,
+} from "@/web/query-client";
 
 // The SPA's transport: the typed Hono client (`api`) over a fetch wrapper that
 // does what the Next runtime used to do around a server action.
 //
 //  - States the route's locale in `X-Locale`, since the API never sees the
 //    `/<locale>/` URL (server/middleware/locale.ts).
-//  - A 401 means the session is gone: go to sign-in, remembering the page.
+//  - A 401 means the session is gone: forget the cached `/api/me` and go to
+//    sign-in, remembering the page.
 //  - A successful mutation refetches the active queries, as
 //    `revalidatePath("/", "layout")` re-rendered the page after an action. The
 //    call resolves once that refetch is done, so — like an action — the UI
@@ -123,6 +128,10 @@ export function createApiFetch(deps: ApiFetchDeps): typeof fetch {
     }
 
     if (response.status === 401) {
+      // The session is gone: forget the cached user first, so the $locale
+      // gate sees a signed-out visitor on this navigation and every later
+      // one, and the shell stops showing the previous identity.
+      deps.queryClient.setQueryData(ME_QUERY_KEY, null);
       const stripped = onLocaleRoute ? rest : [first, ...rest];
       if (!PUBLIC_FIRST_SEGMENTS.has(stripped[0] ?? "")) {
         const path = `/${stripped.join("/")}`.replace(/\/+$/, "") || "/";
