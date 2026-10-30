@@ -1,5 +1,3 @@
-import "server-only";
-
 // Minimal Cloudflare REST client — the three DNS-record calls this feature
 // needs, plus a token check.
 //

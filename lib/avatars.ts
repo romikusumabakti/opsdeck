@@ -1,5 +1,3 @@
-import "server-only";
-
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { avatarKey, avatarUrl, hashFromAvatarUrl } from "@/lib/avatar-url";

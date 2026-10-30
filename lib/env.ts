@@ -1,5 +1,3 @@
-import "server-only";
-
 import { z } from "zod";
 import { BRANDS } from "@/lib/branding";
 import { isValidTimeZone } from "@/lib/timezone";
@@ -14,7 +12,7 @@ import { isValidTimeZone } from "@/lib/timezone";
  * a container that booted green and then died inside a background job — a
  * restore, at 3am — because `SECRETS_KEY` was a placeholder.
  *
- * `validateEnv()` is called once from `instrumentation.ts`, so a misconfigured
+ * `validateEnv()` is called once from `server/index.ts`, so a misconfigured
  * deployment fails at boot with every problem listed at once instead of the
  * first one someone happens to hit.
  *
@@ -149,9 +147,9 @@ function checkGroup(
 }
 
 /**
- * Whether "Sign in with Microsoft" is wired up. Read this on the server (e.g.
- * the sign-in page) and pass it down — the credentials are server-only, so
- * there is no `NEXT_PUBLIC_` flag to check on the client.
+ * Whether "Sign in with Microsoft" is wired up. Read this on the server and
+ * pass it down — the credentials are server-only, so the client has no env
+ * flag of its own to check.
  *
  * A tenant id is mandatory, not optional: without it better-auth falls back to
  * the "common" authority, which accepts ANY Microsoft account — and because we
@@ -173,8 +171,8 @@ function collectFindings(): Finding[] {
   checkRequired("DATABASE_URL", postgresUrlSchema, findings);
   checkRequired("SECRETS_KEY", base64Key32Schema, findings);
 
-  // Auth. The secret is only enforced in production: `next dev` and `bun test`
-  // let better-auth fall back to an ephemeral one, which is fine for a local
+  // Auth. The secret is only enforced in production: local development and
+  // tests let better-auth fall back to an ephemeral one, which is fine for a local
   // session but would silently invalidate every session on each restart (and
   // weaken token signing) if it reached a deployment.
   //
@@ -265,13 +263,10 @@ function collectFindings(): Finding[] {
 /**
  * Check the environment and fail the process on anything fatal.
  *
- * Called from `instrumentation.ts`. Skipped during `next build`: page-data
- * collection evaluates route modules with NODE_ENV=production and no runtime
- * env, and none of these values are needed to emit a bundle.
+ * Called from `server/index.ts` at boot. Nothing evaluates server modules at
+ * build time any more, so there is no build phase to skip.
  */
 export function validateEnv(): void {
-  if (process.env.NEXT_PHASE === "phase-production-build") return;
-
   const findings = collectFindings();
   const errors = findings.filter((f) => f.level === "error");
   const warnings = findings.filter((f) => f.level === "warn");

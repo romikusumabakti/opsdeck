@@ -1,16 +1,15 @@
-import "server-only";
-
 import { and, eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
-import { cache } from "react";
 import { getProjectRole } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environments, projects } from "@/lib/db/schema";
+import { requestCache } from "@/server/context";
+import { notFound } from "@/server/errors";
 
 // Resolve a readable environment URL (`/CMEM/prod/…`) to its environment id.
-// `cache()` dedupes the lookup within a request so the layout and every page in
-// the tree can call it freely. Calls `notFound()` when the key/slug don't match.
-export const resolveEnvIdByKeySlug = cache(
+// `requestCache()` dedupes the lookup within a request so every handler and
+// helper can call it freely. Throws a 404 when the key/slug don't match, or the
+// caller can't see the project (an invisible project doesn't exist).
+export const resolveEnvIdByKeySlug = requestCache(
   async (projectKey: string, envSlug: string): Promise<string> => {
     const project = await db.query.projects.findFirst({
       where: { key: projectKey.toUpperCase() },
@@ -36,7 +35,7 @@ export const resolveEnvIdByKeySlug = cache(
 // The reverse: an environment id → its `{ projectKey, envSlug }` readable parts,
 // for the legacy `/projects/[id]` redirect shim and for link generators that
 // only hold an env id. Returns null when the id is unknown.
-export const resolveKeySlugById = cache(
+export const resolveKeySlugById = requestCache(
   async (
     envId: string
   ): Promise<{ projectKey: string; envSlug: string } | null> => {

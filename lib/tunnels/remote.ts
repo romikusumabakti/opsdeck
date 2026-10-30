@@ -1,5 +1,3 @@
-import "server-only";
-
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 

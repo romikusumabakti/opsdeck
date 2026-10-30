@@ -1,5 +1,3 @@
-import "server-only";
-
 import { auth } from "@/lib/auth";
 import { storeAvatar } from "@/lib/avatars";
 import { db } from "@/lib/db";

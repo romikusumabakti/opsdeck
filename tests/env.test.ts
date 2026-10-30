@@ -7,7 +7,6 @@ import { requireEnv, validateEnv } from "@/lib/env";
 // read-only, so a literal key union would make the restore loop below a
 // compile error.
 const MANAGED: string[] = [
-  "NEXT_PHASE",
   "NODE_ENV",
   "DATABASE_URL",
   "SECRETS_KEY",
@@ -72,13 +71,6 @@ afterEach(() => {
 describe("validateEnv", () => {
   it("passes with only the core vars set", () => {
     setEnv(validCore());
-    expect(() => validateEnv()).not.toThrow();
-  });
-
-  it("is a no-op during `next build`", () => {
-    // Page-data collection evaluates route modules with no runtime env; a throw
-    // here would fail every build.
-    setEnv({ NEXT_PHASE: "phase-production-build" });
     expect(() => validateEnv()).not.toThrow();
   });
 

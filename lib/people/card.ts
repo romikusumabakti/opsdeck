@@ -1,5 +1,3 @@
-import "server-only";
-
 import { db } from "@/lib/db";
 import { canOrg } from "@/lib/permissions";
 import { effectiveTimeZone } from "@/lib/timezone";

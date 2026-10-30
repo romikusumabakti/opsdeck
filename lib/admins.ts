@@ -1,5 +1,3 @@
-import "server-only";
-
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";

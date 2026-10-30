@@ -1,5 +1,3 @@
-import "server-only";
-
 import { createHash } from "node:crypto";
 import { NodeSSH } from "node-ssh";
 import type { SFTPWrapper } from "ssh2";
