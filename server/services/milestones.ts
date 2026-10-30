@@ -1,7 +1,4 @@
-"use server";
-
 import { and, asc, eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import { requireProjectPage, requireProjectPermission } from "@/lib/authz";
@@ -15,7 +12,7 @@ import { milestoneInputSchema, uuidSchema } from "@/lib/validation";
 // management list and warns before deleting a non-empty one.
 export type MilestoneWithCount = Milestone & { issueCount: number };
 
-// Private ("use server" files expose every export): the project that owns a
+// Private (every export of a service is routable): the project that owns a
 // milestone, or null when the id is malformed or unknown.
 async function milestoneProjectId(id: string): Promise<string | null> {
   // Signed-in callers only, before any lookup: the result tells a caller
@@ -96,7 +93,6 @@ export async function createMilestone(
       entityId: row.id,
       data: { name: row.name },
     });
-    revalidatePath("/", "layout");
     return { success: true, data: row };
   } catch (error) {
     console.error("Failed to create milestone:", error);
@@ -127,7 +123,6 @@ export async function updateMilestone(
       "milestone"
     );
     if (!row) return { success: false, message: "Milestone not found" };
-    revalidatePath("/", "layout");
     return { success: true, data: row };
   } catch (error) {
     console.error(`Failed to update milestone ${id}:`, error);
@@ -153,7 +148,6 @@ export async function setMilestoneClosed(
       "milestone"
     );
     if (!row) return { success: false, message: "Milestone not found" };
-    revalidatePath("/", "layout");
     return { success: true, data: row };
   } catch (error) {
     console.error(`Failed to toggle milestone ${id}:`, error);
@@ -168,7 +162,6 @@ export async function deleteMilestone(id: string): Promise<ActionResponse> {
   await requireProjectPermission({ projectId }, { issue: ["delete"] });
   try {
     await db.delete(milestones).where(and(eq(milestones.id, id)));
-    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete milestone ${id}:`, error);

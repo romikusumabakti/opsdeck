@@ -1,8 +1,4 @@
-"use server";
-
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
 import { assertNotLastAdmin } from "@/lib/access";
 import { recordActivity } from "@/lib/activity";
 import { listActiveAdminIds } from "@/lib/admins";
@@ -18,6 +14,7 @@ import {
 import { normalizeProjectRole, type ProjectRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 // The Project access tab of /admin/users: every project plus each user's
 // explicit memberships. User rows (name, role, last active, banned) come from
@@ -58,7 +55,7 @@ export async function getAccessMatrix(): Promise<AccessMatrix> {
 // invitations. The user row stays so issues and history keep their author.
 export async function offboardUser(userId: string): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["offboard"] });
-  const t = await getTranslations("access");
+  const t = await getServerTranslator("access");
   if (!uuidSchema.safeParse(userId).success) {
     return { success: false, message: t("errorInvalidUser") };
   }
@@ -108,6 +105,5 @@ export async function offboardUser(userId: string): Promise<ActionResponse> {
     entityId: userId,
     data: { user: target.name, memberships: removed },
   });
-  revalidatePath("/admin/users");
   return { success: true, message: t("offboarded") };
 }

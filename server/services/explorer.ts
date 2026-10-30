@@ -1,6 +1,3 @@
-"use server";
-
-import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { requireOrgPermission } from "@/lib/authz";
 import {
@@ -32,6 +29,7 @@ import {
   explorerSourceSchema,
   explorerTextSchema,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 // Storage explorer actions. Filesystem/bucket access is powerful (SFTP runs as
 // the SSH user, often root), so every entry point is gated on the files permission of its target kind — a stricter
@@ -45,7 +43,7 @@ type ListResult = ActionResponse<ExplorerEntry[]>;
 // typed error so each action can early-return.
 async function open(
   source: unknown,
-  t: Awaited<ReturnType<typeof getTranslations>>
+  t: Awaited<ReturnType<typeof getServerTranslator>>
 ) {
   const parsed = explorerSourceSchema.safeParse(source);
   if (!parsed.success) {
@@ -67,7 +65,7 @@ async function open(
 // don't leak remote paths / bucket internals.
 function explain(
   error: unknown,
-  t: Awaited<ReturnType<typeof getTranslations>>
+  t: Awaited<ReturnType<typeof getServerTranslator>>
 ): string {
   if (error instanceof PathError) return t("invalidPath");
   if (error instanceof MissingEntryError) return t("entryGone");
@@ -80,7 +78,7 @@ export async function listEntries(
   source: unknown,
   path: unknown
 ): Promise<ListResult> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path ?? "");
@@ -108,7 +106,7 @@ export async function getDownloadTarget(
   source: unknown,
   path: unknown
 ): Promise<DownloadResult> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -134,7 +132,7 @@ export async function readFileText(
   source: unknown,
   path: unknown
 ): Promise<ReadTextResult> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -162,7 +160,7 @@ export async function saveFileText(
   content: unknown,
   eol: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -192,7 +190,7 @@ export async function createFolder(
   parentPath: unknown,
   name: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parent = explorerPathSchema.safeParse(parentPath ?? "");
@@ -214,7 +212,7 @@ export async function deleteEntry(
   source: unknown,
   path: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -234,7 +232,7 @@ export async function renameEntry(
   path: unknown,
   newName: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -265,7 +263,7 @@ export async function moveEntry(
   path: unknown,
   destDir: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -300,7 +298,7 @@ export async function copyEntry(
   path: unknown,
   destDir: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path);
@@ -337,7 +335,7 @@ export async function compressEntries(
   destDir: unknown,
   name: unknown
 ): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPaths = z.array(explorerPathSchema).nonempty().safeParse(paths);
@@ -378,7 +376,7 @@ export async function folderStats(
   source: unknown,
   path: unknown
 ): Promise<ActionResponse<FolderStats>> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const opened = await open(source, t);
   if (!opened.ok) return { success: false, message: opened.message };
   const parsedPath = explorerPathSchema.safeParse(path ?? "");

@@ -1,8 +1,4 @@
-"use server";
-
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
 import { accentSchema } from "@/lib/accents";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
@@ -21,13 +17,14 @@ import {
   timeZoneSchema,
   uuidSchema,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 // Self-service profile edits. Every action here edits only the caller,
 // except adminUpdateProfile and adminRemoveAvatar, which need user:update.
 
 export async function updateProfile(input: unknown): Promise<ActionResponse> {
   const session = await requireSession();
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = profileInputSchema.safeParse(input);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -50,13 +47,12 @@ export async function updateProfile(input: unknown): Promise<ActionResponse> {
     data: { user: parsed.data.name },
   });
   // Name, timezone and avatar appear in the shell on every page.
-  revalidatePath("/", "layout");
   return { success: true, message: t("profileUpdated") };
 }
 
 export async function setStatus(input: unknown): Promise<ActionResponse> {
   const session = await requireSession();
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = statusInputSchema.safeParse(input);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
   const expiresAt = parsed.data.expiresAt
@@ -75,13 +71,12 @@ export async function setStatus(input: unknown): Promise<ActionResponse> {
       updatedAt: new Date(),
     })
     .where(eq(users.id, session.user.id));
-  revalidatePath("/", "layout");
   return { success: true, message: t("statusUpdated") };
 }
 
 export async function clearStatus(): Promise<ActionResponse> {
   const session = await requireSession();
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   await db
     .update(users)
     .set({
@@ -91,7 +86,6 @@ export async function clearStatus(): Promise<ActionResponse> {
       updatedAt: new Date(),
     })
     .where(eq(users.id, session.user.id));
-  revalidatePath("/", "layout");
   return { success: true, message: t("statusCleared") };
 }
 
@@ -101,7 +95,7 @@ export async function adminUpdateProfile(input: {
   title: string | null;
 }): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["update"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   if (!uuidSchema.safeParse(input.userId).success) {
     return { success: false, message: t("invalidInput") };
   }
@@ -135,8 +129,6 @@ export async function adminUpdateProfile(input: {
     entityId: input.userId,
     data: { user: name },
   });
-  revalidatePath("/admin/users");
-  revalidatePath(`/people/${input.userId}`);
   return { success: true, message: t("nameUpdated") };
 }
 
@@ -144,7 +136,7 @@ export async function adminRemoveAvatar(input: {
   userId: string;
 }): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["update"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   if (!uuidSchema.safeParse(input.userId).success) {
     return { success: false, message: t("invalidInput") };
   }
@@ -164,13 +156,12 @@ export async function adminRemoveAvatar(input: {
     data: { user: target.name },
   });
   // The avatar shows wherever the user appears, not just on admin pages.
-  revalidatePath("/", "layout");
   return { success: true, message: t("avatarRemoved") };
 }
 
 export async function setMyTimeZone(timezone: string): Promise<ActionResponse> {
   const session = await requireSession();
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   if (!timeZoneSchema.safeParse(timezone).success) {
     return { success: false, message: t("invalidInput") };
   }
@@ -178,14 +169,13 @@ export async function setMyTimeZone(timezone: string): Promise<ActionResponse> {
     .update(users)
     .set({ timezone, updatedAt: new Date() })
     .where(eq(users.id, session.user.id));
-  revalidatePath("/", "layout");
   return { success: true, message: t("profileUpdated") };
 }
 
 /** Save the caller's accent colour. The UI applies it optimistically. */
 export async function setAccentColor(input: unknown): Promise<ActionResponse> {
   const session = await requireSession();
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = accentSchema.safeParse(input);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -195,14 +185,13 @@ export async function setAccentColor(input: unknown): Promise<ActionResponse> {
     .where(eq(users.id, session.user.id));
 
   // The accent is on <html> and in the favicon link on every page.
-  revalidatePath("/", "layout");
   return { success: true };
 }
 
 /** Save the caller's background motif. The UI applies it optimistically. */
 export async function setMotif(input: unknown): Promise<ActionResponse> {
   const session = await requireSession();
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = motifPreferenceSchema.safeParse(input);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -212,6 +201,5 @@ export async function setMotif(input: unknown): Promise<ActionResponse> {
     .where(eq(users.id, session.user.id));
 
   // The sidebar watermark is rendered by the root layout.
-  revalidatePath("/", "layout");
   return { success: true };
 }

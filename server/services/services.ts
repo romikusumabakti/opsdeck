@@ -1,5 +1,3 @@
-"use server";
-
 import { requireProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";

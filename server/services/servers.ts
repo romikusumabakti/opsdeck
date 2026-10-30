@@ -1,8 +1,4 @@
-"use server";
-
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -19,6 +15,7 @@ import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
 import type { ActionResponse } from "@/lib/types";
 import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 export type ServerUsage = {
   // The environment that uses this server, with the parts needed to link to its
@@ -96,7 +93,7 @@ export async function createServer(
   data: NewServer
 ): Promise<ActionResponse<Server>> {
   await requireOrgPermission({ server: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = serverInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
@@ -112,8 +109,6 @@ export async function createServer(
         .returning(),
       "server"
     );
-    revalidatePath("/servers");
-    revalidatePath("/environments/new");
     return { success: true, data: created, message: t("serverCreated") };
   } catch (error) {
     console.error("Failed to create server:", error);
@@ -126,7 +121,7 @@ export async function updateServer(
   data: Partial<NewServer>
 ): Promise<ActionResponse> {
   await requireOrgPermission({ server: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = serverUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
@@ -144,9 +139,6 @@ export async function updateServer(
     if (!updated) {
       return { success: false, message: t("serverNotFound") };
     }
-    revalidatePath("/servers");
-    revalidatePath(`/servers/${id}`);
-    revalidatePath("/environments/new");
     return { success: true, message: t("serverUpdated") };
   } catch (error) {
     console.error(`Failed to update server ${id}:`, error);
@@ -166,7 +158,7 @@ export async function testServerConnection(input: {
   serverId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireOrgPermission({ server: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   const host = input.host.trim();
   const username = input.username.trim();
@@ -211,7 +203,7 @@ export async function bulkDeleteServers(
   ids: string[]
 ): Promise<BulkDeleteServersResult> {
   await requireOrgPermission({ server: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   if (ids.length === 0) {
     return { success: true, deleted: 0, failed: [] };
   }
@@ -238,18 +230,14 @@ export async function bulkDeleteServers(
       failed.push({ id, message: t("serverDeleteFailed") });
     }
   }
-  revalidatePath("/servers");
-  revalidatePath("/environments/new");
   return { success: true, deleted, failed };
 }
 
 export async function deleteServer(id: string): Promise<ActionResponse> {
   await requireOrgPermission({ server: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   try {
     await db.delete(servers).where(eq(servers.id, id));
-    revalidatePath("/servers");
-    revalidatePath("/environments/new");
     return { success: true, message: t("serverDeleted") };
   } catch (error) {
     // FK violation: server is referenced by at least one project.

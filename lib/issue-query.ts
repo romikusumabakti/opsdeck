@@ -6,8 +6,7 @@
  * source of truth that the page, the client toolbar and a saved view all agree
  * on — and a link to a filtered list is shareable and reload-proof.
  *
- * Plain module (no "use server"): a Server Actions file may only export async
- * functions, so the shared constants live here.
+ * Plain module shared by the client and server, so the constants live here.
  */
 
 /** Sortable columns, in sync with the SQL mapping in `listAllIssues`. */

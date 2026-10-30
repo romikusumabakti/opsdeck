@@ -1,5 +1,3 @@
-"use server";
-
 import { and, desc, eq, gte, inArray, like } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-session";
 import {

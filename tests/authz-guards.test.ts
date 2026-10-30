@@ -6,26 +6,26 @@ import { describe, expect, it } from "vitest";
 // mention one of the scope helpers. Add a function here when you add a
 // cross-project read.
 const SCOPED_READS: Record<string, string[]> = {
-  "actions/project-catalog.ts": [
+  "server/services/project-catalog.ts": [
     "listProjects",
     "listProjectsWithEnvironments",
     "getProject",
     "getProjectWithEnvironments",
     "getProjectByKeyWithEnvironments",
   ],
-  "actions/environments.ts": [
+  "server/services/environments.ts": [
     "listEnvironments",
     "getEnvironmentsLastOpened",
     "getEnvironmentById",
   ],
-  "actions/issues.ts": [
+  "server/services/issues.ts": [
     "getOpenIssueCounts",
     "getAssignedIssueCounts",
     "getIssueDetail",
     "listAllIssues",
     "listIssues",
   ],
-  "actions/runs.ts": [
+  "server/services/runs.ts": [
     "getEnvironmentsLastActivity",
     "getActiveRuns",
     "getEnvironmentRuns",
@@ -35,7 +35,7 @@ const SCOPED_READS: Record<string, string[]> = {
   // notifications are deliberately absent: they're per-user rows with no
   // project column, written only to their recipient; a link into a project the
   // user has since lost resolves to the 404 page.
-  "actions/milestones.ts": ["listMilestones"],
+  "server/services/milestones.ts": ["listMilestones"],
   "lib/people/queries.ts": [
     "listPeople",
     "getPersonProjects",
@@ -76,11 +76,11 @@ describe("cross-project reads are scoped", () => {
 
 // Every project-scoped mutation must state the permission it needs.
 const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
-  "actions/home.ts": {
+  "server/services/home.ts": {
     acknowledgeAttentionGroup: /run: \["acknowledge"\]/,
     unacknowledgeRuns: /run: \["acknowledge"\]/,
   },
-  "actions/issues.ts": {
+  "server/services/issues.ts": {
     addComment: /issue: \["write"\]/,
     createIssue: /issue: \["write"\]/,
     updateIssue: /issue: \["write"\]/,
@@ -92,55 +92,55 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     deleteIssue: /issue: \["delete"\]/,
     getIssueFormOptions: /issue: \["write"\]/,
   },
-  "actions/issue-attachments.ts": {
+  "server/services/issue-attachments.ts": {
     listIssueAttachments: /project: \["read"\]/,
     deleteIssueAttachment: /issue: \["write"\]/,
   },
-  "actions/labels.ts": { setIssueLabels: /issue: \["write"\]/ },
-  "actions/milestones.ts": {
+  "server/services/labels.ts": { setIssueLabels: /issue: \["write"\]/ },
+  "server/services/milestones.ts": {
     createMilestone: /issue: \["write"\]/,
     updateMilestone: /issue: \["write"\]/,
     setMilestoneClosed: /issue: \["write"\]/,
     deleteMilestone: /issue: \["delete"\]/,
   },
-  "actions/test-runs.ts": {
+  "server/services/test-runs.ts": {
     listIssueTestRuns: /project: \["read"\]/,
     recordTestRun: /issue: \["write"\]/,
   },
-  "actions/services.ts": {
+  "server/services/services.ts": {
     getAllServiceStatuses: /project: \["read"\]/,
     controlService: /service: \["control"\]/,
   },
-  "actions/backups.ts": {
+  "server/services/backups.ts": {
     getBackupList: /database: \["backup"\]/,
     revalidateBackupList: /database: \["backup"\]/,
     createDatabaseBackup: /database: \["backup"\]/,
     restoreDatabaseBackup: /database: \["restore"\]/,
   },
-  "actions/databases.ts": {
+  "server/services/databases.ts": {
     getDatabaseList: /project: \["read"\]/,
     createDatabase: /database: \["create"\]/,
     dropDatabase: /database: \["drop"\]/,
     renameDatabase: /database: \["rename"\]/,
   },
-  "actions/mailpit-settings.ts": {
+  "server/services/mailpit-settings.ts": {
     getMailpitSettings: /environment: \["update"\]/,
     saveMailpitSettings: /environment: \["update"\]/,
     testMailpitConnection: /environment: \["update"\]/,
   },
-  "actions/environments.ts": {
+  "server/services/environments.ts": {
     createEnvironment: /environment: \["create"\]/,
     updateEnvironment: /environment: \["update"\]/,
     deleteEnvironment: /environment: \["delete"\]/,
   },
-  "actions/project-members.ts": {
+  "server/services/project-members.ts": {
     listProjectMembers: /member: \["manage"\]/,
     listMemberCandidates: /member: \["manage"\]/,
     addProjectMember: /member: \["manage"\]/,
     updateProjectMemberRole: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,
   },
-  "actions/jira.ts": {
+  "server/services/jira.ts": {
     getJiraLink: /project: \["read"\]/,
     saveJiraLink: /environment: \["update"\]/,
     unlinkJiraProject: /environment: \["update"\]/,
@@ -160,7 +160,7 @@ describe("project-scoped writes state their permission", () => {
 });
 
 describe("issue writes validate their references", () => {
-  const source = readFileSync("actions/issues.ts", "utf8");
+  const source = readFileSync("server/services/issues.ts", "utf8");
   for (const fn of ["createIssue", "updateIssue"]) {
     it(`${fn} checks assignee and same-project references`, () => {
       expect(body(source, fn)).toMatch(/canAssignTo/);
@@ -177,7 +177,7 @@ describe("issue writes validate their references", () => {
 // to see the project. Every notifyIssueMention call site must draw its
 // recipients from projectVisibleUsersWhere.
 describe("mention notifications only reach users who can see the project", () => {
-  const source = readFileSync("actions/issues.ts", "utf8");
+  const source = readFileSync("server/services/issues.ts", "utf8");
   it("addComment selects mention candidates with projectVisibleUsersWhere", () => {
     const fn = body(source, "addComment");
     expect(fn).toMatch(
@@ -189,13 +189,13 @@ describe("mention notifications only reach users who can see the project", () =>
   });
   it("notifyIssueMention is only called from addComment", () => {
     const files = Array.from(
-      globSync("**/*.{ts,tsx}", { cwd: "actions" }),
-      (f) => `actions/${f}`
+      globSync("**/*.{ts,tsx}", { cwd: "server/services" }),
+      (f) => `server/services/${f}`
     );
     const callers = files.filter((f) =>
       /notifyIssueMention\(/.test(readFileSync(f, "utf8"))
     );
-    expect(callers).toEqual(["actions/issues.ts"]);
+    expect(callers).toEqual(["server/services/issues.ts"]);
     expect(source.match(/notifyIssueMention\(/g)?.length).toBe(1);
   });
   it("visible roles include observer; assignee roles do not", () => {
@@ -210,21 +210,24 @@ describe("mention notifications only reach users who can see the project", () =>
 describe("lookups by client-supplied id check the caller first", () => {
   it("recordEnvironmentAccess only records visible environments", () => {
     const fn = body(
-      readFileSync("actions/environments.ts", "utf8"),
+      readFileSync("server/services/environments.ts", "utf8"),
       "recordEnvironmentAccess"
     );
     expect(fn).toMatch(/getProjectRole\(\{ environmentId \}\)/);
     expect(fn.indexOf("getProjectRole(")).toBeLessThan(fn.indexOf(".insert("));
   });
   it("getRunSnapshot rejects a non-uuid run id before querying", () => {
-    const fn = body(readFileSync("actions/runs.ts", "utf8"), "getRunSnapshot");
+    const fn = body(
+      readFileSync("server/services/runs.ts", "utf8"),
+      "getRunSnapshot"
+    );
     expect(fn).toMatch(/uuidSchema\.safeParse\(runId\)/);
     expect(fn.indexOf("uuidSchema.safeParse(runId)")).toBeLessThan(
       fn.indexOf("findFirst(")
     );
   });
   it("milestoneProjectId requires a session before its lookup", () => {
-    const source = readFileSync("actions/milestones.ts", "utf8");
+    const source = readFileSync("server/services/milestones.ts", "utf8");
     const start = source.indexOf("async function milestoneProjectId");
     const end = source.slice(start).search(/\r?\n\}\r?\n/);
     expect(end).toBeGreaterThan(0);
@@ -234,7 +237,7 @@ describe("lookups by client-supplied id check the caller first", () => {
   });
   it("deleteIssueAttachment requires a session before its lookup", () => {
     const fn = body(
-      readFileSync("actions/issue-attachments.ts", "utf8"),
+      readFileSync("server/services/issue-attachments.ts", "utf8"),
       "deleteIssueAttachment"
     );
     expect(fn.indexOf("requireSession()")).toBeGreaterThan(-1);
@@ -255,7 +258,7 @@ const ACCESS_AUDIT: Record<string, string> = {
 };
 
 describe("access changes are recorded in the activity log", () => {
-  const source = readFileSync("actions/users.ts", "utf8");
+  const source = readFileSync("server/services/users.ts", "utf8");
   const page = readFileSync("app/[locale]/admin/activity/page.tsx", "utf8");
   for (const [fn, action] of Object.entries(ACCESS_AUDIT)) {
     it(`${fn} records ${action}`, () => {
@@ -267,13 +270,19 @@ describe("access changes are recorded in the activity log", () => {
   }
 });
 
-// The old catch-all helpers have been removed. Everything under actions, lib, app
+// The old catch-all helpers have been removed. Everything under server, lib, app
 // and components is scanned to ensure no legacy helper calls remain.
 describe("no legacy authorization helpers outside lib/auth-session", () => {
   const LEGACY =
     /\b(requireAdmin|isAdmin|requireCapability|getEffectiveRole|roleHasCapability|useCanRunOps)\(/;
   // Bun's glob can't nest a "/" inside braces, so scan the roots separately.
-  const roots = ["actions", "lib", "app", "components"];
+  const roots = [
+    "server/services",
+    ...(existsSync("server/routes") ? ["server/routes"] : []),
+    "lib",
+    "app",
+    "components",
+  ];
   const files = roots.flatMap((root) => [
     ...Array.from(
       globSync("**/*.{ts,tsx}", { cwd: root }),
@@ -299,7 +308,7 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
 // control, database drop/restore and logs run against whatever it points at),
 // so it needs org server:manage, not just a project role.
 describe("environment infrastructure bindings need server:manage", () => {
-  const source = readFileSync("actions/environments.ts", "utf8");
+  const source = readFileSync("server/services/environments.ts", "utf8");
   it("createEnvironment requires server:manage", () => {
     expect(body(source, "createEnvironment")).toMatch(
       /requireOrgPermission\(\{ server: \["manage"\] \}\)/
@@ -329,7 +338,7 @@ describe("environment infrastructure bindings need server:manage", () => {
     expect(page).toMatch(/canManageServers \? getServers\(\)/);
   });
   it("listServerOptions is gone", () => {
-    expect(readFileSync("actions/servers.ts", "utf8")).not.toMatch(
+    expect(readFileSync("server/services/servers.ts", "utf8")).not.toMatch(
       /listServerOptions/
     );
   });
@@ -405,7 +414,7 @@ describe("old role module is gone", () => {
   });
   it("nothing imports @/lib/roles", () => {
     const files = Array.from(
-      globSync("{actions,app,lib,components,tests}/**/*.{ts,tsx}", { cwd: "." })
+      globSync("{server,app,lib,components,tests}/**/*.{ts,tsx}", { cwd: "." })
     );
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -416,7 +425,7 @@ describe("old role module is gone", () => {
 });
 
 describe("home acknowledgement actions", () => {
-  const source = readFileSync("actions/home.ts", "utf8");
+  const source = readFileSync("server/services/home.ts", "utf8");
   for (const fn of ["acknowledgeAttentionGroup", "unacknowledgeRuns"]) {
     it(`${fn} validates input before the permission lookup`, () => {
       const b = body(source, fn);
@@ -446,7 +455,10 @@ describe("ops runs record their kind", () => {
     }
     return calls;
   }
-  for (const file of ["actions/backups.ts", "actions/mock-time.ts"]) {
+  for (const file of [
+    "server/services/backups.ts",
+    "server/services/mock-time.ts",
+  ]) {
     it(`${file} sets kind on every run it creates`, () => {
       const calls = runInserts(readFileSync(file, "utf8"));
       expect(calls.length).toBeGreaterThan(0);
@@ -456,8 +468,8 @@ describe("ops runs record their kind", () => {
   it("covers every run-creation site in both files", () => {
     const count = (file: string) =>
       runInserts(readFileSync(file, "utf8")).length;
-    expect(count("actions/backups.ts")).toBe(2);
-    expect(count("actions/mock-time.ts")).toBe(4);
+    expect(count("server/services/backups.ts")).toBe(2);
+    expect(count("server/services/mock-time.ts")).toBe(4);
   });
 });
 
@@ -515,7 +527,13 @@ describe("users and access live on one guarded page", () => {
     // A quoted route, so the better-auth "plugins/admin/access" import and
     // prose comments don't count.
     const LINK = /["'`]\/admin\/access\b/;
-    const roots = ["actions", "lib", "app", "components"];
+    const roots = [
+      "server/services",
+      ...(existsSync("server/routes") ? ["server/routes"] : []),
+      "lib",
+      "app",
+      "components",
+    ];
     const offenders = roots.flatMap((root) =>
       Array.from(
         globSync("**/*.{ts,tsx}", { cwd: root }),
@@ -525,8 +543,8 @@ describe("users and access live on one guarded page", () => {
     expect(offenders).toEqual([]);
   });
   it("access and user reads state their guard first", () => {
-    const access = readFileSync("actions/access.ts", "utf8");
-    const users = readFileSync("actions/users.ts", "utf8");
+    const access = readFileSync("server/services/access.ts", "utf8");
+    const users = readFileSync("server/services/users.ts", "utf8");
     const first = (code: string, guard: RegExp) => {
       const at = code.search(guard);
       expect(at).toBeGreaterThan(-1);

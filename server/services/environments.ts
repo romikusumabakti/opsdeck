@@ -1,7 +1,4 @@
-"use server";
-
 import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
@@ -339,9 +336,6 @@ export async function createEnvironment(
       return env;
     });
 
-    revalidatePath("/projects");
-    revalidatePath("/", "layout");
-
     return {
       success: true,
       message: "Environment created successfully",
@@ -424,11 +418,9 @@ export async function updateEnvironment(
       return { success: false, message: "Environment not found" };
     }
 
-    revalidatePath("/projects");
     // An edit can move the environment to another project or rename it, which
     // changes its readable URL — revalidate the whole tree rather than guessing
     // the old /[projectKey]/[envSlug] path.
-    revalidatePath("/", "layout");
 
     return {
       success: true,
@@ -448,8 +440,6 @@ export async function deleteEnvironment(id: string): Promise<ActionResponse> {
   );
   try {
     await db.delete(environments).where(eq(environments.id, id));
-    revalidatePath("/projects");
-    revalidatePath("/", "layout");
     return { success: true, message: "Environment deleted successfully" };
   } catch (error) {
     console.error(`Failed to delete environment ${id}:`, error);

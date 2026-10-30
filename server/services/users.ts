@@ -1,5 +1,3 @@
-"use server";
-
 import { randomBytes } from "node:crypto";
 import {
   and,
@@ -10,8 +8,6 @@ import {
   isNull,
   max,
 } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getLocale, getTranslations } from "next-intl/server";
 import { assertNotLastAdmin } from "@/lib/access";
 import { recordActivity } from "@/lib/activity";
 import { listActiveAdminIds } from "@/lib/admins";
@@ -34,6 +30,8 @@ import { sendInvitationEmail } from "@/lib/email/send";
 import { isOrgRole, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
 import type { ActionResponse, UserRef } from "@/lib/types";
 import { activeStatus } from "@/lib/user-display";
+import { getLocale } from "@/server/context";
+import { getServerTranslator } from "@/server/i18n";
 
 const INVITE_EXPIRES_HOURS = 48;
 
@@ -55,7 +53,7 @@ export async function createInitialUser(input: {
   email: string;
   password: string;
 }): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   if (await hasAnyUser()) {
     return { success: false, message: t("setupAlreadyDone") };
@@ -123,7 +121,6 @@ export async function createInitialUser(input: {
     throw err;
   }
 
-  revalidatePath("/", "layout");
   return { success: true, message: t("accountCreated") };
 }
 
@@ -241,7 +238,7 @@ export async function inviteUser(input: {
   role: string;
 }): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["invite"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
@@ -292,7 +289,7 @@ export async function inviteUser(input: {
   const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
   // Inherit the inviter's current locale so the recipient lands on the same
   // language they were invited in.
-  const locale = await getLocale();
+  const locale = getLocale();
   const inviteUrl = `${baseUrl}/${locale}/accept-invite/${token}`;
 
   try {
@@ -314,7 +311,6 @@ export async function inviteUser(input: {
     data: { email, role },
   });
 
-  revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
 }
 
@@ -323,7 +319,7 @@ export async function updateUserRole(input: {
   role: string;
 }): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["set-role"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   if (session.user.id === input.userId) {
     return { success: false, message: t("cannotChangeOwnRole") };
@@ -368,13 +364,12 @@ export async function updateUserRole(input: {
     data: { user: before?.name ?? "?", from: before?.role ?? "?", to: role },
   });
 
-  revalidatePath("/admin/users");
   return { success: true, message: t("roleUpdated") };
 }
 
 export async function deleteUser(userId: string): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["delete"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   if (session.user.id === userId) {
     return { success: false, message: t("cannotDeleteSelf") };
@@ -400,7 +395,6 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
     });
   }
 
-  revalidatePath("/admin/users");
   return { success: true, message: t("userDeleted") };
 }
 
@@ -408,7 +402,7 @@ export async function revokeInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["invite"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const removed = await db
     .delete(invitations)
     .where(eq(invitations.id, invitationId))
@@ -422,7 +416,6 @@ export async function revokeInvitation(
       data: { email: inv.email },
     });
   }
-  revalidatePath("/admin/users");
   return { success: true, message: t("invitationRevoked") };
 }
 
@@ -430,7 +423,7 @@ export async function resendInvitation(
   invitationId: string
 ): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["invite"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   const [inv] = await db
     .select()
@@ -463,7 +456,7 @@ export async function resendInvitation(
     .where(eq(invitations.id, invitationId));
 
   const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-  const locale = await getLocale();
+  const locale = getLocale();
   const inviteUrl = `${baseUrl}/${locale}/accept-invite/${token}`;
 
   try {
@@ -486,7 +479,6 @@ export async function resendInvitation(
     data: { email: inv.email },
   });
 
-  revalidatePath("/admin/users");
   return { success: true, message: t("emailSent") };
 }
 
@@ -507,13 +499,12 @@ export type BulkUsersResult =
  */
 export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
   const session = await requireOrgPermission({ user: ["delete"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   const targets = ids.filter((id) => id !== session.user.id);
   const skippedSelf = targets.length !== ids.length;
 
   if (targets.length === 0) {
-    revalidatePath("/admin/users");
     return { success: true, deleted: 0, skippedSelf, failed: [] };
   }
 
@@ -553,7 +544,6 @@ export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
       failed.push({ id, message: t("errorGeneric") });
     }
   }
-  revalidatePath("/admin/users");
   return { success: true, deleted, skippedSelf, failed };
 }
 
@@ -565,7 +555,7 @@ export async function bulkRevokeInvitations(
   ids: string[]
 ): Promise<BulkInvitationsResult> {
   const session = await requireOrgPermission({ user: ["invite"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   if (ids.length === 0) {
     return { success: true, revoked: 0 };
   }
@@ -583,7 +573,6 @@ export async function bulkRevokeInvitations(
         data: { email: inv.email },
       });
     }
-    revalidatePath("/admin/users");
     return { success: true, revoked: result.length };
   } catch (error) {
     console.error("Failed to bulk-revoke invitations:", error);
@@ -613,7 +602,7 @@ export async function acceptInvitation(input: {
   token: string;
   password: string;
 }): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   const inv = await getInvitationByToken(input.token);
   if (!inv) {

@@ -1,9 +1,5 @@
-"use server";
-
-import { unstable_cache } from "next/cache";
 import { requireProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
-import { dbListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
@@ -31,9 +27,7 @@ type DatabaseListResult =
   | { success: true; data: DatabaseEntry[] }
   | { success: false; error: string };
 
-// The actual SSH probe, with no session/request state so it is safe to wrap in
-// `unstable_cache`. Throws on any failure so a transient SSH error is NOT
-// cached — only successful listings are stored (see getDatabaseList).
+// The actual SSH probe, with no session/request state. Throws on any failure.
 async function probeDatabaseList(
   environmentId: string
 ): Promise<DatabaseEntry[]> {
@@ -159,9 +153,9 @@ function parseDatabaseList(
 
 // Enumerate the databases that live on the environment's DB server, so the picker
 // can offer targets other than the environment's configured "default" database.
-// Synchronous SSH (like getBackupList), so the result is cached per environment for
-// a short window to keep repeat navigations off the remote host; the timeout
-// guard in executeRemoteCommand bounds a cold miss.
+// Synchronous SSH (like getBackupList); the timeout guard in
+// executeRemoteCommand bounds it. Not cached server-side: the client's query
+// cache keeps repeat navigations off the remote host.
 export async function getDatabaseList(
   environmentId: string
 ): Promise<DatabaseListResult> {
@@ -170,11 +164,7 @@ export async function getDatabaseList(
     return { success: false, error: "Invalid environment id" };
   }
   try {
-    const data = await unstable_cache(
-      () => probeDatabaseList(environmentId),
-      ["db-list", environmentId],
-      { tags: [dbListCacheTag(environmentId)], revalidate: 30 }
-    )();
+    const data = await probeDatabaseList(environmentId);
     return { success: true, data };
   } catch (error) {
     // Don't surface raw SSH stderr (paths, hostnames) to the client. "Environment

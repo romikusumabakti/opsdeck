@@ -1,5 +1,3 @@
-"use server";
-
 import {
   and,
   asc,
@@ -14,11 +12,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { listMilestones } from "@/actions/milestones";
-import { getProjectWithEnvironments } from "@/actions/project-catalog";
-import { type AssignableUserRow, listAssignableUsers } from "@/actions/users";
 import { recordActivity } from "@/lib/activity";
 import {
   assignableUsersWhere,
@@ -60,32 +54,12 @@ import {
   issueStatusSchema,
   issueUpdateSchema,
 } from "@/lib/validation";
-
-/**
- * Every route whose rendered output depends on issue rows. These are *route
- * patterns*, not concrete URLs: `revalidatePath(pattern, "page")` invalidates
- * every instance of the route, which is the only way to reach locale-prefixed
- * (`/[locale]/…`) and project-scoped paths without enumerating each locale and
- * each project key.
- *
- * Deliberately not `revalidatePath("/", "layout")` — that drops the cache for
- * the whole app (servers, storage, knowledge, users, runs…) on every status
- * flip.
- */
-const ISSUE_ROUTES = [
-  "/[locale]", // home — "assigned to me" feed
-  "/[locale]/issues", // global list
-  "/[locale]/projects", // open-issue badges on the project grid
-  "/[locale]/activity", // activity log
-  "/[locale]/[projectKey]", // project overview counts
-  "/[locale]/[projectKey]/[envSlug]/issues", // project-scoped list
-  "/[locale]/[projectKey]/issues/[number]", // issue detail
-] as const;
-
-/** Invalidate exactly the routes that render issues. */
-function revalidateIssues(): void {
-  for (const route of ISSUE_ROUTES) revalidatePath(route, "page");
-}
+import { listMilestones } from "@/server/services/milestones";
+import { getProjectWithEnvironments } from "@/server/services/project-catalog";
+import {
+  type AssignableUserRow,
+  listAssignableUsers,
+} from "@/server/services/users";
 
 /**
  * Which local field edits are mirrored to Jira, and under which name.
@@ -384,7 +358,6 @@ export async function addComment(
         });
       }
     }
-    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error("Failed to add comment:", error);
@@ -581,7 +554,7 @@ function isUuid(value: string | undefined): value is string {
   return !!value && z.uuid().safeParse(value).success;
 }
 
-// Private helpers: this is a "use server" file, so every export is a public
+// Private helpers: every export is a public
 // endpoint.
 
 // Projects owning the given issues; the bulk actions authorize against all of
@@ -762,7 +735,6 @@ export async function createIssue(
         entityId: created.id,
         data: { key: `${projectKey}-${created.number}`, title: created.title },
       });
-      revalidateIssues();
       return { success: true, data: created };
     } catch (error) {
       if ((error as { code?: string })?.code === "23505") continue; // retry
@@ -840,7 +812,6 @@ export async function updateIssue(
         },
       });
     }
-    revalidateIssues();
     return { success: true, data: updated };
   } catch (error) {
     console.error(`Failed to update issue ${id}:`, error);
@@ -877,7 +848,6 @@ export async function bulkSetStatus(
       .update(issues)
       .set({ status: parsed.data, updatedAt: new Date() })
       .where(inArray(issues.id, ids));
-    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error("Failed to bulk-update issues:", error);
@@ -897,7 +867,6 @@ export async function bulkDeleteIssues(
   });
   try {
     await db.delete(issues).where(inArray(issues.id, ids));
-    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error("Failed to bulk-delete issues:", error);
@@ -910,7 +879,6 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
   await requireProjectPermission({ issueId: id }, { issue: ["delete"] });
   try {
     await db.delete(issues).where(and(eq(issues.id, id)));
-    revalidateIssues();
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete issue ${id}:`, error);

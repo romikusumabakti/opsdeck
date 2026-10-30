@@ -1,7 +1,4 @@
-"use server";
-
 import { and, asc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { type SavedView, savedViews } from "@/lib/db/schema";
@@ -33,7 +30,6 @@ export async function createSavedView(
       .insert(savedViews)
       .values({ userId: session.user.id, name: trimmed, params });
     // Route pattern, not a URL: the page lives under the `[locale]` segment.
-    revalidatePath("/[locale]/issues", "page");
     return { success: true };
   } catch (error) {
     console.error("Failed to create saved view:", error);
@@ -52,7 +48,6 @@ export async function deleteSavedView(
         and(eq(savedViews.id, id), eq(savedViews.userId, session.user.id))
       );
     // Route pattern, not a URL: the page lives under the `[locale]` segment.
-    revalidatePath("/[locale]/issues", "page");
     return { success: true };
   } catch (error) {
     console.error("Failed to delete saved view:", error);

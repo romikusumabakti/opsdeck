@@ -1,7 +1,4 @@
-"use server";
-
 import { and, desc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -90,7 +87,6 @@ export async function recordTestRun(
         result: input.passed ? "pass" : "fail",
       },
     });
-    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to record test run:", error);
