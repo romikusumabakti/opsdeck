@@ -585,6 +585,11 @@ describe("API routers reach a guard", () => {
       "GET /get-invitation-by-token",
       "POST /accept-invitation",
     ],
+    // Jira calls the webhook with no session; the unguessable path token is
+    // its credential, and the payload only names an issue to re-fetch.
+    "server/routes/jira.ts": ["POST /:token"],
+    // The favicon, linked by the signed-out sign-in, 404 and error pages.
+    "server/routes/brand.ts": ["GET /icon.svg"],
   };
   // A router's routes: from its factory call up to the next exported router.
   function routesOf(source: string, factory: string): string[] {
@@ -636,5 +641,37 @@ describe("API routers reach a guard", () => {
       h.startsWith('"/documents/:slug/revisions"')
     );
     expect(revisions).toMatch(/knowledge: \["write"\]/);
+  });
+
+  // The environment pages resolved their URL and applied a project guard
+  // before rendering; the endpoints that replace those reads must too.
+  it("environment page data applies the page's guard", () => {
+    const resolve = readFileSync("server/routes/environments.ts", "utf8");
+    const handler = resolve.slice(resolve.indexOf('"/resolve"'));
+    expect(handler).toMatch(
+      /resolveEnvIdByKeySlug\([\s\S]*requireProjectPage\(\{ environmentId \}\)/
+    );
+    const mail = readFileSync("server/routes/mail.ts", "utf8");
+    const configured = mail.slice(mail.indexOf('"/configured"'));
+    const guard = configured.search(
+      /requireProjectPage\(\{ environmentId \}, \{ mail: \["read"\] \}\)/
+    );
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(configured.indexOf("loadMailpitConfig("));
+  });
+
+  // Server rows carry the encrypted SSH password; the API never returns it.
+  it("server reads strip the password", () => {
+    const source = readFileSync("server/routes/servers.ts", "utf8");
+    for (const route of [
+      "/get-servers",
+      "/get-server-by-id",
+      "/create-server",
+    ]) {
+      const handler = source
+        .slice(source.indexOf(`"${route}"`))
+        .split(/\n {2}\./)[0];
+      expect(handler).toMatch(/\btoSafe\b/);
+    }
   });
 });
