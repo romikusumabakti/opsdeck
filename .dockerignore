@@ -4,9 +4,7 @@
 
 # Dependencies & build output (rebuilt inside the image)
 node_modules
-.next
-out
-build
+dist
 
 # Secrets & local env — must never enter the image
 .env
@@ -16,8 +14,8 @@ build
 # Tooling / caches not needed at build time
 .claude
 .github
-# NOTE: do not ignore `docs` — the mock-time page reads docs/time-mocking-api.md
-# at runtime, and the Dockerfile copies it into the image.
+# NOTE: do not ignore `docs` — the build stage inlines docs/time-mocking-api.md
+# into the mock-time page (Vite `?raw`). The runtime image does not need it.
 tests
 # Source PNGs for scripts/build-motifs.mjs only; never needed by the image.
 design

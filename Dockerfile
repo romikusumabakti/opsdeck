@@ -9,59 +9,43 @@ COPY package.json bun.lock ./
 # so an image can never be built from an out-of-date dependency graph.
 RUN bun install --frozen-lockfile
 
-# Rebuild the source code only when needed.
+# Build the SPA and both server bundles.
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-# ENV NEXT_TELEMETRY_DISABLED=1
-
+# Produces, in one step:
+#   dist/client           the Vite SPA (docs/time-mocking-api.md is inlined)
+#   dist/server/index.js  the Hono API + static server
+#   dist/terminal-server.js  the WebSocket terminal sidecar
+# Both server bundles are self-contained, including ssh2's native .node file,
+# so the runtime image needs no node_modules.
 RUN bun run build
 
-# The sidecar is a second entrypoint into the same codebase, so it ships in the
-# same image and is selected by `command:` in compose. `--conditions
-# react-server` makes the "server-only" package resolve to its empty stub, which
-# is what lets this bundle reuse lib/db, lib/secrets and lib/activity verbatim
-# instead of carrying a second copy of the data layer.
-RUN bun build lib/terminal/main.ts --target=bun --conditions="react-server" \
-    --outfile terminal-server.js
-
-# Production image, copy all the files and run next
+# Production image: only the build output and the static public files.
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Uncomment the following line in case you want to disable telemetry during runtime.
-# ENV NEXT_TELEMETRY_DISABLED=1
 
 # Debian's useradd/groupadd — oven/bun:slim has no busybox addgroup/adduser.
-RUN groupadd --system --gid 1001 nodejs \
-    && useradd --system --uid 1001 --gid nodejs nextjs
+# The home directory is needed: Bun writes to $HOME when it loads the native
+# .node addon bundled with the server (ssh2's cpufeatures) and fails with EACCES
+# if $HOME does not exist.
+RUN groupadd --system --gid 1001 app \
+    && useradd --system --create-home --uid 1001 --gid app app
 
-COPY --from=builder /app/public ./public
+# The server resolves ./dist/client and ./public against the working directory.
+COPY --from=builder --chown=app:app /app/dist ./dist
+COPY --from=builder --chown=app:app /app/public ./public
 
-# The mock-time page reads docs/time-mocking-api.md at runtime via a dynamic
-# path. Next's file tracer (Turbopack) doesn't reliably bundle it into the
-# standalone output, so copy it explicitly.
-COPY --from=builder /app/docs ./docs
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/terminal-server.js ./terminal-server.js
-
-USER nextjs
+USER app
 
 EXPOSE 3000
 
 ENV PORT=3000
 
-# server.js is created by next build from the standalone output
-# https://nextjs.org/docs/pages/api-reference/config/next-config-js/output
-ENV HOSTNAME="0.0.0.0"
-CMD ["bun", "server.js"]
+# The terminal sidecar is a second entrypoint into this same image, selected by
+# `command:` in compose (bun dist/terminal-server.js).
+CMD ["bun", "dist/server/index.js"]

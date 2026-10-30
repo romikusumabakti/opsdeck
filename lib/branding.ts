@@ -18,12 +18,12 @@ import { BRANDS, type BrandName } from "@/lib/brands";
 
 export { BRAND_ICON_SRC, BRANDS, type BrandName } from "@/lib/brands";
 
-export const APP_NAME = process.env.APP_NAME ?? "OpsDeck";
+export const APP_NAME = process.env.APP_NAME || "OpsDeck";
 
-export const COMPANY_NAME = process.env.COMPANY_NAME ?? "the company";
+export const COMPANY_NAME = process.env.COMPANY_NAME || "the company";
 
 export const ALLOWED_EMAIL_DOMAIN =
-  process.env.ALLOWED_EMAIL_DOMAIN ?? "example.com";
+  process.env.ALLOWED_EMAIL_DOMAIN || "example.com";
 
 /**
  * This deployment's brand (BRAND). Server-only and read per call; the server

@@ -2,7 +2,7 @@ import { isValidTimeZone } from "@/lib/iana-time-zone";
 
 export { isValidTimeZone };
 
-export const APP_TIMEZONE = process.env.APP_TIMEZONE ?? "Asia/Jakarta";
+export const APP_TIMEZONE = process.env.APP_TIMEZONE || "Asia/Jakarta";
 
 /** The zone a user reads dates in: their own if set and valid, else the app's. */
 export function effectiveTimeZone(
