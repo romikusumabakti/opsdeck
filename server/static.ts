@@ -4,6 +4,7 @@ import { serveStatic } from "hono/bun";
 import type { MiddlewareHandler } from "hono/types";
 import { resolveRedirect } from "@/lib/redirects";
 import type { AppEnv } from "@/server/context";
+import { preferredLocale } from "@/server/middleware/locale";
 
 // Production serving of the built SPA, mounted after every API route so a
 // route always wins over a file or the fallback. In development the Vite dev
@@ -65,7 +66,10 @@ export function mountStatic(
     // A miss under a non-page prefix is a 404, not the SPA: a script, image
     // or API client must never get index.html with a 200.
     if (NOT_PAGES.test(c.req.path)) return c.notFound();
-    const redirect = resolveRedirect(c.req.path);
+    const redirect = resolveRedirect(
+      c.req.path,
+      preferredLocale(c.req.raw.headers)
+    );
     if (redirect) {
       const query = new URL(c.req.url).search;
       return c.redirect(redirect.to + query, redirect.status);

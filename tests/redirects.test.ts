@@ -16,6 +16,24 @@ describe("resolveRedirect", () => {
     expect(resolveRedirect(path)).toEqual({ to, status: 302 });
   });
 
+  // The server passes the visitor's preference (NEXT_LOCALE cookie, then
+  // Accept-Language); only a path without a locale uses it.
+  it.each([
+    ["/servers", "id", "/id/servers"],
+    ["/", "ar", "/ar"],
+    ["/users", "zh", "/zh/users"],
+  ] as const)("prefixes the given locale on %s (%s)", (path, locale, to) => {
+    expect(resolveRedirect(path, locale)).toEqual({ to, status: 302 });
+  });
+
+  it("keeps a path's own locale over the given one", () => {
+    expect(resolveRedirect("/en/users", "id")).toEqual({
+      to: "/en/admin/users",
+      status: 302,
+    });
+    expect(resolveRedirect("/es/servers", "id")).toBeNull();
+  });
+
   it.each([
     ["/id/users/abc", "/id/admin/users/abc"],
     ["/en/jira", "/en/admin/jira"],

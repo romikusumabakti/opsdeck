@@ -1,4 +1,4 @@
-import { defaultLocale, locales } from "@/i18n/locales";
+import { defaultLocale, type Locale, locales } from "@/i18n/locales";
 import { canonicalProjectPath } from "@/lib/canonical-path";
 
 // Every URL the app answers somewhere else, in one place, so the server (a real
@@ -32,33 +32,39 @@ export type Redirect = { to: string; status: 301 | 302 | 308 };
 /**
  * Where `pathname` should go instead, or null when it is already the page's
  * own URL. The caller carries the query string over.
+ *
+ * `locale` is where a path without one goes: the caller's pick from the
+ * visitor's preference (the server's from the NEXT_LOCALE cookie, then
+ * Accept-Language). Pure, so the server and the browser share it.
  */
-export function resolveRedirect(pathname: string): Redirect | null {
+export function resolveRedirect(
+  pathname: string,
+  locale: Locale = defaultLocale
+): Redirect | null {
   if (NOT_PAGES.test(pathname)) return null;
 
   const match = pathname.match(LOCALE_PREFIX);
   if (!match) {
-    // No locale: the default one, the same choice next-intl's
-    // `localePrefix: "always"` made for a visitor without a locale cookie.
-    // Temporary, so a later language preference can still change it.
+    // No locale: the preferred one, as next-intl's `localePrefix: "always"`
+    // chose it. Temporary, so a later language preference can still change it.
     const path = pathname === "/" ? "" : pathname;
-    return { to: `/${defaultLocale}${path}`, status: 302 };
+    return { to: `/${locale}${path}`, status: 302 };
   }
 
-  const locale = match[1];
+  const current = match[1];
   const stripped = pathname.slice(match[0].length) || "/";
 
   // Temporary like the next.config.ts rule it replaces (permanent: false).
   if (MOVED_TO_ADMIN.test(stripped)) {
-    return { to: `/${locale}/admin${stripped}`, status: 302 };
+    return { to: `/${current}/admin${stripped}`, status: 302 };
   }
 
   const legacy = legacyProjectPath(stripped);
-  if (legacy) return { to: `/${locale}${legacy}`, status: 308 };
+  if (legacy) return { to: `/${current}${legacy}`, status: 308 };
 
   // Permanent, as in proxy.ts: the casing of a project URL never changes back.
   const canonical = canonicalProjectPath(stripped);
-  if (canonical) return { to: `/${locale}${canonical}`, status: 308 };
+  if (canonical) return { to: `/${current}${canonical}`, status: 308 };
 
   return null;
 }

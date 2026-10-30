@@ -1,6 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { parseAccept } from "hono/utils/accept";
 import { hasLocale } from "use-intl/core";
+import { localeFromCookie } from "@/i18n/locale-preference";
 import { defaultLocale, type Locale, locales } from "@/i18n/locales";
 import type { AppEnv } from "@/server/context";
 
@@ -27,6 +28,19 @@ export function resolveLocale(headers: Headers): Locale {
   const explicit = headers.get("x-locale")?.toLowerCase();
   if (hasLocale(locales, explicit)) return explicit;
   return fromAcceptLanguage(headers.get("accept-language")) ?? defaultLocale;
+}
+
+/**
+ * The locale for a page URL that has none (server/static.ts redirects it): the
+ * visitor's last choice in the NEXT_LOCALE cookie, then Accept-Language, then
+ * the default — next-intl's order.
+ */
+export function preferredLocale(headers: Headers): Locale {
+  return (
+    localeFromCookie(headers.get("cookie")) ??
+    fromAcceptLanguage(headers.get("accept-language")) ??
+    defaultLocale
+  );
 }
 
 export const locale = createMiddleware<AppEnv>(async (c, next) => {
