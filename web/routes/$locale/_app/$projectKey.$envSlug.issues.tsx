@@ -7,6 +7,7 @@ import { listIssuesQuery } from "@/web/api/issues";
 import { listMilestonesQuery } from "@/web/api/milestones";
 import { getProjectWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { listAssignableUsersQuery } from "@/web/api/users";
+import { loaderQuery } from "@/web/query-client";
 import { IssuesPending } from "./-components/env/skeletons";
 import { IssuesClient } from "./-components/issues-client";
 
@@ -19,10 +20,10 @@ export const Route = createFileRoute(
     const env = await queryClient.query(getEnvironmentByIdQuery(environmentId));
     if (!env) return;
     await Promise.all([
-      queryClient.query(getProjectWithEnvironmentsQuery(env.projectId)),
-      queryClient.query(listIssuesQuery(env.projectId)),
-      queryClient.query(listAssignableUsersQuery(env.projectId)),
-      queryClient.query(listMilestonesQuery(env.projectId)),
+      loaderQuery(queryClient, getProjectWithEnvironmentsQuery(env.projectId)),
+      loaderQuery(queryClient, listIssuesQuery(env.projectId)),
+      loaderQuery(queryClient, listAssignableUsersQuery(env.projectId)),
+      loaderQuery(queryClient, listMilestonesQuery(env.projectId)),
     ]);
   },
   pendingComponent: IssuesPending,

@@ -9,6 +9,7 @@ import { canOrg } from "@/lib/permissions";
 import { getS3ConnectionsQuery } from "@/web/api/s3-connections";
 import { useMe } from "@/web/api/session";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { ListPending } from "./-components/list-pending";
 import { StorageClient } from "./-components/storage/storage-client";
 
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/$locale/_app/storage/")({
   beforeLoad: ({ context: { queryClient } }) =>
     requireOrgRole(queryClient, { storage: ["read"] }),
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(getS3ConnectionsQuery());
+    await loaderQuery(queryClient, getS3ConnectionsQuery());
   },
   pendingComponent: () => <ListPending />,
   component: StoragePage,

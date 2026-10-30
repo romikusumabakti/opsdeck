@@ -16,6 +16,7 @@ import { useSession } from "@/lib/auth-client";
 import type { WorkingHours } from "@/lib/user-display";
 import { getAccountQuery } from "@/web/api/profile";
 import { useBootstrap, useMe } from "@/web/api/session";
+import { loaderQuery } from "@/web/query-client";
 import { ChangePasswordForm } from "./-components/account/change-password-form";
 import { PasskeysList } from "./-components/account/passkeys-list";
 import { ProfileForm } from "./-components/account/profile-form";
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/$locale/_app/account/")({
         : undefined,
   }),
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(getAccountQuery());
+    await loaderQuery(queryClient, getAccountQuery());
   },
   component: AccountPage,
 });

@@ -5,6 +5,7 @@ import { getAccessMatrixQuery } from "@/web/api/access";
 import { meQuery, useMe } from "@/web/api/session";
 import { listPendingInvitationsQuery, listUsersQuery } from "@/web/api/users";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { UsersClient } from "./-components/admin/users/users-client";
 import { UsersPending } from "./-components/admin/users-pending";
 
@@ -17,12 +18,12 @@ export const Route = createFileRoute("/$locale/_app/admin/users")({
     const me = await queryClient.query(meQuery());
     const role = me?.orgRole;
     await Promise.all([
-      queryClient.query(listUsersQuery()),
+      loaderQuery(queryClient, listUsersQuery()),
       canOrg(role, { user: ["invite"] })
-        ? queryClient.query(listPendingInvitationsQuery())
+        ? loaderQuery(queryClient, listPendingInvitationsQuery())
         : undefined,
       canOrg(role, { audit: ["read"] })
-        ? queryClient.query(getAccessMatrixQuery())
+        ? loaderQuery(queryClient, getAccessMatrixQuery())
         : undefined,
     ]);
   },

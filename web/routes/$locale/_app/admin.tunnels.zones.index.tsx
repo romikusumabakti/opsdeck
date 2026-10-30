@@ -9,6 +9,7 @@ import { canOrg } from "@/lib/permissions";
 import { useMe } from "@/web/api/session";
 import { getCloudflareZonesQuery } from "@/web/api/tunnels";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { ZonesClient } from "./-components/admin/tunnels/zones-client";
 
 // Sits under /admin/tunnels rather than beside it so the sidebar keeps one
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/$locale/_app/admin/tunnels/zones/")({
   beforeLoad: ({ context: { queryClient } }) =>
     requireOrgRole(queryClient, { tunnel: ["read"] }),
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(getCloudflareZonesQuery());
+    await loaderQuery(queryClient, getCloudflareZonesQuery());
   },
   component: ZonesPage,
 });

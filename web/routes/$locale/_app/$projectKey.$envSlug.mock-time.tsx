@@ -14,6 +14,7 @@ import {
 import apiDocs from "@/docs/time-mocking-api.md?raw";
 import { backendService } from "@/lib/services";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
+import { loaderQuery } from "@/web/query-client";
 import { ApiDocsSheet } from "./-components/env/mock-time/api-docs-sheet";
 import { MockTime } from "./-components/env/mock-time/mock-time";
 import { MockTimePending } from "./-components/env/skeletons";
@@ -22,7 +23,7 @@ export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/mock-time"
 )({
   loader: async ({ context: { queryClient, environmentId } }) => {
-    await queryClient.query(getEnvironmentByIdQuery(environmentId));
+    await loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId));
   },
   pendingComponent: MockTimePending,
   component: MockTimePage,

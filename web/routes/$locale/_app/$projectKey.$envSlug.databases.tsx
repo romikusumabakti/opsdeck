@@ -13,6 +13,7 @@ import {
   getEnvironmentByIdQuery,
   listEnvironmentsQuery,
 } from "@/web/api/environments";
+import { loaderQuery } from "@/web/query-client";
 import { DatabasesTabs } from "./-components/env/databases/databases-tabs";
 import { DatabasesTabsSkeleton } from "./-components/env/databases/databases-tabs-skeleton";
 import { DatabasesPending } from "./-components/env/skeletons";
@@ -49,7 +50,7 @@ export const Route = createFileRoute(
       void queryClient.prefetchQuery(getBackupListQuery(environmentId));
     }
     void queryClient.prefetchQuery(listEnvironmentsQuery());
-    await queryClient.query(getEnvironmentByIdQuery(environmentId));
+    await loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId));
   },
   pendingComponent: DatabasesPending,
   component: DatabasesPage,

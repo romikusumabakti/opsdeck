@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { type listActivity, listActivityQuery } from "@/web/api/activity";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { ActivityPending } from "./-components/admin/activity-pending";
 
 type ActivityRow = Awaited<ReturnType<typeof listActivity>>[number];
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/$locale/_app/admin/activity")({
     await requireOrgRole(queryClient, { audit: ["read"] });
   },
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(listActivityQuery(FEED_LIMIT));
+    await loaderQuery(queryClient, listActivityQuery(FEED_LIMIT));
   },
   pendingComponent: ActivityPending,
   component: ActivityPage,

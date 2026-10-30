@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
 import { listCollectionsQuery } from "@/web/api/knowledge";
+import { loaderQuery } from "@/web/query-client";
 
 export const Route = createFileRoute("/$locale/_app/knowledge/")({
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(listCollectionsQuery());
+    await loaderQuery(queryClient, listCollectionsQuery());
   },
   component: KnowledgeHome,
 });

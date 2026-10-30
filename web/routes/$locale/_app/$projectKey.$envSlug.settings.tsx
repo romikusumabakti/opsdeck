@@ -22,6 +22,7 @@ import { listProjectsQuery } from "@/web/api/project-catalog";
 import { getServersQuery } from "@/web/api/servers";
 import { meQuery, useMe } from "@/web/api/session";
 import { requireRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { DeleteEnvironmentCard } from "./-components/env/delete-environment-card";
 import { SettingsPending } from "./-components/env/skeletons";
 
@@ -33,15 +34,15 @@ export const Route = createFileRoute(
   loader: async ({ context: { queryClient, environmentId } }) => {
     const me = await queryClient.query(meQuery());
     await Promise.all([
-      queryClient.query(getEnvironmentByIdQuery(environmentId)),
+      loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId)),
       // Infrastructure bindings (servers, services, credentials) need org
       // server:manage. Without it the form shows them read-only from the
       // stored environment and never fetches the server list.
       canOrg(me?.orgRole, { server: ["manage"] })
-        ? queryClient.query(getServersQuery())
+        ? loaderQuery(queryClient, getServersQuery())
         : null,
-      queryClient.query(listProjectsQuery()),
-      queryClient.query(getMailpitSettingsQuery(environmentId)),
+      loaderQuery(queryClient, listProjectsQuery()),
+      loaderQuery(queryClient, getMailpitSettingsQuery(environmentId)),
     ]);
   },
   pendingComponent: SettingsPending,

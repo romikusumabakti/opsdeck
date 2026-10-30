@@ -337,7 +337,7 @@ describe("environment infrastructure bindings need server:manage", () => {
       "utf8"
     );
     expect(page).toMatch(
-      /canOrg\(me\?\.orgRole, \{ server: \["manage"\] \}\)\s*\?\s*queryClient\.query\(getServersQuery\(\)\)/
+      /canOrg\(me\?\.orgRole, \{ server: \["manage"\] \}\)\s*\?\s*loaderQuery\(queryClient, getServersQuery\(\)\)/
     );
     expect(page).toMatch(/enabled: canManageServers/);
   });
@@ -512,13 +512,13 @@ describe("users and access live on one guarded page", () => {
   });
   it("the users page fetches the access matrix only for audit:read", () => {
     expect(page).toMatch(
-      /canOrg\(role, \{ audit: \["read"\] \}\)\s*\?\s*queryClient\.query\(getAccessMatrixQuery\(\)\)/
+      /canOrg\(role, \{ audit: \["read"\] \}\)\s*\?\s*loaderQuery\(queryClient, getAccessMatrixQuery\(\)\)/
     );
     expect(page).toMatch(/enabled: canViewAccess/);
   });
   it("the users page fetches invitations only for user:invite", () => {
     expect(page).toMatch(
-      /canOrg\(role, \{ user: \["invite"\] \}\)\s*\?\s*queryClient\.query\(listPendingInvitationsQuery\(\)\)/
+      /canOrg\(role, \{ user: \["invite"\] \}\)\s*\?\s*loaderQuery\(queryClient, listPendingInvitationsQuery\(\)\)/
     );
     expect(page).toMatch(/enabled: canInvite/);
   });

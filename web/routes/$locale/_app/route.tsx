@@ -34,6 +34,7 @@ import {
 } from "@/web/api/project-catalog";
 import { useBootstrap, useMe } from "@/web/api/session";
 import { LocaleNotFoundContent } from "@/web/components/locale-fallbacks";
+import { loaderQuery } from "@/web/query-client";
 
 // The signed-in app shell (the port of the signed-in branch of
 // app/[locale]/layout.tsx). Pathless: every authenticated page is a child,
@@ -41,15 +42,17 @@ import { LocaleNotFoundContent } from "@/web/components/locale-fallbacks";
 export const Route = createFileRoute("/$locale/_app")({
   // What the shell reads on every page: the sidebar, the breadcrumb and
   // palette pickers, and the notification bell. Loaded together: serially
-  // they would stack six round-trips in front of every first paint.
+  // they would stack six round-trips in front of every first paint. Only the
+  // first load waits: after that this runs on every navigation, and cached
+  // data is served at once while a stale entry refetches behind it.
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
-      queryClient.query(listEnvironmentsQuery()),
-      queryClient.query(listProjectsQuery()),
-      queryClient.query(listNotificationsQuery()),
-      queryClient.query(getUnreadNotificationCountQuery()),
-      queryClient.query(getAssignedIssueCountsQuery()),
-      queryClient.query(getMyProjectAccessQuery()),
+      loaderQuery(queryClient, listEnvironmentsQuery()),
+      loaderQuery(queryClient, listProjectsQuery()),
+      loaderQuery(queryClient, listNotificationsQuery()),
+      loaderQuery(queryClient, getUnreadNotificationCountQuery()),
+      loaderQuery(queryClient, getAssignedIssueCountsQuery()),
+      loaderQuery(queryClient, getMyProjectAccessQuery()),
     ]);
   },
   component: AppShell,

@@ -4,6 +4,7 @@ import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { getEnvironmentRunsQuery } from "@/web/api/runs";
+import { loaderQuery } from "@/web/query-client";
 import { HistoryClient } from "./-components/env/history-client";
 import { HistoryPending } from "./-components/env/skeletons";
 
@@ -12,8 +13,8 @@ export const Route = createFileRoute(
 )({
   loader: async ({ context: { queryClient, environmentId } }) => {
     await Promise.all([
-      queryClient.query(getEnvironmentByIdQuery(environmentId)),
-      queryClient.query(getEnvironmentRunsQuery(environmentId)),
+      loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId)),
+      loaderQuery(queryClient, getEnvironmentRunsQuery(environmentId)),
     ]);
   },
   pendingComponent: HistoryPending,

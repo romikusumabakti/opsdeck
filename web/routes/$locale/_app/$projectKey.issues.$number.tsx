@@ -15,6 +15,7 @@ import { listMilestonesQuery } from "@/web/api/milestones";
 import { getProjectWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { listIssueTestRunsQuery } from "@/web/api/test-runs";
 import { listAssignableUsersQuery } from "@/web/api/users";
+import { loaderQuery } from "@/web/query-client";
 import { IssueDetailClient } from "./-components/project/issue-detail-client";
 
 function issueNumber(raw: string): number | null {
@@ -38,14 +39,17 @@ export const Route = createFileRoute(
     );
     if (!issue) throw notFound();
     await Promise.all([
-      queryClient.query(getProjectWithEnvironmentsQuery(issue.project.id)),
-      queryClient.query(listAssignableUsersQuery(issue.project.id)),
-      queryClient.query(listLabelsQuery()),
-      queryClient.query(listMilestonesQuery(issue.project.id)),
-      queryClient.query(listIssuesQuery(issue.project.id)),
-      queryClient.query(listIssueAttachmentsQuery(issue.id)),
-      queryClient.query(listIssueTestRunsQuery(issue.id)),
-      queryClient.query(getJiraLinkQuery(issue.project.id)),
+      loaderQuery(
+        queryClient,
+        getProjectWithEnvironmentsQuery(issue.project.id)
+      ),
+      loaderQuery(queryClient, listAssignableUsersQuery(issue.project.id)),
+      loaderQuery(queryClient, listLabelsQuery()),
+      loaderQuery(queryClient, listMilestonesQuery(issue.project.id)),
+      loaderQuery(queryClient, listIssuesQuery(issue.project.id)),
+      loaderQuery(queryClient, listIssueAttachmentsQuery(issue.id)),
+      loaderQuery(queryClient, listIssueTestRunsQuery(issue.id)),
+      loaderQuery(queryClient, getJiraLinkQuery(issue.project.id)),
     ]);
   },
   pendingComponent: IssuePending,

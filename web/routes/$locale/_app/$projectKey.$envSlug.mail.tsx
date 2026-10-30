@@ -10,6 +10,7 @@ import { canProject } from "@/lib/permissions";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { getMailConfiguredQuery } from "@/web/api/mail";
 import { requireRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { MailInbox } from "./-components/env/mail/mail-inbox";
 import { MailPending } from "./-components/env/skeletons";
 
@@ -20,8 +21,8 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug/mail")(
       requireRole(role, { mail: ["read"] }),
     loader: async ({ context: { queryClient, environmentId } }) => {
       await Promise.all([
-        queryClient.query(getEnvironmentByIdQuery(environmentId)),
-        queryClient.query(getMailConfiguredQuery(environmentId)),
+        loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId)),
+        loaderQuery(queryClient, getMailConfiguredQuery(environmentId)),
       ]);
     },
     pendingComponent: MailPending,

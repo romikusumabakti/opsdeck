@@ -4,13 +4,14 @@ import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { listProjectsQuery } from "@/web/api/project-catalog";
 import { listPeopleQuery } from "@/web/api/users";
+import { loaderQuery } from "@/web/query-client";
 import { PeopleClient } from "./-components/people/people-client";
 
 export const Route = createFileRoute("/$locale/_app/people/")({
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
-      queryClient.query(listPeopleQuery()),
-      queryClient.query(listProjectsQuery()),
+      loaderQuery(queryClient, listPeopleQuery()),
+      loaderQuery(queryClient, listProjectsQuery()),
     ]);
   },
   component: PeoplePage,

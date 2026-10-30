@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { getJiraConnectionsQuery } from "@/web/api/jira";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { JiraClient } from "./-components/admin/jira/jira-client";
 import { ListPending } from "./-components/list-pending";
 
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/$locale/_app/admin/jira/")({
     await requireOrgRole(queryClient, { integration: ["manage"] });
   },
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(getJiraConnectionsQuery());
+    await loaderQuery(queryClient, getJiraConnectionsQuery());
   },
   pendingComponent: () => <ListPending />,
   component: JiraPage,

@@ -19,6 +19,7 @@ import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
 import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { meQuery, useMe } from "@/web/api/session";
 import { requireProjectRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { DeleteProjectCard } from "./-components/project/delete-project-card";
 
 export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
@@ -44,9 +45,9 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
       // Connections are an org-level integration: a maintainer without that
       // permission just gets no connection to pick from.
       canOrg(me?.orgRole, { integration: ["manage"] })
-        ? queryClient.query(getJiraConnectionsQuery())
+        ? loaderQuery(queryClient, getJiraConnectionsQuery())
         : null,
-      queryClient.query(getJiraLinkQuery(project.id)),
+      loaderQuery(queryClient, getJiraLinkQuery(project.id)),
     ]);
   },
   pendingComponent: SettingsPending,

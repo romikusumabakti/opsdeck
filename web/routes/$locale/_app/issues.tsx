@@ -12,6 +12,7 @@ import { listProjectsQuery } from "@/web/api/project-catalog";
 import { listSavedViewsQuery } from "@/web/api/saved-views";
 import { meQuery } from "@/web/api/session";
 import { listAssignableUsersAcrossProjectsQuery } from "@/web/api/users";
+import { loaderQuery } from "@/web/query-client";
 import type { SearchRecord } from "@/web/search-params";
 
 // Filters, sort and page live in the query string (see lib/issue-query.ts), so
@@ -57,13 +58,13 @@ export const Route = createFileRoute("/$locale/_app/issues")({
     const me = await queryClient.query(meQuery());
     if (!me) return;
     await Promise.all([
-      queryClient.query(issuesQueryFor(search, me.user.id)),
-      queryClient.query(listAssignableUsersAcrossProjectsQuery()),
-      queryClient.query(listLabelsQuery()),
-      queryClient.query(listSavedViewsQuery()),
+      loaderQuery(queryClient, issuesQueryFor(search, me.user.id)),
+      loaderQuery(queryClient, listAssignableUsersAcrossProjectsQuery()),
+      loaderQuery(queryClient, listLabelsQuery()),
+      loaderQuery(queryClient, listSavedViewsQuery()),
       // From the project table, not from the loaded issues: a project with no
       // issue on the current page must still be selectable in the filter.
-      queryClient.query(listProjectsQuery()),
+      loaderQuery(queryClient, listProjectsQuery()),
     ]);
   },
   pendingComponent: IssuesPending,
