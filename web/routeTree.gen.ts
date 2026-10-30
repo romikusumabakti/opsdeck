@@ -18,11 +18,19 @@ import { Route as LocaleSetupRouteImport } from './routes/$locale/setup'
 import { Route as LocaleSignInRouteImport } from './routes/$locale/sign-in'
 import { Route as LocaleAppIndexRouteImport } from './routes/$locale/_app/index'
 import { Route as LocaleAppSplatRouteImport } from './routes/$locale/_app/$'
+import { Route as LocaleAppIssuesRouteImport } from './routes/$locale/_app/issues'
+import { Route as LocaleAppKnowledgeRouteRouteImport } from './routes/$locale/_app/knowledge.route'
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
 import { Route as LocaleAppProjectKeyIndexRouteImport } from './routes/$locale/_app/$projectKey.index'
 import { Route as LocaleAppProjectKeyEnvSlugRouteRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.route'
 import { Route as LocaleAppProjectKeySettingsRouteImport } from './routes/$locale/_app/$projectKey.settings'
+import { Route as LocaleAppAccountIndexRouteImport } from './routes/$locale/_app/account.index'
+import { Route as LocaleAppAccountChangePasswordRouteImport } from './routes/$locale/_app/account.change-password'
 import { Route as LocaleAppEnvironmentsNewRouteImport } from './routes/$locale/_app/environments.new'
+import { Route as LocaleAppKnowledgeIndexRouteImport } from './routes/$locale/_app/knowledge.index'
+import { Route as LocaleAppKnowledgeNewRouteImport } from './routes/$locale/_app/knowledge.new'
+import { Route as LocaleAppPeopleIndexRouteImport } from './routes/$locale/_app/people.index'
+import { Route as LocaleAppPeopleIdRouteImport } from './routes/$locale/_app/people.$id'
 import { Route as LocaleAppProjectsIndexRouteImport } from './routes/$locale/_app/projects.index'
 import { Route as LocaleAppProjectKeyEnvSlugIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.index'
 import { Route as LocaleAppProjectKeyEnvSlugBackupDatabaseRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-database'
@@ -36,6 +44,9 @@ import { Route as LocaleAppProjectKeyEnvSlugRestoreDatabaseRouteImport } from '.
 import { Route as LocaleAppProjectKeyEnvSlugSettingsRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.settings'
 import { Route as LocaleAppProjectKeyEnvironmentsNewRouteImport } from './routes/$locale/_app/$projectKey.environments.new'
 import { Route as LocaleAppProjectKeyIssuesNumberRouteImport } from './routes/$locale/_app/$projectKey.issues.$number'
+import { Route as LocaleAppKnowledgeSlugIndexRouteImport } from './routes/$locale/_app/knowledge.$slug.index'
+import { Route as LocaleAppKnowledgeSlugEditRouteImport } from './routes/$locale/_app/knowledge.$slug.edit'
+import { Route as LocaleAppKnowledgeSlugHistoryRouteImport } from './routes/$locale/_app/knowledge.$slug.history'
 import { Route as LocaleAppProjectsKeyIndexRouteImport } from './routes/$locale/_app/projects.$key.index'
 import { Route as LocaleAppProjectsKeySplatRouteImport } from './routes/$locale/_app/projects.$key.$'
 import { Route as LocaleAppProjectKeyEnvSlugServicesIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.services.index'
@@ -85,6 +96,16 @@ const LocaleAppSplatRoute = LocaleAppSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => LocaleAppRouteRoute,
 } as any)
+const LocaleAppIssuesRoute = LocaleAppIssuesRouteImport.update({
+  id: '/issues',
+  path: '/issues',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppKnowledgeRouteRoute = LocaleAppKnowledgeRouteRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
 const LocaleAcceptInviteTokenRoute = LocaleAcceptInviteTokenRouteImport.update({
   id: '/accept-invite/$token',
   path: '/accept-invite/$token',
@@ -108,12 +129,43 @@ const LocaleAppProjectKeySettingsRoute =
     path: '/$projectKey/settings',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
+const LocaleAppAccountIndexRoute = LocaleAppAccountIndexRouteImport.update({
+  id: '/account/',
+  path: '/account/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppAccountChangePasswordRoute =
+  LocaleAppAccountChangePasswordRouteImport.update({
+    id: '/account/change-password',
+    path: '/account/change-password',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
 const LocaleAppEnvironmentsNewRoute =
   LocaleAppEnvironmentsNewRouteImport.update({
     id: '/environments/new',
     path: '/environments/new',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
+const LocaleAppKnowledgeIndexRoute = LocaleAppKnowledgeIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleAppKnowledgeRouteRoute,
+} as any)
+const LocaleAppKnowledgeNewRoute = LocaleAppKnowledgeNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => LocaleAppKnowledgeRouteRoute,
+} as any)
+const LocaleAppPeopleIndexRoute = LocaleAppPeopleIndexRouteImport.update({
+  id: '/people/',
+  path: '/people/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppPeopleIdRoute = LocaleAppPeopleIdRouteImport.update({
+  id: '/people/$id',
+  path: '/people/$id',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
 const LocaleAppProjectsIndexRoute = LocaleAppProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
@@ -191,6 +243,24 @@ const LocaleAppProjectKeyIssuesNumberRoute =
     path: '/$projectKey/issues/$number',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
+const LocaleAppKnowledgeSlugIndexRoute =
+  LocaleAppKnowledgeSlugIndexRouteImport.update({
+    id: '/$slug/',
+    path: '/$slug/',
+    getParentRoute: () => LocaleAppKnowledgeRouteRoute,
+  } as any)
+const LocaleAppKnowledgeSlugEditRoute =
+  LocaleAppKnowledgeSlugEditRouteImport.update({
+    id: '/$slug/edit',
+    path: '/$slug/edit',
+    getParentRoute: () => LocaleAppKnowledgeRouteRoute,
+  } as any)
+const LocaleAppKnowledgeSlugHistoryRoute =
+  LocaleAppKnowledgeSlugHistoryRouteImport.update({
+    id: '/$slug/history',
+    path: '/$slug/history',
+    getParentRoute: () => LocaleAppKnowledgeRouteRoute,
+  } as any)
 const LocaleAppProjectsKeyIndexRoute =
   LocaleAppProjectsKeyIndexRouteImport.update({
     id: '/projects/$key/',
@@ -223,13 +293,21 @@ export interface FileRoutesByFullPath {
   '/$locale/reset-password': typeof LocaleResetPasswordRoute
   '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/knowledge': typeof LocaleAppKnowledgeRouteRouteWithChildren
   '/$locale/$': typeof LocaleAppSplatRoute
+  '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/': typeof LocaleAppIndexRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
+  '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
+  '/$locale/knowledge/new': typeof LocaleAppKnowledgeNewRoute
+  '/$locale/people/$id': typeof LocaleAppPeopleIdRoute
   '/$locale/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
+  '/$locale/account/': typeof LocaleAppAccountIndexRoute
+  '/$locale/knowledge/': typeof LocaleAppKnowledgeIndexRoute
+  '/$locale/people/': typeof LocaleAppPeopleIndexRoute
   '/$locale/projects/': typeof LocaleAppProjectsIndexRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
@@ -242,8 +320,11 @@ export interface FileRoutesByFullPath {
   '/$locale/$projectKey/$envSlug/settings': typeof LocaleAppProjectKeyEnvSlugSettingsRoute
   '/$locale/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
   '/$locale/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/knowledge/$slug/edit': typeof LocaleAppKnowledgeSlugEditRoute
+  '/$locale/knowledge/$slug/history': typeof LocaleAppKnowledgeSlugHistoryRoute
   '/$locale/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
   '/$locale/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/knowledge/$slug/': typeof LocaleAppKnowledgeSlugIndexRoute
   '/$locale/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
   '/$locale/$projectKey/$envSlug/services/': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
   '/$locale/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
@@ -256,10 +337,17 @@ export interface FileRoutesByTo {
   '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
   '/$locale/$': typeof LocaleAppSplatRoute
+  '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
+  '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
+  '/$locale/knowledge/new': typeof LocaleAppKnowledgeNewRoute
+  '/$locale/people/$id': typeof LocaleAppPeopleIdRoute
   '/$locale/$projectKey': typeof LocaleAppProjectKeyIndexRoute
+  '/$locale/account': typeof LocaleAppAccountIndexRoute
+  '/$locale/knowledge': typeof LocaleAppKnowledgeIndexRoute
+  '/$locale/people': typeof LocaleAppPeopleIndexRoute
   '/$locale/projects': typeof LocaleAppProjectsIndexRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
@@ -272,8 +360,11 @@ export interface FileRoutesByTo {
   '/$locale/$projectKey/$envSlug/settings': typeof LocaleAppProjectKeyEnvSlugSettingsRoute
   '/$locale/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
   '/$locale/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/knowledge/$slug/edit': typeof LocaleAppKnowledgeSlugEditRoute
+  '/$locale/knowledge/$slug/history': typeof LocaleAppKnowledgeSlugHistoryRoute
   '/$locale/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/knowledge/$slug': typeof LocaleAppKnowledgeSlugIndexRoute
   '/$locale/projects/$key': typeof LocaleAppProjectsKeyIndexRoute
   '/$locale/$projectKey/$envSlug/services': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
   '/$locale/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
@@ -287,13 +378,21 @@ export interface FileRoutesById {
   '/$locale/reset-password': typeof LocaleResetPasswordRoute
   '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/_app/knowledge': typeof LocaleAppKnowledgeRouteRouteWithChildren
   '/$locale/_app/$': typeof LocaleAppSplatRoute
+  '/$locale/_app/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/_app/': typeof LocaleAppIndexRoute
   '/$locale/_app/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
   '/$locale/_app/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
+  '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/_app/environments/new': typeof LocaleAppEnvironmentsNewRoute
+  '/$locale/_app/knowledge/new': typeof LocaleAppKnowledgeNewRoute
+  '/$locale/_app/people/$id': typeof LocaleAppPeopleIdRoute
   '/$locale/_app/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
+  '/$locale/_app/account/': typeof LocaleAppAccountIndexRoute
+  '/$locale/_app/knowledge/': typeof LocaleAppKnowledgeIndexRoute
+  '/$locale/_app/people/': typeof LocaleAppPeopleIndexRoute
   '/$locale/_app/projects/': typeof LocaleAppProjectsIndexRoute
   '/$locale/_app/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/_app/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
@@ -306,8 +405,11 @@ export interface FileRoutesById {
   '/$locale/_app/$projectKey/$envSlug/settings': typeof LocaleAppProjectKeyEnvSlugSettingsRoute
   '/$locale/_app/$projectKey/environments/new': typeof LocaleAppProjectKeyEnvironmentsNewRoute
   '/$locale/_app/$projectKey/issues/$number': typeof LocaleAppProjectKeyIssuesNumberRoute
+  '/$locale/_app/knowledge/$slug/edit': typeof LocaleAppKnowledgeSlugEditRoute
+  '/$locale/_app/knowledge/$slug/history': typeof LocaleAppKnowledgeSlugHistoryRoute
   '/$locale/_app/projects/$key/$': typeof LocaleAppProjectsKeySplatRoute
   '/$locale/_app/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/_app/knowledge/$slug/': typeof LocaleAppKnowledgeSlugIndexRoute
   '/$locale/_app/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
   '/$locale/_app/$projectKey/$envSlug/services/': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
   '/$locale/_app/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
@@ -321,13 +423,21 @@ export interface FileRouteTypes {
     | '/$locale/reset-password'
     | '/$locale/setup'
     | '/$locale/sign-in'
+    | '/$locale/knowledge'
     | '/$locale/$'
+    | '/$locale/issues'
     | '/$locale/accept-invite/$token'
     | '/$locale/'
     | '/$locale/$projectKey/$envSlug'
     | '/$locale/$projectKey/settings'
+    | '/$locale/account/change-password'
     | '/$locale/environments/new'
+    | '/$locale/knowledge/new'
+    | '/$locale/people/$id'
     | '/$locale/$projectKey/'
+    | '/$locale/account/'
+    | '/$locale/knowledge/'
+    | '/$locale/people/'
     | '/$locale/projects/'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
@@ -340,8 +450,11 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug/settings'
     | '/$locale/$projectKey/environments/new'
     | '/$locale/$projectKey/issues/$number'
+    | '/$locale/knowledge/$slug/edit'
+    | '/$locale/knowledge/$slug/history'
     | '/$locale/projects/$key/$'
     | '/$locale/$projectKey/$envSlug/'
+    | '/$locale/knowledge/$slug/'
     | '/$locale/projects/$key/'
     | '/$locale/$projectKey/$envSlug/services/'
     | '/$locale/$projectKey/$envSlug/services/$role/logs'
@@ -354,10 +467,17 @@ export interface FileRouteTypes {
     | '/$locale/setup'
     | '/$locale/sign-in'
     | '/$locale/$'
+    | '/$locale/issues'
     | '/$locale/accept-invite/$token'
     | '/$locale/$projectKey/settings'
+    | '/$locale/account/change-password'
     | '/$locale/environments/new'
+    | '/$locale/knowledge/new'
+    | '/$locale/people/$id'
     | '/$locale/$projectKey'
+    | '/$locale/account'
+    | '/$locale/knowledge'
+    | '/$locale/people'
     | '/$locale/projects'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
@@ -370,8 +490,11 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug/settings'
     | '/$locale/$projectKey/environments/new'
     | '/$locale/$projectKey/issues/$number'
+    | '/$locale/knowledge/$slug/edit'
+    | '/$locale/knowledge/$slug/history'
     | '/$locale/projects/$key/$'
     | '/$locale/$projectKey/$envSlug'
+    | '/$locale/knowledge/$slug'
     | '/$locale/projects/$key'
     | '/$locale/$projectKey/$envSlug/services'
     | '/$locale/$projectKey/$envSlug/services/$role/logs'
@@ -384,13 +507,21 @@ export interface FileRouteTypes {
     | '/$locale/reset-password'
     | '/$locale/setup'
     | '/$locale/sign-in'
+    | '/$locale/_app/knowledge'
     | '/$locale/_app/$'
+    | '/$locale/_app/issues'
     | '/$locale/accept-invite/$token'
     | '/$locale/_app/'
     | '/$locale/_app/$projectKey/$envSlug'
     | '/$locale/_app/$projectKey/settings'
+    | '/$locale/_app/account/change-password'
     | '/$locale/_app/environments/new'
+    | '/$locale/_app/knowledge/new'
+    | '/$locale/_app/people/$id'
     | '/$locale/_app/$projectKey/'
+    | '/$locale/_app/account/'
+    | '/$locale/_app/knowledge/'
+    | '/$locale/_app/people/'
     | '/$locale/_app/projects/'
     | '/$locale/_app/$projectKey/$envSlug/backup-database'
     | '/$locale/_app/$projectKey/$envSlug/backup-restore'
@@ -403,8 +534,11 @@ export interface FileRouteTypes {
     | '/$locale/_app/$projectKey/$envSlug/settings'
     | '/$locale/_app/$projectKey/environments/new'
     | '/$locale/_app/$projectKey/issues/$number'
+    | '/$locale/_app/knowledge/$slug/edit'
+    | '/$locale/_app/knowledge/$slug/history'
     | '/$locale/_app/projects/$key/$'
     | '/$locale/_app/$projectKey/$envSlug/'
+    | '/$locale/_app/knowledge/$slug/'
     | '/$locale/_app/projects/$key/'
     | '/$locale/_app/$projectKey/$envSlug/services/'
     | '/$locale/_app/$projectKey/$envSlug/services/$role/logs'
@@ -480,6 +614,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppSplatRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/issues': {
+      id: '/$locale/_app/issues'
+      path: '/issues'
+      fullPath: '/$locale/issues'
+      preLoaderRoute: typeof LocaleAppIssuesRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/knowledge': {
+      id: '/$locale/_app/knowledge'
+      path: '/knowledge'
+      fullPath: '/$locale/knowledge'
+      preLoaderRoute: typeof LocaleAppKnowledgeRouteRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
     '/$locale/accept-invite/$token': {
       id: '/$locale/accept-invite/$token'
       path: '/accept-invite/$token'
@@ -508,11 +656,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectKeySettingsRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/account/': {
+      id: '/$locale/_app/account/'
+      path: '/account'
+      fullPath: '/$locale/account/'
+      preLoaderRoute: typeof LocaleAppAccountIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/account/change-password': {
+      id: '/$locale/_app/account/change-password'
+      path: '/account/change-password'
+      fullPath: '/$locale/account/change-password'
+      preLoaderRoute: typeof LocaleAppAccountChangePasswordRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
     '/$locale/_app/environments/new': {
       id: '/$locale/_app/environments/new'
       path: '/environments/new'
       fullPath: '/$locale/environments/new'
       preLoaderRoute: typeof LocaleAppEnvironmentsNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/knowledge/': {
+      id: '/$locale/_app/knowledge/'
+      path: '/'
+      fullPath: '/$locale/knowledge/'
+      preLoaderRoute: typeof LocaleAppKnowledgeIndexRouteImport
+      parentRoute: typeof LocaleAppKnowledgeRouteRoute
+    }
+    '/$locale/_app/knowledge/new': {
+      id: '/$locale/_app/knowledge/new'
+      path: '/new'
+      fullPath: '/$locale/knowledge/new'
+      preLoaderRoute: typeof LocaleAppKnowledgeNewRouteImport
+      parentRoute: typeof LocaleAppKnowledgeRouteRoute
+    }
+    '/$locale/_app/people/': {
+      id: '/$locale/_app/people/'
+      path: '/people'
+      fullPath: '/$locale/people/'
+      preLoaderRoute: typeof LocaleAppPeopleIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/people/$id': {
+      id: '/$locale/_app/people/$id'
+      path: '/people/$id'
+      fullPath: '/$locale/people/$id'
+      preLoaderRoute: typeof LocaleAppPeopleIdRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/projects/': {
@@ -606,6 +796,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectKeyIssuesNumberRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
+    '/$locale/_app/knowledge/$slug/': {
+      id: '/$locale/_app/knowledge/$slug/'
+      path: '/$slug'
+      fullPath: '/$locale/knowledge/$slug/'
+      preLoaderRoute: typeof LocaleAppKnowledgeSlugIndexRouteImport
+      parentRoute: typeof LocaleAppKnowledgeRouteRoute
+    }
+    '/$locale/_app/knowledge/$slug/edit': {
+      id: '/$locale/_app/knowledge/$slug/edit'
+      path: '/$slug/edit'
+      fullPath: '/$locale/knowledge/$slug/edit'
+      preLoaderRoute: typeof LocaleAppKnowledgeSlugEditRouteImport
+      parentRoute: typeof LocaleAppKnowledgeRouteRoute
+    }
+    '/$locale/_app/knowledge/$slug/history': {
+      id: '/$locale/_app/knowledge/$slug/history'
+      path: '/$slug/history'
+      fullPath: '/$locale/knowledge/$slug/history'
+      preLoaderRoute: typeof LocaleAppKnowledgeSlugHistoryRouteImport
+      parentRoute: typeof LocaleAppKnowledgeRouteRoute
+    }
     '/$locale/_app/projects/$key/': {
       id: '/$locale/_app/projects/$key/'
       path: '/projects/$key'
@@ -636,6 +847,28 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface LocaleAppKnowledgeRouteRouteChildren {
+  LocaleAppKnowledgeNewRoute: typeof LocaleAppKnowledgeNewRoute
+  LocaleAppKnowledgeIndexRoute: typeof LocaleAppKnowledgeIndexRoute
+  LocaleAppKnowledgeSlugEditRoute: typeof LocaleAppKnowledgeSlugEditRoute
+  LocaleAppKnowledgeSlugHistoryRoute: typeof LocaleAppKnowledgeSlugHistoryRoute
+  LocaleAppKnowledgeSlugIndexRoute: typeof LocaleAppKnowledgeSlugIndexRoute
+}
+
+const LocaleAppKnowledgeRouteRouteChildren: LocaleAppKnowledgeRouteRouteChildren =
+  {
+    LocaleAppKnowledgeNewRoute: LocaleAppKnowledgeNewRoute,
+    LocaleAppKnowledgeIndexRoute: LocaleAppKnowledgeIndexRoute,
+    LocaleAppKnowledgeSlugEditRoute: LocaleAppKnowledgeSlugEditRoute,
+    LocaleAppKnowledgeSlugHistoryRoute: LocaleAppKnowledgeSlugHistoryRoute,
+    LocaleAppKnowledgeSlugIndexRoute: LocaleAppKnowledgeSlugIndexRoute,
+  }
+
+const LocaleAppKnowledgeRouteRouteWithChildren =
+  LocaleAppKnowledgeRouteRoute._addFileChildren(
+    LocaleAppKnowledgeRouteRouteChildren,
+  )
 
 interface LocaleAppProjectKeyEnvSlugRouteRouteChildren {
   LocaleAppProjectKeyEnvSlugBackupDatabaseRoute: typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
@@ -684,12 +917,18 @@ const LocaleAppProjectKeyEnvSlugRouteRouteWithChildren =
   )
 
 interface LocaleAppRouteRouteChildren {
+  LocaleAppKnowledgeRouteRoute: typeof LocaleAppKnowledgeRouteRouteWithChildren
   LocaleAppSplatRoute: typeof LocaleAppSplatRoute
+  LocaleAppIssuesRoute: typeof LocaleAppIssuesRoute
   LocaleAppIndexRoute: typeof LocaleAppIndexRoute
   LocaleAppProjectKeyEnvSlugRouteRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
   LocaleAppProjectKeySettingsRoute: typeof LocaleAppProjectKeySettingsRoute
+  LocaleAppAccountChangePasswordRoute: typeof LocaleAppAccountChangePasswordRoute
   LocaleAppEnvironmentsNewRoute: typeof LocaleAppEnvironmentsNewRoute
+  LocaleAppPeopleIdRoute: typeof LocaleAppPeopleIdRoute
   LocaleAppProjectKeyIndexRoute: typeof LocaleAppProjectKeyIndexRoute
+  LocaleAppAccountIndexRoute: typeof LocaleAppAccountIndexRoute
+  LocaleAppPeopleIndexRoute: typeof LocaleAppPeopleIndexRoute
   LocaleAppProjectsIndexRoute: typeof LocaleAppProjectsIndexRoute
   LocaleAppProjectKeyEnvironmentsNewRoute: typeof LocaleAppProjectKeyEnvironmentsNewRoute
   LocaleAppProjectKeyIssuesNumberRoute: typeof LocaleAppProjectKeyIssuesNumberRoute
@@ -698,13 +937,19 @@ interface LocaleAppRouteRouteChildren {
 }
 
 const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
+  LocaleAppKnowledgeRouteRoute: LocaleAppKnowledgeRouteRouteWithChildren,
   LocaleAppSplatRoute: LocaleAppSplatRoute,
+  LocaleAppIssuesRoute: LocaleAppIssuesRoute,
   LocaleAppIndexRoute: LocaleAppIndexRoute,
   LocaleAppProjectKeyEnvSlugRouteRoute:
     LocaleAppProjectKeyEnvSlugRouteRouteWithChildren,
   LocaleAppProjectKeySettingsRoute: LocaleAppProjectKeySettingsRoute,
+  LocaleAppAccountChangePasswordRoute: LocaleAppAccountChangePasswordRoute,
   LocaleAppEnvironmentsNewRoute: LocaleAppEnvironmentsNewRoute,
+  LocaleAppPeopleIdRoute: LocaleAppPeopleIdRoute,
   LocaleAppProjectKeyIndexRoute: LocaleAppProjectKeyIndexRoute,
+  LocaleAppAccountIndexRoute: LocaleAppAccountIndexRoute,
+  LocaleAppPeopleIndexRoute: LocaleAppPeopleIndexRoute,
   LocaleAppProjectsIndexRoute: LocaleAppProjectsIndexRoute,
   LocaleAppProjectKeyEnvironmentsNewRoute:
     LocaleAppProjectKeyEnvironmentsNewRoute,

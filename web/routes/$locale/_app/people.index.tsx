@@ -1,0 +1,32 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { useTranslations } from "use-intl";
+import { PageHeader } from "@/components/page-header";
+import { listProjectsQuery } from "@/web/api/project-catalog";
+import { listPeopleQuery } from "@/web/api/users";
+import { PeopleClient } from "./-components/people/people-client";
+
+export const Route = createFileRoute("/$locale/_app/people/")({
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.query(listPeopleQuery()),
+      queryClient.query(listProjectsQuery()),
+    ]);
+  },
+  component: PeoplePage,
+});
+
+function PeoplePage() {
+  const t = useTranslations("people");
+  const people = useSuspenseQuery(listPeopleQuery()).data;
+  const projects = useSuspenseQuery(listProjectsQuery()).data;
+  return (
+    <>
+      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PeopleClient
+        people={people}
+        projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+      />
+    </>
+  );
+}

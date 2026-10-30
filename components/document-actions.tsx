@@ -62,6 +62,7 @@ export function DocumentActions({
   return (
     <div className="flex items-center gap-2">
       <Button
+        nativeButton={false}
         render={<Link href={`/knowledge/${slug}/history`} />}
         variant="outline"
         size="sm"
@@ -69,7 +70,11 @@ export function DocumentActions({
         <History className="size-4" />
         {t("history")}
       </Button>
-      <Button render={<Link href={`/knowledge/${slug}/edit`} />} size="sm">
+      <Button
+        nativeButton={false}
+        render={<Link href={`/knowledge/${slug}/edit`} />}
+        size="sm"
+      >
         <Pencil className="size-4" />
         {tCommon("edit")}
       </Button>

@@ -202,3 +202,5 @@ export const getUserCardQuery = (...args: Parameters<typeof getUserCard>) =>
     queryKey: ["users", "getUserCard", args],
     queryFn: () => getUserCard(...args),
   });
+
+export type PersonSummary = Awaited<ReturnType<typeof listPeople>>[number];

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeDocument } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 import {
   createDocument,
   deleteDocument,
@@ -56,7 +57,11 @@ const DOC_TYPES: readonly DocType[] = ["doc", "runbook", "spec", "requirement"];
 
 type Mode =
   | { type: "create"; defaultCollectionId?: string }
-  | { type: "edit"; document: KnowledgeDocument; canDelete: boolean };
+  | {
+      type: "edit";
+      document: Serialized<KnowledgeDocument>;
+      canDelete: boolean;
+    };
 
 export function DocumentForm({
   mode,
@@ -65,7 +70,7 @@ export function DocumentForm({
   toolbarStart,
 }: {
   mode: Mode;
-  collections: KnowledgeCollection[];
+  collections: Serialized<KnowledgeCollection>[];
   linkableDocs?: LinkableDoc[];
   toolbarStart?: ReactNode;
 }) {

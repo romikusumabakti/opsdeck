@@ -7,6 +7,7 @@ import {
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
+import { ApiError } from "@/web/api/client";
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { meQuery } from "@/web/api/session";
 
@@ -53,4 +54,31 @@ export function requireRole(
   perms: ProjectPermissions
 ): void {
   if (!canProject(role, perms)) throw notFound();
+}
+
+/**
+ * The page guard for an org-level page (the port of `requireOrgPage`): a 404
+ * when the caller's org role lacks `perms`. Returns the caller, so a loader
+ * can use their role or id without a second lookup.
+ */
+export async function requireOrgRole(
+  queryClient: QueryClient,
+  perms: OrgPermissions
+) {
+  const me = await queryClient.query(meQuery());
+  if (!(me && canOrg(me.orgRole, perms))) throw notFound();
+  return me;
+}
+
+/**
+ * Await a page-data read, turning the API's 404 (an unknown or hidden record)
+ * into the router's `notFound()` — the port of a server page's `notFound()`.
+ */
+export async function orNotFound<T>(read: Promise<T>): Promise<T> {
+  try {
+    return await read;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw notFound();
+    throw error;
+  }
 }
