@@ -1,4 +1,8 @@
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  matchQuery,
+  queryOptions,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import { api } from "@/web/api/client";
 import { ME_QUERY_KEY, queryClient } from "@/web/query-client";
@@ -57,12 +61,19 @@ export function useBootstrap() {
 
 /**
  * Call after better-auth signs a user in or out (or switches accounts).
- * Drops every cached query — all of it belonged to the previous session, and
- * none of it may leak into the next user's shell — then loads the new
- * `/api/me`, so the caller can navigate (and the $locale gate can decide)
- * with the fresh answer. Resolves to it: the user, or null when signed out.
+ * Drops every cached query of the previous session — none of it may leak into
+ * the next user's shell — except `/api/me` itself and the fixed deployment
+ * entries (bootstrap), then refetches `/api/me` in place. Refetching the
+ * existing entry, rather than clearing it and loading a new one, notifies the
+ * components already subscribed to it (the IntlProvider's time zone, the
+ * accent on <html>), which a removed query would leave on the old user.
+ * Resolves to the new answer: the user, or null when signed out.
  */
 export async function resetSession(client = queryClient) {
-  client.clear();
-  return client.query(meQuery());
+  client.removeQueries({
+    predicate: (query) =>
+      !matchQuery({ queryKey: ME_QUERY_KEY, exact: true }, query) &&
+      query.meta?.fixed !== true,
+  });
+  return client.fetchQuery({ ...meQuery(), staleTime: 0 });
 }
