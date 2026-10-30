@@ -3,6 +3,7 @@ import { contextStorage } from "hono/context-storage";
 import { auth } from "@/lib/auth";
 import type { AppEnv } from "@/server/context";
 import { onError } from "@/server/errors";
+import { csrfGuard } from "@/server/middleware/csrf";
 import { locale } from "@/server/middleware/locale";
 import { securityHeaders } from "@/server/middleware/security-headers";
 import { accessRouter } from "@/server/routes/access";
@@ -28,7 +29,9 @@ import { onboardingRouter, usersRouter } from "@/server/routes/users";
  * A Hono instance with the stack every request goes through. Order matters:
  * `contextStorage` first so everything after it — including the error handler —
  * can reach the request through server/context; security headers next so they
- * wrap every response; then the locale, which handlers read via `getLocale()`.
+ * wrap every response, the CSRF refusal included; the CSRF check before
+ * anything reads a body or a session; then the locale, which handlers read via
+ * `getLocale()`.
  *
  * Exported so tests can mount a probe route on the exact production stack.
  */
@@ -36,6 +39,7 @@ export function createBaseApp() {
   return new Hono<AppEnv>()
     .use(contextStorage())
     .use(securityHeaders)
+    .use(csrfGuard)
     .use(locale)
     .onError(onError);
 }

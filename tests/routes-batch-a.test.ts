@@ -66,7 +66,11 @@ describe("gated routes answer 401 without a session", () => {
   });
 
   it("DELETE /api/avatars", async () => {
-    const res = await app.request("/api/avatars", { method: "DELETE" });
+    // Bodyless, so the CSRF check applies; a browser marks its own fetch.
+    const res = await app.request("/api/avatars", {
+      method: "DELETE",
+      headers: { "Sec-Fetch-Site": "same-origin" },
+    });
     expect(res.status).toBe(401);
   });
 
