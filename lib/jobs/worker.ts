@@ -15,9 +15,8 @@ import {
 // without letting an unbounded burst of jobs open unbounded SSH sessions.
 const WORKER_CONCURRENCY = 5;
 
-// Cache the worker on globalThis so Next.js dev hot-reload (which re-runs the
-// instrumentation register hook / re-imports this module) doesn't spawn a
-// second Worker consuming the same queue.
+// Cache the worker on globalThis so a re-import of this module (a dev reload,
+// a second caller) doesn't spawn a second Worker consuming the same queue.
 const globalForWorker = globalThis as unknown as {
   __tasksWorker?: Worker;
 };

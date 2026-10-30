@@ -7,18 +7,9 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
-
 # production
 /build
 /dist
-
-# terminal sidecar bundle — written to the repo root by the Dockerfile's
-# `bun build lib/terminal/main.ts --outfile terminal-server.js` step (and by
-# running that command locally to verify it)
-/terminal-server.js
 
 # misc
 .DS_Store
@@ -39,7 +30,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # Personal Claude Code overrides (per-dev permissions, not team config)
 .claude/settings.local.json

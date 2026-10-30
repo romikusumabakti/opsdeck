@@ -160,6 +160,12 @@ bun run terminal                  # web-terminal sidecar on :3001 (optional)
 
 `bun run dev` starts two processes: Vite on 5173 (the SPA, with hot reload) and the Hono API on 3000. Vite proxies `/api`, `/brand` and `/ws/terminal` to the API and the terminal sidecar, so open http://localhost:5173. If port 3000 is taken, set `PORT` (for example `PORT=3100 bun run dev`): the server listens on it, and Vite reads the same variable for its proxy target, so both stay in step.
 
+Set `BETTER_AUTH_URL=http://localhost:5173` in `.env.local` for dev, because that is the origin your browser is on. Email/password sign-in works with either value, since outside production better-auth also trusts `http://localhost:5173` (`lib/auth.ts`). Three things only work when `BETTER_AUTH_URL` is `http://localhost:5173`:
+
+- Passkeys are bound to that URL's origin and hostname.
+- Microsoft sign-in redirects to `<BETTER_AUTH_URL>/api/auth/callback/microsoft`. Register `http://localhost:5173/api/auth/callback/microsoft` in Entra; Vite proxies it to the API.
+- The terminal sidecar accepts WebSocket upgrades only from that origin.
+
 Valkey publishes no host port, so background jobs only run in host dev if `REDIS_URL` points at a Redis/Valkey instance you can reach. When `REDIS_URL` is unset, the worker is disabled and the rest of the app still works.
 
 ### Scripts
