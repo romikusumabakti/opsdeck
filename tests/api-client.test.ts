@@ -166,6 +166,18 @@ describe("orFailure", () => {
     expect(result).toEqual({ success: false, message: "Invalid request" });
   });
 
+  // A CSRF rejection reaches a result-union toast as the status text.
+  it("surfaces a 403's status text as the failure message", async () => {
+    const { apiFetch } = setup(
+      Response.json({ error: "Forbidden" }, { status: 403 })
+    );
+    const result = await orFailure<Result>(async () => {
+      await apiFetch("/api/servers/delete-server", { method: "POST" });
+      return { success: true };
+    }, fail);
+    expect(result).toEqual({ success: false, message: "Forbidden" });
+  });
+
   it("passes a success through", async () => {
     const ok: Result = { success: true };
     expect(await orFailure<Result>(async () => ok, fail)).toBe(ok);
