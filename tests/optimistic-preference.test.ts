@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { AccentColor } from "@/lib/accents";
 import type { MotifPreference } from "@/lib/motifs";
 import {

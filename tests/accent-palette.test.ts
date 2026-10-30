@@ -1,13 +1,13 @@
-import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { ACCENT_PALETTE, ACCENT_STEPS } from "@/lib/accent-palette";
 
 // The favicon can't read CSS variables, so lib/accent-palette.ts copies the
 // Tailwind values it needs. This pins the copy to the installed palette: a
 // Tailwind upgrade that shifts a colour fails here instead of drifting.
 const theme = readFileSync(
-  join(import.meta.dir, "../node_modules/tailwindcss/theme.css"),
+  join(import.meta.dirname, "../node_modules/tailwindcss/theme.css"),
   "utf8"
 );
 

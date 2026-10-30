@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
+import { describe, expect, it } from "vitest";
 import nextConfig from "@/next.config";
 
 // Match paths with Next's own matcher, so the test sees what the router sees.

@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Job } from "bullmq";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 
 // Every remote command the worker issues, with the wall-clock bound it passed.
 const calls: { command: string; timeoutMs: number | undefined }[] = [];
 
-mock.module("@/lib/ssh", () => ({
+vi.mock("@/lib/ssh", () => ({
   executeRemoteCommand: async (
     _creds: unknown,
     command: string,
@@ -34,10 +34,10 @@ const environment = {
   ],
 } as unknown as EnvironmentWithServers;
 
-mock.module("@/lib/environments", () => ({
+vi.mock("@/lib/environments", () => ({
   loadEnvironmentWithServers: async () => environment,
 }));
-mock.module("@/lib/run-progress", () => ({
+vi.mock("@/lib/run-progress", () => ({
   appendRunOutput: async () => {},
   completeRun: async () => {},
   failRun: async () => {},

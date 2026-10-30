@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 // Round-trip fidelity guard for the knowledge editor. The editor parses and
 // serializes markdown with @tiptap/markdown (marked under the hood), while the
 // read-side renderer (components/markdown-content) parses with react-markdown +
@@ -8,12 +9,12 @@
 //   2. what the editor emits parses to the structure react-markdown expects.
 // Both build from buildEditorExtensions — the same config the live editor runs.
 
-import { beforeAll, describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { beforeAll, describe, expect, it } from "vitest";
 import { buildEditorExtensions } from "@/lib/knowledge-editor-extensions";
 
 // Tiptap's Editor reaches for window/document at construction; happy-dom

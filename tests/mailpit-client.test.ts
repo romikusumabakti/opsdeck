@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   deleteMailpitMessages,
   describeMailpitStatus,
@@ -118,13 +118,13 @@ describe("schemas", () => {
 
 describe("requests", () => {
   afterEach(() => {
-    mock.restore();
+    vi.restoreAllMocks();
   });
 
   it("uses the search endpoint with auth when a query is given", async () => {
-    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
-      Response.json(messagesFixture)
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json(messagesFixture));
     const page = await listMailpitMessages(cfg, {
       query: "is:unread",
       start: 50,
@@ -140,9 +140,9 @@ describe("requests", () => {
   });
 
   it("uses the messages endpoint without a query", async () => {
-    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
-      Response.json(messagesFixture)
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json(messagesFixture));
     await listMailpitMessages(cfg, { query: "", start: 0 });
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
       "https://mail.test/mailpit/api/v1/messages?start=0&limit=50"
@@ -150,7 +150,7 @@ describe("requests", () => {
   });
 
   it("maps 401 to a MailpitError carrying the status", async () => {
-    spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("nope", { status: 401, statusText: "Unauthorized" })
     );
     const err = await getMailpitMessage(cfg, "abc").catch((e) => e);
@@ -159,7 +159,7 @@ describe("requests", () => {
   });
 
   it("maps network failures through describeFetchError", async () => {
-    spyOn(globalThis, "fetch").mockRejectedValue(
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
       new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } })
     );
     const err = await getMailpitMessage(cfg, "abc").catch((e) => e);
@@ -168,16 +168,16 @@ describe("requests", () => {
   });
 
   it("rejects malformed JSON shapes", async () => {
-    spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ nope: 1 }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ nope: 1 }));
     const err = await getMailpitMessage(cfg, "abc").catch((e) => e);
     expect(err).toBeInstanceOf(MailpitError);
     expect(err.message).toBe("Unexpected response from Mailpit");
   });
 
   it("never turns an empty selection into delete-all", async () => {
-    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("ok")
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok"));
     await expect(deleteMailpitMessages(cfg, [])).rejects.toBeInstanceOf(
       MailpitError
     );
@@ -185,9 +185,9 @@ describe("requests", () => {
   });
 
   it("sends an explicit empty IDs list only for 'all'", async () => {
-    const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("ok")
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok"));
     await deleteMailpitMessages(cfg, "all");
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://mail.test/mailpit/api/v1/messages");

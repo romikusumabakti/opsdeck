@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { resolveMentions } from "@/lib/mentions";
 
 const ana = { id: "1", name: "Ana" };

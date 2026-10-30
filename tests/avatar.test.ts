@@ -1,5 +1,5 @@
-import { beforeAll, describe, expect, it } from "bun:test";
 import { createHmac } from "node:crypto";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   AVATAR_SIZES,
   avatarKey,
