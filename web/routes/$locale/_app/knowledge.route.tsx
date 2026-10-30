@@ -11,6 +11,7 @@ import { canOrg } from "@/lib/permissions";
 import { listCollectionsQuery, listTreeNodesQuery } from "@/web/api/knowledge";
 import { useMe } from "@/web/api/session";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 
 // The knowledge area (the port of `knowledge/layout.tsx`): a tree sidebar and
 // the document pages in `<Outlet />`. Each child brings its own pending
@@ -20,8 +21,8 @@ export const Route = createFileRoute("/$locale/_app/knowledge")({
     requireOrgRole(queryClient, { knowledge: ["read"] }),
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
-      queryClient.query(listCollectionsQuery()),
-      queryClient.query(listTreeNodesQuery()),
+      loaderQuery(queryClient, listCollectionsQuery()),
+      loaderQuery(queryClient, listTreeNodesQuery()),
     ]);
   },
   component: KnowledgeLayout,

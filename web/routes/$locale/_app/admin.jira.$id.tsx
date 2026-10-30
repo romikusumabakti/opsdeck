@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { getJiraConnectionQuery, getJiraWebhookUrlQuery } from "@/web/api/jira";
 import { orNotFound, requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 
 export const Route = createFileRoute("/$locale/_app/admin/jira/$id")({
   beforeLoad: async ({ context: { queryClient } }) => {
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/$locale/_app/admin/jira/$id")({
     if (!connection) throw notFound();
     // Admin-only, and only rendered on the edit page: the URL contains the
     // shared secret that authenticates inbound deliveries.
-    await queryClient.query(getJiraWebhookUrlQuery(id));
+    await loaderQuery(queryClient, getJiraWebhookUrlQuery(id));
   },
   component: EditJiraConnectionPage,
 });

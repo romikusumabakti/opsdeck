@@ -17,6 +17,7 @@ import {
 } from "@/web/api/project-catalog";
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
 import { meQuery, useMe } from "@/web/api/session";
+import { loaderQuery } from "@/web/query-client";
 
 const SORT_KEYS: SortKey[] = ["recent", "opened", "name_asc", "name_desc"];
 
@@ -26,12 +27,12 @@ export const Route = createFileRoute("/$locale/_app/projects/")({
   }),
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
-      queryClient.query(listProjectsWithEnvironmentsQuery()),
-      queryClient.query(meQuery()),
-      queryClient.query(getMyProjectAccessQuery()),
-      queryClient.query(getEnvironmentsLastActivityQuery()),
-      queryClient.query(getEnvironmentsLastOpenedQuery()),
-      queryClient.query(getOpenIssueCountsQuery()),
+      loaderQuery(queryClient, listProjectsWithEnvironmentsQuery()),
+      loaderQuery(queryClient, meQuery()),
+      loaderQuery(queryClient, getMyProjectAccessQuery()),
+      loaderQuery(queryClient, getEnvironmentsLastActivityQuery()),
+      loaderQuery(queryClient, getEnvironmentsLastOpenedQuery()),
+      loaderQuery(queryClient, getOpenIssueCountsQuery()),
     ]);
   },
   pendingComponent: ProjectsPending,

@@ -20,6 +20,7 @@ import {
 } from "@/web/api/project-catalog";
 import { getServersQuery } from "@/web/api/servers";
 import { requireProjectRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 
 // New environment under a given project. The parent comes from the route, so
 // the form's project picker starts on it; `?from=<envId>` clones an existing
@@ -48,9 +49,9 @@ export const Route = createFileRoute(
   },
   loader: async ({ deps: { from }, context: { queryClient } }) => {
     await Promise.all([
-      queryClient.query(getServersQuery()),
-      queryClient.query(listProjectsQuery()),
-      from ? queryClient.query(getEnvironmentByIdQuery(from)) : null,
+      loaderQuery(queryClient, getServersQuery()),
+      loaderQuery(queryClient, listProjectsQuery()),
+      from ? loaderQuery(queryClient, getEnvironmentByIdQuery(from)) : null,
     ]);
   },
   pendingComponent: NewEnvironmentPending,

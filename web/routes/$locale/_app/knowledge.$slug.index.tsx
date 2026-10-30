@@ -14,13 +14,14 @@ import { canOrg } from "@/lib/permissions";
 import { getBacklinksQuery, getDocumentQuery } from "@/web/api/knowledge";
 import { useMe } from "@/web/api/session";
 import { orNotFound } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { KnowledgePending } from "./-components/knowledge/knowledge-pending";
 
 export const Route = createFileRoute("/$locale/_app/knowledge/$slug/")({
   loader: async ({ params: { slug }, context: { queryClient } }) => {
     // A draft the caller may not see 404s like a missing document.
     const doc = await orNotFound(queryClient.query(getDocumentQuery(slug)));
-    await queryClient.query(getBacklinksQuery(doc.id));
+    await loaderQuery(queryClient, getBacklinksQuery(doc.id));
   },
   pendingComponent: KnowledgePending,
   component: DocumentPage,

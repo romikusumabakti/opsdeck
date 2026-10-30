@@ -32,6 +32,7 @@ import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
 import { useMe } from "@/web/api/session";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { requireProjectRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { IssuesClient } from "./-components/issues-client";
 import { MilestonesClient } from "./-components/project/milestones-client";
 import { ProjectMembersClient } from "./-components/project/project-members-client";
@@ -53,15 +54,15 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
     if (!project) throw notFound();
     const role = await requireProjectRole(queryClient, project.id);
     await Promise.all([
-      queryClient.query(listIssuesQuery(project.id)),
-      queryClient.query(listAssignableUsersQuery(project.id)),
-      queryClient.query(listMilestonesQuery(project.id)),
+      loaderQuery(queryClient, listIssuesQuery(project.id)),
+      loaderQuery(queryClient, listAssignableUsersQuery(project.id)),
+      loaderQuery(queryClient, listMilestonesQuery(project.id)),
       // Membership management follows the project role.
       ...(canProject(role, { member: ["manage"] })
         ? [
-            queryClient.query(listProjectMembersQuery(project.id)),
-            queryClient.query(listMemberCandidatesQuery(project.id)),
-            queryClient.query(listOrgWideAccessQuery(project.id)),
+            loaderQuery(queryClient, listProjectMembersQuery(project.id)),
+            loaderQuery(queryClient, listMemberCandidatesQuery(project.id)),
+            loaderQuery(queryClient, listOrgWideAccessQuery(project.id)),
           ]
         : []),
     ]);

@@ -8,6 +8,7 @@ import {
   getEnvironmentKpisQuery,
   getEnvironmentRunsQuery,
 } from "@/web/api/runs";
+import { loaderQuery } from "@/web/query-client";
 import {
   DashboardKpis,
   DashboardKpisSkeleton,
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug/")({
     // let the page paint on the environment alone.
     void queryClient.prefetchQuery(getEnvironmentKpisQuery(environmentId));
     void queryClient.prefetchQuery(getEnvironmentRunsQuery(environmentId));
-    await queryClient.query(getEnvironmentByIdQuery(environmentId));
+    await loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId));
   },
   pendingComponent: DashboardPending,
   component: DashboardPage,

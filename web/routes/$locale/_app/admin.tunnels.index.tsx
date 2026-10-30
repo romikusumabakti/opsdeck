@@ -9,6 +9,7 @@ import { canOrg } from "@/lib/permissions";
 import { useMe } from "@/web/api/session";
 import { getCloudflareZonesQuery, getTunnelsQuery } from "@/web/api/tunnels";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { TunnelsClient } from "./-components/admin/tunnels/tunnels-client";
 
 export const Route = createFileRoute("/$locale/_app/admin/tunnels/")({
@@ -16,8 +17,8 @@ export const Route = createFileRoute("/$locale/_app/admin/tunnels/")({
     requireOrgRole(queryClient, { tunnel: ["read"] }),
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
-      queryClient.query(getTunnelsQuery()),
-      queryClient.query(getCloudflareZonesQuery()),
+      loaderQuery(queryClient, getTunnelsQuery()),
+      loaderQuery(queryClient, getCloudflareZonesQuery()),
     ]);
   },
   component: TunnelsPage,

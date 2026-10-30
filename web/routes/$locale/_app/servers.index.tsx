@@ -9,6 +9,7 @@ import { canOrg } from "@/lib/permissions";
 import { getServersQuery } from "@/web/api/servers";
 import { useMe } from "@/web/api/session";
 import { requireOrgRole } from "@/web/project-guard";
+import { loaderQuery } from "@/web/query-client";
 import { ListPending } from "./-components/list-pending";
 import { ServersClient } from "./-components/servers/servers-client";
 
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/$locale/_app/servers/")({
   beforeLoad: ({ context: { queryClient } }) =>
     requireOrgRole(queryClient, { server: ["read"] }),
   loader: async ({ context: { queryClient } }) => {
-    await queryClient.query(getServersQuery());
+    await loaderQuery(queryClient, getServersQuery());
   },
   pendingComponent: () => <ListPending />,
   component: ServersPage,

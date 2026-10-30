@@ -13,6 +13,7 @@ import {
   type ServiceRole,
 } from "@/lib/services";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
+import { loaderQuery } from "@/web/query-client";
 import {
   type InitialLogState,
   LogsClient,
@@ -66,7 +67,7 @@ export const Route = createFileRoute(
     if (!VALID_ROLES.includes(role as ServiceRole)) throw notFound();
   },
   loader: async ({ context: { queryClient, environmentId } }) => {
-    await queryClient.query(getEnvironmentByIdQuery(environmentId));
+    await loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId));
   },
   pendingComponent: LogsPending,
   component: LogsPage,
