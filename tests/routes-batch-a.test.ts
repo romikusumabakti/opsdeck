@@ -90,11 +90,13 @@ describe("public routes", () => {
     expect(Object.keys(body).sort()).toEqual([
       "allowedEmailDomain",
       "appName",
+      "appTimeZone",
       "brand",
       "companyName",
       "microsoftSignIn",
     ]);
     expect(typeof body.microsoftSignIn).toBe("boolean");
+    expect(typeof body.appTimeZone).toBe("string");
   });
 
   it("GET /api/me returns null without a session", async () => {

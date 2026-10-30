@@ -1,6 +1,13 @@
+// First, before anything that reaches @better-auth/passkey: its certificate
+// parser (@peculiar/x509 → tsyringe) needs the Reflect metadata polyfill
+// installed when it loads. x509 imports the polyfill itself, but `bun build`
+// evaluates that CommonJS side-effect import after the ES modules beside it,
+// so the bundled server (dist/server/index.js) died at boot without this.
+import "reflect-metadata";
 import { validateEnv } from "@/lib/env";
 import { startWorker } from "@/lib/jobs/worker";
 import { app } from "@/server/app";
+import { mountStatic } from "@/server/static";
 
 // The server process. Two jobs besides serving requests:
 //
@@ -13,6 +20,9 @@ import { app } from "@/server/app";
 //     separate worker service).
 validateEnv();
 startWorker();
+
+// In production the same process serves the built SPA (server/static.ts).
+mountStatic(app);
 
 // Bun serves a default export with a `fetch` handler.
 export default {

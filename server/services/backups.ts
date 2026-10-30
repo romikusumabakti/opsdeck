@@ -98,15 +98,6 @@ export async function getBackupList(
   }
 }
 
-// Kept for API compatibility: the listing is no longer cached server-side, so
-// there is nothing to drop. The client refetches the list instead (Task 6).
-export async function revalidateBackupList(
-  environmentId: string
-): Promise<void> {
-  await requireProjectPermission({ environmentId }, { database: ["backup"] });
-  if (!uuidSchema.safeParse(environmentId).success) return;
-}
-
 export async function createDatabaseBackup(
   environmentId: string,
   options: { compress?: boolean; database?: string } = {}
