@@ -28,7 +28,7 @@ import {
   getMailSource,
   listMail,
 } from "@/server/services/mail";
-import { eventStream, sendEvent } from "@/server/sse";
+import { eventChannel, eventStream } from "@/server/sse";
 import { json, jsonQuery, query } from "@/server/validation";
 
 // The search box answers a bad query with the service's message, so the
@@ -108,46 +108,18 @@ export const mailFilesRouter = sessionRouter()
     const { cfg } = auth;
 
     return eventStream(c, async (stream) => {
-      let closed = false;
       let socket: WebSocket | null = null;
-      let finish = () => {};
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
+      // Frames are queued in order and flushed before the stream closes, so
+      // the final `stream-error` / `timeout` always reaches the client (see
+      // server/sse.ts).
+      const channel = eventChannel(stream, {
+        maxDurationMs: MAX_DURATION_MS,
+        heartbeatMs: HEARTBEAT_INTERVAL_MS,
+        onClose: () => socket?.close(),
       });
-
-      // Fire-and-forget: the writer queues frames in order, and a write after
-      // the client left is swallowed by the stream.
-      function send(event: string, data: unknown) {
-        if (!closed) void sendEvent(stream, event, data);
-      }
-
-      const heartbeat = setInterval(() => {
-        if (!closed) void stream.write(": ping\n\n");
-      }, HEARTBEAT_INTERVAL_MS);
-      const maxDuration = setTimeout(() => {
-        send("timeout", { reason: "max-duration" });
-        tearDown();
-      }, MAX_DURATION_MS);
-
-      function tearDown() {
-        if (closed) return;
-        closed = true;
-        clearInterval(heartbeat);
-        clearTimeout(maxDuration);
-        try {
-          socket?.close();
-        } catch {
-          // already closed
-        }
-        finish();
-      }
-
-      stream.onAbort(tearDown);
-      if (stream.aborted) {
-        tearDown();
-        return;
-      }
-      void stream.write(`retry: ${RETRY_MS}\n\n`);
+      const send = channel.send;
+      if (channel.closed) return;
+      channel.write(`retry: ${RETRY_MS}\n\n`);
 
       try {
         // Bun and Node (undici) both accept a non-standard `headers` init —
@@ -159,7 +131,8 @@ export const mailFilesRouter = sessionRouter()
         send("stream-error", {
           message: err instanceof Error ? err.message : "Failed to connect",
         });
-        tearDown();
+        channel.close();
+        await channel.done;
         return;
       }
 
@@ -170,11 +143,11 @@ export const mailFilesRouter = sessionRouter()
       });
       socket.addEventListener("error", () => {
         send("stream-error", { message: "Mailpit event stream failed" });
-        tearDown();
+        channel.close();
       });
-      socket.addEventListener("close", tearDown);
+      socket.addEventListener("close", () => channel.close());
 
-      await finished;
+      await channel.done;
     });
   })
   /** Downloads the full RFC 822 source of a captured email as `<id>.eml`. */

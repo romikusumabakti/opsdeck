@@ -19,7 +19,7 @@ import {
   controlService,
   getAllServiceStatuses,
 } from "@/server/services/services";
-import { eventStream, sendEvent } from "@/server/sse";
+import { eventChannel, eventStream } from "@/server/sse";
 import { json, query } from "@/server/validation";
 
 export const servicesRouter = sessionRouter()
@@ -94,45 +94,19 @@ export const serviceLogsRouter = sessionRouter().get(
     const startedAt = Date.now();
 
     return eventStream(c, async (stream) => {
-      let closed = false;
       let stopHandle: SshStreamHandle | null = null;
       // Last partial line carried over between chunks. SSH delivers arbitrary
       // byte boundaries, not line-aligned, so we accumulate until we see \n.
       let partial = "";
-      let finish = () => {};
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
+      // Frames are queued in order and flushed before the stream closes, so
+      // the final `close` / `stream-error` / `timeout` always reaches the
+      // client (see server/sse.ts).
+      const channel = eventChannel(stream, {
+        maxDurationMs: MAX_DURATION_MS,
+        heartbeatMs: HEARTBEAT_INTERVAL_MS,
+        onClose: () => stopHandle?.stop(),
       });
-
-      // Fire-and-forget: the writer queues frames in order, and a write after
-      // the client left is swallowed by the stream.
-      function send(event: string, data: unknown) {
-        if (!closed) void sendEvent(stream, event, data);
-      }
-
-      const heartbeat = setInterval(() => {
-        // SSE comment frame — ignored by EventSource but keeps the socket alive.
-        if (!closed) void stream.write(": ping\n\n");
-      }, HEARTBEAT_INTERVAL_MS);
-      const maxDuration = setTimeout(() => {
-        send("timeout", { reason: "max-duration" });
-        tearDown();
-      }, MAX_DURATION_MS);
-
-      function tearDown() {
-        if (closed) return;
-        closed = true;
-        clearInterval(heartbeat);
-        clearTimeout(maxDuration);
-        try {
-          stopHandle?.stop();
-        } catch {
-          // already stopped
-        }
-        finish();
-      }
-
-      stream.onAbort(tearDown);
+      const send = channel.send;
 
       try {
         stopHandle = await streamRemoteCommand(
@@ -144,7 +118,7 @@ export const serviceLogsRouter = sessionRouter().get(
           command,
           {
             onChunk(chunk) {
-              if (closed) return;
+              if (channel.closed) return;
               const text = partial + chunk.toString("utf8");
               const parts = text.split("\n");
               partial = parts.pop() ?? "";
@@ -154,23 +128,23 @@ export const serviceLogsRouter = sessionRouter().get(
               send("lines", parts);
             },
             onClose(info) {
-              if (closed) return;
+              if (channel.closed) return;
               if (partial.length > 0) {
                 send("lines", [partial]);
                 partial = "";
               }
               send("close", info);
-              tearDown();
+              channel.close();
             },
             onError(err) {
-              if (closed) return;
+              if (channel.closed) return;
               send("stream-error", { message: err.message });
-              tearDown();
+              channel.close();
             },
           }
         );
         // The client may have left while the SSH channel was opening.
-        if (closed) stopHandle.stop();
+        if (channel.closed) stopHandle.stop();
         // SSH channel is open at this point — safe to tell the client we're
         // streaming. Sent after streamRemoteCommand resolves so a connect
         // failure goes through the catch branch instead.
@@ -184,10 +158,10 @@ export const serviceLogsRouter = sessionRouter().get(
         const message =
           err instanceof Error ? err.message : "Failed to open log stream";
         send("stream-error", { message });
-        tearDown();
+        channel.close();
       }
 
-      await finished;
+      await channel.done;
     });
   }
 );

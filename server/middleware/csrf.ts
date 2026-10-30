@@ -18,13 +18,31 @@ import { csrf } from "hono/csrf";
 // callbacks from: behind the tunnel and Caddy the request URL is the
 // container's, so comparing against it would refuse every real user. Unset (a
 // local `bun run dev:server`) falls back to the request URL's own origin, which
-// is what the browser sees there. Read per request, so the value tracks the
-// environment the process runs in rather than whatever it was at import.
-function appOrigin(c: Context): string {
-  const configured = process.env.BETTER_AUTH_URL;
-  return configured ? new URL(configured).origin : new URL(c.req.url).origin;
+// is what the browser sees there.
+//
+// The variable is read per request (tests and a re-configured process see the
+// current value) but parsed once per distinct value. A malformed value — which
+// validateEnv already reports at boot — trusts no Origin, so checked requests
+// fall back to Sec-Fetch-Site alone instead of failing with a 500 each time.
+let parsed: { raw: string; origin: string | null } | undefined;
+
+function configuredOrigin(raw: string): string | null {
+  if (parsed?.raw !== raw) {
+    let origin: string | null = null;
+    try {
+      origin = new URL(raw).origin;
+    } catch {
+      console.error("BETTER_AUTH_URL is not a valid URL; trusting no Origin");
+    }
+    parsed = { raw, origin };
+  }
+  return parsed.origin;
 }
 
-export const csrfGuard = csrf({
-  origin: (origin, c) => origin === appOrigin(c),
-});
+function isAppOrigin(origin: string, c: Context): boolean {
+  const configured = process.env.BETTER_AUTH_URL;
+  if (!configured) return origin === new URL(c.req.url).origin;
+  return origin === configuredOrigin(configured);
+}
+
+export const csrfGuard = csrf({ origin: isAppOrigin });
