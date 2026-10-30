@@ -1,7 +1,4 @@
-"use server";
-
 import { eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -123,7 +120,6 @@ export async function saveMailpitSettings(
   }
 
   // The sidebar's Mail entry reads hasMailpit from the layout-level list.
-  revalidatePath("/", "layout");
   return {
     success: true,
     message: url ? "Mailpit settings saved" : "Mailpit disconnected",

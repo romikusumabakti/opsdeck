@@ -1,8 +1,4 @@
-"use server";
-
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -19,6 +15,7 @@ import {
   s3ConnectionInputSchema,
   s3ConnectionUpdateSchema,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 // Admin-managed S3-compatible targets for the storage explorer. Mirrors
 // actions/servers.ts. `secretKey` is stripped before any row reaches the client.
@@ -53,7 +50,7 @@ export async function createS3Connection(
   data: NewS3Connection
 ): Promise<ActionResponse<SafeS3Connection>> {
   await requireOrgPermission({ storage: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = s3ConnectionInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
@@ -69,7 +66,6 @@ export async function createS3Connection(
         .returning(),
       "S3 connection"
     );
-    revalidatePath("/storage");
     return { success: true, data: toSafe(created), message: t("s3Created") };
   } catch (error) {
     console.error("Failed to create S3 connection:", error);
@@ -82,7 +78,7 @@ export async function updateS3Connection(
   data: Partial<NewS3Connection>
 ): Promise<ActionResponse> {
   await requireOrgPermission({ storage: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = s3ConnectionUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
@@ -100,8 +96,6 @@ export async function updateS3Connection(
     if (!updated) {
       return { success: false, message: t("s3NotFound") };
     }
-    revalidatePath("/storage");
-    revalidatePath(`/storage/${id}`);
     return { success: true, message: t("s3Updated") };
   } catch (error) {
     console.error(`Failed to update S3 connection ${id}:`, error);
@@ -111,10 +105,9 @@ export async function updateS3Connection(
 
 export async function deleteS3Connection(id: string): Promise<ActionResponse> {
   await requireOrgPermission({ storage: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   try {
     await db.delete(s3Connections).where(eq(s3Connections.id, id));
-    revalidatePath("/storage");
     return { success: true, message: t("s3Deleted") };
   } catch (error) {
     console.error(`Failed to delete S3 connection ${id}:`, error);
@@ -134,7 +127,7 @@ export async function testS3ConnectionAction(input: {
   connectionId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireOrgPermission({ storage: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   let secretKey = input.secretKey;
   if (!secretKey && input.connectionId != null) {

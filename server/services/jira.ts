@@ -1,9 +1,5 @@
-"use server";
-
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
 import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -25,6 +21,7 @@ import {
   jiraConnectionUpdateSchema,
   jiraProjectLinkSchema,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 /**
  * Admin management of Jira sites, and per-project linking.
@@ -92,7 +89,7 @@ export async function createJiraConnection(
   data: unknown
 ): Promise<ActionResponse<SafeJiraConnection>> {
   await requireOrgPermission({ integration: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = jiraConnectionInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -115,7 +112,6 @@ export async function createJiraConnection(
         .returning(),
       "Jira connection"
     );
-    revalidatePath("/admin/jira");
     return { success: true, data: toSafe(created), message: t("jiraCreated") };
   } catch (error) {
     console.error("Failed to create Jira connection:", error);
@@ -128,7 +124,7 @@ export async function updateJiraConnection(
   data: unknown
 ): Promise<ActionResponse> {
   await requireOrgPermission({ integration: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = jiraConnectionUpdateSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -151,8 +147,6 @@ export async function updateJiraConnection(
       .where(eq(jiraConnections.id, id))
       .returning();
     if (!updated) return { success: false, message: t("jiraNotFound") };
-    revalidatePath("/admin/jira");
-    revalidatePath(`/admin/jira/${id}`);
     return { success: true, message: t("jiraUpdated") };
   } catch (error) {
     console.error(`Failed to update Jira connection ${id}:`, error);
@@ -164,7 +158,7 @@ export async function deleteJiraConnection(
   id: string
 ): Promise<ActionResponse> {
   await requireOrgPermission({ integration: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   let orphaned: { projectId: string }[] = [];
   try {
     // Links cascade with the connection, so collect them before the delete —
@@ -187,7 +181,6 @@ export async function deleteJiraConnection(
       console.error("Failed to unschedule the Jira sweep:", error);
     }
   }
-  revalidatePath("/admin/jira");
   return { success: true, message: t("jiraDeleted") };
 }
 
@@ -203,7 +196,7 @@ export async function testJiraConnection(input: {
   connectionId?: string;
 }): Promise<{ ok: true; account: string } | { ok: false; message: string }> {
   await requireOrgPermission({ integration: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   let token = input.apiToken;
   if (!token && input.connectionId) {
@@ -274,7 +267,7 @@ export async function getJiraLink(
  * and kicks off an immediate incremental sweep.
  */
 export async function saveJiraLink(data: unknown): Promise<ActionResponse> {
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = jiraProjectLinkSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
   const input = parsed.data;
@@ -348,7 +341,6 @@ export async function saveJiraLink(data: unknown): Promise<ActionResponse> {
   } catch (error) {
     console.error("Failed to (un)schedule the Jira sweep:", error);
   }
-  revalidatePath("/[locale]/[projectKey]/settings", "page");
   return { success: true, message: t("jiraLinkSaved") };
 }
 
@@ -361,7 +353,7 @@ export async function unlinkJiraProject(
   projectId: string
 ): Promise<ActionResponse> {
   await requireProjectPermission({ projectId }, { environment: ["update"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   try {
     // Row first: it is the source of truth. A sweep that fires against a
     // deleted link finds nothing to do and exits, so a stale scheduler is
@@ -378,7 +370,6 @@ export async function unlinkJiraProject(
   } catch (error) {
     console.error("Failed to unschedule the Jira sweep:", error);
   }
-  revalidatePath("/[locale]/[projectKey]/settings", "page");
   return { success: true, message: t("jiraUnlinked") };
 }
 
@@ -388,7 +379,7 @@ export async function syncJiraProjectNow(
   full = false
 ): Promise<ActionResponse> {
   await requireProjectPermission({ projectId }, { environment: ["update"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const [link] = await db
     .select({ enabled: jiraProjectLinks.enabled })
     .from(jiraProjectLinks)

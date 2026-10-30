@@ -1,5 +1,3 @@
-"use server";
-
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { environmentName } from "@/lib/environments";

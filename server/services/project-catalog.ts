@@ -1,7 +1,4 @@
-"use server";
-
 import { asc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
@@ -155,8 +152,6 @@ export async function addProject(
       await db.insert(projects).values(parsed.data).returning(),
       "project"
     );
-    revalidatePath("/projects");
-    revalidatePath("/", "layout");
     return { success: true, data: created };
   } catch (error) {
     // Unique violation on `key` (pg 23505) → surface a friendly message.
@@ -189,8 +184,6 @@ export async function editProject(
     if (!updated) {
       return { success: false, message: "Project not found" };
     }
-    revalidatePath("/projects");
-    revalidatePath("/", "layout");
     return { success: true, data: updated };
   } catch (error) {
     if ((error as { code?: string })?.code === "23505") {
@@ -209,8 +202,6 @@ export async function removeProject(id: string): Promise<ActionResponse> {
   await requireOrgPermission({ project: ["delete"] });
   try {
     await db.delete(projects).where(eq(projects.id, id));
-    revalidatePath("/projects");
-    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete project ${id}:`, error);

@@ -32,8 +32,8 @@ function usersWithProjectWhere(
 }
 
 // Non-banned users who are org admin/infra (reach every project) or hold a
-// project_members row matching `projectCond`. Lives outside the "use server"
-// action files, where every export would be a public endpoint.
+// project_members row matching `projectCond`. Lives outside
+// server/services, where every export is a candidate API endpoint.
 export function assignableUsersWhere(projectCond: SQL | undefined) {
   return usersWithProjectWhere(ORG_WIDE_ASSIGNEE_ROLES, projectCond);
 }

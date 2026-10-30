@@ -1,7 +1,4 @@
-"use server";
-
 import { and, eq, inArray } from "drizzle-orm";
-import { getTranslations } from "next-intl/server";
 import { recordActivity } from "@/lib/activity";
 import { ORG_WIDE_VISIBLE_ROLES } from "@/lib/assignees";
 import { requireProjectPermission } from "@/lib/authz";
@@ -16,6 +13,7 @@ import {
 } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 export type ProjectMemberRow = {
   userId: string;
@@ -130,7 +128,7 @@ export async function addProjectMember(input: {
     { projectId: input.projectId },
     { member: ["manage"] }
   );
-  const t = await getTranslations("projectMembers");
+  const t = await getServerTranslator("projectMembers");
   if (
     !uuidSchema.safeParse(input.projectId).success ||
     !uuidSchema.safeParse(input.userId).success
@@ -177,7 +175,7 @@ export async function updateProjectMemberRole(input: {
     { projectId: input.projectId },
     { member: ["manage"] }
   );
-  const t = await getTranslations("projectMembers");
+  const t = await getServerTranslator("projectMembers");
   if (!uuidSchema.safeParse(input.userId).success) {
     return { success: false, message: t("errorInvalidInput") };
   }
@@ -226,7 +224,7 @@ export async function removeProjectMember(input: {
     { projectId: input.projectId },
     { member: ["manage"] }
   );
-  const t = await getTranslations("projectMembers");
+  const t = await getServerTranslator("projectMembers");
   // Capture names before the row is gone.
   const names = await memberNames(input.projectId, input.userId);
   await db

@@ -1,7 +1,4 @@
-"use server";
-
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -42,8 +39,6 @@ import {
 // as `db`, so helpers below take it instead of the top-level connection.
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-const KNOWLEDGE_PATH = "/knowledge";
-
 // --- Collections (admin-managed) --------------------------------------------
 
 export async function createCollection(
@@ -66,7 +61,6 @@ export async function createCollection(
         .returning(),
       "knowledge collection"
     );
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true, data: created };
   } catch (error) {
     console.error("Failed to create collection:", error);
@@ -93,7 +87,6 @@ export async function updateCollection(
       .where(eq(knowledgeCollections.id, id))
       .returning();
     if (!updated) return { success: false, message: "Collection not found" };
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true, data: updated };
   } catch (error) {
     console.error(`Failed to update collection ${id}:`, error);
@@ -114,7 +107,6 @@ export async function deleteCollection(
     await db
       .delete(knowledgeCollections)
       .where(eq(knowledgeCollections.id, id));
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete collection ${id}:`, error);
@@ -139,7 +131,6 @@ export async function moveCollection(
       .update(knowledgeCollections)
       .set({ rank, updatedAt: new Date() })
       .where(eq(knowledgeCollections.id, collectionId));
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true };
   } catch (error) {
     console.error(`Failed to move collection ${collectionId}:`, error);
@@ -217,7 +208,6 @@ export async function createDocument(
       await rebuildLinks(tx, doc.id, content);
       return doc;
     });
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true, data: created };
   } catch (error) {
     console.error("Failed to create document:", error);
@@ -316,8 +306,6 @@ export async function updateDocument(
         message: "Document changed since you opened it — reload and retry",
       };
     }
-    revalidatePath(KNOWLEDGE_PATH);
-    revalidatePath(`${KNOWLEDGE_PATH}/${result.doc.slug}`);
     return { success: true, data: result.doc };
   } catch (error) {
     console.error(`Failed to update document ${id}:`, error);
@@ -365,7 +353,6 @@ export async function moveDocument(
           .where(inArray(knowledgeDocuments.id, descendants));
       }
     });
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true };
   } catch (error) {
     if (error instanceof MoveCycleError) {
@@ -432,7 +419,6 @@ export async function deleteDocument(
   }
   try {
     await db.delete(knowledgeDocuments).where(eq(knowledgeDocuments.id, id));
-    revalidatePath(KNOWLEDGE_PATH);
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete document ${id}:`, error);
@@ -489,7 +475,6 @@ export async function restoreRevision(
       return doc;
     });
     if (!restored) return { success: false, message: "Revision not found" };
-    revalidatePath(`${KNOWLEDGE_PATH}/${restored.slug}`);
     return { success: true, data: restored };
   } catch (error) {
     console.error(`Failed to restore revision ${revisionId}:`, error);

@@ -1,7 +1,4 @@
-"use server";
-
 import { asc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -33,7 +30,6 @@ export async function setIssueLabels(
           .values(labelIds.map((labelId) => ({ issueId, labelId })));
       }
     });
-    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to set issue labels:", error);

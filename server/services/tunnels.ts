@@ -1,8 +1,4 @@
-"use server";
-
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { getTranslations } from "next-intl/server";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -66,6 +62,7 @@ import {
   tunnelRouteInputSchema,
   tunnelUpdateSchema,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 // Admin-managed Cloudflare Tunnel subdomains. Everything here is admin-only:
 // publishing or withdrawing a hostname changes what the public internet can
@@ -74,8 +71,6 @@ import {
 // The division of labour: lib/tunnels/ingress and lib/tunnels/compose edit YAML
 // (pure, unit-tested), lib/tunnels/remote moves bytes and runs commands, and
 // lib/tunnels/cloudflare talks DNS. This file is the ordering and the recovery.
-
-const ADMIN_TUNNELS_PATH = "/admin/tunnels";
 
 // =========================
 // Zones
@@ -99,7 +94,7 @@ export async function createCloudflareZone(
   data: NewCloudflareZone
 ): Promise<ActionResponse<{ id: string }>> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = cloudflareZoneInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -114,7 +109,6 @@ export async function createCloudflareZone(
         .returning(),
       "cloudflare zone"
     );
-    revalidatePath(ADMIN_TUNNELS_PATH);
     return {
       success: true,
       message: t("zoneCreated"),
@@ -131,7 +125,7 @@ export async function updateCloudflareZone(
   data: Partial<NewCloudflareZone>
 ): Promise<ActionResponse> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = cloudflareZoneUpdateSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -147,7 +141,6 @@ export async function updateCloudflareZone(
       .where(eq(cloudflareZones.id, id))
       .returning();
     if (!updated) return { success: false, message: t("zoneNotFound") };
-    revalidatePath(ADMIN_TUNNELS_PATH);
     return { success: true, message: t("zoneUpdated") };
   } catch (error) {
     console.error(`Failed to update Cloudflare zone ${id}:`, error);
@@ -159,10 +152,9 @@ export async function deleteCloudflareZone(
   id: string
 ): Promise<ActionResponse> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   try {
     await db.delete(cloudflareZones).where(eq(cloudflareZones.id, id));
-    revalidatePath(ADMIN_TUNNELS_PATH);
     return { success: true, message: t("zoneDeleted") };
   } catch (error) {
     // The FK is ON DELETE RESTRICT: a zone still backing a tunnel cannot go,
@@ -182,7 +174,7 @@ export async function testCloudflareZone(input: {
   id?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   let apiToken = input.apiToken?.trim();
   if (!apiToken && input.id) {
@@ -254,7 +246,7 @@ export async function createTunnel(
   data: NewTunnel
 ): Promise<ActionResponse<{ id: string }>> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = tunnelInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -263,7 +255,6 @@ export async function createTunnel(
       await db.insert(tunnels).values(parsed.data).returning(),
       "tunnel"
     );
-    revalidatePath(ADMIN_TUNNELS_PATH);
     return {
       success: true,
       message: t("tunnelCreated"),
@@ -280,7 +271,7 @@ export async function updateTunnel(
   data: Partial<NewTunnel>
 ): Promise<ActionResponse> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = tunnelUpdateSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
 
@@ -291,8 +282,6 @@ export async function updateTunnel(
       .where(eq(tunnels.id, id))
       .returning();
     if (!updated) return { success: false, message: t("tunnelNotFound") };
-    revalidatePath(ADMIN_TUNNELS_PATH);
-    revalidatePath(`${ADMIN_TUNNELS_PATH}/${id}`);
     return { success: true, message: t("tunnelUpdated") };
   } catch (error) {
     console.error(`Failed to update tunnel ${id}:`, error);
@@ -307,10 +296,9 @@ export async function updateTunnel(
  */
 export async function deleteTunnel(id: string): Promise<ActionResponse> {
   await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   try {
     await db.delete(tunnels).where(eq(tunnels.id, id));
-    revalidatePath(ADMIN_TUNNELS_PATH);
     return { success: true, message: t("tunnelDeleted") };
   } catch (error) {
     console.error(`Failed to delete tunnel ${id}:`, error);
@@ -503,7 +491,7 @@ export async function createTunnelRoute(input: {
   originPort: number;
 }): Promise<ActionResponse<{ hostname: string }>> {
   const session = await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const parsed = tunnelRouteInputSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -629,7 +617,6 @@ export async function createTunnelRoute(input: {
         tunnel: tunnel.name,
       },
     });
-    revalidatePath(`${ADMIN_TUNNELS_PATH}/${tunnel.id}`);
     return {
       success: true,
       message: t("routeCreated", { hostname }),
@@ -659,7 +646,7 @@ export async function deleteTunnelRoute(input: {
   hostname: string;
 }): Promise<ActionResponse> {
   const session = await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
   const hostname = tunnelHostnameSchema.safeParse(input.hostname);
   if (!hostname.success) return { success: false, message: t("invalidInput") };
 
@@ -722,7 +709,6 @@ export async function deleteTunnelRoute(input: {
       entityId: tunnel.id,
       data: { hostname: hostname.data, tunnel: tunnel.name },
     });
-    revalidatePath(`${ADMIN_TUNNELS_PATH}/${tunnel.id}`);
     return {
       success: true,
       message: t("routeDeleted", { hostname: hostname.data }),
@@ -749,7 +735,7 @@ export async function attachTunnelNetwork(input: {
   network: string;
 }): Promise<ActionResponse> {
   const session = await requireOrgPermission({ tunnel: ["manage"] });
-  const t = await getTranslations("actionErrors");
+  const t = await getServerTranslator("actionErrors");
 
   const loaded = await loadTunnel(input.tunnelId);
   if (!loaded) return { success: false, message: t("tunnelNotFound") };
@@ -803,7 +789,6 @@ export async function attachTunnelNetwork(input: {
       entityId: tunnel.id,
       data: { network: input.network, tunnel: tunnel.name },
     });
-    revalidatePath(`${ADMIN_TUNNELS_PATH}/${tunnel.id}`);
     return {
       success: true,
       message: t("networkAttached", { network: input.network }),

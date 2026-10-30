@@ -1,7 +1,4 @@
-"use server";
-
 import { asc, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth-session";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -66,6 +63,5 @@ export async function deleteIssueAttachment(
     console.error(`Failed to delete attachment object for ${id}:`, error);
   }
   await db.delete(issueAttachments).where(eq(issueAttachments.id, id));
-  revalidatePath("/", "layout");
   return { success: true };
 }

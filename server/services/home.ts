@@ -1,7 +1,4 @@
-"use server";
-
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
@@ -68,7 +65,6 @@ export async function acknowledgeAttentionGroup(
         },
       });
     }
-    revalidatePath("/[locale]", "page");
     return { success: true, data: { runIds: acked.map((r) => r.id) } };
   } catch (error) {
     console.error("Failed to acknowledge runs:", error);
@@ -120,7 +116,6 @@ export async function unacknowledgeRuns(
         },
       });
     }
-    revalidatePath("/[locale]", "page");
     return { success: true };
   } catch (error) {
     console.error("Failed to unacknowledge runs:", error);

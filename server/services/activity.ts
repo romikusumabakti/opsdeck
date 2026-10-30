@@ -1,5 +1,3 @@
-"use server";
-
 import { desc, eq } from "drizzle-orm";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";

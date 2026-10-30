@@ -1,8 +1,4 @@
-"use server";
-
-import { unstable_cache, updateTag } from "next/cache";
 import { requireProjectPermission } from "@/lib/authz";
-import { backupListCacheTag } from "@/lib/db-cache-tags";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
 import { enqueue } from "@/lib/queue";
@@ -37,8 +33,7 @@ function resolveTargetDatabase(
   return parsed.data;
 }
 
-// The SSH probe with no session/request state, so it is safe inside
-// `unstable_cache`. Throws on failure so a transient SSH error is not cached.
+// The SSH probe with no session/request state. Throws on failure.
 async function probeBackupList(environmentId: string): Promise<Backup[]> {
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) {
@@ -87,11 +82,7 @@ export async function getBackupList(
     return { success: false, error: "Invalid environment id" };
   }
   try {
-    const data = await unstable_cache(
-      () => probeBackupList(environmentId),
-      ["backup-list", environmentId],
-      { tags: [backupListCacheTag(environmentId)], revalidate: 30 }
-    )();
+    const data = await probeBackupList(environmentId);
     return { success: true, data };
   } catch (error) {
     const message = (error as Error).message;
@@ -107,15 +98,13 @@ export async function getBackupList(
   }
 }
 
-// Drop the cached backup listing so the restore tab reflects a file the worker
-// just wrote. Called from the client once a backup run completes — the enqueue
-// path can't invalidate because the file only exists after the worker finishes.
+// Kept for API compatibility: the listing is no longer cached server-side, so
+// there is nothing to drop. The client refetches the list instead (Task 6).
 export async function revalidateBackupList(
   environmentId: string
 ): Promise<void> {
   await requireProjectPermission({ environmentId }, { database: ["backup"] });
   if (!uuidSchema.safeParse(environmentId).success) return;
-  updateTag(backupListCacheTag(environmentId));
 }
 
 export async function createDatabaseBackup(
