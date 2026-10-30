@@ -40,8 +40,8 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { useModKey } from "@/hooks/use-is-mac";
-import { useRouter } from "@/i18n/navigation";
-import { routing } from "@/i18n/routing";
+import { type Locale, locales } from "@/i18n/locales";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { ACCENTS } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
 import { MOTIFS } from "@/lib/motifs";
@@ -72,6 +72,7 @@ export function CommandPalette({
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const locale = useLocale();
   const t = useTranslations("commandPalette");
   const tNav = useTranslations("nav");
@@ -118,20 +119,11 @@ export function CommandPalette({
     router.push("/sign-in");
   }
 
-  function switchLocale(target: string) {
-    if (target === locale) {
-      setOpen(false);
-      return;
-    }
+  function switchLocale(target: Locale) {
     setOpen(false);
-    const path = window.location.pathname;
-    const segs = path.split("/").filter(Boolean);
-    if (routing.locales.includes(segs[0] as (typeof routing.locales)[number])) {
-      segs[0] = target;
-    } else {
-      segs.unshift(target);
-    }
-    window.location.assign(`/${segs.join("/")}${window.location.search}`);
+    if (target === locale) return;
+    router.replace(pathname, { locale: target });
+    router.refresh();
   }
 
   return (
@@ -397,7 +389,7 @@ export function CommandPalette({
 
           <CommandSeparator />
           <CommandGroup heading={t("language")}>
-            {routing.locales.map((loc) => (
+            {locales.map((loc) => (
               <CommandItem
                 key={loc}
                 value={`language ${loc}`}

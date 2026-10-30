@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import { AccentProvider } from "@/components/accent-provider";
 import { ActiveRunsIndicator } from "@/components/active-runs-indicator";
@@ -32,6 +33,7 @@ import {
   listProjectsQuery,
 } from "@/web/api/project-catalog";
 import { useBootstrap, useMe } from "@/web/api/session";
+import { LocaleNotFoundContent } from "@/web/components/locale-fallbacks";
 
 // The signed-in app shell (the port of the signed-in branch of
 // app/[locale]/layout.tsx). Pathless: every authenticated page is a child,
@@ -51,18 +53,32 @@ export const Route = createFileRoute("/$locale/_app")({
     ]);
   },
   component: AppShell,
+  // A page's `throw notFound()` lands here — the nearest route with a
+  // notFoundComponent — and TanStack renders this in place of the shell, so
+  // it brings the shell back around the 404. Pages need no opt-in.
+  notFoundComponent: () => (
+    <AppShell>
+      <LocaleNotFoundContent />
+    </AppShell>
+  ),
 });
 
-function AppShell() {
+function AppShell({ children }: { children?: ReactNode }) {
   const me = useMe();
   // Signing out refetches `/api/me` in place (resetSession) before navigating
   // away, so the shell re-renders with null for a moment: render nothing
   // then rather than a shell with no user.
   if (!me) return null;
-  return <SignedInShell me={me} />;
+  return <SignedInShell me={me}>{children ?? <Outlet />}</SignedInShell>;
 }
 
-function SignedInShell({ me }: { me: NonNullable<ReturnType<typeof useMe>> }) {
+function SignedInShell({
+  me,
+  children,
+}: {
+  me: NonNullable<ReturnType<typeof useMe>>;
+  children: ReactNode;
+}) {
   const { locale } = Route.useParams();
   const t = useTranslations("header");
   const bootstrap = useBootstrap();
@@ -156,7 +172,7 @@ function SignedInShell({ me }: { me: NonNullable<ReturnType<typeof useMe>> }) {
                 {!user.timezone && (
                   <TimezoneHint appTimeZone={bootstrap.appTimeZone} />
                 )}
-                <Outlet />
+                {children}
               </main>
             </SidebarInset>
             <KeyboardShortcuts />
