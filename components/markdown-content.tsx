@@ -147,7 +147,7 @@ export function MarkdownContent({
           img: ({ src, alt, ...props }) => (
             // Attachments resolve through /api/knowledge/asset/<id> (auth-gated).
             // Lazy + async so a doc full of screenshots doesn't block first paint.
-            // biome-ignore lint/performance/noImgElement: a sized image component can't handle remote auth-gated assets here
+            // a sized image component can't handle remote auth-gated assets here
             <img
               src={typeof src === "string" ? src : undefined}
               alt={alt ?? ""}

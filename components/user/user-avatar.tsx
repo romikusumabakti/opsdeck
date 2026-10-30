@@ -51,7 +51,7 @@ export function UserAvatar({
   // every viewer's browser fetch it.
   if (isOwnAvatarUrl(user.image, user.id) && !failed) {
     return (
-      // biome-ignore lint/performance/noImgElement: imgproxy already resizes and optimises the avatar.
+      // imgproxy already resizes and optimises the avatar.
       <img
         src={avatarSrc(user.image, px)}
         srcSet={`${avatarSrc(user.image, px)} 1x, ${avatarSrc(user.image, px * 2)} 2x`}
