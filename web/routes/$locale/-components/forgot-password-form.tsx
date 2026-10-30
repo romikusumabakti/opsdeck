@@ -1,10 +1,8 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, CircleCheck } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useLocale, useTranslations } from "use-intl";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -60,7 +58,11 @@ export function ForgotPasswordForm() {
           <CircleCheck />
           <AlertDescription>{t("successMessage")}</AlertDescription>
         </Alert>
-        <Button render={<Link href="/sign-in" />} variant="outline">
+        <Button
+          render={<Link href="/sign-in" />}
+          nativeButton={false}
+          variant="outline"
+        >
           {t("backToSignIn")}
         </Button>
       </div>

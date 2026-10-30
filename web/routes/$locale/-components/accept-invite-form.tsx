@@ -1,11 +1,8 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { createInitialUser } from "@/actions/users";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,21 +13,30 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
+import { resetSession } from "@/web/api/session";
+import { acceptInvitation } from "@/web/api/users";
 
-export function SetupForm() {
-  const t = useTranslations("setup");
+export function AcceptInviteForm({
+  token,
+  email,
+  name,
+}: {
+  token: string;
+  email: string;
+  name: string;
+}) {
+  const t = useTranslations("acceptInvite");
   const tCommon = useTranslations("common");
   const router = useRouter();
 
   const schema = z
     .object({
-      name: z.string().min(1, tCommon("required")),
-      email: z.string().email(tCommon("emailInvalid")),
       password: z.string().min(8, tCommon("passwordTooShort", { min: 8 })),
       confirm: z.string(),
     })
@@ -41,9 +47,7 @@ export function SetupForm() {
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", email: "", password: "", confirm: "" },
-    // Match the rest of the unauthenticated forms: validate a field on blur,
-    // then keep it live while the user corrects it.
+    defaultValues: { password: "", confirm: "" },
     mode: "onTouched",
     reValidateMode: "onChange",
   });
@@ -51,11 +55,7 @@ export function SetupForm() {
   useUnsavedChanges(form.formState.isDirty && !form.formState.isSubmitting);
 
   async function onSubmit(values: z.infer<typeof schema>) {
-    const result = await createInitialUser({
-      name: values.name,
-      email: values.email,
-      password: values.password,
-    });
+    const result = await acceptInvitation({ token, password: values.password });
 
     if (!result.success) {
       toast.error(result.message);
@@ -63,7 +63,7 @@ export function SetupForm() {
     }
 
     const { error: signInErr } = await authClient.signIn.email({
-      email: values.email,
+      email,
       password: values.password,
     });
 
@@ -72,8 +72,8 @@ export function SetupForm() {
       return;
     }
 
+    await resetSession();
     router.push("/");
-    router.refresh();
   }
 
   return (
@@ -82,43 +82,20 @@ export function SetupForm() {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-4"
       >
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("namePlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("email")}</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder={t("emailPlaceholder")}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="flex flex-col gap-2">
+          <Label>{t("name")}</Label>
+          <Input value={name} disabled />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label>{t("email")}</Label>
+          <Input value={email} disabled />
+        </div>
         <FormField
           control={form.control}
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("password")}</FormLabel>
+              <FormLabel>{t("newPassword")}</FormLabel>
               <FormControl>
                 <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>

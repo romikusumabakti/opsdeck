@@ -11,7 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LocaleRouteRouteImport } from './routes/$locale/route'
+import { Route as LocaleAppRouteRouteImport } from './routes/$locale/_app/route'
+import { Route as LocaleForgotPasswordRouteImport } from './routes/$locale/forgot-password'
+import { Route as LocaleResetPasswordRouteImport } from './routes/$locale/reset-password'
+import { Route as LocaleSetupRouteImport } from './routes/$locale/setup'
 import { Route as LocaleSignInRouteImport } from './routes/$locale/sign-in'
+import { Route as LocaleAppIndexRouteImport } from './routes/$locale/_app/index'
+import { Route as LocaleAppSplatRouteImport } from './routes/$locale/_app/$'
+import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,34 +30,114 @@ const LocaleRouteRoute = LocaleRouteRouteImport.update({
   path: '/$locale',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocaleAppRouteRoute = LocaleAppRouteRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => LocaleRouteRoute,
+} as any)
+const LocaleForgotPasswordRoute = LocaleForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => LocaleRouteRoute,
+} as any)
+const LocaleResetPasswordRoute = LocaleResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => LocaleRouteRoute,
+} as any)
+const LocaleSetupRoute = LocaleSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => LocaleRouteRoute,
+} as any)
 const LocaleSignInRoute = LocaleSignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => LocaleRouteRoute,
+} as any)
+const LocaleAppIndexRoute = LocaleAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppSplatRoute = LocaleAppSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAcceptInviteTokenRoute = LocaleAcceptInviteTokenRouteImport.update({
+  id: '/accept-invite/$token',
+  path: '/accept-invite/$token',
   getParentRoute: () => LocaleRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteRouteWithChildren
+  '/$locale/forgot-password': typeof LocaleForgotPasswordRoute
+  '/$locale/reset-password': typeof LocaleResetPasswordRoute
+  '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/$': typeof LocaleAppSplatRoute
+  '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
+  '/$locale/': typeof LocaleAppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/$locale': typeof LocaleRouteRouteWithChildren
+  '/$locale': typeof LocaleAppIndexRoute
+  '/$locale/forgot-password': typeof LocaleForgotPasswordRoute
+  '/$locale/reset-password': typeof LocaleResetPasswordRoute
+  '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/$': typeof LocaleAppSplatRoute
+  '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$locale': typeof LocaleRouteRouteWithChildren
+  '/$locale/_app': typeof LocaleAppRouteRouteWithChildren
+  '/$locale/forgot-password': typeof LocaleForgotPasswordRoute
+  '/$locale/reset-password': typeof LocaleResetPasswordRoute
+  '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
+  '/$locale/_app/$': typeof LocaleAppSplatRoute
+  '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
+  '/$locale/_app/': typeof LocaleAppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$locale' | '/$locale/sign-in'
+  fullPaths:
+    | '/'
+    | '/$locale'
+    | '/$locale/forgot-password'
+    | '/$locale/reset-password'
+    | '/$locale/setup'
+    | '/$locale/sign-in'
+    | '/$locale/$'
+    | '/$locale/accept-invite/$token'
+    | '/$locale/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$locale' | '/$locale/sign-in'
-  id: '__root__' | '/' | '/$locale' | '/$locale/sign-in'
+  to:
+    | '/'
+    | '/$locale'
+    | '/$locale/forgot-password'
+    | '/$locale/reset-password'
+    | '/$locale/setup'
+    | '/$locale/sign-in'
+    | '/$locale/$'
+    | '/$locale/accept-invite/$token'
+  id:
+    | '__root__'
+    | '/'
+    | '/$locale'
+    | '/$locale/_app'
+    | '/$locale/forgot-password'
+    | '/$locale/reset-password'
+    | '/$locale/setup'
+    | '/$locale/sign-in'
+    | '/$locale/_app/$'
+    | '/$locale/accept-invite/$token'
+    | '/$locale/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -74,6 +161,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$locale/_app': {
+      id: '/$locale/_app'
+      path: ''
+      fullPath: '/$locale'
+      preLoaderRoute: typeof LocaleAppRouteRouteImport
+      parentRoute: typeof LocaleRouteRoute
+    }
+    '/$locale/forgot-password': {
+      id: '/$locale/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/$locale/forgot-password'
+      preLoaderRoute: typeof LocaleForgotPasswordRouteImport
+      parentRoute: typeof LocaleRouteRoute
+    }
+    '/$locale/reset-password': {
+      id: '/$locale/reset-password'
+      path: '/reset-password'
+      fullPath: '/$locale/reset-password'
+      preLoaderRoute: typeof LocaleResetPasswordRouteImport
+      parentRoute: typeof LocaleRouteRoute
+    }
+    '/$locale/setup': {
+      id: '/$locale/setup'
+      path: '/setup'
+      fullPath: '/$locale/setup'
+      preLoaderRoute: typeof LocaleSetupRouteImport
+      parentRoute: typeof LocaleRouteRoute
+    }
     '/$locale/sign-in': {
       id: '/$locale/sign-in'
       path: '/sign-in'
@@ -81,15 +196,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleSignInRouteImport
       parentRoute: typeof LocaleRouteRoute
     }
+    '/$locale/_app/': {
+      id: '/$locale/_app/'
+      path: '/'
+      fullPath: '/$locale/'
+      preLoaderRoute: typeof LocaleAppIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$': {
+      id: '/$locale/_app/$'
+      path: '/$'
+      fullPath: '/$locale/$'
+      preLoaderRoute: typeof LocaleAppSplatRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/accept-invite/$token': {
+      id: '/$locale/accept-invite/$token'
+      path: '/accept-invite/$token'
+      fullPath: '/$locale/accept-invite/$token'
+      preLoaderRoute: typeof LocaleAcceptInviteTokenRouteImport
+      parentRoute: typeof LocaleRouteRoute
+    }
   }
 }
 
+interface LocaleAppRouteRouteChildren {
+  LocaleAppSplatRoute: typeof LocaleAppSplatRoute
+  LocaleAppIndexRoute: typeof LocaleAppIndexRoute
+}
+
+const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
+  LocaleAppSplatRoute: LocaleAppSplatRoute,
+  LocaleAppIndexRoute: LocaleAppIndexRoute,
+}
+
+const LocaleAppRouteRouteWithChildren = LocaleAppRouteRoute._addFileChildren(
+  LocaleAppRouteRouteChildren,
+)
+
 interface LocaleRouteRouteChildren {
+  LocaleAppRouteRoute: typeof LocaleAppRouteRouteWithChildren
+  LocaleForgotPasswordRoute: typeof LocaleForgotPasswordRoute
+  LocaleResetPasswordRoute: typeof LocaleResetPasswordRoute
+  LocaleSetupRoute: typeof LocaleSetupRoute
   LocaleSignInRoute: typeof LocaleSignInRoute
+  LocaleAcceptInviteTokenRoute: typeof LocaleAcceptInviteTokenRoute
 }
 
 const LocaleRouteRouteChildren: LocaleRouteRouteChildren = {
+  LocaleAppRouteRoute: LocaleAppRouteRouteWithChildren,
+  LocaleForgotPasswordRoute: LocaleForgotPasswordRoute,
+  LocaleResetPasswordRoute: LocaleResetPasswordRoute,
+  LocaleSetupRoute: LocaleSetupRoute,
   LocaleSignInRoute: LocaleSignInRoute,
+  LocaleAcceptInviteTokenRoute: LocaleAcceptInviteTokenRoute,
 }
 
 const LocaleRouteRouteWithChildren = LocaleRouteRoute._addFileChildren(

@@ -1,6 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { setApiNavigator } from "@/web/api/client";
+import {
+  LocaleErrorContent,
+  LocaleNotFoundContent,
+} from "@/web/components/locale-fallbacks";
 import { PendingScreen } from "@/web/components/pending-screen";
 import { queryClient } from "@/web/query-client";
 import { routeTree } from "@/web/routeTree.gen";
@@ -16,7 +20,14 @@ export function createAppRouter(client: QueryClient) {
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
     defaultPendingComponent: PendingScreen,
+    // A page's own boundaries, unless it brings its own: they render where
+    // the page would, so inside the app shell. Every route that uses them
+    // sits below $locale and its IntlProvider.
+    defaultErrorComponent: LocaleErrorContent,
+    defaultNotFoundComponent: LocaleNotFoundContent,
     scrollRestoration: true,
+    // In the app shell `<main>`, not the window, scrolls.
+    scrollToTopSelectors: ["#main-content"],
     parseSearch,
     stringifySearch,
   });
