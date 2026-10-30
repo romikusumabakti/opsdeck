@@ -196,7 +196,10 @@ export function getPathname({
  */
 export function redirect(href: string, locale?: Locale): never {
   throw routerRedirect({
-    href: localizeHref(href, locale ?? localeFromPath(window.location.pathname)),
+    href: localizeHref(
+      href,
+      locale ?? localeFromPath(window.location.pathname)
+    ),
   });
 }
 

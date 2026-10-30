@@ -147,7 +147,7 @@ export function AvatarCropper({
           }}
         >
           {img && (
-            // biome-ignore lint/performance/noImgElement: local object URL preview
+            // local object URL preview
             <img
               src={img.src}
               alt=""

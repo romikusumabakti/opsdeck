@@ -14,7 +14,7 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["github"], ["html"]] : "list",
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: origin,
     trace: "retain-on-failure",
@@ -25,6 +25,9 @@ export default defineConfig({
     {
       name: "auth",
       testMatch: "auth.spec.ts",
+      // Setup creates the first admin; a retry would run against a database
+      // that already has one and could never pass.
+      retries: 0,
       use: { ...devices["Desktop Chrome"] },
     },
     {
