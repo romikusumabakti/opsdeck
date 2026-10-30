@@ -1,11 +1,25 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { defaultAccent } from "@/lib/accents";
+import { APP_NAME, brand } from "@/lib/branding";
 import { createBaseApp } from "@/server/app";
 import { mountStatic } from "@/server/static";
 
-const INDEX_HTML = '<!doctype html><div id="root"></div>';
+const INDEX_HTML =
+  '<!doctype html><html lang="en"><head><title>OpsDeck</title></head><div id="root"></div></html>';
+// INDEX_HTML as served with this process's branding (OpsDeck, default brand,
+// neutral accent unless APP_NAME/BRAND are set).
+const BRANDED_HTML = `<!doctype html><html data-brand="${brand()}" data-accent="${defaultAccent(brand())}" lang="en"><head><title>${APP_NAME}</title></head><div id="root"></div></html>`;
 
 let dir: string;
 let clientDir: string;
@@ -51,7 +65,7 @@ describe("production static serving", () => {
     expect(res.headers.get("content-security-policy")).toBe(
       "frame-ancestors 'none'"
     );
-    expect(await res.text()).toBe(INDEX_HTML);
+    expect(await res.text()).toBe(BRANDED_HTML);
   });
 
   it("answers an unknown API path with a JSON 404, never the SPA", async () => {
@@ -138,10 +152,11 @@ describe("production static serving", () => {
     expect(res.status).toBe(404);
   });
 
-  it("revalidates index.html requested by name", async () => {
+  it("revalidates index.html requested by name, branded", async () => {
     const res = await app().request("/index.html");
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-cache");
+    expect(await res.text()).toBe(BRANDED_HTML);
   });
 
   it("serves files from public/", async () => {
@@ -157,5 +172,38 @@ describe("static serving outside production", () => {
     mountStatic(app, { clientDir, publicDir });
     const res = await app.request("/en/servers");
     expect(res.status).toBe(404);
+  });
+});
+
+describe("brandShell", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  // APP_NAME is read when lib/branding loads, so load a fresh copy.
+  async function freshBrandShell(env: Record<string, string>) {
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    vi.resetModules();
+    return (await import("@/server/static")).brandShell;
+  }
+
+  it("puts the runtime app name, brand and its accent into the shell", async () => {
+    const brandShell = await freshBrandShell({
+      APP_NAME: "DSS Panel",
+      BRAND: "dss",
+    });
+    expect(brandShell(INDEX_HTML)).toBe(
+      '<!doctype html><html data-brand="dss" data-accent="blue" lang="en"><head><title>DSS Panel</title></head><div id="root"></div></html>'
+    );
+  });
+
+  it("HTML-escapes the app name", async () => {
+    const brandShell = await freshBrandShell({
+      APP_NAME: '</title><script>alert("x")</script>&',
+    });
+    expect(brandShell(INDEX_HTML)).toContain(
+      "<title>&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;</title>"
+    );
   });
 });

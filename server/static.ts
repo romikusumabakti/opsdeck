@@ -1,7 +1,9 @@
 import { join } from "node:path";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { MiddlewareHandler } from "hono/types";
+import { defaultAccent } from "@/lib/accents";
+import { APP_NAME, brand } from "@/lib/branding";
 import { resolveRedirect } from "@/lib/redirects";
 import type { AppEnv } from "@/server/context";
 import { preferredLocale } from "@/server/middleware/locale";
@@ -35,6 +37,35 @@ function files(root: string): MiddlewareHandler {
   return (c, next) => (c.req.path.endsWith("/") ? next() : serve(c, next));
 }
 
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
+}
+
+/**
+ * index.html with this deployment's branding filled in: the runtime APP_NAME
+ * as the <title>, and `data-brand` / `data-accent` (the brand's default) on
+ * <html>. The build can't know them (lib/branding.ts reads the environment at
+ * runtime), and the SPA only applies them once /api/bootstrap answers, so
+ * without this the first paint shows the generic title and palette.
+ */
+export function brandShell(html: string): string {
+  const logo = brand();
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(APP_NAME)}</title>`)
+    .replace(
+      /<html\b/,
+      `<html data-brand="${escapeHtml(logo)}" data-accent="${escapeHtml(defaultAccent(logo))}"`
+    );
+}
+
 export function mountStatic(
   app: Hono<AppEnv>,
   { clientDir = "./dist/client", publicDir = "./public" }: StaticOptions = {}
@@ -49,19 +80,30 @@ export function mountStatic(
 
   if (process.env.NODE_ENV !== "production") return;
 
-  const indexHtml = join(clientDir, "index.html");
+  // Read once: a deploy replaces the process along with the build.
+  let shell: Promise<string> | undefined;
+  const serveShell = async (c: Context<AppEnv>) => {
+    shell ??= Bun.file(join(clientDir, "index.html"))
+      .text()
+      .then(brandShell)
+      .catch((error: unknown) => {
+        shell = undefined;
+        throw error;
+      });
+    c.header("Cache-Control", "no-cache");
+    return c.body(await shell, 200, {
+      "Content-Type": "text/html; charset=utf-8",
+    });
+  };
 
   app.use("/assets/*", async (c, next) => {
     await next();
     if (c.res.ok) c.header("Cache-Control", IMMUTABLE);
   });
   app.get("/assets/*", files(clientDir), (c) => c.notFound());
-  // The shell itself, whichever way it is asked for: revalidated on every
-  // load, so a deploy's new asset hashes are picked up at once.
-  app.use("/index.html", async (c, next) => {
-    await next();
-    if (c.res.ok) c.header("Cache-Control", "no-cache");
-  });
+  // The shell itself, whichever way it is asked for: branded, and revalidated
+  // on every load, so a deploy's new asset hashes are picked up at once.
+  app.get("/index.html", (c) => serveShell(c));
   app.get("*", files(clientDir), files(publicDir), async (c) => {
     // A miss under a non-page prefix is a 404, not the SPA: a script, image
     // or API client must never get index.html with a 200.
@@ -74,9 +116,6 @@ export function mountStatic(
       const query = new URL(c.req.url).search;
       return c.redirect(redirect.to + query, redirect.status);
     }
-    c.header("Cache-Control", "no-cache");
-    return c.body(await Bun.file(indexHtml).text(), 200, {
-      "Content-Type": "text/html; charset=utf-8",
-    });
+    return serveShell(c);
   });
 }
