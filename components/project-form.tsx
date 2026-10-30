@@ -105,13 +105,9 @@ export function ProjectForm({ mode, onSuccess, onCancel }: Props) {
       onSuccess(result.data);
       return;
     }
-    if (mode.type === "create") {
-      router.refresh();
-      return;
-    }
+    if (mode.type === "create") return;
     // The key is part of the URL, so a renamed project is pushed to its new one.
     router.push(`/${result.data.key}`);
-    router.refresh();
   }
 
   const loading = form.formState.isSubmitting;

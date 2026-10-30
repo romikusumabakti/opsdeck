@@ -29,7 +29,7 @@ export function RunningRail() {
     const ids = new Set(runs.map((r) => r.id));
     const finished = [...previous.current].some((id) => !ids.has(id));
     previous.current = ids;
-    if (finished) router.refresh();
+    if (finished) router.refresh({ includeRemote: true });
   }, [runs, router]);
 
   return (

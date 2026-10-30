@@ -20,7 +20,8 @@ import {
 //  - A successful mutation refetches the active queries, as
 //    `revalidatePath("/", "layout")` re-rendered the page after an action. The
 //    call resolves once that refetch is done, so — like an action — the UI
-//    already shows the new data when the caller's `await` returns.
+//    already shows the new data when the caller's `await` returns. A request
+//    nothing on screen depends on opts out with `NO_REFETCH` (below).
 //  - Any other non-2xx response rejects with `ApiError { status, message }`.
 //
 // ERROR CONTRACT of the web/api/<module>.ts wrappers. The wrappers keep the
@@ -63,6 +64,21 @@ const PUBLIC_FIRST_SEGMENTS = new Set([
 ]);
 
 const READ_METHODS = new Set(["GET", "HEAD"]);
+
+// Marks a request whose success must not trigger the refetch. Read and
+// removed by apiFetch, so it never reaches the server.
+const NO_REFETCH_HEADER = "X-OpsDeck-No-Refetch";
+
+/**
+ * Per-request opt-out of the refetch after a successful mutation, as the
+ * Hono client's request options: `routes.x.$post({ json }, NO_REFETCH)`. For
+ * bookkeeping writes nothing on screen shows (recording an environment
+ * visit), where refetching every active query would only cost round-trips.
+ * Whatever does show the written data picks it up on its own staleTime.
+ */
+export const NO_REFETCH = {
+  headers: { [NO_REFETCH_HEADER]: "1" },
+} as const;
 
 export type ApiFetchDeps = {
   queryClient: QueryClient;
@@ -119,10 +135,12 @@ export function createApiFetch(deps: ApiFetchDeps): typeof fetch {
       init?.headers ?? (input instanceof Request ? input.headers : undefined)
     );
     headers.set("X-Locale", locale);
+    const refetch = !headers.has(NO_REFETCH_HEADER);
+    headers.delete(NO_REFETCH_HEADER);
     const response = await deps.fetch(input, { ...init, headers });
 
     if (response.ok) {
-      if (!READ_METHODS.has(requestMethod(input, init))) {
+      if (refetch && !READ_METHODS.has(requestMethod(input, init))) {
         await invalidateAfterMutation(deps.queryClient, requestPath(input));
       }
       return response;

@@ -12,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useRouter } from "@/i18n/navigation";
 import type { IssueProject } from "@/web/api/home";
 import { getIssueFormOptions, type IssueFormOptions } from "@/web/api/issues";
 
@@ -57,7 +56,6 @@ export function HomeIssueDialogProvider({
   children: React.ReactNode;
 }) {
   const t = useTranslations("homePage");
-  const router = useRouter();
   const [state, setState] = React.useState<DialogState | null>(null);
   // Loaded pickers per project; a failed load leaves no entry.
   const [options, setOptions] = React.useState<
@@ -171,7 +169,6 @@ export function HomeIssueDialogProvider({
           }
           onCreated={() => {
             setState((s) => (s ? { ...s, open: false } : s));
-            router.refresh();
           }}
         />
       ) : null}

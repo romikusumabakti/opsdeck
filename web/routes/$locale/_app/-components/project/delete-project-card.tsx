@@ -46,7 +46,6 @@ export function DeleteProjectCard({
       }
       toast.success(t("deletedSuccess", { name: project.name }));
       router.push("/projects");
-      router.refresh();
     });
   }
 

@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useRouter } from "@/i18n/navigation";
 import {
   createMilestone,
   deleteMilestone,
@@ -30,7 +29,6 @@ export function MilestonesClient({
   initialMilestones: MilestoneWithCount[];
 }) {
   const t = useTranslations("milestones");
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [due, setDue] = useState("");
@@ -43,7 +41,6 @@ export function MilestonesClient({
       const result = await action();
       if (result.success) {
         if (okMsg) toast.success(okMsg);
-        router.refresh();
       } else {
         toast.error(result.message ?? t("errorGeneric"));
       }

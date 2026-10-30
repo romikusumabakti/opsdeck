@@ -135,7 +135,6 @@ export function ServerForm({
         return;
       }
       router.push("/servers");
-      router.refresh();
       return;
     }
 
@@ -160,7 +159,6 @@ export function ServerForm({
     }
     toast.success(result.message ?? "");
     router.push("/servers");
-    router.refresh();
   }
 
   function handleCancel() {

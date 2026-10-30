@@ -4,13 +4,11 @@ import { useTranslations } from "use-intl";
 import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useRouter } from "@/i18n/navigation";
 
 // Shown when no logical project exists yet. The first step is creating the
 // project, not a deployment — environments are added from its card afterwards.
 export function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
   const t = useTranslations("projectsEmpty");
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   return (
@@ -30,7 +28,6 @@ export function ProjectsEmpty({ canCreate }: { canCreate: boolean }) {
         onOpenChange={setOpen}
         onCreated={() => {
           setOpen(false);
-          router.refresh();
         }}
       />
     </div>

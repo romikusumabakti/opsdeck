@@ -120,8 +120,9 @@ export function GlobalIssuesClient({
 
   // Inline edits show instantly and roll back on their own: when the action
   // fails, the transition ends without new server data and React drops the
-  // optimistic layer. On success `router.refresh()` (inside the same
-  // transition) supplies the real row before the layer is dropped, so there is
+  // optimistic layer. On success the API client's refetch (which `run()`
+  // awaits, inside the same transition) supplies the real row before the layer
+  // is dropped, so there is
   // no flash of stale values in either direction.
   const [rows, applyOptimistic] = React.useOptimistic(
     issues,
@@ -189,10 +190,9 @@ export function GlobalIssuesClient({
           return;
         }
         if (successMessage) toast.success(successMessage);
-        router.refresh();
       });
     },
-    [applyOptimistic, router, t]
+    [applyOptimistic, t]
   );
 
   const onStatusChange = React.useCallback(

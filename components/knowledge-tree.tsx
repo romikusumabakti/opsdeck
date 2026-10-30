@@ -3,7 +3,7 @@ import { ChevronRight, FileText, Folder } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import type { Serialized } from "@/web/api/client";
@@ -214,7 +214,6 @@ export function KnowledgeTree({
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
   const pathname = usePathname();
-  const router = useRouter();
   const [, startTransition] = useTransition();
 
   const activeSlug = useMemo(() => {
@@ -282,7 +281,6 @@ export function KnowledgeTree({
         toast.error(res.message ?? tCommon("errorGeneric"));
         return;
       }
-      router.refresh();
     });
   }
 
@@ -379,7 +377,6 @@ export function KnowledgeTree({
         toast.error(res.message ?? tCommon("errorGeneric"));
         return;
       }
-      router.refresh();
     });
   }
 

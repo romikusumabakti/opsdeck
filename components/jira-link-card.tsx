@@ -31,7 +31,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useRouter } from "@/i18n/navigation";
 import type { SafeJiraConnection as SafeJiraConnectionRow } from "@/lib/db/schema";
 import type { Serialized } from "@/web/api/client";
 import {
@@ -65,7 +64,6 @@ export function JiraLinkCard({
 }) {
   const t = useTranslations("jiraLink");
   const tCommon = useTranslations("common");
-  const router = useRouter();
   const dialog = useDialog();
   const format = useFormatter();
   const [isPending, startTransition] = useTransition();
@@ -108,7 +106,6 @@ export function JiraLinkCard({
       return;
     }
     toast.success(result.message ?? "");
-    router.refresh();
   }
 
   function onSync(full: boolean) {
@@ -119,7 +116,6 @@ export function JiraLinkCard({
         return;
       }
       toast.success(result.message ?? "");
-      router.refresh();
     });
   }
 
@@ -138,7 +134,6 @@ export function JiraLinkCard({
         return;
       }
       toast.success(result.message ?? "");
-      router.refresh();
     });
   }
 

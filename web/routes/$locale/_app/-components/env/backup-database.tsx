@@ -91,7 +91,7 @@ export function BackupDatabase({
     // The run finished out of band, so no mutation response invalidated the
     // backup listing (a remote probe with a 30s staleTime): refetch it now so
     // the just-created file shows up.
-    router.refresh();
+    router.refresh({ includeRemote: true });
     const filename = extractFilename(snapshot.output);
     if (!filename) return;
     setLastFilename(filename);

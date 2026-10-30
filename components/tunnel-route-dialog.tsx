@@ -38,14 +38,12 @@ export function TunnelRouteDialog({
   tunnel,
   candidates,
   existing,
-  onDone,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tunnel: TunnelWithContext;
   candidates: Candidate[];
   existing: string[];
-  onDone: () => void;
 }) {
   const t = useTranslations("tunnels");
   const tCommon = useTranslations("common");
@@ -88,8 +86,9 @@ export function TunnelRouteDialog({
     !submitting;
 
   // Attaching recreates the tunnel container, so the candidate list this dialog
-  // was handed goes stale — `onDone` refreshes the page behind it and the dialog
-  // closes rather than showing a warning that is no longer true.
+  // was handed goes stale — the API client's refetch after the mutation
+  // (tunnels' own remote probes included) refreshes the page behind it, and the
+  // dialog closes rather than showing a warning that is no longer true.
   async function onAttach(network: string) {
     setAttaching(true);
     try {
@@ -103,7 +102,6 @@ export function TunnelRouteDialog({
       }
       toast.success(result.message ?? "");
       onOpenChange(false);
-      onDone();
     } finally {
       setAttaching(false);
     }
@@ -124,7 +122,6 @@ export function TunnelRouteDialog({
       }
       toast.success(result.message ?? "");
       onOpenChange(false);
-      onDone();
     } finally {
       setSubmitting(false);
     }

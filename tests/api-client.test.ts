@@ -1,7 +1,17 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, createApiFetch, orFailure } from "@/web/api/client";
-import { invalidateAfterMutation, ME_QUERY_KEY } from "@/web/query-client";
+import {
+  ApiError,
+  createApiFetch,
+  NO_REFETCH,
+  orFailure,
+} from "@/web/api/client";
+import {
+  invalidateAfterMutation,
+  loaderQuery,
+  ME_QUERY_KEY,
+  refetchChanged,
+} from "@/web/query-client";
 
 function setup(response: Response, pathname = "/en/servers", search = "") {
   const queryClient = new QueryClient();
@@ -53,6 +63,17 @@ describe("apiFetch", () => {
     await apiFetch("/api/labels/list-labels", { method: "GET" });
     await apiFetch("/api/labels/list-labels");
     expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("skips the refetch for a NO_REFETCH request and strips the marker", async () => {
+    const { apiFetch, invalidate, fetch } = setup(ok());
+    await apiFetch("/api/environments/record-environment-access", {
+      method: "POST",
+      headers: NO_REFETCH.headers,
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+    const sent = new Headers(fetch.mock.calls[0]?.[1]?.headers);
+    expect([...sent.keys()]).toEqual(["x-locale"]);
   });
 
   it("does not invalidate after a failed POST", async () => {
@@ -196,5 +217,84 @@ describe("invalidateAfterMutation", () => {
       "/api/backups/create-database-backup"
     );
     expect(stale(client, ["backups", "getBackupList"])).toBe(true);
+  });
+});
+
+describe("refetchChanged (router.refresh)", () => {
+  function cache() {
+    const client = new QueryClient();
+    const seed = (key: string[], meta?: Record<string, boolean>) =>
+      client.getQueryCache().build(client, { queryKey: key, meta }).setData(1);
+    seed(["labels", "listLabels"]);
+    seed(["session", "getBootstrap"], { fixed: true });
+    seed(["services", "getServiceStatuses"], { remoteProbe: true });
+    return client;
+  }
+  const stale = (client: QueryClient, key: string[]) =>
+    client.getQueryState(key)?.isInvalidated;
+
+  it("by default spares every remote probe and the bootstrap", async () => {
+    const client = cache();
+    await refetchChanged(client);
+    expect(stale(client, ["labels", "listLabels"])).toBe(true);
+    expect(stale(client, ["services", "getServiceStatuses"])).toBe(false);
+    expect(stale(client, ["session", "getBootstrap"])).toBe(false);
+  });
+
+  it("with includeRemote refetches the remote probes too", async () => {
+    const client = cache();
+    await refetchChanged(client, { includeRemote: true });
+    expect(stale(client, ["labels", "listLabels"])).toBe(true);
+    expect(stale(client, ["services", "getServiceStatuses"])).toBe(true);
+    expect(stale(client, ["session", "getBootstrap"])).toBe(false);
+  });
+});
+
+describe("loaderQuery", () => {
+  const key = ["labels", "listLabels"];
+
+  it("fetches and waits when nothing is cached", async () => {
+    const client = new QueryClient();
+    const queryFn = vi.fn(async () => "fresh");
+    await expect(loaderQuery(client, { queryKey: key, queryFn })).resolves.toBe(
+      "fresh"
+    );
+    expect(queryFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns stale cached data at once and refetches in the background", async () => {
+    const client = new QueryClient();
+    client.setQueryData(key, "cached", { updatedAt: 0 });
+    let resolve: (value: string) => void = () => {};
+    const queryFn = vi.fn(() => new Promise<string>((r) => (resolve = r)));
+    await expect(
+      loaderQuery(client, { queryKey: key, queryFn, staleTime: 30_000 })
+    ).resolves.toBe("cached");
+    expect(queryFn).toHaveBeenCalledTimes(1);
+    resolve("fresh");
+    await vi.waitFor(() => expect(client.getQueryData(key)).toBe("fresh"));
+  });
+
+  it("keeps the cached data when the background refetch fails", async () => {
+    const client = new QueryClient();
+    client.setQueryData(key, "cached", { updatedAt: 0 });
+    const queryFn = vi.fn(async (): Promise<string> => {
+      throw new Error("HTTP 500");
+    });
+    await expect(
+      loaderQuery(client, { queryKey: key, queryFn, staleTime: 30_000 })
+    ).resolves.toBe("cached");
+    await vi.waitFor(() =>
+      expect(client.getQueryState(key)?.status).toBe("error")
+    );
+    expect(client.getQueryData(key)).toBe("cached");
+  });
+
+  it("does not refetch fresh cached data", async () => {
+    const client = new QueryClient();
+    client.setQueryData(key, "cached");
+    const queryFn = vi.fn(async () => "fresh");
+    await loaderQuery(client, { queryKey: key, queryFn, staleTime: 30_000 });
+    expect(queryFn).not.toHaveBeenCalled();
   });
 });

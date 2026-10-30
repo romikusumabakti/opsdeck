@@ -122,8 +122,11 @@ export function CommandPalette({
   function switchLocale(target: Locale) {
     setOpen(false);
     if (target === locale) return;
-    router.replace(pathname, { locale: target });
-    router.refresh();
+    // Server-rendered text in the cached reads is in the old locale: refetch
+    // once the URL (and so `X-Locale`) has switched.
+    void router
+      .replace(pathname, { locale: target })
+      .then(() => router.refresh());
   }
 
   return (

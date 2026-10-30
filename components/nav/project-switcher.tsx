@@ -126,7 +126,6 @@ export function ProjectSwitcher({
         onOpenChange={setCreateOpen}
         onCreated={() => {
           setCreateOpen(false);
-          router.refresh();
         }}
       />
     </Popover>

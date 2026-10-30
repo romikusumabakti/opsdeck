@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import * as React from "react";
 import { hasLocale } from "use-intl";
+import { refetchChanged } from "@/web/query-client";
 import { parseSearch } from "@/web/search-params";
 import { defaultLocale, type Locale, locales } from "./locales";
 
@@ -115,16 +116,33 @@ type NavigateOptions = {
   scroll?: boolean;
 };
 
+export type RefreshOptions = {
+  /**
+   * Also refetch the remote probes (the SSH/HTTP-backed reads: backup and
+   * database lists, service status, tunnel ingress) and re-run the route
+   * loaders. For data that changed where the query cache could not see it:
+   * after a raw `fetch` upload, when a background run finishes, and behind a
+   * user's explicit "refresh"/"retry" button.
+   */
+  includeRemote?: boolean;
+};
+
 export type AppRouter = {
-  push: (href: string, options?: NavigateOptions) => void;
-  replace: (href: string, options?: NavigateOptions) => void;
+  /** Resolves once the navigation has committed. */
+  push: (href: string, options?: NavigateOptions) => Promise<void>;
+  /** Resolves once the navigation has committed. */
+  replace: (href: string, options?: NavigateOptions) => Promise<void>;
   back: () => void;
   /**
-   * Refetch everything on the page — what `router.refresh()` re-rendering the
-   * server components did. Unlike the refetch after a mutation, this includes
-   * the remote probes (backup and database lists): it is an explicit ask.
+   * Refetch the page's data — what `router.refresh()` re-rendering the server
+   * components did. By default the same refetch that follows a successful
+   * mutation (`refetchPredicate`, web/query-client.ts): everything except the
+   * remote probes, which would otherwise SSH into hosts for an unrelated
+   * change. A successful `@/web/api/*` mutation has already refetched, so it
+   * needs no call after it. `{ includeRemote: true }` reloads everything; see
+   * `RefreshOptions`.
    */
-  refresh: () => void;
+  refresh: (options?: RefreshOptions) => void;
   prefetch: (href: string) => void;
 };
 
@@ -134,20 +152,21 @@ export function useRouter(): AppRouter {
   const queryClient = useQueryClient();
   const current = useCurrentLocale();
   return React.useMemo(() => {
-    const go = (href: string, replace: boolean, options?: NavigateOptions) => {
-      void router.navigate({
+    const go = (href: string, replace: boolean, options?: NavigateOptions) =>
+      router.navigate({
         ...navigationTarget(localizeHref(href, options?.locale ?? current)),
         replace,
         resetScroll: options?.scroll,
       });
-    };
     return {
       push: (href, options) => go(href, false, options),
       replace: (href, options) => go(href, true, options),
       back: () => router.history.back(),
-      refresh: () => {
-        void queryClient.invalidateQueries();
-        void router.invalidate();
+      refresh: (options) => {
+        void refetchChanged(queryClient, {
+          includeRemote: options?.includeRemote,
+        });
+        if (options?.includeRemote) void router.invalidate();
       },
       prefetch: (href) => {
         void router

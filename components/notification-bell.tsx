@@ -32,7 +32,7 @@ export function NotificationBell({
   const [unread, setUnread] = React.useState(initialUnread);
   const [open, setOpen] = React.useState(false);
 
-  // Re-sync when the server component re-renders (router.refresh after actions).
+  // Re-sync when the queries refetch (after a mutation, or on focus).
   React.useEffect(() => setItems(initialNotifications), [initialNotifications]);
   React.useEffect(() => setUnread(initialUnread), [initialUnread]);
 
@@ -48,7 +48,6 @@ export function NotificationBell({
       await markNotificationRead(n.id);
     }
     if (n.href) router.push(n.href);
-    router.refresh();
   }
 
   async function onMarkAll() {
@@ -57,7 +56,6 @@ export function NotificationBell({
     );
     setUnread(0);
     await markAllNotificationsRead();
-    router.refresh();
   }
 
   return (

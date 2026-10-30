@@ -23,8 +23,9 @@ export function LocaleSwitcher() {
   function onSelect(locale: Locale) {
     if (locale === current) return;
     startTransition(() => {
-      router.replace(pathname, { locale });
-      router.refresh();
+      // Server-rendered text in the cached reads is in the old locale:
+      // refetch once the URL (and so `X-Locale`) has switched.
+      void router.replace(pathname, { locale }).then(() => router.refresh());
     });
   }
 
