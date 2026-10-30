@@ -1,8 +1,6 @@
-"use client";
-
 import { Check, ChevronDown, Plus } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,9 +18,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useRouter } from "@/i18n/navigation";
-import type { EnvironmentListItem } from "@/lib/db/schema";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import { cn } from "@/lib/utils";
+import type { EnvironmentListItem } from "@/web/api/environments";
 
 export function EnvironmentSwitcher({
   environments,

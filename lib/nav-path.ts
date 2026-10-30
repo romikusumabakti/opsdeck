@@ -231,7 +231,8 @@ export function projectSwitchHref({
   projectKey: string;
   environments: readonly (SwitchEnvironment & {
     id: string;
-    lastAccessedAt: Date | null;
+    /** ISO timestamp, as the API sends it. */
+    lastAccessedAt: string | null;
   })[];
   role: ProjectRole | null;
   from: NavPath;
@@ -250,7 +251,9 @@ export function projectSwitchHref({
     // browser's Date.now() and the server's timestamps aren't comparable.
     const latest =
       latestBy(environments, (env) => visitedAt[env.id]) ??
-      latestBy(environments, (env) => env.lastAccessedAt?.getTime());
+      latestBy(environments, (env) =>
+        env.lastAccessedAt ? Date.parse(env.lastAccessedAt) : undefined
+      );
     if (latest) return environmentSwitchHref(latest, from, role);
   }
   return overview;

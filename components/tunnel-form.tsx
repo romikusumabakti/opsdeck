@@ -1,11 +1,8 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { createTunnel, updateTunnel } from "@/actions/tunnels";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,6 +24,7 @@ import {
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { Tunnel } from "@/lib/db/schema";
+import { createTunnel, updateTunnel } from "@/web/api/tunnels";
 
 export type ServerOption = { id: string; name: string; host: string };
 export type ZoneOption = { id: string; name: string };

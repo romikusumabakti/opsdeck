@@ -1,9 +1,7 @@
-"use client";
-
 import { Check, Copy } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 
 export function CopyButton({

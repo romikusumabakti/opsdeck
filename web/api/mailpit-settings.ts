@@ -46,3 +46,7 @@ export async function testMailpitConnection(
     (message) => ({ success: false, error: message }) as const
   );
 }
+
+export type MailpitSettings = NonNullable<
+  Awaited<ReturnType<typeof getMailpitSettings>>
+>;

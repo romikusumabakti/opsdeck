@@ -1,9 +1,6 @@
-"use client";
-
 import { FileText, Search } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { searchKnowledge } from "@/actions/knowledge";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -14,6 +11,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useRouter } from "@/i18n/navigation";
+import { searchKnowledge } from "@/web/api/knowledge";
 
 // Must match HL_START / HL_STOP in lib/knowledge.ts. Control chars, so the
 // snippet is rendered as plain text split into spans — never as HTML.

@@ -1,10 +1,7 @@
-"use client";
-
 import { Loader2, RotateCcw } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { restoreRevision } from "@/actions/knowledge";
+import { useFormatter, useTranslations } from "use-intl";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { UserName } from "@/components/user/user-name";
 import { useRouter } from "@/i18n/navigation";
+import { restoreRevision } from "@/web/api/knowledge";
 
 type Revision = {
   id: string;

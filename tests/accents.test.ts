@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   ACCENTS,
   accentSchema,
@@ -7,12 +7,6 @@ import {
   effectiveAccent,
   isAccent,
 } from "@/lib/accents";
-
-const saved = process.env.BRAND;
-afterEach(() => {
-  if (saved === undefined) delete process.env.BRAND;
-  else process.env.BRAND = saved;
-});
 
 describe("accents", () => {
   it("lists neutral plus shadcn's seven colour themes", () => {
@@ -29,25 +23,21 @@ describe("accents", () => {
   });
 
   it("defaults to the brand's accent", () => {
-    process.env.BRAND = "dss";
-    expect(defaultAccent()).toBe("blue");
-    delete process.env.BRAND;
-    expect(defaultAccent()).toBe("neutral");
+    expect(defaultAccent("dss")).toBe("blue");
+    expect(defaultAccent("default")).toBe("neutral");
   });
 
   it("uses a valid stored accent", () => {
-    process.env.BRAND = "dss";
-    expect(effectiveAccent({ accentColor: "rose" })).toBe("rose");
-    expect(effectiveAccent({ accentColor: "neutral" })).toBe("neutral");
+    expect(effectiveAccent({ accentColor: "rose" }, "dss")).toBe("rose");
+    expect(effectiveAccent({ accentColor: "neutral" }, "dss")).toBe("neutral");
   });
 
   it("falls back to the brand default for null, missing or unknown values", () => {
-    process.env.BRAND = "dss";
-    expect(effectiveAccent({ accentColor: null })).toBe("blue");
-    expect(effectiveAccent({})).toBe("blue");
-    expect(effectiveAccent(null)).toBe("blue");
-    expect(effectiveAccent({ accentColor: "teal" })).toBe("blue");
-    expect(effectiveAccent({ accentColor: "" })).toBe("blue");
+    expect(effectiveAccent({ accentColor: null }, "dss")).toBe("blue");
+    expect(effectiveAccent({}, "dss")).toBe("blue");
+    expect(effectiveAccent(null, "dss")).toBe("blue");
+    expect(effectiveAccent({ accentColor: "teal" }, "dss")).toBe("blue");
+    expect(effectiveAccent({ accentColor: "" }, "dss")).toBe("blue");
   });
 
   it("validates input to the closed set", () => {

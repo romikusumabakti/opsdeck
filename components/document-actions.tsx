@@ -1,10 +1,7 @@
-"use client";
-
 import { History, Link2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { deleteDocument } from "@/actions/knowledge";
+import { useTranslations } from "use-intl";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Link, useRouter } from "@/i18n/navigation";
+import { deleteDocument } from "@/web/api/knowledge";
 
 export function DocumentActions({
   documentId,

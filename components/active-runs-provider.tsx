@@ -1,7 +1,5 @@
-"use client";
-
 import { createContext, useContext, useEffect, useState } from "react";
-import type { ActiveRun } from "@/actions/runs";
+import type { ActiveRun } from "@/web/api/runs";
 
 // The currently-running runs, streamed from /api/runs/running/stream. Two
 // consumers need this list — the header indicator and the sidebar History

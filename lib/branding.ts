@@ -9,7 +9,14 @@
  *
  * The fallback defaults are intentionally generic — set the env vars for
  * any real deployment.
+ *
+ * Server-only: these read `process.env` at module load. Client code takes the
+ * same values from `/api/bootstrap`, and the env-free parts from lib/brands.
  */
+
+import { BRANDS, type BrandName } from "@/lib/brands";
+
+export { BRAND_ICON_SRC, BRANDS, type BrandName } from "@/lib/brands";
 
 export const APP_NAME = process.env.APP_NAME ?? "OpsDeck";
 
@@ -17,13 +24,6 @@ export const COMPANY_NAME = process.env.COMPANY_NAME ?? "the company";
 
 export const ALLOWED_EMAIL_DOMAIN =
   process.env.ALLOWED_EMAIL_DOMAIN ?? "example.com";
-
-/**
- * Brands a deployment can choose from. A brand is a logo shape
- * (lib/brand-logos.ts) and a default accent colour (lib/accents.ts).
- */
-export const BRANDS = ["default", "dss"] as const;
-export type BrandName = (typeof BRANDS)[number];
 
 /**
  * This deployment's brand (BRAND). Server-only and read per call; the server
@@ -34,9 +34,6 @@ export function brand(): BrandName {
   const value = process.env.BRAND;
   return BRANDS.find((logo) => logo === value) ?? "default";
 }
-
-/** The favicon, rendered per deployment by app/brand/icon.svg/route.ts. */
-export const BRAND_ICON_SRC = "/brand/icon.svg";
 
 export const DEFAULT_EMAIL_FROM = `${APP_NAME} <no-reply@${ALLOWED_EMAIL_DOMAIN}>`;
 

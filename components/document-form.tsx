@@ -1,7 +1,4 @@
-"use client";
-
 import { Loader2, MoreHorizontal, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import {
   type ReactNode,
   useEffect,
@@ -10,11 +7,7 @@ import {
   useTransition,
 } from "react";
 import { toast } from "sonner";
-import {
-  createDocument,
-  deleteDocument,
-  updateDocument,
-} from "@/actions/knowledge";
+import { useTranslations } from "use-intl";
 import type { LinkableDoc } from "@/components/knowledge-editor";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import {
@@ -51,6 +44,15 @@ import {
 } from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeDocument } from "@/lib/db/schema";
+import {
+  createDocument,
+  deleteDocument,
+  updateDocument,
+} from "@/web/api/knowledge";
+
+type DocType = KnowledgeDocument["docType"];
+
+const DOC_TYPES: readonly DocType[] = ["doc", "runbook", "spec", "requirement"];
 
 type Mode =
   | { type: "create"; defaultCollectionId?: string }
@@ -84,7 +86,7 @@ export function DocumentForm({
   const [published, setPublished] = useState(
     doc ? doc.publishedAt !== null : true
   );
-  const [docType, setDocType] = useState<string>(doc?.docType ?? "doc");
+  const [docType, setDocType] = useState<DocType>(doc?.docType ?? "doc");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Snapshot of the form as first rendered; edits are diffed against it to drive
@@ -299,7 +301,7 @@ export function DocumentForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["doc", "runbook", "spec", "requirement"].map((dt) => (
+                  {DOC_TYPES.map((dt) => (
                     <SelectItem key={dt} value={dt}>
                       {t(`docType.${dt}`)}
                     </SelectItem>

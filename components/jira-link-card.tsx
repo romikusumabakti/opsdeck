@@ -1,5 +1,3 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertCircle,
@@ -8,16 +6,11 @@ import {
   RefreshCw,
   Unlink,
 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useFormatter, useTranslations } from "use-intl";
 import { z } from "zod";
-import {
-  saveJiraLink,
-  syncJiraProjectNow,
-  unlinkJiraProject,
-} from "@/actions/jira";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +36,11 @@ import type {
   JiraLinkWithConnection,
   SafeJiraConnection,
 } from "@/lib/db/schema";
+import {
+  saveJiraLink,
+  syncJiraProjectNow,
+  unlinkJiraProject,
+} from "@/web/api/jira";
 
 /**
  * The Jira tab of project settings: bind this project to a Jira project, and

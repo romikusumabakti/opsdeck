@@ -1,10 +1,9 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
-import { setAccentColor } from "@/actions/profile";
+import { useTranslations } from "use-intl";
 import { useOptimisticPreference } from "@/hooks/use-optimistic-preference";
-import { type AccentColor, brandIconSrc } from "@/lib/accents";
+import type { AccentColor } from "@/lib/accents";
+import { setAccentColor } from "@/web/api/profile";
+import { applyDocumentAccent } from "@/web/document-locale";
 
 type AccentContextValue = {
   accent: AccentColor;
@@ -14,23 +13,9 @@ type AccentContextValue = {
 const AccentContext = React.createContext<AccentContextValue | null>(null);
 
 /**
- * Repaint the page and favicon for `accent` without waiting for the server.
- * This writes `data-accent` directly even though the server renders it too;
- * `revalidatePath` in the save action converges the two once a save lands.
- */
-function paint(accent: AccentColor) {
-  document.documentElement.dataset.accent = accent;
-  for (const link of document.querySelectorAll<HTMLLinkElement>(
-    'link[rel="icon"]'
-  )) {
-    link.href = brandIconSrc(accent);
-  }
-}
-
-/**
- * The signed-in user's accent. `initial` is what the server rendered on
- * <html data-accent>; changes repaint at once and save in the background.
- * Saves are queued and latest-wins (see hooks/use-optimistic-preference.ts).
+ * The signed-in user's accent. `initial` is the stored choice (or the brand
+ * default); changes repaint at once and save in the background. Saves are queued and latest-wins (see
+ * hooks/use-optimistic-preference.ts).
  */
 export function AccentProvider({
   initial,
@@ -43,9 +28,12 @@ export function AccentProvider({
   const [accent, setAccent] = useOptimisticPreference({
     initial,
     save: setAccentColor,
-    apply: paint,
     failedMessage: t("saveFailed"),
   });
+  // Paints the shown accent: on mount, on a pick, and on a rollback.
+  React.useEffect(() => {
+    applyDocumentAccent(accent);
+  }, [accent]);
   const value = React.useMemo(
     () => ({ accent, setAccent }),
     [accent, setAccent]

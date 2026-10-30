@@ -1,11 +1,9 @@
-"use client";
-
 import { X } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { setMyTimeZone } from "@/actions/profile";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
+import { setMyTimeZone } from "@/web/api/profile";
 
 const DISMISS_KEY = "tz-hint-dismissed";
 

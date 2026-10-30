@@ -1,13 +1,10 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { EnvironmentSwitcher } from "@/components/nav/environment-switcher";
 import { ProjectSwitcher } from "@/components/nav/project-switcher";
 import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { EnvironmentListItem } from "@/lib/db/schema";
 import {
   environmentSwitchHref,
   environmentsOf,
@@ -23,6 +20,7 @@ import {
   type ProjectRole,
 } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import type { EnvironmentListItem } from "@/web/api/environments";
 
 type StaticSegment = {
   kind: "static";

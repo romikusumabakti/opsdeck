@@ -1,10 +1,7 @@
-"use client";
-
 import { FolderPlus, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createCollection } from "@/actions/knowledge";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createCollection } from "@/web/api/knowledge";
 
 export function CollectionCreateDialog() {
   const t = useTranslations("knowledge");

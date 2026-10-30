@@ -1,7 +1,5 @@
-"use client";
-
 import { ArrowBigUp, Eye, EyeOff } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import * as React from "react";
 
 import { Input } from "@/components/ui/input";

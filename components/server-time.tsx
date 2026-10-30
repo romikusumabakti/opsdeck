@@ -1,8 +1,6 @@
-"use client";
-
 import { Clock } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { useTranslations } from "use-intl";
 
 function getUtcOffset(date: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en", {

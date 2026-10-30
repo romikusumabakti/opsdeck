@@ -1,7 +1,5 @@
-"use client";
-
 import { CircleAlert, CircleHelp, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import type { ServiceState } from "@/lib/services";
 

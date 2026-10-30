@@ -121,6 +121,10 @@
                     "message": "Server-only module: the browser bundle must not import it. Call the API through @/web/api/* instead."
                   },
                   {
+                    "group": ["@/lib/branding", "@/lib/timezone", "@/lib/env"],
+                    "message": "Reads process.env at module load, which throws in the browser. Take the deployment values from bootstrapQuery / useBootstrap() (@/web/api/session) and the env-free parts from @/lib/brands or @/lib/iana-time-zone."
+                  },
+                  {
                     "group": ["@/lib/db/schema"],
                     "importNamePattern": "[a-z].*|\\*",
                     "message": "Only the schema's row types (PascalCase) may be imported here; its tables and enums are server code."

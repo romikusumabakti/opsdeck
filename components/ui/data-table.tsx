@@ -1,5 +1,3 @@
-"use client";
-
 import {
   type ColumnDef,
   columnFilteringFeature,
@@ -24,12 +22,12 @@ import {
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Settings2 } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import {
   usePathname,
   useRouter,
   useSearchParams,
-} from "next/navigation";
+} from "@/i18n/navigation";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";

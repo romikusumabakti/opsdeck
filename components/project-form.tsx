@@ -1,11 +1,8 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { addProject, editProject } from "@/actions/project-catalog";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -20,8 +17,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
-import type { Project } from "@/lib/db/schema";
+import type { Project as ProjectRow } from "@/lib/db/schema";
 import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
+import type { Serialized } from "@/web/api/client";
+import { addProject, editProject } from "@/web/api/project-catalog";
+
+type Project = Serialized<ProjectRow>;
 
 type Mode = { type: "create" } | { type: "edit"; project: Project };
 

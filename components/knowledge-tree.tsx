@@ -1,14 +1,12 @@
-"use client";
-
 import { generateKeyBetween } from "fractional-indexing";
 import { ChevronRight, FileText, Folder } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { moveCollection, moveDocument } from "@/actions/knowledge";
+import { useTranslations } from "use-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+import { moveCollection, moveDocument } from "@/web/api/knowledge";
 
 type TreeItem = KnowledgeTreeNode & { children: TreeItem[] };
 

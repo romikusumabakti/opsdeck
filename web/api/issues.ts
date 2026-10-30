@@ -161,3 +161,10 @@ export async function deleteIssue(id: Body<"delete-issue">["id"]) {
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type AssignedIssueCounts = Awaited<
+  ReturnType<typeof getAssignedIssueCounts>
+>;
+export type GlobalIssue = Awaited<
+  ReturnType<typeof listAllIssues>
+>["rows"][number];

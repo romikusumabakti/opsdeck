@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { avatarSrc, isOwnAvatarUrl } from "@/lib/avatar-url";
 import type { UserRef } from "@/lib/types";

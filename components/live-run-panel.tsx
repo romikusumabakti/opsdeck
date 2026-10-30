@@ -1,5 +1,3 @@
-"use client";
-
 import {
   CheckCircle2,
   ChevronDown,
@@ -10,8 +8,8 @@ import {
   Terminal,
   X,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

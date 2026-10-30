@@ -1,8 +1,6 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

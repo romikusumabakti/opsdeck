@@ -33,8 +33,6 @@
   "exclude": [
     "node_modules",
     "app",
-    "components",
-    "hooks",
     "proxy.ts",
     "instrumentation.ts",
     "next.config.ts",

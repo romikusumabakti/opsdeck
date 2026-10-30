@@ -1,9 +1,6 @@
-"use client";
-
 import { ChevronRight, Folder } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
-import { listEntries } from "@/actions/explorer";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,8 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ExplorerEntry, ExplorerSource } from "@/lib/explorer";
+import type { ExplorerSource } from "@/lib/explorer";
 import { cn } from "@/lib/utils";
+import type { ExplorerEntry } from "@/web/api/explorer";
+import { listEntries } from "@/web/api/explorer";
 
 type Props = {
   source: ExplorerSource;

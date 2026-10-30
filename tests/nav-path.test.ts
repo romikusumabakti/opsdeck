@@ -171,7 +171,7 @@ describe("groupEnvironmentsByProject", () => {
 
 const target = (
   slug: string,
-  lastAccessedAt: Date | null,
+  lastAccessedAt: string | null,
   hasMailpit = true
 ) => ({ id: slug, key: "SUCOR", slug, hasMailpit, lastAccessedAt });
 
@@ -247,9 +247,9 @@ describe("environmentSwitchHref", () => {
 
 describe("projectSwitchHref", () => {
   const environments = [
-    target("old", new Date("2026-10-01T00:00:00Z")),
+    target("old", "2026-10-01T00:00:00Z"),
     target("never", null),
-    target("latest", new Date("2026-10-08T00:00:00Z")),
+    target("latest", "2026-10-08T00:00:00Z"),
   ];
 
   it("lands on the most recently opened environment, same section", () => {
@@ -329,8 +329,8 @@ describe("projectSwitchHref", () => {
 
 describe("projectSwitchHref within a session", () => {
   const environments = [
-    target("old", new Date("2026-10-01T00:00:00Z")),
-    target("latest", new Date("2026-10-08T00:00:00Z")),
+    target("old", "2026-10-01T00:00:00Z"),
+    target("latest", "2026-10-08T00:00:00Z"),
   ];
 
   // The shell's environment list is loaded once per hard load, so a visit made
@@ -355,8 +355,8 @@ describe("projectSwitchHref within a session", () => {
       projectSwitchHref({
         projectKey: "SUCOR",
         environments: [
-          target("old", new Date("2026-10-01T00:00:00Z")),
-          target("skewed", new Date("2099-01-01T00:00:00Z")),
+          target("old", "2026-10-01T00:00:00Z"),
+          target("skewed", "2099-01-01T00:00:00Z"),
         ],
         role: "viewer",
         from: parseNavPath("/CMEM/prod/services"),
@@ -387,7 +387,7 @@ describe("projectSwitchHref for the active project", () => {
       expect(
         projectSwitchHref({
           projectKey: "SUCOR",
-          environments: [target("latest", new Date("2026-10-08T00:00:00Z"))],
+          environments: [target("latest", "2026-10-08T00:00:00Z")],
           role: "maintainer",
           from: parseNavPath(path),
         })

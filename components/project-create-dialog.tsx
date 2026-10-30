@@ -1,6 +1,4 @@
-"use client";
-
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { ProjectForm } from "@/components/project-form";
 import {
   Dialog,
@@ -10,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Project } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 
 // Inline "create a logical project" dialog, opened from the environment form's
 // project picker so an admin never has to leave the flow to add the parent.
@@ -20,7 +19,7 @@ export function ProjectCreateDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (project: Project) => void;
+  onCreated: (project: Serialized<Project>) => void;
 }) {
   const t = useTranslations("projectCreateDialog");
 

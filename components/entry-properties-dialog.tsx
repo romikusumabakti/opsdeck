@@ -1,10 +1,7 @@
-"use client";
-
 import { format, formatDistanceToNow } from "date-fns";
 import { Loader2 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
-import { folderStats } from "@/actions/explorer";
+import { useLocale, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,8 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { ExplorerEntry, ExplorerSource } from "@/lib/explorer";
+import type { ExplorerSource } from "@/lib/explorer";
 import { formatBytes } from "@/lib/utils";
+import type { ExplorerEntry } from "@/web/api/explorer";
+import { folderStats } from "@/web/api/explorer";
 
 type Props = {
   source: ExplorerSource;

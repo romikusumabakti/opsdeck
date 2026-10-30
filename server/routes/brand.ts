@@ -12,7 +12,7 @@ import { publicRouter } from "@/server/router";
  */
 export const brandRouter = publicRouter().get("/icon.svg", (c) => {
   const param = c.req.query("accent");
-  const accent = isAccent(param) ? param : defaultAccent();
+  const accent = isAccent(param) ? param : defaultAccent(brand());
   return c.body(renderBrandIcon(brand(), accent), 200, {
     "content-type": "image/svg+xml",
     "cache-control": "public, max-age=3600",

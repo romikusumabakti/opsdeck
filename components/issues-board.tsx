@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Bookmark,
   Bug,
@@ -7,7 +5,7 @@ import {
   type LucideIcon,
   SquareCheck,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { LabelChips } from "@/components/label-ui";
 import {
   Select,

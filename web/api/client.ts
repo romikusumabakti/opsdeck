@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { hc, type InferRequestType } from "hono/client";
+import type { JSONParsed } from "hono/utils/types";
 import { hasLocale } from "use-intl";
 import { defaultLocale, locales } from "@/i18n/locales";
 import type { AppType } from "@/server/app";
@@ -192,3 +193,11 @@ export type PostJson<R, K extends keyof R> = R[K] extends { $post: infer F }
     ? J
     : never
   : never;
+
+/**
+ * A server type as it arrives through the API: JSON-parsed, so a `Date` is an
+ * ISO string. Type component props that take API data with it
+ * (`Serialized<Server>`) — or, better, with the wrapper's inferred return
+ * type — and parse the strings where a date is needed (`new Date(x)`).
+ */
+export type Serialized<T> = JSONParsed<T>;

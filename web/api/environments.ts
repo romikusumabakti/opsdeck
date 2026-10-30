@@ -92,3 +92,7 @@ export const resolveEnvironmentQuery = (
     queryKey: ["environments", "resolveEnvironment", args],
     queryFn: () => resolveEnvironment(...args),
   });
+
+export type EnvironmentListItem = Awaited<
+  ReturnType<typeof listEnvironments>
+>[number];

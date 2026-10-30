@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Activity,
   BookOpen,
@@ -22,8 +20,7 @@ import {
   Users,
   UsersRound,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
-import type { AssignedIssueCounts } from "@/actions/issues";
+import { useTranslations } from "use-intl";
 import {
   useActiveRunCount,
   useActiveRuns,
@@ -46,8 +43,7 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu, type UserSummary } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { BrandName } from "@/lib/branding";
-import type { EnvironmentListItem } from "@/lib/db/schema";
+import type { BrandName } from "@/lib/brands";
 import { parseNavPath, SECTION_PERMS } from "@/lib/nav-path";
 import {
   canOrg,
@@ -57,6 +53,8 @@ import {
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
+import type { EnvironmentListItem } from "@/web/api/environments";
+import type { AssignedIssueCounts } from "@/web/api/issues";
 
 type ProjectItem = {
   key: string;

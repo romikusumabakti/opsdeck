@@ -1,13 +1,7 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import { AtSign, Bell, CircleAlert, CircleDot } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
-import {
-  markAllNotificationsRead,
-  markNotificationRead,
-} from "@/actions/notifications";
+import { useLocale, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -16,7 +10,11 @@ import {
 } from "@/components/ui/popover";
 import { useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { Notification } from "@/lib/db/schema";
+import type { Notification } from "@/web/api/notifications";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/web/api/notifications";
 
 export function NotificationBell({
   initialNotifications,
@@ -42,7 +40,9 @@ export function NotificationBell({
     setOpen(false);
     if (!n.readAt) {
       setItems((prev) =>
-        prev.map((i) => (i.id === n.id ? { ...i, readAt: new Date() } : i))
+        prev.map((i) =>
+          i.id === n.id ? { ...i, readAt: new Date().toISOString() } : i
+        )
       );
       setUnread((u) => Math.max(0, u - 1));
       await markNotificationRead(n.id);
@@ -53,7 +53,7 @@ export function NotificationBell({
 
   async function onMarkAll() {
     setItems((prev) =>
-      prev.map((i) => ({ ...i, readAt: i.readAt ?? new Date() }))
+      prev.map((i) => ({ ...i, readAt: i.readAt ?? new Date().toISOString() }))
     );
     setUnread(0);
     await markAllNotificationsRead();

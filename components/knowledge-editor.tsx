@@ -1,5 +1,3 @@
-"use client";
-
 import { EditorState } from "@tiptap/pm/state";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import {

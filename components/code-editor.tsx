@@ -1,5 +1,3 @@
-"use client";
-
 import { indentWithTab } from "@codemirror/commands";
 import {
   HighlightStyle,

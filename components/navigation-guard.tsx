@@ -1,9 +1,7 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import { useRouter } from "@/i18n/navigation";
 
 type GuardContextValue = {
   register: (predicate: () => boolean) => () => void;
