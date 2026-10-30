@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Activity,
   Ban,
@@ -23,9 +21,9 @@ import {
   Users,
   UsersRound,
 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "use-intl";
 import { AccentDot } from "@/components/accent-dot";
 import { useAccent } from "@/components/accent-provider";
 import { useMotif } from "@/components/motif-provider";
@@ -46,7 +44,6 @@ import { useRouter } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { ACCENTS } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
-import type { EnvironmentListItem } from "@/lib/db/schema";
 import { MOTIFS } from "@/lib/motifs";
 import {
   groupEnvironmentsByProject,
@@ -59,6 +56,8 @@ import {
   type OrgRole,
   type ProjectRole,
 } from "@/lib/permissions";
+import type { EnvironmentListItem } from "@/web/api/environments";
+import { resetSession } from "@/web/api/session";
 
 export function CommandPalette({
   environments,
@@ -114,8 +113,9 @@ export function CommandPalette({
   async function onSignOut() {
     setOpen(false);
     await authClient.signOut();
+    // Forget the old session's data before the gate sees the next page.
+    await resetSession();
     router.push("/sign-in");
-    router.refresh();
   }
 
   function switchLocale(target: string) {

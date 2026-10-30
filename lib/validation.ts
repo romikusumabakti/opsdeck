@@ -1,7 +1,6 @@
 import { z } from "zod";
-
+import { isValidTimeZone } from "@/lib/iana-time-zone";
 import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
-import { isValidTimeZone } from "@/lib/timezone";
 import type { WorkingHours } from "@/lib/user-display";
 
 export {

@@ -281,6 +281,7 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
     "lib",
     "app",
     "components",
+    "web",
   ];
   const files = roots.flatMap((root) => [
     ...Array.from(
@@ -413,7 +414,9 @@ describe("old role module is gone", () => {
   });
   it("nothing imports @/lib/roles", () => {
     const files = Array.from(
-      globSync("{server,app,lib,components,tests}/**/*.{ts,tsx}", { cwd: "." })
+      globSync("{server,app,lib,components,web,tests}/**/*.{ts,tsx}", {
+        cwd: ".",
+      })
     );
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {

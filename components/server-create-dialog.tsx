@@ -1,6 +1,4 @@
-"use client";
-
-import { useTranslations } from "next-intl";
+import { useTranslations } from "use-intl";
 import { ServerForm } from "@/components/server-form";
 import {
   Dialog,
@@ -9,7 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Server } from "@/lib/db/schema";
+import type { SafeServer } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
 
 export function ServerCreateDialog({
   open,
@@ -18,7 +17,7 @@ export function ServerCreateDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (server: Server) => void;
+  onCreated: (server: Serialized<SafeServer>) => void;
 }) {
   const t = useTranslations("newServer");
 

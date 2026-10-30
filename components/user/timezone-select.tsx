@@ -1,8 +1,6 @@
-"use client";
-
 import { ChevronsUpDown } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Command,

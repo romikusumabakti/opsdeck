@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
@@ -21,13 +20,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  resolve: {
-    tsconfigPaths: true,
-    // tsconfigPaths only maps files the tsconfig includes, and components/
-    // and hooks/ are excluded until their Next imports are gone (Task 7).
-    // Drop this alias once they are back in the tsconfig.
-    alias: { "@": fileURLToPath(new URL(".", import.meta.url)) },
-  },
+  resolve: { tsconfigPaths: true },
   build: { outDir: "dist/client" },
   server: {
     proxy: {

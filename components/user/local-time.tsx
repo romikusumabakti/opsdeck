@@ -1,13 +1,11 @@
-"use client";
-
 import { Clock } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   useFormatter,
   useLocale,
   useTimeZone,
   useTranslations,
-} from "next-intl";
-import { useEffect, useState } from "react";
+} from "use-intl";
 import {
   isWithinWorkingHours,
   nextWorkingStart,

@@ -1,5 +1,3 @@
-"use client";
-
 import { SidebarMenuBadge } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 

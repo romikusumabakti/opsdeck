@@ -1,5 +1,3 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronRight,
@@ -30,20 +28,9 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import dynamic from "next/dynamic";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  compressEntries,
-  copyEntry,
-  createFolder,
-  deleteEntry,
-  getDownloadTarget,
-  listEntries,
-  moveEntry,
-  renameEntry,
-} from "@/actions/explorer";
+import { useLocale, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,7 +60,7 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
-import type { ExplorerEntry, ExplorerSource } from "@/lib/explorer";
+import type { ExplorerSource } from "@/lib/explorer";
 import {
   type PendingUpload,
   pendingFromDrop,
@@ -81,29 +68,35 @@ import {
   uploadAll,
 } from "@/lib/explorer-upload";
 import { cn, formatBytes } from "@/lib/utils";
+import type { ExplorerEntry } from "@/web/api/explorer";
+import {
+  compressEntries,
+  copyEntry,
+  createFolder,
+  deleteEntry,
+  getDownloadTarget,
+  listEntries,
+  moveEntry,
+  renameEntry,
+} from "@/web/api/explorer";
 
 // The editor drags in CodeMirror and its lazily-loaded language modes. Split it
 // out so browsing and downloading don't pay for a bundle most visits never use.
+// Both other dialogs open on demand and neither is on the browsing path, so
+// they follow the editor's pattern.
 //
-// `loading` is what gives the import its own Suspense boundary: without one,
-// next/dynamic wraps the lazy component in a Fragment, so the very first open
-// suspends all the way up to the route segment's loading.tsx and replaces the
-// explorer behind the dialog with the page skeleton. Null fallback — the dialog
+// Each render site wraps its dialog in its own null-fallback <Suspense>:
+// without one, the first open suspends up to the route's pending component and
+// replaces the explorer behind the dialog with the page skeleton. The dialog
 // is the only thing that should appear, and only once it can render.
-const FileEditorDialog = dynamic(
-  () => import("@/components/file-editor-dialog"),
-  { loading: () => null }
+const FileEditorDialog = React.lazy(
+  () => import("@/components/file-editor-dialog")
 );
-
-// Both open on demand and neither is on the browsing path, so they follow the
-// editor's pattern: lazy, with their own Suspense boundary.
-const FolderPickerDialog = dynamic(
-  () => import("@/components/folder-picker-dialog"),
-  { loading: () => null }
+const FolderPickerDialog = React.lazy(
+  () => import("@/components/folder-picker-dialog")
 );
-const EntryPropertiesDialog = dynamic(
-  () => import("@/components/entry-properties-dialog"),
-  { loading: () => null }
+const EntryPropertiesDialog = React.lazy(
+  () => import("@/components/entry-properties-dialog")
 );
 
 // Which optional columns the table shows. Name is not in here — a listing
@@ -1621,36 +1614,44 @@ export function FileExplorer({ source, rootLabel }: Props) {
       )}
 
       {editing ? (
-        <FileEditorDialog
-          source={source}
-          entry={editing}
-          onClose={() => setEditing(null)}
-          onSaved={refresh}
-        />
+        <React.Suspense fallback={null}>
+          <FileEditorDialog
+            source={source}
+            entry={editing}
+            onClose={() => setEditing(null)}
+            onSaved={refresh}
+          />
+        </React.Suspense>
       ) : null}
 
       {transfer ? (
-        <FolderPickerDialog
-          source={source}
-          rootLabel={rootLabel}
-          initialPath={path}
-          title={transfer.mode === "move" ? t("moveTo") : t("copyTo")}
-          confirmText={transfer.mode === "move" ? t("moveHere") : t("copyHere")}
-          // A folder can't receive itself or its own subtree; the actions
-          // enforce this too, but a disabled row explains it better than a
-          // toast after the fact.
-          blocked={transfer.paths.filter((p) => p.endsWith("/"))}
-          onClose={() => setTransfer(null)}
-          onPick={onTransferPick}
-        />
+        <React.Suspense fallback={null}>
+          <FolderPickerDialog
+            source={source}
+            rootLabel={rootLabel}
+            initialPath={path}
+            title={transfer.mode === "move" ? t("moveTo") : t("copyTo")}
+            confirmText={
+              transfer.mode === "move" ? t("moveHere") : t("copyHere")
+            }
+            // A folder can't receive itself or its own subtree; the actions
+            // enforce this too, but a disabled row explains it better than a
+            // toast after the fact.
+            blocked={transfer.paths.filter((p) => p.endsWith("/"))}
+            onClose={() => setTransfer(null)}
+            onPick={onTransferPick}
+          />
+        </React.Suspense>
       ) : null}
 
       {inspecting ? (
-        <EntryPropertiesDialog
-          source={source}
-          entry={inspecting}
-          onClose={() => setInspecting(null)}
-        />
+        <React.Suspense fallback={null}>
+          <EntryPropertiesDialog
+            source={source}
+            entry={inspecting}
+            onClose={() => setInspecting(null)}
+          />
+        </React.Suspense>
       ) : null}
     </div>
   );

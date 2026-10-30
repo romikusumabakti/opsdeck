@@ -1,8 +1,5 @@
-"use client";
-
 import { Check, ChevronsUpDown } from "lucide-react";
 import * as React from "react";
-import type { DatabaseEntry } from "@/actions/databases";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -18,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import type { DatabaseEntry } from "@/web/api/databases";
 
 // Shared combobox for picking a target database. Used by backup, restore, and
 // the manage-databases page. The environment's configured database is flagged with

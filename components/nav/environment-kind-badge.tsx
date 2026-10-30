@@ -1,7 +1,5 @@
-"use client";
-
-import { useTranslations } from "next-intl";
-import type { EnvironmentListItem } from "@/lib/db/schema";
+import { useTranslations } from "use-intl";
+import type { EnvironmentListItem } from "@/web/api/environments";
 
 // The small uppercase pill marking an environment's purpose (DEV, QA, …) in
 // pickers. Renders nothing for environments without a kind.

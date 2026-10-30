@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import type { ActiveRun } from "@/actions/runs";
+import type { ActiveRun } from "@/web/api/runs";
 
 const STORAGE_KEY = "opsdeck:run-notifications";
 const CHANGE_EVENT = "opsdeck:notifications-changed";

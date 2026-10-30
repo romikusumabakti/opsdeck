@@ -1,5 +1,3 @@
-"use client";
-
 import type { UserCardData } from "@/lib/types";
 
 // One in-flight or settled request per user, reused for 60 s, so hovering the

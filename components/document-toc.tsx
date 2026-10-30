@@ -1,7 +1,5 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { useTranslations } from "use-intl";
 import { cn } from "@/lib/utils";
 
 type Heading = { id: string; text: string; level: number };

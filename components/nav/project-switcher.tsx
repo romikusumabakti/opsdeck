@@ -1,8 +1,6 @@
-"use client";
-
 import { Check, ChevronDown, FolderKanban, FolderPlus } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import {

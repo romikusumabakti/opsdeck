@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export function GET(request: Request): Response {
   const param = new URL(request.url).searchParams.get("accent");
-  const accent = isAccent(param) ? param : defaultAccent();
+  const accent = isAccent(param) ? param : defaultAccent(brand());
   return new Response(renderBrandIcon(brand(), accent), {
     headers: {
       "content-type": "image/svg+xml",

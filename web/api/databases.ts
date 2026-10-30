@@ -51,3 +51,8 @@ export async function renameDatabase(
     routes["rename-database"].$post({ json: { environmentId, options } })
   );
 }
+
+export type DatabaseEntry = Extract<
+  Awaited<ReturnType<typeof getDatabaseList>>,
+  { success: true }
+>["data"][number];

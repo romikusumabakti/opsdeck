@@ -1,17 +1,10 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import {
-  createServer,
-  testServerConnection,
-  updateServer,
-} from "@/actions/servers";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -26,7 +19,15 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
-import type { Server } from "@/lib/db/schema";
+import type { SafeServer } from "@/lib/db/schema";
+import type { Serialized } from "@/web/api/client";
+import {
+  createServer,
+  testServerConnection,
+  updateServer,
+} from "@/web/api/servers";
+
+type Server = Serialized<SafeServer>;
 
 type Mode = { type: "create" } | { type: "edit"; server: Server };
 

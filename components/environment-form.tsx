@@ -1,13 +1,10 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { createEnvironment, updateEnvironment } from "@/actions/environments";
 import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { ServerCreateDialog } from "@/components/server-create-dialog";
 import { Button } from "@/components/ui/button";
@@ -31,9 +28,8 @@ import {
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type {
-  Project,
+  Project as ProjectRow,
   SafeEnvironmentWithServers,
-  Server,
 } from "@/lib/db/schema";
 import {
   backendService,
@@ -41,6 +37,8 @@ import {
   dbService,
   frontendService,
 } from "@/lib/services";
+import type { Serialized } from "@/web/api/client";
+import { createEnvironment, updateEnvironment } from "@/web/api/environments";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql", "mysql"] as const;
@@ -60,9 +58,12 @@ type ServerRole = "db" | "backend" | "frontend";
 // servers; options-only callers get id and name.
 type ServerOption = { id: string; name: string; host?: string };
 
+type Project = Serialized<ProjectRow>;
+type Environment = Serialized<SafeEnvironmentWithServers>;
+
 type Mode =
-  | { type: "create"; cloneFrom?: SafeEnvironmentWithServers }
-  | { type: "edit"; environment: SafeEnvironmentWithServers };
+  | { type: "create"; cloneFrom?: Environment }
+  | { type: "edit"; environment: Environment };
 
 export function EnvironmentForm({
   mode,
@@ -221,7 +222,7 @@ export function EnvironmentForm({
         },
   });
 
-  function onServerCreated(server: Server) {
+  function onServerCreated(server: ServerOption) {
     setServers((prev) => [...prev, server]);
     if (dialogRole === "db") form.setValue("dbServerId", server.id);
     if (dialogRole === "backend") form.setValue("backendServerId", server.id);
@@ -750,11 +751,7 @@ export function EnvironmentForm({
 // Read-only view of an environment's infrastructure bindings for callers
 // without server:manage. Built from the stored environment only (server names
 // included), so the server list is never fetched for them.
-function InfraSummary({
-  environment,
-}: {
-  environment: SafeEnvironmentWithServers;
-}) {
+function InfraSummary({ environment }: { environment: Environment }) {
   const t = useTranslations("environmentForm");
   const tEnums = useTranslations("dashboard");
   const db = dbService(environment);

@@ -1,5 +1,3 @@
-"use client";
-
 import {
   ChevronsUpDown,
   IdCard,
@@ -13,10 +11,10 @@ import {
   Sun,
   UserRound,
 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import * as React from "react";
 import { useTransition } from "react";
+import { useLocale, useTranslations } from "use-intl";
 import { AccentDot } from "@/components/accent-dot";
 import { useAccent } from "@/components/accent-provider";
 import { MotifInfoDialog } from "@/components/motif-info";
@@ -44,6 +42,7 @@ import { usePathname, useRouter } from "@/i18n/navigation";
 import { ACCENTS, type AccentColor } from "@/lib/accents";
 import { authClient } from "@/lib/auth-client";
 import { getMotif, MOTIFS, type MotifPreference } from "@/lib/motifs";
+import { resetSession } from "@/web/api/session";
 
 export type UserSummary = {
   id: string;
@@ -93,8 +92,9 @@ export function UserMenu({
 
   async function onSignOut() {
     await authClient.signOut();
+    // Forget the old session's data before the gate sees the next page.
+    await resetSession();
     router.push("/sign-in");
-    router.refresh();
   }
 
   function onLocaleChange(value: string) {

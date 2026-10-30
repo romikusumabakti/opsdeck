@@ -1,10 +1,7 @@
-"use client";
-
 import { FileWarning, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { readFileText, saveFileText } from "@/actions/explorer";
+import { useTranslations } from "use-intl";
 import { CodeEditor } from "@/components/code-editor";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
@@ -19,7 +16,9 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import type { ExplorerEntry, ExplorerSource } from "@/lib/explorer";
+import type { ExplorerSource } from "@/lib/explorer";
+import type { ExplorerEntry } from "@/web/api/explorer";
+import { readFileText, saveFileText } from "@/web/api/explorer";
 
 type Props = {
   source: ExplorerSource;

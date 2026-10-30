@@ -1,7 +1,5 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import { Component, type ReactNode, Suspense, useState } from "react";
+import { useTranslations } from "use-intl";
 import {
   PreviewCard,
   PreviewCardContent,

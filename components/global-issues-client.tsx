@@ -1,18 +1,8 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import { CircleDot, Trash2 } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import type { GlobalIssue } from "@/actions/issues";
-import {
-  bulkDeleteIssues,
-  bulkSetStatus,
-  setIssueStatus,
-  updateIssue,
-} from "@/actions/issues";
+import { useLocale, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import {
   type AssignableUser,
@@ -48,10 +38,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Link } from "@/i18n/navigation";
+import {
+  Link,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { BOARD_LIMIT, TABLE_URL_KEY } from "@/lib/issue-query";
 import type { UserRef } from "@/lib/types";
+import type { GlobalIssue } from "@/web/api/issues";
+import {
+  bulkDeleteIssues,
+  bulkSetStatus,
+  setIssueStatus,
+  updateIssue,
+} from "@/web/api/issues";
 
 /**
  * One page of issues, patched in place. `remove` covers a bulk delete: the rows

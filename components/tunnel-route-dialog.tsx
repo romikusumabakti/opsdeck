@@ -1,10 +1,7 @@
-"use client";
-
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { attachTunnelNetwork, createTunnelRoute } from "@/actions/tunnels";
+import { useTranslations } from "use-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import type { TunnelWithContext } from "@/lib/db/schema";
 import type { ContainerInfo } from "@/lib/tunnels/remote";
+import { attachTunnelNetwork, createTunnelRoute } from "@/web/api/tunnels";
 
 type Candidate = ContainerInfo & { reachable: boolean };
 

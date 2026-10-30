@@ -1,8 +1,6 @@
-"use client";
-
 import { FolderPlus } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { useTranslations } from "use-intl";
 import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";

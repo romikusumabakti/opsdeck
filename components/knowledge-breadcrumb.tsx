@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { useTranslations } from "use-intl";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
@@ -7,13 +7,13 @@ export type Crumb = { label: string; href?: string };
 
 /**
  * Trail rendered at the top of a knowledge page's content column —
- * `Knowledge / <collection> / <title>`. Server component: the reader already
- * holds the collection and title, so no client data round-trip. The last crumb
+ * `Knowledge / <collection> / <title>`. The reader already holds the
+ * collection and title, so it passes them in. The last crumb
  * is the current page (not a link); earlier ones link where a destination
  * exists.
  */
-export async function KnowledgeBreadcrumb({ items }: { items: Crumb[] }) {
-  const t = await getTranslations("knowledge");
+export function KnowledgeBreadcrumb({ items }: { items: Crumb[] }) {
+  const t = useTranslations("knowledge");
   const trail: Crumb[] = [{ label: t("title"), href: "/knowledge" }, ...items];
 
   return (

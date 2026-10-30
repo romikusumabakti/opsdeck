@@ -1,6 +1,6 @@
 import { ACCENT_PALETTE } from "@/lib/accent-palette";
 import type { AccentColor } from "@/lib/accents";
-import type { BrandName } from "@/lib/branding";
+import type { BrandName } from "@/lib/brands";
 
 /**
  * Logo shapes per brand (BRAND). Every logo is the same four-tile grid — top-

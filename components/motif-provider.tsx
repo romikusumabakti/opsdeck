@@ -1,14 +1,12 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
-import { setMotif } from "@/actions/profile";
+import { useTranslations } from "use-intl";
 import { useOptimisticPreference } from "@/hooks/use-optimistic-preference";
 import {
   type MotifPreference,
   type MotifSlug,
   resolveMotif,
 } from "@/lib/motifs";
+import { setMotif } from "@/web/api/profile";
 
 type MotifContextValue = {
   preference: MotifPreference;

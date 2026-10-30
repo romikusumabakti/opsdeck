@@ -1,5 +1,3 @@
-"use client";
-
 import {
   ArrowDown,
   Braces,
@@ -11,8 +9,8 @@ import {
   RefreshCw,
   Terminal,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import * as React from "react";
+import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

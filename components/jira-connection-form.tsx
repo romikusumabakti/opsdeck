@@ -1,17 +1,10 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import {
-  createJiraConnection,
-  testJiraConnection,
-  updateJiraConnection,
-} from "@/actions/jira";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -34,6 +27,11 @@ import {
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeJiraConnection } from "@/lib/db/schema";
+import {
+  createJiraConnection,
+  testJiraConnection,
+  updateJiraConnection,
+} from "@/web/api/jira";
 
 type Mode =
   | { type: "create" }

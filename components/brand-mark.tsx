@@ -1,6 +1,7 @@
 import { logoTiles } from "@/lib/brand-logos";
-import { APP_NAME, type BrandName } from "@/lib/branding";
+import type { BrandName } from "@/lib/brands";
 import { cn } from "@/lib/utils";
+import { useBootstrap } from "@/web/api/session";
 
 /**
  * The deployment's logo, inline so it takes the accent's colours (--logo and
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils";
  * whole-pixel grid. Decorative (`aria-hidden`): the app name is always beside
  * it or in a tooltip.
  *
- * `logo` (the shape) comes from `brand()`, read on the server and passed down.
+ * `logo` (the shape) is the deployment's brand, from `/api/bootstrap`.
  * `active` makes the status tile pulse — set it while runs are in progress.
  */
 export function BrandLogo({
@@ -50,17 +51,12 @@ export function BrandLogo({
 }
 
 /** Lockup used on the unauthenticated pages: the logo plus the wordmark. */
-export function BrandMark({
-  logo,
-  className,
-}: {
-  logo: BrandName;
-  className?: string;
-}) {
+export function BrandMark({ className }: { className?: string }) {
+  const { appName, brand } = useBootstrap();
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
-      <BrandLogo logo={logo} />
-      <span className="text-base font-semibold tracking-tight">{APP_NAME}</span>
+      <BrandLogo logo={brand} />
+      <span className="text-base font-semibold tracking-tight">{appName}</span>
     </div>
   );
 }

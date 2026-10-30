@@ -45,3 +45,7 @@ export async function markAllNotificationsRead() {
     () => ({ success: false }) as const
   );
 }
+
+export type Notification = Awaited<
+  ReturnType<typeof listNotifications>
+>[number];

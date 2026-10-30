@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import { api } from "@/web/api/client";
 import { ME_QUERY_KEY, queryClient } from "@/web/query-client";
@@ -37,6 +37,23 @@ export const bootstrapQuery = () =>
     staleTime: Number.POSITIVE_INFINITY,
     meta: { fixed: true },
   });
+
+/**
+ * The signed-in user, from the cache the $locale gate filled: inside the app
+ * shell it is never null. Suspends only if the entry was cleared meanwhile.
+ */
+export function useMe() {
+  return useSuspenseQuery(meQuery()).data;
+}
+
+/**
+ * The deployment's identity (`appName`, `companyName`, `brand`, …) for client
+ * code — what lib/branding and lib/timezone give the server. The $locale
+ * loader has already loaded it, so this never suspends below that route.
+ */
+export function useBootstrap() {
+  return useSuspenseQuery(bootstrapQuery()).data;
+}
 
 /**
  * Call after better-auth signs a user in or out (or switches accounts).

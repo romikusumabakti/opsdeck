@@ -101,3 +101,7 @@ export const getMyProjectAccessQuery = (
     queryKey: ["project-catalog", "getMyProjectAccess", args],
     queryFn: () => getMyProjectAccess(...args),
   });
+
+export type ProjectWithEnvironments = Awaited<
+  ReturnType<typeof listProjectsWithEnvironments>
+>[number];

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BRAND_ICON_SRC, type BrandName, brand } from "@/lib/branding";
+import { BRAND_ICON_SRC, type BrandName } from "@/lib/brands";
 
 /**
  * Accent colours a user can pick: shadcn/ui's seven colour themes plus
@@ -33,8 +33,9 @@ export function isAccent(value: unknown): value is AccentColor {
   );
 }
 
-export function defaultAccent(): AccentColor {
-  return BRAND_DEFAULT_ACCENT[brand()];
+/** `logo` is the deployment's brand: `brand()` on the server, bootstrap in the SPA. */
+export function defaultAccent(logo: BrandName): AccentColor {
+  return BRAND_DEFAULT_ACCENT[logo];
 }
 
 /**
@@ -43,10 +44,11 @@ export function defaultAccent(): AccentColor {
  * failing, like effectiveTimeZone does for zones.
  */
 export function effectiveAccent(
-  user: { accentColor?: string | null } | null | undefined
+  user: { accentColor?: string | null } | null | undefined,
+  logo: BrandName
 ): AccentColor {
   const stored = user?.accentColor;
-  return isAccent(stored) ? stored : defaultAccent();
+  return isAccent(stored) ? stored : defaultAccent(logo);
 }
 
 /** Favicon URL for `accent`; no accent lets the route use the brand default. */

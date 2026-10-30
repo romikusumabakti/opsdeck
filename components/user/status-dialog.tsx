@@ -1,9 +1,6 @@
-"use client";
-
-import { useFormatter, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { clearStatus, setStatus } from "@/actions/profile";
+import { useFormatter, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +25,7 @@ import {
   type StatusPreset,
 } from "@/lib/user-display";
 import { PROFILE_LIMITS } from "@/lib/validation";
+import { clearStatus, setStatus } from "@/web/api/profile";
 
 const SUGGESTIONS = [
   { emoji: "🎯", key: "focus", preset: "1h" },

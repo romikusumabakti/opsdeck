@@ -1,17 +1,10 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
-import {
-  createS3Connection,
-  testS3ConnectionAction,
-  updateS3Connection,
-} from "@/actions/s3-connections";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -28,6 +21,11 @@ import { Switch } from "@/components/ui/switch";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeS3Connection } from "@/lib/db/schema";
+import {
+  createS3Connection,
+  testS3ConnectionAction,
+  updateS3Connection,
+} from "@/web/api/s3-connections";
 
 type Mode = { type: "create" } | { type: "edit"; connection: SafeS3Connection };
 

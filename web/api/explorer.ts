@@ -183,3 +183,8 @@ export async function compressEntries(
     (message) => ({ success: false, message }) as const
   );
 }
+
+export type ExplorerEntry = Extract<
+  Awaited<ReturnType<typeof listEntries>>,
+  { success: true }
+>["data"][number];

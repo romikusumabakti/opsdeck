@@ -1,9 +1,6 @@
-"use client";
-
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { createIssue } from "@/actions/issues";
+import { useTranslations } from "use-intl";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -32,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { createIssue } from "@/web/api/issues";
 
 export type Option = { id: string; name: string };
 export type IssueDefaults = {

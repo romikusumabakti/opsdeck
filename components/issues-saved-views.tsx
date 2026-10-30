@@ -1,11 +1,7 @@
-"use client";
-
 import { Bookmark, ChevronDown, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
-import { createSavedView, deleteSavedView } from "@/actions/saved-views";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useRouter } from "@/i18n/navigation";
+import { createSavedView, deleteSavedView } from "@/web/api/saved-views";
 
 export type SavedViewItem = {
   id: string;

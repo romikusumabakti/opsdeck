@@ -1,5 +1,3 @@
-"use client";
-
 import { formatDistanceToNow } from "date-fns";
 import {
   CheckCircle2,
@@ -10,10 +8,8 @@ import {
   Search,
   Settings,
 } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
-import type { ProjectWithEnvironments } from "@/actions/project-catalog";
-import type { EnvironmentActivity } from "@/actions/runs";
+import { useLocale, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +31,8 @@ import {
   type OrgRole,
   type ProjectRole,
 } from "@/lib/permissions";
+import type { ProjectWithEnvironments } from "@/web/api/project-catalog";
+import type { EnvironmentActivity } from "@/web/api/runs";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
 
@@ -69,9 +67,7 @@ export function ProjectsOverview({
   // leave the canonical /projects link clean.
   function changeSort(next: SortKey) {
     setSort(next);
-    router.replace(
-      next === "recent" ? pathname : { pathname, query: { sort: next } }
-    );
+    router.replace(next === "recent" ? pathname : `${pathname}?sort=${next}`);
   }
 
   // A project's recency is its most recently touched environment; same for
