@@ -71,6 +71,42 @@ describe("production static serving", () => {
     expect(res.headers.get("location")).toBe("/en/servers?tab=usage");
   });
 
+  it("redirects to the NEXT_LOCALE cookie's locale", async () => {
+    const res = await app().request("/servers", {
+      headers: { Cookie: "theme=dark; NEXT_LOCALE=id" },
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/id/servers");
+  });
+
+  it("falls back to Accept-Language without a cookie", async () => {
+    const res = await app().request("/servers", {
+      headers: { "Accept-Language": "ar" },
+    });
+    expect(res.headers.get("location")).toBe("/ar/servers");
+  });
+
+  it("ignores an invalid NEXT_LOCALE cookie", async () => {
+    const withLanguage = await app().request("/servers", {
+      headers: {
+        Cookie: "NEXT_LOCALE=fr",
+        "Accept-Language": "es-MX,en;q=0.5",
+      },
+    });
+    expect(withLanguage.headers.get("location")).toBe("/es/servers");
+    const bare = await app().request("/servers", {
+      headers: { Cookie: "NEXT_LOCALE=fr" },
+    });
+    expect(bare.headers.get("location")).toBe("/en/servers");
+  });
+
+  it("keeps the cookie from overriding a path's own locale", async () => {
+    const res = await app().request("/es/servers", {
+      headers: { Cookie: "NEXT_LOCALE=id" },
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("redirects the root to the default locale", async () => {
     const res = await app().request("/");
     expect(res.status).toBe(302);

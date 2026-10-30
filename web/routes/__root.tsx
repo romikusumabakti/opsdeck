@@ -5,6 +5,7 @@ import {
   Outlet,
   redirect,
 } from "@tanstack/react-router";
+import { preferredBrowserLocale } from "@/i18n/locale-preference";
 import { resolveRedirect } from "@/lib/redirects";
 import { RootError, RootNotFound } from "@/web/components/fallback-screens";
 import { PendingScreen } from "@/web/components/pending-screen";
@@ -16,7 +17,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   // this catches the same URLs reached by client-side navigation and under
   // the Vite dev server.
   beforeLoad: ({ location }) => {
-    const target = resolveRedirect(location.pathname);
+    const target = resolveRedirect(location.pathname, preferredBrowserLocale());
     if (target) {
       throw redirect({ href: target.to + location.searchStr, replace: true });
     }

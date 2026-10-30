@@ -37,6 +37,7 @@ import {
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { StatusDialog } from "@/components/user/status-dialog";
 import { UserAvatar } from "@/components/user/user-avatar";
+import { persistLocale } from "@/i18n/locale-preference";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ACCENTS, type AccentColor } from "@/lib/accents";
@@ -103,6 +104,7 @@ export function UserMenu({
     startTransition(() => {
       // Server-rendered text in the cached reads is in the old locale:
       // refetch once the URL (and so `X-Locale`) has switched.
+      persistLocale(locale);
       void router.replace(pathname, { locale }).then(() => router.refresh());
     });
   }

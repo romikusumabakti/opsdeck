@@ -12,6 +12,7 @@ import { NavigationGuardProvider } from "@/components/navigation-guard";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { applyBranding } from "@/i18n/branding";
+import { persistLocale } from "@/i18n/locale-preference";
 import { type Locale, locales } from "@/i18n/locales";
 import { effectiveAccent } from "@/lib/accents";
 import {
@@ -82,6 +83,9 @@ function LocaleLayout() {
   const { messages } = Route.useLoaderData();
   React.useEffect(() => {
     applyDocumentLocale(locale);
+    // Entering a locale makes it the one a locale-less URL lands in, as
+    // next-intl's middleware did.
+    persistLocale(locale);
   }, [locale]);
   return (
     <IntlShell locale={locale} messages={messages}>
