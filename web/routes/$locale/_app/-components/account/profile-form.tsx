@@ -1,9 +1,6 @@
-"use client";
-
-import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { updateProfile } from "@/actions/profile";
+import { useLocale, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +12,7 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { WorkingHours } from "@/lib/user-display";
 import { PROFILE_LIMITS } from "@/lib/validation";
+import { updateProfile } from "@/web/api/profile";
 
 type ProfileUser = {
   id: string;

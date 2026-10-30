@@ -23,7 +23,7 @@ type Revision = {
   id: string;
   title: string;
   content: string;
-  createdAt: Date;
+  createdAt: Date | string;
   editedBy: { id: string; name: string; image: string | null } | null;
 };
 

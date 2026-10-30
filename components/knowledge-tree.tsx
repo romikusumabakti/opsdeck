@@ -6,14 +6,17 @@ import { useTranslations } from "use-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+import type { Serialized } from "@/web/api/client";
 import { moveCollection, moveDocument } from "@/web/api/knowledge";
 
-type TreeItem = KnowledgeTreeNode & { children: TreeItem[] };
+type TreeItem = Serialized<KnowledgeTreeNode> & { children: TreeItem[] };
 
 // Assemble the flat (parent, rank)-ordered rows into a nesting tree. Orphans
 // (parent in another collection or since-deleted) surface at the root so a doc
 // is never hidden by a dangling parentId.
-function buildTree(nodes: KnowledgeTreeNode[]): Map<string, TreeItem[]> {
+function buildTree(
+  nodes: Serialized<KnowledgeTreeNode>[]
+): Map<string, TreeItem[]> {
   const byId = new Map<string, TreeItem>();
   for (const n of nodes) byId.set(n.id, { ...n, children: [] });
   const roots = new Map<string, TreeItem[]>();
@@ -32,7 +35,10 @@ function buildTree(nodes: KnowledgeTreeNode[]): Map<string, TreeItem[]> {
 
 // Ids of `rootId` and everything beneath it — a node can't be dropped onto its
 // own subtree (the server guards too, this just blocks the UI affordance).
-function subtreeIds(nodes: KnowledgeTreeNode[], rootId: string): Set<string> {
+function subtreeIds(
+  nodes: Serialized<KnowledgeTreeNode>[],
+  rootId: string
+): Set<string> {
   const childrenOf = new Map<string | null, string[]>();
   for (const n of nodes) {
     const list = childrenOf.get(n.parentId) ?? [];
@@ -201,8 +207,8 @@ export function KnowledgeTree({
   nodes,
   canManage = false,
 }: {
-  collections: KnowledgeCollection[];
-  nodes: KnowledgeTreeNode[];
+  collections: Serialized<KnowledgeCollection>[];
+  nodes: Serialized<KnowledgeTreeNode>[];
   canManage?: boolean;
 }) {
   const t = useTranslations("knowledge");
@@ -286,7 +292,7 @@ export function KnowledgeTree({
     parentId: string | null,
     collectionId: string,
     excludeId?: string
-  ): KnowledgeTreeNode[] {
+  ): Serialized<KnowledgeTreeNode>[] {
     return nodes
       .filter(
         (n) =>

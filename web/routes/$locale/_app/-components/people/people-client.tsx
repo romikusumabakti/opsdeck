@@ -1,8 +1,6 @@
-"use client";
-
 import { UsersRound } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,9 +15,9 @@ import {
 import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
-import type { PersonSummary } from "@/lib/people/queries";
 import { ORG_ROLES } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import type { PersonSummary } from "@/web/api/users";
 
 const ALL = "__all";
 

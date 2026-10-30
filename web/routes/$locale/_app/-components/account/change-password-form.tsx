@@ -1,9 +1,7 @@
-"use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,6 +18,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { authClient } from "@/lib/auth-client";
+import { resetSession } from "@/web/api/session";
 
 export function ChangePasswordForm() {
   const t = useTranslations("changePassword");
@@ -68,6 +67,9 @@ export function ChangePasswordForm() {
       confirm: "",
       revokeOther: values.revokeOther,
     });
+    // Revoking the other sessions makes better-auth issue this browser a new
+    // one, so drop everything cached under the old session.
+    if (values.revokeOther) await resetSession();
   }
 
   return (
