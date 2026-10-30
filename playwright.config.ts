@@ -7,7 +7,6 @@ const origin = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  globalSetup: "./e2e/global-setup.ts",
   // The specs share one database and one admin account, and auth.spec.ts
   // creates that account: run them in order, in one worker.
   fullyParallel: false,
@@ -38,11 +37,17 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // The production build is what ships, so it is what gets tested.
-    command: "bun run build && bun run start",
+    // Reset and migrate the database first (e2e/reset-db.ts, guarded to
+    // loopback *_e2e databases), so nothing is connected while the schema is
+    // dropped: Playwright starts webServer before globalSetup, so the reset
+    // can't live there. Then the production build, since that is what ships.
+    command:
+      "bun --no-env-file e2e/reset-db.ts && bun run build && bun run start",
     url: `${origin}/api/health`,
     // A leftover server would be talking to some other database (or be some
-    // other program entirely), so reuse is opt-in.
+    // other program entirely), so reuse is opt-in. Reusing one also skips the
+    // command, database reset included: the specs then need a fresh database
+    // (auth.spec.ts creates the first admin).
     reuseExistingServer: process.env.E2E_REUSE_SERVER === "1",
     timeout: 240_000,
     stdout: "ignore",
