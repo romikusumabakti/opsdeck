@@ -278,7 +278,7 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
   // Bun's glob can't nest a "/" inside braces, so scan the roots separately.
   const roots = [
     "server/services",
-    ...(existsSync("server/routes") ? ["server/routes"] : []),
+    "server/routes",
     "lib",
     "app",
     "components",
@@ -529,7 +529,7 @@ describe("users and access live on one guarded page", () => {
     const LINK = /["'`]\/admin\/access\b/;
     const roots = [
       "server/services",
-      ...(existsSync("server/routes") ? ["server/routes"] : []),
+      "server/routes",
       "lib",
       "app",
       "components",
@@ -564,5 +564,77 @@ describe("users and access live on one guarded page", () => {
       body(users, "listUsers"),
       /requireOrgPermission\(\{ user: \["list"\] \}\)/
     );
+  });
+});
+
+// Routers decide "signed in or not" once, through the two factories in
+// server/router.ts; finer permissions come from the service they call, or from
+// the route itself when it reads lib/ directly (page data).
+describe("API routers reach a guard", () => {
+  const files = Array.from(
+    globSync("*.ts", { cwd: "server/routes" }),
+    (f) => `server/routes/${f}`
+  );
+  // Everything reachable without a session. Adding a route here is a security
+  // decision: it must be safe for an anonymous caller.
+  const PUBLIC: Record<string, string[]> = {
+    "server/routes/session.ts": ["GET /bootstrap", "GET /me"],
+    "server/routes/users.ts": [
+      "GET /has-any-user",
+      "POST /create-initial-user",
+      "GET /get-invitation-by-token",
+      "POST /accept-invitation",
+    ],
+  };
+  // A router's routes: from its factory call up to the next exported router.
+  function routesOf(source: string, factory: string): string[] {
+    return source
+      .split(/\nexport const /)
+      .filter((chunk) => chunk.includes(`= ${factory}()`))
+      .flatMap((chunk) =>
+        Array.from(
+          chunk.matchAll(/\.(get|post|put|patch|delete)\(\s*"([^"]+)"/g),
+          (m) => `${m[1]?.toUpperCase()} ${m[2]}`
+        )
+      );
+  }
+
+  it("scans the route files", () => {
+    expect(files.length).toBeGreaterThan(10);
+  });
+
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    it(`${file} builds its routers from the factories`, () => {
+      expect(source).not.toMatch(/new Hono\b/);
+      expect(source).toMatch(/\b(sessionRouter|publicRouter)\(\)/);
+    });
+    it(`${file} exposes only the pinned public routes`, () => {
+      expect(routesOf(source, "publicRouter")).toEqual(PUBLIC[file] ?? []);
+    });
+    it(`${file} is mounted in server/app.ts`, () => {
+      const name = file.slice("server/routes/".length, -".ts".length);
+      expect(readFileSync("server/app.ts", "utf8")).toContain(
+        `from "@/server/routes/${name}"`
+      );
+    });
+  }
+
+  it("knowledge page data applies the page's guard before loading", () => {
+    const source = readFileSync("server/routes/knowledge.ts", "utf8");
+    const handlers = source.split(/\n {2}\.(?:get|post)\(/).slice(1);
+    const loading = handlers.filter((h) => /\bload\w+\(/.test(h));
+    expect(loading.length).toBe(4);
+    for (const h of loading) {
+      const guard = h.search(
+        /requireOrgPermission\(\{ knowledge: \["(read|write)"\] \}\)/
+      );
+      expect(guard).toBeGreaterThan(-1);
+      expect(guard).toBeLessThan(h.search(/\bload\w+\(/));
+    }
+    const revisions = handlers.find((h) =>
+      h.startsWith('"/documents/:slug/revisions"')
+    );
+    expect(revisions).toMatch(/knowledge: \["write"\]/);
   });
 });
