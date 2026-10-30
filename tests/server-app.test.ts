@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import { app, createBaseApp } from "@/server/app";
 import { getLocale } from "@/server/context";
@@ -119,6 +119,17 @@ describe("CSRF origin check", () => {
 
   // Behind the tunnel and Caddy the request URL is the container's, so the
   // public origin comes from BETTER_AUTH_URL.
+  it("refuses, not crashes, when BETTER_AUTH_URL is malformed", async () => {
+    process.env.BETTER_AUTH_URL = "not a url";
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await formPost("http://localhost")).status).toBe(403);
+    expect(
+      (await formPost("http://localhost", { "Sec-Fetch-Site": "same-origin" }))
+        .status
+    ).toBe(401);
+    logged.mockRestore();
+  });
+
   it("trusts the BETTER_AUTH_URL origin when it is set", async () => {
     process.env.BETTER_AUTH_URL = "https://panel.example.com/some/path";
     expect((await formPost("https://panel.example.com")).status).toBe(401);

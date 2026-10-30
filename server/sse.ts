@@ -54,6 +54,19 @@ export async function pollSnapshots<T>(
 ): Promise<void> {
   const startedAt = Date.now();
   let lastSerialized = "";
+  // The wait between polls ends early when the client leaves, so a departed
+  // tab stops the loop now rather than one interval later.
+  let wake = () => {};
+  stream.onAbort(() => wake());
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      if (stream.aborted) return resolve();
+      const timer = setTimeout(resolve, ms);
+      wake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
   while (!stream.aborted && !stream.closed) {
     if (Date.now() - startedAt > opts.maxDurationMs) {
       await sendEvent(stream, "timeout", { reason: "max-duration" });
@@ -79,6 +92,85 @@ export async function pollSnapshots<T>(
       lastSerialized = serialized;
     }
     if (result.done) return;
-    await stream.sleep(opts.intervalMs);
+    await sleep(opts.intervalMs);
   }
+}
+
+/**
+ * A push stream fed from callbacks (SSH output, a WebSocket): the log and
+ * mail streams. Owns what both need so neither can get it wrong:
+ *
+ * - Frames are written strictly one after another through a promise chain, so
+ *   callbacks can `send` without awaiting and order is still kept.
+ * - `close()` stops accepting frames, but `done` resolves only after every
+ *   frame queued before it has been written. The route awaits `done`, and
+ *   streamSSE closes the stream when the route returns — so the final frame
+ *   (`close`, `stream-error`, `timeout`), the one the client acts on, is never
+ *   cut off.
+ * - A heartbeat comment keeps proxies and the EventSource from idling out,
+ *   and at `maxDurationMs` a `timeout` event is sent and the channel closes
+ *   (the client reconnects, releasing sockets held by vanished tabs).
+ * - A client disconnect closes the channel. `onClose` runs exactly once, on
+ *   any close, to stop the source.
+ */
+export function eventChannel(
+  stream: SSEStreamingApi,
+  opts: { maxDurationMs: number; heartbeatMs: number; onClose?: () => void }
+) {
+  let closed = false;
+  let chain: Promise<void> = Promise.resolve();
+  let resolveDone = () => {};
+  const done = new Promise<void>((resolve) => {
+    resolveDone = resolve;
+  });
+
+  function enqueue(write: () => Promise<unknown>) {
+    if (closed) return;
+    // A failed write (client gone) must not stall the frames behind it.
+    chain = chain.then(write).then(
+      () => {},
+      () => {}
+    );
+  }
+
+  const channel = {
+    get closed() {
+      return closed;
+    },
+    /** Queue one `event:` + JSON `data:` frame. Ignored once closed. */
+    send(event: string, data: unknown) {
+      enqueue(() => sendEvent(stream, event, data));
+    },
+    /** Queue raw SSE text (a comment, a `retry:` line). Ignored once closed. */
+    write(raw: string) {
+      enqueue(() => stream.write(raw));
+    },
+    /** Stop accepting frames; `done` settles once the queue has drained. */
+    close() {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      clearTimeout(cap);
+      try {
+        opts.onClose?.();
+      } catch {
+        // the source is already stopped
+      }
+      void chain.then(resolveDone);
+    },
+    done,
+  };
+
+  const heartbeat = setInterval(
+    () => channel.write(": ping\n\n"),
+    opts.heartbeatMs
+  );
+  const cap = setTimeout(() => {
+    channel.send("timeout", { reason: "max-duration" });
+    channel.close();
+  }, opts.maxDurationMs);
+
+  stream.onAbort(() => channel.close());
+  if (stream.aborted) channel.close();
+  return channel;
 }

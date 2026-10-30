@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { app, createBaseApp } from "@/server/app";
-import { eventStream, pollSnapshots, sendEvent } from "@/server/sse";
+import {
+  eventChannel,
+  eventStream,
+  pollSnapshots,
+  sendEvent,
+} from "@/server/sse";
 
 // Same rule as routes-batch-a: no cookie anywhere, so every gated route must
 // stop at its session check. A route that reached Postgres first would fail on
@@ -195,4 +200,112 @@ describe("event streams", () => {
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
   });
+});
+
+// The log and mail streams are event-driven: frames are queued from callbacks
+// and the stream closes when the source ends. The final frame (`close`,
+// `stream-error`, `timeout`) is the one the client acts on, so it must reach the
+// body before the stream closes.
+describe("event channels", () => {
+  const LONG = 60_000;
+
+  it("delivers every queued frame, in order, before closing", async () => {
+    let onCloseCalls = 0;
+    const probe = createBaseApp().get("/channel", (c) =>
+      eventStream(c, async (stream) => {
+        const channel = eventChannel(stream, {
+          maxDurationMs: LONG,
+          heartbeatMs: LONG,
+          onClose: () => {
+            onCloseCalls++;
+          },
+        });
+        channel.write("retry: 10000\n\n");
+        channel.send("lines", ["a", "b"]);
+        channel.send("close", { code: 0 });
+        channel.close();
+        // Nothing after close is sent.
+        channel.send("late", {});
+        await channel.done;
+      })
+    );
+    const res = await probe.request("/channel");
+    expect(await res.text()).toBe(
+      [
+        "retry: 10000\n\n",
+        'event: lines\ndata: ["a","b"]\n\n',
+        'event: close\ndata: {"code":0}\n\n',
+      ].join("")
+    );
+    expect(onCloseCalls).toBe(1);
+  });
+
+  it("sends heartbeats and a final timeout event at the cap", async () => {
+    const probe = createBaseApp().get("/capped", (c) =>
+      eventStream(c, async (stream) => {
+        const channel = eventChannel(stream, {
+          maxDurationMs: 40,
+          heartbeatMs: 10,
+        });
+        await channel.done;
+      })
+    );
+    const body = await (await probe.request("/capped")).text();
+    expect(body).toContain(": ping\n\n");
+    expect(
+      body.endsWith('event: timeout\ndata: {"reason":"max-duration"}\n\n')
+    ).toBe(true);
+  });
+
+  it("closes when the client goes away", async () => {
+    let closed!: () => void;
+    const sourceStopped = new Promise<void>((resolve) => {
+      closed = resolve;
+    });
+    const probe = createBaseApp().get("/abort", (c) =>
+      eventStream(c, async (stream) => {
+        const channel = eventChannel(stream, {
+          maxDurationMs: LONG,
+          heartbeatMs: LONG,
+          onClose: closed,
+        });
+        channel.send("ready", {});
+        await channel.done;
+      })
+    );
+    const res = await probe.request("/abort");
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await sourceStopped;
+  });
+});
+
+describe("snapshot polling", () => {
+  // A long interval must not keep the loop (and its DB polling) alive after
+  // the client disconnects.
+  it("stops sleeping as soon as the client goes away", async () => {
+    let reads = 0;
+    let finished!: () => void;
+    const loopEnded = new Promise<void>((resolve) => {
+      finished = resolve;
+    });
+    const probe = createBaseApp().get("/poll", (c) =>
+      eventStream(c, async (stream) => {
+        await pollSnapshots(stream, {
+          intervalMs: 60_000,
+          maxDurationMs: 600_000,
+          logLabel: "probe",
+          read: async () => ({ snapshot: ++reads, done: false }),
+        });
+        finished();
+      })
+    );
+    const res = await probe.request("/poll");
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await loopEnded;
+    expect(reads).toBe(1);
+  }, 5_000);
 });
