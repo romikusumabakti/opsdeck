@@ -6,11 +6,11 @@ import { ACCENTS } from "@/lib/accents";
 
 // Every accent must keep text readable (WCAG AA 4.5:1) and its focus ring
 // visible against the page (WCAG 1.4.11, 3:1) in both modes. Reads the real
-// app/globals.css and resolves var(--color-*) from the installed Tailwind
+// web/styles.css and resolves var(--color-*) from the installed Tailwind
 // palette, so the numbers are the ones a browser renders.
 
 const css = readFileSync(
-  join(import.meta.dirname, "../app/globals.css"),
+  join(import.meta.dirname, "../web/styles.css"),
   "utf8"
 );
 const theme = readFileSync(

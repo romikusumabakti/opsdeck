@@ -17,7 +17,9 @@
       "!tsconfig.tsbuildinfo",
       "!components/ui",
       "!drizzle",
-      "!public"
+      "!public",
+      "!web/routeTree.gen.ts",
+      "!dist"
     ]
   },
   "formatter": {
@@ -84,5 +86,50 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["web/**", "components/**", "hooks/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/server/app": {
+                    "importNames": ["app", "createBaseApp"],
+                    "message": "Only `import type { AppType }` may come from the server app; the app itself is server code."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@/server/**",
+                      "!@/server/app",
+                      "@/lib/db",
+                      "@/lib/db/**",
+                      "!@/lib/db/schema",
+                      "@/lib/auth",
+                      "@/lib/auth-session",
+                      "@/lib/authz",
+                      "@/lib/secrets",
+                      "@/lib/ssh",
+                      "@/lib/jobs/**"
+                    ],
+                    "message": "Server-only module: the browser bundle must not import it. Call the API through @/web/api/* instead."
+                  },
+                  {
+                    "group": ["@/lib/db/schema"],
+                    "importNamePattern": "[a-z].*",
+                    "message": "Only the schema's row types (PascalCase) may be imported here; its tables and enums are server code."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

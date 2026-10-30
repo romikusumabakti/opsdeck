@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Self-hosted fonts, replacing next/font/google. Inter and JetBrains Mono are
+   variable fonts; IBM Plex Sans Arabic ships only the Arabic subset in the four
+   weights the app used. */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-400.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-500.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-600.css";
+@import "@fontsource/ibm-plex-sans-arabic/arabic-700.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -218,12 +227,26 @@
   --logo-status: var(--tint-ring-dark);
 }
 
+/* The variables next/font used to set on <body>, under the same names, so the
+   theme's --font-sans / --font-mono keep resolving. */
+:root {
+  --font-inter: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-plex-sans-arabic: "IBM Plex Sans Arabic", sans-serif;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+  /* Arabic reads in Plex Sans Arabic. Keyed on dir, which the $locale route
+     sets on <html> with lang, so a client-side switch to or from `ar` swaps
+     the font with no reload. */
+  [dir="rtl"] body {
+    font-family: var(--font-plex-sans-arabic);
   }
 }
 

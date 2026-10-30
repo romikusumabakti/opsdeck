@@ -13,6 +13,7 @@
 
 # production
 /build
+/dist
 
 # terminal sidecar bundle — written to the repo root by the Dockerfile's
 # `bun build lib/terminal/main.ts --outfile terminal-server.js` step (and by
