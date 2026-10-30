@@ -7,7 +7,7 @@ import {
 } from "@/lib/branding";
 import { MICROSOFT_AUTH_ENABLED } from "@/lib/env";
 import { normalizeOrgRole } from "@/lib/permissions";
-import { effectiveTimeZone } from "@/lib/timezone";
+import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import { publicRouter } from "@/server/router";
 
 /**
@@ -19,6 +19,8 @@ export const sessionInfoRouter = publicRouter()
   // Deployment identity, read from the server env at runtime (the client
   // bundle is built without it). `microsoftSignIn` shows the Microsoft button
   // on the sign-in page — true only when all three MICROSOFT_* vars are set.
+  // `appTimeZone` is the server clock's zone (APP_TIMEZONE): signed-out pages
+  // format dates in it, and the shell shows it beside the user's own zone.
   .get("/bootstrap", (c) =>
     c.json({
       appName: APP_NAME,
@@ -26,6 +28,7 @@ export const sessionInfoRouter = publicRouter()
       allowedEmailDomain: ALLOWED_EMAIL_DOMAIN,
       brand: brand(),
       microsoftSignIn: MICROSOFT_AUTH_ENABLED,
+      appTimeZone: APP_TIMEZONE,
     })
   )
   // The signed-in user, or null (200, not 401): being signed out is an answer

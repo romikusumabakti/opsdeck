@@ -113,7 +113,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
   },
   "server/services/backups.ts": {
     getBackupList: /database: \["backup"\]/,
-    revalidateBackupList: /database: \["backup"\]/,
     createDatabaseBackup: /database: \["backup"\]/,
     restoreDatabaseBackup: /database: \["restore"\]/,
   },

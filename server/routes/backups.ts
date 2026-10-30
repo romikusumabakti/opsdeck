@@ -5,7 +5,6 @@ import {
   createDatabaseBackup,
   getBackupList,
   restoreDatabaseBackup,
-  revalidateBackupList,
 } from "@/server/services/backups";
 import { json, query } from "@/server/validation";
 
@@ -21,14 +20,6 @@ export const backupsRouter = sessionRouter()
     "/get-backup-list",
     query(z.object({ environmentId: uuidSchema })),
     async (c) => c.json(await getBackupList(c.req.valid("query").environmentId))
-  )
-  .post(
-    "/revalidate-backup-list",
-    json(z.object({ environmentId: uuidSchema })),
-    async (c) => {
-      await revalidateBackupList(c.req.valid("json").environmentId);
-      return c.json(null);
-    }
   )
   .post(
     "/create-database-backup",
