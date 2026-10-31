@@ -5,7 +5,6 @@ import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { ProjectCreateDialog } from "@/components/project-create-dialog";
 import { ServerCreateDialog } from "@/components/server-create-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -90,9 +89,8 @@ export function EnvironmentForm({
   const router = useRouter();
 
   const [servers, setServers] = useState<ServerOption[]>(initialServers);
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const projects = initialProjects;
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
-  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   const infraReadOnly = mode.type === "edit" && !canManageServers;
 
@@ -102,6 +100,7 @@ export function EnvironmentForm({
     // "" = unspecified (mapped to null on submit).
     kind: z.enum(ENV_KINDS).or(z.literal("")),
     owner: z.string(),
+    host: z.string().max(200),
   });
 
   const schema = infoSchema
@@ -181,6 +180,7 @@ export function EnvironmentForm({
               : source.name,
           kind: source.kind ?? "",
           owner: source.owner ?? "",
+          host: source.host ?? "",
           dbServerId: dbSvc?.serverId ?? "",
           dbServiceType: dbSvc?.serviceType ?? "docker",
           dbServiceName: dbSvc?.serviceName ?? "",
@@ -203,6 +203,7 @@ export function EnvironmentForm({
           name: "",
           kind: "",
           owner: "",
+          host: "",
           dbServerId: initialServers[0]?.id ?? "",
           dbServiceType: "docker",
           dbServiceName: "",
@@ -229,11 +230,6 @@ export function EnvironmentForm({
     if (dialogRole === "frontend") form.setValue("frontendServerId", server.id);
   }
 
-  function onProjectCreated(project: Project) {
-    setProjects((prev) => [...prev, project]);
-    form.setValue("projectId", project.id, { shouldValidate: true });
-  }
-
   async function onSubmit(values: FormValues) {
     if (infraReadOnly && mode.type === "edit") {
       const result = await updateEnvironment(mode.environment.id, {
@@ -241,6 +237,7 @@ export function EnvironmentForm({
         name: values.name,
         kind: values.kind ? values.kind : null,
         owner: values.owner.trim() ? values.owner.trim() : null,
+        host: values.host.trim() ? values.host.trim() : null,
       });
       if (!result.success || !result.data) {
         toast.error(result.message ?? t("submitFailed"));
@@ -260,6 +257,7 @@ export function EnvironmentForm({
       // "" from the picker/input means "unset".
       kind: values.kind ? values.kind : null,
       owner: values.owner.trim() ? values.owner.trim() : null,
+      host: values.host.trim() ? values.host.trim() : null,
     };
     // On create: persist password (null for postgres, which never uses one). On
     // edit: only include it when the user typed something — empty means "keep
@@ -363,16 +361,6 @@ export function EnvironmentForm({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setProjectDialogOpen(true)}
-                    >
-                      <Plus className="size-4" />
-                      <span className="hidden sm:inline">
-                        {t("newProjectShort")}
-                      </span>
-                    </Button>
                   </div>
                   <FormMessage />
                 </FormItem>
@@ -387,6 +375,26 @@ export function EnvironmentForm({
                   <FormControl>
                     <Input placeholder={t("namePlaceholder")} {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="host"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>{t("host")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      className="font-mono"
+                      placeholder={t("hostPlaceholder")}
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("hostHint")}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -735,12 +743,6 @@ export function EnvironmentForm({
           if (!open) setDialogRole(null);
         }}
         onCreated={onServerCreated}
-      />
-
-      <ProjectCreateDialog
-        open={projectDialogOpen}
-        onOpenChange={setProjectDialogOpen}
-        onCreated={onProjectCreated}
       />
     </>
   );

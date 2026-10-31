@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   backupFilenameSchema,
   databaseNameSchema,
+  environmentInputSchema,
+  environmentUpdateSchema,
   explorerRelativePathSchema,
   isoDurationSchema,
   mailDeleteTargetSchema,
@@ -284,5 +286,42 @@ describe("mailListInputSchema", () => {
 
   it("rejects negative offsets", () => {
     expect(mailListInputSchema.safeParse({ start: -50 }).success).toBe(false);
+  });
+});
+
+describe("environment schema host", () => {
+  const uuid = "11111111-1111-4111-8111-111111111111";
+  const valid = {
+    projectId: uuid,
+    name: "Dev",
+    dbServerId: uuid,
+    dbServiceType: "docker",
+    dbServiceName: "db",
+    dbType: "postgres",
+    dbName: "app",
+    dbBackupPath: "/backups",
+    backendServerId: uuid,
+    backendServiceType: "docker",
+    backendServiceName: "api",
+    frontendServerId: uuid,
+    frontendServiceType: "docker",
+    frontendServiceName: "web",
+  };
+
+  it("environment schema trims host and maps empty to null", () => {
+    expect(
+      environmentInputSchema.parse({ ...valid, host: "  56.129  " }).host
+    ).toBe("56.129");
+    expect(
+      environmentInputSchema.parse({ ...valid, host: "" }).host
+    ).toBeNull();
+    expect(
+      environmentInputSchema.safeParse({ ...valid, host: "x".repeat(201) })
+        .success
+    ).toBe(false);
+  });
+
+  it("leaves host untouched when an update omits it", () => {
+    expect(environmentUpdateSchema.parse({ name: "Dev" }).host).toBeUndefined();
   });
 });
