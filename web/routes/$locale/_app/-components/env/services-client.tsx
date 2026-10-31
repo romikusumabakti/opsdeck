@@ -8,7 +8,6 @@ import {
   Plug,
   RefreshCw,
   RotateCcw,
-  ServerCog,
   Square,
 } from "lucide-react";
 import * as React from "react";
@@ -28,6 +27,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useProjectName } from "@/hooks/use-project-name";
 import { Link } from "@/i18n/navigation";
 import { stripProjectPrefix } from "@/lib/nav-path";
@@ -129,16 +133,23 @@ export function ServicesClient({
           name: stripProjectPrefix(environment.name, projectName),
         })}
         action={
-          <Button variant="outline" onClick={refresh} disabled={loading}>
-            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-            {t("refresh")}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="outline"
+                  onClick={refresh}
+                  disabled={loading}
+                />
+              }
+            >
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+              {t("refresh")}
+            </TooltipTrigger>
+            <TooltipContent>{t("infoNote")}</TooltipContent>
+          </Tooltip>
         }
       />
-      <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground max-w-3xl">
-        <ServerCog className="size-4 shrink-0 mt-0.5" />
-        <p>{t("infoNote")}</p>
-      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {roles.map((meta) => (
           <ServiceCard
@@ -219,6 +230,9 @@ function ServiceCard({
   const Icon = meta.icon;
   const canControl = useProjectCan({ service: ["control"] });
   const busy = loading || pendingAction !== null || !canControl;
+  // One toggle that matches the last known state; neither when it is unknown.
+  const hasToggle = state === "running" || state === "stopped";
+  const restartUnavailable = state === "not-found" || state === "unknown";
   // Closing the dialog (X / ESC / overlay-click) clears the run and re-fetches
   // status. The run itself keeps running server-side even if the user dismisses
   // early — refresh will surface the eventual final state.
@@ -255,49 +269,75 @@ function ServiceCard({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onAction("start")}
-            disabled={busy || state === "running"}
-            aria-label={t("actions.start")}
-          >
-            {pendingAction === "start" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Play className="size-4" />
-            )}
-            {t("actions.start")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onAction("stop")}
-            disabled={busy || state === "stopped" || state === "not-found"}
-            aria-label={t("actions.stop")}
-          >
-            {pendingAction === "stop" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Square className="size-4" />
-            )}
-            {t("actions.stop")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onAction("restart")}
-            disabled={busy || state === "not-found"}
-            aria-label={t("actions.restart")}
-            className="col-span-2"
-          >
-            {pendingAction === "restart" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <RotateCcw className="size-4" />
-            )}
-            {t("actions.restart")}
-          </Button>
+          {state === "running" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAction("stop")}
+              disabled={busy}
+              aria-label={t("actions.stop")}
+            >
+              {pendingAction === "stop" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Square className="size-4" />
+              )}
+              {t("actions.stop")}
+            </Button>
+          )}
+          {state === "stopped" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAction("start")}
+              disabled={busy}
+              aria-label={t("actions.start")}
+            >
+              {pendingAction === "start" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Play className="size-4" />
+              )}
+              {t("actions.start")}
+            </Button>
+          )}
+          {restartUnavailable ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className={cn("flex", !hasToggle && "col-span-2")} />
+                }
+              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  aria-label={t("actions.restart")}
+                  className="w-full"
+                >
+                  <RotateCcw className="size-4" />
+                  {t("actions.restart")}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("unknownState")}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAction("restart")}
+              disabled={busy}
+              aria-label={t("actions.restart")}
+              className={cn(!hasToggle && "col-span-2")}
+            >
+              {pendingAction === "restart" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RotateCcw className="size-4" />
+              )}
+              {t("actions.restart")}
+            </Button>
+          )}
           {state === "not-found" ? (
             <Button
               size="sm"

@@ -250,6 +250,7 @@
     "title": "Servicios",
     "subtitle": "Consulta el estado e inicia, detén o reinicia los servicios de {name}.",
     "infoNote": "El estado se comprueba por SSH. Iniciar, detener y reiniciar se ejecutan en segundo plano: el progreso se transmite en la tarjeta.",
+    "unknownState": "Estado desconocido: actualiza para reintentar",
     "typeLabel": "Tipo",
     "refresh": "Actualizar",
     "states": {

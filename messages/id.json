@@ -250,6 +250,7 @@
     "title": "Service",
     "subtitle": "Lihat status serta start, stop, atau restart service untuk {name}.",
     "infoNote": "Status diperiksa melalui SSH. Start, stop, dan restart berjalan di background — progres tampil di kartu.",
+    "unknownState": "Status tidak diketahui — segarkan untuk mencoba lagi",
     "typeLabel": "Tipe",
     "refresh": "Muat ulang",
     "states": {

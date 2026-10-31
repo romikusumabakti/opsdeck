@@ -250,6 +250,7 @@
     "title": "Services",
     "subtitle": "View status and start, stop, or restart services for {name}.",
     "infoNote": "Status is checked over SSH. Start, stop, and restart run in the background — progress streams in the card.",
+    "unknownState": "Status unknown — refresh to retry",
     "typeLabel": "Type",
     "refresh": "Refresh",
     "states": {
