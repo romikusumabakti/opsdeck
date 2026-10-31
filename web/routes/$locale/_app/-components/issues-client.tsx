@@ -527,7 +527,9 @@ export function IssuesClient({
                       />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground truncate">
-                      {issue.environment?.name ?? (
+                      {issue.environment ? (
+                        stripProjectPrefix(issue.environment.name, projectName)
+                      ) : (
                         <span className="italic">{t("allEnvironments")}</span>
                       )}
                     </TableCell>

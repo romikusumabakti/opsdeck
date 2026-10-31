@@ -45,7 +45,7 @@ import {
   useSearchParams,
 } from "@/i18n/navigation";
 import { BOARD_LIMIT, TABLE_URL_KEY } from "@/lib/issue-query";
-import { qualifiedEnvName } from "@/lib/nav-path";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import type { UserRef } from "@/lib/types";
 import type { GlobalIssue } from "@/web/api/issues";
 import {
@@ -473,7 +473,7 @@ export function GlobalIssuesClient({
                 keyPrefix: i.project.key,
                 projectName: i.project.name,
                 envName: i.environment
-                  ? qualifiedEnvName(i.environment.name, i.project.name)
+                  ? stripProjectPrefix(i.environment.name, i.project.name)
                   : null,
                 assignee: i.assignee,
                 labels: i.labels,

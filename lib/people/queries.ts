@@ -191,7 +191,11 @@ export type PersonRun = {
   status: string;
   kind: string | null;
   runAt: Date;
-  environment: { name: string; slug: string; project: { key: string } };
+  environment: {
+    name: string;
+    slug: string;
+    project: { key: string; name: string };
+  };
 };
 
 export async function listPersonRecentRuns(
@@ -214,7 +218,7 @@ export async function listPersonRecentRuns(
     with: {
       environment: {
         columns: { name: true, slug: true },
-        with: { project: { columns: { key: true } } },
+        with: { project: { columns: { key: true, name: true } } },
       },
     },
     orderBy: { runAt: "desc" },

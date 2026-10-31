@@ -5,6 +5,7 @@ import { useActiveRuns } from "@/components/active-runs-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useRouter } from "@/i18n/navigation";
 import { formatElapsed } from "@/lib/elapsed";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { HomeSection } from "./home-section";
 
 export function RunningRail() {
@@ -59,7 +60,13 @@ export function RunningRail() {
                     {run.description}
                   </span>
                   <span className="w-full truncate text-xs text-muted-foreground">
-                    {run.environment?.name ?? "—"} ·{" "}
+                    {run.environment
+                      ? qualifiedEnvName(
+                          run.environment.name,
+                          run.environment.project.name
+                        )
+                      : "—"}{" "}
+                    ·{" "}
                     <span className="tabular-nums">
                       {formatElapsed(run.runAt, now)}
                     </span>

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { useRunCompletionNotifications } from "@/hooks/use-run-notifications";
 import { formatElapsed } from "@/lib/elapsed";
+import { qualifiedEnvName } from "@/lib/nav-path";
 
 export function ActiveRunsIndicator() {
   const t = useTranslations("activeTasks");
@@ -86,8 +87,13 @@ export function ActiveRunsIndicator() {
                         {run.description}
                       </span>
                       <span className="block text-xs text-muted-foreground truncate">
-                        {run.environment?.name ?? "—"} ·{" "}
-                        {formatElapsed(run.runAt, now)}
+                        {run.environment
+                          ? qualifiedEnvName(
+                              run.environment.name,
+                              run.environment.project.name
+                            )
+                          : "—"}{" "}
+                        · {formatElapsed(run.runAt, now)}
                       </span>
                     </span>
                   </button>

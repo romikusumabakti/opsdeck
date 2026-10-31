@@ -186,7 +186,8 @@ export function IssuesFilterBar({
           <FacetSubmenu
             label={t("filterStatus")}
             value={
-              filters.status === STATUS_ALL
+              // On the board "everything" is the unset option (ALL), not an item.
+              filters.status === STATUS_ALL && !isBoard
                 ? STATUS_ALL_ITEM
                 : (filters.status ?? ALL)
             }

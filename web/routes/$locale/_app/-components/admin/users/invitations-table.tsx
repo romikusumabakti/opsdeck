@@ -11,7 +11,7 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
-import { TooltipHint } from "@/components/ui/tooltip";
+import { RowActions } from "@/components/ui/row-actions";
 import { DATE_TIME } from "@/lib/format-date";
 import {
   bulkRevokeInvitations,
@@ -167,36 +167,28 @@ export function InvitationsTable({
         cell: ({ row }) => {
           const inv = row.original;
           return (
-            <div className="flex items-center justify-end gap-1">
-              <TooltipHint label={t("resend")}>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("resend")}
-                  disabled={isPending}
-                  onClick={() => onResend(inv)}
-                >
-                  <Send className="size-4" />
-                </Button>
-              </TooltipHint>
-              <TooltipHint label={t("revoke")}>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("revoke")}
-                  disabled={isPending}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => onRevoke(inv)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </TooltipHint>
-            </div>
+            <RowActions
+              label={tCommon("openMenu")}
+              disabled={isPending}
+              primary={{
+                label: t("resend"),
+                icon: Send,
+                onSelect: () => onResend(inv),
+              }}
+              items={[
+                {
+                  label: t("revoke"),
+                  icon: Trash2,
+                  destructive: true,
+                  onSelect: () => onRevoke(inv),
+                },
+              ]}
+            />
           );
         },
       },
     ],
-    [t, isPending, onRevoke, onResend, format]
+    [t, tCommon, isPending, onRevoke, onResend, format]
   );
 
   return (
