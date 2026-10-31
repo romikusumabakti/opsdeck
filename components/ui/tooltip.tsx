@@ -65,6 +65,11 @@ function TooltipContent({
  * Tooltip for an icon-only control. `children` is the control itself (a Button
  * or another trigger element, children included); `label` is what the tooltip
  * shows and should match the control's aria-label.
+ *
+ * It must wrap the trigger element: `TooltipHint > XTrigger render={<Button/>}`.
+ * Never pass it as a `render` target: it only reads `label` and `children`, so
+ * it silently drops the props (ref, handlers, aria-*) a host trigger injects
+ * and the trigger stops working.
  */
 function TooltipHint({
   label,
