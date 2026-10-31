@@ -100,6 +100,7 @@ function makeProject(
     slug: "demo",
     kind: null,
     owner: null,
+    host: null,
     services: [makeDbService(), makeBackendService(), makeFrontendService()],
     ...overrides,
   };

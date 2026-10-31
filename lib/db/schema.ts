@@ -152,6 +152,9 @@ export const environments = pgTable(
     // Who owns this deployment (e.g. "QA — Budi", "FE dev"). Free text: owners
     // aren't always app users, and this is a human label, not an access grant.
     owner: text("owner"),
+    // Free-text address shown next to the short name (e.g.
+    // "56.129/membership.example.id"). Display only; not used to connect.
+    host: text("host"),
   },
   (t) => [
     // Every project page lists its environments; index the parent FK.
