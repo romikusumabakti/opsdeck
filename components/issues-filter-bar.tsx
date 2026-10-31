@@ -15,9 +15,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { STATUS_ALL } from "@/lib/issue-query";
 
 /** Sentinel for "no filter" — a menu radio item can't carry an empty value. */
 export const ALL = "all";
+// Menu value for the `status=all` URL value, which would collide with ALL.
+const STATUS_ALL_ITEM = "__all_statuses";
 
 export type FilterOption = { id: string; name: string; color?: string };
 
@@ -82,6 +85,12 @@ export function IssuesFilterBar({
     return () => clearTimeout(id);
   }, [query, urlQuery, onChange]);
 
+  const setStatus = (value: string) =>
+    onChange({
+      status:
+        value === ALL ? null : value === STATUS_ALL_ITEM ? STATUS_ALL : value,
+    });
+
   const set = (key: string) => (value: string) =>
     onChange({ [key]: value === ALL ? null : value });
 
@@ -90,11 +99,18 @@ export function IssuesFilterBar({
 
   // One chip per active filter, in the order the menu lists them.
   const chips: { key: string; facet: string; value: string }[] = [];
-  if (filters.status) {
+  // The table's default (active) is a visible chip too, so the hidden filter is
+  // never a surprise; its X widens to every status.
+  const statusIsDefault = !(filters.status || isBoard);
+  if (filters.status || !isBoard) {
     chips.push({
       key: "status",
       facet: t("filterStatus"),
-      value: t(`status.${filters.status}`),
+      value: statusIsDefault
+        ? t("statusActive")
+        : filters.status === STATUS_ALL
+          ? t("allStatuses")
+          : t(`status.${filters.status}`),
     });
   }
   if (filters.priority) {
@@ -154,7 +170,11 @@ export function IssuesFilterBar({
         <DropdownMenuTrigger
           render={
             <Button
-              variant={chips.length > 0 ? "secondary" : "outline"}
+              variant={
+                chips.length > (statusIsDefault ? 1 : 0)
+                  ? "secondary"
+                  : "outline"
+              }
               size="sm"
             />
           }
@@ -165,13 +185,23 @@ export function IssuesFilterBar({
         <DropdownMenuContent align="start" className="w-48">
           <FacetSubmenu
             label={t("filterStatus")}
-            value={filters.status ?? ALL}
-            onValueChange={set("status")}
-            allLabel={t("allStatuses")}
-            options={STATUS_VALUES.map((s) => ({
-              id: s,
-              name: t(`status.${s}`),
-            }))}
+            value={
+              filters.status === STATUS_ALL
+                ? STATUS_ALL_ITEM
+                : (filters.status ?? ALL)
+            }
+            onValueChange={setStatus}
+            // Unset is "Active" on the table but "everything" on the board.
+            allLabel={isBoard ? t("allStatuses") : t("statusActive")}
+            options={[
+              ...(isBoard
+                ? []
+                : [{ id: STATUS_ALL_ITEM, name: t("allStatuses") }]),
+              ...STATUS_VALUES.map((s) => ({
+                id: s,
+                name: t(`status.${s}`),
+              })),
+            ]}
           />
           <FacetSubmenu
             label={t("priorityLabel")}
@@ -227,7 +257,12 @@ export function IssuesFilterBar({
           size="sm"
           className="gap-1 font-normal"
           aria-label={t("clearFilterAria", { name: chip.facet })}
-          onClick={() => onChange({ [chip.key]: null })}
+          onClick={() =>
+            onChange({
+              [chip.key]:
+                chip.key === "status" && statusIsDefault ? STATUS_ALL : null,
+            })
+          }
         >
           <span className="text-muted-foreground">{chip.facet}:</span>
           <span className="max-w-40 truncate">{chip.value}</span>

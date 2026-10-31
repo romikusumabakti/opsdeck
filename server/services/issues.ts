@@ -42,7 +42,12 @@ import {
   projects,
   users as userTable,
 } from "@/lib/db/schema";
-import type { IssueSort } from "@/lib/issue-query";
+import {
+  type IssueSort,
+  type IssueView,
+  OPEN_STATUSES,
+  resolveStatusFilter,
+} from "@/lib/issue-query";
 import type { PushableField } from "@/lib/jira/push";
 import { resolveMentions } from "@/lib/mentions";
 import { notifyIssueAssigned, notifyIssueMention } from "@/lib/notifications";
@@ -145,9 +150,6 @@ export type IssueWithMeta = Issue & {
 export type GlobalIssue = IssueWithMeta & {
   project: { id: string; name: string; key: string };
 };
-
-// Statuses that count as "still needs work" for the open-issue badges.
-const OPEN_STATUSES = ["open", "in_progress"] as const;
 
 /** Map of projectId → count of not-yet-resolved issues, for the grid badges. */
 export async function getOpenIssueCounts(): Promise<Record<string, number>> {
@@ -372,6 +374,8 @@ export type IssueQuery = {
   /** Free text over the title and the human key (`CMEM-42`). */
   q?: string;
   status?: string;
+  /** The board shows every status by default; the table defaults to active. */
+  view?: IssueView;
   projectId?: string;
   labelId?: string;
   priority?: string;
@@ -432,8 +436,8 @@ export async function listAllIssues(
   }
   // Every filter value arrives from the URL: validate before it reaches SQL so
   // a junk enum value is ignored rather than throwing a 22P02 from Postgres.
-  const status = issueStatusSchema.safeParse(query.status);
-  if (status.success) conditions.push(eq(issues.status, status.data));
+  const statuses = resolveStatusFilter(query.status, query.view ?? "table");
+  if (statuses) conditions.push(inArray(issues.status, [...statuses]));
   const priority = issuePrioritySchema.safeParse(query.priority);
   if (priority.success) conditions.push(eq(issues.priority, priority.data));
   if (isUuid(query.projectId)) {

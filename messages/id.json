@@ -1422,6 +1422,7 @@
     "assignedToMe": "Ditugaskan ke saya",
     "filterStatus": "Status",
     "allStatuses": "Semua status",
+    "statusActive": "Aktif",
     "globalTitle": "Isu",
     "globalSubtitle": "Semua isu lintas proyek.",
     "columnProject": "Proyek",

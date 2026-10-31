@@ -1422,6 +1422,7 @@
     "assignedToMe": "分配给我",
     "filterStatus": "状态",
     "allStatuses": "所有状态",
+    "statusActive": "进行中",
     "globalTitle": "问题",
     "globalSubtitle": "所有项目的问题。",
     "columnProject": "项目",

@@ -9,6 +9,40 @@
  * Plain module shared by the client and server, so the constants live here.
  */
 
+import type { z } from "zod";
+import type { issueStatusSchema } from "@/lib/validation";
+
+type Status = z.infer<typeof issueStatusSchema>;
+
+const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
+
+/** Statuses that count as "still needs work": the list default and the badges. */
+export const OPEN_STATUSES = ["open", "in_progress"] as const;
+
+/** URL value of the status filter that lifts the default and shows everything. */
+export const STATUS_ALL = "all";
+
+export type IssueView = "table" | "board";
+
+/**
+ * Which statuses the list shows for the raw `status` URL param.
+ *
+ * Unset means "active" on the table, because a backlog full of closed issues
+ * buries the work; the board keeps every status since its columns are the
+ * statuses. `all` lifts the default. A junk value falls back to the default
+ * rather than an empty list. `null` means no status condition.
+ */
+export function resolveStatusFilter(
+  raw: string | undefined,
+  view: IssueView
+): readonly Status[] | null {
+  if (raw === STATUS_ALL) return null;
+  if (raw && (STATUSES as readonly string[]).includes(raw)) {
+    return [raw as Status];
+  }
+  return view === "board" ? null : OPEN_STATUSES;
+}
+
 /** Sortable columns, in sync with the SQL mapping in `listAllIssues`. */
 export const ISSUE_SORTS = [
   "key",

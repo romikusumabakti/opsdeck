@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import type { IssueSort } from "@/lib/issue-query";
+import type { IssueSort, IssueView } from "@/lib/issue-query";
 import { api, orFailure, type PostJson } from "@/web/api/client";
 
 const routes = api.api.issues;
@@ -11,6 +11,7 @@ export type IssueQuery = {
   /** Free text over the title and the human key (`CMEM-42`). */
   q?: string;
   status?: string;
+  view?: IssueView;
   projectId?: string;
   labelId?: string;
   priority?: string;

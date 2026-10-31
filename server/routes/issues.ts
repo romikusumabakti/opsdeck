@@ -36,6 +36,7 @@ const filter = z.string().max(200).optional();
 const issueQuerySchema = z.object({
   q: filter,
   status: filter,
+  view: z.enum(["table", "board"]).optional(),
   projectId: filter,
   labelId: filter,
   priority: filter,
