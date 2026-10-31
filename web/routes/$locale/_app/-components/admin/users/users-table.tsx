@@ -166,7 +166,6 @@ export function UsersTable({
       fillHeight
       columns={columns}
       data={users}
-      initialPageSize={25}
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}

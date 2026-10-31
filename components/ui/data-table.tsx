@@ -87,6 +87,11 @@ export type DataTableColumn<TData extends RowData, TValue = unknown> = Column<
   TValue
 >;
 
+/** Rows per page unless a table asks otherwise (server-paged lists pass their own). */
+const DEFAULT_INITIAL_PAGE_SIZE = 50;
+/** The columns menu appears only above this many hideable columns. */
+const COLUMNS_MENU_MIN = 4;
+
 type DataTableProps<TData extends RowData> = {
   columns: DataTableColumnDef<TData>[];
   data: TData[];
@@ -201,7 +206,7 @@ export function DataTable<TData extends RowData>({
   filterColumn,
   filterPlaceholder,
   emptyMessage,
-  initialPageSize = 10,
+  initialPageSize = DEFAULT_INITIAL_PAGE_SIZE,
   getRowId,
   bulkActions,
   canSelectRow,
@@ -482,9 +487,12 @@ export function DataTable<TData extends RowData>({
   ) : (
     noDataContent
   );
-  const hasHideableColumns = table
-    .getAllColumns()
-    .some((c) => c.getCanHide());
+  // A short column list has nothing worth hiding; the menu is noise until the
+  // table is wide enough to need it. Select/actions columns are not hideable
+  // and so do not count.
+  const hasHideableColumns =
+    table.getAllColumns().filter((c) => c.getCanHide()).length >
+    COLUMNS_MENU_MIN;
 
   // Either source of latency dims the rows: the caller's own mutation, or the
   // table's URL-sync navigation.
@@ -622,8 +630,8 @@ export function DataTable<TData extends RowData>({
           fillHeight && "bg-card",
           fillHeight &&
             (hasCardLayout
-              ? "md:flex md:flex-col md:flex-1 md:min-h-0 overflow-hidden"
-              : "flex flex-col flex-1 min-h-0 overflow-hidden")
+              ? "md:flex md:flex-col md:max-h-full md:min-h-0 overflow-hidden"
+              : "flex flex-col max-h-full min-h-0 overflow-hidden")
         )}
       >
         <Table

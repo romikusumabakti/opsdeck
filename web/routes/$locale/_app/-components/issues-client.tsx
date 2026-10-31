@@ -447,7 +447,7 @@ export function IssuesClient({
               </Button>
             </div>
           ) : null}
-          <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
             {/* The table container is the scroll box (`flex-1 min-h-0`), so the
                 `sticky` header pins to it while rows scroll underneath. */}
             <Table containerClassName="flex-1 min-h-0">

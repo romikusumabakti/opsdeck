@@ -43,6 +43,9 @@ export function TablePager({
   className?: string;
 }) {
   const t = useTranslations("dataTable");
+  // One page and too few rows for any page-size option to matter: the range
+  // readout would only repeat what the table already shows.
+  if (total <= PAGE_SIZES[0] && total <= pageSize) return null;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const current = Math.min(Math.max(0, pageIndex), pageCount - 1);
   const from = total === 0 ? 0 : current * pageSize + 1;
