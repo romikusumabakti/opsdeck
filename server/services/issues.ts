@@ -185,10 +185,12 @@ export type AssignedIssueCounts = {
 
 /**
  * Counts the caller's own unresolved issues, grouped by project. Deliberately
- * *assigned to me* rather than "all open": the sidebar badge has to mean "you
- * owe work here", and a total-open count would light up permanently on any
- * project with a backlog. One grouped query serves both badges — the total is
- * summed client-side rather than costing a second round-trip.
+ * *assigned to me* rather than "all open": the global sidebar badge has to mean
+ * "you owe work here", and a total-open count would light up permanently on any
+ * backlog. The per-environment Issues badge is the opposite on purpose: it
+ * shows every open issue in the project (see `getOpenIssueCounts`), matching
+ * the list that page opens onto. The total is summed client-side rather than
+ * costing a second round-trip.
  */
 export async function getAssignedIssueCounts(): Promise<AssignedIssueCounts> {
   const session = await requireSession();

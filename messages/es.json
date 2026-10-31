@@ -128,7 +128,8 @@
     "activity": "Actividad",
     "jira": "Jira",
     "admin": "Administración",
-    "badgeAssignedIssues": "{count, plural, one {# incidencia asignada a ti} other {# incidencias asignadas a ti}}",
+    "badgeAssignedOpen": "{count, plural, one {# incidencia abierta asignada a ti} other {# incidencias abiertas asignadas a ti}}",
+    "badgeProjectOpen": "{count, plural, one {# incidencia abierta en este proyecto} other {# incidencias abiertas en este proyecto}}",
     "badgeActiveRuns": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
     "tunnels": "Túneles",
     "mail": "Correo"
