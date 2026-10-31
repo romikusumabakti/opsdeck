@@ -1422,6 +1422,7 @@
     "assignedToMe": "Asignadas a mí",
     "filterStatus": "Estado",
     "allStatuses": "Todos los estados",
+    "statusActive": "Activas",
     "globalTitle": "Incidencias",
     "globalSubtitle": "Todas las incidencias de todos los proyectos.",
     "columnProject": "Proyecto",

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PAGE_SIZE, parseIssueParams } from "@/lib/issue-query";
+import {
+  DEFAULT_PAGE_SIZE,
+  parseIssueParams,
+  resolveStatusFilter,
+} from "@/lib/issue-query";
 
 describe("parseIssueParams", () => {
   it("defaults to the newest-updated first page", () => {
@@ -81,5 +85,40 @@ describe("assignee filter", () => {
   it("keeps the assignee filter", () => {
     const id = "0199a1b2-0000-7000-8000-000000000001";
     expect(parseIssueParams({ assignee: id }).filters.assignee).toBe(id);
+  });
+});
+
+describe("resolveStatusFilter", () => {
+  it("defaults the table to active issues", () => {
+    expect(resolveStatusFilter(undefined, "table")).toEqual([
+      "open",
+      "in_progress",
+    ]);
+  });
+
+  it("keeps every status on the board", () => {
+    expect(resolveStatusFilter(undefined, "board")).toBeNull();
+  });
+
+  it("lifts the default for status=all", () => {
+    expect(resolveStatusFilter("all", "table")).toBeNull();
+  });
+
+  it("keeps an explicit status exactly (bookmarked ?status=open)", () => {
+    expect(resolveStatusFilter("open", "table")).toEqual(["open"]);
+    expect(resolveStatusFilter("closed", "board")).toEqual(["closed"]);
+  });
+
+  it("falls back to the default for a junk value", () => {
+    expect(resolveStatusFilter("bogus", "table")).toEqual([
+      "open",
+      "in_progress",
+    ]);
+  });
+
+  it("keeps status=all as a filter param instead of dropping it", () => {
+    expect(parseIssueParams({ status: "all" }).filters).toEqual({
+      status: "all",
+    });
   });
 });

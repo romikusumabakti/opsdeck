@@ -1422,6 +1422,7 @@
     "assignedToMe": "Assigned to me",
     "filterStatus": "Status",
     "allStatuses": "All statuses",
+    "statusActive": "Active",
     "globalTitle": "Issues",
     "globalSubtitle": "All issues across projects.",
     "columnProject": "Project",

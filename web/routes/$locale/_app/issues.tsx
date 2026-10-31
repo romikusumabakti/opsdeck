@@ -28,6 +28,7 @@ function issuesQueryFor(search: IssuesSearch, meId: string) {
   return listAllIssuesQuery({
     q: filters.q,
     status: filters.status,
+    view: isBoard ? "board" : "table",
     projectId: filters.project,
     labelId: filters.label,
     priority: filters.priority,
