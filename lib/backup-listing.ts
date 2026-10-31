@@ -3,13 +3,20 @@ import type { Backup } from "@/lib/types";
 
 /**
  * Lists the regular files of one directory as `name<TAB>size<TAB>mtime` lines
- * (mtime in epoch seconds), one `find` call, so no `ls` column parsing and
- * file names with spaces survive. GNU find only, which every supported DB host
- * and container image ships. The extension filter is applied by
- * `parseBackupListing`, not here.
+ * (size in bytes, mtime in epoch seconds). Plain POSIX shell plus `stat -c`,
+ * which GNU coreutils and BusyBox both have, so it also runs inside alpine
+ * containers (`find -printf` does not). A missing directory lists nothing;
+ * an empty one too (the trailing `true` swallows the unmatched-glob status).
+ * The extension filter is applied by `parseBackupListing`, not here.
  */
 export function backupListCommand(directory: string): string {
-  return `find ${shq(directory)} -maxdepth 1 -type f -printf '%f\\t%s\\t%T@\\n'`;
+  const dir = shq(directory);
+  return (
+    `[ -d ${dir} ] || exit 0; cd ${dir} || exit 1; ` +
+    `for f in *; do [ -f "$f" ] && ` +
+    `printf '%s\\t%s\\t%s\\n' "$f" "$(stat -c %s "./$f")" "$(stat -c %Y "./$f")"; ` +
+    `done; true`
+  );
 }
 
 /**
