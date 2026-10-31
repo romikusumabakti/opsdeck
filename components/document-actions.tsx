@@ -20,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { Link, useRouter } from "@/i18n/navigation";
 import { deleteDocument } from "@/web/api/knowledge";
 
@@ -82,11 +83,13 @@ export function DocumentActions({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={tCommon("more")}
-            />
+            <TooltipHint label={tCommon("more")}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={tCommon("more")}
+              />
+            </TooltipHint>
           }
         >
           <MoreHorizontal className="size-4" />

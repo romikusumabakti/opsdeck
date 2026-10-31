@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { DATE_ONLY } from "@/lib/format-date";
 import {
   createMilestone,
@@ -153,17 +154,19 @@ export function MilestonesClient({
                     </Button>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={isPending}
-                      aria-label={t("delete")}
-                      onClick={() =>
-                        run(() => deleteMilestone(m.id), t("deletedMsg"))
-                      }
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
+                    <TooltipHint label={t("delete")}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={isPending}
+                        aria-label={t("delete")}
+                        onClick={() =>
+                          run(() => deleteMilestone(m.id), t("deletedMsg"))
+                        }
+                      >
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </TooltipHint>
                   </TableCell>
                 </TableRow>
               );

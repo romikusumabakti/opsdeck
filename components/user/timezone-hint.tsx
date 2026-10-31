@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { browserTimeZone } from "@/lib/format-date";
 import { setMyTimeZone } from "@/web/api/profile";
 
@@ -50,14 +51,16 @@ export function TimezoneHint({ appTimeZone }: { appTimeZone: string }) {
       >
         {t("tzHintUse")}
       </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        aria-label={t("tzHintDismiss")}
-        onClick={dismiss}
-      >
-        <X />
-      </Button>
+      <TooltipHint label={t("tzHintDismiss")}>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={t("tzHintDismiss")}
+          onClick={dismiss}
+        >
+          <X />
+        </Button>
+      </TooltipHint>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import { PROJECT_ROLES, type ProjectRole } from "@/lib/permissions";
@@ -230,16 +231,18 @@ export function ProjectMembersClient({
                   </TableCell>
                   <TableCell>
                     {/* Muted until hovered: a row of red bins reads as alarm. */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={isPending}
-                      aria-label={t("removeMember", { name: m.name })}
-                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => confirmRemove(m)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <TooltipHint label={t("removeMember", { name: m.name })}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={isPending}
+                        aria-label={t("removeMember", { name: m.name })}
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => confirmRemove(m)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TooltipHint>
                   </TableCell>
                 </TableRow>
               ))}

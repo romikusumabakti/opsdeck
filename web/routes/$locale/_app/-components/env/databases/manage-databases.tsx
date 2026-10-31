@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
 import { formatBytes } from "@/lib/utils";
 import {
@@ -216,30 +217,34 @@ export function ManageDatabases({
                   {formatBytes(d.sizeBytes)}
                 </span>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                disabled={d.isDefault || submitting || !canRename}
-                onClick={() => onRename(d.name)}
-                title={
-                  d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
-                }
-                aria-label={t("renameTitle")}
-              >
-                <Pencil className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 text-destructive hover:text-destructive"
-                disabled={d.isDefault || submitting || !canDrop}
-                onClick={() => onDrop(d.name)}
-                title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
-                aria-label={t("dropTitle")}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <TooltipHint label={t("renameTitle")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={d.isDefault || submitting || !canRename}
+                  onClick={() => onRename(d.name)}
+                  title={
+                    d.isDefault ? t("cannotRenameDefault") : t("renameTitle")
+                  }
+                  aria-label={t("renameTitle")}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              </TooltipHint>
+              <TooltipHint label={t("dropTitle")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-destructive hover:text-destructive"
+                  disabled={d.isDefault || submitting || !canDrop}
+                  onClick={() => onDrop(d.name)}
+                  title={d.isDefault ? t("cannotDropDefault") : t("dropTitle")}
+                  aria-label={t("dropTitle")}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </TooltipHint>
             </li>
           ))}
         </ul>

@@ -5,6 +5,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,7 +102,7 @@ export function TablePager({
           <span className="text-sm text-muted-foreground whitespace-nowrap">
             {t("pageOf", { current: current + 1, total: pageCount })}
           </span>
-          <Button
+          <TooltipHint label={t("first")}><Button
             variant="outline"
             size="icon-sm"
             onClick={() => onPageIndexChange(0)}
@@ -110,8 +111,8 @@ export function TablePager({
             className="hidden sm:inline-flex"
           >
             <ChevronsLeft className="size-4" />
-          </Button>
-          <Button
+          </Button></TooltipHint>
+          <TooltipHint label={t("previous")}><Button
             variant="outline"
             size="icon-sm"
             onClick={() => onPageIndexChange(current - 1)}
@@ -119,8 +120,8 @@ export function TablePager({
             aria-label={t("previous")}
           >
             <ChevronLeft className="size-4" />
-          </Button>
-          <Button
+          </Button></TooltipHint>
+          <TooltipHint label={t("next")}><Button
             variant="outline"
             size="icon-sm"
             onClick={() => onPageIndexChange(current + 1)}
@@ -128,8 +129,8 @@ export function TablePager({
             aria-label={t("next")}
           >
             <ChevronRight className="size-4" />
-          </Button>
-          <Button
+          </Button></TooltipHint>
+          <TooltipHint label={t("last")}><Button
             variant="outline"
             size="icon-sm"
             onClick={() => onPageIndexChange(pageCount - 1)}
@@ -138,7 +139,7 @@ export function TablePager({
             className="hidden sm:inline-flex"
           >
             <ChevronsRight className="size-4" />
-          </Button>
+          </Button></TooltipHint>
         </div>
       </div>
     </div>

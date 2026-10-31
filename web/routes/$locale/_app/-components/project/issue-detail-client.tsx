@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -370,15 +371,17 @@ export function IssueDetailClient({
                 >
                   <Download className="size-4" />
                 </a>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  aria-label={t("attachmentDelete")}
-                  onClick={() => onDeleteAttachment(a.id)}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
+                <TooltipHint label={t("attachmentDelete")}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7"
+                    aria-label={t("attachmentDelete")}
+                    onClick={() => onDeleteAttachment(a.id)}
+                  >
+                    <Trash2 className="size-4 text-destructive" />
+                  </Button>
+                </TooltipHint>
               </li>
             ))}
           </ul>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
+import { TooltipHint } from "@/components/ui/tooltip";
 
 export function CopyButton({
   value,
@@ -26,15 +27,21 @@ export function CopyButton({
   }
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      onClick={onCopy}
-      aria-label={label ?? t("copy")}
-      className="text-muted-foreground hover:text-foreground"
-    >
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-    </Button>
+    <TooltipHint label={label ?? t("copy")}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={onCopy}
+        aria-label={label ?? t("copy")}
+        className="text-muted-foreground hover:text-foreground"
+      >
+        {copied ? (
+          <Check className="size-3.5" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+      </Button>
+    </TooltipHint>
   );
 }

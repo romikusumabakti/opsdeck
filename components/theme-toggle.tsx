@@ -1,7 +1,6 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useTranslations } from "use-intl";
-
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const options = [
@@ -25,12 +25,14 @@ export function ThemeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("ariaLabel")}
-            className="relative"
-          />
+          <TooltipHint label={t("ariaLabel")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("ariaLabel")}
+              className="relative"
+            />
+          </TooltipHint>
         }
       >
         <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />

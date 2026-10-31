@@ -42,6 +42,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { buildEditorExtensions } from "@/lib/knowledge-editor-extensions";
 import {
   addUploadPlaceholder,
@@ -132,17 +133,19 @@ function ToolbarButton({
   children: React.ReactNode;
 }) {
   return (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant={active ? "secondary" : "ghost"}
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={active}
-    >
-      {children}
-    </Button>
+    <TooltipHint label={label}>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant={active ? "secondary" : "ghost"}
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        aria-pressed={active}
+      >
+        {children}
+      </Button>
+    </TooltipHint>
   );
 }
 
@@ -627,13 +630,15 @@ export function KnowledgeEditor({
         <Popover open={linkOpen} onOpenChange={onLinkOpenChange}>
           <PopoverTrigger
             render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant={active.link ? "secondary" : "ghost"}
-                aria-label={linkInputLabels?.label ?? "Link"}
-                aria-pressed={active.link}
-              />
+              <TooltipHint label={linkInputLabels?.label ?? "Link"}>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant={active.link ? "secondary" : "ghost"}
+                  aria-label={linkInputLabels?.label ?? "Link"}
+                  aria-pressed={active.link}
+                />
+              </TooltipHint>
             }
           >
             <Link2 className="size-4" />
@@ -709,13 +714,15 @@ export function KnowledgeEditor({
         <Popover open={altOpen} onOpenChange={onAltOpenChange}>
           <PopoverTrigger
             render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={!active.image}
-                aria-label={imageAltLabels?.edit ?? "Edit alt text"}
-              />
+              <TooltipHint label={imageAltLabels?.edit ?? "Edit alt text"}>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={!active.image}
+                  aria-label={imageAltLabels?.edit ?? "Edit alt text"}
+                />
+              </TooltipHint>
             }
           >
             <TextCursorInput className="size-4" />

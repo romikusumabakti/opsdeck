@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { createCollection } from "@/web/api/knowledge";
 
 export function CollectionCreateDialog() {
@@ -46,11 +47,13 @@ export function CollectionCreateDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={t("newCollection")}
-          />
+          <TooltipHint label={t("newCollection")}>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={t("newCollection")}
+            />
+          </TooltipHint>
         }
       >
         <FolderPlus className="size-4" />

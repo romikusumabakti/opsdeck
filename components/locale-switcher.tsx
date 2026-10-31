@@ -9,6 +9,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { persistLocale } from "@/i18n/locale-preference";
 import { type Locale, localeLabels, locales } from "@/i18n/locales";
 import { usePathname, useRouter } from "@/i18n/navigation";
@@ -35,12 +36,14 @@ export function LocaleSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("ariaLabel")}
-            disabled={pending}
-          />
+          <TooltipHint label={t("ariaLabel")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("ariaLabel")}
+              disabled={pending}
+            />
+          </TooltipHint>
         }
       >
         <Languages className="size-4" />

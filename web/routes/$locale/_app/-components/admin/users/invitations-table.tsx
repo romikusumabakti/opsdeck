@@ -11,6 +11,7 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { DATE_TIME } from "@/lib/format-date";
 import {
   bulkRevokeInvitations,
@@ -167,27 +168,29 @@ export function InvitationsTable({
           const inv = row.original;
           return (
             <div className="flex items-center justify-end gap-1">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("resend")}
-                title={t("resend")}
-                disabled={isPending}
-                onClick={() => onResend(inv)}
-              >
-                <Send className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("revoke")}
-                title={t("revoke")}
-                disabled={isPending}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => onRevoke(inv)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+              <TooltipHint label={t("resend")}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("resend")}
+                  disabled={isPending}
+                  onClick={() => onResend(inv)}
+                >
+                  <Send className="size-4" />
+                </Button>
+              </TooltipHint>
+              <TooltipHint label={t("revoke")}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("revoke")}
+                  disabled={isPending}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => onRevoke(inv)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </TooltipHint>
             </div>
           );
         },

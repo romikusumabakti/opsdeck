@@ -61,4 +61,30 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+/**
+ * Tooltip for an icon-only control. `children` is the control itself (a Button
+ * or another trigger element, children included); `label` is what the tooltip
+ * shows and should match the control's aria-label.
+ */
+function TooltipHint({
+  label,
+  children,
+}: {
+  label: React.ReactNode
+  children: React.ReactElement<Record<string, unknown>>
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+export {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+  TooltipHint,
+}
