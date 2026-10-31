@@ -38,6 +38,14 @@ export async function loadEnvironmentWithServers(
   };
 }
 
+// The owner fields every environment view reads (see EnvironmentOwner).
+export const OWNER_COLUMNS = {
+  id: true,
+  name: true,
+  image: true,
+  banned: true,
+} as const;
+
 /**
  * The stored row with its secret columns still encrypted. Same shape as
  * EnvironmentWithServers, but the password and API-key fields hold ciphertext,
@@ -52,6 +60,7 @@ async function loadEncryptedEnvironment(
       services: {
         with: { server: true },
       },
+      owner: { columns: OWNER_COLUMNS },
     },
   });
   return (environment as EnvironmentWithServers | undefined) ?? null;
@@ -134,7 +143,8 @@ export async function environmentName(id: string): Promise<string | undefined> {
 // service role and column it is stored in. Changing any of these can point the
 // environment's service control, database drop/restore, logs or mock-time
 // requests at different targets, so it needs org server:manage on top of
-// environment:update. Only projectId/name/kind/owner are not listed here.
+// environment:update. Only projectId/name/kind/ownerId/host/url are not listed
+// here.
 export const INFRA_FIELDS = {
   dbServerId: ["db", "serverId"],
   dbServiceType: ["db", "serviceType"],
@@ -194,4 +204,26 @@ export function changedInfraFields(
     if (current === undefined || next !== current) changed.push(field);
   }
   return changed;
+}
+
+/**
+ * Pure: the owner id an environment write must check for eligibility (see
+ * server/services/environments#canOwnEnvironment), or null when there is
+ * nothing to check. A create checks any owner it sets. An update checks the
+ * resulting owner when it changes, or when the environment moves to another
+ * project (the kept owner must be eligible there too). An unchanged owner in
+ * the same project is not re-checked, so an owner who has since been
+ * deactivated doesn't block saving the rest of the form.
+ */
+export function ownerIdToVerify(
+  input: { projectId?: string; ownerId?: string | null },
+  stored?: { projectId: string; ownerId: string | null }
+): string | null {
+  if (!stored) return input.ownerId ?? null;
+  const ownerId = input.ownerId === undefined ? stored.ownerId : input.ownerId;
+  if (!ownerId) return null;
+  const projectId = input.projectId ?? stored.projectId;
+  return ownerId === stored.ownerId && projectId === stored.projectId
+    ? null
+    : ownerId;
 }

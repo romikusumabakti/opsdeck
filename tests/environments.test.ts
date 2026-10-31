@@ -7,6 +7,7 @@ import type {
 import {
   changedInfraFields,
   type INFRA_FIELDS,
+  ownerIdToVerify,
   sanitizeEnvironment,
 } from "@/lib/environments";
 import { backendService, dbService } from "@/lib/services";
@@ -99,8 +100,11 @@ function makeProject(
     name: "Demo",
     slug: "demo",
     kind: null,
-    owner: null,
+    legacyOwner: null,
+    ownerId: null,
     host: null,
+    url: null,
+    owner: null,
     services: [makeDbService(), makeBackendService(), makeFrontendService()],
     ...overrides,
   };
@@ -179,7 +183,7 @@ describe("changedInfraFields", () => {
     projectId: "22222222-2222-2222-2222-222222222222",
     name: "Demo renamed",
     kind: "qa" as const,
-    owner: "QA team",
+    ownerId: "66666666-6666-6666-6666-666666666666",
     dbServerId: "db",
     dbServiceType: "docker" as const,
     dbServiceName: "pg",
@@ -269,5 +273,42 @@ describe("changedInfraFields", () => {
         makeProject({ services: [makeDbService(), makeBackendService()] })
       )
     ).toEqual(["frontendServiceName"]);
+  });
+});
+
+describe("ownerIdToVerify", () => {
+  const projectA = "22222222-2222-2222-2222-222222222222";
+  const projectB = "77777777-7777-7777-7777-777777777777";
+  const alice = "88888888-8888-8888-8888-888888888888";
+  const bob = "99999999-9999-9999-9999-999999999999";
+  const stored = { projectId: projectA, ownerId: alice };
+
+  it("checks the owner a create assigns", () => {
+    expect(ownerIdToVerify({ projectId: projectA, ownerId: bob })).toBe(bob);
+  });
+
+  it("has nothing to check when no owner is set", () => {
+    expect(ownerIdToVerify({ projectId: projectA })).toBeNull();
+    expect(ownerIdToVerify({ projectId: projectA, ownerId: null })).toBeNull();
+    expect(ownerIdToVerify({ ownerId: null }, stored)).toBeNull();
+  });
+
+  it("checks a changed owner on update", () => {
+    expect(ownerIdToVerify({ ownerId: bob }, stored)).toBe(bob);
+  });
+
+  it("keeps an unchanged owner without a check, even a deactivated one", () => {
+    expect(ownerIdToVerify({ ownerId: alice }, stored)).toBeNull();
+    expect(ownerIdToVerify({}, stored)).toBeNull();
+    expect(
+      ownerIdToVerify({ projectId: projectA, ownerId: alice }, stored)
+    ).toBeNull();
+  });
+
+  it("re-checks the kept owner when the environment moves project", () => {
+    expect(ownerIdToVerify({ projectId: projectB }, stored)).toBe(alice);
+    expect(
+      ownerIdToVerify({ projectId: projectB, ownerId: alice }, stored)
+    ).toBe(alice);
   });
 });

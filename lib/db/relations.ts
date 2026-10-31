@@ -38,6 +38,10 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.environments.projectId,
       to: r.projects.id,
     }),
+    owner: r.one.users({
+      from: r.environments.ownerId,
+      to: r.users.id,
+    }),
     runs: r.many.runs(),
     services: r.many.environmentServices({
       from: r.environments.id,

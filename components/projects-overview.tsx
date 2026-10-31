@@ -10,6 +10,8 @@ import {
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
+import { EnvironmentOwner } from "@/components/nav/environment-owner";
+import { EnvironmentUrlButton } from "@/components/nav/environment-url";
 import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +31,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import type { EnvironmentSummary } from "@/lib/db/schema";
+import type { EnvironmentSummaryWithOwner } from "@/lib/db/schema";
 import { compareEnvironments, stripProjectPrefix } from "@/lib/nav-path";
 import {
   canCreateEnvironment as canCreateEnvironmentIn,
@@ -308,7 +310,7 @@ function EnvironmentRow({
   projectName,
   activity,
 }: {
-  env: EnvironmentSummary;
+  env: EnvironmentSummaryWithOwner;
   projectKey: string;
   projectName: string;
   activity: EnvironmentActivity | null;
@@ -317,17 +319,21 @@ function EnvironmentRow({
   const tDash = useTranslations("dashboard");
   const tKinds = useTranslations("environmentKinds");
 
+  // The name link stretches over the whole row (after:inset-0), so the row is
+  // one click target; the URL button and the status dot sit above it (z-10)
+  // and keep their own click and hover.
   return (
-    <Link
-      href={`/${projectKey}/${env.slug}`}
-      className="group flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-    >
+    <div className="group relative flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 transition-colors">
       <StatusDot activity={activity ?? null} />
       <span className="flex flex-col min-w-0 flex-1 gap-0.5">
         <span className="flex items-center gap-2 min-w-0">
-          <span className="text-sm truncate">
+          <Link
+            href={`/${projectKey}/${env.slug}`}
+            className="text-sm truncate after:absolute after:inset-0 focus:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+          >
             {stripProjectPrefix(env.name, projectName)}
-          </span>
+          </Link>
+          <EnvironmentUrlButton url={env.url} className="relative z-10" />
           <EnvironmentHost host={env.host} className="max-w-[40%]" />
           {env.kind ? (
             <Badge variant="outline" className="text-[10px] uppercase shrink-0">
@@ -343,8 +349,9 @@ function EnvironmentRow({
             <code className="font-mono truncate">{env.dbName}</code>
           ) : null}
           {env.owner ? (
-            <span className="truncate hidden sm:inline">
-              · {t("ownedBy", { owner: env.owner })}
+            <span className="hidden min-w-0 items-center gap-1 sm:flex">
+              <span aria-hidden>·</span>
+              <EnvironmentOwner owner={env.owner} />
             </span>
           ) : null}
         </span>
@@ -353,7 +360,7 @@ function EnvironmentRow({
         {activity ? <RelativeTime date={activity.runAt} /> : t("neverActive")}
       </span>
       <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
-    </Link>
+    </div>
   );
 }
 
@@ -387,7 +394,11 @@ function StatusDot({ activity }: { activity: EnvironmentActivity | null }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span role="img" aria-label={label} className="shrink-0 flex">
+          <span
+            role="img"
+            aria-label={label}
+            className="relative z-10 shrink-0 flex"
+          >
             {icon}
           </span>
         }

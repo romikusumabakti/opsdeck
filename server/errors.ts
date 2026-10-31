@@ -6,6 +6,12 @@ import { HTTPException } from "hono/http-exception";
 // the whole request without every caller threading a status back up. `onError`
 // below is the one place those throws become responses.
 
+// A well-formed request the server still refuses (e.g. a reference that fails
+// a business rule). `message` reaches the user as-is, so pass translated text.
+export function badRequest(message: string): never {
+  throw new HTTPException(400, { message });
+}
+
 export function unauthorized(): never {
   throw new HTTPException(401, { message: "Unauthorized" });
 }

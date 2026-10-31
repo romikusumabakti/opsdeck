@@ -3,6 +3,8 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ChevronRight, Plus, Settings } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
+import { EnvironmentOwner } from "@/components/nav/environment-owner";
+import { EnvironmentUrlButton } from "@/components/nav/environment-url";
 import { PageHeader } from "@/components/page-header";
 import { RelativeTime } from "@/components/relative-time";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
@@ -188,19 +190,25 @@ function ProjectOverviewPage() {
             <div className="grid content-start flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
               {environments.map((env) => {
                 const activity = lastActivity[env.id] ?? null;
+                // The name link stretches over the whole card (after:inset-0),
+                // so the card is one click target; the URL button sits above
+                // it (z-10) and opens the app instead.
                 return (
-                  <Link
-                    key={env.id}
-                    href={`/${project.key}/${env.slug}`}
-                    className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
-                  >
-                    <Card className="h-full py-0 hover:border-primary/50 hover:shadow-sm transition-all">
+                  <div key={env.id} className="group relative">
+                    <Card className="h-full py-0 group-hover:border-primary/50 group-hover:shadow-sm transition-all">
                       <CardContent className="p-4 flex flex-col gap-2.5">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-medium truncate">
+                            <Link
+                              href={`/${project.key}/${env.slug}`}
+                              className="font-medium truncate after:absolute after:inset-0 after:rounded-xl focus:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+                            >
                               {stripProjectPrefix(env.name, project.name)}
-                            </span>
+                            </Link>
+                            <EnvironmentUrlButton
+                              url={env.url}
+                              className="relative z-10"
+                            />
                             <EnvironmentHost
                               host={env.host}
                               className="max-w-[40%]"
@@ -227,11 +235,7 @@ function ProjectOverviewPage() {
                             {env.dbName}
                           </code>
                         </div>
-                        {env.owner ? (
-                          <span className="text-xs text-muted-foreground truncate">
-                            {t("ownedBy", { owner: env.owner })}
-                          </span>
-                        ) : null}
+                        <EnvironmentOwner owner={env.owner} />
                         <span className="text-xs text-muted-foreground">
                           {activity ? (
                             <RelativeTime date={activity.runAt} />
@@ -241,7 +245,7 @@ function ProjectOverviewPage() {
                         </span>
                       </CardContent>
                     </Card>
-                  </Link>
+                  </div>
                 );
               })}
             </div>

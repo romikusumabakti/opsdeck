@@ -2,6 +2,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { useTranslations } from "use-intl";
+import { EnvironmentUrlButton } from "@/components/nav/environment-url";
 import { PageHeader } from "@/components/page-header";
 import { useProjectName } from "@/hooks/use-project-name";
 import { stripProjectPrefix } from "@/lib/nav-path";
@@ -53,9 +54,17 @@ function DashboardPage() {
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", {
-          name: stripProjectPrefix(environment.name, projectName),
-        })}
+        subtitle={
+          <>
+            {t("subtitle", {
+              name: stripProjectPrefix(environment.name, projectName),
+            })}
+            <EnvironmentUrlButton
+              url={environment.url}
+              className="ms-1 align-middle"
+            />
+          </>
+        }
       />
       <Suspense fallback={<DashboardKpisSkeleton />}>
         <DashboardKpis environmentId={environmentId} />

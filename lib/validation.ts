@@ -132,14 +132,26 @@ export const environmentInputSchema = z.object({
   frontendServiceType: serviceTypeSchema,
   frontendServiceName: z.string().trim().min(1).max(255),
 
-  // Purpose + owner of this deployment (both optional).
+  // Purpose + owner of this deployment (both optional). The owner must be
+  // eligible for the project (server/services/environments checks that); the
+  // schema only shapes the id.
   kind: z.enum(["qa", "dev", "release", "sandbox", "prod"]).nullish(),
-  owner: z.string().trim().max(120).nullish(),
-  // Address of the deployment (IP/hostname), shown beside the name.
+  ownerId: z.uuid().nullish(),
+  // Address of the deployment (IP/hostname, optional :port), shown beside the
+  // name. No path: the web address goes in `url`.
   host: z
     .string()
     .trim()
     .max(200)
+    .refine((v) => !v.includes("/"), "Host must not include a path")
+    .nullish()
+    .transform((v) => (v ? v : null)),
+  // Where the deployed app opens in a browser. Absolute http(s) only, so the
+  // link can never carry a `javascript:` or other scheme.
+  url: z
+    .string()
+    .trim()
+    .pipe(z.union([z.literal(""), z.url({ protocol: /^https?$/ }).max(2048)]))
     .nullish()
     .transform((v) => (v ? v : null)),
 });

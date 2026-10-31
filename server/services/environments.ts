@@ -1,4 +1,5 @@
 import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
+import { assignableUsersWhere } from "@/lib/assignees";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
@@ -17,12 +18,15 @@ import {
   environmentServices,
   environments,
   type NewEnvironmentService,
+  projectMembers,
   projects,
+  users as userTable,
 } from "@/lib/db/schema";
 import {
   changedInfraFields,
   loadEnvironmentWithServers,
   loadSafeEnvironment,
+  ownerIdToVerify,
 } from "@/lib/environments";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
@@ -32,6 +36,8 @@ import {
   environmentInputSchema,
   environmentUpdateSchema,
 } from "@/lib/validation";
+import { badRequest } from "@/server/errors";
+import { getServerTranslator } from "@/server/i18n";
 
 // The form posts one flat payload (db*/backend*/frontend* fields); storage is
 // one `environments` row plus one `environment_services` row per role. These
@@ -290,6 +296,36 @@ async function uniqueEnvSlug(projectId: string, name: string): Promise<string> {
   return `${base}-${n}`;
 }
 
+// An owner must be someone who can be assigned issues in the environment's
+// project: a non-banned org admin/infra or a member of it (the same predicate
+// as listAssignableUsers, which feeds the form's owner picker).
+async function canOwnEnvironment(
+  ownerId: string,
+  projectId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(
+      and(
+        eq(userTable.id, ownerId),
+        assignableUsersWhere(eq(projectMembers.projectId, projectId))
+      )
+    )
+    .limit(1);
+  return !!row;
+}
+
+// Refuse (400) an owner who isn't eligible for `projectId`.
+async function requireEligibleOwner(
+  ownerId: string | null,
+  projectId: string
+): Promise<void> {
+  if (!ownerId || (await canOwnEnvironment(ownerId, projectId))) return;
+  const t = await getServerTranslator("actionErrors");
+  badRequest(t("environmentOwnerIneligible"));
+}
+
 export async function createEnvironment(
   data: unknown
 ): Promise<ActionResponse<Environment>> {
@@ -305,6 +341,10 @@ export async function createEnvironment(
   // which service control, drop/restore and logs then act on: org-level
   // server:manage, not just a project role.
   await requireOrgPermission({ server: ["manage"] });
+  await requireEligibleOwner(
+    ownerIdToVerify(parsed.data),
+    parsed.data.projectId
+  );
   try {
     const input = parsed.data;
     const slug = await uniqueEnvSlug(input.projectId, input.name);
@@ -319,8 +359,9 @@ export async function createEnvironment(
             name: input.name,
             slug,
             kind: input.kind,
-            owner: input.owner,
+            ownerId: input.ownerId,
             host: input.host,
+            url: input.url,
           })
           .returning(),
         "environment"
@@ -375,14 +416,19 @@ export async function updateEnvironment(
       { environment: ["create"] }
     );
   }
+  await requireEligibleOwner(
+    ownerIdToVerify(parsed.data, stored),
+    parsed.data.projectId ?? stored.projectId
+  );
   try {
     const input = parsed.data;
     const envPatch = pickPresent({
       projectId: input.projectId,
       name: input.name,
       kind: input.kind,
-      owner: input.owner,
+      ownerId: input.ownerId,
       host: input.host,
+      url: input.url,
     });
     const servicePatches = [
       { role: "db" as const, patch: dbServicePatch(input) },
