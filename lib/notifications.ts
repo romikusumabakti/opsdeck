@@ -66,3 +66,28 @@ export async function notifyRunFailed(input: {
     href: `/${input.projectKey}/${input.envSlug}/history`,
   });
 }
+
+/**
+ * Tell the editor that their change didn't reach Jira. The push runs in a
+ * background job, so by the time Jira refuses the edit the user has moved on.
+ */
+export async function notifyJiraPushFailed(input: {
+  userId: string | null | undefined;
+  projectKey: string;
+  number: number;
+  fields: string;
+  reason: "conflict" | "no_transition" | "no_matching_value";
+}): Promise<void> {
+  if (!input.userId) return;
+  await createNotification({
+    userId: input.userId,
+    type: "jira_push_failed",
+    data: {
+      key: input.projectKey,
+      number: input.number,
+      fields: input.fields,
+      reason: input.reason,
+    },
+    href: `/${input.projectKey}/issues/${input.number}`,
+  });
+}

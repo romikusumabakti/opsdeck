@@ -105,7 +105,8 @@ export function NotificationBell({
                   className="flex w-full items-start gap-2.5 px-3 py-2.5 text-start hover:bg-accent/50 transition-colors"
                 >
                   <span className="mt-0.5 shrink-0 text-muted-foreground">
-                    {n.type === "run_failed" ? (
+                    {n.type === "run_failed" ||
+                    n.type === "jira_push_failed" ? (
                       <CircleAlert className="size-4 text-destructive" />
                     ) : n.type === "issue_mention" ? (
                       <AtSign className="size-4" />
@@ -119,7 +120,8 @@ export function NotificationBell({
                         n.type as
                           | "issue_assigned"
                           | "run_failed"
-                          | "issue_mention",
+                          | "issue_mention"
+                          | "jira_push_failed",
                         n.data as Record<string, string | number>
                       )}
                     </span>

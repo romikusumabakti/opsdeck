@@ -2,7 +2,9 @@ import { eq } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
 import { issueComments, issues, projects, users } from "@/lib/db/schema";
+import { notifyJiraPushFailed } from "@/lib/notifications";
 import { markdownToRichText } from "./adf";
+import { addAttribution } from "./attribution";
 import { JiraClient, JiraError } from "./client";
 import { priorityNameCandidates, targetCategoryFor } from "./mapping";
 import { resolveLink } from "./sync";
@@ -14,8 +16,9 @@ import { resolveLink } from "./sync";
  * Two rules keep this from becoming a merge engine:
  *
  *  1. **Jira wins.** If the remote issue moved since the revision we last
- *     applied, the local edit is discarded and recorded in the activity log as
- *     `issue.jira_conflict`. There is no merge UI and no field-level reconcile.
+ *     applied, the local edit is discarded, recorded in the activity log as
+ *     `issue.jira_conflict`, and the editor gets a `jira_push_failed`
+ *     notification. There is no merge UI and no field-level reconcile.
  *  2. **Push reads current state.** The job payload names *which* fields
  *     changed, never their values, so a retried or delayed job writes what the
  *     issue says now instead of resurrecting a stale value.
@@ -37,9 +40,19 @@ export type PushResult =
   | { pushed: true; fields: PushableField[] }
   | { pushed: false; reason: "not-linked" | "push-disabled" | "conflict" };
 
+type PushFailureReason = "conflict" | "no_transition" | "no_matching_value";
+
+/** Record a refused push in the activity log and tell the editor. */
+type ReportFailure = (
+  fields: PushableField[],
+  reason: PushFailureReason,
+  data?: Record<string, string>
+) => Promise<void>;
+
 export async function pushIssue(
   issueId: string,
-  fields: PushableField[]
+  fields: PushableField[],
+  actorId?: string
 ): Promise<PushResult> {
   const [issue] = await db
     .select()
@@ -54,6 +67,36 @@ export async function pushIssue(
     return { pushed: false, reason: "push-disabled" };
   }
 
+  const [project] = await db
+    .select({ key: projects.key })
+    .from(projects)
+    .where(eq(projects.id, issue.projectId))
+    .limit(1);
+  const projectKey = project?.key ?? "";
+  const report: ReportFailure = async (failed, reason, data = {}) => {
+    await recordActivity({
+      action:
+        reason === "conflict"
+          ? "issue.jira_conflict"
+          : "issue.jira_push_failed",
+      entityType: "issue",
+      entityId: issue.id,
+      data: {
+        key: `${projectKey}-${issue.number}`,
+        fields: failed.join(", "),
+        reason,
+        ...data,
+      },
+    });
+    await notifyJiraPushFailed({
+      userId: actorId,
+      projectKey,
+      number: issue.number,
+      fields: failed.join(", "),
+      reason,
+    });
+  };
+
   const client = new JiraClient(resolved.credentials);
   const before = await client.getIssue(issue.jiraIssueId);
 
@@ -64,7 +107,7 @@ export async function pushIssue(
     issue.jiraUpdatedAt &&
     remoteUpdated.getTime() > issue.jiraUpdatedAt.getTime()
   ) {
-    await recordConflict(issue.id, issue.projectId, issue.number, fields);
+    await report(fields, "conflict");
     return { pushed: false, reason: "conflict" };
   }
 
@@ -79,14 +122,14 @@ export async function pushIssue(
   }
 
   if (fields.includes("priority")) {
-    await pushPriority(client, issue.jiraIssueId, issue.priority, issue.id);
+    await pushPriority(client, issue.jiraIssueId, issue.priority, report);
   }
 
   if (fields.includes("assignee")) {
     await pushAssignee(client, issue.jiraIssueId, issue.assigneeId);
   }
   if (fields.includes("status")) {
-    await pushStatus(client, issue.jiraIssueId, issue.status, issue.id);
+    await pushStatus(client, issue.jiraIssueId, issue.status, report);
   }
 
   // Epilogue: adopt the revision our own write produced, so its webhook echo
@@ -117,7 +160,7 @@ async function pushPriority(
   client: JiraClient,
   jiraIssueId: string,
   priority: (typeof issues.$inferSelect)["priority"],
-  localIssueId: string
+  report: ReportFailure
 ): Promise<void> {
   for (const name of priorityNameCandidates(priority)) {
     try {
@@ -128,12 +171,7 @@ async function pushPriority(
       throw error;
     }
   }
-  await recordActivity({
-    action: "issue.jira_push_failed",
-    entityType: "issue",
-    entityId: localIssueId,
-    data: { field: "priority", reason: "no_matching_value", target: priority },
-  });
+  await report(["priority"], "no_matching_value", { target: priority });
 }
 
 async function pushAssignee(
@@ -161,14 +199,16 @@ async function pushAssignee(
  *
  * Matching on category rather than name is what makes this survive renamed and
  * translated workflows. If no available transition lands in that category the
- * push is recorded as a failure and nothing is retried — a workflow that has
+ * push is reported as a failure and nothing is retried — a workflow that has
  * no path from here to there is a configuration fact, not a transient error.
+ * Walking several transitions to get there is deliberately not attempted: it
+ * would skip steps like review that the workflow puts in the way on purpose.
  */
 async function pushStatus(
   client: JiraClient,
   jiraIssueId: string,
   status: (typeof issues.$inferSelect)["status"],
-  localIssueId: string
+  report: ReportFailure
 ): Promise<void> {
   const target = targetCategoryFor(status);
   const transitions = await client.getTransitions(jiraIssueId);
@@ -176,12 +216,7 @@ async function pushStatus(
     (transition) => transition.to?.statusCategory?.key === target
   );
   if (!match) {
-    await recordActivity({
-      action: "issue.jira_push_failed",
-      entityType: "issue",
-      entityId: localIssueId,
-      data: { field: "status", reason: "no_transition", target },
-    });
+    await report(["status"], "no_transition", { target });
     return;
   }
   await client.transitionIssue(jiraIssueId, match.id);
@@ -216,10 +251,22 @@ export async function pushComment(commentId: string): Promise<PushResult> {
     return { pushed: false, reason: "push-disabled" };
   }
 
+  // The connection posts as its token's owner, so name the real author.
+  const [author] = comment.authorId
+    ? await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, comment.authorId))
+        .limit(1)
+    : [];
+  const body = author
+    ? addAttribution(comment.body, author.name)
+    : comment.body;
+
   const client = new JiraClient(resolved.credentials);
   const created = await client.addComment(
     issue.jiraIssueId,
-    markdownToRichText(comment.body, resolved.connection.flavor)
+    markdownToRichText(body, resolved.connection.flavor)
   );
   await db
     .update(issueComments)
@@ -227,31 +274,4 @@ export async function pushComment(commentId: string): Promise<PushResult> {
     .where(eq(issueComments.id, comment.id));
 
   return { pushed: true, fields: [] };
-}
-
-/**
- * Record a discarded local edit. Written to the activity feed rather than
- * surfaced as a dialog: by the time the job runs the user has moved on, and
- * the feed is where every other cross-cutting event already lands.
- */
-async function recordConflict(
-  issueId: string,
-  projectId: string,
-  number: number,
-  fields: PushableField[]
-): Promise<void> {
-  const [project] = await db
-    .select({ key: projects.key })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  await recordActivity({
-    action: "issue.jira_conflict",
-    entityType: "issue",
-    entityId: issueId,
-    data: {
-      key: `${project?.key ?? ""}-${number}`,
-      fields: fields.join(", "),
-    },
-  });
 }

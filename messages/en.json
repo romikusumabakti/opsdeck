@@ -175,7 +175,8 @@
     "ariaLabel": "Notifications",
     "issue_assigned": "Assigned to you: {key}-{number} · {title}",
     "run_failed": "{description} failed in {environment}",
-    "issue_mention": "Mentioned you: {key}-{number} · {title}"
+    "issue_mention": "Mentioned you: {key}-{number} · {title}",
+    "jira_push_failed": "Not sent to Jira: {key}-{number} ({fields}) · {reason, select, conflict {changed in Jira first, your edit was discarded} no_transition {the Jira workflow has no direct step to that status} other {no matching value in Jira}}"
   },
   "projectsEmpty": {
     "title": "No projects yet",

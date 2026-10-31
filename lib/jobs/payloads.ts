@@ -95,6 +95,7 @@ const JOB_PAYLOAD_SCHEMAS: { [N in JobName]: z.ZodType<JobMap[N]> } = {
     fields: z.array(
       z.enum(["title", "description", "status", "priority", "assignee"])
     ),
+    actorId: uuidSchema.optional(),
   }),
   "jira/push.comment": z.object({
     commentId: uuidSchema,

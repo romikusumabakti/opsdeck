@@ -803,6 +803,7 @@ export async function updateIssue(
         await enqueueJiraPush("jira/push.issue", {
           issueId: updated.id,
           fields,
+          actorId: session.user.id,
         });
       }
     }

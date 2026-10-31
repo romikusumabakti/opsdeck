@@ -78,6 +78,9 @@ export type JobMap = {
   "jira/push.issue": {
     issueId: string;
     fields: ("title" | "description" | "status" | "priority" | "assignee")[];
+    // Who made the edit, so a push Jira refuses can be reported back to them.
+    // Optional: jobs queued by an older build don't carry it.
+    actorId?: string;
   };
   "jira/push.comment": {
     commentId: string;
