@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useLocale, useTranslations } from "use-intl";
+import { EnvironmentHost } from "@/components/nav/environment-host";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -328,6 +329,7 @@ function EnvironmentRow({
           <span className="text-sm truncate">
             {stripProjectPrefix(env.name, projectName)}
           </span>
+          <EnvironmentHost host={env.host} className="max-w-[40%]" />
           {env.kind ? (
             <Badge variant="outline" className="text-[10px] uppercase shrink-0">
               {tKinds(env.kind)}

@@ -615,7 +615,6 @@
     "nameCopySuffix": "{name} (نسخة)",
     "project": "المشروع",
     "pickProject": "اختر مشروعًا…",
-    "newProjectShort": "مشروع جديد",
     "projectRequired": "اختر مشروعًا",
     "kind": "النوع",
     "kindNone": "غير محدد",
@@ -623,6 +622,9 @@
     "owner": "المالك",
     "ownerPlaceholder": "مثال: QA — Budi",
     "ownerHint": "مالك عملية النشر هذه. اختياري.",
+    "host": "المضيف",
+    "hostPlaceholder": "مثال: 192.168.56.129 أو dev.example.com",
+    "hostHint": "عنوان خادم عملية النشر هذه، يظهر بجوار الاسم. اختياري.",
     "purpose": "الغرض",
     "infraReadOnlyHint": "يتطلب تغيير الخوادم أو الخدمات أو إعدادات قاعدة البيانات صلاحية إدارة الخوادم."
   },

@@ -615,7 +615,6 @@
     "nameCopySuffix": "{name}（副本）",
     "project": "项目",
     "pickProject": "选择项目…",
-    "newProjectShort": "新建项目",
     "projectRequired": "请选择项目",
     "kind": "类型",
     "kindNone": "未指定",
@@ -623,6 +622,9 @@
     "owner": "负责人",
     "ownerPlaceholder": "例如 QA — Budi",
     "ownerHint": "该部署的负责人。可选。",
+    "host": "主机",
+    "hostPlaceholder": "例如 192.168.56.129 或 dev.example.com",
+    "hostHint": "该部署的服务器地址,显示在名称旁边。可选。",
     "purpose": "用途",
     "infraReadOnlyHint": "更改服务器、服务或数据库设置需要服务器管理权限。"
   },

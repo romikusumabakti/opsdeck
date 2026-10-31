@@ -320,6 +320,7 @@ export async function createEnvironment(
             slug,
             kind: input.kind,
             owner: input.owner,
+            host: input.host,
           })
           .returning(),
         "environment"
@@ -381,6 +382,7 @@ export async function updateEnvironment(
       name: input.name,
       kind: input.kind,
       owner: input.owner,
+      host: input.host,
     });
     const servicePatches = [
       { role: "db" as const, patch: dbServicePatch(input) },

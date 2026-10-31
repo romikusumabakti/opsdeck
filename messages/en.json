@@ -615,7 +615,6 @@
     "nameCopySuffix": "{name} (copy)",
     "project": "Project",
     "pickProject": "Select a project…",
-    "newProjectShort": "New project",
     "projectRequired": "Select a project",
     "kind": "Kind",
     "kindNone": "Unspecified",
@@ -623,6 +622,9 @@
     "owner": "Owner",
     "ownerPlaceholder": "e.g. QA — Budi",
     "ownerHint": "Who owns this deployment. Optional.",
+    "host": "Host",
+    "hostPlaceholder": "e.g. 192.168.56.129 or dev.example.com",
+    "hostHint": "Server address of this deployment, shown beside the name. Optional.",
     "purpose": "Purpose",
     "infraReadOnlyHint": "Changing servers, services or database settings requires server management access."
   },

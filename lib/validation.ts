@@ -135,6 +135,13 @@ export const environmentInputSchema = z.object({
   // Purpose + owner of this deployment (both optional).
   kind: z.enum(["qa", "dev", "release", "sandbox", "prod"]).nullish(),
   owner: z.string().trim().max(120).nullish(),
+  // Address of the deployment (IP/hostname), shown beside the name.
+  host: z
+    .string()
+    .trim()
+    .max(200)
+    .nullish()
+    .transform((v) => (v ? v : null)),
 });
 
 export const environmentUpdateSchema = environmentInputSchema.partial();

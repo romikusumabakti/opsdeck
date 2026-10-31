@@ -1,6 +1,7 @@
 import { Check, ChevronDown, Plus } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
+import { EnvironmentHost } from "@/components/nav/environment-host";
 import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,12 +101,16 @@ export function EnvironmentSwitcher({
                   {environments.map((env) => (
                     <CommandItem
                       key={env.id}
-                      value={`${env.name} ${env.slug}`}
+                      value={`${env.name} ${env.slug} ${env.host ?? ""}`}
                       onSelect={() => select(env)}
                     >
                       <span className="flex-1 min-w-0 truncate">
                         {stripProjectPrefix(env.name, projectName)}
                       </span>
+                      <EnvironmentHost
+                        host={env.host}
+                        className="max-w-[40%]"
+                      />
                       <EnvironmentKindBadge kind={env.kind} />
                       <Check
                         className={cn(

@@ -3,6 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronRight, Plus, Settings } from "lucide-react";
 import { useTranslations } from "use-intl";
+import { EnvironmentHost } from "@/components/nav/environment-host";
 import { PageHeader } from "@/components/page-header";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -202,6 +203,10 @@ function ProjectOverviewPage() {
                             <span className="font-medium truncate">
                               {stripProjectPrefix(env.name, project.name)}
                             </span>
+                            <EnvironmentHost
+                              host={env.host}
+                              className="max-w-[40%]"
+                            />
                             {env.kind ? (
                               <Badge
                                 variant="outline"

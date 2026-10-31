@@ -615,7 +615,6 @@
     "nameCopySuffix": "{name} (salinan)",
     "project": "Proyek",
     "pickProject": "Pilih proyek…",
-    "newProjectShort": "Proyek baru",
     "projectRequired": "Pilih proyek",
     "kind": "Jenis",
     "kindNone": "Tidak ditentukan",
@@ -623,6 +622,9 @@
     "owner": "Pemilik",
     "ownerPlaceholder": "mis. QA — Budi",
     "ownerHint": "Siapa pemilik deployment ini. Opsional.",
+    "host": "Host",
+    "hostPlaceholder": "mis. 192.168.56.129 atau dev.example.com",
+    "hostHint": "Alamat server deployment ini, ditampilkan di samping nama. Opsional.",
     "purpose": "Tujuan",
     "infraReadOnlyHint": "Mengubah server, layanan, atau pengaturan database memerlukan akses pengelolaan server."
   },
