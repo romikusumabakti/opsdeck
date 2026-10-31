@@ -1,7 +1,6 @@
 import {
   Eye,
   FolderOpen,
-  MoreHorizontal,
   Pencil,
   Plus,
   Server as ServerIcon,
@@ -19,14 +18,8 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { type RowAction, RowActions } from "@/components/ui/row-actions";
 import { Link } from "@/i18n/navigation";
 import {
   bulkDeleteServers,
@@ -293,64 +286,42 @@ function ServerActions({
   deleteLabel: string;
   onDelete: () => void;
 }) {
+  const items: RowAction[] = [];
+  if (can.terminal) {
+    items.push({
+      label: terminalLabel,
+      icon: SquareTerminal,
+      href: `/servers/${server.id}/terminal`,
+    });
+  }
+  // The detail page is read-only without server:manage.
+  items.push({
+    label: editLabel,
+    icon: can.manage ? Pencil : Eye,
+    href: `/servers/${server.id}`,
+  });
+  if (can.manage) {
+    items.push({
+      label: deleteLabel,
+      icon: Trash2,
+      destructive: true,
+      onSelect: onDelete,
+    });
+  }
   return (
-    <div className="flex items-center justify-end gap-1">
-      {can.files ? (
-        <Button
-          nativeButton={false}
-          variant="ghost"
-          size="icon-sm"
-          aria-label={browseLabel}
-          title={browseLabel}
-          disabled={disabled}
-          render={<Link href={`/servers/${server.id}/files`} />}
-        >
-          <FolderOpen className="size-4" />
-        </Button>
-      ) : null}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={menuLabel}
-              title={menuLabel}
-              disabled={disabled}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          }
-        />
-        <DropdownMenuContent align="end">
-          {can.terminal ? (
-            <DropdownMenuItem
-              render={<Link href={`/servers/${server.id}/terminal`} />}
-            >
-              <SquareTerminal className="size-4" />
-              {terminalLabel}
-            </DropdownMenuItem>
-          ) : null}
-          {/* The detail page is read-only without server:manage. */}
-          <DropdownMenuItem render={<Link href={`/servers/${server.id}`} />}>
-            {can.manage ? (
-              <Pencil className="size-4" />
-            ) : (
-              <Eye className="size-4" />
-            )}
-            {editLabel}
-          </DropdownMenuItem>
-          {can.manage ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                <Trash2 className="size-4" />
-                {deleteLabel}
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <RowActions
+      label={menuLabel}
+      disabled={disabled}
+      primary={
+        can.files
+          ? {
+              label: browseLabel,
+              icon: FolderOpen,
+              href: `/servers/${server.id}/files`,
+            }
+          : undefined
+      }
+      items={items}
+    />
   );
 }

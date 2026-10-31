@@ -1,12 +1,4 @@
-import {
-  Eye,
-  FolderOpen,
-  HardDrive,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Eye, FolderOpen, HardDrive, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
@@ -18,14 +10,8 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { type RowAction, RowActions } from "@/components/ui/row-actions";
 import { Link } from "@/i18n/navigation";
 import {
   deleteS3Connection,
@@ -189,58 +175,36 @@ function ConnectionActions({
   deleteLabel: string;
   onDelete: () => void;
 }) {
+  const items: RowAction[] = [
+    // The detail page is read-only without storage:manage.
+    {
+      label: editLabel,
+      icon: can.manage ? Pencil : Eye,
+      href: `/storage/${connection.id}`,
+    },
+  ];
+  if (can.manage) {
+    items.push({
+      label: deleteLabel,
+      icon: Trash2,
+      destructive: true,
+      onSelect: onDelete,
+    });
+  }
   return (
-    <div className="flex items-center justify-end gap-1">
-      {can.files ? (
-        <Button
-          nativeButton={false}
-          variant="ghost"
-          size="icon-sm"
-          aria-label={browseLabel}
-          title={browseLabel}
-          disabled={disabled}
-          render={<Link href={`/storage/${connection.id}/files`} />}
-        >
-          <FolderOpen className="size-4" />
-        </Button>
-      ) : null}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={menuLabel}
-              title={menuLabel}
-              disabled={disabled}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          }
-        />
-        <DropdownMenuContent align="end">
-          {/* The detail page is read-only without storage:manage. */}
-          <DropdownMenuItem
-            render={<Link href={`/storage/${connection.id}`} />}
-          >
-            {can.manage ? (
-              <Pencil className="size-4" />
-            ) : (
-              <Eye className="size-4" />
-            )}
-            {editLabel}
-          </DropdownMenuItem>
-          {can.manage ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                <Trash2 className="size-4" />
-                {deleteLabel}
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <RowActions
+      label={menuLabel}
+      disabled={disabled}
+      primary={
+        can.files
+          ? {
+              label: browseLabel,
+              icon: FolderOpen,
+              href: `/storage/${connection.id}/files`,
+            }
+          : undefined
+      }
+      items={items}
+    />
   );
 }
