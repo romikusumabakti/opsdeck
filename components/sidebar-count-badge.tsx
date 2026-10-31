@@ -1,9 +1,4 @@
 import { SidebarMenuBadge } from "@/components/ui/sidebar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,8 +8,9 @@ import { cn } from "@/lib/utils";
  * the badge, which defeats the point. Collapsed to icons there is no room for
  * a number, so it degrades to a dot in the icon's corner.
  *
- * Hovering the number explains what it counts (the label); the collapsed dot
- * carries the same text as its accessible name.
+ * The badge stays `pointer-events-none` so clicks and hover reach the row's
+ * link; the row's tooltip (see `rowTooltip` in app-sidebar) explains the count.
+ * The collapsed dot carries the label as its accessible name.
  *
  * Positioned with physical `right`/`left` under an `rtl:` variant rather than
  * logical `end-*`: the base badge already sets `right-1`, and mixing the two
@@ -28,7 +24,7 @@ export function SidebarCountBadge({
   variant = "default",
 }: {
   count: number;
-  /** What the count means: tooltip text and accessible name. */
+  /** What the count means, e.g. "3 open issues assigned to you". */
   label: string;
   /** `active` marks work in flight (running jobs) rather than a backlog. */
   variant?: "default" | "active";
@@ -37,22 +33,16 @@ export function SidebarCountBadge({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <SidebarMenuBadge
-              className={cn(
-                "pointer-events-auto right-1 rtl:right-auto rtl:left-1",
-                variant === "active" && "text-primary"
-              )}
-            />
-          }
-        >
-          <span aria-hidden="true">{count > 99 ? "99+" : count}</span>
-          <span className="sr-only">{label}</span>
-        </TooltipTrigger>
-        <TooltipContent side="right">{label}</TooltipContent>
-      </Tooltip>
+      <SidebarMenuBadge
+        aria-label={label}
+        className={cn(
+          "right-1 rtl:right-auto rtl:left-1",
+          variant === "active" && "text-primary"
+        )}
+      >
+        <span aria-hidden="true">{count > 99 ? "99+" : count}</span>
+        <span className="sr-only">{label}</span>
+      </SidebarMenuBadge>
       <span
         role="img"
         aria-label={label}
