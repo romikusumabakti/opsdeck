@@ -27,6 +27,7 @@ import {
   type FailureGroup,
   groupFailures,
 } from "@/lib/home/attention";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { canProject } from "@/lib/permissions";
 
 // Read side of Home. Plain server functions (not actions): only the page's
@@ -60,6 +61,7 @@ export async function getAttentionGroups(): Promise<AttentionGroup[]> {
       errorMessage: runs.errorMessage,
       runAt: runs.runAt,
       environmentName: environments.name,
+      projectName: projects.name,
       envSlug: environments.slug,
       projectId: environments.projectId,
       projectKey: projects.key,
@@ -99,8 +101,9 @@ export async function getAttentionGroups(): Promise<AttentionGroup[]> {
     .orderBy(runs.environmentId, runKey, desc(runs.runAt));
 
   return groupFailures(
-    failed.map((f) => ({
+    failed.map(({ projectName, ...f }) => ({
       ...f,
+      environmentName: qualifiedEnvName(f.environmentName, projectName),
       envPath: `/${f.projectKey}/${f.envSlug}`,
     })),
     successes

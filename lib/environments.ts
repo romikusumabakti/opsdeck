@@ -8,7 +8,8 @@ import type {
   Server,
   ServiceWithServer,
 } from "@/lib/db/schema";
-import { environments } from "@/lib/db/schema";
+import { environments, projects } from "@/lib/db/schema";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { decryptNullable, decryptSecret } from "@/lib/secrets";
 import type { EnvironmentInput } from "@/lib/validation";
 
@@ -115,14 +116,18 @@ export async function loadSafeEnvironment(
   return environment ? sanitizeEnvironment(environment) : null;
 }
 
-/** An environment's display name, for activity-log params. */
+/**
+ * An environment's project-qualified display name ("Sucor Membership · Dev 1"),
+ * for activity-log params and other text read outside the project's own pages.
+ */
 export async function environmentName(id: string): Promise<string | undefined> {
   const [row] = await db
-    .select({ name: environments.name })
+    .select({ name: environments.name, projectName: projects.name })
     .from(environments)
+    .innerJoin(projects, eq(projects.id, environments.projectId))
     .where(eq(environments.id, id))
     .limit(1);
-  return row?.name;
+  return row ? qualifiedEnvName(row.name, row.projectName) : undefined;
 }
 
 // Every form field that binds an environment to infrastructure, mapped to the

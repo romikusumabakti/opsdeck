@@ -108,6 +108,12 @@ export function stripProjectPrefix(
   return envName;
 }
 
+// An environment name for display outside its project's own pages, where the
+// project must be named too (e.g. "Sucor Membership · Dev 1").
+export function qualifiedEnvName(envName: string, projectName: string): string {
+  return `${projectName} · ${stripProjectPrefix(envName, projectName)}`;
+}
+
 type Sortable = { projectId: string; kind: string | null; name: string };
 
 /** One project's environments in display order. */

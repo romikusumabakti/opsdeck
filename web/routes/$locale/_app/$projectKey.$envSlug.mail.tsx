@@ -5,7 +5,9 @@ import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useProjectName } from "@/hooks/use-project-name";
 import { Link } from "@/i18n/navigation";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import { canProject } from "@/lib/permissions";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { getMailConfiguredQuery } from "@/web/api/mail";
@@ -38,6 +40,7 @@ function MailPage() {
   const environment = useSuspenseQuery(
     getEnvironmentByIdQuery(environmentId)
   ).data;
+  const projectName = useProjectName(environment?.projectId ?? "");
   const { configured } = useSuspenseQuery(
     getMailConfiguredQuery(environmentId)
   ).data;
@@ -47,7 +50,9 @@ function MailPage() {
   const header = (
     <PageHeader
       title={t("title")}
-      subtitle={t("subtitle", { name: environment.name })}
+      subtitle={t("subtitle", {
+        name: stripProjectPrefix(environment.name, projectName),
+      })}
     />
   );
 

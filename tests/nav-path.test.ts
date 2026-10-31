@@ -7,6 +7,7 @@ import {
   groupEnvironmentsByProject,
   parseNavPath,
   projectSwitchHref,
+  qualifiedEnvName,
   stripProjectPrefix,
 } from "@/lib/nav-path";
 
@@ -123,6 +124,20 @@ describe("stripProjectPrefix", () => {
     ["Anything", "", "Anything"],
   ])("%s under %s -> %s", (env, project, expected) => {
     expect(stripProjectPrefix(env, project)).toBe(expected);
+  });
+});
+
+describe("qualifiedEnvName", () => {
+  it.each([
+    ["Dev 1", "Sucor Membership", "Sucor Membership · Dev 1"],
+    ["Sucor Membership Dev 1", "Sucor Membership", "Sucor Membership · Dev 1"],
+    [
+      "Sucor Membership",
+      "Sucor Membership",
+      "Sucor Membership · Sucor Membership",
+    ],
+  ])("%s in %s -> %s", (envName, project, expected) => {
+    expect(qualifiedEnvName(envName, project)).toBe(expected);
   });
 });
 

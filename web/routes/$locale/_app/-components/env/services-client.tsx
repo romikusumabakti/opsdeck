@@ -28,7 +28,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useProjectName } from "@/hooks/use-project-name";
 import { Link } from "@/i18n/navigation";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import {
   backendService,
   dbService,
@@ -66,6 +68,7 @@ export function ServicesClient({
 }) {
   const t = useTranslations("services");
   const tCommon = useTranslations("common");
+  const projectName = useProjectName(environment.projectId);
   const [statuses, setStatuses] = React.useState<StatusMap>({});
   const [loading, setLoading] = React.useState(true);
 
@@ -122,7 +125,9 @@ export function ServicesClient({
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", { name: environment.name })}
+        subtitle={t("subtitle", {
+          name: stripProjectPrefix(environment.name, projectName),
+        })}
         action={
           <Button variant="outline" onClick={refresh} disabled={loading}>
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />

@@ -25,7 +25,7 @@ import {
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { EnvironmentSummary } from "@/lib/db/schema";
-import { compareEnvironments } from "@/lib/nav-path";
+import { compareEnvironments, stripProjectPrefix } from "@/lib/nav-path";
 import {
   canCreateEnvironment as canCreateEnvironmentIn,
   canProject,
@@ -361,19 +361,6 @@ function EnvironmentRow({
       <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
-}
-
-// Drop the redundant project-name prefix now that the row sits inside that
-// project's card (e.g. "CAR Membership P2SK (137)" -> "P2SK (137)").
-function stripProjectPrefix(envName: string, projectName: string): string {
-  if (
-    projectName &&
-    envName.toLowerCase().startsWith(projectName.toLowerCase())
-  ) {
-    const rest = envName.slice(projectName.length).replace(/^[\s:–—-]+/, "");
-    return rest.trim() || envName;
-  }
-  return envName;
 }
 
 function StatusDot({

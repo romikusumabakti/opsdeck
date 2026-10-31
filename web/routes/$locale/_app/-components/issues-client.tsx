@@ -42,9 +42,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePager } from "@/components/ui/table-pager";
+import { useProjectName } from "@/hooks/use-project-name";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import type { UserRef } from "@/lib/types";
 import type { IssueWithMeta } from "@/web/api/issues";
 import {
@@ -72,6 +74,7 @@ export function IssuesClient({
   initialIssues: IssueWithMeta[];
 }) {
   const t = useTranslations("issues");
+  const projectName = useProjectName(projectId);
   const tCommon = useTranslations("common");
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
@@ -395,7 +398,9 @@ export function IssuesClient({
               type: i.type as IssueType,
               priority: i.priority as Priority,
               keyPrefix: projectKey,
-              envName: i.environment?.name ?? null,
+              envName: i.environment
+                ? stripProjectPrefix(i.environment.name, projectName)
+                : null,
               assignee: i.assignee,
               milestoneName: i.milestoneId
                 ? (milestonesById[i.milestoneId] ?? null)

@@ -3,22 +3,14 @@ import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { environments, runs } from "@/lib/db/schema";
+import { runs } from "@/lib/db/schema";
+import { environmentName } from "@/lib/environments";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
 // The attention key is a run kind or, for legacy runs, a description.
 const keySchema = z.string().trim().min(1).max(1000);
 const runIdsSchema = z.array(z.uuid()).min(1).max(500);
-
-async function environmentName(environmentId: string): Promise<string> {
-  const [row] = await db
-    .select({ name: environments.name })
-    .from(environments)
-    .where(eq(environments.id, environmentId))
-    .limit(1);
-  return row?.name ?? "";
-}
 
 /**
  * Acknowledge every unacknowledged failure of one attention group — global, so
@@ -59,7 +51,7 @@ export async function acknowledgeAttentionGroup(
         entityType: "run",
         entityId: firstAck.id,
         data: {
-          environment: await environmentName(environmentId),
+          environment: (await environmentName(environmentId)) ?? "",
           key,
           count: acked.length,
         },
@@ -110,7 +102,7 @@ export async function unacknowledgeRuns(
         entityType: "run",
         entityId: firstClr.id,
         data: {
-          environment: await environmentName(environmentId),
+          environment: (await environmentName(environmentId)) ?? "",
           key: firstClr.key,
           count: cleared.length,
         },

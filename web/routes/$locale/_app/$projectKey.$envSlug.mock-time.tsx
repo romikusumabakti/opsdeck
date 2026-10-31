@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import apiDocs from "@/docs/time-mocking-api.md?raw";
+import { useProjectName } from "@/hooks/use-project-name";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import { backendService } from "@/lib/services";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { loaderQuery } from "@/web/query-client";
@@ -36,6 +38,7 @@ function MockTimePage() {
   const environment = useSuspenseQuery(
     getEnvironmentByIdQuery(environmentId)
   ).data;
+  const projectName = useProjectName(environment?.projectId ?? "");
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
@@ -47,7 +50,9 @@ function MockTimePage() {
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", { name: environment.name })}
+        subtitle={t("subtitle", {
+          name: stripProjectPrefix(environment.name, projectName),
+        })}
         action={<ApiDocsSheet content={apiDocs} />}
       />
 
