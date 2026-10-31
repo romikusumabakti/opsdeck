@@ -11,6 +11,7 @@ import {
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RowActions } from "@/components/ui/row-actions";
 import { Link } from "@/i18n/navigation";
 import {
   deleteCloudflareZone,
@@ -86,29 +87,23 @@ export function ZonesClient({
         enableHiding: false,
         meta: { headClassName: "w-24", cellClassName: "w-24" },
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              nativeButton={false}
-              variant="ghost"
-              size="icon-sm"
-              aria-label={tCommon("edit")}
-              title={tCommon("edit")}
-              disabled={isPending}
-              render={<Link href={`/admin/tunnels/zones/${row.original.id}`} />}
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={tCommon("delete")}
-              title={tCommon("delete")}
-              disabled={isPending}
-              onClick={() => onDelete(row.original)}
-            >
-              <Trash2 className="size-4 text-destructive" />
-            </Button>
-          </div>
+          <RowActions
+            label={tCommon("openMenu")}
+            disabled={isPending}
+            primary={{
+              label: tCommon("edit"),
+              icon: Pencil,
+              href: `/admin/tunnels/zones/${row.original.id}`,
+            }}
+            items={[
+              {
+                label: tCommon("delete"),
+                icon: Trash2,
+                destructive: true,
+                onSelect: () => onDelete(row.original),
+              },
+            ]}
+          />
         ),
       },
     ],
