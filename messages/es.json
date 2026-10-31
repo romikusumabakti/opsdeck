@@ -198,11 +198,14 @@
     "newEnvironment": "Nuevo entorno",
     "newProject": "Nuevo proyecto",
     "ownedBy": "Propietario: {owner}",
-    "openIssues": "{count, plural, one {# incidencia abierta} other {# incidencias abiertas}}"
+    "openIssues": "{count, plural, one {# incidencia abierta} other {# incidencias abiertas}}",
+    "statusSucceeded": "La última ejecución se completó · {relative}",
+    "statusFailed": "La última ejecución falló · {relative}",
+    "statusRunning": "En ejecución ahora"
   },
   "dashboard": {
     "title": "Panel",
-    "subtitle": "Resumen de configuración de {name}.",
+    "subtitle": "Copias de seguridad, restauraciones, hora simulada y servicios de {name}.",
     "database": "Base de datos",
     "backend": "Backend",
     "frontend": "Frontend",
@@ -375,7 +378,7 @@
   },
   "databases": {
     "title": "Bases de datos",
-    "subtitle": "Crea y elimina bases de datos en el servidor de base de datos del entorno.",
+    "subtitle": "Respalda, restaura y gestiona bases de datos en el servidor de base de datos del entorno.",
     "cardTitle": "Gestionar bases de datos",
     "cardDescription": "Añade una base de datos nueva o elimina una existente. La base de datos configurada del entorno no se puede eliminar.",
     "createLabel": "Nombre de la nueva base de datos",
@@ -2002,7 +2005,6 @@
     "deactivated": "Desactivado",
     "until": "hasta {date}",
     "title": "Personas",
-    "subtitle": "Todos los miembros de {{APP_NAME}}.",
     "search": "Buscar por nombre, cargo o correo",
     "filterRole": "Rol",
     "filterProject": "Proyecto",
@@ -2027,7 +2029,8 @@
     "addBio": "Añade una breve biografía",
     "setWorkingHours": "Configura tu horario laboral",
     "copyEmail": "Copiar correo",
-    "showAllProjects": "Mostrar todos ({count})"
+    "showAllProjects": "Mostrar todos ({count})",
+    "showDeactivated": "Mostrar desactivados"
   },
   "profile": {
     "name": "Nombre visible",

@@ -8,6 +8,9 @@ import { loaderQuery } from "@/web/query-client";
 import { PeopleClient } from "./-components/people/people-client";
 
 export const Route = createFileRoute("/$locale/_app/people/")({
+  validateSearch: (search: Record<string, unknown>): { deactivated?: "1" } => ({
+    deactivated: search.deactivated === "1" ? "1" : undefined,
+  }),
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
       loaderQuery(queryClient, listPeopleQuery()),
@@ -19,13 +22,15 @@ export const Route = createFileRoute("/$locale/_app/people/")({
 
 function PeoplePage() {
   const t = useTranslations("people");
+  const { deactivated } = Route.useSearch();
   const people = useSuspenseQuery(listPeopleQuery()).data;
   const projects = useSuspenseQuery(listProjectsQuery()).data;
   return (
     <>
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader title={t("title")} />
       <PeopleClient
         people={people}
+        showDeactivated={deactivated === "1"}
         projects={projects.map((p) => ({ id: p.id, name: p.name }))}
       />
     </>

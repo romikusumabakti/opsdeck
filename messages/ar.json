@@ -198,11 +198,14 @@
     "newEnvironment": "بيئة جديدة",
     "newProject": "مشروع جديد",
     "ownedBy": "المالك: {owner}",
-    "openIssues": "{count, plural, other {# مشكلة مفتوحة}}"
+    "openIssues": "{count, plural, other {# مشكلة مفتوحة}}",
+    "statusSucceeded": "آخر تشغيل نجح · {relative}",
+    "statusFailed": "آخر تشغيل فشل · {relative}",
+    "statusRunning": "قيد التشغيل الآن"
   },
   "dashboard": {
     "title": "لوحة التحكم",
-    "subtitle": "نظرة عامة على تكوين {name}.",
+    "subtitle": "نسخ احتياطي واستعادة وتوقيت وهمي وخدمات لـ {name}.",
     "database": "قاعدة البيانات",
     "backend": "الخلفية",
     "frontend": "الواجهة الأمامية",
@@ -375,7 +378,7 @@
   },
   "databases": {
     "title": "قواعد البيانات",
-    "subtitle": "إنشاء وحذف قواعد البيانات على خادم قاعدة بيانات هذه البيئة.",
+    "subtitle": "انسخ احتياطيًا واستعد وأدِر قواعد البيانات على خادم قاعدة بيانات البيئة.",
     "cardTitle": "إدارة قواعد البيانات",
     "cardDescription": "أضف قاعدة بيانات جديدة أو احذف واحدة موجودة. لا يمكن حذف قاعدة البيانات المُهيّأة لهذه البيئة.",
     "createLabel": "اسم قاعدة البيانات الجديدة",
@@ -2002,7 +2005,6 @@
     "deactivated": "معطّل",
     "until": "حتى {date}",
     "title": "الأشخاص",
-    "subtitle": "جميع الأشخاص في {{APP_NAME}}.",
     "search": "ابحث بالاسم أو المسمى الوظيفي أو البريد الإلكتروني",
     "filterRole": "الدور",
     "filterProject": "المشروع",
@@ -2027,7 +2029,8 @@
     "addBio": "أضف نبذة قصيرة",
     "setWorkingHours": "حدّد ساعات عملك",
     "copyEmail": "نسخ البريد الإلكتروني",
-    "showAllProjects": "عرض الكل ({count})"
+    "showAllProjects": "عرض الكل ({count})",
+    "showDeactivated": "عرض المعطّلين"
   },
   "profile": {
     "name": "الاسم المعروض",

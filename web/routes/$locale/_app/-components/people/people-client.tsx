@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { ORG_ROLES } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { PersonSummary } from "@/web/api/users";
@@ -24,15 +26,26 @@ const ALL = "__all";
 export function PeopleClient({
   people,
   projects,
+  showDeactivated,
 }: {
   people: PersonSummary[];
+  showDeactivated: boolean;
   projects: { id: string; name: string }[];
 }) {
   const t = useTranslations("people");
   const tRole = useTranslations("users.role");
+  const router = useRouter();
+  const pathname = usePathname();
   const [q, setQ] = useState("");
   const [role, setRole] = useState(ALL);
   const [project, setProject] = useState(ALL);
+
+  // Deactivated accounts are hidden by default; the switch only exists when
+  // there are any (admins only receive them). State lives in ?deactivated=1.
+  const hasDeactivated = people.some((p) => p.deactivated);
+  function changeShowDeactivated(next: boolean) {
+    router.replace(next ? `${pathname}?deactivated=1` : pathname);
+  }
 
   const shown = useMemo(() => {
     const needle = q.trim().toLocaleLowerCase();
@@ -44,6 +57,7 @@ export function PeopleClient({
               [p.name, p.title ?? "", p.email].some((s) =>
                 s.toLocaleLowerCase().includes(needle)
               )) &&
+            (showDeactivated || !p.deactivated) &&
             (role === ALL || p.role === role) &&
             (project === ALL || p.projectIds.includes(project))
         )
@@ -51,7 +65,7 @@ export function PeopleClient({
         // stable, so each group keeps the server's name order.
         .sort((a, b) => Number(a.deactivated) - Number(b.deactivated))
     );
-  }, [people, q, role, project]);
+  }, [people, q, role, project, showDeactivated]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,6 +103,15 @@ export function PeopleClient({
             ))}
           </SelectContent>
         </Select>
+        {hasDeactivated && (
+          <Label className="ms-auto flex cursor-pointer items-center gap-2 text-sm font-normal">
+            <Switch
+              checked={showDeactivated}
+              onCheckedChange={changeShowDeactivated}
+            />
+            {t("showDeactivated")}
+          </Label>
+        )}
       </div>
       {shown.length === 0 ? (
         <EmptyState icon={UsersRound} title={t("empty")} />
