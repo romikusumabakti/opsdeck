@@ -250,6 +250,7 @@
     "title": "服务",
     "subtitle": "查看 {name} 的服务状态并启动、停止或重启服务。",
     "infoNote": "状态通过 SSH 检查。启动、停止和重启在后台运行——进度在卡片中实时显示。",
+    "unknownState": "状态未知——请刷新后重试",
     "typeLabel": "类型",
     "refresh": "刷新",
     "states": {

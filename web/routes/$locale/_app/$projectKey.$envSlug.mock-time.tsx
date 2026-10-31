@@ -62,7 +62,7 @@ function MockTimePage() {
             <Clock className="size-5 text-muted-foreground" />
             <CardTitle className="text-base">{t("formTitle")}</CardTitle>
             <Badge
-              variant={hasApi ? "default" : "secondary"}
+              variant={hasApi ? "outline" : "secondary"}
               className="ml-auto gap-1"
             >
               <ServerCog className="size-3" />
