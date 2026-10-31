@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
 import type { Notification } from "@/web/api/notifications";
 import {
@@ -59,12 +60,14 @@ export function NotificationBell({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative size-8"
-            aria-label={t("ariaLabel")}
-          />
+          <TooltipHint label={t("ariaLabel")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative size-8"
+              aria-label={t("ariaLabel")}
+            />
+          </TooltipHint>
         }
       >
         <Bell className="size-4" />

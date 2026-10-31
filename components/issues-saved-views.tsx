@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { createSavedView, deleteSavedView } from "@/web/api/saved-views";
 
 export type SavedViewItem = {
@@ -147,15 +148,17 @@ export function IssuesSavedViews({
                   className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/60"
                 >
                   <span className="truncate text-sm">{v.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("deleteView")}
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => onDelete(v)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <TooltipHint label={t("deleteView")}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("deleteView")}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => onDelete(v)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TooltipHint>
                 </li>
               ))}
             </ul>

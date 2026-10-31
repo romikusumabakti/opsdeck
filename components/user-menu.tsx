@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { StatusDialog } from "@/components/user/status-dialog";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { persistLocale } from "@/i18n/locale-preference";
@@ -117,14 +118,16 @@ export function UserMenu({
             variant === "sidebar" ? (
               <SidebarUserTrigger user={user} label={t("ariaLabel")} />
             ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="rounded-full"
-                aria-label={t("ariaLabel")}
-              >
-                <UserAvatar user={user} size="md" />
-              </Button>
+              <TooltipHint label={t("ariaLabel")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  aria-label={t("ariaLabel")}
+                >
+                  <UserAvatar user={user} size="md" />
+                </Button>
+              </TooltipHint>
             )
           }
         />

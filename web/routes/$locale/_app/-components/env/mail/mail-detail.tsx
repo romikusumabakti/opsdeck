@@ -4,6 +4,7 @@ import { useFormatter, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { DATE_TIME_SECONDS } from "@/lib/format-date";
 import type { MailAddress } from "@/lib/mailpit/schemas";
 import { formatBytes } from "@/lib/utils";
@@ -142,15 +143,17 @@ export function MailDetailPane({
           <Download className="size-4" />
           {t("downloadEml")}
         </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          disabled={deleting}
-          onClick={() => onDelete(message.ID)}
-          aria-label={t("delete")}
-        >
-          <Trash2 className="size-4" />
-        </Button>
+        <TooltipHint label={t("delete")}>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            disabled={deleting}
+            onClick={() => onDelete(message.ID)}
+            aria-label={t("delete")}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </TooltipHint>
       </div>
 
       {files.length > 0 && (

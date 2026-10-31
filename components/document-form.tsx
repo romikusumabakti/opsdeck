@@ -40,6 +40,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
+  TooltipHint,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
@@ -217,12 +218,14 @@ export function DocumentForm({
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={tCommon("more")}
-                    disabled={isPending}
-                  />
+                  <TooltipHint label={tCommon("more")}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={tCommon("more")}
+                      disabled={isPending}
+                    />
+                  </TooltipHint>
                 }
               >
                 <MoreHorizontal className="size-4" />

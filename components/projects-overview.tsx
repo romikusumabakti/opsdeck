@@ -25,6 +25,7 @@ import {
 import {
   Tooltip,
   TooltipContent,
+  TooltipHint,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
@@ -262,15 +263,17 @@ function ProjectCard({
                 </Button>
               )}
               {canUpdateEnvironment && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={tOv("editProject")}
-                  nativeButton={false}
-                  render={<Link href={`/${project.key}/settings`} />}
-                >
-                  <Settings className="size-4" />
-                </Button>
+                <TooltipHint label={tOv("editProject")}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={tOv("editProject")}
+                    nativeButton={false}
+                    render={<Link href={`/${project.key}/settings`} />}
+                  >
+                    <Settings className="size-4" />
+                  </Button>
+                </TooltipHint>
               )}
             </div>
           ) : null}

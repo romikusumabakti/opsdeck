@@ -12,6 +12,7 @@ import * as React from "react";
 import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type TaskStatus = "started" | "success" | "failed";
@@ -215,14 +216,16 @@ export function LiveRunPanel({ runId, onDismiss, onSuccess, onRetry }: Props) {
           </Button>
         )}
         {onDismiss && status !== "started" && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onDismiss}
-            aria-label={t("dismiss")}
-          >
-            <X className="size-4" />
-          </Button>
+          <TooltipHint label={t("dismiss")}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onDismiss}
+              aria-label={t("dismiss")}
+            >
+              <X className="size-4" />
+            </Button>
+          </TooltipHint>
         )}
       </div>
 

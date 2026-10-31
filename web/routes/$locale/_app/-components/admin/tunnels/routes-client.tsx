@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TooltipHint } from "@/components/ui/tooltip";
 import {
   attachTunnelNetwork,
   deleteTunnelRoute,
@@ -239,16 +240,17 @@ export function RoutesClient({
                   </TableCell>
                   {canManage ? (
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={tCommon("delete")}
-                        title={tCommon("delete")}
-                        disabled={isPending}
-                        onClick={() => onDelete(route)}
-                      >
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
+                      <TooltipHint label={tCommon("delete")}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={tCommon("delete")}
+                          disabled={isPending}
+                          onClick={() => onDelete(route)}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      </TooltipHint>
                     </TableCell>
                   ) : null}
                 </TableRow>

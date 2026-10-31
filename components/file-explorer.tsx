@@ -58,6 +58,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
 import type { ExplorerSource } from "@/lib/explorer";
 import {
@@ -1015,13 +1016,16 @@ export function FileExplorer({ source, rootLabel }: Props) {
       >
         <DropdownMenuTrigger
           render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onContextMenu={stopContextMenu}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
+            <TooltipHint label={tCommon("more")}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={tCommon("more")}
+                onContextMenu={stopContextMenu}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </TooltipHint>
           }
         />
         <DropdownMenuContent align="end">
@@ -1341,16 +1345,18 @@ export function FileExplorer({ source, rootLabel }: Props) {
                   <Trash2 className="size-4" />
                   {tCommon("delete")}
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="rounded-full"
-                  onClick={clearSelection}
-                  aria-label={t("clearSelection")}
-                >
-                  <X className="size-4" />
-                </Button>
+                <TooltipHint label={t("clearSelection")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full"
+                    onClick={clearSelection}
+                    aria-label={t("clearSelection")}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </TooltipHint>
               </div>
             </div>
           ) : null}
@@ -1434,26 +1440,30 @@ export function FileExplorer({ source, rootLabel }: Props) {
           {/* View toggle. Two buttons rather than one that flips: which view is
               active has to be readable without first decoding the icon. */}
           <div className="flex items-center gap-0.5 rounded-md border p-0.5">
-            <Button
-              type="button"
-              variant={view === "list" ? "secondary" : "ghost"}
-              size="icon-sm"
-              aria-pressed={view === "list"}
-              aria-label={t("listView")}
-              onClick={() => chooseView("list")}
-            >
-              <List className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={view === "grid" ? "secondary" : "ghost"}
-              size="icon-sm"
-              aria-pressed={view === "grid"}
-              aria-label={t("gridView")}
-              onClick={() => chooseView("grid")}
-            >
-              <LayoutGrid className="size-4" />
-            </Button>
+            <TooltipHint label={t("listView")}>
+              <Button
+                type="button"
+                variant={view === "list" ? "secondary" : "ghost"}
+                size="icon-sm"
+                aria-pressed={view === "list"}
+                aria-label={t("listView")}
+                onClick={() => chooseView("list")}
+              >
+                <List className="size-4" />
+              </Button>
+            </TooltipHint>
+            <TooltipHint label={t("gridView")}>
+              <Button
+                type="button"
+                variant={view === "grid" ? "secondary" : "ghost"}
+                size="icon-sm"
+                aria-pressed={view === "grid"}
+                aria-label={t("gridView")}
+                onClick={() => chooseView("grid")}
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+            </TooltipHint>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger
