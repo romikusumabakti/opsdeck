@@ -1553,8 +1553,7 @@
       "statusFailed": "Gagal mengubah status."
     },
     "running": {
-      "title": "Berjalan",
-      "empty": "Tidak ada yang berjalan."
+      "title": "Berjalan"
     },
     "recent": {
       "title": "Lanjutkan",

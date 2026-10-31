@@ -232,7 +232,9 @@ function ServiceCard({
   const busy = loading || pendingAction !== null || !canControl;
   // One toggle that matches the last known state; neither when it is unknown.
   const hasToggle = state === "running" || state === "stopped";
-  const restartUnavailable = state === "not-found" || state === "unknown";
+  // No tooltip while the first status is still loading.
+  const restartUnavailable =
+    state === "not-found" || (state === "unknown" && !(loading && !status));
   // Closing the dialog (X / ESC / overlay-click) clears the run and re-fetches
   // status. The run itself keeps running server-side even if the user dismisses
   // early — refresh will surface the eventual final state.

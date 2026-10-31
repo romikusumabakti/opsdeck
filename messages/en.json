@@ -1553,8 +1553,7 @@
       "statusFailed": "Couldn't update the status."
     },
     "running": {
-      "title": "Running",
-      "empty": "Nothing running."
+      "title": "Running"
     },
     "recent": {
       "title": "Jump back in",

@@ -1553,8 +1553,7 @@
       "statusFailed": "无法更新状态。"
     },
     "running": {
-      "title": "运行中",
-      "empty": "没有正在运行的任务。"
+      "title": "运行中"
     },
     "recent": {
       "title": "快速返回",

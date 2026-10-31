@@ -32,44 +32,44 @@ export function RunningRail() {
     if (finished) router.refresh({ includeRemote: true });
   }, [runs, router]);
 
-  if (runs.length === 0) return null;
-
   return (
     <>
-      <HomeSection
-        icon={Loader2}
-        iconClassName="animate-spin text-primary"
-        title={t("running.title")}
-        count={runs.length}
-      >
-        <ul className="flex flex-col divide-y">
-          {runs.map((run) => (
-            <li key={run.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenTitle(run.description);
-                  setOpenRunId(run.id);
-                }}
-                className="flex w-full flex-col items-start px-3 py-2 text-left transition-colors hover:bg-accent/50"
-              >
-                <span
-                  className="w-full truncate text-sm"
-                  title={run.description}
+      {runs.length > 0 && (
+        <HomeSection
+          icon={Loader2}
+          iconClassName="animate-spin text-primary"
+          title={t("running.title")}
+          count={runs.length}
+        >
+          <ul className="flex flex-col divide-y">
+            {runs.map((run) => (
+              <li key={run.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenTitle(run.description);
+                    setOpenRunId(run.id);
+                  }}
+                  className="flex w-full flex-col items-start px-3 py-2 text-left transition-colors hover:bg-accent/50"
                 >
-                  {run.description}
-                </span>
-                <span className="w-full truncate text-xs text-muted-foreground">
-                  {run.environment?.name ?? "—"} ·{" "}
-                  <span className="tabular-nums">
-                    {formatElapsed(run.runAt, now)}
+                  <span
+                    className="w-full truncate text-sm"
+                    title={run.description}
+                  >
+                    {run.description}
                   </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </HomeSection>
+                  <span className="w-full truncate text-xs text-muted-foreground">
+                    {run.environment?.name ?? "—"} ·{" "}
+                    <span className="tabular-nums">
+                      {formatElapsed(run.runAt, now)}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </HomeSection>
+      )}
       <LiveRunDialog
         runId={openRunId}
         onOpenChange={(isOpen) => {
