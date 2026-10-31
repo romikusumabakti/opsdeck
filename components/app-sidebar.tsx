@@ -118,6 +118,17 @@ const adminItems: {
 ];
 
 /**
+ * Tooltip for a row that may carry a count badge. Rows without a count keep
+ * the default behaviour (the name, shown only when collapsed to icons); with a
+ * count the tooltip also explains the number, and shows in expanded mode too,
+ * since the badge itself must stay click-through to the link.
+ */
+function rowTooltip(name: string, count: number, label: string) {
+  if (count <= 0) return name;
+  return { children: `${name} · ${label}`, hidden: false };
+}
+
+/**
  * The motif in the bottom corner of the sidebar. The sidebar sits at the
  * screen's start edge, so the ornament hugs the bottom-start corner, which is
  * the screen corner. The art's own corner is bottom-right, so it is mirrored in
@@ -198,6 +209,9 @@ export function AppSidebar({
   // happening right now", not a stored count.
   const envRunCount = useActiveRunCount(activeEnv?.id ?? null);
   const anyRunActive = useActiveRuns().length > 0;
+  const assignedLabel = tNav("badgeAssignedOpen", {
+    count: issueCounts.total,
+  });
 
   return (
     <Sidebar collapsible="icon" side={side}>
@@ -216,7 +230,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
 
-      <div className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="relative isolate flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         <SidebarMotif />
         {/* The global group is pinned; only the contextual group (admin or
             environment) scrolls, so Home…Admin never leave a short viewport. */}
@@ -247,16 +261,18 @@ export function AppSidebar({
                 <SidebarMenuButton
                   render={<Link href="/issues" />}
                   isActive={pathname.startsWith("/issues")}
-                  tooltip={tNav("allIssues")}
+                  tooltip={rowTooltip(
+                    tNav("allIssues"),
+                    issueCounts.total,
+                    assignedLabel
+                  )}
                 >
                   <CircleDot />
                   <span>{tNav("allIssues")}</span>
                 </SidebarMenuButton>
                 <SidebarCountBadge
                   count={issueCounts.total}
-                  label={tNav("badgeAssignedOpen", {
-                    count: issueCounts.total,
-                  })}
+                  label={assignedLabel}
                 />
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -366,31 +382,46 @@ export function AppSidebar({
                         item.url === ""
                           ? pathname === itemPath
                           : pathname.startsWith(itemPath);
+                      const badge =
+                        item.key === "issues"
+                          ? {
+                              count: envIssueCount,
+                              label: tNav("badgeProjectOpen", {
+                                count: envIssueCount,
+                              }),
+                            }
+                          : item.key === "history"
+                            ? {
+                                count: envRunCount,
+                                label: tNav("badgeActiveRuns", {
+                                  count: envRunCount,
+                                }),
+                              }
+                            : null;
                       return (
                         <SidebarMenuItem key={item.key}>
                           <SidebarMenuButton
                             render={<Link href={itemPath} />}
                             isActive={isActive}
-                            tooltip={tNav(item.key)}
+                            tooltip={
+                              badge
+                                ? rowTooltip(
+                                    tNav(item.key),
+                                    badge.count,
+                                    badge.label
+                                  )
+                                : tNav(item.key)
+                            }
                           >
                             <item.icon />
                             <span>{tNav(item.key)}</span>
                           </SidebarMenuButton>
-                          {item.key === "issues" && (
+                          {badge && (
                             <SidebarCountBadge
-                              count={envIssueCount}
-                              label={tNav("badgeProjectOpen", {
-                                count: envIssueCount,
-                              })}
-                            />
-                          )}
-                          {item.key === "history" && (
-                            <SidebarCountBadge
-                              count={envRunCount}
-                              variant="active"
-                              label={tNav("badgeActiveRuns", {
-                                count: envRunCount,
-                              })}
+                              {...badge}
+                              variant={
+                                item.key === "history" ? "active" : "default"
+                              }
                             />
                           )}
                         </SidebarMenuItem>
