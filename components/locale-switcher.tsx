@@ -34,20 +34,20 @@ export function LocaleSwitcher() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <TooltipHint label={t("ariaLabel")}>
+      <TooltipHint label={t("ariaLabel")}>
+        <DropdownMenuTrigger
+          render={
             <Button
               variant="ghost"
               size="icon"
               aria-label={t("ariaLabel")}
               disabled={pending}
             />
-          </TooltipHint>
-        }
-      >
-        <Languages className="size-4" />
-      </DropdownMenuTrigger>
+          }
+        >
+          <Languages className="size-4" />
+        </DropdownMenuTrigger>
+      </TooltipHint>
       <DropdownMenuContent align="end" className="w-44">
         {locales.map((locale) => (
           <DropdownMenuItem

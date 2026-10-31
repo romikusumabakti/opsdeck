@@ -23,21 +23,21 @@ export function ThemeToggle() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <TooltipHint label={t("ariaLabel")}>
+      <TooltipHint label={t("ariaLabel")}>
+        <DropdownMenuTrigger
+          render={
             <Button
               variant="ghost"
               size="icon"
               aria-label={t("ariaLabel")}
               className="relative"
             />
-          </TooltipHint>
-        }
-      >
-        <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-        <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-      </DropdownMenuTrigger>
+          }
+        >
+          <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+          <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+        </DropdownMenuTrigger>
+      </TooltipHint>
       <DropdownMenuContent align="end" className="w-36">
         {options.map(({ value, icon: Icon }) => (
           <DropdownMenuItem

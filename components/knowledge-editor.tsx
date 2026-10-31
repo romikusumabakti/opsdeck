@@ -628,9 +628,9 @@ export function KnowledgeEditor({
           <TableIcon className="size-4" />
         </ToolbarButton>
         <Popover open={linkOpen} onOpenChange={onLinkOpenChange}>
-          <PopoverTrigger
-            render={
-              <TooltipHint label={linkInputLabels?.label ?? "Link"}>
+          <TooltipHint label={linkInputLabels?.label ?? "Link"}>
+            <PopoverTrigger
+              render={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -638,11 +638,11 @@ export function KnowledgeEditor({
                   aria-label={linkInputLabels?.label ?? "Link"}
                   aria-pressed={active.link}
                 />
-              </TooltipHint>
-            }
-          >
-            <Link2 className="size-4" />
-          </PopoverTrigger>
+              }
+            >
+              <Link2 className="size-4" />
+            </PopoverTrigger>
+          </TooltipHint>
           <PopoverContent
             align="start"
             className="w-80"
@@ -712,9 +712,9 @@ export function KnowledgeEditor({
             accessibility/SEO label, so it must be editable after the
             upload-time filename default. */}
         <Popover open={altOpen} onOpenChange={onAltOpenChange}>
-          <PopoverTrigger
-            render={
-              <TooltipHint label={imageAltLabels?.edit ?? "Edit alt text"}>
+          <TooltipHint label={imageAltLabels?.edit ?? "Edit alt text"}>
+            <PopoverTrigger
+              render={
                 <Button
                   type="button"
                   size="icon-sm"
@@ -722,11 +722,11 @@ export function KnowledgeEditor({
                   disabled={!active.image}
                   aria-label={imageAltLabels?.edit ?? "Edit alt text"}
                 />
-              </TooltipHint>
-            }
-          >
-            <TextCursorInput className="size-4" />
-          </PopoverTrigger>
+              }
+            >
+              <TextCursorInput className="size-4" />
+            </PopoverTrigger>
+          </TooltipHint>
           <PopoverContent
             align="start"
             className="w-80"

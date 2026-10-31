@@ -81,19 +81,19 @@ export function DocumentActions({
       </Button>
 
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <TooltipHint label={tCommon("more")}>
+        <TooltipHint label={tCommon("more")}>
+          <DropdownMenuTrigger
+            render={
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label={tCommon("more")}
               />
-            </TooltipHint>
-          }
-        >
-          <MoreHorizontal className="size-4" />
-        </DropdownMenuTrigger>
+            }
+          >
+            <MoreHorizontal className="size-4" />
+          </DropdownMenuTrigger>
+        </TooltipHint>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={copyLink}>
             <Link2 className="size-4" />
