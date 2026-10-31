@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { canProject } from "@/lib/permissions";
+import { canAnyProject, canProject } from "@/lib/permissions";
 import { dbService } from "@/lib/services";
 import { type getBackupList, getBackupListQuery } from "@/web/api/backups";
 import { getDatabaseListQuery } from "@/web/api/databases";
@@ -18,7 +18,8 @@ import { DatabasesTabs } from "./-components/env/databases/databases-tabs";
 import { DatabasesTabsSkeleton } from "./-components/env/databases/databases-tabs-skeleton";
 import { DatabasesPending } from "./-components/env/skeletons";
 
-// Stands in for the backup list when the role cannot back up: nothing to fetch.
+// Stands in for the backup list when the role can neither back up nor restore:
+// nothing to fetch.
 const NO_BACKUPS = queryOptions({
   queryKey: ["backups", "getBackupList", ["none"] as [string]],
   queryFn: (): ReturnType<typeof getBackupList> =>
@@ -40,13 +41,16 @@ export const Route = createFileRoute(
         : undefined,
   }),
   // Any project role may open the page (the Manage tab lists databases on
-  // project:read); Backup and Restore only render for roles that may use them.
+  // project:read); Backup (the list) and Restore only render for roles that may
+  // use them.
   loader: async ({ context: { queryClient, environmentId, role } }) => {
     // The DB/backup lists are synchronous SSH probes to the remote DB host;
     // they stream behind Suspense so the tab shell paints instantly instead
     // of blocking the page on remote latency. Start them, don't await.
     void queryClient.prefetchQuery(getDatabaseListQuery(environmentId));
-    if (canProject(role, { database: ["backup"] })) {
+    if (
+      canAnyProject(role, [{ database: ["backup"] }, { database: ["restore"] }])
+    ) {
       void queryClient.prefetchQuery(getBackupListQuery(environmentId));
     }
     void queryClient.prefetchQuery(listEnvironmentsQuery());
@@ -66,13 +70,14 @@ function DatabasesPage() {
   ).data;
   const canBackup = canProject(role, { database: ["backup"] });
   const canRestore = canProject(role, { database: ["restore"] });
+  const canListBackups = canBackup || canRestore;
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
   }
 
   const allowedTabs = [
-    ...(canBackup ? (["backup"] as const) : []),
+    ...(canListBackups ? (["backup"] as const) : []),
     ...(canRestore ? (["restore"] as const) : []),
     "manage" as const,
   ];
@@ -101,6 +106,7 @@ function DatabasesPage() {
               defaultTab={defaultTab}
               canBackup={canBackup}
               canRestore={canRestore}
+              canListBackups={canListBackups}
             />
           </Suspense>
         </CardContent>
@@ -116,20 +122,22 @@ function DatabasesContent({
   defaultTab,
   canBackup,
   canRestore,
+  canListBackups,
 }: {
   environment: EnvironmentWithServers;
   defaultTab: Tab;
   canBackup: boolean;
   canRestore: boolean;
+  canListBackups: boolean;
 }) {
   // Best-effort enumeration; both lists degrade gracefully so a single failing
   // probe never blocks the page from rendering the other tabs. `allProjects`
   // feeds the restore tab's "source environment" picker (filtered client-side
   // to ones sharing this environment's DB location).
   const dbResult = useSuspenseQuery(getDatabaseListQuery(environment.id)).data;
-  // getBackupList needs database:backup and fails without it.
+  // getBackupList needs database:backup or database:restore and fails without.
   const backupResult = useSuspenseQuery(
-    canBackup ? getBackupListQuery(environment.id) : NO_BACKUPS
+    canListBackups ? getBackupListQuery(environment.id) : NO_BACKUPS
   ).data;
   const allProjects = useSuspenseQuery(listEnvironmentsQuery()).data;
   const databases = dbResult.success

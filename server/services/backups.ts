@@ -1,10 +1,13 @@
-import { requireProjectPermission } from "@/lib/authz";
+import {
+  requireAnyProjectPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
+import { backupListCommand, parseBackupListing } from "@/lib/backup-listing";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, dbConfig } from "@/lib/services";
-import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import type { Backup } from "@/lib/types";
 import {
@@ -46,11 +49,11 @@ async function probeBackupList(environmentId: string): Promise<Backup[]> {
   // from the dropdown.
   const extensionPattern = dbBackupExtensionPattern(dbSvc.dbType);
 
-  // `grep -E` for the optional `.gz` alternation. Run as the DB's OS user
-  // for systemd so the listing works even when the backup dir is mode 700
-  // (typical for Postgres data dirs and mssql backup dirs); no-op for
-  // docker/kubernetes where the exec wrapper already enters the container.
-  const inner = `ls -lt ${shq(dbSvc.dbBackupPath)} | grep -E ${shq(`${extensionPattern}$`)} | awk '{print $5, $9}'`;
+  // Run as the DB's OS user for systemd so the listing works even when the
+  // backup dir is mode 700 (typical for Postgres data dirs and mssql backup
+  // dirs); no-op for docker/kubernetes where the exec wrapper already enters
+  // the container.
+  const inner = backupListCommand(dbSvc.dbBackupPath);
   const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: dbOsUser(dbSvc.dbType),
     sudoPassword: dbSvc.server.password,
@@ -64,20 +67,17 @@ async function probeBackupList(environmentId: string): Promise<Backup[]> {
     cmd
   );
 
-  return output
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [size, name] = line.trim().split(/\s+/);
-      return size && name ? { name, size } : null;
-    })
-    .filter((entry) => entry !== null);
+  return parseBackupListing(output, extensionPattern);
 }
 
 export async function getBackupList(
   environmentId: string
 ): Promise<BackupListResult> {
-  await requireProjectPermission({ environmentId }, { database: ["backup"] });
+  // The Restore flow needs the list as much as the Backup tab does.
+  await requireAnyProjectPermission({ environmentId }, [
+    { database: ["backup"] },
+    { database: ["restore"] },
+  ]);
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, error: "Invalid environment id" };
   }

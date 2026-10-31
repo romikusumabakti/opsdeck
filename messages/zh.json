@@ -315,11 +315,9 @@
     "subtitle": "为 {dbName} 创建新的备份快照。",
     "targetTitle": "备份目标",
     "targetDescription": "以下数据库将被转储并存储在配置的备份路径中。",
-    "infoNote": "备份在后台运行——进度实时显示在下方。您也可以在历史记录中查看过去的运行。",
-    "button": "立即运行备份",
+    "runBackup": "运行备份",
     "queuing": "加入队列中…",
     "confirmTitle": "备份数据库",
-    "confirmDescription": "确定要为数据库 {dbName} 创建备份吗？",
     "confirmButton": "备份",
     "successTitle": "备份已加入队列",
     "successDescription": "数据库 {dbName} 的备份已加入队列。",
@@ -333,8 +331,7 @@
     "defaultSuffix": "（默认）",
     "selectDatabase": "选择数据库…",
     "searchDatabase": "搜索数据库…",
-    "noDatabase": "未找到数据库。",
-    "advancedOptions": "高级选项"
+    "noDatabase": "未找到数据库。"
   },
   "restoreDb": {
     "title": "还原数据库",
@@ -379,6 +376,12 @@
   "databases": {
     "title": "数据库",
     "subtitle": "在该环境的数据库服务器上备份、恢复和管理数据库。",
+    "backupListTitle": "备份",
+    "colBackupName": "名称",
+    "colModified": "修改时间",
+    "colSize": "大小",
+    "noBackupsTitle": "还没有备份",
+    "noBackupsDescription": "为此环境创建的备份将显示在这里。",
     "cardTitle": "管理数据库",
     "cardDescription": "添加新数据库或删除现有数据库。该环境配置的数据库无法删除。",
     "createLabel": "新数据库名称",

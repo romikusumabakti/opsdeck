@@ -1,6 +1,9 @@
 export interface Backup {
   name: string;
-  size: string;
+  /** Bytes. */
+  size: number;
+  /** ISO 8601 modification time. */
+  modifiedAt: string;
 }
 
 /** The minimum needed to render a user as an avatar and a linked name. */

@@ -1,19 +1,24 @@
-import { ChevronDown, Database, FileArchive } from "lucide-react";
+import { Database, FileArchive } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
 import { DatabasePicker } from "@/components/database-picker";
-import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "@/i18n/navigation";
 import { dbService } from "@/lib/services";
-import { cn } from "@/lib/utils";
 import { createDatabaseBackup } from "@/web/api/backups";
 import type { DatabaseEntry } from "@/web/api/databases";
 import type { EnvironmentWithServers } from "@/web/api/environments";
@@ -28,33 +33,26 @@ function extractFilename(output: string): string | null {
   return match?.[1] ?? null;
 }
 
+// The "Run backup" button. It opens a small dialog for the target database and
+// compression (defaults: the environment's database, compressed); confirming
+// there queues the backup and streams the run.
 export function BackupDatabase({
   environment,
   databases,
-  fixedDatabase,
 }: {
   environment: EnvironmentWithServers;
   databases: DatabaseEntry[];
-  // When set (e.g. the Databases row action), this database is the fixed
-  // source and the in-panel picker is hidden.
-  fixedDatabase?: string;
 }) {
   const t = useTranslations("backupDb");
   const tCommon = useTranslations("common");
-  const tDash = useTranslations("dashboard");
   const canRunOps = useProjectCan({ database: ["backup"] });
-  const dialog = useDialog();
   const router = useRouter();
   const dbSvc = dbService(environment);
+  const [optionsOpen, setOptionsOpen] = React.useState(false);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
   const [lastFilename, setLastFilename] = React.useState<string | null>(null);
   const [compress, setCompress] = React.useState(true);
-  // Database target + compression stay hidden until opened so the common path
-  // is a single "Backup" click on the default DB.
-  const [advancedOpen, setAdvancedOpen] = React.useState(false);
-  const [database, setDatabase] = React.useState(
-    fixedDatabase ?? dbSvc.dbName ?? ""
-  );
+  const [database, setDatabase] = React.useState(dbSvc.dbName ?? "");
   const [submitting, startTransition] = React.useTransition();
 
   const runBackup = React.useCallback(() => {
@@ -64,6 +62,7 @@ export function BackupDatabase({
           compress,
           database,
         });
+        setOptionsOpen(false);
         setActiveTaskId(runId);
         toast.success(t("successTitle"), {
           description: t("successDescription", { dbName: database }),
@@ -75,17 +74,6 @@ export function BackupDatabase({
       }
     });
   }, [environment, compress, database, t, tCommon]);
-
-  async function onClick() {
-    const ok = await dialog.confirm({
-      title: t("confirmTitle"),
-      description: t("confirmDescription", { dbName: database }),
-      confirmText: t("confirmButton"),
-      cancelText: tCommon("cancel"),
-    });
-    if (!ok) return;
-    runBackup();
-  }
 
   async function onTaskSuccess(snapshot: { output: string }) {
     // The run finished out of band, so no mutation response invalidated the
@@ -111,128 +99,68 @@ export function BackupDatabase({
     });
   }
 
-  const compressField = (
-    <div className="flex items-start gap-2">
-      <Checkbox
-        id="backup-compress"
-        checked={compress}
-        onCheckedChange={(checked) => setCompress(checked === true)}
-        disabled={submitting}
-        className="mt-0.5"
-      />
-      <Label
-        htmlFor="backup-compress"
-        className="text-sm font-normal cursor-pointer"
-      >
-        <span className="flex flex-col gap-0.5">
-          <span>{t("compressLabel")}</span>
-          <span className="text-xs text-muted-foreground">
-            {t("compressHint")}
-          </span>
-        </span>
-      </Label>
-    </div>
-  );
-
   return (
-    <div className="flex flex-col gap-4 w-full">
-      {fixedDatabase ? (
-        compressField
-      ) : (
-        <>
-          {/* Compact labelled context. The target DB is dropped once Advanced
-              is open, where the picker surfaces and edits it. */}
-          <dl className="flex flex-wrap gap-x-8 gap-y-3 rounded-md border bg-muted/30 p-3 text-sm">
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                {tDash("dbType")}
-              </dt>
-              <dd>
-                <Badge variant="secondary">
-                  {tDash(`dbTypes.${dbSvc.dbType ?? ""}`)}
-                </Badge>
-              </dd>
-            </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                {tDash("server")}
-              </dt>
-              <dd className="truncate">{dbSvc.server.name}</dd>
-            </div>
-            {!advancedOpen && (
-              <div className="flex flex-col gap-1">
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {t("databaseLabel")}
-                </dt>
-                <dd className="flex items-center gap-2">
-                  <code className="font-mono text-sm">{database}</code>
-                  {database === (dbSvc.dbName ?? "") && (
-                    <span className="text-xs text-muted-foreground">
-                      {t("defaultSuffix")}
-                    </span>
-                  )}
-                </dd>
-              </div>
-            )}
-          </dl>
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            aria-expanded={advancedOpen}
-            className="flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                "size-4 transition-transform",
-                advancedOpen && "rotate-180"
-              )}
+    <>
+      <Button onClick={() => setOptionsOpen(true)} disabled={!canRunOps}>
+        <Database className="size-4" />
+        {t("runBackup")}
+      </Button>
+      <Dialog open={optionsOpen} onOpenChange={setOptionsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("confirmTitle")}</DialogTitle>
+            <DialogDescription>{t("targetDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="backup-database-picker">{t("databaseLabel")}</Label>
+            <DatabasePicker
+              id="backup-database-picker"
+              databases={databases}
+              value={database}
+              onChange={setDatabase}
+              disabled={submitting}
+              defaultSuffix={t("defaultSuffix")}
+              placeholder={t("selectDatabase")}
+              searchPlaceholder={t("searchDatabase")}
+              emptyText={t("noDatabase")}
             />
-            {t("advancedOptions")}
-          </button>
-          {advancedOpen && (
-            <>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="backup-database-picker">
-                  {t("databaseLabel")}
-                </Label>
-                <DatabasePicker
-                  id="backup-database-picker"
-                  databases={databases}
-                  value={database}
-                  onChange={setDatabase}
-                  disabled={submitting}
-                  defaultSuffix={t("defaultSuffix")}
-                  placeholder={t("selectDatabase")}
-                  searchPlaceholder={t("searchDatabase")}
-                  emptyText={t("noDatabase")}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("databaseHint")}
-                </p>
-              </div>
-              {compressField}
-            </>
-          )}
-        </>
-      )}
-      <div className="flex justify-end">
-        <Button onClick={onClick} disabled={submitting || !canRunOps}>
-          <Database className="size-4" />
-          {submitting ? t("queuing") : t("button")}
-        </Button>
-      </div>
-      {lastFilename && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-          <FileArchive className="size-4 shrink-0 text-muted-foreground" />
-          <span className="text-muted-foreground shrink-0">
-            {t("lastFileLabel")}
-          </span>
-          <code className="font-mono text-xs truncate flex-1 min-w-0">
-            {lastFilename}
-          </code>
-          <CopyButton value={lastFilename} label={tCommon("copy")} />
-        </div>
-      )}
+            <p className="text-xs text-muted-foreground">{t("databaseHint")}</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="backup-compress"
+              checked={compress}
+              onCheckedChange={(checked) => setCompress(checked === true)}
+              disabled={submitting}
+              className="mt-0.5"
+            />
+            <Label
+              htmlFor="backup-compress"
+              className="text-sm font-normal cursor-pointer"
+            >
+              <span className="flex flex-col gap-0.5">
+                <span>{t("compressLabel")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {t("compressHint")}
+                </span>
+              </span>
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setOptionsOpen(false)}
+              disabled={submitting}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button onClick={runBackup} disabled={submitting || !database}>
+              <Database className="size-4" />
+              {submitting ? t("queuing") : t("confirmButton")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <LiveRunDialog
         runId={activeTaskId}
         onOpenChange={(open) => {
@@ -257,6 +185,6 @@ export function BackupDatabase({
           ) : null
         }
       />
-    </div>
+    </>
   );
 }

@@ -9,6 +9,7 @@ import {
   projects,
 } from "@/lib/db/schema";
 import {
+  canAnyProject,
   canOrg,
   canProject,
   effectiveProjectRole,
@@ -204,6 +205,18 @@ export async function requireProjectPermission(
   const { session, projectId, role } = await resolveScoped(scope);
   if (!projectId || !role) notFound();
   if (!canProject(role, perms)) throw new ForbiddenError();
+  return { session, role, projectId };
+}
+
+// Like requireProjectPermission, but one of several alternative requests is
+// enough (e.g. a listing that backup or restore roles may both read).
+export async function requireAnyProjectPermission(
+  scope: ProjectScope,
+  alternatives: ProjectPermissions[]
+): Promise<{ session: Session; role: ProjectRole; projectId: string }> {
+  const { session, projectId, role } = await resolveScoped(scope);
+  if (!projectId || !role) notFound();
+  if (!canAnyProject(role, alternatives)) throw new ForbiddenError();
   return { session, role, projectId };
 }
 

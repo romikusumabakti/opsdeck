@@ -315,11 +315,9 @@
     "subtitle": "Crea una nueva instantánea de copia de seguridad de {dbName}.",
     "targetTitle": "Destino de la copia de seguridad",
     "targetDescription": "Se volcará la base de datos indicada abajo y se guardará en la ruta de copias configurada.",
-    "infoNote": "Las copias de seguridad se ejecutan en segundo plano: el progreso se transmite abajo. También puedes revisar ejecuciones anteriores en el Historial.",
-    "button": "Ejecutar copia ahora",
+    "runBackup": "Ejecutar copia de seguridad",
     "queuing": "Poniendo en cola…",
     "confirmTitle": "Copia de seguridad de la base de datos",
-    "confirmDescription": "¿Seguro que quieres crear una copia de seguridad de la base de datos {dbName}?",
     "confirmButton": "Copiar",
     "successTitle": "Copia de seguridad en cola",
     "successDescription": "Se ha puesto en cola una copia de seguridad de la base de datos {dbName}.",
@@ -333,8 +331,7 @@
     "defaultSuffix": "(predeterminada)",
     "selectDatabase": "Selecciona una base de datos…",
     "searchDatabase": "Buscar base de datos…",
-    "noDatabase": "No se encontró ninguna base de datos.",
-    "advancedOptions": "Opciones avanzadas"
+    "noDatabase": "No se encontró ninguna base de datos."
   },
   "restoreDb": {
     "title": "Restaurar base de datos",
@@ -379,6 +376,12 @@
   "databases": {
     "title": "Bases de datos",
     "subtitle": "Respalda, restaura y gestiona bases de datos en el servidor de base de datos del entorno.",
+    "backupListTitle": "Copias de seguridad",
+    "colBackupName": "Nombre",
+    "colModified": "Modificado",
+    "colSize": "Tamaño",
+    "noBackupsTitle": "Aún no hay copias de seguridad",
+    "noBackupsDescription": "Las copias de seguridad creadas para este entorno aparecerán aquí.",
     "cardTitle": "Gestionar bases de datos",
     "cardDescription": "Añade una base de datos nueva o elimina una existente. La base de datos configurada del entorno no se puede eliminar.",
     "createLabel": "Nombre de la nueva base de datos",

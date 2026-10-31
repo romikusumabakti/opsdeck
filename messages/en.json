@@ -315,11 +315,9 @@
     "subtitle": "Create a new backup snapshot of {dbName}.",
     "targetTitle": "Backup target",
     "targetDescription": "The database below will be dumped and stored on the configured backup path.",
-    "infoNote": "Backups run in the background — progress streams below. You can also review past runs in History.",
-    "button": "Run backup now",
+    "runBackup": "Run backup",
     "queuing": "Queuing…",
     "confirmTitle": "Backup database",
-    "confirmDescription": "Are you sure you want to create a backup for database {dbName}?",
     "confirmButton": "Backup",
     "successTitle": "Backup queued",
     "successDescription": "A backup for database {dbName} has been queued.",
@@ -333,8 +331,7 @@
     "defaultSuffix": "(default)",
     "selectDatabase": "Select database…",
     "searchDatabase": "Search database…",
-    "noDatabase": "No database found.",
-    "advancedOptions": "Advanced options"
+    "noDatabase": "No database found."
   },
   "restoreDb": {
     "title": "Restore database",
@@ -379,6 +376,12 @@
   "databases": {
     "title": "Databases",
     "subtitle": "Back up, restore and manage databases on the environment's database server.",
+    "backupListTitle": "Backups",
+    "colBackupName": "Name",
+    "colModified": "Modified",
+    "colSize": "Size",
+    "noBackupsTitle": "No backups yet",
+    "noBackupsDescription": "Backups created for this environment will appear here.",
     "cardTitle": "Manage databases",
     "cardDescription": "Add a new database or drop an existing one. The environment's configured database cannot be dropped.",
     "createLabel": "New database name",

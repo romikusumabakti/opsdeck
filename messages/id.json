@@ -315,11 +315,9 @@
     "subtitle": "Buat snapshot backup baru untuk {dbName}.",
     "targetTitle": "Target backup",
     "targetDescription": "Database di bawah akan di-dump dan disimpan di path backup yang dikonfigurasi.",
-    "infoNote": "Backup berjalan di background — progres tampil di bawah. Riwayat sebelumnya tersedia di halaman Riwayat.",
-    "button": "Jalankan backup sekarang",
+    "runBackup": "Jalankan backup",
     "queuing": "Mengantrikan…",
     "confirmTitle": "Backup database",
-    "confirmDescription": "Yakin ingin membuat backup untuk database {dbName}?",
     "confirmButton": "Backup",
     "successTitle": "Backup di-queue",
     "successDescription": "Backup untuk database {dbName} sudah di-queue.",
@@ -333,8 +331,7 @@
     "defaultSuffix": "(default)",
     "selectDatabase": "Pilih database…",
     "searchDatabase": "Cari database…",
-    "noDatabase": "Database tidak ditemukan.",
-    "advancedOptions": "Opsi lanjutan"
+    "noDatabase": "Database tidak ditemukan."
   },
   "restoreDb": {
     "title": "Restore database",
@@ -379,6 +376,12 @@
   "databases": {
     "title": "Database",
     "subtitle": "Backup, restore, dan kelola database di server database environment ini.",
+    "backupListTitle": "Backup",
+    "colBackupName": "Nama",
+    "colModified": "Diubah",
+    "colSize": "Ukuran",
+    "noBackupsTitle": "Belum ada backup",
+    "noBackupsDescription": "Backup yang dibuat untuk environment ini akan muncul di sini.",
     "cardTitle": "Kelola database",
     "cardDescription": "Tambah database baru atau hapus yang sudah ada. Database yang dikonfigurasi untuk environment ini tidak bisa dihapus.",
     "createLabel": "Nama database baru",

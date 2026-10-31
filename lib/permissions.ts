@@ -182,6 +182,15 @@ export function canProject(
   return projectRoles[role].authorize(perms as never).success;
 }
 
+// True when the role holds at least one of the alternatives (each alternative
+// is a full request, checked like canProject).
+export function canAnyProject(
+  role: ProjectRole | null,
+  alternatives: ProjectPermissions[]
+): boolean {
+  return alternatives.some((perms) => canProject(role, perms));
+}
+
 // Creating an environment binds it to servers (and their stored credentials),
 // so it needs org-level server:manage on top of environment:create on the
 // project. Changing an existing environment's bindings needs the same.

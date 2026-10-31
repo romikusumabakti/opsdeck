@@ -37,6 +37,7 @@ export function RestoreDatabase({
   backups,
   databases,
   sourceEnvironments,
+  initialBackup = "",
 }: {
   environment: EnvironmentWithServers;
   backups: Backup[];
@@ -44,13 +45,15 @@ export function RestoreDatabase({
   // Other projects sharing this environment's DB location, offered as alternative
   // backup sources. Empty when the environment has no compatible siblings.
   sourceEnvironments: EnvironmentListItem[];
+  // Backup file to pre-select (from this environment's own list).
+  initialBackup?: string;
 }) {
   const t = useTranslations("restoreDb");
   const tCommon = useTranslations("common");
   const canRunOps = useProjectCan({ database: ["restore"] });
   const dialog = useDialog();
   const [open, setOpen] = React.useState(false);
-  const [value, setValue] = React.useState("");
+  const [value, setValue] = React.useState(initialBackup);
   const [database, setDatabase] = React.useState(
     dbService(environment).dbName ?? ""
   );
@@ -369,18 +372,14 @@ export function RestoreDatabase({
           {submitting ? t("queuing") : t("restore")}
         </Button>
       </div>
-      {backup &&
-        (() => {
-          const backupSize = parseInt(backup.size, 10);
-          return (
-            <p className="text-xs text-muted-foreground">
-              {t("backupSize", {
-                sizeMb: (backupSize / 1_024 / 1_024).toFixed(2),
-                sizeBytes: backupSize.toLocaleString(),
-              })}
-            </p>
-          );
-        })()}
+      {backup && (
+        <p className="text-xs text-muted-foreground">
+          {t("backupSize", {
+            sizeMb: (backup.size / 1_024 / 1_024).toFixed(2),
+            sizeBytes: backup.size.toLocaleString(),
+          })}
+        </p>
+      )}
       {isDefaultDatabase && (
         <div className="flex items-start gap-2 mt-1">
           <Checkbox
