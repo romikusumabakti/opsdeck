@@ -1,6 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import {
   Mail,
   MessageSquare,
@@ -8,8 +7,9 @@ import {
   Settings,
   SquareArrowOutUpRight,
 } from "lucide-react";
-import { useFormatter, useLocale, useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
+import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { DATE_ONLY, DATE_TIME } from "@/lib/format-date";
 import { teamsChatUrl } from "@/lib/people/links";
 import { canOrg, effectiveProjectRole } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
@@ -83,7 +83,7 @@ function PersonPage() {
   const tIssues = useTranslations("issues");
   const tHistory = useTranslations("history");
   const format = useFormatter();
-  const dfLocale = getDateFnsLocale(useLocale());
+  const relativeTimeText = useRelativeTimeText();
   const isMe = me?.user.id === id;
   const canManage = canOrg(me?.orgRole, { user: ["update"] });
 
@@ -130,10 +130,10 @@ function PersonPage() {
                   <span className="text-muted-foreground">
                     {" · "}
                     {t("until", {
-                      date: format.dateTime(new Date(card.status.expiresAt), {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }),
+                      date: format.dateTime(
+                        new Date(card.status.expiresAt),
+                        DATE_TIME
+                      ),
                     })}
                   </span>
                 )}
@@ -170,17 +170,12 @@ function PersonPage() {
             )}
             <p className="text-xs text-muted-foreground">
               {t("memberSince", {
-                date: format.dateTime(new Date(meta.createdAt), {
-                  dateStyle: "medium",
-                }),
+                date: format.dateTime(new Date(meta.createdAt), DATE_ONLY),
               })}
               {" · "}
               {meta.lastActiveAt
                 ? t("lastActive", {
-                    ago: formatDistanceToNow(new Date(meta.lastActiveAt), {
-                      addSuffix: true,
-                      locale: dfLocale,
-                    }),
+                    ago: relativeTimeText(meta.lastActiveAt),
                   })
                 : t("neverActive")}
             </p>
@@ -350,10 +345,7 @@ function PersonPage() {
                     {r.environment.name} · {r.description}
                   </Link>
                   <span className="ms-auto shrink-0 text-muted-foreground">
-                    {formatDistanceToNow(new Date(r.runAt), {
-                      addSuffix: true,
-                      locale: dfLocale,
-                    })}
+                    <RelativeTime date={r.runAt} />
                   </span>
                 </li>
               ))}

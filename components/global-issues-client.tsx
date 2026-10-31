@@ -1,8 +1,7 @@
-import { formatDistanceToNow } from "date-fns";
 import { CircleDot, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import {
   type AssignableUser,
@@ -26,6 +25,7 @@ import {
   type SavedViewItem,
 } from "@/components/issues-saved-views";
 import { LabelChips } from "@/components/label-ui";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -44,7 +44,6 @@ import {
   useRouter,
   useSearchParams,
 } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { BOARD_LIMIT, TABLE_URL_KEY } from "@/lib/issue-query";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import type { UserRef } from "@/lib/types";
@@ -97,8 +96,6 @@ export function GlobalIssuesClient({
 }) {
   const t = useTranslations("issues");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const dateFnsLocale = getDateFnsLocale(locale);
   const dialog = useDialog();
   // next/navigation (not the localized wrapper): these calls rewrite the query
   // of the path we are already on, which is locale-prefixed already. The
@@ -383,10 +380,7 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(row.original.createdAt), {
-              addSuffix: true,
-              locale: dateFnsLocale,
-            })}
+            <RelativeTime date={row.original.createdAt} />
           </span>
         ),
         meta: { headClassName: "w-24", label: t("columnCreated") },
@@ -399,23 +393,13 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(row.original.updatedAt), {
-              addSuffix: true,
-              locale: dateFnsLocale,
-            })}
+            <RelativeTime date={row.original.updatedAt} />
           </span>
         ),
         meta: { headClassName: "w-24", label: t("columnUpdated") },
       },
     ],
-    [
-      dateFnsLocale,
-      onAssigneeChange,
-      onPriorityChange,
-      onStatusChange,
-      t,
-      users,
-    ]
+    [onAssigneeChange, onPriorityChange, onStatusChange, t, users]
   );
 
   const emptyState = (

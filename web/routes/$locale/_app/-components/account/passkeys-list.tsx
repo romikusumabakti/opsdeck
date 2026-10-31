@@ -11,6 +11,7 @@ import {
   isPasskeySupported,
   useListPasskeys,
 } from "@/lib/auth-client";
+import { DATE_ONLY } from "@/lib/format-date";
 
 /**
  * Codes a passkey ceremony reports when the user dismissed the browser sheet.
@@ -175,9 +176,10 @@ export function PasskeysList() {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {t("addedAt", {
-                      date: format.dateTime(new Date(passkey.createdAt), {
-                        dateStyle: "medium",
-                      }),
+                      date: format.dateTime(
+                        new Date(passkey.createdAt),
+                        DATE_ONLY
+                      ),
                     })}
                   </div>
                 </div>

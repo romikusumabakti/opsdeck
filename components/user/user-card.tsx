@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
+import { DATE_TIME } from "@/lib/format-date";
 import { teamsChatUrl } from "@/lib/people/links";
 import type { UserCardData } from "@/lib/types";
 import { liveCardStatus } from "@/lib/user-display";
@@ -56,10 +57,7 @@ export function UserCardBody({
             <span className="text-muted-foreground">
               {" · "}
               {t("until", {
-                date: format.dateTime(new Date(status.expiresAt), {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }),
+                date: format.dateTime(new Date(status.expiresAt), DATE_TIME),
               })}
             </span>
           )}

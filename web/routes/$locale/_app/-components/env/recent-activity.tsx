@@ -1,13 +1,12 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, type Locale } from "date-fns";
 import { Activity, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserName } from "@/components/user/user-name";
 import { Link } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { getEnvironmentRunsQuery, type RunWithUser } from "@/web/api/runs";
 
 const RECENT_LIMIT = 5;
@@ -26,8 +25,6 @@ export function RecentActivity({
     getEnvironmentRunsQuery(environmentId)
   ).data.slice(0, RECENT_LIMIT);
   const t = useTranslations("dashboard.recentActivity");
-  const locale = useLocale();
-  const dateFnsLocale = getDateFnsLocale(locale);
 
   return (
     <Card>
@@ -55,7 +52,7 @@ export function RecentActivity({
                 key={run.id}
                 className={i === 0 ? "py-2" : "py-2 border-t border-border/40"}
               >
-                <ActivityRow run={run} dateFnsLocale={dateFnsLocale} t={t} />
+                <ActivityRow run={run} t={t} />
               </li>
             ))}
           </ul>
@@ -67,24 +64,18 @@ export function RecentActivity({
 
 function ActivityRow({
   run,
-  dateFnsLocale,
   t,
 }: {
   run: RunWithUser;
-  dateFnsLocale: Locale | undefined;
   t: (key: string) => string;
 }) {
-  const relative = formatDistanceToNow(new Date(run.runAt), {
-    addSuffix: true,
-    locale: dateFnsLocale,
-  });
   return (
     <div className="flex items-center gap-3">
       <StatusGlyph status={run.status} />
       <div className="flex-1 min-w-0 flex flex-col">
         <span className="text-sm truncate">{run.description}</span>
         <span className="text-xs text-muted-foreground">
-          {relative}
+          <RelativeTime date={run.runAt} />
           {run.user ? (
             <>
               {" · "}

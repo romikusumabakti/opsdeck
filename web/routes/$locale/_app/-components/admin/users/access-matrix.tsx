@@ -1,5 +1,6 @@
 import * as React from "react";
-import { useFormatter, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import {
   DataTable,
@@ -32,7 +33,6 @@ export function AccessMatrix({
   const t = useTranslations("users");
   const tAccess = useTranslations("access");
   const tRole = useTranslations("projectMembers.role");
-  const format = useFormatter();
 
   const columns = React.useMemo<DataTableColumnDef<UserRow>[]>(() => {
     const projectColumns: DataTableColumnDef<UserRow>[] = matrix.projects.map(
@@ -95,14 +95,14 @@ export function AccessMatrix({
           const at = row.original.lastActiveAt;
           return (
             <span className="text-sm text-muted-foreground">
-              {at ? format.relativeTime(new Date(at), now) : t("neverActive")}
+              {at ? <RelativeTime date={at} /> : t("neverActive")}
             </span>
           );
         },
       },
       ...projectColumns,
     ];
-  }, [matrix, t, tAccess, tRole, format, now, currentUserId]);
+  }, [matrix, t, tAccess, tRole, currentUserId, now]);
 
   return (
     <DataTable

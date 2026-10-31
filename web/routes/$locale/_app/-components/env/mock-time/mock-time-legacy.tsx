@@ -1,14 +1,13 @@
-import { format } from "date-fns";
 import { ChevronDown, Clock, Info, RotateCcw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { browserTimeZone, DATE_TIME } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type { EnvironmentWithServers } from "@/web/api/environments";
 import {
@@ -34,8 +33,7 @@ export function MockTimeLegacy({
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const dateFnsLocale = getDateFnsLocale(locale);
+  const format = useFormatter();
   const dialog = useDialog();
 
   const [date, setDate] = React.useState<Date | undefined>(() => new Date());
@@ -65,8 +63,9 @@ export function MockTimeLegacy({
     return next;
   }, [date, hour, minute]);
 
-  const displayLabel = format(combined, "PPP HH:mm", {
-    locale: dateFnsLocale,
+  const displayLabel = format.dateTime(combined, {
+    ...DATE_TIME,
+    timeZone: browserTimeZone(),
   });
 
   const refreshClock = React.useCallback(

@@ -1,7 +1,7 @@
-import { format, formatDistanceToNow } from "date-fns";
 import { Loader2 } from "lucide-react";
 import * as React from "react";
-import { useLocale, useTranslations } from "use-intl";
+import { useFormatter, useLocale, useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { ExplorerSource } from "@/lib/explorer";
+import { DATE_TIME_SECONDS } from "@/lib/format-date";
 import { formatBytes } from "@/lib/utils";
 import type { ExplorerEntry } from "@/web/api/explorer";
 import { folderStats } from "@/web/api/explorer";
@@ -50,6 +50,7 @@ export default function EntryPropertiesDialog({
   const t = useTranslations("explorer");
   const tCommon = useTranslations("common");
   const locale = useLocale();
+  const format = useFormatter();
 
   const [stats, setStats] = React.useState<Stats | null>(null);
   const [counting, setCounting] = React.useState(false);
@@ -113,14 +114,14 @@ export default function EntryPropertiesDialog({
             </Row>
           ) : null}
           <Row label={t("modified")}>
-            {modified
-              ? `${format(modified, "PPpp", {
-                  locale: getDateFnsLocale(locale),
-                })} · ${formatDistanceToNow(modified, {
-                  addSuffix: true,
-                  locale: getDateFnsLocale(locale),
-                })}`
-              : "—"}
+            {modified ? (
+              <>
+                {format.dateTime(modified, DATE_TIME_SECONDS)} ·{" "}
+                <RelativeTime date={modified} />
+              </>
+            ) : (
+              "—"
+            )}
           </Row>
           {error ? (
             <Row label={t("loadFailed")}>

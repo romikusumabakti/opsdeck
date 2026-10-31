@@ -1,12 +1,11 @@
-import { formatDistanceToNow } from "date-fns";
 import { Check, CircleAlert, FilePlus2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { failurePrefill } from "@/lib/home/attention";
 import type { AttentionGroup } from "@/web/api/home";
 import { acknowledgeAttentionGroup, unacknowledgeRuns } from "@/web/api/home";
@@ -17,8 +16,6 @@ const KINDS = ["backup", "restore", "mock_time", "test"] as const;
 
 export function AttentionList({ groups }: { groups: AttentionGroup[] }) {
   const t = useTranslations("homePage");
-  const locale = useLocale();
-  const dfl = getDateFnsLocale(locale);
   const issueDialog = useIssueDialog();
   const [, startTransition] = React.useTransition();
   // The acknowledged row disappears at once; the action's revalidation brings
@@ -114,10 +111,7 @@ export function AttentionList({ groups }: { groups: AttentionGroup[] }) {
             ) : null}
           </Link>
           <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-            {formatDistanceToNow(new Date(g.latest.runAt), {
-              addSuffix: true,
-              locale: dfl,
-            })}
+            <RelativeTime date={g.latest.runAt} />
           </span>
           {issueDialog.canCreateIn(g.projectId) ? (
             <Button variant="ghost" size="xs" onClick={() => createIssue(g)}>

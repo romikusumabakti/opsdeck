@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { UserName } from "@/components/user/user-name";
+import { DATE_TIME } from "@/lib/format-date";
 import type { RunWithUser } from "@/web/api/runs";
 
 function formatDuration(ms: number): string {
@@ -94,10 +95,10 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
         ),
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {format.dateTime(new Date(row.getValue("runAt") as Date), {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
+            {format.dateTime(
+              new Date(row.getValue("runAt") as Date),
+              DATE_TIME
+            )}
           </span>
         ),
       },

@@ -1,8 +1,7 @@
-import { formatDistanceToNow } from "date-fns";
 import { CircleDot, LayoutGrid, List, Plus, Search } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import {
   IssueCreateDialog,
@@ -23,6 +22,7 @@ import {
   TypeIcon,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,6 @@ import {
 import { TablePager } from "@/components/ui/table-pager";
 import { useProjectName } from "@/hooks/use-project-name";
 import { Link, useRouter } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import type { UserRef } from "@/lib/types";
@@ -76,8 +75,6 @@ export function IssuesClient({
   const t = useTranslations("issues");
   const projectName = useProjectName(projectId);
   const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const dateFnsLocale = getDateFnsLocale(locale);
   const router = useRouter();
   const dialog = useDialog();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -542,10 +539,7 @@ export function IssuesClient({
                       />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(issue.createdAt), {
-                        addSuffix: true,
-                        locale: dateFnsLocale,
-                      })}
+                      <RelativeTime date={issue.createdAt} />
                     </TableCell>
                   </TableRow>
                 ))}

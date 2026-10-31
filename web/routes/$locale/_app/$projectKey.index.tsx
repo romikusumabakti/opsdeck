@@ -1,10 +1,10 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { ChevronRight, Plus, Settings } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
 import { PageHeader } from "@/components/page-header";
+import { RelativeTime } from "@/components/relative-time";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import {
   canCreateEnvironment as canCreateEnvironmentIn,
@@ -73,7 +72,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
 });
 
 function ProjectOverviewPage() {
-  const { locale, projectKey } = Route.useParams();
+  const { projectKey } = Route.useParams();
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");
   const tDash = useTranslations("dashboard");
@@ -95,7 +94,6 @@ function ProjectOverviewPage() {
   const issues = useSuspenseQuery(listIssuesQuery(project.id)).data;
   const users = useSuspenseQuery(listAssignableUsersQuery(project.id)).data;
   const milestones = useSuspenseQuery(listMilestonesQuery(project.id)).data;
-  const dateFnsLocale = getDateFnsLocale(locale);
 
   const environments = [...project.environments].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -235,12 +233,11 @@ function ProjectOverviewPage() {
                           </span>
                         ) : null}
                         <span className="text-xs text-muted-foreground">
-                          {activity
-                            ? formatDistanceToNow(new Date(activity.runAt), {
-                                addSuffix: true,
-                                locale: dateFnsLocale,
-                              })
-                            : t("neverActive")}
+                          {activity ? (
+                            <RelativeTime date={activity.runAt} />
+                          ) : (
+                            t("neverActive")
+                          )}
                         </span>
                       </CardContent>
                     </Card>

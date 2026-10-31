@@ -1,7 +1,6 @@
-import { format } from "date-fns";
 import { ChevronDownIcon } from "lucide-react";
 import * as React from "react";
-import { useLocale, useTranslations } from "use-intl";
+import { useFormatter, useLocale, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -12,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import { browserTimeZone, DATE_ONLY } from "@/lib/format-date";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -138,6 +138,7 @@ export function DateTimePicker({
   const t = useTranslations("mockTime");
   const locale = useLocale();
   const dateFnsLocale = getDateFnsLocale(locale);
+  const format = useFormatter();
   const [open, setOpen] = React.useState(false);
 
   // react-day-picker's dropdown layout defaults its year range to end at the
@@ -165,7 +166,10 @@ export function DateTimePicker({
             }
           >
             {date
-              ? format(date, "PPP", { locale: dateFnsLocale })
+              ? format.dateTime(date, {
+                  ...DATE_ONLY,
+                  timeZone: browserTimeZone(),
+                })
               : t("selectDate")}
             <ChevronDownIcon />
           </PopoverTrigger>

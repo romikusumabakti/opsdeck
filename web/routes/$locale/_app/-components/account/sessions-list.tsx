@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { authClient } from "@/lib/auth-client";
+import { DATE_TIME } from "@/lib/format-date";
 
 type Session = {
   id: string;
@@ -117,10 +118,7 @@ export function SessionsList({ currentToken }: { currentToken: string }) {
                 <div className="text-xs text-muted-foreground">
                   {s.ipAddress ?? t("unknownIp")} ·{" "}
                   {t("signedInAt", {
-                    date: format.dateTime(new Date(s.createdAt), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }),
+                    date: format.dateTime(new Date(s.createdAt), DATE_TIME),
                   })}
                 </div>
               </div>

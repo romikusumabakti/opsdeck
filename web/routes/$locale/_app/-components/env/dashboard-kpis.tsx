@@ -1,5 +1,4 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { formatDistanceToNow, type Locale } from "date-fns";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -12,21 +11,19 @@ import {
   Minus,
   TrendingUp,
 } from "lucide-react";
-import { useFormatter, useLocale, useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline } from "@/components/ui/sparkline";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Run } from "@/lib/db/schema";
+import { DATE_TIME } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { getEnvironmentKpisQuery, type KpiEntry } from "@/web/api/runs";
 
 export function DashboardKpis({ environmentId }: { environmentId: string }) {
   const kpis = useSuspenseQuery(getEnvironmentKpisQuery(environmentId)).data;
   const t = useTranslations("dashboard.kpis");
-  const locale = useLocale();
-  const format = useFormatter();
-  const dateFnsLocale = getDateFnsLocale(locale);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -34,24 +31,18 @@ export function DashboardKpis({ environmentId }: { environmentId: string }) {
         icon={Database}
         label={t("lastBackup")}
         entry={kpis.lastBackup}
-        dateFnsLocale={dateFnsLocale}
-        format={format}
         emptyText={t("never")}
       />
       <KpiCard
         icon={DatabaseBackup}
         label={t("lastRestore")}
         entry={kpis.lastRestore}
-        dateFnsLocale={dateFnsLocale}
-        format={format}
         emptyText={t("never")}
       />
       <KpiCard
         icon={Clock}
         label={t("lastMock")}
         entry={kpis.lastMock}
-        dateFnsLocale={dateFnsLocale}
-        format={format}
         emptyText={t("never")}
       />
       <ActivityKpiCard
@@ -76,17 +67,14 @@ function KpiCard({
   icon: Icon,
   label,
   entry,
-  dateFnsLocale,
-  format,
   emptyText,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   entry: KpiEntry;
-  dateFnsLocale: Locale | undefined;
-  format: ReturnType<typeof useFormatter>;
   emptyText: string;
 }) {
+  const format = useFormatter();
   return (
     <Card className="py-0">
       <CardContent className="flex flex-col gap-2 p-4">
@@ -99,17 +87,11 @@ function KpiCard({
             <div className="flex items-center gap-2 min-w-0">
               <StatusDot status={entry.status} />
               <span className="text-sm font-medium truncate">
-                {formatDistanceToNow(new Date(entry.runAt), {
-                  addSuffix: true,
-                  locale: dateFnsLocale,
-                })}
+                <RelativeTime date={entry.runAt} />
               </span>
             </div>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {format.dateTime(new Date(entry.runAt), {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
+              {format.dateTime(new Date(entry.runAt), DATE_TIME)}
             </span>
           </>
         ) : (

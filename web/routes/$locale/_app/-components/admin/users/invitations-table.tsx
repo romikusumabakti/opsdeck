@@ -11,6 +11,7 @@ import {
   type DataTableColumnDef,
   DataTableColumnHeader,
 } from "@/components/ui/data-table";
+import { DATE_TIME } from "@/lib/format-date";
 import {
   bulkRevokeInvitations,
   resendInvitation,
@@ -147,10 +148,7 @@ export function InvitationsTable({
           return (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
-                {format.dateTime(expiresAt, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
+                {format.dateTime(expiresAt, DATE_TIME)}
               </span>
               {isExpired && (
                 <Badge variant="destructive" className="text-xs">

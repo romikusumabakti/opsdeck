@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import * as React from "react";
-import { useFormatter, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -33,7 +34,6 @@ export function UsersTable({
 }) {
   const t = useTranslations("users");
   const tAccess = useTranslations("access");
-  const format = useFormatter();
   const actions = useUserActions({ users, currentUserId, applyOptimistic });
   const { isPending, onBulkDelete } = actions;
 
@@ -70,20 +70,11 @@ export function UsersTable({
           </span>
         );
       }
-      const date = new Date(at);
       return (
-        <span
-          className="text-sm text-muted-foreground"
-          title={format.dateTime(date, {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
-        >
-          {format.relativeTime(date, now)}
-        </span>
+        <RelativeTime date={at} className="text-sm text-muted-foreground" />
       );
     },
-    [t, format, now]
+    [t]
   );
 
   // The role badge rides in the identity on cards; the table has its own

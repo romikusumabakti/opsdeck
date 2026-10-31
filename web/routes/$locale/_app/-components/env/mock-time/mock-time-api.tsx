@@ -1,13 +1,16 @@
-import { format } from "date-fns";
 import { ChevronDown, Clock, RotateCcw, Snowflake } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
+import {
+  browserTimeZone,
+  DATE_TIME,
+  DATE_TIME_SECONDS,
+} from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type { EnvironmentWithServers } from "@/web/api/environments";
 import {
@@ -34,8 +37,7 @@ export function MockTimeApi({
 }) {
   const t = useTranslations("mockTime");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const dateFnsLocale = getDateFnsLocale(locale);
+  const format = useFormatter();
   const dialog = useDialog();
 
   const [date, setDate] = React.useState<Date | undefined>(() => new Date());
@@ -68,8 +70,9 @@ export function MockTimeApi({
     return next;
   }, [date, hour, minute]);
 
-  const displayLabel = format(combined, "PPP HH:mm", {
-    locale: dateFnsLocale,
+  const displayLabel = format.dateTime(combined, {
+    ...DATE_TIME,
+    timeZone: browserTimeZone(),
   });
 
   const refreshClock = React.useCallback(
@@ -203,9 +206,10 @@ export function MockTimeApi({
         return;
       }
       setClock(result.data);
-      const nowLabel = format(new Date(result.data.now), "PPP HH:mm", {
-        locale: dateFnsLocale,
-      });
+      const nowLabel = format.dateTime(
+        new Date(result.data.now),
+        DATE_TIME_SECONDS
+      );
       toast.success(t("advance.successTitle"), {
         description: t("advance.successDescription", { dateTime: nowLabel }),
       });

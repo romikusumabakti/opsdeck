@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import {
   CircleCheck,
   CircleX,
@@ -8,7 +7,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -25,6 +24,7 @@ import {
 import { LabelChips, LabelPicker } from "@/components/label-ui";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { MentionTextarea } from "@/components/mention-textarea";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,7 +37,6 @@ import {
 import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import { Link, useRouter } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { LabelLite } from "@/lib/db/schema";
 import { formatBytes } from "@/lib/utils";
 import {
@@ -73,8 +72,6 @@ export function IssueDetailClient({
 }) {
   const t = useTranslations("issueDetail");
   const tIssues = useTranslations("issues");
-  const locale = useLocale();
-  const dfl = getDateFnsLocale(locale);
   const router = useRouter();
 
   const [title, setTitle] = React.useState(issue.title);
@@ -189,9 +186,6 @@ export function IssueDetailClient({
     setComment("");
     toast.success(t("commentAdded"));
   }
-
-  const ago = (d: Date | string) =>
-    formatDistanceToNow(new Date(d), { addSuffix: true, locale: dfl });
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl w-full">
@@ -445,7 +439,7 @@ export function IssueDetailClient({
                 )}
                 <span className="flex-1 truncate text-sm">{r.description}</span>
                 <span className="text-xs text-muted-foreground">
-                  {ago(r.runAt)}
+                  <RelativeTime date={r.runAt} />
                 </span>
               </li>
             ))}
@@ -512,7 +506,9 @@ export function IssueDetailClient({
                       user={c.author}
                       className="font-medium text-foreground"
                     />
-                    <span>{ago(c.createdAt)}</span>
+                    <span>
+                      <RelativeTime date={c.createdAt} />
+                    </span>
                   </div>
                   <p className="text-sm whitespace-pre-wrap break-words">
                     {c.body}

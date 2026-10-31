@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DATE_TIME } from "@/lib/format-date";
 import {
   initialStatusExpiry,
   resolveStatusExpiry,
@@ -144,10 +145,7 @@ export function StatusDialog({
               {keepUntil && (
                 <SelectItem value="keep">
                   {t("presets.keep", {
-                    date: format.dateTime(new Date(keepUntil), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }),
+                    date: format.dateTime(new Date(keepUntil), DATE_TIME),
                   })}
                 </SelectItem>
               )}

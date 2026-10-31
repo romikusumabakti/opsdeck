@@ -1,7 +1,7 @@
-import { formatDistanceToNow } from "date-fns";
 import { AtSign, Bell, CircleAlert, CircleDot } from "lucide-react";
 import * as React from "react";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -9,7 +9,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useRouter } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { Notification } from "@/web/api/notifications";
 import {
   markAllNotificationsRead,
@@ -24,8 +23,6 @@ export function NotificationBell({
   initialUnread: number;
 }) {
   const t = useTranslations("notifications");
-  const locale = useLocale();
-  const dfl = getDateFnsLocale(locale);
   const router = useRouter();
 
   const [items, setItems] = React.useState(initialNotifications);
@@ -124,10 +121,7 @@ export function NotificationBell({
                       )}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(n.createdAt), {
-                        addSuffix: true,
-                        locale: dfl,
-                      })}
+                      <RelativeTime date={n.createdAt} />
                     </span>
                   </span>
                   {!n.readAt ? (
