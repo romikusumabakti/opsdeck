@@ -1,6 +1,7 @@
 # Jira Integration Plan (OpsDeck ⇄ Jira)
 
-**Status:** Phases 0–3 implemented, not yet deployed · **Written:** 2026-08-11 ·
+**Status:** Phases 0–3 implemented and deployed; pull sync live for 6
+projects, push disabled everywhere (verified 2026-11-01) · **Written:** 2026-08-11 ·
 **Scope:** the existing project issue tracker (`issues`, `issueComments`,
 `issueLabels`, `milestones`).
 
