@@ -146,6 +146,7 @@ export function DatabasesTabs({
                 environment={environment}
                 backups={backups}
                 databases={databases}
+                key={restoreBackup}
                 initialBackup={restoreBackup}
                 sourceEnvironments={sourceEnvironments}
               />

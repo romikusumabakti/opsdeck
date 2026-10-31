@@ -1,6 +1,6 @@
 import { DatabaseBackup, RotateCcw } from "lucide-react";
 import * as React from "react";
-import { useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import {
   DataTable,
@@ -10,10 +10,20 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowActions } from "@/components/ui/row-actions";
 import type { Backup } from "@/lib/types";
-import { formatBytes } from "@/lib/utils";
 import type { DatabaseEntry } from "@/web/api/databases";
 import type { EnvironmentWithServers } from "@/web/api/environments";
 import { BackupDatabase } from "../backup-database";
+
+const UNITS = ["byte", "kilobyte", "megabyte", "gigabyte", "terabyte"] as const;
+
+// Locale-aware size: the largest unit that keeps the value at or above 1.
+function sizeParts(bytes: number) {
+  const i = Math.min(
+    bytes > 0 ? Math.floor(Math.log(bytes) / Math.log(1024)) : 0,
+    UNITS.length - 1
+  );
+  return { value: bytes / 1024 ** i, unit: UNITS[i] ?? "byte" };
+}
 
 // This environment's backup files, newest first. "Run backup" sits in the
 // header (backup permission only); each row offers "Restore" (restore
@@ -35,6 +45,7 @@ export function BackupList({
 }) {
   const t = useTranslations("databases");
   const tRestore = useTranslations("restoreDb");
+  const format = useFormatter();
 
   const columns = React.useMemo<DataTableColumnDef<Backup>[]>(
     () => [
@@ -69,7 +80,13 @@ export function BackupList({
         ),
         cell: ({ row }) => (
           <span className="tabular-nums text-muted-foreground">
-            {formatBytes(row.original.size)}
+            {(({ value, unit }) =>
+              format.number(value, {
+                style: "unit",
+                unit,
+                unitDisplay: "short",
+                maximumFractionDigits: 1,
+              }))(sizeParts(row.original.size))}
           </span>
         ),
       },
@@ -94,7 +111,7 @@ export function BackupList({
           ]
         : []),
     ],
-    [t, tRestore, canRestore, onRestore]
+    [t, tRestore, format, canRestore, onRestore]
   );
 
   return (
