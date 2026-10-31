@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
+import { browserTimeZone } from "@/lib/format-date";
 import { setMyTimeZone } from "@/web/api/profile";
 
 const DISMISS_KEY = "tz-hint-dismissed";
@@ -15,7 +16,7 @@ export function TimezoneHint({ appTimeZone }: { appTimeZone: string }) {
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const zone = browserTimeZone();
     if (zone && zone !== appTimeZone && !localStorage.getItem(DISMISS_KEY)) {
       setBrowserZone(zone);
     }

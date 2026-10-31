@@ -10,6 +10,7 @@ import { AvatarCropper } from "@/components/user/avatar-cropper";
 import { TimezoneSelect } from "@/components/user/timezone-select";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link, useRouter } from "@/i18n/navigation";
+import { browserTimeZone } from "@/lib/format-date";
 import type { WorkingHours } from "@/lib/user-display";
 import { PROFILE_LIMITS } from "@/lib/validation";
 import { updateProfile } from "@/web/api/profile";
@@ -234,9 +235,7 @@ export function ProfileForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() =>
-              setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
-            }
+            onClick={() => setTimezone(browserTimeZone())}
           >
             {t("detectTimezone")}
           </Button>
