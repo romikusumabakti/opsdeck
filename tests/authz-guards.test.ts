@@ -115,7 +115,8 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     controlService: /service: \["control"\]/,
   },
   "server/services/backups.ts": {
-    getBackupList: /database: \["backup"\]/,
+    getBackupList:
+      /requireAnyProjectPermission\([^)]*database: \["backup"\][^)]*database: \["restore"\]/s,
     createDatabaseBackup: /database: \["backup"\]/,
     restoreDatabaseBackup: /database: \["restore"\]/,
   },
@@ -351,15 +352,15 @@ describe("environment infrastructure bindings need server:manage", () => {
 // Pages any project role can open must not call an action that throws for
 // some of those roles while rendering; that would crash to the error boundary.
 describe("render-time permissioned reads are gated", () => {
-  it("the databases page lists backups only for database:backup", () => {
+  it("the databases page lists backups for database:backup or database:restore", () => {
     const page = readFileSync(
       `${APP}/$projectKey.$envSlug.databases.tsx`,
       "utf8"
     );
     expect(page).toMatch(
-      /canProject\(role, \{ database: \["backup"\] \}\)\)\s*\{\s*void queryClient\.prefetchQuery\(getBackupListQuery\(/
+      /canAnyProject\(role, \[\s*\{ database: \["backup"\] \},\s*\{ database: \["restore"\] \},?\s*\]\)\s*\)\s*\{\s*void queryClient\.prefetchQuery\(getBackupListQuery\(/
     );
-    expect(page).toMatch(/canBackup \? getBackupListQuery\(/);
+    expect(page).toMatch(/canListBackups \? getBackupListQuery\(/);
     expect(page.match(/getBackupListQuery\(/g)?.length).toBe(2);
   });
 });
