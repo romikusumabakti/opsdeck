@@ -499,7 +499,8 @@ export function IssuesClient({
                         <TypeIcon type={issue.type as IssueType} />
                         <Link
                           href={`/${projectKey}/issues/${issue.number}`}
-                          className="hover:underline"
+                          title={issue.title}
+                          className="truncate hover:underline"
                         >
                           {issue.title}
                         </Link>
@@ -517,6 +518,7 @@ export function IssuesClient({
                     </TableCell>
                     <TableCell>
                       <StatusSelect
+                        variant="compact"
                         value={issue.status as Status}
                         onChange={(s) => onStatusChange(issue.id, s)}
                       />

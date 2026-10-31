@@ -74,3 +74,17 @@ test("a long table is bounded, keeps its pager and a pinned header", async ({
   const headerTop = (await header.boundingBox())?.y ?? -1;
   expect(Math.abs(headerTop - scrollerTop)).toBeLessThan(2);
 });
+
+test("global issues fit 1280px without horizontal scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/en/issues");
+  const scroller = page.locator('[data-slot="table-container"]').first();
+  await expect(scroller).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: /Updated/ })
+  ).toBeVisible();
+  const overflow = await scroller.evaluate(
+    (el) => el.scrollWidth - el.clientWidth
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
