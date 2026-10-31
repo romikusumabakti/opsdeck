@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ import {
   pendingFromInput,
   uploadAll,
 } from "@/lib/explorer-upload";
+import { DATE_TIME } from "@/lib/format-date";
 import { cn, formatBytes } from "@/lib/utils";
 import type { ExplorerEntry } from "@/web/api/explorer";
 import {
@@ -182,6 +183,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const t = useTranslations("explorer");
   const tCommon = useTranslations("common");
   const relativeTimeText = useRelativeTimeText();
+  const format = useFormatter();
   const dialog = useDialog();
 
   // "" = root. Dir paths carry a trailing slash (backend convention).
@@ -1225,7 +1227,17 @@ export function FileExplorer({ source, rootLabel }: Props) {
                     {entry.name}
                   </span>
                   {caption ? (
-                    <span className="w-full truncate text-xs text-muted-foreground">
+                    <span
+                      className="w-full truncate text-xs text-muted-foreground"
+                      title={
+                        columns.modified && entry.modifiedAt
+                          ? format.dateTime(
+                              new Date(entry.modifiedAt),
+                              DATE_TIME
+                            )
+                          : undefined
+                      }
+                    >
                       {caption}
                     </span>
                   ) : null}

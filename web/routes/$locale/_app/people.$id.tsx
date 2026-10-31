@@ -173,11 +173,20 @@ function PersonPage() {
                 date: format.dateTime(new Date(meta.createdAt), DATE_ONLY),
               })}
               {" · "}
-              {meta.lastActiveAt
-                ? t("lastActive", {
+              {meta.lastActiveAt ? (
+                <span
+                  title={format.dateTime(
+                    new Date(meta.lastActiveAt),
+                    DATE_TIME
+                  )}
+                >
+                  {t("lastActive", {
                     ago: relativeTimeText(meta.lastActiveAt),
-                  })
-                : t("neverActive")}
+                  })}
+                </span>
+              ) : (
+                t("neverActive")
+              )}
             </p>
             <p className="flex items-center gap-1 text-sm text-muted-foreground">
               <span className="truncate">{card.email}</span>

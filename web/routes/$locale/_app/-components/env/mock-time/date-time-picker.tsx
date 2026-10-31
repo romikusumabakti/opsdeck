@@ -110,7 +110,7 @@ export function BrowserZoneHint() {
   // Resolved after mount: the server can't know the browser's zone.
   const [browserZone, setBrowserZone] = React.useState<string | null>(null);
   React.useEffect(() => {
-    setBrowserZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setBrowserZone(browserTimeZone());
   }, []);
   if (!browserZone) return null;
   return (
