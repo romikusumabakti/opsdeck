@@ -3,16 +3,24 @@ import { db } from "@/lib/db";
 import { type EnvironmentWithServers, runs } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { describeFetchError } from "@/lib/fetch-error";
+import { formatAuditInstant } from "@/lib/format-date";
 import type { ProjectPermissions } from "@/lib/permissions";
 import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { backendService } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { APP_TIMEZONE } from "@/lib/timezone";
 import {
   isoDateTimeSchema,
   isoDurationSchema,
   uuidSchema,
 } from "@/lib/validation";
+
+// Run descriptions are read in the audit log, so instants go in as
+// `yyyy-MM-dd HH:mm <zone>` in the app zone rather than raw ISO strings.
+function describeInstant(iso: string): string {
+  return formatAuditInstant(new Date(iso), APP_TIMEZONE);
+}
 
 export type ClockState = {
   now: string;
@@ -252,7 +260,7 @@ export async function travelClock(
     ctx.environment,
     ctx.userId,
     { method: "POST", path: "/travel", body: { target } },
-    `Mock time: travel to ${target}`,
+    `Mock time: travel to ${describeInstant(target)}`,
     true
   );
   if (!result.success) return result;
@@ -270,7 +278,7 @@ export async function freezeClock(
   }
   const body = at ? { at } : undefined;
   const description = at
-    ? `Mock time: freeze at ${at}`
+    ? `Mock time: freeze at ${describeInstant(at)}`
     : "Mock time: freeze at current time";
   const result = await callMutating(
     ctx.environment,
@@ -333,7 +341,7 @@ export async function mockProjectTimeLegacy(
     const runId = await createRun({
       environmentId: ctx.environment.id,
       userId: ctx.userId,
-      description: `Mock time to ${mockedAt} (legacy)`,
+      description: `Mock time to ${describeInstant(mockedAt)} (legacy)`,
       kind: "mock_time",
     });
     await enqueue("environment/mock-time.legacy", {
@@ -446,7 +454,7 @@ export async function advanceClockLegacy(
     const runId = await createRun({
       environmentId: ctx.environment.id,
       userId: ctx.userId,
-      description: `Advance clock by ${duration} → ${targetIso} (legacy)`,
+      description: `Advance clock by ${duration} → ${describeInstant(targetIso)} (legacy)`,
       kind: "mock_time",
     });
     await enqueue("environment/mock-time.legacy", {
