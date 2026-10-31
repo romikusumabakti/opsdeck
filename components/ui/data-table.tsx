@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { FacetedFilter, type FacetOption } from "@/components/ui/faceted-filter";
+import { parseFacetParam, serializeFacetParam } from "@/lib/facet-filter";
 import { TablePager } from "@/components/ui/table-pager";
 import {
   Table,
@@ -91,6 +93,17 @@ export type DataTableColumn<TData extends RowData, TValue = unknown> = Column<
 const DEFAULT_INITIAL_PAGE_SIZE = 50;
 /** The columns menu appears only above this many hideable columns. */
 const COLUMNS_MENU_MIN = 4;
+
+/**
+ * A multi-value filter on one column. The column's `filterFn` must accept a
+ * `string[]` (see `facetFilterFn`); `options` are the selectable values, whose
+ * counts the table fills in from the full data set.
+ */
+export type DataTableFacet = {
+  columnId: string;
+  title: string;
+  options: Omit<FacetOption, "count">[];
+};
 
 type DataTableProps<TData extends RowData> = {
   columns: DataTableColumnDef<TData>[];
@@ -198,6 +211,12 @@ type DataTableProps<TData extends RowData> = {
   dense?: boolean;
   /** Columns hidden until the user turns them on in the columns menu. */
   initialColumnVisibility?: VisibilityState;
+  /**
+   * Multi-select filters rendered in the toolbar after the search box, plus a
+   * Reset button while any filter is on. With `urlKey` each one is mirrored as
+   * `${urlKey}_f_<columnId>=a,b`.
+   */
+  facets?: DataTableFacet[];
 };
 
 export function DataTable<TData extends RowData>({
@@ -222,8 +241,16 @@ export function DataTable<TData extends RowData>({
   toolbar,
   dense,
   initialColumnVisibility,
+  facets,
 }: DataTableProps<TData>) {
   const isManual = manualRowCount != null;
+  // A stable key, so a caller passing a fresh `facets` array each render does
+  // not re-run the URL effects.
+  const facetIdsKey = (facets ?? []).map((f) => f.columnId).join(",");
+  const facetIds = React.useMemo(
+    () => (facetIdsKey ? facetIdsKey.split(",") : []),
+    [facetIdsKey]
+  );
   const t = useTranslations("dataTable");
   // Card layout is chosen with CSS (md: breakpoint), not a JS width hook, so the
   // correct layout renders on the first paint — no hydration flash or layout
@@ -241,7 +268,7 @@ export function DataTable<TData extends RowData>({
     () => readSortingFromParams(searchParams, urlKey) ?? initialSorting ?? []
   );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    () => readFiltersFromParams(searchParams, urlKey, filterColumn)
+    () => readFiltersFromParams(searchParams, urlKey, filterColumn, facetIds)
   );
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
     () => initialColumnVisibility ?? {}
@@ -341,9 +368,9 @@ export function DataTable<TData extends RowData>({
     return {
       sorting: readSortingFromParams(params, urlKey),
       pagination: readPaginationFromParams(params, urlKey, initialPageSize),
-      filters: readFiltersFromParams(params, urlKey, filterColumn),
+      filters: readFiltersFromParams(params, urlKey, filterColumn, facetIds),
     };
-  }, [paramsKey, urlKey, initialPageSize, filterColumn]);
+  }, [paramsKey, urlKey, initialPageSize, filterColumn, facetIds]);
   React.useEffect(() => {
     if (!urlKey) return;
     const nextSorting = urlState.sorting ?? initialSorting ?? [];
@@ -385,6 +412,14 @@ export function DataTable<TData extends RowData>({
             | undefined) ?? "")
         : "";
     writeParam(params, `${urlKey}_q`, filterValue);
+    for (const id of facetIds) {
+      const values = columnFilters.find((f) => f.id === id)?.value;
+      writeParam(
+        params,
+        `${urlKey}_f_${id}`,
+        serializeFacetParam(Array.isArray(values) ? values : [])
+      );
+    }
     const sort = sorting[0];
     writeParam(params, `${urlKey}_s`, sort?.id ?? "");
     writeParam(params, `${urlKey}_d`, sort ? (sort.desc ? "desc" : "asc") : "");
@@ -409,6 +444,7 @@ export function DataTable<TData extends RowData>({
   }, [
     urlKey,
     filterColumn,
+    facetIds,
     columnFilters,
     sorting,
     pagination,
@@ -461,6 +497,17 @@ export function DataTable<TData extends RowData>({
 
   const hasRows = table.getRowModel().rows.length > 0;
   const isFiltered = !!filterColumn && filterValue.trim().length > 0;
+  const anyFilterOn = columnFilters.length > 0;
+  const facetCounts: Record<string, Map<string, number>> = {};
+  for (const id of facetIds) facetCounts[id] = new Map();
+  if (facetIds.length > 0) {
+    for (const row of table.getCoreRowModel().rows) {
+      for (const id of facetIds) {
+        const key = String(row.getValue(id));
+        facetCounts[id]?.set(key, (facetCounts[id].get(key) ?? 0) + 1);
+      }
+    }
+  }
 
   // Two distinct empty states. A filter that excludes every row is a dead end
   // the user can recover from — offer a clear-filter affordance and echo the
@@ -525,7 +572,7 @@ export function DataTable<TData extends RowData>({
           </div>
         </div>
       )}
-      {(toolbar || filterColumn || hasHideableColumns) && (
+      {(toolbar || filterColumn || facets?.length || hasHideableColumns) && (
         <div className="shrink-0 flex flex-wrap items-center gap-3">
           {toolbar}
           {filterColumn && (
@@ -538,6 +585,39 @@ export function DataTable<TData extends RowData>({
               className="max-w-sm"
             />
           )}
+          {facets?.map((facet) => {
+            const selected = columnFilters.find(
+              (f) => f.id === facet.columnId
+            )?.value;
+            return (
+              <FacetedFilter
+                key={facet.columnId}
+                title={facet.title}
+                selected={Array.isArray(selected) ? selected : []}
+                options={facet.options.map((o) => ({
+                  ...o,
+                  count: facetCounts[facet.columnId]?.get(o.value) ?? 0,
+                }))}
+                onChange={(values) =>
+                  table
+                    .getColumn(facet.columnId)
+                    ?.setFilterValue(values.length > 0 ? values : undefined)
+                }
+              />
+            );
+          })}
+          {facets?.length && anyFilterOn ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setColumnFilters([]);
+                setPagination((p) => ({ ...p, pageIndex: 0 }));
+              }}
+            >
+              {t("reset")}
+            </Button>
+          ) : null}
           {hasHideableColumns && (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -796,11 +876,18 @@ function readSortingFromParams(
 function readFiltersFromParams(
   params: URLSearchParams,
   urlKey: string | undefined,
-  filterColumn: string | undefined
+  filterColumn: string | undefined,
+  facetIds: string[]
 ): ColumnFiltersState {
-  if (!urlKey || !filterColumn) return [];
-  const q = params.get(`${urlKey}_q`);
-  return q ? [{ id: filterColumn, value: q }] : [];
+  if (!urlKey) return [];
+  const filters: ColumnFiltersState = [];
+  const q = filterColumn ? params.get(`${urlKey}_q`) : null;
+  if (filterColumn && q) filters.push({ id: filterColumn, value: q });
+  for (const id of facetIds) {
+    const values = parseFacetParam(params.get(`${urlKey}_f_${id}`));
+    if (values.length > 0) filters.push({ id, value: values });
+  }
+  return filters;
 }
 
 function readPaginationFromParams(

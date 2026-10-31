@@ -56,7 +56,8 @@
     "selectAll": "选择此页上的所有行",
     "selectRow": "选择行",
     "selectedCount": "{count, plural, other {已选择 # 行}}",
-    "clearSelection": "清除"
+    "clearSelection": "清除",
+    "reset": "重置"
   },
   "breadcrumbs": {
     "projects": "项目",
@@ -549,7 +550,13 @@
     "userUnknown": "未知",
     "statusRunning": "运行中",
     "statusSuccess": "成功",
-    "statusFailed": "失败"
+    "statusFailed": "失败",
+    "colKind": "类型",
+    "kindBackup": "备份",
+    "kindRestore": "恢复",
+    "kindMockTime": "模拟时间",
+    "kindTest": "测试",
+    "kindOther": "其他"
   },
   "liveTask": {
     "starting": "启动中…",

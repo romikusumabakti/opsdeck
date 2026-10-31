@@ -56,7 +56,8 @@
     "selectAll": "Pilih semua baris di halaman ini",
     "selectRow": "Pilih baris",
     "selectedCount": "{count, plural, one {# baris dipilih} other {# baris dipilih}}",
-    "clearSelection": "Bersihkan"
+    "clearSelection": "Bersihkan",
+    "reset": "Atur ulang"
   },
   "breadcrumbs": {
     "projects": "Proyek",
@@ -549,7 +550,13 @@
     "userUnknown": "Tidak diketahui",
     "statusRunning": "Berjalan",
     "statusSuccess": "Sukses",
-    "statusFailed": "Gagal"
+    "statusFailed": "Gagal",
+    "colKind": "Jenis",
+    "kindBackup": "Backup",
+    "kindRestore": "Restore",
+    "kindMockTime": "Mock waktu",
+    "kindTest": "Uji",
+    "kindOther": "Lainnya"
   },
   "liveTask": {
     "starting": "Memulai…",
