@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -24,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type {
@@ -38,6 +40,7 @@ import {
 } from "@/lib/services";
 import type { Serialized } from "@/web/api/client";
 import { createEnvironment, updateEnvironment } from "@/web/api/environments";
+import { listAssignableUsersQuery } from "@/web/api/users";
 
 const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 const DB_TYPES = ["postgres", "mssql", "mysql"] as const;
@@ -50,6 +53,8 @@ const TCP_AUTH_DB_TYPES = new Set<(typeof DB_TYPES)[number]>([
 const ENV_KINDS = ["qa", "dev", "release", "sandbox", "prod"] as const;
 // Sentinel for the "unspecified" Select option (Select can't hold an empty value).
 const KIND_NONE = "none";
+const OWNER_NONE = "__none";
+const HTTP_URL = z.url({ protocol: /^https?$/ });
 
 type ServerRole = "db" | "backend" | "frontend";
 
@@ -86,6 +91,7 @@ export function EnvironmentForm({
   const tEnums = useTranslations("dashboard");
   const tKinds = useTranslations("environmentKinds");
   const tCommon = useTranslations("common");
+  const tPeople = useTranslations("people");
   const router = useRouter();
 
   const [servers, setServers] = useState<ServerOption[]>(initialServers);
@@ -99,8 +105,18 @@ export function EnvironmentForm({
     name: z.string().min(1, tCommon("required")),
     // "" = unspecified (mapped to null on submit).
     kind: z.enum(ENV_KINDS).or(z.literal("")),
-    owner: z.string(),
-    host: z.string().max(200),
+    // "" = no owner (mapped to null on submit).
+    ownerId: z.string(),
+    host: z
+      .string()
+      .max(200)
+      .refine((v) => !v.includes("/"), t("hostNoPath")),
+    // "" = no URL. Same rule as the server: absolute http(s) only.
+    url: z
+      .string()
+      .trim()
+      .max(2048)
+      .refine((v) => !v || HTTP_URL.safeParse(v).success, t("urlInvalid")),
   });
 
   const schema = infoSchema
@@ -179,8 +195,9 @@ export function EnvironmentForm({
               ? t("nameCopySuffix", { name: source.name })
               : source.name,
           kind: source.kind ?? "",
-          owner: source.owner ?? "",
+          ownerId: source.ownerId ?? "",
           host: source.host ?? "",
+          url: source.url ?? "",
           dbServerId: dbSvc?.serverId ?? "",
           dbServiceType: dbSvc?.serviceType ?? "docker",
           dbServiceName: dbSvc?.serviceName ?? "",
@@ -202,8 +219,9 @@ export function EnvironmentForm({
           projectId: defaultProjectId ?? initialProjects[0]?.id ?? "",
           name: "",
           kind: "",
-          owner: "",
+          ownerId: "",
           host: "",
+          url: "",
           dbServerId: initialServers[0]?.id ?? "",
           dbServiceType: "docker",
           dbServiceName: "",
@@ -223,6 +241,44 @@ export function EnvironmentForm({
         },
   });
 
+  // Owner candidates: whoever can be assigned issues in the selected project.
+  // An edited environment keeps its stored owner while it stays in the same
+  // project, even one deactivated since (not in the list, so added here).
+  const projectId = form.watch("projectId");
+  const ownerId = form.watch("ownerId");
+  const eligibleOwners = useQuery({
+    ...listAssignableUsersQuery(projectId),
+    enabled: !!projectId,
+  }).data;
+  const keptOwner =
+    mode.type === "edit" && projectId === mode.environment.projectId
+      ? mode.environment.owner
+      : null;
+  // A clone's source owner is listed only while the list loads, so the picker
+  // shows a name rather than an id; once loaded, an ineligible one is cleared
+  // by the effect below.
+  const extraOwner =
+    keptOwner ??
+    (!eligibleOwners && source && projectId === source.projectId
+      ? source.owner
+      : null);
+  const ownerOptions = [
+    ...(eligibleOwners ?? []).map((u) => ({ ...u, banned: false })),
+    ...(extraOwner && !eligibleOwners?.some((u) => u.id === extraOwner.id)
+      ? [extraOwner]
+      : []),
+  ];
+
+  // Picking another project drops an owner who isn't eligible there. Waits
+  // for that project's list (`data` is undefined while it loads), so a stale
+  // list never clears a valid owner.
+  useEffect(() => {
+    if (!eligibleOwners || !ownerId || ownerId === keptOwner?.id) return;
+    if (!eligibleOwners.some((u) => u.id === ownerId)) {
+      form.setValue("ownerId", "", { shouldDirty: true });
+    }
+  }, [eligibleOwners, ownerId, keptOwner?.id, form]);
+
   function onServerCreated(server: ServerOption) {
     setServers((prev) => [...prev, server]);
     if (dialogRole === "db") form.setValue("dbServerId", server.id);
@@ -236,8 +292,9 @@ export function EnvironmentForm({
         projectId: values.projectId,
         name: values.name,
         kind: values.kind ? values.kind : null,
-        owner: values.owner.trim() ? values.owner.trim() : null,
+        ownerId: values.ownerId || null,
         host: values.host.trim() ? values.host.trim() : null,
+        url: values.url.trim() ? values.url.trim() : null,
       });
       if (!result.success || !result.data) {
         toast.error(result.message ?? t("submitFailed"));
@@ -256,8 +313,9 @@ export function EnvironmentForm({
         : null,
       // "" from the picker/input means "unset".
       kind: values.kind ? values.kind : null,
-      owner: values.owner.trim() ? values.owner.trim() : null,
+      ownerId: values.ownerId || null,
       host: values.host.trim() ? values.host.trim() : null,
+      url: values.url.trim() ? values.url.trim() : null,
     };
     // On create: persist password (null for postgres, which never uses one). On
     // edit: only include it when the user typed something — empty means "keep
@@ -401,6 +459,28 @@ export function EnvironmentForm({
             />
             <FormField
               control={form.control}
+              name="url"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>{t("url")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="url"
+                      inputMode="url"
+                      className="font-mono"
+                      placeholder="https://app.example.com"
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {t("urlHint")}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="kind"
               render={({ field }) => (
                 <FormItem>
@@ -434,13 +514,40 @@ export function EnvironmentForm({
             />
             <FormField
               control={form.control}
-              name="owner"
+              name="ownerId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("owner")}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t("ownerPlaceholder")} {...field} />
-                  </FormControl>
+                  <Select
+                    value={field.value || OWNER_NONE}
+                    onValueChange={(v) =>
+                      field.onChange(!v || v === OWNER_NONE ? "" : v)
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={OWNER_NONE}>
+                        {t("ownerNone")}
+                      </SelectItem>
+                      {ownerOptions.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <UserAvatar user={u} size="xs" />
+                            <span className="truncate">{u.name}</span>
+                            {u.banned && (
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                ({tPeople("deactivated")})
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
                     {t("ownerHint")}
                   </p>

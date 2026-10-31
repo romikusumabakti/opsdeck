@@ -11,10 +11,12 @@ import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
   type Environment,
-  type EnvironmentSummary,
+  type EnvironmentOwner,
+  type EnvironmentSummaryWithOwner,
   type Project,
   projects,
 } from "@/lib/db/schema";
+import { OWNER_COLUMNS } from "@/lib/environments";
 import type { ActionResponse } from "@/lib/types";
 import {
   projectMetaInputSchema,
@@ -37,30 +39,35 @@ export async function listProjects(): Promise<Project[]> {
 }
 
 export type ProjectWithEnvironments = Project & {
-  environments: EnvironmentSummary[];
+  environments: EnvironmentSummaryWithOwner[];
 };
 
 // The relational query loads each environment's `db` service so list views get
-// the engine + database name inline. Flattening it here keeps every consumer on
-// the same `EnvironmentSummary` shape instead of walking `services` themselves.
+// the engine + database name inline, plus its owner. Flattening it here keeps
+// every consumer on the same `EnvironmentSummaryWithOwner` shape instead of
+// walking `services` themselves.
 const WITH_DB_SERVICE = {
-  environments: { with: { services: true } },
+  environments: {
+    with: { services: true, owner: { columns: OWNER_COLUMNS } },
+  },
 } as const;
 
 type EnvironmentWithServiceRows = Environment & {
   services: { role: string; dbType: unknown; dbName: string | null }[];
+  owner: EnvironmentOwner | null;
 };
 
 function flattenDbSummary(row: {
   environments: EnvironmentWithServiceRows[];
-}): { environments: EnvironmentSummary[] } {
+}): { environments: EnvironmentSummaryWithOwner[] } {
   return {
     ...row,
     environments: row.environments.map(({ services, ...env }) => {
       const dbSvc = services.find((s) => s.role === "db");
       return {
         ...env,
-        dbType: (dbSvc?.dbType ?? null) as EnvironmentSummary["dbType"],
+        dbType: (dbSvc?.dbType ??
+          null) as EnvironmentSummaryWithOwner["dbType"],
         dbName: dbSvc?.dbName ?? null,
       };
     }),

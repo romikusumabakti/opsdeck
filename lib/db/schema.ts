@@ -149,16 +149,29 @@ export const environments = pgTable(
     // --- Purpose / ownership (both optional) ---
     // What this deployment is for; drives the kind badge in the grid/switcher.
     kind: environmentKindEnum("kind"),
-    // Who owns this deployment (e.g. "QA — Budi", "FE dev"). Free text: owners
-    // aren't always app users, and this is a human label, not an access grant.
-    owner: text("owner"),
-    // Free-text address shown next to the short name (e.g.
-    // "56.129/membership.example.id"). Display only; not used to connect.
+    // DEPRECATED: the old free-text owner ("QA — Budi"), replaced by `ownerId`.
+    // No app code reads or writes it; the column stays only until the build
+    // that reads `owner_id` is deployed, then a later migration drops it.
+    // Mapped as `legacyOwner` so the `owner` relation can take the name.
+    legacyOwner: text("owner"),
+    // The user who owns this deployment: someone eligible to be an issue
+    // assignee in its project (see lib/assignees#assignableUsersWhere). A
+    // display relation, not an access grant. An offboarded (banned) owner
+    // stays linked; deleting the user clears it.
+    ownerId: uuid("owner_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    // Address of the deployment: IP or hostname with an optional :port, no
+    // path (e.g. "192.168.56.129"). Display only; not used to connect.
     host: text("host"),
+    // Where the deployed app opens in a browser (absolute http/https URL).
+    url: text("url"),
   },
   (t) => [
     // Every project page lists its environments; index the parent FK.
     index("environments_project_idx").on(t.projectId),
+    // FK index: `on delete set null` scans by owner when a user is deleted.
+    index("environments_owner_idx").on(t.ownerId),
     // Environment names are unique within a project (so "Dev"/"Release"/"QA-Budi"
     // can't collide under one project, while different projects may reuse them).
     uniqueIndex("environments_project_name_idx").on(t.projectId, t.name),
@@ -1260,8 +1273,13 @@ export type EnvironmentMailpit = InferSelectModel<typeof environmentMailpit>;
 // role via lib/services#getServiceConfig.
 export type ServiceWithServer = EnvironmentService & { server: Server };
 
+// An environment's owner as views show it: `banned` drives the "Deactivated"
+// marker for an offboarded owner, who stays linked.
+export type EnvironmentOwner = Pick<User, "id" | "name" | "image" | "banned">;
+
 export type EnvironmentWithServers = Environment & {
   services: ServiceWithServer[];
+  owner: EnvironmentOwner | null;
 };
 
 // List-level projection: an environment plus the two db-service fields list
@@ -1270,6 +1288,11 @@ export type EnvironmentWithServers = Environment & {
 // service fetch. Credential-free — safe for client components.
 export type EnvironmentSummary = Environment &
   Pick<EnvironmentService, "dbType" | "dbName">;
+
+// A summary plus its resolved owner, for the project grids that show it.
+export type EnvironmentSummaryWithOwner = EnvironmentSummary & {
+  owner: EnvironmentOwner | null;
+};
 
 // An environment summary plus its owning project's issue key, for readable-URL
 // link builders (/[key]/[slug]/…), whether a Mailpit is connected (drives the
@@ -1302,6 +1325,7 @@ export type SafeServiceWithServer = Omit<
 
 export type SafeEnvironmentWithServers = Environment & {
   services: SafeServiceWithServer[];
+  owner: EnvironmentOwner | null;
 };
 
 export type Run = InferSelectModel<typeof runs>;

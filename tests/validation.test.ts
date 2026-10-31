@@ -289,7 +289,7 @@ describe("mailListInputSchema", () => {
   });
 });
 
-describe("environment schema host", () => {
+describe("environment schema host, url and owner", () => {
   const uuid = "11111111-1111-4111-8111-111111111111";
   const valid = {
     projectId: uuid,
@@ -323,5 +323,57 @@ describe("environment schema host", () => {
 
   it("leaves host untouched when an update omits it", () => {
     expect(environmentUpdateSchema.parse({ name: "Dev" }).host).toBeUndefined();
+  });
+
+  it("rejects a host carrying a path", () => {
+    expect(
+      environmentInputSchema.safeParse({ ...valid, host: "56.129/membership" })
+        .success
+    ).toBe(false);
+    expect(
+      environmentInputSchema.parse({ ...valid, host: "dev.example.com:8080" })
+        .host
+    ).toBe("dev.example.com:8080");
+  });
+
+  const parseUrl = (url: unknown) =>
+    environmentInputSchema.safeParse({ ...valid, url });
+
+  it("accepts absolute http and https URLs", () => {
+    expect(parseUrl("https://a.b").data?.url).toBe("https://a.b");
+    expect(parseUrl("  http://x.y:8080/p  ").data?.url).toBe(
+      "http://x.y:8080/p"
+    );
+  });
+
+  it("rejects other schemes, non-URLs and overlong URLs", () => {
+    for (const bad of ["ftp://x", "javascript:alert(1)", "notaurl"]) {
+      expect(parseUrl(bad).success, bad).toBe(false);
+    }
+    expect(parseUrl(`https://a.b/${"x".repeat(2048)}`).success).toBe(false);
+  });
+
+  it("maps an empty url to null and leaves it untouched when omitted", () => {
+    expect(parseUrl("").data?.url).toBeNull();
+    expect(parseUrl("   ").data?.url).toBeNull();
+    expect(environmentUpdateSchema.parse({ name: "Dev" }).url).toBeUndefined();
+  });
+
+  it("accepts a uuid or null ownerId and rejects junk", () => {
+    expect(
+      environmentInputSchema.parse({ ...valid, ownerId: uuid }).ownerId
+    ).toBe(uuid);
+    expect(
+      environmentInputSchema.parse({ ...valid, ownerId: null }).ownerId
+    ).toBeNull();
+    expect(
+      environmentInputSchema.safeParse({ ...valid, ownerId: "Budi" }).success
+    ).toBe(false);
+  });
+
+  it("no longer carries the free-text owner", () => {
+    expect(
+      environmentInputSchema.parse({ ...valid, owner: "QA — Budi" })
+    ).not.toHaveProperty("owner");
   });
 });

@@ -176,6 +176,19 @@ describe("issue writes validate their references", () => {
   });
 });
 
+describe("environment writes validate their owner", () => {
+  const source = readFileSync("server/services/environments.ts", "utf8");
+  for (const fn of ["createEnvironment", "updateEnvironment"]) {
+    it(`${fn} checks owner eligibility`, () => {
+      expect(body(source, fn)).toMatch(/ownerIdToVerify\(/);
+      expect(body(source, fn)).toMatch(/requireEligibleOwner\(/);
+    });
+  }
+  it("the owner check reuses the shared assignable-users predicate", () => {
+    expect(source).toMatch(/assignableUsersWhere\(/);
+  });
+});
+
 // A notification carries the issue's key and title, so recipients must be able
 // to see the project. Every notifyIssueMention call site must draw its
 // recipients from projectVisibleUsersWhere.
