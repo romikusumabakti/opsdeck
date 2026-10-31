@@ -1,11 +1,7 @@
-import {
-  format,
-  formatDuration,
-  intervalToDuration,
-  type Locale,
-} from "date-fns";
+import { formatDuration, intervalToDuration, type Locale } from "date-fns";
 import * as React from "react";
-import { useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
+import { DATE_TIME_SECONDS } from "@/lib/format-date";
 
 /**
  * Renders a ticking clock label. The per-second state lives here so the tick
@@ -18,12 +14,11 @@ import { useTranslations } from "use-intl";
 export function LiveClock({
   now,
   frozen = false,
-  dateFnsLocale,
 }: {
   now: string;
   frozen?: boolean;
-  dateFnsLocale: Locale | undefined;
 }) {
+  const format = useFormatter();
   const [displayed, setDisplayed] = React.useState<Date>(() => new Date(now));
 
   React.useEffect(() => {
@@ -37,7 +32,7 @@ export function LiveClock({
     return () => clearInterval(id);
   }, [now, frozen]);
 
-  return <>{format(displayed, "PPP HH:mm:ss", { locale: dateFnsLocale })}</>;
+  return <>{format.dateTime(displayed, DATE_TIME_SECONDS)}</>;
 }
 
 const OFFSET_UNITS = ["years", "months", "days", "hours", "minutes"] as const;

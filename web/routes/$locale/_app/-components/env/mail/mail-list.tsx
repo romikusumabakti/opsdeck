@@ -1,5 +1,6 @@
 import { Paperclip } from "lucide-react";
-import { useFormatter, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
+import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,7 +27,6 @@ export function MailList({
   onPageChange: (start: number) => void;
 }) {
   const t = useTranslations("mail");
-  const format = useFormatter();
 
   if (!page) {
     return (
@@ -112,12 +112,10 @@ export function MailList({
                   >
                     {m.From?.Name || m.From?.Address || "—"}
                   </span>
-                  <time
+                  <RelativeTime
+                    date={m.Created}
                     className="ms-auto shrink-0 text-xs text-muted-foreground"
-                    dateTime={m.Created}
-                  >
-                    {format.relativeTime(new Date(m.Created))}
-                  </time>
+                  />
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="truncate text-sm">

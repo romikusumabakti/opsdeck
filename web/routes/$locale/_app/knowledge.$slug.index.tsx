@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { UserName } from "@/components/user/user-name";
 import { Link } from "@/i18n/navigation";
+import { DATE_TIME } from "@/lib/format-date";
 import { canOrg } from "@/lib/permissions";
 import { getBacklinksQuery, getDocumentQuery } from "@/web/api/knowledge";
 import { useMe } from "@/web/api/session";
@@ -80,10 +81,7 @@ function DocumentPage() {
                   name: doc.updatedBy?.name ?? tCommon("you"),
                   user: (chunks) =>
                     doc.updatedBy ? <UserName user={doc.updatedBy} /> : chunks,
-                  time: format.dateTime(new Date(doc.updatedAt), {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }),
+                  time: format.dateTime(new Date(doc.updatedAt), DATE_TIME),
                 })}
               </span>
             </div>

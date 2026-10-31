@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import {
   CheckCircle2,
   ChevronRight,
@@ -9,8 +8,9 @@ import {
   Settings,
 } from "lucide-react";
 import * as React from "react";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
+import { RelativeTime } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { EnvironmentSummary } from "@/lib/db/schema";
 import { compareEnvironments, stripProjectPrefix } from "@/lib/nav-path";
 import {
@@ -55,8 +54,6 @@ export function ProjectsOverview({
   orgRole: OrgRole;
 }) {
   const t = useTranslations("home");
-  const locale = useLocale();
-  const dateFnsLocale = getDateFnsLocale(locale);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -182,7 +179,6 @@ export function ProjectsOverview({
               project={project}
               openIssues={openIssueCounts[project.id] ?? 0}
               lastActivity={lastActivity}
-              dateFnsLocale={dateFnsLocale}
               role={projectRoles[project.id] ?? null}
               orgRole={orgRole}
             />
@@ -197,14 +193,12 @@ function ProjectCard({
   project,
   openIssues,
   lastActivity,
-  dateFnsLocale,
   role,
   orgRole,
 }: {
   project: ProjectWithEnvironments;
   openIssues: number;
   lastActivity: Record<string, EnvironmentActivity | null>;
-  dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
   role: ProjectRole | null;
   orgRole: OrgRole;
 }) {
@@ -290,7 +284,6 @@ function ProjectCard({
                   projectKey={project.key}
                   projectName={project.name}
                   activity={lastActivity[env.id] ?? null}
-                  dateFnsLocale={dateFnsLocale}
                 />
               </li>
             ))}
@@ -306,13 +299,11 @@ function EnvironmentRow({
   projectKey,
   projectName,
   activity,
-  dateFnsLocale,
 }: {
   env: EnvironmentSummary;
   projectKey: string;
   projectName: string;
   activity: EnvironmentActivity | null;
-  dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
 }) {
   const t = useTranslations("home");
   const tDash = useTranslations("dashboard");
@@ -351,12 +342,7 @@ function EnvironmentRow({
         </span>
       </span>
       <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-        {activity
-          ? formatDistanceToNow(new Date(activity.runAt), {
-              addSuffix: true,
-              locale: dateFnsLocale,
-            })
-          : t("neverActive")}
+        {activity ? <RelativeTime date={activity.runAt} /> : t("neverActive")}
       </span>
       <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
     </Link>

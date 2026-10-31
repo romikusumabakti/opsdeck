@@ -87,7 +87,6 @@ export function ClockStatePanel({
             <LiveClock
               now={clock.now}
               frozen={showFrozen ? clock.frozen : undefined}
-              dateFnsLocale={dateFnsLocale}
             />
           </dd>
           <dt className="text-muted-foreground">{t("clockState.mocked")}</dt>

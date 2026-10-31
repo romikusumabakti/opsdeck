@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { SafeJiraConnection as SafeJiraConnectionRow } from "@/lib/db/schema";
+import { DATE_TIME } from "@/lib/format-date";
 import type { Serialized } from "@/web/api/client";
 import {
   type getJiraLink,
@@ -330,11 +331,7 @@ function SyncStatus({
         </span>
         {link.lastSyncAt && (
           <span className="text-muted-foreground">
-            ·{" "}
-            {format.dateTime(new Date(link.lastSyncAt), {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
+            · {format.dateTime(new Date(link.lastSyncAt), DATE_TIME)}
           </span>
         )}
         <a

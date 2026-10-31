@@ -1,8 +1,7 @@
-import { format } from "date-fns";
 import { CircleCheck, CircleDot, Plus, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DATE_ONLY } from "@/lib/format-date";
 import {
   createMilestone,
   deleteMilestone,
@@ -29,6 +29,7 @@ export function MilestonesClient({
   initialMilestones: MilestoneWithCount[];
 }) {
   const t = useTranslations("milestones");
+  const format = useFormatter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [due, setDue] = useState("");
@@ -122,7 +123,7 @@ export function MilestonesClient({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.dueAt ? (
-                      format(new Date(m.dueAt), "PP")
+                      format.dateTime(new Date(m.dueAt), DATE_ONLY)
                     ) : (
                       <span className="italic">{t("noDue")}</span>
                     )}

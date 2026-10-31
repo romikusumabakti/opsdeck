@@ -4,6 +4,7 @@ import { useFormatter, useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DATE_TIME_SECONDS } from "@/lib/format-date";
 import type { MailAddress } from "@/lib/mailpit/schemas";
 import { formatBytes } from "@/lib/utils";
 import {
@@ -129,10 +130,7 @@ export function MailDetailPane({
             )}
             <dt className="text-muted-foreground">{t("date")}</dt>
             <dd>
-              {format.dateTime(new Date(message.Date), {
-                dateStyle: "medium",
-                timeStyle: "medium",
-              })}
+              {format.dateTime(new Date(message.Date), DATE_TIME_SECONDS)}
             </dd>
           </dl>
         </div>

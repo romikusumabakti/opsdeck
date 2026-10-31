@@ -1,11 +1,10 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { Activity } from "lucide-react";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
+import { RelativeTime } from "@/components/relative-time";
 import { UserAvatar } from "@/components/user/user-avatar";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import { type listActivity, listActivityQuery } from "@/web/api/activity";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
@@ -180,11 +179,9 @@ function message(
 }
 
 function ActivityPage() {
-  const locale = useLocale();
   const t = useTranslations("activity");
   const tIssues = useTranslations("issues");
   const events = useSuspenseQuery(listActivityQuery(FEED_LIMIT)).data;
-  const dfl = getDateFnsLocale(locale);
 
   return (
     <>
@@ -215,10 +212,7 @@ function ActivityPage() {
               )}
               <span className="flex-1 min-w-0">{message(t, tIssues, e)}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(e.createdAt), {
-                  addSuffix: true,
-                  locale: dfl,
-                })}
+                <RelativeTime date={e.createdAt} />
               </span>
             </li>
           ))}

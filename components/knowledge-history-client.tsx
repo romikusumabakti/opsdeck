@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { UserName } from "@/components/user/user-name";
 import { useRouter } from "@/i18n/navigation";
+import { DATE_TIME } from "@/lib/format-date";
 import { restoreRevision } from "@/web/api/knowledge";
 
 type Revision = {
@@ -74,10 +75,7 @@ export function KnowledgeHistoryClient({
                     name: rev.editedBy?.name ?? tCommon("you"),
                     user: (chunks) =>
                       rev.editedBy ? <UserName user={rev.editedBy} /> : chunks,
-                    time: format.dateTime(new Date(rev.createdAt), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }),
+                    time: format.dateTime(new Date(rev.createdAt), DATE_TIME),
                   })}
                 </span>
               </div>

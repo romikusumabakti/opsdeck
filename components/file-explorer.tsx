@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import {
   ChevronRight,
   ClipboardPaste,
@@ -30,8 +29,9 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "use-intl";
+import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -59,7 +59,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
-import { getDateFnsLocale } from "@/lib/date-fns-locale";
 import type { ExplorerSource } from "@/lib/explorer";
 import {
   type PendingUpload,
@@ -182,7 +181,7 @@ function parseMove(raw: string): string[] {
 export function FileExplorer({ source, rootLabel }: Props) {
   const t = useTranslations("explorer");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
+  const relativeTimeText = useRelativeTimeText();
   const dialog = useDialog();
 
   // "" = root. Dir paths carry a trailing slash (backend convention).
@@ -1075,10 +1074,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
         ? formatBytes(entry.sizeBytes)
         : null,
       columns.modified && entry.modifiedAt
-        ? formatDistanceToNow(new Date(entry.modifiedAt), {
-            addSuffix: true,
-            locale: getDateFnsLocale(locale),
-          })
+        ? relativeTimeText(entry.modifiedAt)
         : null,
     ]
       .filter(Boolean)
@@ -1164,12 +1160,11 @@ export function FileExplorer({ source, rootLabel }: Props) {
                   ) : null}
                   {columns.modified ? (
                     <TableCell className="text-muted-foreground">
-                      {entry.modifiedAt
-                        ? formatDistanceToNow(new Date(entry.modifiedAt), {
-                            addSuffix: true,
-                            locale: getDateFnsLocale(locale),
-                          })
-                        : "—"}
+                      {entry.modifiedAt ? (
+                        <RelativeTime date={entry.modifiedAt} />
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                   ) : null}
                   <TableCell onContextMenu={stopContextMenu}>
