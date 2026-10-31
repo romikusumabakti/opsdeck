@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
+import { useProjectName } from "@/hooks/use-project-name";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import {
   getEnvironmentKpisQuery,
@@ -41,6 +43,7 @@ function DashboardPage() {
     getEnvironmentByIdQuery(environmentId)
   ).data;
   const envPath = `/${projectKey}/${envSlug}`;
+  const projectName = useProjectName(environment?.projectId ?? "");
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
@@ -50,7 +53,9 @@ function DashboardPage() {
     <>
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle", { name: environment.name })}
+        subtitle={t("subtitle", {
+          name: stripProjectPrefix(environment.name, projectName),
+        })}
       />
       <Suspense fallback={<DashboardKpisSkeleton />}>
         <DashboardKpis environmentId={environmentId} />

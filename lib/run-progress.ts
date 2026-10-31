@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import { environments, type NewRun, projects, runs } from "@/lib/db/schema";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { notifyRunFailed } from "@/lib/notifications";
 
 export type CreateRunInput = Omit<
@@ -85,6 +86,7 @@ export async function failRun(
       const [env] = await db
         .select({
           name: environments.name,
+          projectName: projects.name,
           slug: environments.slug,
           projectKey: projects.key,
         })
@@ -97,7 +99,7 @@ export async function failRun(
           userId: run.userId,
           projectKey: env.projectKey,
           envSlug: env.slug,
-          environmentName: env.name,
+          environmentName: qualifiedEnvName(env.name, env.projectName),
           description: run.description,
         });
       }

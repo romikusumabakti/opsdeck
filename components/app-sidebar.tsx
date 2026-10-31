@@ -44,7 +44,11 @@ import {
 import { UserMenu, type UserSummary } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { BrandName } from "@/lib/brands";
-import { parseNavPath, SECTION_PERMS } from "@/lib/nav-path";
+import {
+  parseNavPath,
+  SECTION_PERMS,
+  stripProjectPrefix,
+} from "@/lib/nav-path";
 import {
   canOrg,
   canProject,
@@ -142,6 +146,7 @@ function SidebarMotif() {
 
 export function AppSidebar({
   environments,
+  projects,
   orgRole,
   projectRoles,
   issueCounts,
@@ -150,6 +155,7 @@ export function AppSidebar({
   side = "left",
 }: {
   environments: EnvironmentListItem[];
+  projects: { id: string; name: string }[];
   orgRole: OrgRole;
   projectRoles: Record<string, ProjectRole>;
   issueCounts: AssignedIssueCounts;
@@ -174,6 +180,9 @@ export function AppSidebar({
           (e) => e.key === nav.projectKey && e.slug === nav.envSlug
         ) ?? null)
       : null;
+
+  const activeProjectName =
+    projects.find((p) => p.id === activeEnv?.projectId)?.name ?? "";
 
   const envRole = activeEnv
     ? (projectRoles[activeEnv.projectId] ?? null)
@@ -336,8 +345,8 @@ export function AppSidebar({
 
           {activeEnv && (
             <SidebarGroup>
-              <SidebarGroupLabel className="truncate">
-                {activeEnv.name}
+              <SidebarGroupLabel className="truncate" title={activeEnv.name}>
+                {stripProjectPrefix(activeEnv.name, activeProjectName)}
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>

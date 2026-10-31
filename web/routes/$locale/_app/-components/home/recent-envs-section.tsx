@@ -1,6 +1,7 @@
 import { ChevronRight, ServerCog } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { Link } from "@/i18n/navigation";
+import { qualifiedEnvName, stripProjectPrefix } from "@/lib/nav-path";
 import type { RecentEnvironment } from "@/web/api/home";
 import { BackupButton } from "./backup-button";
 import { CompactSection, HomeSection } from "./home-section";
@@ -34,10 +35,12 @@ export function RecentEnvsSection({
             >
               <Link
                 href={env.path}
-                title={`${env.name} — ${env.projectName}`}
+                title={qualifiedEnvName(env.name, env.projectName)}
                 className="flex min-w-0 flex-1 flex-col px-3 py-2"
               >
-                <span className="truncate text-sm">{env.name}</span>
+                <span className="truncate text-sm">
+                  {stripProjectPrefix(env.name, env.projectName)}
+                </span>
                 <span className="truncate text-xs text-muted-foreground">
                   {env.projectName}
                 </span>

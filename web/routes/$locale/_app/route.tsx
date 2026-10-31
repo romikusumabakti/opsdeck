@@ -118,6 +118,7 @@ function SignedInShell({
             </a>
             <AppSidebar
               environments={environments}
+              projects={navProjects}
               orgRole={orgRole}
               projectRoles={projectRoles}
               issueCounts={issueCounts}
