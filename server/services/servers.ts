@@ -22,6 +22,7 @@ export type ServerUsage = {
   // readable URL (`/[projectKey]/[envSlug]`).
   environment: Pick<Environment, "id" | "name" | "slug"> & {
     projectKey: string;
+    projectName: string;
   };
   roles: ("db" | "backend" | "frontend")[];
 };
@@ -37,6 +38,7 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
       name: environments.name,
       slug: environments.slug,
       projectKey: projects.key,
+      projectName: projects.name,
       role: environmentServices.role,
     })
     .from(environmentServices)
@@ -58,6 +60,7 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
           name: row.name,
           slug: row.slug,
           projectKey: row.projectKey,
+          projectName: row.projectName,
         },
         roles: [],
       };

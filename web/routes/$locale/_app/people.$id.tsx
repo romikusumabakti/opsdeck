@@ -19,6 +19,7 @@ import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
 import { DATE_ONLY, DATE_TIME } from "@/lib/format-date";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { teamsChatUrl } from "@/lib/people/links";
 import { canOrg, effectiveProjectRole } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
@@ -351,7 +352,11 @@ function PersonPage() {
                     href={`/${r.environment.project.key}/${r.environment.slug}/history`}
                     className="truncate hover:underline"
                   >
-                    {r.environment.name} · {r.description}
+                    {qualifiedEnvName(
+                      r.environment.name,
+                      r.environment.project.name
+                    )}{" "}
+                    · {r.description}
                   </Link>
                   <span className="ms-auto shrink-0 text-muted-foreground">
                     <RelativeTime date={r.runAt} />

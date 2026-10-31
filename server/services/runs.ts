@@ -19,7 +19,11 @@ export type ActiveRun = Pick<
   Run,
   "id" | "environmentId" | "description" | "runAt"
 > & {
-  environment: { id: string; name: string } | null;
+  environment: {
+    id: string;
+    name: string;
+    project: { name: string };
+  } | null;
 };
 
 // Returns currently-running runs across all projects, newest first. Used by
@@ -88,6 +92,7 @@ export async function getActiveRuns(): Promise<ActiveRun[]> {
       with: {
         environment: {
           columns: { id: true, name: true },
+          with: { project: { columns: { name: true } } },
         },
       },
       orderBy: { runAt: "desc" },

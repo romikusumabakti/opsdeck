@@ -18,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RowActions } from "@/components/ui/row-actions";
 import {
   Table,
   TableBody,
@@ -26,7 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TooltipHint } from "@/components/ui/tooltip";
 import {
   attachTunnelNetwork,
   deleteTunnelRoute,
@@ -240,17 +240,18 @@ export function RoutesClient({
                   </TableCell>
                   {canManage ? (
                     <TableCell>
-                      <TooltipHint label={tCommon("delete")}>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={tCommon("delete")}
-                          disabled={isPending}
-                          onClick={() => onDelete(route)}
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                        </Button>
-                      </TooltipHint>
+                      <RowActions
+                        label={tCommon("openMenu")}
+                        disabled={isPending}
+                        items={[
+                          {
+                            label: tCommon("delete"),
+                            icon: Trash2,
+                            destructive: true,
+                            onSelect: () => onDelete(route),
+                          },
+                        ]}
+                      />
                     </TableCell>
                   ) : null}
                 </TableRow>

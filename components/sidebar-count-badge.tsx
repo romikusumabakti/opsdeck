@@ -34,7 +34,6 @@ export function SidebarCountBadge({
   return (
     <>
       <SidebarMenuBadge
-        aria-label={label}
         className={cn(
           "right-1 rtl:right-auto rtl:left-1",
           variant === "active" && "text-primary"

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { canOrg } from "@/lib/permissions";
 import { getServerByIdQuery, getServerUsageQuery } from "@/web/api/servers";
 import { useMe } from "@/web/api/session";
@@ -109,9 +110,15 @@ function EditServerPage() {
                     <Link
                       href={`/${u.environment.projectKey}/${u.environment.slug}`}
                       className="font-medium truncate hover:underline"
-                      title={u.environment.name}
+                      title={qualifiedEnvName(
+                        u.environment.name,
+                        u.environment.projectName
+                      )}
                     >
-                      {u.environment.name}
+                      {qualifiedEnvName(
+                        u.environment.name,
+                        u.environment.projectName
+                      )}
                     </Link>
                     <span className="flex flex-wrap gap-1 shrink-0">
                       {u.roles.map((r) => (

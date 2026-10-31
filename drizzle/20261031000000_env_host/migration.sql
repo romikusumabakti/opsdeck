@@ -1,8 +1,8 @@
 -- Environment host + short names (docs/superpowers/specs/2026-10-31-ux-polish-design.md,
 -- Phase 1 items 1 and 5).
 -- 1. Additive nullable column: free-text address shown next to the short name;
---    never used to connect. The running build ignores it, so this can be
---    applied before the deploy.
+--    never used to connect. The new build selects it in full-row queries, so
+--    this MUST be applied before deploying that build.
 -- 2. Backfill: split a trailing "(host)" out of the name into `host`, and drop
 --    the redundant project-name prefix (mirrors stripProjectPrefix in
 --    lib/nav-path.ts). Rows that would end up with an empty name, or that
