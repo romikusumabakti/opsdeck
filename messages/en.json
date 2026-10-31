@@ -128,7 +128,8 @@
     "activity": "Activity",
     "jira": "Jira",
     "admin": "Admin",
-    "badgeAssignedIssues": "{count, plural, one {# issue assigned to you} other {# issues assigned to you}}",
+    "badgeAssignedOpen": "{count, plural, one {# open issue assigned to you} other {# open issues assigned to you}}",
+    "badgeProjectOpen": "{count, plural, one {# open issue in this project} other {# open issues in this project}}",
     "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}",
     "tunnels": "Tunnels",
     "mail": "Mail"

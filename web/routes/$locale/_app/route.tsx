@@ -23,7 +23,10 @@ import { effectiveAccent } from "@/lib/accents";
 import { dailyMotif, effectiveMotifPreference } from "@/lib/motifs";
 import { activeStatus } from "@/lib/user-display";
 import { listEnvironmentsQuery } from "@/web/api/environments";
-import { getAssignedIssueCountsQuery } from "@/web/api/issues";
+import {
+  getAssignedIssueCountsQuery,
+  getOpenIssueCountsQuery,
+} from "@/web/api/issues";
 import {
   getUnreadNotificationCountQuery,
   listNotificationsQuery,
@@ -42,7 +45,7 @@ import { loaderQuery } from "@/web/query-client";
 export const Route = createFileRoute("/$locale/_app")({
   // What the shell reads on every page: the sidebar, the breadcrumb and
   // palette pickers, and the notification bell. Loaded together: serially
-  // they would stack six round-trips in front of every first paint. Only the
+  // they would stack seven round-trips in front of every first paint. Only the
   // first load waits: after that this runs on every navigation, and cached
   // data is served at once while a stale entry refetches behind it.
   loader: async ({ context: { queryClient } }) => {
@@ -52,6 +55,7 @@ export const Route = createFileRoute("/$locale/_app")({
       loaderQuery(queryClient, listNotificationsQuery()),
       loaderQuery(queryClient, getUnreadNotificationCountQuery()),
       loaderQuery(queryClient, getAssignedIssueCountsQuery()),
+      loaderQuery(queryClient, getOpenIssueCountsQuery()),
       loaderQuery(queryClient, getMyProjectAccessQuery()),
     ]);
   },
@@ -90,6 +94,7 @@ function SignedInShell({
   const notifications = useSuspenseQuery(listNotificationsQuery()).data;
   const unreadCount = useSuspenseQuery(getUnreadNotificationCountQuery()).data;
   const issueCounts = useSuspenseQuery(getAssignedIssueCountsQuery()).data;
+  const openCounts = useSuspenseQuery(getOpenIssueCountsQuery()).data;
   const projectRoles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
 
   const { user, orgRole, timeZone } = me;
@@ -122,6 +127,7 @@ function SignedInShell({
               orgRole={orgRole}
               projectRoles={projectRoles}
               issueCounts={issueCounts}
+              openCounts={openCounts}
               logo={bootstrap.brand}
               side={rtl ? "right" : "left"}
               user={{
