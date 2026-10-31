@@ -294,9 +294,13 @@ export function GlobalIssuesClient({
           <DataTableColumnHeader column={column} title={t("columnTitle")} />
         ),
         cell: ({ row }) => (
-          <span className="flex items-center gap-2 font-medium">
+          <span className="flex max-w-[28rem] items-center gap-2 font-medium">
             <TypeIcon type={row.original.type} />
-            <Link href={issueHref(row.original)} className="hover:underline">
+            <Link
+              href={issueHref(row.original)}
+              title={row.original.title}
+              className="truncate hover:underline"
+            >
               {row.original.title}
             </Link>
             <LabelChips
@@ -333,12 +337,12 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <StatusSelect
-            className="h-7"
+            variant="compact"
             value={row.original.status}
             onChange={(s) => onStatusChange(row.original.id, s)}
           />
         ),
-        meta: { headClassName: "w-32", label: t("columnStatus") },
+        meta: { headClassName: "w-36", label: t("columnStatus") },
       },
       {
         id: "priority",

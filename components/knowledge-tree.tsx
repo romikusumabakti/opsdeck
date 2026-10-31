@@ -176,6 +176,7 @@ function DocNode({
         >
           <FileText className="size-3.5 shrink-0 text-muted-foreground" />
           <span
+            title={node.title}
             className={cn(
               "truncate",
               node.publishedAt === null && "text-muted-foreground italic"

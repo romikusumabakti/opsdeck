@@ -81,16 +81,24 @@ export function StatusSelect({
   value,
   onChange,
   className,
+  variant = "default",
 }: {
   value: Status;
   onChange: (s: Status) => void;
   className?: string;
+  // "compact" sizes to content with no resting border, for dense lists.
+  variant?: "default" | "compact";
 }) {
   const t = useTranslations("issues");
   return (
     <Select value={value} onValueChange={(v) => v && onChange(v as Status)}>
       <SelectTrigger
-        className={cn("h-8 w-full", className)}
+        className={cn(
+          variant === "compact"
+            ? "h-7 w-auto gap-1.5 border-transparent bg-transparent px-2 hover:bg-muted"
+            : "h-8 w-full",
+          className
+        )}
         aria-label={t(`status.${value}`)}
       >
         {/* No dot here: SelectValue renders the selected item's own content

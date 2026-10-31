@@ -54,7 +54,9 @@ export function MyIssuesList({ items }: { items: MyIssue[] }) {
             <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
               {i.projectKey}-{i.number}
             </span>
-            <span className="truncate text-sm">{i.title}</span>
+            <span className="truncate text-sm" title={i.title}>
+              {i.title}
+            </span>
           </Link>
           <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
             {i.projectName}
@@ -63,10 +65,11 @@ export function MyIssuesList({ items }: { items: MyIssue[] }) {
             <StatusSelect
               value={i.status as Status}
               onChange={(s) => changeStatus(i.id, s)}
-              className="h-7 w-36 shrink-0"
+              variant="compact"
+              className="shrink-0"
             />
           ) : (
-            <span className="flex h-7 w-36 shrink-0 items-center gap-2 px-3 text-sm">
+            <span className="flex h-7 shrink-0 items-center gap-2 px-2 text-sm">
               <span
                 className={cn(
                   "size-2 rounded-full",
