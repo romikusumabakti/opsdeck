@@ -32,7 +32,7 @@ test("creating an issue assigned to me updates the sidebar badge without a reloa
   await page.getByRole("option", { name: /E2E Admin/ }).click();
   await issueDialog.getByRole("button", { name: "Create issue" }).click();
 
-  await expect(page.getByText("1 issue assigned to you")).toBeAttached();
+  await expect(page.getByText("1 open issue assigned to you")).toBeAttached();
   expect(
     await page.evaluate(
       () => (window as unknown as { __noReload?: boolean }).__noReload
