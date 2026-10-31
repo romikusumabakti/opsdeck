@@ -643,7 +643,7 @@
     "hostHint": "Server address of this deployment, shown beside the name. Optional.",
     "hostNoPath": "Enter only the IP or hostname (with an optional :port). Put the web address in URL.",
     "url": "URL",
-    "urlHint": "Opens from the environment name. Optional.",
+    "urlHint": "Opens from the link icon beside the environment name. Optional.",
     "urlInvalid": "Enter an absolute http:// or https:// URL",
     "purpose": "Purpose",
     "infraReadOnlyHint": "Changing servers, services or database settings requires server management access."

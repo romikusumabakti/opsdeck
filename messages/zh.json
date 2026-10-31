@@ -643,7 +643,7 @@
     "hostHint": "该部署的服务器地址,显示在名称旁边。可选。",
     "hostNoPath": "只填写 IP 或主机名（可带 :端口）。网址请填写在 URL 中。",
     "url": "URL",
-    "urlHint": "可从环境名称旁打开。可选。",
+    "urlHint": "通过环境名称旁的链接图标打开。可选。",
     "urlInvalid": "请输入以 http:// 或 https:// 开头的完整 URL",
     "purpose": "用途",
     "infraReadOnlyHint": "更改服务器、服务或数据库设置需要服务器管理权限。"

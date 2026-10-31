@@ -643,7 +643,7 @@
     "hostHint": "Dirección del servidor de este despliegue, se muestra junto al nombre. Opcional.",
     "hostNoPath": "Introduce solo la IP o el nombre de host (con :puerto opcional). Pon la dirección web en URL.",
     "url": "URL",
-    "urlHint": "Se abre desde el nombre del entorno. Opcional.",
+    "urlHint": "Se abre desde el icono de enlace junto al nombre del entorno. Opcional.",
     "urlInvalid": "Introduce una URL absoluta http:// o https://",
     "purpose": "Propósito",
     "infraReadOnlyHint": "Cambiar servidores, servicios o la configuración de la base de datos requiere acceso de gestión de servidores."

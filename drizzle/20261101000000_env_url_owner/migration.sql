@@ -19,10 +19,22 @@ BEGIN;
 ALTER TABLE "environments" ADD COLUMN IF NOT EXISTS "url" text;
 ALTER TABLE "environments" ADD COLUMN IF NOT EXISTS "owner_id" uuid;
 
-ALTER TABLE "environments"
-  ADD CONSTRAINT "environments_owner_id_users_id_fk"
-  FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id")
-  ON DELETE set null ON UPDATE no action;
+-- Postgres has no ADD CONSTRAINT IF NOT EXISTS; guard it so a re-run is a
+-- no-op, like the IF NOT EXISTS on the columns and index.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'environments_owner_id_users_id_fk'
+      AND conrelid = 'public.environments'::regclass
+  ) THEN
+    ALTER TABLE "environments"
+      ADD CONSTRAINT "environments_owner_id_users_id_fk"
+      FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id")
+      ON DELETE set null ON UPDATE no action;
+  END IF;
+END
+$$;
 
 CREATE INDEX IF NOT EXISTS "environments_owner_idx"
   ON "environments" ("owner_id");
