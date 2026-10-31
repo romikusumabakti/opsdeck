@@ -9,11 +9,34 @@ import * as React from "react";
 import { useFormatter, useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
+import {
+  DataTable,
+  type DataTableColumnDef,
+  type DataTableFacet,
+} from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { UserName } from "@/components/user/user-name";
+import { facetFilterFn } from "@/lib/facet-filter";
 import { DATE_TIME } from "@/lib/format-date";
 import type { RunWithUser } from "@/web/api/runs";
+
+// Facet keys for runs without a kind or an author; labels come from i18n.
+const KIND_OTHER = "other";
+const USER_UNKNOWN = "__unknown";
+const KINDS = ["backup", "restore", "mock_time", "test", KIND_OTHER] as const;
+const STATUSES = ["success", "failed", "started"] as const;
+const STATUS_LABEL_KEY = {
+  success: "statusSuccess",
+  failed: "statusFailed",
+  started: "statusRunning",
+} as const;
+const KIND_LABEL_KEY = {
+  backup: "kindBackup",
+  restore: "kindRestore",
+  mock_time: "kindMockTime",
+  test: "kindTest",
+  other: "kindOther",
+} as const;
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -43,6 +66,7 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
         id: "status",
         accessorKey: "status",
         header: t("colStatus"),
+        filterFn: facetFilterFn,
         cell: ({ row }) => <StatusBadge status={row.original.status} t={t} />,
         meta: { headClassName: "w-32", label: t("colStatus") },
       },
@@ -60,8 +84,18 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
         },
       },
       {
+        // Filter-only: `kind` has no column of its own, but the facet needs a
+        // value to match on, and a hidden column still takes part in filtering.
+        id: "kind",
+        accessorFn: (row) => row.kind ?? KIND_OTHER,
+        filterFn: facetFilterFn,
+        enableHiding: false,
+        meta: { label: t("colKind") },
+      },
+      {
         id: "user",
-        accessorFn: (row) => row.user?.name ?? "",
+        accessorFn: (row) => row.user?.id ?? USER_UNKNOWN,
+        filterFn: facetFilterFn,
         meta: { label: t("colUser") },
         header: t("colUser"),
         cell: ({ row }) => {
@@ -125,6 +159,35 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
     [t, format]
   );
 
+  const facets = React.useMemo<DataTableFacet[]>(() => {
+    const users = new Map<string, string>();
+    for (const run of runs) {
+      if (run.user) users.set(run.user.id, run.user.name);
+    }
+    const userOptions = [...users]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    if (runs.some((run) => !run.user)) {
+      userOptions.push({ value: USER_UNKNOWN, label: t("userUnknown") });
+    }
+    return [
+      {
+        columnId: "kind",
+        title: t("colKind"),
+        options: KINDS.map((k) => ({ value: k, label: t(KIND_LABEL_KEY[k]) })),
+      },
+      {
+        columnId: "status",
+        title: t("colStatus"),
+        options: STATUSES.map((s) => ({
+          value: s,
+          label: t(STATUS_LABEL_KEY[s]),
+        })),
+      },
+      { columnId: "user", title: t("colUser"), options: userOptions },
+    ];
+  }, [runs, t]);
+
   if (runs.length === 0) {
     return (
       <div className="rounded-lg border bg-card">
@@ -145,6 +208,8 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
       filterColumn="description"
       filterPlaceholder={t("searchPlaceholder")}
       urlKey="hist"
+      facets={facets}
+      initialColumnVisibility={{ kind: false }}
     />
   );
 }

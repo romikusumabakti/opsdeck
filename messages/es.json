@@ -56,7 +56,8 @@
     "selectAll": "Seleccionar todas las filas de esta página",
     "selectRow": "Seleccionar fila",
     "selectedCount": "{count, plural, one {# fila seleccionada} other {# filas seleccionadas}}",
-    "clearSelection": "Limpiar"
+    "clearSelection": "Limpiar",
+    "reset": "Restablecer"
   },
   "breadcrumbs": {
     "projects": "Proyectos",
@@ -549,7 +550,13 @@
     "userUnknown": "Desconocido",
     "statusRunning": "En ejecución",
     "statusSuccess": "Correcto",
-    "statusFailed": "Fallido"
+    "statusFailed": "Fallido",
+    "colKind": "Tipo",
+    "kindBackup": "Copia de seguridad",
+    "kindRestore": "Restauración",
+    "kindMockTime": "Hora simulada",
+    "kindTest": "Prueba",
+    "kindOther": "Otro"
   },
   "liveTask": {
     "starting": "Iniciando…",

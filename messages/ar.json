@@ -56,7 +56,8 @@
     "selectAll": "تحديد جميع الصفوف في هذه الصفحة",
     "selectRow": "تحديد الصف",
     "selectedCount": "{count, plural, zero {لا صفوف محددة} one {# صف محدد} two {صفان محددان} few {# صفوف محددة} many {# صفاً محدداً} other {# صفاً محدداً}}",
-    "clearSelection": "مسح"
+    "clearSelection": "مسح",
+    "reset": "إعادة تعيين"
   },
   "breadcrumbs": {
     "projects": "المشاريع",
@@ -549,7 +550,13 @@
     "userUnknown": "غير معروف",
     "statusRunning": "قيد التشغيل",
     "statusSuccess": "ناجح",
-    "statusFailed": "فشل"
+    "statusFailed": "فشل",
+    "colKind": "النوع",
+    "kindBackup": "نسخ احتياطي",
+    "kindRestore": "استعادة",
+    "kindMockTime": "محاكاة الوقت",
+    "kindTest": "اختبار",
+    "kindOther": "أخرى"
   },
   "liveTask": {
     "starting": "جارٍ البدء…",
