@@ -35,6 +35,9 @@ describe("facet URL param", () => {
     expect(serializeFacetParam([])).toBe("");
   });
   it("round-trips", () => {
-    expect(parseFacetParam(serializeFacetParam(["x", "y"]))).toEqual(["x", "y"]);
+    expect(parseFacetParam(serializeFacetParam(["x", "y"]))).toEqual([
+      "x",
+      "y",
+    ]);
   });
 });

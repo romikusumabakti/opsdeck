@@ -1014,9 +1014,9 @@ export function FileExplorer({ source, rootLabel }: Props) {
         open={rowMenuOpen === entry.path}
         onOpenChange={(open) => setRowMenuOpen(open ? entry.path : null)}
       >
-        <DropdownMenuTrigger
-          render={
-            <TooltipHint label={tCommon("more")}>
+        <TooltipHint label={tCommon("more")}>
+          <DropdownMenuTrigger
+            render={
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -1025,9 +1025,9 @@ export function FileExplorer({ source, rootLabel }: Props) {
               >
                 <MoreHorizontal className="size-4" />
               </Button>
-            </TooltipHint>
-          }
-        />
+            }
+          />
+        </TooltipHint>
         <DropdownMenuContent align="end">
           {rowActions(entry).map((item) => (
             <DropdownMenuItem key={item.key} onClick={item.run}>

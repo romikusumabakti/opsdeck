@@ -45,19 +45,19 @@ export function CollectionCreateDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <TooltipHint label={t("newCollection")}>
+      <TooltipHint label={t("newCollection")}>
+        <DialogTrigger
+          render={
             <Button
               size="icon-sm"
               variant="ghost"
               aria-label={t("newCollection")}
             />
-          </TooltipHint>
-        }
-      >
-        <FolderPlus className="size-4" />
-      </DialogTrigger>
+          }
+        >
+          <FolderPlus className="size-4" />
+        </DialogTrigger>
+      </TooltipHint>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("newCollection")}</DialogTitle>

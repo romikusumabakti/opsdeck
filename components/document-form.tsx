@@ -216,20 +216,20 @@ export function DocumentForm({
 
           {mode.type === "edit" && mode.canDelete && (
             <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <TooltipHint label={tCommon("more")}>
+              <TooltipHint label={tCommon("more")}>
+                <DropdownMenuTrigger
+                  render={
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       aria-label={tCommon("more")}
                       disabled={isPending}
                     />
-                  </TooltipHint>
-                }
-              >
-                <MoreHorizontal className="size-4" />
-              </DropdownMenuTrigger>
+                  }
+                >
+                  <MoreHorizontal className="size-4" />
+                </DropdownMenuTrigger>
+              </TooltipHint>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   variant="destructive"

@@ -58,25 +58,25 @@ export function NotificationBell({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <TooltipHint label={t("ariaLabel")}>
+      <TooltipHint label={t("ariaLabel")}>
+        <PopoverTrigger
+          render={
             <Button
               variant="ghost"
               size="icon"
               className="relative size-8"
               aria-label={t("ariaLabel")}
             />
-          </TooltipHint>
-        }
-      >
-        <Bell className="size-4" />
-        {unread > 0 ? (
-          <span className="absolute -top-0.5 -end-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        ) : null}
-      </PopoverTrigger>
+          }
+        >
+          <Bell className="size-4" />
+          {unread > 0 ? (
+            <span className="absolute -top-0.5 -end-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          ) : null}
+        </PopoverTrigger>
+      </TooltipHint>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between px-3 py-2.5 border-b">
           <span className="text-sm font-medium">{t("title")}</span>

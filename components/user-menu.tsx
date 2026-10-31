@@ -113,12 +113,14 @@ export function UserMenu({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            variant === "sidebar" ? (
-              <SidebarUserTrigger user={user} label={t("ariaLabel")} />
-            ) : (
-              <TooltipHint label={t("ariaLabel")}>
+        {variant === "sidebar" ? (
+          <DropdownMenuTrigger
+            render={<SidebarUserTrigger user={user} label={t("ariaLabel")} />}
+          />
+        ) : (
+          <TooltipHint label={t("ariaLabel")}>
+            <DropdownMenuTrigger
+              render={
                 <Button
                   variant="ghost"
                   size="icon"
@@ -127,10 +129,10 @@ export function UserMenu({
                 >
                   <UserAvatar user={user} size="md" />
                 </Button>
-              </TooltipHint>
-            )
-          }
-        />
+              }
+            />
+          </TooltipHint>
+        )}
         <DropdownMenuContent
           align="end"
           side={variant === "sidebar" ? "right" : "bottom"}
