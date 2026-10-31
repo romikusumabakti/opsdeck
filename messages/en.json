@@ -198,11 +198,14 @@
     "newEnvironment": "New environment",
     "newProject": "New project",
     "ownedBy": "Owner: {owner}",
-    "openIssues": "{count, plural, one {# open issue} other {# open issues}}"
+    "openIssues": "{count, plural, one {# open issue} other {# open issues}}",
+    "statusSucceeded": "Last run succeeded · {relative}",
+    "statusFailed": "Last run failed · {relative}",
+    "statusRunning": "Running now"
   },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "Configuration overview for {name}.",
+    "subtitle": "Backups, restores, mock time and services for {name}.",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
@@ -375,7 +378,7 @@
   },
   "databases": {
     "title": "Databases",
-    "subtitle": "Create and remove databases on the environment's database server.",
+    "subtitle": "Back up, restore and manage databases on the environment's database server.",
     "cardTitle": "Manage databases",
     "cardDescription": "Add a new database or drop an existing one. The environment's configured database cannot be dropped.",
     "createLabel": "New database name",
@@ -2002,7 +2005,6 @@
     "deactivated": "Deactivated",
     "until": "until {date}",
     "title": "People",
-    "subtitle": "Everyone in {{APP_NAME}}.",
     "search": "Search by name, title or email",
     "filterRole": "Role",
     "filterProject": "Project",
@@ -2027,7 +2029,8 @@
     "addBio": "Add a short bio",
     "setWorkingHours": "Set your working hours",
     "copyEmail": "Copy email",
-    "showAllProjects": "Show all ({count})"
+    "showAllProjects": "Show all ({count})",
+    "showDeactivated": "Show deactivated"
   },
   "profile": {
     "name": "Display name",

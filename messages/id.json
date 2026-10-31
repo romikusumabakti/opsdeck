@@ -198,11 +198,14 @@
     "newEnvironment": "Environment baru",
     "newProject": "Proyek baru",
     "ownedBy": "Pemilik: {owner}",
-    "openIssues": "{count, plural, other {# isu terbuka}}"
+    "openIssues": "{count, plural, other {# isu terbuka}}",
+    "statusSucceeded": "Eksekusi terakhir berhasil · {relative}",
+    "statusFailed": "Eksekusi terakhir gagal · {relative}",
+    "statusRunning": "Sedang berjalan"
   },
   "dashboard": {
     "title": "Dasbor",
-    "subtitle": "Ringkasan konfigurasi {name}.",
+    "subtitle": "Backup, restore, waktu tiruan, dan layanan untuk {name}.",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",
@@ -375,7 +378,7 @@
   },
   "databases": {
     "title": "Database",
-    "subtitle": "Buat dan hapus database di server database environment ini.",
+    "subtitle": "Backup, restore, dan kelola database di server database environment ini.",
     "cardTitle": "Kelola database",
     "cardDescription": "Tambah database baru atau hapus yang sudah ada. Database yang dikonfigurasi untuk environment ini tidak bisa dihapus.",
     "createLabel": "Nama database baru",
@@ -2002,7 +2005,6 @@
     "deactivated": "Dinonaktifkan",
     "until": "sampai {date}",
     "title": "Orang",
-    "subtitle": "Semua orang di {{APP_NAME}}.",
     "search": "Cari berdasarkan nama, jabatan, atau email",
     "filterRole": "Peran",
     "filterProject": "Proyek",
@@ -2027,7 +2029,8 @@
     "addBio": "Tambahkan bio singkat",
     "setWorkingHours": "Atur jam kerja Anda",
     "copyEmail": "Salin email",
-    "showAllProjects": "Tampilkan semua ({count})"
+    "showAllProjects": "Tampilkan semua ({count})",
+    "showDeactivated": "Tampilkan yang dinonaktifkan"
   },
   "profile": {
     "name": "Nama tampilan",

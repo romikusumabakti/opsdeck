@@ -10,7 +10,7 @@ import {
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
-import { RelativeTime } from "@/components/relative-time";
+import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { EnvironmentSummary } from "@/lib/db/schema";
 import { compareEnvironments, stripProjectPrefix } from "@/lib/nav-path";
@@ -172,7 +177,7 @@ export function ProjectsOverview({
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4">
           {visible.map((project) => (
             <ProjectCard
               key={project.id}
@@ -314,7 +319,7 @@ function EnvironmentRow({
       href={`/${projectKey}/${env.slug}`}
       className="group flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
-      <StatusDot status={activity?.status ?? null} />
+      <StatusDot activity={activity ?? null} />
       <span className="flex flex-col min-w-0 flex-1 gap-0.5">
         <span className="flex items-center gap-2 min-w-0">
           <span className="text-sm truncate">
@@ -349,23 +354,42 @@ function EnvironmentRow({
   );
 }
 
-function StatusDot({
-  status,
-}: {
-  status: EnvironmentActivity["status"] | null;
-}) {
-  if (status === "started") {
-    return <Loader2 className="size-3.5 text-primary animate-spin shrink-0" />;
+function StatusDot({ activity }: { activity: EnvironmentActivity | null }) {
+  const t = useTranslations("home");
+  const relativeText = useRelativeTimeText();
+  const status = activity?.status ?? null;
+
+  let icon: React.ReactNode;
+  let label: string | null = null;
+  if (activity && status === "started") {
+    icon = <Loader2 className="size-3.5 text-primary animate-spin shrink-0" />;
+    label = t("statusRunning");
+  } else if (activity && status === "failed") {
+    icon = <CircleAlert className="size-3.5 text-destructive shrink-0" />;
+    label = t("statusFailed", { relative: relativeText(activity.runAt) });
+  } else if (activity && status === "success") {
+    icon = <CheckCircle2 className="size-3.5 text-success shrink-0" />;
+    label = t("statusSucceeded", { relative: relativeText(activity.runAt) });
+  } else {
+    icon = (
+      <span className="size-3.5 shrink-0 flex items-center justify-center">
+        <span className="size-1.5 rounded-full bg-muted-foreground/40" />
+      </span>
+    );
   }
-  if (status === "failed") {
-    return <CircleAlert className="size-3.5 text-destructive shrink-0" />;
-  }
-  if (status === "success") {
-    return <CheckCircle2 className="size-3.5 text-success shrink-0" />;
-  }
+  // No run yet: nothing to explain, so no tooltip.
+  if (!label) return icon;
+
   return (
-    <span className="size-3.5 shrink-0 flex items-center justify-center">
-      <span className="size-1.5 rounded-full bg-muted-foreground/40" />
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span role="img" aria-label={label} className="shrink-0 flex">
+            {icon}
+          </span>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

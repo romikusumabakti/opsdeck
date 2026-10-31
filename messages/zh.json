@@ -198,11 +198,14 @@
     "newEnvironment": "新建环境",
     "newProject": "新建项目",
     "ownedBy": "负责人：{owner}",
-    "openIssues": "{count, plural, other {# 个未解决}}"
+    "openIssues": "{count, plural, other {# 个未解决}}",
+    "statusSucceeded": "上次运行成功 · {relative}",
+    "statusFailed": "上次运行失败 · {relative}",
+    "statusRunning": "正在运行"
   },
   "dashboard": {
     "title": "仪表板",
-    "subtitle": "{name} 的配置概览。",
+    "subtitle": "{name} 的备份、恢复、模拟时间和服务。",
     "database": "数据库",
     "backend": "后端",
     "frontend": "前端",
@@ -375,7 +378,7 @@
   },
   "databases": {
     "title": "数据库",
-    "subtitle": "在该环境的数据库服务器上创建和删除数据库。",
+    "subtitle": "在该环境的数据库服务器上备份、恢复和管理数据库。",
     "cardTitle": "管理数据库",
     "cardDescription": "添加新数据库或删除现有数据库。该环境配置的数据库无法删除。",
     "createLabel": "新数据库名称",
@@ -2002,7 +2005,6 @@
     "deactivated": "已停用",
     "until": "至 {date}",
     "title": "成员",
-    "subtitle": "{{APP_NAME}} 中的所有人。",
     "search": "按姓名、职位或邮箱搜索",
     "filterRole": "角色",
     "filterProject": "项目",
@@ -2027,7 +2029,8 @@
     "addBio": "添加简短的个人简介",
     "setWorkingHours": "设置你的工作时间",
     "copyEmail": "复制邮箱",
-    "showAllProjects": "显示全部（{count}）"
+    "showAllProjects": "显示全部（{count}）",
+    "showDeactivated": "显示已停用"
   },
   "profile": {
     "name": "显示名称",
