@@ -1553,8 +1553,7 @@
       "statusFailed": "No se pudo actualizar el estado."
     },
     "running": {
-      "title": "En ejecución",
-      "empty": "Nada en ejecución."
+      "title": "En ejecución"
     },
     "recent": {
       "title": "Retomar",
