@@ -175,7 +175,8 @@
     "ariaLabel": "通知",
     "issue_assigned": "已分配给你：{key}-{number} · {title}",
     "run_failed": "{description} 在 {environment} 失败",
-    "issue_mention": "提到了你：{key}-{number} · {title}"
+    "issue_mention": "提到了你：{key}-{number} · {title}",
+    "jira_push_failed": "未发送到 Jira：{key}-{number}（{fields}）· {reason, select, conflict {Jira 中已先有更改，你的编辑已被丢弃} no_transition {Jira 工作流没有直接转到该状态的步骤} other {Jira 中没有匹配的值}}"
   },
   "projectsEmpty": {
     "title": "暂无项目",

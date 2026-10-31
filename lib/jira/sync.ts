@@ -21,6 +21,7 @@ import {
 } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/secrets";
 import { richTextToMarkdown } from "./adf";
+import { stripAttribution } from "./attribution";
 import { JiraClient, type JiraCredentials } from "./client";
 import { mapPriority, mapStatus, mapType } from "./mapping";
 import type { JiraIssue } from "./types";
@@ -351,7 +352,9 @@ async function syncComments(
 
   for (const comment of remote) {
     seen.push(comment.id);
-    const body = richTextToMarkdown(comment.body);
+    // A comment pushed from OpsDeck comes back with its attribution line and
+    // the token owner as author; drop the line and keep the local author.
+    const body = stripAttribution(richTextToMarkdown(comment.body));
     const authorId = await resolveUser(ctx, comment.author);
     const createdAt = comment.created ? new Date(comment.created) : new Date();
     await db
@@ -364,7 +367,13 @@ async function syncComments(
         // this the insert fails with 42P10 ("no unique or exclusion
         // constraint matching the ON CONFLICT specification").
         targetWhere: isNotNull(issueComments.jiraCommentId),
-        set: { body, authorId },
+        // Only fill a missing author (e.g. a user linked to Jira later). An
+        // existing one is never replaced, or a comment written in OpsDeck
+        // would turn into the token owner's after its first round trip.
+        set: {
+          body,
+          authorId: sql`coalesce(${issueComments.authorId}, excluded.author_id)`,
+        },
       });
   }
 

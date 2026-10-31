@@ -175,7 +175,8 @@
     "ariaLabel": "Notifikasi",
     "issue_assigned": "Ditugaskan ke Anda: {key}-{number} · {title}",
     "run_failed": "{description} gagal di {environment}",
-    "issue_mention": "Menyebut Anda: {key}-{number} · {title}"
+    "issue_mention": "Menyebut Anda: {key}-{number} · {title}",
+    "jira_push_failed": "Tidak terkirim ke Jira: {key}-{number} ({fields}) · {reason, select, conflict {sudah berubah di Jira lebih dulu, edit Anda dibuang} no_transition {workflow Jira tidak punya langkah langsung ke status itu} other {nilainya tidak ada di Jira}}"
   },
   "projectsEmpty": {
     "title": "Belum ada proyek",

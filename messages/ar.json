@@ -175,7 +175,8 @@
     "ariaLabel": "الإشعارات",
     "issue_assigned": "أُسنِد إليك: {key}-{number} · {title}",
     "run_failed": "{description} فشل في {environment}",
-    "issue_mention": "أشار إليك: {key}-{number} · {title}"
+    "issue_mention": "أشار إليك: {key}-{number} · {title}",
+    "jira_push_failed": "لم يُرسَل إلى Jira: {key}-{number} ({fields}) · {reason, select, conflict {تغيّر في Jira أولاً، وتم تجاهل تعديلك} no_transition {لا يحتوي سير عمل Jira على خطوة مباشرة إلى هذه الحالة} other {لا توجد قيمة مطابقة في Jira}}"
   },
   "projectsEmpty": {
     "title": "لا توجد مشاريع بعد",

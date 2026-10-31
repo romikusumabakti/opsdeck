@@ -163,4 +163,20 @@ describe("parseJobPayload", () => {
       }).mockedAt
     ).toBe("2026-08-13T10:00:00+07:00");
   });
+
+  it("carries the editor on a Jira issue push so a failure can reach them", () => {
+    expect(
+      parseJobPayload("jira/push.issue", {
+        issueId: ENV_ID,
+        fields: ["status"],
+        actorId: RUN_ID,
+      })
+    ).toEqual({ issueId: ENV_ID, fields: ["status"], actorId: RUN_ID });
+  });
+
+  it("still accepts a Jira issue push queued before actorId existed", () => {
+    expect(
+      parseJobPayload("jira/push.issue", { issueId: ENV_ID, fields: [] })
+    ).toEqual({ issueId: ENV_ID, fields: [] });
+  });
 });

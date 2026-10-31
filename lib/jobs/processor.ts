@@ -1253,7 +1253,7 @@ export async function processJob(job: Job): Promise<unknown> {
     }
     case "jira/push.issue": {
       const data = parseJobPayload(name, raw);
-      return pushIssue(data.issueId, data.fields);
+      return pushIssue(data.issueId, data.fields, data.actorId);
     }
     case "jira/push.comment":
       return pushComment(parseJobPayload(name, raw).commentId);

@@ -621,6 +621,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "issue_assigned",
   "run_failed",
   "issue_mention",
+  "jira_push_failed",
 ]);
 
 // Per-user inbox items. Text is NOT stored — only a `type` + structured `data`
