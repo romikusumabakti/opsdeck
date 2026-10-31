@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
 
 // An environment's address (IP/hostname) as muted monospace secondary text,
-// placed beside its name. Renders nothing when no host is set.
+// placed beside its name. Renders nothing when no host is set. Sits above a
+// stretched row link (z-10) so its `title` still shows the full host on hover.
 export function EnvironmentHost({
   host,
   className,
@@ -14,7 +15,7 @@ export function EnvironmentHost({
     <span
       title={host}
       className={cn(
-        "min-w-0 truncate font-mono text-xs text-muted-foreground",
+        "relative z-10 min-w-0 truncate font-mono text-xs text-muted-foreground",
         className
       )}
     >

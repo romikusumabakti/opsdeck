@@ -643,7 +643,7 @@
     "hostHint": "Alamat server deployment ini, ditampilkan di samping nama. Opsional.",
     "hostNoPath": "Isi hanya IP atau hostname (dengan :port opsional). Taruh alamat web di URL.",
     "url": "URL",
-    "urlHint": "Dibuka dari nama environment. Opsional.",
+    "urlHint": "Dibuka dari ikon tautan di samping nama environment. Opsional.",
     "urlInvalid": "Masukkan URL absolut http:// atau https://",
     "purpose": "Tujuan",
     "infraReadOnlyHint": "Mengubah server, layanan, atau pengaturan database memerlukan akses pengelolaan server."
