@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,13 +17,13 @@ import { buildDbShellCommand } from "@/lib/services";
 const SQL = "\\.sql(\\.gz)?";
 
 describe("backupListCommand", () => {
-  const run = (dir: string) =>
+  const run = (dir: string, env?: NodeJS.ProcessEnv) =>
     // Through the real wrapper (bash -c <shq(inner)>), so a second layer of
     // quoting cannot mangle the \t escapes.
     execFileSync(
       "bash",
       ["-c", buildDbShellCommand("systemd", "svc", backupListCommand(dir))],
-      { encoding: "utf8" }
+      { encoding: "utf8", env }
     );
 
   it("quotes the directory and avoids find -printf", () => {
@@ -38,6 +45,46 @@ describe("backupListCommand", () => {
       ]);
     } finally {
       rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("keeps names that start with a dash", () => {
+    const dir = mkdtempSync(join(tmpdir(), "dash-backups-"));
+    try {
+      writeFileSync(join(dir, "-c.sql"), "1");
+      expect(parseBackupListing(run(dir), SQL).map((b) => b.name)).toEqual([
+        "-c.sql",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  // A forked stat per file took 18s for 3000 mssql .bak files, past the 10s
+  // SSH timeout, so the list must cost one stat call however many files exist.
+  it("runs stat once for the whole directory", () => {
+    const dir = mkdtempSync(join(tmpdir(), "many-backups-"));
+    const bin = mkdtempSync(join(tmpdir(), "stat-spy-"));
+    try {
+      for (let i = 0; i < 50; i++) writeFileSync(join(dir, `${i}.sql`), "");
+      const log = join(bin, "calls");
+      const realStat = execFileSync("bash", ["-c", "command -v stat"], {
+        encoding: "utf8",
+      }).trim();
+      writeFileSync(
+        join(bin, "stat"),
+        `#!/bin/sh\necho >> ${log}\nexec ${realStat} "$@"\n`
+      );
+      chmodSync(join(bin, "stat"), 0o755);
+      const out = run(dir, {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+      });
+      expect(parseBackupListing(out, SQL)).toHaveLength(50);
+      expect(readFileSync(log, "utf8").split("\n").length - 1).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true });
+      rmSync(bin, { recursive: true });
     }
   });
 
