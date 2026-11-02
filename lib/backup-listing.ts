@@ -3,19 +3,22 @@ import type { Backup } from "@/lib/types";
 
 /**
  * Lists the regular files of one directory as `name<TAB>size<TAB>mtime` lines
- * (size in bytes, mtime in epoch seconds). Plain POSIX shell plus `stat -c`,
- * which GNU coreutils and BusyBox both have, so it also runs inside alpine
- * containers (`find -printf` does not). A missing directory lists nothing;
- * an empty one too (the trailing `true` swallows the unmatched-glob status).
- * The extension filter is applied by `parseBackupListing`, not here.
+ * (size in bytes, mtime in epoch seconds). Bash (which buildDbShellCommand
+ * always wraps it in) plus `stat -c`, which GNU coreutils and BusyBox both
+ * have, so it also runs inside alpine containers (`find -printf` does not).
+ * The files are collected in a bash array and passed to a single `stat`: a
+ * stat per file took 18s for ~3000 mssql .bak files, past the SSH timeout.
+ * A missing directory lists nothing; an empty one too (the trailing `true`
+ * swallows the unmatched-glob status). The extension filter is applied by
+ * `parseBackupListing`, not here.
  */
 export function backupListCommand(directory: string): string {
   const dir = shq(directory);
   return (
     `[ -d ${dir} ] || exit 0; cd ${dir} || exit 1; ` +
-    `for f in *; do [ -f "$f" ] && ` +
-    `printf '%s\\t%s\\t%s\\n' "$f" "$(stat -c %s "./$f")" "$(stat -c %Y "./$f")"; ` +
-    `done; true`
+    `files=(); for f in *; do [ -f "$f" ] && files+=("$f"); done; ` +
+    `[ \${#files[@]} -eq 0 ] || { t=$(printf '\\t'); ` +
+    `stat -c "%n$t%s$t%Y" -- "\${files[@]}"; }; true`
   );
 }
 
