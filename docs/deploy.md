@@ -172,6 +172,13 @@ Notes:
   as it accepts the notification.
 - `alpine:3` has no `curl` or `openssl`, hence the `apk add` (a per-run
   download; bake an image with both if that matters).
+- **Required:** turn on Woodpecker's "cancel previous pipelines" for `push`
+  events on every branch a target deploys from (repository settings). The Panel
+  orders auto deploys by when it receives the notification, not by commit. If
+  two pipelines of one branch run side by side and the older one finishes last,
+  its build is notified last and **auto-deploys last**: the environment then
+  runs the older commit while every status is green. Recover with a manual
+  deploy of the newest build from the Panel.
 
 ## Registering an app and a target
 
