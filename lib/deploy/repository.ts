@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -20,12 +20,75 @@ import { decryptSecret } from "@/lib/secrets";
 
 const RECENT_LIMIT = 20;
 
-export type TargetState = DeployTarget & {
-  runningTag: string | null;
+/**
+ * What the target's server runs, as far as the Panel knows.
+ * - currentTag: the tag of the latest deployment whose script reached the
+ *   server. After a failed deploy the server may run it, half-started — it is
+ *   not necessarily a good release (see currentStatus).
+ * - previousTag: the latest successful tag other than currentTag — what a
+ *   rollback deploys.
+ */
+export type TagState = {
+  currentTag: string | null;
+  currentStatus: Deployment["status"] | null;
   previousTag: string | null;
-  recentBuilds: Build[];
-  recentDeployments: (Deployment & { userName: string | null })[];
 };
+
+export type TargetState = DeployTarget &
+  TagState & {
+    recentBuilds: Build[];
+    recentDeployments: (Deployment & { userName: string | null })[];
+  };
+
+type TagStateRow = Pick<
+  Deployment,
+  "id" | "tag" | "status" | "scriptStartedAt" | "startedAt" | "finishedAt"
+>;
+
+const settledAt = (r: TagStateRow) =>
+  (r.finishedAt ?? r.startedAt)?.getTime() ?? 0;
+
+/**
+ * Derives the tag state from a target's deployments. Only deployments whose
+ * script started count: one that failed before (say its backup failed) never
+ * touched the server. Newest first by finish (or start) time, then id.
+ */
+export function deriveTagState(rows: TagStateRow[]): TagState {
+  const touched = rows
+    .filter((r) => r.scriptStartedAt !== null)
+    .sort((a, b) => settledAt(b) - settledAt(a) || b.id.localeCompare(a.id));
+  const current = touched[0];
+  const currentTag = current?.tag ?? null;
+  const previous = touched.find(
+    (r) => r.status === "success" && r.tag !== currentTag
+  );
+  return {
+    currentTag,
+    currentStatus: current?.status ?? null,
+    previousTag: previous?.tag ?? null,
+  };
+}
+
+/** The target's current and rollback tags; see {@link TagState}. */
+export async function getTagState(targetId: string): Promise<TagState> {
+  const rows = await db
+    .select({
+      id: deployments.id,
+      tag: deployments.tag,
+      status: deployments.status,
+      scriptStartedAt: deployments.scriptStartedAt,
+      startedAt: deployments.startedAt,
+      finishedAt: deployments.finishedAt,
+    })
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.targetId, targetId),
+        isNotNull(deployments.scriptStartedAt)
+      )
+    );
+  return deriveTagState(rows);
+}
 
 export async function getDeployApp(
   appKey: string
@@ -93,17 +156,8 @@ export async function listTargetsForEnvironment(
 
   return Promise.all(
     targets.map(async (target) => {
-      const [successTags, recentBuilds, recentDeployments] = await Promise.all([
-        db
-          .select({ tag: deployments.tag })
-          .from(deployments)
-          .where(
-            and(
-              eq(deployments.targetId, target.id),
-              eq(deployments.status, "success")
-            )
-          )
-          .orderBy(desc(deployments.createdAt), desc(deployments.id)),
+      const [tagState, recentBuilds, recentDeployments] = await Promise.all([
+        getTagState(target.id),
         db
           .select()
           .from(builds)
@@ -124,13 +178,9 @@ export async function listTargetsForEnvironment(
           .orderBy(desc(deployments.createdAt), desc(deployments.id))
           .limit(RECENT_LIMIT),
       ]);
-      const runningTag = successTags[0]?.tag ?? null;
-      const previousTag =
-        successTags.find((r) => r.tag !== runningTag)?.tag ?? null;
       return {
         ...target,
-        runningTag,
-        previousTag,
+        ...tagState,
         recentBuilds,
         recentDeployments: recentDeployments.map((r) => ({
           ...r.deployment,
@@ -266,6 +316,14 @@ export async function finishDeployment(
     .where(and(eq(deployments.id, id), eq(deployments.status, "running")))
     .returning({ id: deployments.id });
   return rows.length > 0;
+}
+
+/** Records that the deploy script is about to be sent to the server. */
+export async function markScriptStarted(id: string): Promise<void> {
+  await db
+    .update(deployments)
+    .set({ scriptStartedAt: sql`now()` })
+    .where(eq(deployments.id, id));
 }
 
 /**

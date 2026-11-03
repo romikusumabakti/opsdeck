@@ -442,6 +442,9 @@ export const deployments = pgTable(
     // Bumped by the worker every minute while the deploy runs; the stale sweep
     // fails running deployments whose heartbeat stopped (dead worker).
     heartbeatAt: timestamp("heartbeat_at"),
+    // Set just before the deploy script is sent to the server. From then on
+    // the server may run this tag, even when the deployment later fails.
+    scriptStartedAt: timestamp("script_started_at"),
     finishedAt: timestamp("finished_at"),
   },
   (t) => [

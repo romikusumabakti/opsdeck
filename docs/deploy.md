@@ -256,10 +256,21 @@ inside the 20-minute limit on the whole script); otherwise the script prints
 ### Failure and rollback
 
 A failed deploy stays failed: the deployment and its run are marked `failed`,
-and there is **no automatic rollback**. A maintainer rolls back from the UI,
-which creates a new deployment of the target's previous successful tag. Database
-migrations the failed version ran are **not** reverted; a rollback only
-redeploys the old images and bundle.
+and there is **no automatic rollback**.
+
+The page shows the target's **current tag**: the tag of the latest deployment
+whose script was sent to the server (the worker records `script_started_at`
+just before it does), whatever its outcome. A deployment that failed before
+that point (a failed backup, say) never touched the server and does not change
+it. When that latest deployment failed, the page says so — the server may be
+running that tag, half-started — and the tag stays deployable, so it can be
+retried.
+
+**Rollback** creates a new deployment of the **previous tag**: the latest
+successful tag other than the current one. After T0 ok, T1 ok, T2 failed, the
+current tag is T2 (failed) and Rollback deploys T1. Database migrations the
+failed version ran are **not** reverted; a rollback only redeploys the old
+images and bundle.
 
 ### Queueing and liveness
 

@@ -7,6 +7,7 @@ import {
   environmentUsesServer,
   findBuild,
   getDeployApp,
+  getTagState,
   getTarget,
   listTargetsForEnvironment,
   type TargetState,
@@ -160,7 +161,11 @@ export async function deployTag(
   });
 }
 
-/** Deploys the target's previous successful tag again, as a new deployment. */
+/**
+ * Deploys the target's previous successful tag again, as a new deployment: the
+ * latest successful tag other than the one the server currently runs (which,
+ * after a failed deploy, is the last good release).
+ */
 export async function rollbackTarget(
   targetId: string
 ): Promise<{ deploymentId: string; runId: string }> {
@@ -170,10 +175,7 @@ export async function rollbackTarget(
     { deploy: ["rollback"] }
   );
   requireDeployEnabled();
-  const state = (await listTargetsForEnvironment(target.environmentId)).find(
-    (t) => t.id === target.id
-  );
-  const tag = state?.previousTag;
+  const tag = (await getTagState(target.id)).previousTag;
   if (!tag) return fail(409, "No previous successful deploy");
   const build = await findBuild(target.appKey, tag);
   return requestDeployment({
