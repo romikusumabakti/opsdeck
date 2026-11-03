@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   composeServiceSchema,
   deployDirSchema,
+  deployRegistrySchema,
   deployTagSchema,
   envVarNameSchema,
 } from "@/lib/deploy/validation";
@@ -48,14 +49,8 @@ const HEALTH_POLL_SECONDS = 5;
 const INSPECT_FORMAT =
   "{{.RestartCount}} {{.State.StartedAt}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}";
 
-// Registry host[:port] and a repository path, as Docker accepts them. Not
-// shared schemas: only this builder composes an image reference.
-const registrySchema = z
-  .string()
-  .regex(
-    /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,252})(?::[0-9]{1,5})?$/,
-    "Registry must be host[:port]"
-  );
+// A repository path as Docker accepts it. Not a shared schema: only this
+// builder composes an image reference.
 const imageNameSchema = z
   .string()
   .regex(
@@ -65,7 +60,7 @@ const imageNameSchema = z
   .max(255);
 
 const deployScriptInputSchema = z.object({
-  registry: registrySchema,
+  registry: deployRegistrySchema,
   bundleImage: imageNameSchema,
   tag: deployTagSchema,
   deployDir: deployDirSchema,

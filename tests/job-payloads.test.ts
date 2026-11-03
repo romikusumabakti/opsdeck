@@ -174,6 +174,27 @@ describe("parseJobPayload", () => {
     ).toEqual({ issueId: ENV_ID, fields: ["status"], actorId: RUN_ID });
   });
 
+  it("job payload rejects non-uuid ids", () => {
+    expect(
+      parseJobPayload("deploy/run.requested", {
+        deploymentId: ENV_ID,
+        runId: RUN_ID,
+      })
+    ).toEqual({ deploymentId: ENV_ID, runId: RUN_ID });
+    expect(() =>
+      parseJobPayload("deploy/run.requested", {
+        deploymentId: "not-a-uuid",
+        runId: RUN_ID,
+      })
+    ).toThrow(/deploy\/run\.requested/);
+    expect(() =>
+      parseJobPayload("deploy/run.requested", {
+        deploymentId: ENV_ID,
+        runId: "1; reboot",
+      })
+    ).toThrow();
+  });
+
   it("still accepts a Jira issue push queued before actorId existed", () => {
     expect(
       parseJobPayload("jira/push.issue", { issueId: ENV_ID, fields: [] })

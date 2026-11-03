@@ -38,6 +38,7 @@ import {
   pgRenameDatabaseQuery,
   pgRestorePipeline,
 } from "@/lib/jobs/commands";
+import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
@@ -117,7 +118,7 @@ const DUMP_TOOL: Record<DatabaseType, string> = {
   mysql: "mysqldump",
 };
 
-async function handleCreateDatabaseBackup(
+export async function handleCreateDatabaseBackup(
   data: JobMap["db/backup.requested"]
 ): Promise<{ success: true; filename: string }> {
   const { runId, compress, environmentId, database } = data;
@@ -1198,10 +1199,11 @@ function normalizeJobName(name: string): JobName {
  * validation, so an in-flight legacy job is migrated rather than rejected.
  *
  * Jira jobs legitimately carry a `projectId` that means the LOGICAL project, so
- * they skip the shim — otherwise the sweep would lose its only argument.
+ * they skip the shim — otherwise the sweep would lose its only argument. Deploy
+ * jobs postdate the rename and carry no environment id at all.
  */
 function migrateLegacyPayload(name: JobName, data: unknown): unknown {
-  if (name.startsWith("jira/")) return data;
+  if (name.startsWith("jira/") || name.startsWith("deploy/")) return data;
   if (data && typeof data === "object" && !("environmentId" in data)) {
     const { projectId, sourceProjectId, ...rest } = data as Record<
       string,
@@ -1257,6 +1259,8 @@ export async function processJob(job: Job): Promise<unknown> {
     }
     case "jira/push.comment":
       return pushComment(parseJobPayload(name, raw).commentId);
+    case "deploy/run.requested":
+      return handleDeploy(parseJobPayload(name, raw));
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;

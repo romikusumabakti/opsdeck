@@ -85,6 +85,13 @@ export type JobMap = {
   "jira/push.comment": {
     commentId: string;
   };
+  // --- Panel deploy ---
+  // Roll a deployment out. Carries only ids; the target, tag and SSH
+  // credentials are re-read in the worker.
+  "deploy/run.requested": {
+    deploymentId: string;
+    runId: string;
+  };
 };
 
 export type JobName = keyof JobMap;
@@ -120,7 +127,7 @@ function getQueue(): Queue {
   return globalForQueue.__runsQueue;
 }
 
-// Per-job overrides on the defaults below. Kept to the three knobs that
+// Per-job overrides on the defaults below. Kept to the few knobs that
 // actually differ between job families rather than re-exporting BullMQ's whole
 // options surface.
 export type EnqueueOptions = {
@@ -137,6 +144,10 @@ export type EnqueueOptions = {
   // a job carrying an id is removed the moment it settles (see below) —
   // otherwise the second "Sync now" for a project would be silently dropped.
   jobId?: string;
+  // Hold the job back this long before a worker may pick it up. A deploy that
+  // finds its environment busy re-enqueues itself with a delay; it carries no
+  // jobId, so the re-add is never deduplicated against the running job.
+  delayMs?: number;
 };
 
 // Enqueue a background job. `attempts: 1` by default — no auto-retry, matching
@@ -152,6 +163,7 @@ export async function enqueue<N extends JobName>(
 ): Promise<void> {
   await getQueue().add(name, data, {
     attempts: options.attempts ?? 1,
+    ...(options.delayMs ? { delay: options.delayMs } : {}),
     ...(options.backoffMs
       ? { backoff: { type: "exponential", delay: options.backoffMs } }
       : {}),
