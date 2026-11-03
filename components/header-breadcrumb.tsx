@@ -82,6 +82,8 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
   switch (slug) {
     case "services":
       return "breadcrumbs.services";
+    case "deploys":
+      return "breadcrumbs.deploys";
     case "databases":
       return "breadcrumbs.databases";
     case "backup-restore":
