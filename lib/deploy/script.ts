@@ -16,8 +16,8 @@ import { shq } from "@/lib/sh";
  *
  * Invariants the tests hold it to: it never runs `compose down/stop/rm`, it
  * only (re)starts the listed services (`--no-deps`), the only `.env` line it
- * touches is the tag variable, and a stack that never turns healthy makes it
- * exit non-zero within `healthTimeoutSeconds`.
+ * touches is the tag variable, and a stack that never turns (and stays)
+ * healthy makes it exit non-zero within `healthTimeoutSeconds`.
  */
 
 export interface DeployScriptInput {
@@ -30,9 +30,23 @@ export interface DeployScriptInput {
   preStartCommand: string | null;
   healthUrl: string | null;
   healthTimeoutSeconds: number;
+  /**
+   * How long every service must stay OK, over consecutive polls, before the
+   * deploy counts as healthy. Guards against a container without a
+   * healthcheck that is `running` right after `up -d` and crashes seconds
+   * later. Defaults to {@link DEFAULT_STABLE_SECONDS}.
+   */
+  stableSeconds?: number;
 }
 
+export const DEFAULT_STABLE_SECONDS = 30;
+
 const HEALTH_POLL_SECONDS = 5;
+
+// Per container: restart count, start time, status, health (empty when the
+// image has no healthcheck).
+const INSPECT_FORMAT =
+  "{{.RestartCount}} {{.State.StartedAt}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}";
 
 // Registry host[:port] and a repository path, as Docker accepts them. Not
 // shared schemas: only this builder composes an image reference.
@@ -60,6 +74,12 @@ const deployScriptInputSchema = z.object({
   preStartCommand: z.string().nullable(),
   healthUrl: z.url({ protocol: /^https?$/ }).nullable(),
   healthTimeoutSeconds: z.number().int().min(1).max(3600),
+  stableSeconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(600)
+    .default(DEFAULT_STABLE_SECONDS),
 });
 
 /** Throws a ZodError when any field of the input is invalid. */
@@ -80,7 +100,8 @@ export function buildDeployScript(input: DeployScriptInput): string {
     // 1. Deploy bundle: compose.yaml and friends, extracted into the deploy dir.
     `docker pull ${image}`,
     `cid=$(docker create ${image} noop)`,
-    `docker cp "$cid":/bundle/. .`,
+    // Remove the bundle container on the failure path too, then still fail.
+    `docker cp "$cid":/bundle/. . || { docker rm "$cid" >/dev/null || true; exit 1; }`,
     `docker rm "$cid" >/dev/null`,
 
     // 2. The tag variable — the only .env line the Panel ever changes.
@@ -94,25 +115,48 @@ export function buildDeployScript(input: DeployScriptInput): string {
 
     // 3. Images, then the optional pre-start hook, then only the listed services.
     `docker compose pull ${services}`,
-    ...(preStart === null ? [] : [preStart]),
+    // Subshell: an `exit` or `cd` in the hook cannot end or redirect the rest
+    // of the script, and the blank line absorbs a trailing backslash. A
+    // non-zero status still aborts under `set -e`.
+    ...(preStart === null ? [] : ["(", preStart, "", ")"]),
     `docker compose up -d --no-deps ${services}`,
 
-    // 4. Health: every listed service running and healthy (or without a
-    //    healthcheck), plus the health URL if one is set.
+    // 4. Health. A poll is OK when every container of every listed service
+    //    is running with health `healthy` or no healthcheck, its RestartCount
+    //    and StartedAt equal the previous poll's (a crash loop under a restart
+    //    policy still reads `running` in `compose ps`; only these move), and
+    //    the health URL answers if one is set. The first poll is therefore a
+    //    baseline. HEALTHY needs consecutive OK polls spanning stableSeconds;
+    //    any non-OK poll resets the window.
     `deadline=$(( $(date +%s) + ${v.healthTimeoutSeconds} ))`,
+    "ok_since=",
+    "prev_snap=",
     "while :; do",
     "  ok=1",
-    `  status=$(docker compose ps --format '{{.Service}} {{.State}} {{.Health}}' ${services}) || ok=0`,
+    "  snap=",
     `  for svc in ${services}; do`,
-    `    printf '%s\\n' "$status" | awk -v s="$svc" '$1 == s { n++; if (!($2 == "running" && ($3 == "" || $3 == "healthy"))) bad = 1 } END { exit !(n > 0 && !bad) }' || ok=0`,
+    `    ids=$(docker compose ps -q "$svc") || ok=0`,
+    `    if [ -z "$ids" ]; then ok=0; fi`,
+    "    for id in $ids; do",
+    `      info=$(docker inspect -f ${shq(INSPECT_FORMAT)} "$id") || { ok=0; continue; }`,
+    `      snap="$snap $id $(printf '%s\n' "$info" | awk '{ print $1, $2 }')"`,
+    `      printf '%s\n' "$info" | awk '{ exit !($3 == "running" && ($4 == "" || $4 == "healthy")) }' || ok=0`,
+    "    done",
     "  done",
+    `  if [ "$snap" != "$prev_snap" ]; then ok=0; fi`,
+    "  prev_snap=$snap",
     ...(v.healthUrl === null
       ? []
       : [
           `  if [ "$ok" = 1 ]; then curl -fsS -o /dev/null --max-time 5 ${shq(v.healthUrl)} || ok=0; fi`,
         ]),
-    `  if [ "$ok" = 1 ]; then echo 'HEALTHY'; exit 0; fi`,
     "  now=$(date +%s)",
+    `  if [ "$ok" = 1 ]; then`,
+    `    if [ -z "$ok_since" ]; then ok_since=$now; fi`,
+    `    if [ $(( now - ok_since )) -ge ${v.stableSeconds} ]; then echo 'HEALTHY'; exit 0; fi`,
+    "  else",
+    "    ok_since=",
+    "  fi",
     `  if [ "$now" -ge "$deadline" ]; then echo 'HEALTH TIMEOUT'; exit 1; fi`,
     "  left=$(( deadline - now ))",
     `  sleep $(( left < ${HEALTH_POLL_SECONDS} ? left : ${HEALTH_POLL_SECONDS} ))`,
