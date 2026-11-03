@@ -76,6 +76,9 @@ const projectStatements = {
   member: ["manage"],
   // Acknowledge a failed run so it leaves Home's "Needs attention" for everyone.
   run: ["acknowledge"],
+  // Panel deploys: anyone can see history; only maintainers trigger, roll back
+  // or edit deploy targets.
+  deploy: ["view", "run", "rollback", "configure"],
 } as const;
 
 export const projectAc = createAccessControl(projectStatements);
@@ -83,6 +86,7 @@ export const projectAc = createAccessControl(projectStatements);
 const viewerStatements = {
   project: ["read"],
   service: ["logs"],
+  deploy: ["view"],
 } as const;
 
 const contributorStatements = {
@@ -107,6 +111,7 @@ export const projectRoles = {
     environment: ["create", "update", "delete"],
     member: ["manage"],
     run: ["acknowledge"],
+    deploy: ["view", "run", "rollback", "configure"],
   }),
 } satisfies Record<ProjectRole, unknown>;
 
