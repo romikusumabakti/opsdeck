@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { jiraProjectLinks } from "@/lib/db/schema";
+import { failStaleDeployments } from "@/lib/jobs/deploy";
 import { processJob } from "@/lib/jobs/processor";
 import {
   createRedisConnection,
@@ -59,6 +60,12 @@ export function startWorker(): Worker | null {
   // idempotent (same scheduler key) and makes the DB the source of truth.
   restoreJiraSweeps().catch((error) => {
     console.error("Failed to restore Jira sweep schedules:", error);
+  });
+
+  // A deploy whose worker died mid-run stays `running` and blocks its
+  // environment; fail the ones older than any live deploy can be.
+  failStaleDeployments().catch((error) => {
+    console.error("Failed to sweep stale deployments:", error);
   });
 
   globalForWorker.__tasksWorker = worker;
