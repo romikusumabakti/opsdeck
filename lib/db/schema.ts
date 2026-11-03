@@ -439,6 +439,9 @@ export const deployments = pgTable(
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     startedAt: timestamp("started_at"),
+    // Bumped by the worker every minute while the deploy runs; the stale sweep
+    // fails running deployments whose heartbeat stopped (dead worker).
+    heartbeatAt: timestamp("heartbeat_at"),
     finishedAt: timestamp("finished_at"),
   },
   (t) => [

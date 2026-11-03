@@ -5,7 +5,7 @@ import {
   getDeployApp,
   getDeployment,
   getTarget,
-  touchRunningDeployment,
+  heartbeatDeployment,
 } from "@/lib/deploy/repository";
 import { buildDeployScript } from "@/lib/deploy/script";
 import { loadServerCredentials } from "@/lib/environments";
@@ -28,12 +28,12 @@ const BUSY_RETRY_DELAY_MS = 15_000;
 const DEPLOY_COMMAND_TIMEOUT_MS = 20 * 60_000;
 
 /**
- * A deployment running longer than this has no live worker behind it: the
- * deploy script is bounded by DEPLOY_COMMAND_TIMEOUT_MS, and the clock restarts
- * after a pre-deploy backup (touchRunningDeployment). The margin covers the
- * claim-to-script bookkeeping.
+ * While a deploy runs, its worker bumps the deployment's heartbeat this often.
+ * A running deployment whose heartbeat is older than STALE_RUNNING_DEPLOY_MS has
+ * no live worker behind it, however long its backup or script legitimately take.
  */
-export const STALE_RUNNING_DEPLOY_MS = DEPLOY_COMMAND_TIMEOUT_MS + 5 * 60_000;
+export const HEARTBEAT_INTERVAL_MS = 60_000;
+export const STALE_RUNNING_DEPLOY_MS = 5 * 60_000;
 
 const INTERRUPTED_MESSAGE =
   "Worker restarted during deploy — server state unknown";
@@ -91,8 +91,26 @@ export async function handleDeploy(
       break;
   }
 
-  // Claimed: from here on every exit must finish the deployment, or it would
-  // stay `running` and block the environment until the stale sweep.
+  // Claimed: keep the heartbeat going until the job is done, so the stale
+  // sweep only ever fails deployments whose worker died.
+  const heartbeat = setInterval(() => {
+    void bestEffort("record the heartbeat", () =>
+      heartbeatDeployment(deploymentId)
+    );
+  }, HEARTBEAT_INTERVAL_MS);
+  try {
+    return await recordClaimedDeployment(deploymentId, runId);
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
+// From here on every exit must finish the deployment, or it would stay
+// `running` and block the environment until the stale sweep.
+async function recordClaimedDeployment(
+  deploymentId: string,
+  runId: string
+): Promise<DeployJobResult> {
   try {
     await runClaimedDeployment(deploymentId, runId);
   } catch (err) {
@@ -229,8 +247,15 @@ async function runClaimedDeployment(
       );
       throw new DeployAborted("Backup failed — deploy aborted");
     }
-    // The backup's duration does not count against the deploy's stale bound.
-    await touchRunningDeployment(deploymentId);
+  }
+
+  // The last check before touching the server: if the stale sweep failed this
+  // deployment (say the heartbeat stalled during a long backup), another
+  // deploy may already own the environment.
+  if (!(await heartbeatDeployment(deploymentId))) {
+    throw new DeployAborted(
+      "Deployment was marked failed while waiting (stale) — not deploying"
+    );
   }
 
   await appendRunOutput(
