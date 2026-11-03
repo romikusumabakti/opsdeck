@@ -386,7 +386,7 @@
       "healthUrl": "عنوان URL للفحص الصحي",
       "healthUrlHint": "اختياري. يجب أن يستجيب بنجاح قبل اعتبار النشر سليمًا.",
       "healthTimeoutSeconds": "مهلة الفحص الصحي (بالثواني)",
-      "healthTimeoutSecondsHint": "بين 60 و3600.",
+      "healthTimeoutSecondsHint": "بين 60 و900.",
       "autoDeploy": "نشر البنى الجديدة تلقائيًا",
       "backupBeforeDeploy": "نسخ قاعدة البيانات احتياطيًا قبل كل نشر",
       "save": "حفظ",
