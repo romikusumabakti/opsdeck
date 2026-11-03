@@ -114,6 +114,14 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     getAllServiceStatuses: /project: \["read"\]/,
     controlService: /service: \["control"\]/,
   },
+  "server/services/deploys.ts": {
+    listDeployTargets: /deploy: \["view"\]/,
+    createDeployTarget: /deploy: \["configure"\]/,
+    updateDeployTarget: /deploy: \["configure"\]/,
+    deleteDeployTarget: /deploy: \["configure"\]/,
+    deployTag: /deploy: \["run"\]/,
+    rollbackTarget: /deploy: \["rollback"\]/,
+  },
   "server/services/backups.ts": {
     getBackupList:
       /requireAnyProjectPermission\([^)]*database: \["backup"\][^)]*database: \["restore"\]/s,

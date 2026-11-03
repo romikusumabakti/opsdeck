@@ -10,6 +10,7 @@ import {
   deployApps,
   deployments,
   deployTargets,
+  environmentServices,
   type NewDeployTarget,
   runs,
   users,
@@ -303,11 +304,14 @@ export async function failStaleRunningDeployments(
 }
 
 export async function upsertTarget(
-  input: NewDeployTarget & { id?: string }
+  input: NewDeployTarget | (Partial<NewDeployTarget> & { id: string })
 ): Promise<DeployTarget> {
-  if (!input.id) {
+  if (!("id" in input) || !input.id) {
     return one(
-      await db.insert(deployTargets).values(input).returning(),
+      await db
+        .insert(deployTargets)
+        .values(input as NewDeployTarget)
+        .returning(),
       "deploy target"
     );
   }
@@ -319,6 +323,24 @@ export async function upsertTarget(
     .returning();
   if (!row) throw new Error(`Deploy target ${id} not found`);
   return row;
+}
+
+/** Whether a service of the environment runs on this server. */
+export async function environmentUsesServer(
+  environmentId: string,
+  serverId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: environmentServices.id })
+    .from(environmentServices)
+    .where(
+      and(
+        eq(environmentServices.environmentId, environmentId),
+        eq(environmentServices.serverId, serverId)
+      )
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 export async function deleteTarget(id: string): Promise<void> {
