@@ -164,8 +164,12 @@ function TargetCard({
   function errorText(error: unknown): string {
     if (error instanceof ApiError) {
       if (error.status === 503) return t("deployDisabled");
-      if (error.status === 409) return t("noPreviousDeploy");
-      if (error.status === 404) return t("buildNotFound");
+      // Messages are the API's own (server/services/deploys.ts).
+      if (error.message === "No previous successful deploy") {
+        return t("noPreviousDeploy");
+      }
+      if (error.message === "Build not found") return t("buildNotFound");
+      if (error.message === "Target not found") return t("targetNotFound");
       return error.message;
     }
     return error instanceof Error ? error.message : tCommon("errorGeneric");
@@ -244,14 +248,22 @@ function TargetCard({
 
       <CardContent className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">{t("currentTag")}</span>
-            {target.runningTag ? (
-              <code className="font-mono">{target.runningTag}</code>
-            ) : (
-              <span className="italic text-muted-foreground">
-                {t("neverDeployed")}
-              </span>
+          <div className="flex flex-col gap-1 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t("currentTag")}</span>
+              {target.currentTag ? (
+                <code className="font-mono">{target.currentTag}</code>
+              ) : (
+                <span className="italic text-muted-foreground">
+                  {t("neverDeployed")}
+                </span>
+              )}
+            </div>
+            {target.currentStatus === "failed" && target.currentTag && (
+              <p className="flex items-center gap-1.5 text-destructive">
+                <CircleAlert className="size-4 shrink-0" />
+                {t("currentTagFailed", { tag: target.currentTag })}
+              </p>
             )}
           </div>
           {canRollback && target.previousTag && (
@@ -280,7 +292,11 @@ function TargetCard({
           ) : (
             <BuildsTable
               builds={target.recentBuilds}
-              runningTag={target.runningTag}
+              // Only a tag that deployed cleanly is pointless to redeploy; the
+              // tag of a failed deploy can be retried.
+              deployedTag={
+                target.currentStatus === "success" ? target.currentTag : null
+              }
               pending={pending}
               onDeploy={canRun ? onDeploy : null}
             />
@@ -309,12 +325,12 @@ function TargetCard({
 
 function BuildsTable({
   builds,
-  runningTag,
+  deployedTag,
   pending,
   onDeploy,
 }: {
   builds: Build[];
-  runningTag: string | null;
+  deployedTag: string | null;
   pending: string | null;
   // Null when the caller may not deploy: the column is left out entirely.
   onDeploy: ((tag: string) => void) | null;
@@ -368,7 +384,7 @@ function BuildsTable({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={pending !== null || build.tag === runningTag}
+                  disabled={pending !== null || build.tag === deployedTag}
                   onClick={() => onDeploy(build.tag)}
                 >
                   {pending === build.tag ? (
