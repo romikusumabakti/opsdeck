@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  bundleImageSchema,
   composeServiceSchema,
   deployDirSchema,
   deployRegistrySchema,
   deployTagSchema,
   envVarNameSchema,
+  HEALTH_TIMEOUT_MAX_SECONDS,
 } from "@/lib/deploy/validation";
 import { shq } from "@/lib/sh";
 
@@ -44,31 +46,24 @@ export const DEFAULT_STABLE_SECONDS = 30;
 
 const HEALTH_POLL_SECONDS = 5;
 
+// How long a deploy waits for an earlier script on the same deploy dir.
+const LOCK_WAIT_SECONDS = 600;
+
 // Per container: restart count, start time, status, health (empty when the
 // image has no healthcheck).
 const INSPECT_FORMAT =
   "{{.RestartCount}} {{.State.StartedAt}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}";
 
-// A repository path as Docker accepts it. Not a shared schema: only this
-// builder composes an image reference.
-const imageNameSchema = z
-  .string()
-  .regex(
-    /^[a-z0-9]+(?:[._-]+[a-z0-9]+)*(?:\/[a-z0-9]+(?:[._-]+[a-z0-9]+)*)*$/,
-    "Bundle image must be a lowercase repository path"
-  )
-  .max(255);
-
 const deployScriptInputSchema = z.object({
   registry: deployRegistrySchema,
-  bundleImage: imageNameSchema,
+  bundleImage: bundleImageSchema,
   tag: deployTagSchema,
   deployDir: deployDirSchema,
   services: z.array(composeServiceSchema).min(1),
   tagVariable: envVarNameSchema,
   preStartCommand: z.string().nullable(),
   healthUrl: z.url({ protocol: /^https?$/ }).nullable(),
-  healthTimeoutSeconds: z.number().int().min(1).max(3600),
+  healthTimeoutSeconds: z.number().int().min(1).max(HEALTH_TIMEOUT_MAX_SECONDS),
   stableSeconds: z
     .number()
     .int()
@@ -90,7 +85,15 @@ export function buildDeployScript(input: DeployScriptInput): string {
 
   const lines = [
     "set -eu",
+    // Keep going if the Panel's SSH session drops (timeout, Panel restart):
+    // dying between removing an old container and starting its replacement
+    // would leave the service down.
+    "trap '' HUP PIPE",
     `cd ${shq(v.deployDir)}`,
+    // One deploy at a time per deploy dir, even when an orphaned script from a
+    // dropped session is still running.
+    "exec 9>.opsdeck-deploy.lock",
+    `flock -w ${LOCK_WAIT_SECONDS} 9 || { echo 'DEPLOY LOCKED'; exit 1; }`,
 
     // 1. Deploy bundle: compose.yaml and friends, extracted into the deploy dir.
     `docker pull ${image}`,

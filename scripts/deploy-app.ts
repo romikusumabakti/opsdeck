@@ -2,8 +2,11 @@
 // Usage: bun --conditions react-server scripts/deploy-app.ts <create|rotate> <appKey> [bundleImage]
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
+import type { z } from "zod";
 import { db } from "@/lib/db";
 import { deployApps } from "@/lib/db/schema";
+import { appKeySchema, bundleImageSchema } from "@/lib/deploy/validation";
+import { isUniqueViolation } from "@/lib/people/names";
 import { encryptSecret } from "@/lib/secrets";
 
 const [command, appKey, bundleImage] = process.argv.slice(2);
@@ -18,13 +21,31 @@ function usage(): never {
 if ((command !== "create" && command !== "rotate") || !appKey) usage();
 if (command === "create" && !bundleImage) usage();
 
+// The same rules the hook (app key) and the deploy script (bundle image)
+// apply, so an app registered here can actually be notified and deployed.
+function check(schema: z.ZodType<string>, value: string) {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    console.error(result.error.issues[0]?.message ?? "Invalid value");
+    process.exit(1);
+  }
+}
+check(appKeySchema, appKey);
+if (command === "create") check(bundleImageSchema, bundleImage as string);
+
 const secret = randomBytes(32).toString("hex");
 const notifySecret = encryptSecret(secret);
 
 if (command === "create") {
-  await db
-    .insert(deployApps)
-    .values({ appKey, bundleImage: bundleImage as string, notifySecret });
+  try {
+    await db
+      .insert(deployApps)
+      .values({ appKey, bundleImage: bundleImage as string, notifySecret });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    console.error(`App ${appKey} already exists — use rotate`);
+    process.exit(1);
+  }
 } else {
   const rows = await db
     .update(deployApps)
