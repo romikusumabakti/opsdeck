@@ -53,12 +53,12 @@ Responses:
 
 | Status | Meaning                                                                                      |
 | ------ | -------------------------------------------------------------------------------------------- |
-| `202`  | Accepted: `{"buildId": "...", "created": true\|false, "deploymentIds": ["..."]}`             |
-| `400`  | Body is not JSON, or a field is invalid (checked after the signature).                       |
-| `401`  | Unknown app, missing or malformed signature header, or wrong signature. Identical body for all. |
-| `413`  | Body larger than 16 KiB.                                                                     |
-| `503`  | `DEPLOY_REGISTRY` is not set.                                                                |
 | `403`  | CSRF guard: the request had no `Content-Type: application/json`.                            |
+| `413`  | Body larger than 16 KiB (checked before anything else in the hook, including the 503).      |
+| `503`  | `DEPLOY_REGISTRY` is not set.                                                                |
+| `401`  | Unknown app, missing or malformed signature header, or wrong signature. Identical body for all. |
+| `400`  | Body is not JSON, or a field is invalid (fields are checked after the signature).            |
+| `202`  | Accepted: `{"buildId": "...", "created": true\|false, "deploymentIds": ["..."]}`             |
 
 Nothing is recorded on a `401`. A body that is not JSON is `400` before the
 signature is looked at, so it carries no information about apps.
@@ -109,29 +109,46 @@ command `noop` to `docker create` only because a scratch image has none.
 
 ## Woodpecker example
 
-Build and push the app image(s) and the bundle, then notify. The notify secret
-comes from a Woodpecker org secret (`opsdeck_notify_<appKey>`, see below).
+Builds do not use the host `docker.sock`, need no `privileged` or `trusted`
+pipeline, and go through a dedicated BuildKit daemon that `docker buildx`
+reaches with the **remote** driver. Registry credentials are Woodpecker
+org-level secrets (`registry_username`, `registry_password`). The notify secret
+is the org secret `opsdeck_notify_<appKey>` (see below).
+
+The BuildKit address `tcp://buildkitd:1234` below is a **placeholder**; plan C
+finalises it. App images are built with the same builder and the same `TAG`
+(`docker buildx build --push -t <registry>/<image>:$TAG ...`).
 
 ```yaml
 steps:
-  - name: bundle
-    image: woodpeckerci/plugin-docker-buildx
-    settings:
-      registry: 192.168.10.113:5000
-      repo: 192.168.10.113:5000/myapp-bundle
-      dockerfile: Dockerfile.bundle
-      tags: origin-${CI_COMMIT_BRANCH//\//-}-${CI_COMMIT_SHA:0:7}
-      # ... plus the app image step(s), pushed before this one
+  - name: build
+    image: docker:29-cli
+    environment:
+      REGISTRY: 192.168.10.113:5000
+      REGISTRY_USERNAME:
+        from_secret: registry_username
+      REGISTRY_PASSWORD:
+        from_secret: registry_password
+    commands:
+      # One TAG for build and notify; the notify step reads it from the workspace.
+      - TAG="origin-$(echo "$CI_COMMIT_BRANCH" | tr / -)-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
+      - echo "$TAG" > .tag
+      - docker buildx create --name remote --driver remote tcp://buildkitd:1234 --use
+      - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+      # App image(s) first, with the same builder and tag, e.g.:
+      # - docker buildx build --push -t $REGISTRY/myapp:$TAG .
+      - docker buildx build --push -t "$REGISTRY/myapp-bundle:$TAG" -f Dockerfile.bundle .
 
   - name: notify-opsdeck
-    image: alpine/curl
+    image: alpine:3
     environment:
       OPSDECK_URL: https://panel.example.com
       OPSDECK_NOTIFY_SECRET:
         from_secret: opsdeck_notify_myapp
     commands:
-      - apk add --no-cache openssl
-      - TAG="origin-$(echo "$CI_COMMIT_BRANCH" | tr / -)-$(echo "$CI_COMMIT_SHA" | cut -c1-7)"
+      # The base image has neither curl nor the openssl binary.
+      - apk add --no-cache curl openssl
+      - TAG=$(cat .tag)
       - |
         printf '{"app":"myapp","branch":"%s","tag":"%s","commit":"%s","pipelineUrl":"%s"}' \
           "$CI_COMMIT_BRANCH" "$TAG" "$(echo "$CI_COMMIT_SHA" | cut -c1-7)" "$CI_PIPELINE_URL" > body.json
@@ -145,13 +162,16 @@ steps:
       event: push
 ```
 
-Notes: the tag in `plugin-docker-buildx` must be computed the same way as
-`TAG` in the notify step (adapt the `tags` setting to however your pipeline
-derives it; the Panel only needs the pushed tag and the notified tag to match).
-Sign the file you send: `--data-binary @body.json` sends the bytes unchanged,
-whereas `-d` would strip newlines and break the signature. Notify only after the
-push succeeded, since the Panel starts deploying as soon as it accepts the
-notification.
+Notes:
+
+- The `printf` JSON is safe only because the `branch`, `tag` and `commit`
+  patterns exclude quotes and backslashes. Do not add free-text fields this way.
+- Sign the file you send: `--data-binary @body.json` sends the bytes unchanged,
+  whereas `-d` would strip newlines and break the signature.
+- Notify only after the push succeeded, since the Panel starts deploying as soon
+  as it accepts the notification.
+- `alpine:3` has no `curl` or `openssl`, hence the `apk add` (a per-run
+  download; bake an image with both if that matters).
 
 ## Registering an app and a target
 
@@ -181,15 +201,19 @@ Code: `lib/deploy/script.ts` (the server-side script), `lib/jobs/deploy.ts`
 (the worker). The script runs as one `sh` script over SSH, with `set -eu`, in
 the deploy dir:
 
-1. Optional database backup first (if "back up before deploy" is on). If the
-   backup fails, the deploy fails before any SSH deploy command runs.
-2. `docker pull` the bundle image, extract `/bundle/.` into the deploy dir.
-3. Set `<TAG_VARIABLE>=<tag>` in `.env` (replace the existing line, or append).
+Before the script is sent, the worker takes the optional database backup
+(if "back up before deploy" is on). It runs in the worker, not in the script;
+if it fails, the deploy fails before any SSH deploy command runs.
+
+The script then does, in order:
+
+1. `docker pull` the bundle image, extract `/bundle/.` into the deploy dir.
+2. Set `<TAG_VARIABLE>=<tag>` in `.env` (replace the existing line, or append).
    No other `.env` line is touched.
-4. `docker compose pull` the target's services.
-5. Run the pre-start command, if any.
-6. `docker compose up -d --no-deps` for the target's services only.
-7. Wait for health (below).
+3. `docker compose pull` the target's services.
+4. Run the pre-start command, if any.
+5. `docker compose up -d --no-deps` for the target's services only.
+6. Wait for health (below).
 
 Deploys never run `docker compose down`, never restart services outside the
 target's list, and never touch Postgres.
