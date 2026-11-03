@@ -16,7 +16,6 @@ import {
   users,
 } from "@/lib/db/schema";
 import { isUniqueViolation } from "@/lib/people/names";
-import { decryptSecret } from "@/lib/secrets";
 
 const RECENT_LIMIT = 20;
 
@@ -90,15 +89,13 @@ export async function getTagState(targetId: string): Promise<TagState> {
   return deriveTagState(rows);
 }
 
-export async function getDeployApp(
-  appKey: string
-): Promise<(DeployApp & { notifySecretPlain: string }) | null> {
+/** The app's row; `notifySecret` is still encrypted (see lib/secrets.ts). */
+export async function getDeployApp(appKey: string): Promise<DeployApp | null> {
   const [row] = await db
     .select()
     .from(deployApps)
     .where(eq(deployApps.appKey, appKey));
-  if (!row) return null;
-  return { ...row, notifySecretPlain: decryptSecret(row.notifySecret) };
+  return row ?? null;
 }
 
 export async function insertBuildIfNew(b: {
