@@ -32,7 +32,7 @@ const repo = vi.hoisted(() => ({
   supersedeQueuedAuto: vi.fn(),
   claimDeployment: vi.fn(),
   finishDeployment: vi.fn(),
-  touchRunningDeployment: vi.fn(),
+  heartbeatDeployment: vi.fn(),
   failStaleRunningDeployments: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
@@ -57,9 +57,8 @@ vi.mock("@/lib/queue", () => queue);
 const processor = vi.hoisted(() => ({ handleCreateDatabaseBackup: vi.fn() }));
 vi.mock("@/lib/jobs/processor", () => processor);
 
-const { handleDeploy, STALE_RUNNING_DEPLOY_MS } = await import(
-  "@/lib/jobs/deploy"
-);
+const { handleDeploy, HEARTBEAT_INTERVAL_MS, STALE_RUNNING_DEPLOY_MS } =
+  await import("@/lib/jobs/deploy");
 const { requestDeployment } = await import("@/server/services/deployments");
 
 const payload = { deploymentId: DEPLOYMENT_ID, runId: RUN_ID };
@@ -88,6 +87,7 @@ beforeEach(() => {
   repo.insertDeployment.mockResolvedValue({ id: DEPLOYMENT_ID });
   repo.claimDeployment.mockResolvedValue("claimed");
   repo.finishDeployment.mockResolvedValue(true);
+  repo.heartbeatDeployment.mockResolvedValue(true);
   repo.failStaleRunningDeployments.mockResolvedValue([]);
   environments.loadServerCredentials.mockResolvedValue({
     host: "10.0.0.5",
@@ -152,9 +152,9 @@ describe("handleDeploy", () => {
     expect(repo.failStaleRunningDeployments).toHaveBeenCalledWith(
       STALE_RUNNING_DEPLOY_MS
     );
-    expect(STALE_RUNNING_DEPLOY_MS).toBe(25 * 60_000);
+    expect(STALE_RUNNING_DEPLOY_MS).toBe(5 * 60_000);
     const message =
-      "Marked failed: no progress for over 25 minutes (worker restart?)";
+      "Marked failed: no progress for over 5 minutes (worker restart?)";
     expect(progress.appendRunOutput).toHaveBeenCalledWith(
       BACKUP_RUN_ID,
       message
@@ -274,18 +274,74 @@ describe("handleDeploy", () => {
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
   });
 
-  it("a successful backup restarts the stale clock before the deploy script", async () => {
+  it("a deployment the sweep failed while waiting sends no SSH command", async () => {
     repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
     processor.handleCreateDatabaseBackup.mockResolvedValue({ success: true });
+    repo.heartbeatDeployment.mockResolvedValue(false);
 
-    await expect(handleDeploy(payload)).resolves.toEqual({
-      status: "success",
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(repo.heartbeatDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID);
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    const message =
+      "Deployment was marked failed while waiting (stale) — not deploying";
+    expect(outputLines()).toContain(message);
+    expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, message);
+    expect(progress.completeRun).not.toHaveBeenCalled();
+  });
+
+  describe("heartbeat", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
-    expect(repo.touchRunningDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID);
-    expect(
-      repo.touchRunningDeployment.mock.invocationCallOrder[0]
-    ).toBeLessThan(ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0);
+    // A deploy script that stays on the server until `finish` is called.
+    function slowDeploy() {
+      let finish: (outcome: Error | null) => void = () => {};
+      ssh.executeRemoteCommand.mockImplementation(
+        () =>
+          new Promise<string>((resolve, reject) => {
+            finish = (outcome) =>
+              outcome ? reject(outcome) : resolve("HEALTHY\n");
+          })
+      );
+      return (outcome: Error | null) => finish(outcome);
+    }
+
+    it("beats every interval while the deploy runs and stops on success", async () => {
+      const finish = slowDeploy();
+      const job = handleDeploy(payload);
+      await vi.waitFor(() =>
+        expect(ssh.executeRemoteCommand).toHaveBeenCalled()
+      );
+      const beforeSsh = repo.heartbeatDeployment.mock.calls.length;
+
+      await vi.advanceTimersByTimeAsync(3 * HEARTBEAT_INTERVAL_MS);
+      expect(repo.heartbeatDeployment.mock.calls.length).toBe(beforeSsh + 3);
+
+      finish(null);
+      await expect(job).resolves.toEqual({ status: "success" });
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("stops beating when the deploy fails", async () => {
+      const finish = slowDeploy();
+      const job = handleDeploy(payload);
+      await vi.waitFor(() =>
+        expect(ssh.executeRemoteCommand).toHaveBeenCalled()
+      );
+
+      finish(new Error("SSH Command Failed (exit 1): HEALTH TIMEOUT"));
+      await expect(job).resolves.toEqual({ status: "failed" });
+      expect(vi.getTimerCount()).toBe(0);
+
+      const calls = repo.heartbeatDeployment.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(3 * HEARTBEAT_INTERVAL_MS);
+      expect(repo.heartbeatDeployment.mock.calls.length).toBe(calls);
+    });
   });
 
   it("backup failure aborts before any deploy command", async () => {

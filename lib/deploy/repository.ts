@@ -213,7 +213,11 @@ export async function claimDeployment(id: string): Promise<ClaimResult> {
     return await db.transaction(async (tx) => {
       const rows = await tx
         .update(deployments)
-        .set({ status: "running", startedAt: sql`now()` })
+        .set({
+          status: "running",
+          startedAt: sql`now()`,
+          heartbeatAt: sql`now()`,
+        })
         .where(and(eq(deployments.id, id), eq(deployments.status, "queued")))
         .returning({ id: deployments.id });
       if (rows.length > 0) return "claimed";
@@ -264,20 +268,22 @@ export async function finishDeployment(
 }
 
 /**
- * Restarts a running deployment's stale-sweep clock. Called once the
- * pre-deploy backup is done, so a long backup does not count against the
- * deploy script's own bound.
+ * Records that the worker running this deployment is alive. False when the
+ * deployment is no longer running (the stale sweep failed it), so the caller
+ * must stop before touching the server.
  */
-export async function touchRunningDeployment(id: string): Promise<void> {
-  await db
+export async function heartbeatDeployment(id: string): Promise<boolean> {
+  const rows = await db
     .update(deployments)
-    .set({ startedAt: sql`now()` })
-    .where(and(eq(deployments.id, id), eq(deployments.status, "running")));
+    .set({ heartbeatAt: sql`now()` })
+    .where(and(eq(deployments.id, id), eq(deployments.status, "running")))
+    .returning({ id: deployments.id });
+  return rows.length > 0;
 }
 
 /**
- * Fails deployments that have been running longer than any live deploy can
- * (the worker died mid-deploy and nothing will finish them), so they stop
+ * Fails running deployments whose heartbeat stopped more than `olderThanMs`
+ * ago (the worker died mid-deploy and nothing will finish them), so they stop
  * blocking their environment. Returns the run ids of the rows it failed.
  */
 export async function failStaleRunningDeployments(
@@ -289,7 +295,7 @@ export async function failStaleRunningDeployments(
     .where(
       and(
         eq(deployments.status, "running"),
-        sql`${deployments.startedAt} < now() - ${olderThanMs} * interval '1 millisecond'`
+        sql`coalesce(${deployments.heartbeatAt}, ${deployments.startedAt}) < now() - ${olderThanMs} * interval '1 millisecond'`
       )
     )
     .returning({ runId: deployments.runId });

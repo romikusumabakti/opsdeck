@@ -4,9 +4,8 @@ const transaction = vi.fn();
 const update = vi.fn();
 vi.mock("@/lib/db", () => ({ db: { transaction, update } }));
 
-const { claimDeployment, failStaleRunningDeployments } = await import(
-  "@/lib/deploy/repository"
-);
+const { claimDeployment, failStaleRunningDeployments, heartbeatDeployment } =
+  await import("@/lib/deploy/repository");
 
 // A transaction whose conditional UPDATE matched no queued row and whose
 // follow-up read finds the row in `status` (or no row at all).
@@ -91,5 +90,23 @@ describe("failStaleRunningDeployments", () => {
     expect(set).toHaveBeenCalledWith(
       expect.objectContaining({ status: "failed" })
     );
+  });
+});
+
+describe("heartbeatDeployment", () => {
+  function updating(rows: { id: string }[]) {
+    update.mockReturnValueOnce({
+      set: () => ({ where: () => ({ returning: async () => rows }) }),
+    });
+  }
+
+  it("is true while the deployment is running", async () => {
+    updating([{ id: "d1" }]);
+    await expect(heartbeatDeployment("d1")).resolves.toBe(true);
+  });
+
+  it("is false when the deployment is no longer running", async () => {
+    updating([]);
+    await expect(heartbeatDeployment("d1")).resolves.toBe(false);
   });
 });
