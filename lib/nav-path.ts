@@ -148,6 +148,7 @@ export function groupEnvironmentsByProject<
 // source-specific flow, often mid-operation, so switching drops to the dashboard.
 export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "services",
+  "deploys",
   "databases",
   "mock-time",
   "mail",

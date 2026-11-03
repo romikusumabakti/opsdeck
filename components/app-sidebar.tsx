@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Mail,
+  Rocket,
   Server,
   ServerCog,
   Settings,
@@ -70,6 +71,7 @@ type ProjectItem = {
 const projectItems: ProjectItem[] = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
   { key: "services", url: "/services", icon: ServerCog },
+  { key: "deploys", url: "/deploys", icon: Rocket },
   { key: "databases", url: "/databases", icon: DatabaseZap },
   {
     key: "mockTime",

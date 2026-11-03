@@ -45,6 +45,7 @@ import { Route as LocaleAppProjectKeyEnvSlugIndexRouteImport } from './routes/$l
 import { Route as LocaleAppProjectKeyEnvSlugBackupDatabaseRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-database'
 import { Route as LocaleAppProjectKeyEnvSlugBackupRestoreRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-restore'
 import { Route as LocaleAppProjectKeyEnvSlugDatabasesRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.databases'
+import { Route as LocaleAppProjectKeyEnvSlugDeploysRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.deploys'
 import { Route as LocaleAppProjectKeyEnvSlugHistoryRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.history'
 import { Route as LocaleAppProjectKeyEnvSlugIssuesRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.issues'
 import { Route as LocaleAppProjectKeyEnvSlugMailRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.mail'
@@ -264,6 +265,12 @@ const LocaleAppProjectKeyEnvSlugDatabasesRoute =
     path: '/databases',
     getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
   } as any)
+const LocaleAppProjectKeyEnvSlugDeploysRoute =
+  LocaleAppProjectKeyEnvSlugDeploysRouteImport.update({
+    id: '/deploys',
+    path: '/deploys',
+    getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
+  } as any)
 const LocaleAppProjectKeyEnvSlugHistoryRoute =
   LocaleAppProjectKeyEnvSlugHistoryRouteImport.update({
     id: '/history',
@@ -473,6 +480,7 @@ export interface FileRoutesByFullPath {
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
+  '/$locale/$projectKey/$envSlug/deploys': typeof LocaleAppProjectKeyEnvSlugDeploysRoute
   '/$locale/$projectKey/$envSlug/history': typeof LocaleAppProjectKeyEnvSlugHistoryRoute
   '/$locale/$projectKey/$envSlug/issues': typeof LocaleAppProjectKeyEnvSlugIssuesRoute
   '/$locale/$projectKey/$envSlug/mail': typeof LocaleAppProjectKeyEnvSlugMailRoute
@@ -536,6 +544,7 @@ export interface FileRoutesByTo {
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
+  '/$locale/$projectKey/$envSlug/deploys': typeof LocaleAppProjectKeyEnvSlugDeploysRoute
   '/$locale/$projectKey/$envSlug/history': typeof LocaleAppProjectKeyEnvSlugHistoryRoute
   '/$locale/$projectKey/$envSlug/issues': typeof LocaleAppProjectKeyEnvSlugIssuesRoute
   '/$locale/$projectKey/$envSlug/mail': typeof LocaleAppProjectKeyEnvSlugMailRoute
@@ -605,6 +614,7 @@ export interface FileRoutesById {
   '/$locale/_app/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/_app/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/_app/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
+  '/$locale/_app/$projectKey/$envSlug/deploys': typeof LocaleAppProjectKeyEnvSlugDeploysRoute
   '/$locale/_app/$projectKey/$envSlug/history': typeof LocaleAppProjectKeyEnvSlugHistoryRoute
   '/$locale/_app/$projectKey/$envSlug/issues': typeof LocaleAppProjectKeyEnvSlugIssuesRoute
   '/$locale/_app/$projectKey/$envSlug/mail': typeof LocaleAppProjectKeyEnvSlugMailRoute
@@ -674,6 +684,7 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
+    | '/$locale/$projectKey/$envSlug/deploys'
     | '/$locale/$projectKey/$envSlug/history'
     | '/$locale/$projectKey/$envSlug/issues'
     | '/$locale/$projectKey/$envSlug/mail'
@@ -737,6 +748,7 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
+    | '/$locale/$projectKey/$envSlug/deploys'
     | '/$locale/$projectKey/$envSlug/history'
     | '/$locale/$projectKey/$envSlug/issues'
     | '/$locale/$projectKey/$envSlug/mail'
@@ -805,6 +817,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/$projectKey/$envSlug/backup-database'
     | '/$locale/_app/$projectKey/$envSlug/backup-restore'
     | '/$locale/_app/$projectKey/$envSlug/databases'
+    | '/$locale/_app/$projectKey/$envSlug/deploys'
     | '/$locale/_app/$projectKey/$envSlug/history'
     | '/$locale/_app/$projectKey/$envSlug/issues'
     | '/$locale/_app/$projectKey/$envSlug/mail'
@@ -1097,6 +1110,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugDatabasesRouteImport
       parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
     }
+    '/$locale/_app/$projectKey/$envSlug/deploys': {
+      id: '/$locale/_app/$projectKey/$envSlug/deploys'
+      path: '/deploys'
+      fullPath: '/$locale/$projectKey/$envSlug/deploys'
+      preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugDeploysRouteImport
+      parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
+    }
     '/$locale/_app/$projectKey/$envSlug/history': {
       id: '/$locale/_app/$projectKey/$envSlug/history'
       path: '/history'
@@ -1373,6 +1393,7 @@ interface LocaleAppProjectKeyEnvSlugRouteRouteChildren {
   LocaleAppProjectKeyEnvSlugBackupDatabaseRoute: typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   LocaleAppProjectKeyEnvSlugBackupRestoreRoute: typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   LocaleAppProjectKeyEnvSlugDatabasesRoute: typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
+  LocaleAppProjectKeyEnvSlugDeploysRoute: typeof LocaleAppProjectKeyEnvSlugDeploysRoute
   LocaleAppProjectKeyEnvSlugHistoryRoute: typeof LocaleAppProjectKeyEnvSlugHistoryRoute
   LocaleAppProjectKeyEnvSlugIssuesRoute: typeof LocaleAppProjectKeyEnvSlugIssuesRoute
   LocaleAppProjectKeyEnvSlugMailRoute: typeof LocaleAppProjectKeyEnvSlugMailRoute
@@ -1392,6 +1413,8 @@ const LocaleAppProjectKeyEnvSlugRouteRouteChildren: LocaleAppProjectKeyEnvSlugRo
       LocaleAppProjectKeyEnvSlugBackupRestoreRoute,
     LocaleAppProjectKeyEnvSlugDatabasesRoute:
       LocaleAppProjectKeyEnvSlugDatabasesRoute,
+    LocaleAppProjectKeyEnvSlugDeploysRoute:
+      LocaleAppProjectKeyEnvSlugDeploysRoute,
     LocaleAppProjectKeyEnvSlugHistoryRoute:
       LocaleAppProjectKeyEnvSlugHistoryRoute,
     LocaleAppProjectKeyEnvSlugIssuesRoute:

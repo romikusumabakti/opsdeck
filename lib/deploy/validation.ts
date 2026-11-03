@@ -71,6 +71,25 @@ export const composeServiceSchema = z
     "Service must be lowercase letters, digits, '_', '.' or '-'"
   );
 
+// Deploy target settings. Free-form text goes into the server script, so these
+// are deliberately narrow. Shared by the API and the target form.
+export const servicesSchema = z
+  .array(composeServiceSchema)
+  .min(1)
+  .max(20)
+  .refine((list) => new Set(list).size === list.length, "Duplicate service");
+
+export const preStartCommandSchema = z
+  .string()
+  .min(1)
+  .max(500)
+  .regex(/^[^\r\n]*$/, "Must be a single line");
+
+export const healthUrlSchema = z.url({ protocol: /^https?$/ }).max(2048);
+
+// The script waits stableSeconds (30) and then polls, so less cannot succeed.
+export const healthTimeoutSchema = z.number().int().min(60).max(3600);
+
 export const commitShaSchema = z
   .string()
   .regex(/^[0-9a-f]{7,40}$/, "Commit SHA must be 7-40 lowercase hex digits");
