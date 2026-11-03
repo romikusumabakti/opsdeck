@@ -33,6 +33,7 @@ const repo = vi.hoisted(() => ({
   claimDeployment: vi.fn(),
   finishDeployment: vi.fn(),
   heartbeatDeployment: vi.fn(),
+  markScriptStarted: vi.fn(),
   failStaleRunningDeployments: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
@@ -88,6 +89,7 @@ beforeEach(() => {
   repo.claimDeployment.mockResolvedValue("claimed");
   repo.finishDeployment.mockResolvedValue(true);
   repo.heartbeatDeployment.mockResolvedValue(true);
+  repo.markScriptStarted.mockResolvedValue(undefined);
   repo.failStaleRunningDeployments.mockResolvedValue([]);
   environments.loadServerCredentials.mockResolvedValue({
     host: "10.0.0.5",
@@ -283,11 +285,32 @@ describe("handleDeploy", () => {
 
     expect(repo.heartbeatDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID);
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(repo.markScriptStarted).not.toHaveBeenCalled();
     const message =
       "Deployment was marked failed while waiting (stale) — not deploying";
     expect(outputLines()).toContain(message);
     expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, message);
     expect(progress.completeRun).not.toHaveBeenCalled();
+  });
+
+  it("records the script start after the heartbeat gate and before SSH", async () => {
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+
+    expect(repo.markScriptStarted).toHaveBeenCalledWith(DEPLOYMENT_ID);
+    const gate = repo.heartbeatDeployment.mock.invocationCallOrder.at(-1) ?? 0;
+    const marked = repo.markScriptStarted.mock.invocationCallOrder[0] ?? 0;
+    const sent = ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0;
+    expect(gate).toBeLessThan(marked);
+    expect(marked).toBeLessThan(sent);
+  });
+
+  it("does not touch the server when the script start cannot be recorded", async () => {
+    repo.markScriptStarted.mockRejectedValue(new Error("db down"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
   });
 
   describe("heartbeat", () => {
@@ -369,6 +392,8 @@ describe("handleDeploy", () => {
     );
     expect(scripts.some((s) => s.includes("compose up"))).toBe(false);
     expect(outputLines()).toContain("Backup failed — deploy aborted");
+    // Never reached the server, so it does not change the current tag.
+    expect(repo.markScriptStarted).not.toHaveBeenCalled();
     expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
     expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, expect.any(String));
     expect(progress.completeRun).not.toHaveBeenCalled();

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
+const OTHER_ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e2";
 const TARGET_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const SERVER_ID = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const OTHER_SERVER_ID = "0197f3a0-1b2c-7def-8000-0123456789c2";
@@ -35,6 +36,7 @@ vi.mock("@/lib/authz", async () => {
 
 const repo = vi.hoisted(() => ({
   getTarget: vi.fn(),
+  getTagState: vi.fn(),
   listTargetsForEnvironment: vi.fn(),
   findBuild: vi.fn(),
   upsertTarget: vi.fn(),
@@ -48,6 +50,7 @@ const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
 vi.mock("@/server/services/deployments", () => deployments);
 
 const { app } = await import("@/server/app");
+const { requireProjectPermission } = await import("@/lib/authz");
 
 const target = {
   id: TARGET_ID,
@@ -94,9 +97,11 @@ beforeEach(() => {
         ? { id: "other", tag, branch: "main" }
         : null
   );
-  repo.listTargetsForEnvironment.mockResolvedValue([
-    { ...target, runningTag: TAG, previousTag: PREVIOUS_TAG },
-  ]);
+  repo.getTagState.mockResolvedValue({
+    currentTag: TAG,
+    currentStatus: "success",
+    previousTag: PREVIOUS_TAG,
+  });
   deployments.requestDeployment.mockResolvedValue({
     deploymentId: "dep-1",
     runId: "run-1",
@@ -148,6 +153,57 @@ describe("permissions", () => {
       (await send("DELETE", `/api/deploys/targets/${TARGET_ID}`)).status
     ).toBe(403);
     expect(repo.deleteTarget).not.toHaveBeenCalled();
+  });
+});
+
+describe("authorization scope", () => {
+  // The target belongs to OTHER_ENV_ID; the request names ENV_ID where it can.
+  // Permission must be checked against the target's own environment.
+  beforeEach(() => {
+    repo.getTarget.mockResolvedValue({
+      ...target,
+      environmentId: OTHER_ENV_ID,
+    });
+  });
+
+  function scopes() {
+    return vi.mocked(requireProjectPermission).mock.calls.map((c) => c[0]);
+  }
+
+  it("deploy checks the target's environment", async () => {
+    const res = await send("POST", "/api/deploys/deploy", {
+      targetId: TARGET_ID,
+      tag: TAG,
+      environmentId: ENV_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(scopes()).toEqual([{ environmentId: OTHER_ENV_ID }]);
+  });
+
+  it("rollback checks the target's environment", async () => {
+    const res = await send("POST", "/api/deploys/rollback", {
+      targetId: TARGET_ID,
+      environmentId: ENV_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(scopes()).toEqual([{ environmentId: OTHER_ENV_ID }]);
+  });
+
+  it("update checks the target's environment", async () => {
+    const res = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      autoDeploy: true,
+    });
+    expect(res.status).toBe(200);
+    expect(scopes()).toEqual([{ environmentId: OTHER_ENV_ID }]);
+  });
+
+  it("delete checks the target's environment", async () => {
+    const res = await send(
+      "DELETE",
+      `/api/deploys/targets/${TARGET_ID}?environmentId=${ENV_ID}`
+    );
+    expect(res.status).toBe(200);
+    expect(scopes()).toEqual([{ environmentId: OTHER_ENV_ID }]);
   });
 });
 
@@ -213,9 +269,11 @@ describe("deploy", () => {
 
 describe("rollback", () => {
   it("rollback without previous tag is 409", async () => {
-    repo.listTargetsForEnvironment.mockResolvedValue([
-      { ...target, runningTag: TAG, previousTag: null },
-    ]);
+    repo.getTagState.mockResolvedValue({
+      currentTag: TAG,
+      currentStatus: "success",
+      previousTag: null,
+    });
     const res = await send("POST", "/api/deploys/rollback", {
       targetId: TARGET_ID,
     });
@@ -232,12 +290,32 @@ describe("rollback", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ deploymentId: "dep-1", runId: "run-1" });
+    expect(repo.getTagState).toHaveBeenCalledWith(TARGET_ID);
     expect(deployments.requestDeployment).toHaveBeenCalledWith({
       targetId: TARGET_ID,
       tag: PREVIOUS_TAG,
       trigger: "rollback",
       userId: "user-1",
       buildId: null,
+    });
+  });
+
+  it("rollback passes the build id when the previous tag's build is known", async () => {
+    repo.getTagState.mockResolvedValue({
+      currentTag: PREVIOUS_TAG,
+      currentStatus: "failed",
+      previousTag: TAG,
+    });
+    const res = await send("POST", "/api/deploys/rollback", {
+      targetId: TARGET_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(deployments.requestDeployment).toHaveBeenCalledWith({
+      targetId: TARGET_ID,
+      tag: TAG,
+      trigger: "rollback",
+      userId: "user-1",
+      buildId: BUILD_ID,
     });
   });
 
@@ -300,7 +378,9 @@ describe("target configuration", () => {
 
   it.each([
     ["healthTimeoutSeconds below 60", { healthTimeoutSeconds: 59 }],
-    ["healthTimeoutSeconds above 3600", { healthTimeoutSeconds: 3601 }],
+    ["healthTimeoutSeconds above 900", { healthTimeoutSeconds: 901 }],
+    ["deployDir /", { deployDir: "/" }],
+    ["deployDir with one segment", { deployDir: "/etc" }],
     ["no services", { services: [] }],
     [
       "more than 20 services",

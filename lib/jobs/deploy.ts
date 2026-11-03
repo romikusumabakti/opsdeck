@@ -6,6 +6,7 @@ import {
   getDeployment,
   getTarget,
   heartbeatDeployment,
+  markScriptStarted,
 } from "@/lib/deploy/repository";
 import { buildDeployScript } from "@/lib/deploy/script";
 import { loadServerCredentials } from "@/lib/environments";
@@ -257,6 +258,9 @@ async function runClaimedDeployment(
       "Deployment was marked failed while waiting (stale) — not deploying"
     );
   }
+  // From here the server may run this tag, even if the deploy then fails. Not
+  // best-effort: if it cannot be recorded, do not touch the server.
+  await markScriptStarted(deploymentId);
 
   await appendRunOutput(
     runId,

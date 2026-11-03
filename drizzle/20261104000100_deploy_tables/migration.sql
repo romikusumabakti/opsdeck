@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS "deployments" (
   "created_at" timestamp DEFAULT now() NOT NULL,
   "started_at" timestamp,
   "heartbeat_at" timestamp,
+  "script_started_at" timestamp,
   "finished_at" timestamp,
   CONSTRAINT "deployments_target_id_deploy_targets_id_fk"
     FOREIGN KEY ("target_id") REFERENCES "public"."deploy_targets"("id")
