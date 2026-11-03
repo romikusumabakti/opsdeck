@@ -12,6 +12,7 @@ import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
 import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
+import { deploysRouter } from "@/server/routes/deploys";
 import { environmentsRouter } from "@/server/routes/environments";
 import { explorerRouter } from "@/server/routes/explorer";
 import { homeRouter } from "@/server/routes/home";
@@ -111,6 +112,7 @@ export const app = createBaseApp()
   // Public, HMAC-signed CI build notifications; no session router shares
   // this prefix.
   .route("/api/deploy-hooks", deployHooksRouter)
+  .route("/api/deploys", deploysRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);
 

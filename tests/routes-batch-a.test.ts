@@ -47,6 +47,10 @@ const GATED: [method: "GET" | "POST", path: string][] = [
   ["POST", "/api/project-members/add-project-member"],
   ["GET", "/api/project-catalog/list-projects"],
   ["POST", "/api/project-catalog/add-project"],
+  ["GET", `/api/deploys/targets?environmentId=${ID}`],
+  ["POST", "/api/deploys/targets"],
+  ["POST", "/api/deploys/deploy"],
+  ["POST", "/api/deploys/rollback"],
   // Handlers ported from app/api keep their paths.
   ["GET", `/api/issues/attachments/${ID}`],
   ["POST", `/api/issues/${ID}/attachments`],
