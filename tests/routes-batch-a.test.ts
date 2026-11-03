@@ -10,16 +10,16 @@ import { jsonQuery } from "@/server/validation";
 
 const ID = "0190a8e2-7b1c-7cc2-9d3e-3c1f2a4b5c6d";
 
-function post(path: string, body: unknown = {}) {
+function post(path: string, body: unknown = {}, method = "POST") {
   return app.request(path, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
 // One read and one write per mounted module (activity has no write).
-const GATED: [method: "GET" | "POST", path: string][] = [
+const GATED: [method: "GET" | "POST" | "PATCH" | "DELETE", path: string][] = [
   ["GET", "/api/issues/get-open-issue-counts"],
   ["POST", "/api/issues/create-issue"],
   ["GET", `/api/issue-attachments/list-issue-attachments?issueId=${ID}`],
@@ -49,6 +49,8 @@ const GATED: [method: "GET" | "POST", path: string][] = [
   ["POST", "/api/project-catalog/add-project"],
   ["GET", `/api/deploys/targets?environmentId=${ID}`],
   ["POST", "/api/deploys/targets"],
+  ["PATCH", `/api/deploys/targets/${ID}`],
+  ["DELETE", `/api/deploys/targets/${ID}`],
   ["POST", "/api/deploys/deploy"],
   ["POST", "/api/deploys/rollback"],
   // Handlers ported from app/api keep their paths.
@@ -64,7 +66,8 @@ const GATED: [method: "GET" | "POST", path: string][] = [
 
 describe("gated routes answer 401 without a session", () => {
   it.each(GATED)("%s %s", async (method, path) => {
-    const res = method === "GET" ? await app.request(path) : await post(path);
+    const res =
+      method === "GET" ? await app.request(path) : await post(path, {}, method);
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "Unauthorized" });
   });

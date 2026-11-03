@@ -2,6 +2,7 @@ import { bodyLimit } from "hono/body-limit";
 import { getDeployApp } from "@/lib/deploy/repository";
 import { verifySignature } from "@/lib/deploy/signature";
 import { appKeySchema } from "@/lib/deploy/validation";
+import { decryptSecret } from "@/lib/secrets";
 import { publicRouter } from "@/server/router";
 import {
   buildNotificationSchema,
@@ -17,6 +18,25 @@ const MAX_BODY_BYTES = 16 * 1024;
  * exist. Never matches: no real secret is this value.
  */
 const UNKNOWN_APP_SECRET = "opsdeck-unknown-app-dummy-secret";
+
+/**
+ * The app's notify secret, or null when the app is unknown. A secret that
+ * cannot be decrypted (a rotated SECRETS_KEY, a corrupt row) is logged and
+ * treated like an unknown app, so it answers the same 401 rather than a 500.
+ */
+async function notifySecret(appKey: string): Promise<string | null> {
+  const app = await getDeployApp(appKey);
+  if (!app) return null;
+  try {
+    return decryptSecret(app.notifySecret);
+  } catch (error) {
+    console.error(
+      `Deploy hook: cannot decrypt the notify secret of app ${appKey}:`,
+      error
+    );
+    return null;
+  }
+}
 
 /**
  * Build notifications from CI (Woodpecker), posted after the images are
@@ -56,12 +76,12 @@ export const deployHooksRouter = publicRouter().post(
     const appKey = appKeySchema.safeParse(
       (payload as { app?: unknown } | null)?.app
     );
-    const app = appKey.success ? await getDeployApp(appKey.data) : null;
-    if (!app) {
+    const secret = appKey.success ? await notifySecret(appKey.data) : null;
+    if (secret === null) {
       verifySignature(rawBody, signature, UNKNOWN_APP_SECRET);
       return unauthorized();
     }
-    if (!verifySignature(rawBody, signature, app.notifySecretPlain)) {
+    if (!verifySignature(rawBody, signature, secret)) {
       return unauthorized();
     }
 
