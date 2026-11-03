@@ -613,6 +613,9 @@ describe("API routers reach a guard", () => {
     // Jira calls the webhook with no session; the unguessable path token is
     // its credential, and the payload only names an issue to re-fetch.
     "server/routes/jira.ts": ["POST /:token"],
+    // CI posts build notifications with no session; a per-app HMAC of the raw
+    // body is the credential.
+    "server/routes/deploy-hooks.ts": ["POST /builds"],
     // The favicon, linked by the signed-out sign-in, 404 and error pages.
     "server/routes/brand.ts": ["GET /icon.svg"],
   };

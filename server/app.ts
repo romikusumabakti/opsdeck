@@ -11,6 +11,7 @@ import { activityRouter } from "@/server/routes/activity";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
 import { databasesRouter } from "@/server/routes/databases";
+import { deployHooksRouter } from "@/server/routes/deploy-hooks";
 import { environmentsRouter } from "@/server/routes/environments";
 import { explorerRouter } from "@/server/routes/explorer";
 import { homeRouter } from "@/server/routes/home";
@@ -107,6 +108,9 @@ export const app = createBaseApp()
   // shares a prefix with the public webhook (see server/router.ts).
   .route("/api/integrations/jira", jiraRouter)
   .route("/api/jira/webhook", jiraWebhookRouter)
+  // Public, HMAC-signed CI build notifications; no session router shares
+  // this prefix.
+  .route("/api/deploy-hooks", deployHooksRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);
 
