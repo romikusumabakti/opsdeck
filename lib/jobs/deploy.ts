@@ -1,9 +1,11 @@
 import {
   claimDeployment,
+  failStaleRunningDeployments,
   finishDeployment,
   getDeployApp,
   getDeployment,
   getTarget,
+  touchRunningDeployment,
 } from "@/lib/deploy/repository";
 import { buildDeployScript } from "@/lib/deploy/script";
 import { loadServerCredentials } from "@/lib/environments";
@@ -25,11 +27,22 @@ const BUSY_RETRY_DELAY_MS = 15_000;
 // and the health wait (itself bounded by the target's healthTimeoutSeconds).
 const DEPLOY_COMMAND_TIMEOUT_MS = 20 * 60_000;
 
+/**
+ * A deployment running longer than this has no live worker behind it: the
+ * deploy script is bounded by DEPLOY_COMMAND_TIMEOUT_MS, and the clock restarts
+ * after a pre-deploy backup (touchRunningDeployment). The margin covers the
+ * claim-to-script bookkeeping.
+ */
+export const STALE_RUNNING_DEPLOY_MS = DEPLOY_COMMAND_TIMEOUT_MS + 5 * 60_000;
+
+const INTERRUPTED_MESSAGE =
+  "Worker restarted during deploy — server state unknown";
+
 export type DeployJobResult = {
-  status: "success" | "failed" | "superseded" | "requeued";
+  status: "success" | "failed" | "superseded" | "requeued" | "already-finished";
 };
 
-// An expected failure whose message is already in the run output.
+// An expected failure; its message is the whole story for the run log.
 class DeployAborted extends Error {}
 
 /**
@@ -48,38 +61,113 @@ export async function handleDeploy(
   const { deploymentId, runId } = data;
 
   const claim = await claimDeployment(deploymentId);
-  if (claim === "gone") {
-    await appendRunOutput(runId, "Superseded by a newer build");
-    await completeRun(runId);
-    return { status: "superseded" };
-  }
-  if (claim === "busy") {
-    await appendRunOutput(
-      runId,
-      "Waiting for the running deploy in this environment"
-    );
-    await enqueue("deploy/run.requested", data, {
-      delayMs: BUSY_RETRY_DELAY_MS,
-    });
-    return { status: "requeued" };
+  switch (claim) {
+    case "superseded":
+      await appendRunOutput(runId, "Superseded by a newer build");
+      await completeRun(runId);
+      return { status: "superseded" };
+    case "busy":
+      // A deploy whose worker died would hold the environment forever; clear
+      // those before waiting on it. Best-effort: a sweep error must not skip
+      // the re-enqueue, or this deployment would stay queued for good.
+      await bestEffort("sweep stale deployments", failStaleDeployments);
+      await appendRunOutput(
+        runId,
+        "Waiting for the running deploy in this environment"
+      );
+      await enqueue("deploy/run.requested", data, {
+        delayMs: BUSY_RETRY_DELAY_MS,
+      });
+      return { status: "requeued" };
+    case "interrupted":
+      // Redelivered by BullMQ after the worker died mid-deploy. Re-running the
+      // script blind is not safe; fail it and let a person decide.
+      await failClaimedDeployment(deploymentId, runId, INTERRUPTED_MESSAGE);
+      return { status: "failed" };
+    case "finished":
+      // Duplicate delivery of a deployment that already has its outcome.
+      return { status: "already-finished" };
+    case "claimed":
+      break;
   }
 
   // Claimed: from here on every exit must finish the deployment, or it would
-  // stay `running` and block the environment for good.
+  // stay `running` and block the environment until the stale sweep.
   try {
     await runClaimedDeployment(deploymentId, runId);
-    await finishDeployment(deploymentId, "success");
-    await completeRun(runId);
-    return { status: "success" };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // Includes the script's own output for a non-zero exit (HEALTH TIMEOUT).
-    if (!(err instanceof DeployAborted)) {
-      await appendRunOutput(runId, `✗ ${message}`);
-    }
-    await finishDeployment(deploymentId, "failed");
-    await failRun(runId, message);
+    // An unexpected error (SSH non-zero exit, with the script's output and
+    // HEALTH TIMEOUT) is marked as such; an abort is a plain sentence.
+    const line = err instanceof DeployAborted ? message : `✗ ${message}`;
+    await failClaimedDeployment(deploymentId, runId, message, line);
     return { status: "failed" };
+  }
+
+  let finished: boolean;
+  try {
+    finished = await finishDeployment(deploymentId, "success");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await failClaimedDeployment(deploymentId, runId, message, `✗ ${message}`);
+    return { status: "failed" };
+  }
+  if (!finished) {
+    // The stale sweep failed it (and its run) while the script was running.
+    await bestEffort("append to the run", () =>
+      appendRunOutput(
+        runId,
+        "Deploy script finished after the deployment was marked failed"
+      )
+    );
+    return { status: "failed" };
+  }
+  // The deployment succeeded; a run-row hiccup must not turn that into a
+  // failed run.
+  await bestEffort("complete the run", () => completeRun(runId));
+  return { status: "success" };
+}
+
+/**
+ * Fails a claimed deployment and its run. The deployment row goes first: it is
+ * what blocks the environment. Each step is best-effort so one failing write
+ * does not skip the next.
+ */
+async function failClaimedDeployment(
+  deploymentId: string,
+  runId: string,
+  message: string,
+  line: string = message
+): Promise<void> {
+  await bestEffort("fail the deployment", () =>
+    finishDeployment(deploymentId, "failed")
+  );
+  await bestEffort("append to the run", () => appendRunOutput(runId, line));
+  await bestEffort("fail the run", () => failRun(runId, message));
+}
+
+/**
+ * Fails deployments left `running` by a dead worker, and their runs. Called on
+ * worker start and whenever a deploy finds its environment busy.
+ */
+export async function failStaleDeployments(): Promise<void> {
+  const runIds = await failStaleRunningDeployments(STALE_RUNNING_DEPLOY_MS);
+  const minutes = Math.round(STALE_RUNNING_DEPLOY_MS / 60_000);
+  const message = `Marked failed: no progress for over ${minutes} minutes (worker restart?)`;
+  for (const id of runIds) {
+    await bestEffort("append to the run", () => appendRunOutput(id, message));
+    await bestEffort("fail the run", () => failRun(id, message));
+  }
+}
+
+async function bestEffort(
+  label: string,
+  fn: () => Promise<unknown>
+): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    console.error(`Deploy: could not ${label}:`, error);
   }
 }
 
@@ -89,7 +177,7 @@ async function runClaimedDeployment(
 ): Promise<void> {
   const registry = process.env.DEPLOY_REGISTRY;
   if (!registry) {
-    return abort(runId, "Deploy disabled: DEPLOY_REGISTRY is not set");
+    throw new DeployAborted("Deploy disabled: DEPLOY_REGISTRY is not set");
   }
 
   const deployment = await getDeployment(deploymentId);
@@ -128,14 +216,21 @@ async function runClaimedDeployment(
       `Backing up the database (run ${backupRunId})`
     );
     try {
-      // Completes or fails its own run.
+      // Completes or fails its own run, except when it throws before its own
+      // try (environment not found) — hence the failRun below.
       await handleCreateDatabaseBackup({
         environmentId: target.environmentId,
         runId: backupRunId,
       });
-    } catch {
-      return abort(runId, "Backup failed — deploy aborted");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await bestEffort("fail the backup run", () =>
+        failRun(backupRunId, message)
+      );
+      throw new DeployAborted("Backup failed — deploy aborted");
     }
+    // The backup's duration does not count against the deploy's stale bound.
+    await touchRunningDeployment(deploymentId);
   }
 
   await appendRunOutput(
@@ -149,9 +244,4 @@ async function runClaimedDeployment(
   );
   const trimmed = output.trim();
   if (trimmed) await appendRunOutput(runId, trimmed);
-}
-
-async function abort(runId: string, message: string): Promise<never> {
-  await appendRunOutput(runId, message);
-  throw new DeployAborted(message);
 }

@@ -191,13 +191,24 @@ export async function supersedeQueuedAuto(
 }
 
 /**
- * Moves a queued deployment to running. "busy": another deployment is already
- * running in the environment (partial unique index). "gone": the deployment is
- * no longer queued (superseded or already handled).
+ * What claiming a deployment found:
+ * - "claimed": it was queued and is now running.
+ * - "busy": another deployment is already running in the environment (partial
+ *   unique index); it stays queued.
+ * - "superseded": a newer auto deployment replaced it while it was queued.
+ * - "interrupted": it is already running — a redelivery after the worker died
+ *   mid-deploy, so the server's state is unknown.
+ * - "finished": it already succeeded or failed (a duplicate delivery), or the
+ *   row is gone; there is nothing to do.
  */
-export async function claimDeployment(
-  id: string
-): Promise<"claimed" | "busy" | "gone"> {
+export type ClaimResult =
+  | "claimed"
+  | "busy"
+  | "superseded"
+  | "interrupted"
+  | "finished";
+
+export async function claimDeployment(id: string): Promise<ClaimResult> {
   try {
     return await db.transaction(async (tx) => {
       const rows = await tx
@@ -205,7 +216,12 @@ export async function claimDeployment(
         .set({ status: "running", startedAt: sql`now()` })
         .where(and(eq(deployments.id, id), eq(deployments.status, "queued")))
         .returning({ id: deployments.id });
-      return rows.length > 0 ? "claimed" : "gone";
+      if (rows.length > 0) return "claimed";
+      const [row] = await tx
+        .select({ status: deployments.status })
+        .from(deployments)
+        .where(eq(deployments.id, id));
+      return unclaimedOutcome(row?.status);
     });
   } catch (error) {
     if (isUniqueViolation(error)) return "busy";
@@ -213,14 +229,71 @@ export async function claimDeployment(
   }
 }
 
+function unclaimedOutcome(
+  status: Deployment["status"] | undefined
+): Exclude<ClaimResult, "claimed"> {
+  switch (status) {
+    case "superseded":
+      return "superseded";
+    case "running":
+      return "interrupted";
+    // Still queued means the row changed between the update and this read;
+    // try again later rather than guess.
+    case "queued":
+      return "busy";
+    default:
+      return "finished";
+  }
+}
+
+/**
+ * Moves a running deployment to its final status. False when it was no longer
+ * running (the stale sweep already failed it), so the caller must not report
+ * success.
+ */
 export async function finishDeployment(
   id: string,
   status: "success" | "failed"
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const rows = await db
     .update(deployments)
     .set({ status, finishedAt: sql`now()` })
+    .where(and(eq(deployments.id, id), eq(deployments.status, "running")))
+    .returning({ id: deployments.id });
+  return rows.length > 0;
+}
+
+/**
+ * Restarts a running deployment's stale-sweep clock. Called once the
+ * pre-deploy backup is done, so a long backup does not count against the
+ * deploy script's own bound.
+ */
+export async function touchRunningDeployment(id: string): Promise<void> {
+  await db
+    .update(deployments)
+    .set({ startedAt: sql`now()` })
     .where(and(eq(deployments.id, id), eq(deployments.status, "running")));
+}
+
+/**
+ * Fails deployments that have been running longer than any live deploy can
+ * (the worker died mid-deploy and nothing will finish them), so they stop
+ * blocking their environment. Returns the run ids of the rows it failed.
+ */
+export async function failStaleRunningDeployments(
+  olderThanMs: number
+): Promise<string[]> {
+  const rows = await db
+    .update(deployments)
+    .set({ status: "failed", finishedAt: sql`now()` })
+    .where(
+      and(
+        eq(deployments.status, "running"),
+        sql`${deployments.startedAt} < now() - ${olderThanMs} * interval '1 millisecond'`
+      )
+    )
+    .returning({ runId: deployments.runId });
+  return rows.map((r) => r.runId);
 }
 
 export async function upsertTarget(
