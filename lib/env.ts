@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BRANDS } from "@/lib/branding";
+import { deployRegistrySchema } from "@/lib/deploy/validation";
 import { isValidTimeZone } from "@/lib/timezone";
 
 /**
@@ -244,6 +245,11 @@ function collectFindings(): Finding[] {
         "Email (Resend) is not configured (RESEND_API_KEY unset) — invitations and password resets cannot be sent",
     });
   }
+
+  // Panel deploys pull bundle images from this registry. Unset is a supported
+  // state: the deploy feature is off (the job fails its run, the build hook
+  // answers 503).
+  checkOptional("DEPLOY_REGISTRY", deployRegistrySchema, findings);
 
   // The in-process worker already warns and no-ops without this; repeat it here
   // so the whole picture is in one place at boot.

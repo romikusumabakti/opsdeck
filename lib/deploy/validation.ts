@@ -19,6 +19,18 @@ export const deployTagSchema = z
   )
   .refine((tag) => tag.toLowerCase() !== "latest", "Tag must not be 'latest'");
 
+/**
+ * The registry the deploy bundle images are pulled from, as `host[:port]`
+ * (`DEPLOY_REGISTRY`, e.g. `192.168.10.113:5000`). Checked at boot and again
+ * when a deploy script is built.
+ */
+export const deployRegistrySchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,252})(?::[0-9]{1,5})?$/,
+    "Registry must be host[:port]"
+  );
+
 export const appKeySchema = z
   .string()
   .regex(

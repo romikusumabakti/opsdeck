@@ -38,6 +38,20 @@ export async function loadEnvironmentWithServers(
   };
 }
 
+/**
+ * A server's SSH credentials, decrypted, for a job that targets the server
+ * directly rather than through an environment's services (Panel deploys).
+ * SERVER-ONLY, like loadEnvironmentWithServers: same decryption boundary.
+ */
+export async function loadServerCredentials(
+  serverId: string
+): Promise<{ host: string; username: string; password: string } | null> {
+  const server = await db.query.servers.findFirst({ where: { id: serverId } });
+  if (!server) return null;
+  const { host, username, password } = decryptServer(server);
+  return { host, username, password };
+}
+
 // The owner fields every environment view reads (see EnvironmentOwner).
 export const OWNER_COLUMNS = {
   id: true,
