@@ -32,6 +32,8 @@ const repo = vi.hoisted(() => ({
   supersedeQueuedAuto: vi.fn(),
   claimDeployment: vi.fn(),
   finishDeployment: vi.fn(),
+  touchRunningDeployment: vi.fn(),
+  failStaleRunningDeployments: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
@@ -55,7 +57,9 @@ vi.mock("@/lib/queue", () => queue);
 const processor = vi.hoisted(() => ({ handleCreateDatabaseBackup: vi.fn() }));
 vi.mock("@/lib/jobs/processor", () => processor);
 
-const { handleDeploy } = await import("@/lib/jobs/deploy");
+const { handleDeploy, STALE_RUNNING_DEPLOY_MS } = await import(
+  "@/lib/jobs/deploy"
+);
 const { requestDeployment } = await import("@/server/services/deployments");
 
 const payload = { deploymentId: DEPLOYMENT_ID, runId: RUN_ID };
@@ -83,6 +87,8 @@ beforeEach(() => {
   });
   repo.insertDeployment.mockResolvedValue({ id: DEPLOYMENT_ID });
   repo.claimDeployment.mockResolvedValue("claimed");
+  repo.finishDeployment.mockResolvedValue(true);
+  repo.failStaleRunningDeployments.mockResolvedValue([]);
   environments.loadServerCredentials.mockResolvedValue({
     host: "10.0.0.5",
     username: "ops",
@@ -94,11 +100,17 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
+
+// For tests where a best-effort write fails on purpose and gets logged.
+function silenceErrors() {
+  return vi.spyOn(console, "error").mockImplementation(() => {});
+}
 
 describe("handleDeploy", () => {
   it("superseded deployment does nothing on the server", async () => {
-    repo.claimDeployment.mockResolvedValue("gone");
+    repo.claimDeployment.mockResolvedValue("superseded");
 
     await expect(handleDeploy(payload)).resolves.toEqual({
       status: "superseded",
@@ -129,6 +141,151 @@ describe("handleDeploy", () => {
     );
     expect(progress.completeRun).not.toHaveBeenCalled();
     expect(progress.failRun).not.toHaveBeenCalled();
+  });
+
+  it("busy environment sweeps stale running deployments before waiting", async () => {
+    repo.claimDeployment.mockResolvedValue("busy");
+    repo.failStaleRunningDeployments.mockResolvedValue([BACKUP_RUN_ID]);
+
+    await handleDeploy(payload);
+
+    expect(repo.failStaleRunningDeployments).toHaveBeenCalledWith(
+      STALE_RUNNING_DEPLOY_MS
+    );
+    expect(STALE_RUNNING_DEPLOY_MS).toBe(25 * 60_000);
+    const message =
+      "Marked failed: no progress for over 25 minutes (worker restart?)";
+    expect(progress.appendRunOutput).toHaveBeenCalledWith(
+      BACKUP_RUN_ID,
+      message
+    );
+    expect(progress.failRun).toHaveBeenCalledWith(BACKUP_RUN_ID, message);
+    expect(progress.failRun).not.toHaveBeenCalledWith(
+      RUN_ID,
+      expect.anything()
+    );
+    expect(queue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failing stale sweep still re-enqueues the busy deployment", async () => {
+    silenceErrors();
+    repo.claimDeployment.mockResolvedValue("busy");
+    repo.failStaleRunningDeployments.mockRejectedValue(new Error("db down"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({
+      status: "requeued",
+    });
+
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      "deploy/run.requested",
+      payload,
+      { delayMs: 15000 }
+    );
+  });
+
+  it("redelivered running deployment is failed, not reported as success", async () => {
+    repo.claimDeployment.mockResolvedValue("interrupted");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    const message = "Worker restarted during deploy — server state unknown";
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
+    expect(outputLines()).toContain(message);
+    expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, message);
+    expect(progress.completeRun).not.toHaveBeenCalled();
+  });
+
+  it("duplicate delivery of a finished deployment leaves the run untouched", async () => {
+    repo.claimDeployment.mockResolvedValue("finished");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({
+      status: "already-finished",
+    });
+
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(repo.finishDeployment).not.toHaveBeenCalled();
+    expect(progress.appendRunOutput).not.toHaveBeenCalled();
+    expect(progress.completeRun).not.toHaveBeenCalled();
+    expect(progress.failRun).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("a failing run-output write in the failure path still fails the deployment", async () => {
+    silenceErrors();
+    ssh.executeRemoteCommand.mockRejectedValue(
+      new Error("SSH Command Failed (exit 1): HEALTH TIMEOUT")
+    );
+    progress.appendRunOutput.mockImplementation(async (_id, line: string) => {
+      if (line.startsWith("✗")) throw new Error("db down");
+    });
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      expect.stringContaining("HEALTH TIMEOUT")
+    );
+  });
+
+  it("a completeRun error after a successful deploy does not fail the run", async () => {
+    const errors = silenceErrors();
+    progress.completeRun.mockRejectedValue(new Error("db blip"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({
+      status: "success",
+    });
+
+    expect(repo.finishDeployment).toHaveBeenCalledTimes(1);
+    expect(repo.finishDeployment).toHaveBeenCalledWith(
+      DEPLOYMENT_ID,
+      "success"
+    );
+    expect(progress.failRun).not.toHaveBeenCalled();
+    expect(errors).toHaveBeenCalled();
+  });
+
+  it("a deploy the stale sweep already failed is not reported as success", async () => {
+    repo.finishDeployment.mockResolvedValue(false);
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(progress.completeRun).not.toHaveBeenCalled();
+  });
+
+  it("backup that throws before its own run handling gets its run failed", async () => {
+    repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+    progress.createRun.mockResolvedValue(BACKUP_RUN_ID);
+    processor.handleCreateDatabaseBackup.mockRejectedValue(
+      new Error(`Environment ${ENV_ID} not found`)
+    );
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(progress.failRun).toHaveBeenCalledWith(
+      BACKUP_RUN_ID,
+      `Environment ${ENV_ID} not found`
+    );
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      "Backup failed — deploy aborted"
+    );
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+  });
+
+  it("a successful backup restarts the stale clock before the deploy script", async () => {
+    repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+    processor.handleCreateDatabaseBackup.mockResolvedValue({ success: true });
+
+    await expect(handleDeploy(payload)).resolves.toEqual({
+      status: "success",
+    });
+
+    expect(repo.touchRunningDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID);
+    expect(
+      repo.touchRunningDeployment.mock.invocationCallOrder[0]
+    ).toBeLessThan(ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0);
   });
 
   it("backup failure aborts before any deploy command", async () => {
