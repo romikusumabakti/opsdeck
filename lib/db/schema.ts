@@ -272,6 +272,7 @@ export const runKindEnum = pgEnum("run_kind", [
   "restore",
   "mock_time",
   "test",
+  "deploy",
 ]);
 
 export const runs = pgTable(
@@ -323,6 +324,129 @@ export const runs = pgTable(
     index("runs_attention_idx")
       .on(t.runAt.desc())
       .where(sql`${t.status} = 'failed' and ${t.acknowledgedAt} is null`),
+  ]
+);
+
+export const deployTriggerEnum = pgEnum("deploy_trigger", [
+  "auto",
+  "manual",
+  "rollback",
+]);
+export const deploymentStatusEnum = pgEnum("deployment_status", [
+  "queued",
+  "running",
+  "success",
+  "failed",
+  "superseded",
+]);
+
+// An application the Panel can deploy (one Docker Compose bundle image per app).
+export const deployApps = pgTable("deploy_apps", {
+  // Stable slug, e.g. "dplk-accounting".
+  appKey: text("app_key").primaryKey(),
+  // Image holding the compose bundle, e.g. "dplk-accounting-deploy".
+  bundleImage: text("bundle_image").notNull(),
+  // Shared secret for the CI build-notify webhook. Encrypted at rest via
+  // lib/secrets.ts; never sent to the client.
+  notifySecret: text("notify_secret").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Where an app deploys to: one target per (environment, app).
+export const deployTargets = pgTable(
+  "deploy_targets",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    appKey: text("app_key")
+      .notNull()
+      .references(() => deployApps.appKey, { onDelete: "restrict" }),
+    serverId: uuid("server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    sourceBranch: text("source_branch").notNull(),
+    autoDeploy: boolean("auto_deploy").notNull().default(false),
+    deployDir: text("deploy_dir").notNull(),
+    services: text("services").array().notNull(),
+    tagVariable: text("tag_variable").notNull().default("IMAGE_TAG"),
+    preStartCommand: text("pre_start_command"),
+    healthUrl: text("health_url"),
+    healthTimeoutSeconds: integer("health_timeout_seconds")
+      .notNull()
+      .default(180),
+    backupBeforeDeploy: boolean("backup_before_deploy")
+      .notNull()
+      .default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("deploy_targets_environment_app_idx").on(
+      t.environmentId,
+      t.appKey
+    ),
+    index("deploy_targets_app_idx").on(t.appKey),
+  ]
+);
+
+// A CI-built image tag reported by the build-notify webhook.
+export const builds = pgTable(
+  "builds",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    appKey: text("app_key")
+      .notNull()
+      .references(() => deployApps.appKey, { onDelete: "cascade" }),
+    branch: text("branch").notNull(),
+    tag: text("tag").notNull(),
+    commitSha: text("commit_sha").notNull(),
+    pipelineUrl: text("pipeline_url"),
+    receivedAt: timestamp("received_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("builds_app_tag_idx").on(t.appKey, t.tag),
+    index("builds_app_branch_received_idx").on(
+      t.appKey,
+      t.branch,
+      t.receivedAt.desc()
+    ),
+  ]
+);
+
+// One attempt to roll a tag out to a target; backed by a `deploy` run for logs.
+export const deployments = pgTable(
+  "deployments",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    targetId: uuid("target_id")
+      .notNull()
+      .references(() => deployTargets.id, { onDelete: "cascade" }),
+    // Denormalised from the target so the partial unique index below can
+    // enforce one running deploy per environment.
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => runs.id, { onDelete: "cascade" }),
+    tag: text("tag").notNull(),
+    trigger: deployTriggerEnum("trigger").notNull(),
+    status: deploymentStatusEnum("status").notNull().default("queued"),
+    buildId: uuid("build_id").references(() => builds.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    startedAt: timestamp("started_at"),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [
+    index("deployments_target_created_idx").on(t.targetId, t.createdAt.desc()),
+    // DB-level guarantee of at most one running deploy per environment.
+    uniqueIndex("deployments_one_running_per_env_idx")
+      .on(t.environmentId)
+      .where(sql`${t.status} = 'running'`),
   ]
 );
 
@@ -1330,6 +1454,12 @@ export type SafeEnvironmentWithServers = Environment & {
 };
 
 export type Run = InferSelectModel<typeof runs>;
+
+export type DeployApp = InferSelectModel<typeof deployApps>;
+export type DeployTarget = InferSelectModel<typeof deployTargets>;
+export type NewDeployTarget = InferInsertModel<typeof deployTargets>;
+export type Build = InferSelectModel<typeof builds>;
+export type Deployment = InferSelectModel<typeof deployments>;
 export type NewRun = InferInsertModel<typeof runs>;
 
 export type User = InferSelectModel<typeof users>;

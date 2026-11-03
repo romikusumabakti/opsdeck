@@ -150,6 +150,10 @@ const PROJECT_MATRIX: [string, string, Record<ProjectRole, boolean>][] = [
   ["environment", "delete", { viewer: false, contributor: false, maintainer: true }],
   ["member", "manage", { viewer: false, contributor: false, maintainer: true }],
   ["run", "acknowledge", { viewer: false, contributor: true, maintainer: true }],
+  ["deploy", "view", { viewer: true, contributor: true, maintainer: true }],
+  ["deploy", "run", { viewer: false, contributor: false, maintainer: true }],
+  ["deploy", "rollback", { viewer: false, contributor: false, maintainer: true }],
+  ["deploy", "configure", { viewer: false, contributor: false, maintainer: true }],
 ];
 
 describe("canProject matrix", () => {
@@ -164,6 +168,17 @@ describe("canProject matrix", () => {
   }
   it("denies everything to no role", () => {
     expect(canProject(null, { project: ["read"] })).toBe(false);
+  });
+});
+
+describe("deploy permissions", () => {
+  it("only maintainers may run, roll back and configure deploys", () => {
+    for (const p of ["run", "rollback", "configure"] as const) {
+      expect(canProject("maintainer", { deploy: [p] })).toBe(true);
+      expect(canProject("contributor", { deploy: [p] })).toBe(false);
+      expect(canProject("viewer", { deploy: [p] })).toBe(false);
+    }
+    expect(canProject("viewer", { deploy: ["view"] })).toBe(true);
   });
 });
 
