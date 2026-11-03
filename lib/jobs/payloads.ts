@@ -100,6 +100,10 @@ const JOB_PAYLOAD_SCHEMAS: { [N in JobName]: z.ZodType<JobMap[N]> } = {
   "jira/push.comment": z.object({
     commentId: uuidSchema,
   }),
+  "deploy/run.requested": z.object({
+    deploymentId: uuidSchema,
+    runId: uuidSchema,
+  }),
 };
 
 /**

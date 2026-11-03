@@ -162,6 +162,14 @@ export async function insertDeployment(d: {
   return one(await db.insert(deployments).values(d).returning(), "deployment");
 }
 
+export async function getDeployment(id: string): Promise<Deployment | null> {
+  const [row] = await db
+    .select()
+    .from(deployments)
+    .where(eq(deployments.id, id));
+  return row ?? null;
+}
+
 /** Marks older queued auto deployments of the target as superseded. */
 export async function supersedeQueuedAuto(
   targetId: string,
