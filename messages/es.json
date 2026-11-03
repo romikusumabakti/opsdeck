@@ -386,7 +386,7 @@
       "healthUrl": "URL de salud",
       "healthUrlHint": "Opcional. Debe responder correctamente para que el despliegue se considere sano.",
       "healthTimeoutSeconds": "Tiempo límite de salud (segundos)",
-      "healthTimeoutSecondsHint": "Entre 60 y 3600.",
+      "healthTimeoutSecondsHint": "Entre 60 y 900.",
       "autoDeploy": "Desplegar automáticamente las nuevas builds",
       "backupBeforeDeploy": "Hacer copia de seguridad de la base de datos antes de cada despliegue",
       "save": "Guardar",

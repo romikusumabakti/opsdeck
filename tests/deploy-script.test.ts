@@ -74,6 +74,23 @@ describe("buildDeployScript validation", () => {
     expect(() =>
       buildDeployScript({ ...base, healthTimeoutSeconds: 0 })
     ).toThrow();
+    expect(() =>
+      buildDeployScript({ ...base, healthTimeoutSeconds: 901 })
+    ).toThrow();
+    expect(() =>
+      buildDeployScript({ ...base, healthTimeoutSeconds: 900 })
+    ).not.toThrow();
+    for (const deployDir of [
+      "/",
+      "/.",
+      "//",
+      "/etc",
+      "/a//b",
+      "/a/./b",
+      "/a/",
+    ]) {
+      expect(() => buildDeployScript({ ...base, deployDir })).toThrow();
+    }
   });
 });
 
@@ -109,9 +126,22 @@ describe("buildDeployScript output", () => {
     expect(append).toBeLessThan(script.indexOf("docker compose pull"));
   });
 
-  it("starts with set -eu and cd into the quoted deploy dir", () => {
+  it("starts with set -eu, ignores HUP/PIPE, cds and takes the deploy lock", () => {
     const script = buildDeployScript(base);
-    expect(script.startsWith("set -eu\ncd '/srv/accounting'\n")).toBe(true);
+    expect(
+      script.startsWith(
+        [
+          "set -eu",
+          "trap '' HUP PIPE",
+          "cd '/srv/accounting'",
+          "exec 9>.opsdeck-deploy.lock",
+          "flock -w 600 9 || { echo 'DEPLOY LOCKED'; exit 1; }",
+          "",
+        ].join("\n")
+      )
+    ).toBe(true);
+    // The lock is held before anything touches the deploy dir.
+    expect(script.indexOf("flock")).toBeLessThan(script.indexOf("docker"));
   });
 
   it("default stableSeconds is 30 when omitted", () => {
@@ -202,7 +232,8 @@ async function runStub(
   input: Partial<DeployScriptInput>,
   envFile: string | null,
   containers: string,
-  stubEnv: Record<string, string> = {}
+  stubEnv: Record<string, string> = {},
+  extraStubs: Record<string, string> = {}
 ): Promise<StubRun> {
   const root = mkdtempSync(join(tmpdir(), "deploy-script-"));
   const bin = join(root, "bin");
@@ -213,6 +244,10 @@ async function runStub(
   writeFileSync(join(bin, "curl"), STUB_CURL);
   chmodSync(join(bin, "docker"), 0o755);
   chmodSync(join(bin, "curl"), 0o755);
+  for (const [name, body] of Object.entries(extraStubs)) {
+    writeFileSync(join(bin, name), body);
+    chmodSync(join(bin, name), 0o755);
+  }
   if (envFile !== null) writeFileSync(join(deployDir, ".env"), envFile);
   const log = join(root, "argv.log");
   writeFileSync(log, "");
@@ -445,6 +480,24 @@ describe.concurrent("buildDeployScript stub runs", () => {
       );
       expect(r.status).toBe(1);
       expect(r.stdout).toContain("HEALTH TIMEOUT");
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, deploy dir locked by another script",
+    async () => {
+      const r = await runStub(
+        {},
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        { flock: "#!/bin/sh\nexit 1\n" }
+      );
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain("DEPLOY LOCKED");
+      expect(r.log).toBe("");
+      expect(r.env).toBe("IMAGE_TAG=old\n");
     },
     SLOW
   );

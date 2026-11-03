@@ -386,7 +386,7 @@
       "healthUrl": "URL health",
       "healthUrlHint": "Opsional. Harus merespons sukses sebelum deploy dianggap sehat.",
       "healthTimeoutSeconds": "Batas waktu health (detik)",
-      "healthTimeoutSecondsHint": "Antara 60 dan 3600.",
+      "healthTimeoutSecondsHint": "Antara 60 dan 900.",
       "autoDeploy": "Deploy build baru secara otomatis",
       "backupBeforeDeploy": "Backup database sebelum setiap deploy",
       "save": "Simpan",

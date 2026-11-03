@@ -205,7 +205,14 @@ Before the script is sent, the worker takes the optional database backup
 (if "back up before deploy" is on). It runs in the worker, not in the script;
 if it fails, the deploy fails before any SSH deploy command runs.
 
-The script then does, in order:
+The script first ignores `SIGHUP` and `SIGPIPE` (so it keeps going if the
+Panel's SSH session drops mid-deploy, rather than dying between removing an old
+container and starting its replacement), changes into the deploy dir and takes
+the lock `.opsdeck-deploy.lock` there with `flock`. If another deploy script
+still holds it after 600 s, it prints `DEPLOY LOCKED` and exits non-zero
+without touching anything.
+
+Then it does, in order:
 
 1. `docker pull` the bundle image, extract `/bundle/.` into the deploy dir.
 2. Set `<TAG_VARIABLE>=<tag>` in `.env` (replace the existing line, or append).
@@ -235,7 +242,8 @@ every target service is:
 
 and the health URL, if set, answers with an HTTP status below 400 (`curl -f`, checked every 5 s, 5 s timeout). Any
 failing poll restarts the 30 s window. All of this must happen within
-`healthTimeoutSeconds` (60 to 3600, default 180); otherwise the script prints
+`healthTimeoutSeconds` (60 to 900, default 180; the cap keeps the wait well
+inside the 20-minute limit on the whole script); otherwise the script prints
 `HEALTH TIMEOUT` and exits non-zero.
 
 ### Failure and rollback
@@ -258,12 +266,17 @@ redeploys the old images and bundle.
   whenever a deploy finds its environment busy), and its run is failed too. A
   redelivered job for a deployment that was already running is failed rather
   than re-run, since the server state is unknown.
-- The whole script has a 20 minute wall-clock limit.
+- The whole script has a 20 minute wall-clock limit. When the Panel gives up
+  (timeout, Panel restart), the script may keep running on the server; the
+  deploy-dir lock keeps the next deploy from overlapping it.
 
 ## Server prerequisites
 
 - The target's SSH user can run `docker` **without sudo** and can write the
   deploy dir.
+- `flock` (util-linux) is installed.
+- The deploy dir is an absolute path at least two levels deep (for example
+  `/opt/myapp`), with no empty, `.` or `..` segment.
 - Docker Engine with the Compose plugin (`docker compose`). Podman hosts are not
   supported in this phase.
 - The server can pull from `DEPLOY_REGISTRY` (logged in, or the registry is

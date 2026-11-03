@@ -386,7 +386,7 @@
       "healthUrl": "健康检查 URL",
       "healthUrlHint": "可选。必须成功响应，部署才视为健康。",
       "healthTimeoutSeconds": "健康检查超时（秒）",
-      "healthTimeoutSecondsHint": "介于 60 到 3600 之间。",
+      "healthTimeoutSecondsHint": "介于 60 到 900 之间。",
       "autoDeploy": "自动部署新构建",
       "backupBeforeDeploy": "每次部署前备份数据库",
       "save": "保存",

@@ -386,7 +386,7 @@
       "healthUrl": "Health URL",
       "healthUrlHint": "Optional. Must answer successfully before the deploy counts as healthy.",
       "healthTimeoutSeconds": "Health timeout (seconds)",
-      "healthTimeoutSecondsHint": "Between 60 and 3600.",
+      "healthTimeoutSecondsHint": "Between 60 and 900.",
       "autoDeploy": "Deploy new builds automatically",
       "backupBeforeDeploy": "Back up the database before each deploy",
       "save": "Save",
