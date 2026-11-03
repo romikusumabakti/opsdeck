@@ -47,7 +47,8 @@ function deliver(body: string, signature?: string) {
 beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.56.113:5000");
   repo.getDeployApp.mockImplementation(async (appKey: string) =>
-    appKey === "dplk-accounting" ? { appKey, notifySecretPlain: SECRET } : null
+    // A secret without the enc:v1: prefix decrypts to itself (legacy rows).
+    appKey === "dplk-accounting" ? { appKey, notifySecret: SECRET } : null
   );
   repo.insertBuildIfNew.mockResolvedValue({
     build: { id: BUILD_ID },
@@ -115,6 +116,24 @@ describe("POST /api/deploy-hooks/builds", () => {
     }
     expect(repo.insertBuildIfNew).not.toHaveBeenCalled();
     expect(deployments.requestDeployment).not.toHaveBeenCalled();
+  });
+
+  it("401, the same as an unknown app, when the stored secret cannot be decrypted", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    repo.getDeployApp.mockResolvedValue({
+      appKey: "dplk-accounting",
+      notifySecret: "enc:v1:bm90LWEtcmVhbC1jaXBoZXJ0ZXh0",
+    });
+    const body = JSON.stringify(notification);
+    const res = await deliver(body, sign(body));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Unauthorized" });
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("dplk-accounting"),
+      expect.anything()
+    );
+    expect(repo.insertBuildIfNew).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it('400 for tag "latest" and tag "a;b" with a valid signature', async () => {
