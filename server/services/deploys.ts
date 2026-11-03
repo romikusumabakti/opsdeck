@@ -15,9 +15,12 @@ import {
 import {
   appKeySchema,
   branchSchema,
-  composeServiceSchema,
   deployDirSchema,
   envVarNameSchema,
+  healthTimeoutSchema,
+  healthUrlSchema,
+  preStartCommandSchema,
+  servicesSchema,
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { uuidSchema } from "@/lib/validation";
@@ -26,21 +29,6 @@ import { requestDeployment } from "@/server/services/deployments";
 const fail = (status: 404 | 409 | 503, message: string): never => {
   throw new HTTPException(status, { message });
 };
-
-// Free-form text goes into the server script, so these are deliberately narrow.
-const servicesSchema = z
-  .array(composeServiceSchema)
-  .min(1)
-  .max(20)
-  .refine((list) => new Set(list).size === list.length, "Duplicate service");
-const preStartCommandSchema = z
-  .string()
-  .min(1)
-  .max(500)
-  .regex(/^[^\r\n]*$/, "Must be a single line");
-const healthUrlSchema = z.url({ protocol: /^https?$/ }).max(2048);
-// The script waits stableSeconds (30) and then polls, so less cannot succeed.
-const healthTimeoutSchema = z.number().int().min(60).max(3600);
 
 export const createTargetSchema = z.object({
   environmentId: uuidSchema,

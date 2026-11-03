@@ -12,7 +12,7 @@ import { acknowledgeAttentionGroup, unacknowledgeRuns } from "@/web/api/home";
 import { useIssueDialog } from "./home-issue-dialog";
 
 const groupId = (g: AttentionGroup) => `${g.environmentId}\u0000${g.key}`;
-const KINDS = ["backup", "restore", "mock_time", "test"] as const;
+const KINDS = ["backup", "restore", "mock_time", "test", "deploy"] as const;
 
 export function AttentionList({ groups }: { groups: AttentionGroup[] }) {
   const t = useTranslations("homePage");

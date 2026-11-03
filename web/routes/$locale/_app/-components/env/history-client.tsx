@@ -23,7 +23,14 @@ import type { RunWithUser } from "@/web/api/runs";
 // Facet keys for runs without a kind or an author; labels come from i18n.
 const KIND_OTHER = "other";
 const USER_UNKNOWN = "__unknown";
-const KINDS = ["backup", "restore", "mock_time", "test", KIND_OTHER] as const;
+const KINDS = [
+  "backup",
+  "restore",
+  "mock_time",
+  "test",
+  "deploy",
+  KIND_OTHER,
+] as const;
 const STATUSES = ["success", "failed", "started"] as const;
 const STATUS_LABEL_KEY = {
   success: "statusSuccess",
@@ -35,6 +42,7 @@ const KIND_LABEL_KEY = {
   restore: "kindRestore",
   mock_time: "kindMockTime",
   test: "kindTest",
+  deploy: "kindDeploy",
   other: "kindOther",
 } as const;
 
