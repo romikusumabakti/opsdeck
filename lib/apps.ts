@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, isNull } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { type DbExecutor, db } from "@/lib/db";
 import {
@@ -46,6 +46,107 @@ export async function listApps(): Promise<
     byId.set(app.id, entry);
   }
   return [...byId.values()];
+}
+
+/** One app with its public components, or undefined when the key is unknown. */
+export async function getApp(
+  appKey: string
+): Promise<(App & { components: PublicAppComponent[] }) | undefined> {
+  // A handful of apps exist; reusing listApps keeps one projection to audit.
+  return (await listApps()).find((app) => app.appKey === appKey);
+}
+
+export async function appKeyExists(appKey: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: apps.id })
+    .from(apps)
+    .where(eq(apps.appKey, appKey))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** The given component keys that are already taken. */
+export async function takenComponentKeys(keys: string[]): Promise<string[]> {
+  if (keys.length === 0) return [];
+  const rows = await db
+    .select({ componentKey: appComponents.componentKey })
+    .from(appComponents)
+    .where(inArray(appComponents.componentKey, keys));
+  return rows.map((row) => row.componentKey);
+}
+
+/** The repositories of a CI connection that already build a component. */
+export async function linkedCiRepos(ciConnectionId: string): Promise<
+  {
+    componentKey: string;
+    ciRepoId: string | null;
+    repoFullName: string;
+  }[]
+> {
+  return db
+    .select({
+      componentKey: appComponents.componentKey,
+      ciRepoId: appComponents.ciRepoId,
+      repoFullName: appComponents.repoFullName,
+    })
+    .from(appComponents)
+    .where(eq(appComponents.ciConnectionId, ciConnectionId));
+}
+
+export type NewAppComponent = Omit<
+  typeof appComponents.$inferInsert,
+  "appId" | "createdAt"
+>;
+
+/**
+ * Inserts an app and its components in one transaction. A taken app key,
+ * component key or CI repo surfaces as a unique violation.
+ */
+export async function insertAppWithComponents(
+  app: { appKey: string; name: string },
+  components: NewAppComponent[]
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(apps)
+      .values(app)
+      .returning({ id: apps.id });
+    if (!created) throw new Error("App insert returned no row");
+    await tx
+      .insert(appComponents)
+      .values(components.map((c) => ({ ...c, appId: created.id })));
+  });
+}
+
+/**
+ * Records the outcome of committing the generated fallback file. A failure
+ * keeps the last good sha, so the UI can still show what the repo holds.
+ */
+export async function setFallbackCommitResult(
+  componentKey: string,
+  result: { sha: string } | { error: string }
+): Promise<void> {
+  await db
+    .update(appComponents)
+    .set(
+      "sha" in result
+        ? { fallbackCommittedSha: result.sha, fallbackCommitError: null }
+        : { fallbackCommitError: result.error }
+    )
+    .where(eq(appComponents.componentKey, componentKey));
+}
+
+/** Stores a new notify secret, already encrypted with lib/secrets.ts. */
+export async function setNotifySecret(
+  componentKey: string,
+  encryptedSecret: string
+): Promise<void> {
+  const updated = await db
+    .update(appComponents)
+    .set({ notifySecret: encryptedSecret })
+    .where(eq(appComponents.componentKey, componentKey))
+    .returning({ componentKey: appComponents.componentKey });
+  if (updated.length === 0) throw new Error("Component not found");
 }
 
 /**

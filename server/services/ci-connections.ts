@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireOrgPermission } from "@/lib/authz";
+import type { BitbucketAuth } from "@/lib/ci/forges/bitbucket";
 import { type CiProvider, CiProviderError } from "@/lib/ci/types";
 import { createWoodpeckerProvider } from "@/lib/ci/woodpecker";
 import { db } from "@/lib/db";
@@ -148,6 +149,48 @@ export async function getProviderForConnection(
   id: string
 ): Promise<CiProvider> {
   return providerFor(await findConnection(id));
+}
+
+/**
+ * What an app registrant needs to pick a connection: no URL, no credential.
+ * Does not check a permission (see getProviderForConnection).
+ */
+export async function listConnectionOptions(): Promise<
+  {
+    id: string;
+    name: string;
+    forge: CiConnection["forge"];
+    hasForgeToken: boolean;
+  }[]
+> {
+  const rows = await db
+    .select()
+    .from(ciConnections)
+    .orderBy(ciConnections.name);
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    forge: row.forge,
+    hasForgeToken: !!(row.forgeUsername && row.forgeToken),
+  }));
+}
+
+/**
+ * The forge and the decrypted forge credentials (null when either part is
+ * missing) for committing files. Does not check a permission (see
+ * getProviderForConnection); the token must never leave the server.
+ */
+export async function getForgeCredentials(
+  id: string
+): Promise<{ forge: CiConnection["forge"]; auth: BitbucketAuth | null }> {
+  const row = await findConnection(id);
+  return {
+    forge: row.forge,
+    auth:
+      row.forgeUsername && row.forgeToken
+        ? { username: row.forgeUsername, token: decryptSecret(row.forgeToken) }
+        : null,
+  };
 }
 
 function isEd25519PublicKey(pem: string): boolean {

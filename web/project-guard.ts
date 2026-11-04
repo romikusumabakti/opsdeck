@@ -3,6 +3,7 @@ import { notFound } from "@tanstack/react-router";
 import {
   canOrg,
   canProject,
+  canRegisterApp,
   type OrgPermissions,
   type ProjectPermissions,
   type ProjectRole,
@@ -80,5 +81,19 @@ export async function orNotFound<T>(read: Promise<T>): Promise<T> {
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) throw notFound();
     throw error;
+  }
+}
+
+/**
+ * The page guard for app registration: a 404 unless the caller is an admin or
+ * maintains some project (canRegisterApp), as the API checks.
+ */
+export async function requireAppRegistrant(queryClient: QueryClient) {
+  const [me, access] = await Promise.all([
+    queryClient.query(meQuery()),
+    queryClient.query(getMyProjectAccessQuery()),
+  ]);
+  if (!(me && canRegisterApp(me.orgRole, Object.values(access.roles)))) {
+    throw notFound();
   }
 }

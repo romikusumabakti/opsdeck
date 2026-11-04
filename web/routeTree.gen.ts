@@ -31,6 +31,9 @@ import { Route as LocaleAppAdminIndexRouteImport } from './routes/$locale/_app/a
 import { Route as LocaleAppAdminAccessRouteImport } from './routes/$locale/_app/admin.access'
 import { Route as LocaleAppAdminActivityRouteImport } from './routes/$locale/_app/admin.activity'
 import { Route as LocaleAppAdminUsersRouteImport } from './routes/$locale/_app/admin.users'
+import { Route as LocaleAppAppsIndexRouteImport } from './routes/$locale/_app/apps.index'
+import { Route as LocaleAppAppsAppKeyRouteImport } from './routes/$locale/_app/apps.$appKey'
+import { Route as LocaleAppAppsNewRouteImport } from './routes/$locale/_app/apps.new'
 import { Route as LocaleAppEnvironmentsNewRouteImport } from './routes/$locale/_app/environments.new'
 import { Route as LocaleAppKnowledgeIndexRouteImport } from './routes/$locale/_app/knowledge.index'
 import { Route as LocaleAppKnowledgeNewRouteImport } from './routes/$locale/_app/knowledge.new'
@@ -191,6 +194,21 @@ const LocaleAppAdminUsersRoute = LocaleAppAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAppsIndexRoute = LocaleAppAppsIndexRouteImport.update({
+  id: '/apps/',
+  path: '/apps/',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppAppsAppKeyRoute = LocaleAppAppsAppKeyRouteImport.update({
+  id: '/apps/$appKey',
+  path: '/apps/$appKey',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppAppsNewRoute = LocaleAppAppsNewRouteImport.update({
+  id: '/apps/new',
+  path: '/apps/new',
+  getParentRoute: () => LocaleAppRouteRoute,
 } as any)
 const LocaleAppEnvironmentsNewRoute =
   LocaleAppEnvironmentsNewRouteImport.update({
@@ -476,6 +494,8 @@ export interface FileRoutesByFullPath {
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
+  '/$locale/apps/$appKey': typeof LocaleAppAppsAppKeyRoute
+  '/$locale/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
   '/$locale/knowledge/new': typeof LocaleAppKnowledgeNewRoute
   '/$locale/people/$id': typeof LocaleAppPeopleIdRoute
@@ -484,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/$locale/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
   '/$locale/account/': typeof LocaleAppAccountIndexRoute
   '/$locale/admin/': typeof LocaleAppAdminIndexRoute
+  '/$locale/apps/': typeof LocaleAppAppsIndexRoute
   '/$locale/knowledge/': typeof LocaleAppKnowledgeIndexRoute
   '/$locale/people/': typeof LocaleAppPeopleIndexRoute
   '/$locale/projects/': typeof LocaleAppProjectsIndexRoute
@@ -542,6 +563,8 @@ export interface FileRoutesByTo {
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
+  '/$locale/apps/$appKey': typeof LocaleAppAppsAppKeyRoute
+  '/$locale/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
   '/$locale/knowledge/new': typeof LocaleAppKnowledgeNewRoute
   '/$locale/people/$id': typeof LocaleAppPeopleIdRoute
@@ -550,6 +573,7 @@ export interface FileRoutesByTo {
   '/$locale/$projectKey': typeof LocaleAppProjectKeyIndexRoute
   '/$locale/account': typeof LocaleAppAccountIndexRoute
   '/$locale/admin': typeof LocaleAppAdminIndexRoute
+  '/$locale/apps': typeof LocaleAppAppsIndexRoute
   '/$locale/knowledge': typeof LocaleAppKnowledgeIndexRoute
   '/$locale/people': typeof LocaleAppPeopleIndexRoute
   '/$locale/projects': typeof LocaleAppProjectsIndexRoute
@@ -614,6 +638,8 @@ export interface FileRoutesById {
   '/$locale/_app/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/_app/admin/activity': typeof LocaleAppAdminActivityRoute
   '/$locale/_app/admin/users': typeof LocaleAppAdminUsersRoute
+  '/$locale/_app/apps/$appKey': typeof LocaleAppAppsAppKeyRoute
+  '/$locale/_app/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/_app/environments/new': typeof LocaleAppEnvironmentsNewRoute
   '/$locale/_app/knowledge/new': typeof LocaleAppKnowledgeNewRoute
   '/$locale/_app/people/$id': typeof LocaleAppPeopleIdRoute
@@ -622,6 +648,7 @@ export interface FileRoutesById {
   '/$locale/_app/$projectKey/': typeof LocaleAppProjectKeyIndexRoute
   '/$locale/_app/account/': typeof LocaleAppAccountIndexRoute
   '/$locale/_app/admin/': typeof LocaleAppAdminIndexRoute
+  '/$locale/_app/apps/': typeof LocaleAppAppsIndexRoute
   '/$locale/_app/knowledge/': typeof LocaleAppKnowledgeIndexRoute
   '/$locale/_app/people/': typeof LocaleAppPeopleIndexRoute
   '/$locale/_app/projects/': typeof LocaleAppProjectsIndexRoute
@@ -686,6 +713,8 @@ export interface FileRouteTypes {
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
     | '/$locale/admin/users'
+    | '/$locale/apps/$appKey'
+    | '/$locale/apps/new'
     | '/$locale/environments/new'
     | '/$locale/knowledge/new'
     | '/$locale/people/$id'
@@ -694,6 +723,7 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey/'
     | '/$locale/account/'
     | '/$locale/admin/'
+    | '/$locale/apps/'
     | '/$locale/knowledge/'
     | '/$locale/people/'
     | '/$locale/projects/'
@@ -752,6 +782,8 @@ export interface FileRouteTypes {
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
     | '/$locale/admin/users'
+    | '/$locale/apps/$appKey'
+    | '/$locale/apps/new'
     | '/$locale/environments/new'
     | '/$locale/knowledge/new'
     | '/$locale/people/$id'
@@ -760,6 +792,7 @@ export interface FileRouteTypes {
     | '/$locale/$projectKey'
     | '/$locale/account'
     | '/$locale/admin'
+    | '/$locale/apps'
     | '/$locale/knowledge'
     | '/$locale/people'
     | '/$locale/projects'
@@ -823,6 +856,8 @@ export interface FileRouteTypes {
     | '/$locale/_app/admin/access'
     | '/$locale/_app/admin/activity'
     | '/$locale/_app/admin/users'
+    | '/$locale/_app/apps/$appKey'
+    | '/$locale/_app/apps/new'
     | '/$locale/_app/environments/new'
     | '/$locale/_app/knowledge/new'
     | '/$locale/_app/people/$id'
@@ -831,6 +866,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/$projectKey/'
     | '/$locale/_app/account/'
     | '/$locale/_app/admin/'
+    | '/$locale/_app/apps/'
     | '/$locale/_app/knowledge/'
     | '/$locale/_app/people/'
     | '/$locale/_app/projects/'
@@ -1035,6 +1071,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/$locale/admin/users'
       preLoaderRoute: typeof LocaleAppAdminUsersRouteImport
       parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/apps/': {
+      id: '/$locale/_app/apps/'
+      path: '/apps'
+      fullPath: '/$locale/apps/'
+      preLoaderRoute: typeof LocaleAppAppsIndexRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/apps/$appKey': {
+      id: '/$locale/_app/apps/$appKey'
+      path: '/apps/$appKey'
+      fullPath: '/$locale/apps/$appKey'
+      preLoaderRoute: typeof LocaleAppAppsAppKeyRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/apps/new': {
+      id: '/$locale/_app/apps/new'
+      path: '/apps/new'
+      fullPath: '/$locale/apps/new'
+      preLoaderRoute: typeof LocaleAppAppsNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/environments/new': {
       id: '/$locale/_app/environments/new'
@@ -1489,12 +1546,15 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppProjectKeyEnvSlugRouteRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
   LocaleAppProjectKeySettingsRoute: typeof LocaleAppProjectKeySettingsRoute
   LocaleAppAccountChangePasswordRoute: typeof LocaleAppAccountChangePasswordRoute
+  LocaleAppAppsAppKeyRoute: typeof LocaleAppAppsAppKeyRoute
+  LocaleAppAppsNewRoute: typeof LocaleAppAppsNewRoute
   LocaleAppEnvironmentsNewRoute: typeof LocaleAppEnvironmentsNewRoute
   LocaleAppPeopleIdRoute: typeof LocaleAppPeopleIdRoute
   LocaleAppServersNewRoute: typeof LocaleAppServersNewRoute
   LocaleAppStorageNewRoute: typeof LocaleAppStorageNewRoute
   LocaleAppProjectKeyIndexRoute: typeof LocaleAppProjectKeyIndexRoute
   LocaleAppAccountIndexRoute: typeof LocaleAppAccountIndexRoute
+  LocaleAppAppsIndexRoute: typeof LocaleAppAppsIndexRoute
   LocaleAppPeopleIndexRoute: typeof LocaleAppPeopleIndexRoute
   LocaleAppProjectsIndexRoute: typeof LocaleAppProjectsIndexRoute
   LocaleAppServersIndexRoute: typeof LocaleAppServersIndexRoute
@@ -1520,12 +1580,15 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
     LocaleAppProjectKeyEnvSlugRouteRouteWithChildren,
   LocaleAppProjectKeySettingsRoute: LocaleAppProjectKeySettingsRoute,
   LocaleAppAccountChangePasswordRoute: LocaleAppAccountChangePasswordRoute,
+  LocaleAppAppsAppKeyRoute: LocaleAppAppsAppKeyRoute,
+  LocaleAppAppsNewRoute: LocaleAppAppsNewRoute,
   LocaleAppEnvironmentsNewRoute: LocaleAppEnvironmentsNewRoute,
   LocaleAppPeopleIdRoute: LocaleAppPeopleIdRoute,
   LocaleAppServersNewRoute: LocaleAppServersNewRoute,
   LocaleAppStorageNewRoute: LocaleAppStorageNewRoute,
   LocaleAppProjectKeyIndexRoute: LocaleAppProjectKeyIndexRoute,
   LocaleAppAccountIndexRoute: LocaleAppAccountIndexRoute,
+  LocaleAppAppsIndexRoute: LocaleAppAppsIndexRoute,
   LocaleAppPeopleIndexRoute: LocaleAppPeopleIndexRoute,
   LocaleAppProjectsIndexRoute: LocaleAppProjectsIndexRoute,
   LocaleAppServersIndexRoute: LocaleAppServersIndexRoute,
