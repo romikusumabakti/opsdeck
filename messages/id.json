@@ -698,7 +698,7 @@
     "server": "Server",
     "pickServer": "Pilih server…",
     "newServerShort": "Server baru",
-    "pickServerRequired": "Pilih server untuk semua role (database, backend, frontend)",
+    "pickServerRequired": "Pilih server",
     "serviceType": "Tipe service",
     "serviceName": "Nama service",
     "dbType": "Tipe database",

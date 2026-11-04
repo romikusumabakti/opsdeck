@@ -698,7 +698,7 @@
     "server": "服务器",
     "pickServer": "选择服务器…",
     "newServerShort": "新服务器",
-    "pickServerRequired": "请为每个角色（数据库、后端、前端）选择服务器",
+    "pickServerRequired": "请选择服务器",
     "serviceType": "服务类型",
     "serviceName": "服务名称",
     "dbType": "数据库类型",
