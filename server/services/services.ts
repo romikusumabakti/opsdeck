@@ -6,6 +6,7 @@ import { createRun } from "@/lib/run-progress";
 import {
   buildStatusCommand,
   getServiceConfig,
+  hasService,
   parseServiceState,
   type ServiceAction,
   type ServiceRole,
@@ -56,7 +57,7 @@ async function probeServiceStatus(
   }
 }
 
-// Probe all three services in parallel — each runs against its own server's
+// Probe every service the environment has in parallel — each runs against its own server's
 // SSH credentials, so there's no cross-server interference.
 export async function getAllServiceStatuses(
   environmentId: string
@@ -67,11 +68,12 @@ export async function getAllServiceStatuses(
   }
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) return [];
-  return Promise.all([
-    probeServiceStatus(environment, "db"),
-    probeServiceStatus(environment, "backend"),
-    probeServiceStatus(environment, "frontend"),
-  ]);
+  const roles = (["db", "backend", "frontend"] as const).filter((role) =>
+    hasService(environment, role)
+  );
+  return Promise.all(
+    roles.map((role) => probeServiceStatus(environment, role))
+  );
 }
 
 export async function controlService(
@@ -95,6 +97,9 @@ export async function controlService(
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
 
+  if (!hasService(environment, parsedRole.data)) {
+    throw new Error(`Environment has no ${parsedRole.data} service`);
+  }
   const cfg = getServiceConfig(environment, parsedRole.data);
   const runId = await createRun({
     environmentId: environment.id,

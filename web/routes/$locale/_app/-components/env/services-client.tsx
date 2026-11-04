@@ -36,9 +36,7 @@ import { useProjectName } from "@/hooks/use-project-name";
 import { Link } from "@/i18n/navigation";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import {
-  backendService,
-  dbService,
-  frontendService,
+  findService,
   type ServiceAction,
   type ServiceRole,
   type ServiceType,
@@ -76,36 +74,41 @@ export function ServicesClient({
   const [statuses, setStatuses] = React.useState<StatusMap>({});
   const [loading, setLoading] = React.useState(true);
 
-  const dbSvc = dbService(environment);
-  const backendSvc = backendService(environment);
-  const frontendSvc = frontendService(environment);
-
-  const roles: RoleMeta[] = [
-    {
+  // Only the services the environment has, in db, backend, frontend order.
+  const roles: RoleMeta[] = [];
+  const dbSvc = findService(environment, "db");
+  if (dbSvc) {
+    roles.push({
       role: "db",
       icon: Database,
       titleKey: "database",
       serviceType: dbSvc.serviceType,
       serviceName: dbSvc.serviceName,
       serverName: dbSvc.server.name,
-    },
-    {
+    });
+  }
+  const backendSvc = findService(environment, "backend");
+  if (backendSvc) {
+    roles.push({
       role: "backend",
       icon: Plug,
       titleKey: "backend",
       serviceType: backendSvc.serviceType,
       serviceName: backendSvc.serviceName,
       serverName: backendSvc.server.name,
-    },
-    {
+    });
+  }
+  const frontendSvc = findService(environment, "frontend");
+  if (frontendSvc) {
+    roles.push({
       role: "frontend",
       icon: Atom,
       titleKey: "frontend",
       serviceType: frontendSvc.serviceType,
       serviceName: frontendSvc.serviceName,
       serverName: frontendSvc.server.name,
-    },
-  ];
+    });
+  }
 
   const refresh = React.useCallback(async () => {
     setLoading(true);

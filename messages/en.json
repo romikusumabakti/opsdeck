@@ -466,6 +466,7 @@
   },
   "databases": {
     "title": "Databases",
+    "noDatabase": "This environment has no database",
     "subtitle": "Back up, restore and manage databases on the environment's database server.",
     "backupListTitle": "Backups",
     "colBackupName": "Name",
@@ -513,6 +514,7 @@
   },
   "mockTime": {
     "title": "Mock time",
+    "noBackend": "This environment has no backend",
     "subtitle": "Override the clock used by {name} for testing.",
     "formTitle": "Mocked date & time",
     "formDescription": "Pick the date and time the environment should think it is.",

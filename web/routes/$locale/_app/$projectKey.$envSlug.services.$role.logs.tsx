@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import {
-  getService,
+  findService,
   LOG_LINE_OPTIONS,
   type LogLines,
   type ServiceRole,
@@ -98,7 +98,8 @@ function LogsPage() {
   }
 
   const typedRole = role as ServiceRole;
-  const service = getService(environment, typedRole);
+  const service = findService(environment, typedRole);
+  if (!service) throw notFound();
   const serviceName = service.serviceName;
   const serverName = service.server.name;
   const target = tDash(ROLE_TITLE_KEY[typedRole]);
