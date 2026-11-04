@@ -221,6 +221,20 @@ describe("dss-panel-backup.sh", () => {
     expect(r.log).not.toMatch(/^docker run /m);
   });
 
+  it("sha256sum failure exits non-zero, writes no SHA256SUMS and does not rsync", () => {
+    const ctx = setup();
+    const stub = join(ctx.bin, "sha256sum");
+    writeFileSync(stub, "#!/bin/bash\necho 'read error' >&2\nexit 1\n");
+    chmodSync(stub, 0o755);
+    const r = run(BACKUP_SCRIPT, ctx);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain("checksums failed");
+    const files = readdirSync(join(ctx.backupDir, isoDay(0)));
+    expect(files).not.toContain("SHA256SUMS");
+    expect(files.filter((f) => f.endsWith(".partial"))).toEqual([]);
+    expect(r.log).not.toMatch(/^rsync /m);
+  });
+
   it("rsync failure exits non-zero but keeps the local dumps", () => {
     const ctx = setup();
     const r = run(BACKUP_SCRIPT, ctx, { STUB_RSYNC_FAIL: "1" });
