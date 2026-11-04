@@ -8,8 +8,8 @@ import { db } from "@/lib/db";
 import { deployApps } from "@/lib/db/schema";
 import { appKeySchema, bundleImageSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
-import { describeDbError } from "@/lib/secrets-migration";
 import { encryptSecret } from "@/lib/secrets";
+import { describeDbError } from "@/lib/secrets-migration";
 
 const [command, appKey, bundleImage] = process.argv.slice(2);
 
