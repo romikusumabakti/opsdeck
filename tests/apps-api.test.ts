@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const APP_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
-const ENDPOINT = `https://panel.example.net/api/ci/config/${CONN}`;
 
 type Row = Record<string, unknown>;
 
@@ -101,27 +100,40 @@ vi.mock("@/lib/apps", async (importOriginal) => {
         state.apps.push({ id: APP_ID, ...app });
         for (const c of components) {
           state.components.push({
-            fallbackCommittedSha: null,
-            fallbackCommitError: null,
+            pipelineFileCommits: null,
             ...c,
             appId: APP_ID,
           });
         }
       }
     ),
-    setFallbackCommitResult: vi.fn(
+    // Mirrors the SQL merge: one branch's entry is replaced, a failure keeps
+    // that branch's last sha.
+    setPipelineFileCommit: vi.fn(
       async (
         componentKey: string,
+        branch: string,
         result: { sha: string } | { error: string }
       ) => {
         const c = state.components.find((x) => x.componentKey === componentKey);
         if (!c) return;
-        if ("sha" in result) {
-          c.fallbackCommittedSha = result.sha;
-          c.fallbackCommitError = null;
-        } else {
-          c.fallbackCommitError = result.error;
-        }
+        const commits = (c.pipelineFileCommits ?? {}) as Record<
+          string,
+          { sha?: string; error?: string; at: string }
+        >;
+        const previous = commits[branch]?.sha;
+        const at = new Date().toISOString();
+        c.pipelineFileCommits = {
+          ...commits,
+          [branch]:
+            "sha" in result
+              ? { sha: result.sha, at }
+              : {
+                  ...(previous ? { sha: previous } : {}),
+                  error: result.error,
+                  at,
+                },
+        };
       }
     ),
     setNotifySecret: vi.fn(async (componentKey: string, value: string) => {
@@ -167,7 +179,6 @@ vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
 
 const forge = vi.hoisted(() => ({
   commitFile: vi.fn(),
-  getDefaultBranch: vi.fn(),
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => forge);
 
@@ -177,7 +188,7 @@ const { CiProviderError } = await import("@/lib/ci/types");
 const { app } = await import("@/server/app");
 
 const SPEC = {
-  branches: ["main"],
+  branches: ["main", "release/1.x"],
   tagShaLength: 7,
   images: [
     { name: "hris-backend", dockerfile: "backend/Dockerfile", context: "." },
@@ -234,8 +245,7 @@ function existingComponent(extra: Row = {}) {
     notifySecret: encryptSecret("old-notify-secret"),
     pipelineMode: "generated",
     buildSpec: SPEC,
-    fallbackCommittedSha: null,
-    fallbackCommitError: null,
+    pipelineFileCommits: null,
     createdAt: new Date(),
     ...extra,
   };
@@ -244,8 +254,9 @@ function existingComponent(extra: Row = {}) {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.10.113:5000");
-  state.orgRole = "member";
-  state.projectRoles = { "project-1": "maintainer" };
+  // Generated pipelines are for admins; maintainer cases set their role.
+  state.orgRole = "admin";
+  state.projectRoles = {};
   state.apps = [];
   state.components = [];
   state.calls = [];
@@ -275,15 +286,17 @@ beforeEach(() => {
   provider.upsertRepoSecret.mockImplementation(async (id: string) => {
     state.calls.push(`secret:${id}`);
   });
-  forge.getDefaultBranch.mockResolvedValue("main");
-  forge.commitFile.mockImplementation(async () => {
-    state.calls.push("commit");
-    return { sha: "abc1234def" };
-  });
+  forge.commitFile.mockImplementation(
+    async (_auth: unknown, _repo: string, branch: string) => {
+      state.calls.push(`commit:${branch}`);
+      return { sha: `sha-${branch}` };
+    }
+  );
 });
 
 describe("permissions", () => {
   it("a member with only contributor roles gets 403 on every registrant route", async () => {
+    state.orgRole = "member";
     state.projectRoles = { "project-1": "contributor" };
     state.apps = [{ id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" }];
     state.components = [
@@ -305,11 +318,36 @@ describe("permissions", () => {
         .status
     ).toBe(403);
     expect(
-      (await send("POST", "/api/apps/a/components/accounting/commit-fallback"))
-        .status
+      (
+        await send(
+          "POST",
+          "/api/apps/a/components/accounting/commit-pipeline-file"
+        )
+      ).status
     ).toBe(403);
     expect(provider.activateRepo).not.toHaveBeenCalled();
     expect(provider.upsertRepoSecret).not.toHaveBeenCalled();
+  });
+
+  it("a maintainer gets 403 on rotate-secret and commit-pipeline-file", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer" };
+    state.apps = [{ id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" }];
+    state.components = [existingComponent()];
+    expect(
+      (await send("POST", "/api/apps/a/components/accounting/rotate-secret"))
+        .status
+    ).toBe(403);
+    expect(
+      (
+        await send(
+          "POST",
+          "/api/apps/a/components/accounting/commit-pipeline-file"
+        )
+      ).status
+    ).toBe(403);
+    expect(provider.upsertRepoSecret).not.toHaveBeenCalled();
+    expect(forge.commitFile).not.toHaveBeenCalled();
   });
 
   it("any signed-in user may list apps", async () => {
@@ -319,16 +357,18 @@ describe("permissions", () => {
 });
 
 describe("GET /api/apps", () => {
-  it("never returns notifySecret and includes pipeline and fallback state", async () => {
+  it("never returns notifySecret and includes pipeline file state", async () => {
+    const commits = {
+      main: { sha: "abc1234", at: "2026-11-05T01:00:00.000Z" },
+      "release/1.x": {
+        error: "Bitbucket POST failed with 403",
+        at: "2026-11-05T01:00:00.000Z",
+      },
+    };
     state.apps = [
       { id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a", name: "A" },
     ];
-    state.components = [
-      existingComponent({
-        fallbackCommittedSha: "abc1234",
-        fallbackCommitError: "Bitbucket POST failed with 403",
-      }),
-    ];
+    state.components = [existingComponent({ pipelineFileCommits: commits })];
     const res = await send("GET", "/api/apps");
     expect(res.status).toBe(200);
     const text = await res.text();
@@ -338,8 +378,7 @@ describe("GET /api/apps", () => {
     expect(entry.components[0]).toMatchObject({
       componentKey: "accounting",
       pipelineMode: "generated",
-      fallbackCommittedSha: "abc1234",
-      fallbackCommitError: "Bitbucket POST failed with 403",
+      pipelineFileCommits: commits,
     });
   });
 });
@@ -353,12 +392,14 @@ describe("POST /api/apps", () => {
       "settings:42",
       "secret:42",
       "insert",
-      "commit",
+      "commit:main",
+      "commit:release/1.x",
     ]);
+    // The configuration extension is not used: registration clears it.
     expect(provider.updateRepoSettings).toHaveBeenCalledWith("42", {
       timeoutMinutes: 45,
       cancelPreviousOnPush: true,
-      configExtensionEndpoint: ENDPOINT,
+      configExtensionEndpoint: null,
     });
     const [, name, secret, events] = at(provider.upsertRepoSecret.mock.calls);
     expect(name).toBe("opsdeck_notify");
@@ -372,8 +413,10 @@ describe("POST /api/apps", () => {
       ciRepoId: "42",
       bundleImage: "hris-deploy",
       pipelineMode: "generated",
-      fallbackCommittedSha: "abc1234def",
-      fallbackCommitError: null,
+      pipelineFileCommits: {
+        main: { sha: "sha-main", at: expect.any(String) },
+        "release/1.x": { sha: "sha-release/1.x", at: expect.any(String) },
+      },
     });
     expect(stored?.notifySecret).not.toBe(secret);
     expect(decryptSecret(stored?.notifySecret as string)).toBe(secret);
@@ -382,12 +425,51 @@ describe("POST /api/apps", () => {
     expect(text).not.toContain(secret);
     expect(text).not.toContain("notifySecret");
 
+    expect(forge.commitFile).toHaveBeenCalledTimes(2);
     const [auth, repo, branch, path, content] = at(forge.commitFile.mock.calls);
     expect(auth).toEqual({ username: "ci-bot", token: "forge-token" });
     expect(repo).toBe("dss-consulting/hris");
     expect(branch).toBe("main");
     expect(path).toBe(".woodpecker.yaml");
     expect(content).toContain("hris-deploy");
+    expect(at(forge.commitFile.mock.calls, 1)[2]).toBe("release/1.x");
+  });
+
+  it("clears the configuration extension for custom components too", async () => {
+    const res = await send(
+      "POST",
+      "/api/apps",
+      body({}, { pipelineMode: "custom", buildSpec: undefined })
+    );
+    expect(res.status).toBe(201);
+    expect(
+      at(provider.updateRepoSettings.mock.calls)[1].configExtensionEndpoint
+    ).toBeNull();
+  });
+
+  it("refuses a generated component from a maintainer (403) before Woodpecker", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer" };
+    const res = await send("POST", "/api/apps", body());
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe(
+      "Only admins can register a component with a generated pipeline"
+    );
+    expect(provider.activateRepo).not.toHaveBeenCalled();
+    expect(state.components).toHaveLength(0);
+  });
+
+  it("lets a maintainer register a custom component (201)", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer" };
+    const res = await send(
+      "POST",
+      "/api/apps",
+      body({}, { pipelineMode: "custom", buildSpec: undefined })
+    );
+    expect(res.status).toBe(201);
+    expect(state.components).toHaveLength(1);
+    expect(forge.commitFile).not.toHaveBeenCalled();
   });
 
   it("uses a 60 minute timeout and commits nothing for custom components", async () => {
@@ -450,25 +532,51 @@ describe("POST /api/apps", () => {
     expect(state.components).toHaveLength(0);
   });
 
-  it("keeps the registration when the forge commit fails (Review Focus 4)", async () => {
-    forge.commitFile.mockRejectedValue(
-      new CiProviderError(
-        "Bitbucket POST dss-consulting/hris/src failed with 403: branch is protected",
-        403
-      )
+  it("records a failed branch and still commits the others (Review Focus 4)", async () => {
+    forge.commitFile.mockImplementation(
+      async (_auth: unknown, _repo: string, branch: string) => {
+        state.calls.push(`commit:${branch}`);
+        if (branch === "main") {
+          throw new CiProviderError(
+            "Bitbucket POST dss-consulting/hris/src failed with 403: branch is protected",
+            403
+          );
+        }
+        return { sha: `sha-${branch}` };
+      }
     );
     const res = await send("POST", "/api/apps", body());
     expect(res.status).toBe(201);
+    expect(state.calls).toContain("commit:release/1.x");
     const created = await res.json();
-    expect(created.components[0]).toMatchObject({
-      fallbackCommittedSha: null,
-      fallbackCommitError:
-        "Bitbucket POST dss-consulting/hris/src failed with 403: branch is protected",
+    expect(created.components[0].pipelineFileCommits).toEqual({
+      main: {
+        error:
+          "Bitbucket POST dss-consulting/hris/src failed with 403: branch is protected",
+        at: expect.any(String),
+      },
+      "release/1.x": { sha: "sha-release/1.x", at: expect.any(String) },
     });
     expect(state.components).toHaveLength(1);
   });
 
-  it("records a missing forge token as the fallback error", async () => {
+  it("keeps the registration when an unexpected error hits one branch", async () => {
+    forge.commitFile.mockImplementation(
+      async (_auth: unknown, _repo: string, branch: string) => {
+        if (branch === "main") throw new Error("socket hang up");
+        return { sha: `sha-${branch}` };
+      }
+    );
+    const res = await send("POST", "/api/apps", body());
+    expect(res.status).toBe(201);
+    const commits = at(state.components).pipelineFileCommits as Row;
+    expect(commits.main).toMatchObject({
+      error: "The commit failed unexpectedly",
+    });
+    expect(commits["release/1.x"]).toMatchObject({ sha: "sha-release/1.x" });
+  });
+
+  it("records a missing forge token on every branch", async () => {
     connections.getForgeCredentials.mockResolvedValue({
       forge: "bitbucket",
       auth: null,
@@ -476,7 +584,13 @@ describe("POST /api/apps", () => {
     const res = await send("POST", "/api/apps", body());
     expect(res.status).toBe(201);
     expect(forge.commitFile).not.toHaveBeenCalled();
-    expect(at(state.components).fallbackCommitError).toMatch(/forge token/);
+    const commits = at(state.components).pipelineFileCommits as Record<
+      string,
+      Row
+    >;
+    expect(Object.keys(commits)).toEqual(["main", "release/1.x"]);
+    expect(commits.main?.error).toMatch(/forge token/);
+    expect(commits["release/1.x"]?.error).toMatch(/forge token/);
   });
 
   it("answers 409 for an existing app key before calling Woodpecker", async () => {
@@ -621,7 +735,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     state.components = [existingComponent()];
   });
 
-  it("updates Woodpecker first, then the Panel", async () => {
+  it("updates Woodpecker first, then the Panel, for an admin", async () => {
     const res = await send("POST", PATH);
     expect(res.status).toBe(200);
     expect(state.calls).toEqual(["secret:1", "panel-secret"]);
@@ -672,41 +786,70 @@ describe("POST rotate-secret (Review Focus 5)", () => {
   });
 });
 
-describe("POST commit-fallback", () => {
-  const PATH = "/api/apps/a/components/accounting/commit-fallback";
+describe("POST commit-pipeline-file", () => {
+  const PATH = "/api/apps/a/components/accounting/commit-pipeline-file";
 
   beforeEach(() => {
     state.apps = [
       { id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a", name: "A" },
     ];
     state.components = [
-      existingComponent({ fallbackCommitError: "expired token" }),
+      existingComponent({
+        pipelineFileCommits: {
+          main: { sha: "old-main", error: "expired token", at: "x" },
+          "release/1.x": { error: "expired token", at: "x" },
+        },
+      }),
     ];
   });
 
-  it("retries the commit and clears the error", async () => {
+  it("retries every branch and clears the errors", async () => {
     const res = await send("POST", PATH);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       componentKey: "accounting",
-      fallbackCommittedSha: "abc1234def",
-      fallbackCommitError: null,
+      pipelineFileCommits: {
+        main: { sha: "sha-main" },
+        "release/1.x": { sha: "sha-release/1.x" },
+      },
     });
+    expect(state.calls).toEqual(["commit:main", "commit:release/1.x"]);
     expect(at(forge.commitFile.mock.calls)[1]).toBe(
       "dss-consulting/dplk-accounting"
     );
   });
 
-  it("stores the new reason when the retry fails", async () => {
-    forge.getDefaultBranch.mockRejectedValue(
+  it("retries only the branch given in ?branch=", async () => {
+    const res = await send(
+      "POST",
+      `${PATH}?${new URLSearchParams({ branch: "release/1.x" })}`
+    );
+    expect(res.status).toBe(200);
+    expect(state.calls).toEqual(["commit:release/1.x"]);
+    const commits = (await res.json()).pipelineFileCommits;
+    expect(commits["release/1.x"]).toMatchObject({ sha: "sha-release/1.x" });
+    expect(commits.main).toMatchObject({ error: "expired token" });
+  });
+
+  it("answers 400 for a branch the build spec does not build", async () => {
+    const res = await send("POST", `${PATH}?branch=develop`);
+    expect(res.status).toBe(400);
+    expect(forge.commitFile).not.toHaveBeenCalled();
+  });
+
+  it("stores the new reason and keeps the last sha when the retry fails", async () => {
+    forge.commitFile.mockRejectedValue(
       new CiProviderError(
-        "Bitbucket GET dss-consulting/dplk-accounting failed with 401",
+        "Bitbucket POST dss-consulting/dplk-accounting/src failed with 401",
         401
       )
     );
     const res = await send("POST", PATH);
     expect(res.status).toBe(200);
-    expect((await res.json()).fallbackCommitError).toContain("401");
+    const commits = (await res.json()).pipelineFileCommits;
+    expect(commits.main).toMatchObject({ sha: "old-main" });
+    expect(commits.main.error).toContain("401");
+    expect(commits["release/1.x"].error).toContain("401");
   });
 
   it("answers 409 for a custom component", async () => {

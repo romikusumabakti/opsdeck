@@ -21,6 +21,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AccentColor } from "@/lib/accents";
 import type { BuildSpec } from "@/lib/ci/build-spec";
+import type { PipelineFileCommits } from "@/lib/ci/types";
 import type { MotifPreference } from "@/lib/motifs";
 import type { WorkingHours } from "@/lib/user-display";
 
@@ -420,10 +421,11 @@ export const appComponents = pgTable(
     pipelineMode: pipelineModeEnum("pipeline_mode").notNull().default("custom"),
     // Inputs for the generated pipeline; null while the mode is "custom".
     buildSpec: jsonb("build_spec").$type<BuildSpec>(),
-    // Commit that last wrote the generated fallback file to the repo.
-    fallbackCommittedSha: text("fallback_committed_sha"),
-    // Why the last fallback commit failed; null when it succeeded.
-    fallbackCommitError: text("fallback_commit_error"),
+    // Per built branch, the last commit of the generated .woodpecker.yaml
+    // (sha, or the reason it failed); null until the first attempt.
+    pipelineFileCommits: jsonb(
+      "pipeline_file_commits"
+    ).$type<PipelineFileCommits>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [

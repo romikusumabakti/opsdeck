@@ -6,7 +6,13 @@ const BASE = "https://ci.example.test";
 const TOKEN = "super-secret-token";
 const REMOTE = "{35a90db5-104e-494d-bd2a-2addeae8a8ff}";
 
-type Call = { url: string; method: string; headers: Headers; body?: unknown };
+type Call = {
+  url: string;
+  method: string;
+  headers: Headers;
+  body?: unknown;
+  init: RequestInit;
+};
 
 function mockFetch(responses: Response[]) {
   const calls: Call[] = [];
@@ -16,6 +22,7 @@ function mockFetch(responses: Response[]) {
       method: init?.method ?? "GET",
       headers: new Headers(init?.headers),
       body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+      init: init ?? {},
     });
     const next = responses.shift();
     if (!next) throw new Error("unexpected extra request");
@@ -88,6 +95,18 @@ describe("woodpecker provider", () => {
       active: true,
     });
     expect(calls[2]?.url).toBe(`${BASE}/api/repos/lookup/dss-consulting/hris`);
+  });
+
+  it("falls back to the lookup only on 409", async () => {
+    for (const status of [400, 404, 422, 500]) {
+      const { calls, provider } = mockFetch([
+        json({ message: "nope" }, status),
+      ]);
+      const err = await provider.activateRepo(REMOTE).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(CiProviderError);
+      expect((err as CiProviderError).status).toBe(status);
+      expect(calls).toHaveLength(1);
+    }
   });
 
   it("sends exactly the five settings fields", async () => {
@@ -163,6 +182,42 @@ describe("woodpecker provider", () => {
     expect(err).toBeInstanceOf(CiProviderError);
     expect((err as CiProviderError).status).toBe(401);
     expect((err as CiProviderError).message).not.toContain(TOKEN);
+  });
+
+  it("does not follow redirects and sets a 15 s timeout", async () => {
+    const { calls, provider } = mockFetch([json([])]);
+    await provider.listRepos();
+    expect(calls[0]?.init.redirect).toBe("manual");
+    expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("reports a redirect (e.g. to a Cloudflare Access login)", async () => {
+    const { calls, provider } = mockFetch([
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://dss.cloudflareaccess.com/login" },
+      }),
+    ]);
+    const err = await provider.listRepos().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect((err as CiProviderError).status).toBe(302);
+    expect((err as CiProviderError).message).toBe(
+      "Woodpecker GET /api/user/repos?all=true redirected — check the URL/Access"
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it("reports a timeout with a fixed message and status 0", async () => {
+    const impl = vi.fn(async () => {
+      throw new DOMException(`timed out ${TOKEN}`, "TimeoutError");
+    });
+    const provider = createWoodpeckerProvider(BASE, TOKEN, impl as never);
+    const err = await provider.listRepos().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect((err as CiProviderError).status).toBe(0);
+    expect((err as CiProviderError).message).toBe(
+      "Woodpecker GET /api/user/repos?all=true timed out"
+    );
   });
 
   it("wraps transport failures without leaking the token", async () => {
