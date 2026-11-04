@@ -74,10 +74,11 @@ echo '15 4 * * * root /usr/local/sbin/dss-panel-prune-received.sh' \
    ```
 
 2. On 55.111, append the public key to `/root/.ssh/authorized_keys`,
-   restricted to writing into the backup directory:
+   restricted to writing into the backup directory (`-wo` allows no reads,
+   `-no-del` allows no deletions):
 
    ```text
-   restrict,command="rrsync /var/backups/dss-panel-113" ssh-ed25519 AAAA… dss-panel-backup@113
+   restrict,command="rrsync -wo -no-del /var/backups/dss-panel-113" ssh-ed25519 AAAA… dss-panel-backup@113
    ```
 
 3. Record 55.111's host key, so that `BatchMode=yes` does not refuse it:
@@ -111,7 +112,21 @@ echo '15 4 * * * root /usr/local/sbin/dss-panel-prune-received.sh' \
    ssh -i /root/.ssh/dss-panel-backup root@192.168.55.111 id
    rsync -e 'ssh -i /root/.ssh/dss-panel-backup' root@192.168.55.111:/etc/hostname /tmp/
    rsync -e 'ssh -i /root/.ssh/dss-panel-backup' root@192.168.55.111:../ /tmp/x/
+   # reading back from the backup directory itself (write-only key):
+   rsync -e 'ssh -i /root/.ssh/dss-panel-backup' root@192.168.55.111: /tmp/x/
+   # deleting remote files (no-del):
+   mkdir /tmp/empty && rsync -r --delete -e 'ssh -i /root/.ssh/dss-panel-backup' /tmp/empty/ root@192.168.55.111:
    ```
+7. Keep an off-host copy of `SECRETS_KEY` (see Restore). Run on the laptop:
+
+   ```sh
+   install -d -m 0700 ~/.config/secrets/dss
+   ssh root@<.113> 'grep ^SECRETS_KEY= /deployments/dss-panel/.env' | cut -d= -f2- \
+     > ~/.config/secrets/dss/dss-panel-secrets-key
+   chmod 600 ~/.config/secrets/dss/dss-panel-secrets-key
+   ```
+
+   Never store it beside the dumps or on 55.111.
 
 ## Restore
 
@@ -122,6 +137,16 @@ First check the copy. Use the directory on .113, or the one on 55.111 under
 cd /var/backups/dss-panel/2026-11-05
 sha256sum -c --quiet SHA256SUMS
 ```
+
+### SECRETS_KEY (required for `dss_panel`)
+
+Restoring `dss_panel` is only useful with the same `SECRETS_KEY` that
+encrypted it: the secret columns hold `enc:v1` values that cannot be read
+without it. The key lives only in `/deployments/dss-panel/.env` on .113 and is
+NOT in the backup. Romi's off-host copy is
+`~/.config/secrets/dss/dss-panel-secrets-key` (0600) on the laptop. Before a
+restore on a rebuilt host, put its value back as `SECRETS_KEY` in the new
+`/deployments/dss-panel/.env`. Do not print it or keep it with the dumps.
 
 ### Postgres: check a dump in a scratch container
 

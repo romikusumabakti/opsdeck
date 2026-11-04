@@ -33,7 +33,7 @@
   - `pg_dump -Fc` of `dss_panel` and `sonarqube_db`, plus `pg_dumpall --globals-only`, all from container `opsdeck-postgres`.
   - The Garage bucket `knowledge` is mirrored with rclone over the compose network.
   - Local retention on .113 is 14 days in `/var/backups/dss-panel/`, with files 0600 and the directory 0700.
-  - Each night the off-host copy goes to `root@192.168.55.111:/var/backups/dss-panel-113/` with `rsync`. It uses a dedicated ed25519 key whose `authorized_keys` entry is `restrict,command="rrsync /var/backups/dss-panel-113"`. Off-host retention is 30 days, pruned on the receiver by a daily cron or timer on 55.111.
+  - Each night the off-host copy goes to `root@192.168.55.111:/var/backups/dss-panel-113/` with `rsync`. It uses a dedicated ed25519 key whose `authorized_keys` entry is `restrict,command="rrsync -wo -no-del /var/backups/dss-panel-113"`. Off-host retention is 30 days, pruned on the receiver by a daily cron or timer on 55.111.
   - Any failure exits non-zero, so `systemctl --failed` shows it.
 - **Cloudflare Access** (account `26d7f3d7145a68c255226b6399805357`; token at `~/.config/secrets/dss/cloudflare-access-token`):
   - App `dss-panel` on host `panel.dssconsulting.id`, reusable policy `DSS Internal` (`640a51e7-8c26-48bb-9a2a-5df671e19126`), IdP Entra `1bc8806d-34a1-477f-9989-63cf4b59f201`, `auto_redirect_to_identity: true`.
@@ -149,14 +149,17 @@
 - [ ] On .113, generate `ssh-keygen -t ed25519 -N '' -f /root/.ssh/dss-panel-backup -C dss-panel-backup@113`.
 - [ ] On 55.111 (root over password SSH, credentials at `~/.config/secrets/dss/proxmox-root-password`):
   - Run `mkdir -p -m 0700 /var/backups/dss-panel-113`.
-  - Append `restrict,command="rrsync /var/backups/dss-panel-113" <pubkey>` to `/root/.ssh/authorized_keys`, after backing the file up to `authorized_keys.bak-2026-11-04`.
+  - Append `restrict,command="rrsync -wo -no-del /var/backups/dss-panel-113" <pubkey>` to `/root/.ssh/authorized_keys`, after backing the file up to `authorized_keys.bak-2026-11-04`.
   - Install `prune-received.sh` and a daily timer for it.
+- [ ] **Off-host SECRETS_KEY copy** (the key is not in the backup and `dss_panel` is unrestorable without it): on the laptop, `ssh root@<.113> 'grep ^SECRETS_KEY= /deployments/dss-panel/.env' | cut -d= -f2- > ~/.config/secrets/dss/dss-panel-secrets-key; chmod 600 ~/.config/secrets/dss/dss-panel-secrets-key`. Never print it or store it beside the dumps.
 - [ ] On .113, install the script to `/usr/local/sbin/` (0700) and the units to `/etc/systemd/system/`, run `systemctl daemon-reload`, then `systemctl enable --now dss-panel-backup.timer`.
 - [ ] Run once with `systemctl start dss-panel-backup.service`. Check `journalctl -u dss-panel-backup -n 20`, and that the files exist on both hosts with matching SHA256SUMS.
 - [ ] **Restore test:** in a throwaway `postgres:18` container on .113, `pg_restore` `dss_panel.dump` and compare row counts of `users`, `environments` and `runs` with live. Remove the container afterwards.
 - [ ] **Restricted-key check (Review Focus 4):** the following must all fail:
   - `ssh -i key root@192.168.55.111 id`
   - `rsync … root@192.168.55.111:/etc/`
+  - an rsync read from the backup directory (`root@192.168.55.111: /tmp/x/`)
+  - `rsync -r --delete` of an empty directory into it
   - writing outside the directory
 
   A write into it must succeed.
