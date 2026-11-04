@@ -107,6 +107,16 @@ COPY deploy/compose.yaml /bundle/compose.yaml
 The image never runs, so it needs no entrypoint; the Panel passes the dummy
 command `noop` to `docker create` only because a scratch image has none.
 
+- **Build bundles in CI, never from a Windows-style checkout.** A laptop with
+  `core.autocrlf=true` writes CRLF files, and `git archive` applies the same
+  conversion; use `git -c core.autocrlf=false archive <commit> …` when a bundle
+  has to be built by hand (e.g. backfilling a tag that predates the pipeline).
+- **Only the target's services restart.** A deploy runs `up -d --no-deps` for
+  the target's services (for membership: `membership-backend` and
+  `membership-frontend`). Config files the bundle carries for other services
+  (membership's Prometheus, Loki, Alloy, Tempo and Grafana files) land on disk
+  but take effect only after `docker compose up -d <service>` by hand.
+
 ## Client note
 
 Cloudflare in front of `panel.example.net` blocks some client signatures:
