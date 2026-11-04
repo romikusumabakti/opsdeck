@@ -31,12 +31,15 @@ export const deployRegistrySchema = z
     "Registry must be host[:port]"
   );
 
+const KEY_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
 export const appKeySchema = z
   .string()
-  .regex(
-    /^[a-z0-9][a-z0-9-]{0,63}$/,
-    "App key must be lowercase letters, digits or '-'"
-  );
+  .regex(KEY_PATTERN, "App key must be lowercase letters, digits or '-'");
+
+export const componentKeySchema = z
+  .string()
+  .regex(KEY_PATTERN, "Component key must be lowercase letters, digits or '-'");
 
 export const branchSchema = z
   .string()

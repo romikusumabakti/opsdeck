@@ -34,7 +34,7 @@ export async function requestDeployment(
   const runId = await createRun({
     environmentId: target.environmentId,
     userId: input.userId,
-    description: `Deploy ${target.appKey} ${tag} (${input.trigger})`,
+    description: `Deploy ${target.componentKey} ${tag} (${input.trigger})`,
     kind: "deploy",
   });
   const deployment = await insertDeployment({

@@ -33,18 +33,21 @@ Headers:
 - `Content-Type: application/json` is **required**. Without it the CSRF guard
   answers `403` before the hook runs.
 - `X-Opsdeck-Signature: sha256=<hex>`, where `<hex>` is the HMAC-SHA256 of the
-  **exact raw request body** under the app's notify secret, 64 lowercase or
+  **exact raw request body** under the component's notify secret, 64 lowercase or
   uppercase hex digits. Sign the same bytes you send; do not re-serialise.
 
 Body (JSON, at most 16 KiB):
 
 | Field         | Rule                                                                |
 | ------------- | ------------------------------------------------------------------- |
-| `app`         | App key, `^[a-z0-9][a-z0-9-]{0,63}$`. Must be a registered app.     |
+| `app`         | Component key, `^[a-z0-9][a-z0-9-]{0,63}$`. Must be registered.     |
 | `branch`      | `^[A-Za-z0-9][A-Za-z0-9/_.-]{0,199}$`, no `..`.                     |
 | `tag`         | `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`, never `latest` (any casing).  |
 | `commit`      | 7-40 lowercase hex digits.                                          |
 | `pipelineUrl` | Optional, `http(s)` URL, at most 2048 characters. Shown as a link.  |
+
+The field is still called `app` so that pipelines already in the field keep
+working; its value is the **component key** (see below).
 
 The tag CI produces is `origin-<branch with / replaced by ->-<shorthash>`; the
 Panel only checks the regex above.
@@ -78,7 +81,7 @@ Builds are idempotent per `(app, tag)`:
 
 ## The bundle image
 
-Each app has a `bundleImage` (registered with `dist/deploy-app.js`). The
+Each component has a `bundleImage` (registered with `dist/deploy-app.js`). The
 deploy pulls `<DEPLOY_REGISTRY>/<bundleImage>:<tag>`.
 
 Convention:
@@ -201,28 +204,47 @@ Notes:
   runs the older commit while every status is green. Recover with a manual
   deploy of the newest build from the Panel.
 
-## Registering an app and a target
+## Apps, components and CI connections
 
-**App** (once per application, by an operator with database access to the
+- An **app** is one deployable stack: one `compose.yaml`, one deploy dir, one
+  `.env`. It is built from one or more repositories.
+- A **component** is one repository of an app, with its build spec (bundle
+  image) and its tag variable. A component is addressed by its **component
+  key** everywhere: the hook's `app` field, the Woodpecker secret name, and the
+  deploy target.
+- A **CI connection** is one configured instance of a CI provider on a forge
+  (today: "Woodpecker - Bitbucket"). Each component points to one connection.
+- An **environment** deploys one app. Its first deploy target sets the
+  environment's app; after that only components of that app can be added
+  (`409 Component belongs to another app than this environment`). Environments
+  of apps the Panel does not deploy simply have no app.
+
+## Registering a component and a target
+
+**Component** (once per repository, by an operator with database access to the
 Panel):
 
 ```sh
-docker exec opsdeck-app bun dist/deploy-app.js create <appKey> <bundleImage>
-docker exec opsdeck-app bun dist/deploy-app.js rotate <appKey>
+docker exec opsdeck-app bun dist/deploy-app.js create <componentKey> <bundleImage> \
+  --app <appKey> --repo <owner/name> [--ci <connection name>]
+docker exec opsdeck-app bun dist/deploy-app.js rotate <componentKey>
 ```
 
-`create` registers the app and prints a random notify secret to stdout, once. It
-is stored encrypted (`enc:v1:`); the Panel cannot show it again. Put it in the
-Woodpecker repo secret `opsdeck_notify` of that app's repo. Pipe stdout straight
-into the Woodpecker API instead of printing it. `rotate` issues a new secret
-and invalidates the old one at once. `<bundleImage>` is a lowercase repository
-path without registry or tag (for example `dss/myapp-bundle`).
+`create` creates the app (named after its key) when it does not exist yet, and
+registers the component. `--ci` may be omitted when exactly one CI connection
+exists; otherwise the command exits with status 2 and lists the connection
+names. It prints a random notify secret to stdout, once. The secret is
+stored encrypted (`enc:v1:`); the Panel cannot show it again. Put it in the
+Woodpecker repo secret `opsdeck_notify` of that component's repo. Pipe stdout
+straight into the Woodpecker API instead of printing it. `rotate` issues a new
+secret and invalidates the old one at once. `<bundleImage>` is a lowercase
+repository path without registry or tag (for example `dss/myapp-bundle`).
 
 **Target** (per environment, in the Panel UI on the environment's deploy page;
 maintainers only): server, source branch, auto deploy on or off, deploy dir,
 services, tag variable, optional pre-start command, optional health URL, health
 timeout, back up before deploy. Viewing is open to any project role; deploy and
-rollback are maintainer-only. An app has at most one target per environment.
+rollback are maintainer-only. A component has at most one target per environment.
 
 ## What a deploy does
 

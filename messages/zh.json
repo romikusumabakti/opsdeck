@@ -370,8 +370,8 @@
       "createDescription": "应用在此环境中的部署位置。",
       "editTitle": "编辑部署目标",
       "editDescription": "目标所属的应用不可更改。",
-      "appKey": "应用标识",
-      "appKeyHint": "构建通知中注册的应用，例如 dplk-accounting。",
+      "componentKey": "应用标识",
+      "componentKeyHint": "构建通知中注册的应用，例如 dplk-accounting。",
       "server": "服务器",
       "serverPlaceholder": "选择服务器",
       "serverHint": "此环境的服务所在的服务器之一。",
@@ -396,8 +396,8 @@
       "saved": "目标已保存",
       "created": "目标已添加",
       "invalid": "该值不符合下方说明的格式。",
-      "appNotFound": "未注册使用此标识的部署应用。",
-      "duplicateApp": "该应用在此环境中已有部署目标。"
+      "componentNotFound": "未注册使用此标识的部署应用。",
+      "duplicateComponent": "该应用在此环境中已有部署目标。"
     }
   },
   "backupDb": {

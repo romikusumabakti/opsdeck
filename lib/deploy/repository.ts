@@ -4,10 +4,8 @@ import { one } from "@/lib/db/one";
 import {
   type Build,
   builds,
-  type DeployApp,
   type Deployment,
   type DeployTarget,
-  deployApps,
   deployments,
   deployTargets,
   environmentServices,
@@ -89,17 +87,8 @@ export async function getTagState(targetId: string): Promise<TagState> {
   return deriveTagState(rows);
 }
 
-/** The app's row; `notifySecret` is still encrypted (see lib/secrets.ts). */
-export async function getDeployApp(appKey: string): Promise<DeployApp | null> {
-  const [row] = await db
-    .select()
-    .from(deployApps)
-    .where(eq(deployApps.appKey, appKey));
-  return row ?? null;
-}
-
 export async function insertBuildIfNew(b: {
-  appKey: string;
+  componentKey: string;
   branch: string;
   tag: string;
   commitSha: string;
@@ -108,18 +97,20 @@ export async function insertBuildIfNew(b: {
   const [inserted] = await db
     .insert(builds)
     .values(b)
-    .onConflictDoNothing({ target: [builds.appKey, builds.tag] })
+    .onConflictDoNothing({ target: [builds.componentKey, builds.tag] })
     .returning();
   if (inserted) return { build: inserted, created: true };
-  const existing = await findBuild(b.appKey, b.tag);
+  const existing = await findBuild(b.componentKey, b.tag);
   if (!existing) {
-    throw new Error(`Build ${b.appKey}:${b.tag} vanished after a conflict`);
+    throw new Error(
+      `Build ${b.componentKey}:${b.tag} vanished after a conflict`
+    );
   }
   return { build: existing, created: false };
 }
 
 export async function findAutoTargets(
-  appKey: string,
+  componentKey: string,
   branch: string
 ): Promise<DeployTarget[]> {
   return db
@@ -127,7 +118,7 @@ export async function findAutoTargets(
     .from(deployTargets)
     .where(
       and(
-        eq(deployTargets.appKey, appKey),
+        eq(deployTargets.componentKey, componentKey),
         eq(deployTargets.sourceBranch, branch),
         eq(deployTargets.autoDeploy, true)
       )
@@ -149,7 +140,7 @@ export async function listTargetsForEnvironment(
     .select()
     .from(deployTargets)
     .where(eq(deployTargets.environmentId, environmentId))
-    .orderBy(deployTargets.appKey);
+    .orderBy(deployTargets.componentKey);
 
   return Promise.all(
     targets.map(async (target) => {
@@ -160,7 +151,7 @@ export async function listTargetsForEnvironment(
           .from(builds)
           .where(
             and(
-              eq(builds.appKey, target.appKey),
+              eq(builds.componentKey, target.componentKey),
               eq(builds.branch, target.sourceBranch)
             )
           )
@@ -189,13 +180,13 @@ export async function listTargetsForEnvironment(
 }
 
 export async function findBuild(
-  appKey: string,
+  componentKey: string,
   tag: string
 ): Promise<Build | null> {
   const [row] = await db
     .select()
     .from(builds)
-    .where(and(eq(builds.appKey, appKey), eq(builds.tag, tag)));
+    .where(and(eq(builds.componentKey, componentKey), eq(builds.tag, tag)));
   return row ?? null;
 }
 

@@ -32,8 +32,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  appKeySchema,
   branchSchema,
+  componentKeySchema,
   deployDirSchema,
   envVarNameSchema,
   healthTimeoutSchema,
@@ -67,7 +67,7 @@ const splitServices = (value: string) =>
   value.split(/[\s,]+/).filter((s) => s.length > 0);
 
 type Values = {
-  appKey: string;
+  componentKey: string;
   serverId: string;
   sourceBranch: string;
   deployDir: string;
@@ -85,7 +85,7 @@ function defaults(
   servers: { id: string }[]
 ): Values {
   return {
-    appKey: target?.appKey ?? "",
+    componentKey: target?.componentKey ?? "",
     // One server is the common case; preselect it.
     serverId:
       target?.serverId ?? (servers.length === 1 ? (servers[0]?.id ?? "") : ""),
@@ -128,11 +128,11 @@ export function TargetFormDialog({
   const optional = (schema: z.ZodType) => (value: string) =>
     value.trim() === "" || schema.safeParse(value.trim()).success;
   const schema = z.object({
-    appKey: z
+    componentKey: z
       .string()
       .trim()
       .min(1, required)
-      .refine(matches(appKeySchema), invalid),
+      .refine(matches(componentKeySchema), invalid),
     serverId: z.string().min(1, required),
     sourceBranch: z
       .string()
@@ -205,16 +205,16 @@ export function TargetFormDialog({
         await createDeployTarget({
           ...settings,
           environmentId: environment.id,
-          appKey: values.appKey.trim(),
+          componentKey: values.componentKey.trim(),
         });
         toast.success(t("created"));
       }
       onOpenChange(false);
     } catch (error) {
       if (error instanceof ApiError && !target && error.status === 404) {
-        form.setError("appKey", { message: t("appNotFound") });
+        form.setError("componentKey", { message: t("componentNotFound") });
       } else if (error instanceof ApiError && !target && error.status === 409) {
-        form.setError("appKey", { message: t("duplicateApp") });
+        form.setError("componentKey", { message: t("duplicateComponent") });
       } else {
         toast.error(
           error instanceof Error ? error.message : tCommon("errorGeneric")
@@ -280,7 +280,7 @@ export function TargetFormDialog({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
-            {text("appKey", {
+            {text("componentKey", {
               disabled: target !== null,
               placeholder: "dplk-accounting",
             })}

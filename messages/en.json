@@ -321,7 +321,7 @@
     "addTarget": "Add target",
     "editTarget": "Edit target",
     "emptyTitle": "No deploy targets yet",
-    "emptyDescription": "A target links an app to a server and Compose project in this environment. Add one to deploy the builds CI reports.",
+    "emptyDescription": "A target links a component to a server and Compose project in this environment. Add one to deploy the builds CI reports.",
     "autoDeploy": "Auto-deploy",
     "lastDeployFailed": "Last deploy failed",
     "currentTag": "Current tag",
@@ -367,11 +367,11 @@
     },
     "form": {
       "createTitle": "Add deploy target",
-      "createDescription": "Where an app is deployed in this environment.",
+      "createDescription": "Where a component is deployed in this environment.",
       "editTitle": "Edit deploy target",
-      "editDescription": "The app of a target cannot be changed.",
-      "appKey": "App key",
-      "appKeyHint": "The app as registered for build notifications, e.g. dplk-accounting.",
+      "editDescription": "The component of a target cannot be changed.",
+      "componentKey": "Component key",
+      "componentKeyHint": "The component as registered for build notifications, e.g. dplk-accounting.",
       "server": "Server",
       "serverPlaceholder": "Select a server",
       "serverHint": "One of the servers this environment's services run on.",
@@ -396,8 +396,8 @@
       "saved": "Target saved",
       "created": "Target added",
       "invalid": "This value doesn't match the format described below.",
-      "appNotFound": "No deploy app with this key is registered.",
-      "duplicateApp": "This app already has a target in this environment."
+      "componentNotFound": "No component with this key is registered.",
+      "duplicateComponent": "This component already has a target in this environment."
     }
   },
   "backupDb": {
