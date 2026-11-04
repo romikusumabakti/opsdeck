@@ -24,7 +24,6 @@ export interface CiProvider {
     value: string,
     events: SecretEvent[]
   ): Promise<void>;
-  fetchExtensionPublicKey(): Promise<string>;
 }
 
 /** A failed CI provider call. The message never contains credentials. */

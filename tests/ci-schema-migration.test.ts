@@ -29,8 +29,6 @@ describe("CI connection credentials migration", () => {
       "api_token",
       "forge_username",
       "forge_token",
-      "extension_public_key",
-      "extension_public_key_fetched_at",
       "build_spec",
       "fallback_committed_sha",
       "fallback_commit_error",

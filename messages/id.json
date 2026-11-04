@@ -2219,21 +2219,13 @@
     "colBaseUrl": "URL server",
     "colCredentials": "Kredensial",
     "apiTokenSet": "Token API terisi",
-    "apiTokenNotSet": "Token API belum diisi",
-    "keyStored": "Kunci penandatangan tersimpan",
-    "keyMissing": "Kunci penandatangan belum ada"
+    "apiTokenNotSet": "Token API belum diisi"
   },
   "editCi": {
     "title": "Ubah {name}",
     "description": "Perbarui server CI dan kredensialnya.",
     "formTitle": "Detail server",
-    "formDescription": "Kosongkan token untuk mempertahankan yang tersimpan.",
-    "keyTitle": "Kunci ekstensi konfigurasi",
-    "keyDescription": "Panel memverifikasi permintaan ekstensi konfigurasi dengan kunci publik server CI ini. Segarkan setelah kunci server CI berubah.",
-    "refreshKey": "Segarkan kunci Woodpecker",
-    "keyFetchedAt": "Terakhir diambil {time}",
-    "keyNeverFetched": "Belum pernah diambil",
-    "keyRefreshed": "Kunci Woodpecker disegarkan"
+    "formDescription": "Kosongkan token untuk mempertahankan yang tersimpan."
   },
   "ciForm": {
     "name": "Nama",
