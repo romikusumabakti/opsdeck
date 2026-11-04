@@ -1,3 +1,4 @@
+import { ciFetch } from "@/lib/ci/http";
 import { CiProviderError } from "@/lib/ci/types";
 
 const API = "https://api.bitbucket.org/2.0/repositories";
@@ -41,19 +42,18 @@ async function request(
   fetchImpl: typeof fetch = fetch
 ): Promise<Response> {
   const label = `Bitbucket ${method} ${repoFullName}${suffix}`;
-  let res: Response;
-  try {
-    res = await fetchImpl(`${API}/${repoFullName}${suffix}`, {
+  const res = await ciFetch(
+    label,
+    `${API}/${repoFullName}${suffix}`,
+    {
       method,
       headers: {
         Authorization: `Basic ${Buffer.from(`${auth.username}:${auth.token}`).toString("base64")}`,
       },
       body,
-    });
-  } catch {
-    // The underlying error is dropped on purpose: it could echo the request.
-    throw new CiProviderError(`${label} unreachable`, 0);
-  }
+    },
+    fetchImpl
+  );
   if (!res.ok) {
     let detail = "";
     try {
@@ -104,29 +104,4 @@ export async function commitFile(
     );
   }
   return { sha };
-}
-
-export async function getDefaultBranch(
-  auth: BitbucketAuth,
-  repoFullName: string,
-  fetchImpl: typeof fetch = fetch
-): Promise<string> {
-  assertRepo(repoFullName);
-  const res = await request(
-    auth,
-    "GET",
-    repoFullName,
-    "",
-    undefined,
-    fetchImpl
-  );
-  const name = ((await res.json()) as { mainbranch?: { name?: string } })
-    .mainbranch?.name;
-  if (!name) {
-    throw new CiProviderError(
-      `Bitbucket GET ${repoFullName} has no main branch`,
-      res.status
-    );
-  }
-  return name;
 }

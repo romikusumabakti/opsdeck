@@ -6,7 +6,7 @@ import {
 import { parseResponse } from "hono/client";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { RegisterAppInput } from "@/lib/ci/registration";
-import { canRegisterApp } from "@/lib/permissions";
+import { canOrg, canRegisterApp } from "@/lib/permissions";
 import { api } from "@/web/api/client";
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { useMe } from "@/web/api/session";
@@ -36,14 +36,19 @@ export async function rotateNotifySecret(appKey: string, componentKey: string) {
   );
 }
 
-export async function retryFallbackCommit(
+/** Commits the generated pipeline file to every built branch, or to one. */
+export async function commitPipelineFile(
   appKey: string,
-  componentKey: string
+  componentKey: string,
+  branch?: string
 ) {
   return parseResponse(
-    routes[":appKey"].components[":componentKey"]["commit-fallback"].$post({
-      param: { appKey, componentKey },
-    })
+    routes[":appKey"].components[":componentKey"]["commit-pipeline-file"].$post(
+      {
+        param: { appKey, componentKey },
+        query: branch === undefined ? {} : { branch },
+      }
+    )
   );
 }
 
@@ -98,12 +103,20 @@ export type RegistrableRepoRow = Awaited<
 >[number];
 
 /**
- * Whether the caller may register apps, rotate secrets and retry commits
- * (admins and project maintainers). The page loader must have loaded
+ * Whether the caller may register apps with custom pipelines (admins and
+ * project maintainers). The page loader must have loaded
  * getMyProjectAccessQuery; the app shell always has.
  */
 export function useCanRegisterApp(): boolean {
   const me = useMe();
   const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
   return canRegisterApp(me?.orgRole, Object.values(access.roles));
+}
+
+/**
+ * Whether the caller may use generated pipelines, commit pipeline files and
+ * rotate notify secrets (org integration:manage, i.e. admins).
+ */
+export function useCanManagePipelines(): boolean {
+  return canOrg(useMe()?.orgRole, { integration: ["manage"] });
 }

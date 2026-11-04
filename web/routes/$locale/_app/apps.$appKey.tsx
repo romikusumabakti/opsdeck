@@ -27,23 +27,21 @@ import {
 } from "@/components/ui/card";
 import {
   type AppComponentRow,
+  commitPipelineFile,
   listAppsQuery,
-  retryFallbackCommit,
   rotateNotifySecret,
-  useCanRegisterApp,
+  useCanManagePipelines,
 } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
-import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { meQuery } from "@/web/api/session";
 import { loaderQuery } from "@/web/query-client";
-import { FallbackStatus } from "./-components/apps/fallback-status";
+import { PipelineFileStatus } from "./-components/apps/pipeline-file-status";
 
 export const Route = createFileRoute("/$locale/_app/apps/$appKey")({
   loader: async ({ params: { appKey }, context: { queryClient } }) => {
     const [apps] = await Promise.all([
       loaderQuery(queryClient, listAppsQuery()),
       loaderQuery(queryClient, meQuery()),
-      loaderQuery(queryClient, getMyProjectAccessQuery()),
     ]);
     if (!apps?.some((app) => app.appKey === appKey)) throw notFound();
   },
@@ -56,7 +54,8 @@ function AppDetailPage() {
   const app = useSuspenseQuery(listAppsQuery()).data.find(
     (a) => a.appKey === appKey
   );
-  const canRegister = useCanRegisterApp();
+  // Rotating secrets and committing pipeline files is for admins.
+  const canManage = useCanManagePipelines();
   if (!app) return null;
 
   return (
@@ -71,7 +70,7 @@ function AppDetailPage() {
             key={component.componentKey}
             appKey={app.appKey}
             component={component}
-            canManage={canRegister}
+            canManage={canManage}
           />
         ))}
       </div>
@@ -99,27 +98,47 @@ function ComponentCard({
 }) {
   const t = useTranslations("apps");
   const tCommon = useTranslations("common");
-  const [busy, setBusy] = useState<"rotate" | "commit" | null>(null);
+  // "rotate", "commit" (every branch), or the one branch being committed.
+  const [busy, setBusy] = useState<
+    { kind: "rotate" } | { kind: "commit"; branch?: string } | null
+  >(null);
 
-  async function run(kind: "rotate" | "commit") {
-    setBusy(kind);
+  async function rotate() {
+    await rotateNotifySecret(appKey, component.componentKey);
+    toast.success(t("secretRotated"));
+  }
+
+  async function commit(branch?: string) {
+    const updated = await commitPipelineFile(
+      appKey,
+      component.componentKey,
+      branch
+    );
+    const commits = updated.pipelineFileCommits ?? {};
+    const tried =
+      branch === undefined
+        ? [...new Set(updated.buildSpec?.branches)]
+        : [branch];
+    const failed = tried.filter((b) => commits[b]?.error);
+    for (const b of failed) {
+      toast.error(
+        t("commitFailed", { branch: b, reason: commits[b]?.error ?? "" })
+      );
+    }
+    if (failed.length === 0) {
+      toast.success(
+        branch === undefined
+          ? t("commitDone")
+          : t("commitDoneBranch", { branch })
+      );
+    }
+  }
+
+  async function run(action: NonNullable<typeof busy>) {
+    setBusy(action);
     try {
-      if (kind === "rotate") {
-        await rotateNotifySecret(appKey, component.componentKey);
-        toast.success(t("secretRotated"));
-      } else {
-        const updated = await retryFallbackCommit(
-          appKey,
-          component.componentKey
-        );
-        if (updated.fallbackCommitError) {
-          toast.error(
-            t("commitFailed", { reason: updated.fallbackCommitError })
-          );
-        } else {
-          toast.success(t("commitDone"));
-        }
-      }
+      if (action.kind === "rotate") await rotate();
+      else await commit(action.branch);
     } catch (error) {
       if (error instanceof ApiError && error.status !== 401) {
         toast.error(error.message);
@@ -162,8 +181,22 @@ function ComponentCard({
             }
           />
           <Detail
-            label={t("fallbackFile")}
-            value={<FallbackStatus component={component} showReason />}
+            label={t("pipelineFile")}
+            value={
+              <PipelineFileStatus
+                component={component}
+                showReason
+                onRetry={
+                  canManage
+                    ? (branch) => run({ kind: "commit", branch })
+                    : undefined
+                }
+                retrying={
+                  busy?.kind === "commit" ? (busy.branch ?? null) : null
+                }
+                disabled={busy !== null}
+              />
+            }
           />
         </dl>
         {canManage && (
@@ -178,7 +211,7 @@ function ComponentCard({
                   />
                 }
               >
-                {busy === "rotate" ? (
+                {busy?.kind === "rotate" ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <KeyRound className="size-4" />
@@ -194,7 +227,7 @@ function ComponentCard({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => run("rotate")}>
+                  <AlertDialogAction onClick={() => run({ kind: "rotate" })}>
                     {t("rotateSecret")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -205,14 +238,14 @@ function ComponentCard({
                 variant="outline"
                 size="sm"
                 disabled={busy !== null}
-                onClick={() => run("commit")}
+                onClick={() => run({ kind: "commit" })}
               >
-                {busy === "commit" ? (
+                {busy?.kind === "commit" && busy.branch === undefined ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <GitCommitHorizontal className="size-4" />
                 )}
-                {t("commitFallback")}
+                {t("commitPipelineFile")}
               </Button>
             )}
           </div>

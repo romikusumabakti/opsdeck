@@ -207,9 +207,9 @@ function notifyStep(doc: Document, componentKey: string, dag: boolean) {
 }
 
 /**
- * Render the `.woodpecker.yaml` for a component. Served by the configuration
- * extension and committed to the repo as the fallback file. Re-validates the
- * spec: it comes from a jsonb column, and every path in it lands in a shell.
+ * Render the `.woodpecker.yaml` for a component, committed to every branch its
+ * build spec builds (Woodpecker reads only that file). Re-validates the spec:
+ * it comes from a jsonb column, and every path in it lands in a shell.
  */
 export function generateWoodpeckerPipeline(
   componentKey: string,

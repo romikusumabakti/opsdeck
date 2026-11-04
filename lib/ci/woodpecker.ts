@@ -1,3 +1,4 @@
+import { ciFetch } from "@/lib/ci/http";
 import {
   type CiProvider,
   CiProviderError,
@@ -33,20 +34,19 @@ export function createWoodpeckerProvider(
     path: string,
     body?: unknown
   ): Promise<Response> {
-    let res: Response;
-    try {
-      res = await fetchImpl(`${root}${path}`, {
+    const res = await ciFetch(
+      `Woodpecker ${method} ${path}`,
+      `${root}${path}`,
+      {
         method,
         headers: {
           Authorization: `Bearer ${apiToken}`,
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-      });
-    } catch {
-      // The underlying error is dropped on purpose: it could echo the request.
-      throw new CiProviderError(`Woodpecker ${method} ${path} unreachable`, 0);
-    }
+      },
+      fetchImpl
+    );
     if (!res.ok) {
       throw new CiProviderError(
         `Woodpecker ${method} ${path} failed with ${res.status}`,
@@ -69,15 +69,11 @@ export function createWoodpeckerProvider(
       );
       return toCiRepo((await res.json()) as WoodpeckerRepo);
     } catch (error) {
-      if (
-        !(error instanceof CiProviderError) ||
-        error.status === 0 ||
-        error.status === 401 ||
-        error.status === 403
-      ) {
+      // Already active: Woodpecker answers 409, so reuse the existing repo.
+      // Any other failure is real and reported as is.
+      if (!(error instanceof CiProviderError) || error.status !== 409) {
         throw error;
       }
-      // Already active: Woodpecker refuses, so reuse the existing repo.
       const existing = (await listRepos()).find(
         (r) => r.forgeRemoteId === forgeRemoteId && r.active
       );
