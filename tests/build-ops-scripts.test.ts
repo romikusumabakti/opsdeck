@@ -26,12 +26,21 @@ describe("build:ops", () => {
 
   afterAll(() => rmSync(outDir, { recursive: true, force: true }));
 
-  it.each(scripts)("emits %s and prints usage on --help without a DB", (name) => {
-    const file = join(outDir, name);
-    expect(existsSync(file)).toBe(true);
-    const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" };
-    const result = spawnSync("bun", [file, "--help"], { encoding: "utf8", env });
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain(`bun dist/${name}`);
-  });
+  it.each(scripts)(
+    "emits %s and prints usage on --help without a DB",
+    (name) => {
+      const file = join(outDir, name);
+      expect(existsSync(file)).toBe(true);
+      const env = {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+      };
+      const result = spawnSync("bun", [file, "--help"], {
+        encoding: "utf8",
+        env,
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain(`bun dist/${name}`);
+    }
+  );
 });
