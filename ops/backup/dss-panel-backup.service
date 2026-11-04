@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the DSS Panel databases and Garage bucket, copy to 55.111
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/dss-panel-backup.sh
