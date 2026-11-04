@@ -108,7 +108,7 @@
   - deployDir `/deployments/dplk-accounting`
   - services `accounting-backend`, `accounting-frontend`
   - tagVariable `IMAGE_TAG`
-  - healthUrl `http://localhost:8082/actuator/health` if exposed (check first), healthTimeoutSeconds 300
+  - healthUrl `http://localhost:8082/actuator/health` (answers 200 on .115, checked 2026-11-04), healthTimeoutSeconds 300
   - auto-deploy **off**, backup-before-deploy off for dev
 
 ### Task 5: Prove the path on dev2 (.115) [go-ahead]
