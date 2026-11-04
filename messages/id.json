@@ -397,7 +397,8 @@
       "created": "Target ditambahkan",
       "invalid": "Nilai ini tidak sesuai format yang dijelaskan di bawah.",
       "componentNotFound": "Belum ada komponen terdaftar dengan key ini.",
-      "duplicateComponent": "Komponen ini sudah punya target di environment ini."
+      "duplicateComponent": "Komponen ini sudah punya target di environment ini.",
+      "otherApp": "Komponen ini milik app lain dari environment ini."
     }
   },
   "backupDb": {
