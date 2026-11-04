@@ -40,6 +40,7 @@ case "$1" in
     if [ "\${RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY:-}" = "$STUB_EXPECT_SECRET" ]; then
       echo 'rclone env ok' >> "$STUB_LOG"
     fi
+    echo "rclone endpoint=\${RCLONE_CONFIG_GARAGE_ENDPOINT:-} region=\${RCLONE_CONFIG_GARAGE_REGION:-}" >> "$STUB_LOG"
     mkdir -p "$host/notes" && printf 'object' > "$host/notes/a.md"
     if [ -n "\${STUB_RCLONE_FAIL:-}" ]; then echo 'garage down' >&2; exit 1; fi ;;
 esac
@@ -185,6 +186,23 @@ describe("dss-panel-backup.sh", () => {
     );
     expect(r.stdout.trim().split("\n")).toHaveLength(1);
     expect(r.stdout).toMatch(/dss_panel=17 .*remote=ok/);
+  });
+
+  it("an .env without S3_ENDPOINT, S3_REGION and S3_BUCKET still mirrors with the compose defaults", () => {
+    const ctx = setup();
+    writeFileSync(
+      ctx.envFile,
+      `S3_ACCESS_KEY=${S3_ACCESS}\nS3_SECRET_KEY='${S3_SECRET}'\n`
+    );
+    const r = run(BACKUP_SCRIPT, ctx);
+    expect(r.status).toBe(0);
+    expect(r.log).toContain("rclone/rclone:1 sync garage:knowledge");
+    expect(r.log).toContain(
+      "rclone endpoint=http://garage:3900 region=garage\n"
+    );
+    expect(
+      existsSync(join(ctx.backupDir, isoDay(0), "garage/notes/a.md"))
+    ).toBe(true);
   });
 
   it("postgres failure exits non-zero, leaves no final-named dump and does not rsync", () => {

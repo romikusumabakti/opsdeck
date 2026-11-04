@@ -67,8 +67,12 @@ read_s3_settings() {
     fi
     printf -v "$key" '%s' "$value"
   done <"$ENV_FILE"
+  # Same defaults as compose.yaml.
+  S3_ENDPOINT=${S3_ENDPOINT:-http://garage:3900}
+  S3_REGION=${S3_REGION:-garage}
+  S3_BUCKET=${S3_BUCKET:-knowledge}
   local missing
-  for missing in S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY; do
+  for missing in S3_ACCESS_KEY S3_SECRET_KEY; do
     [[ -n ${!missing:-} ]] || { warn "$missing missing in $ENV_FILE"; return 1; }
   done
 }
@@ -93,7 +97,7 @@ mirror_garage() {
       export RCLONE_CONFIG_GARAGE_TYPE=s3
       export RCLONE_CONFIG_GARAGE_PROVIDER=Other
       export RCLONE_CONFIG_GARAGE_ENDPOINT=$S3_ENDPOINT
-      export RCLONE_CONFIG_GARAGE_REGION=${S3_REGION:-garage}
+      export RCLONE_CONFIG_GARAGE_REGION=$S3_REGION
       export RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID=$S3_ACCESS_KEY
       export RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY=$S3_SECRET_KEY
       docker run --rm --network "$COMPOSE_NETWORK" \
@@ -104,7 +108,7 @@ mirror_garage() {
         -e RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID \
         -e RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY \
         -v "$partial:/data/garage" \
-        rclone/rclone:1 sync "garage:${S3_BUCKET:-knowledge}" /data/garage
+        rclone/rclone:1 sync "garage:$S3_BUCKET" /data/garage
     ) || status=$?
   else
     status=1
