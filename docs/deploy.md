@@ -107,16 +107,27 @@ COPY deploy/compose.yaml /bundle/compose.yaml
 The image never runs, so it needs no entrypoint; the Panel passes the dummy
 command `noop` to `docker create` only because a scratch image has none.
 
+## Client note
+
+Cloudflare in front of `panel.example.net` blocks some client signatures:
+Python's `urllib` user agent gets **403 error code 1010** before reaching the
+Panel. `curl` is accepted. Send notifications with `curl` (as below) or set a
+normal `User-Agent`.
+
 ## Woodpecker example
 
 Builds do not use the host `docker.sock`, need no `privileged` or `trusted`
 pipeline, and go through a dedicated BuildKit daemon that `docker buildx`
 reaches with the **remote** driver. Registry credentials are Woodpecker
 org-level secrets (`registry_username`, `registry_password`). The notify secret
-is the org secret `opsdeck_notify_<appKey>` (see below).
+is the **repo** secret `opsdeck_notify` (one per app repo; see below).
 
-The BuildKit address `tcp://buildkitd:1234` below is a **placeholder**; plan C
-finalises it. App images are built with the same builder and the same `TAG`
+On .113 the builder is the `buildkitd` service of the Woodpecker stack
+(`/opt/woodpecker`, `moby/buildkit:v0.34.2-rootless`, network `ci-build`); the
+agent attaches every step to `ci-build`, so `tcp://buildkitd:1234` resolves. Its
+`buildkitd.toml` marks `192.168.10.113:5000` as plain HTTP. `docker login` needs
+a daemon, so steps write `~/.docker/config.json` themselves. Working reference:
+`dplk-accounting` `.woodpecker.yaml` on `kestrel/development`. App images are built with the same builder and the same `TAG`
 (`docker buildx build --push -t <registry>/<image>:$TAG ...`).
 
 ```yaml
@@ -144,7 +155,7 @@ steps:
     environment:
       OPSDECK_URL: https://panel.example.com
       OPSDECK_NOTIFY_SECRET:
-        from_secret: opsdeck_notify_myapp
+        from_secret: opsdeck_notify
     commands:
       # The base image has neither curl nor the openssl binary.
       - apk add --no-cache curl openssl
@@ -192,7 +203,8 @@ docker exec opsdeck-app bun dist/deploy-app.js rotate <appKey>
 
 `create` registers the app and prints a random notify secret to stdout, once. It
 is stored encrypted (`enc:v1:`); the Panel cannot show it again. Put it in the
-Woodpecker org secret `opsdeck_notify_<appKey>`. `rotate` issues a new secret
+Woodpecker repo secret `opsdeck_notify` of that app's repo. Pipe stdout straight
+into the Woodpecker API instead of printing it. `rotate` issues a new secret
 and invalidates the old one at once. `<bundleImage>` is a lowercase repository
 path without registry or tag (for example `dss/myapp-bundle`).
 
