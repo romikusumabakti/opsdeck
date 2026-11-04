@@ -7,7 +7,6 @@ import {
 } from "@/server/services/apps";
 import {
   listCiConnections,
-  refreshExtensionKey,
   updateCiConnection,
   updateCiConnectionSchema,
 } from "@/server/services/ci-connections";
@@ -30,7 +29,4 @@ export const ciConnectionsRouter = sessionRouter()
     c.json(
       await updateCiConnection(c.req.valid("param").id, c.req.valid("json"))
     )
-  )
-  .post("/:id/refresh-key", idParam, async (c) =>
-    c.json(await refreshExtensionKey(c.req.valid("param").id))
   );

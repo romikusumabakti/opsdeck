@@ -375,14 +375,10 @@ export const ciConnections = pgTable("ci_connections", {
   // Woodpecker API token. Encrypted at rest via lib/secrets.ts; write-only,
   // never sent to the client.
   apiToken: text("api_token"),
-  // Forge account used to commit the fallback pipeline file.
+  // Forge account used to commit the generated pipeline file.
   forgeUsername: text("forge_username"),
   // Forge access token. Encrypted at rest via lib/secrets.ts; write-only.
   forgeToken: text("forge_token"),
-  // The CI server's ed25519 public key (PEM) that verifies configuration
-  // extension requests, cached from its signature endpoint.
-  extensionPublicKey: text("extension_public_key"),
-  extensionPublicKeyFetchedAt: timestamp("extension_public_key_fetched_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

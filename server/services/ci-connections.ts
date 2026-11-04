@@ -1,10 +1,9 @@
-import { createPublicKey } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireOrgPermission } from "@/lib/authz";
 import type { BitbucketAuth } from "@/lib/ci/forges/bitbucket";
-import { type CiProvider, CiProviderError } from "@/lib/ci/types";
+import type { CiProvider } from "@/lib/ci/types";
 import { createWoodpeckerProvider } from "@/lib/ci/woodpecker";
 import { db } from "@/lib/db";
 import { type CiConnection, ciConnections } from "@/lib/db/schema";
@@ -29,8 +28,6 @@ export type SafeCiConnection = {
   forgeUsername: string | null;
   hasApiToken: boolean;
   hasForgeToken: boolean;
-  hasExtensionKey: boolean;
-  extensionPublicKeyFetchedAt: Date | null;
 };
 
 function toSafe(row: CiConnection): SafeCiConnection {
@@ -43,8 +40,6 @@ function toSafe(row: CiConnection): SafeCiConnection {
     forgeUsername: row.forgeUsername,
     hasApiToken: !!row.apiToken,
     hasForgeToken: !!row.forgeToken,
-    hasExtensionKey: !!row.extensionPublicKey,
-    extensionPublicKeyFetchedAt: row.extensionPublicKeyFetchedAt,
   };
 }
 
@@ -103,9 +98,6 @@ export async function updateCiConnection(
       if (!changes.apiToken) {
         badRequest("Enter the API token again when changing the URL");
       }
-      // The cached signing key belongs to the old server.
-      patch.extensionPublicKey = null;
-      patch.extensionPublicKeyFetchedAt = null;
     }
     patch.baseUrl = baseUrl;
   }
@@ -191,44 +183,4 @@ export async function getForgeCredentials(
         ? { username: row.forgeUsername, token: decryptSecret(row.forgeToken) }
         : null,
   };
-}
-
-function isEd25519PublicKey(pem: string): boolean {
-  try {
-    return createPublicKey(pem).asymmetricKeyType === "ed25519";
-  } catch {
-    return false;
-  }
-}
-
-/** Fetches the CI server's extension signing key and stores it. */
-export async function refreshExtensionKey(
-  id: string
-): Promise<SafeCiConnection> {
-  await requireOrgPermission({ integration: ["manage"] });
-  const provider = providerFor(await findConnection(id));
-  let key: string;
-  try {
-    key = await provider.fetchExtensionPublicKey();
-  } catch (error) {
-    if (error instanceof CiProviderError) {
-      throw new HTTPException(502, { message: error.message });
-    }
-    throw error;
-  }
-  if (!isEd25519PublicKey(key)) {
-    throw new HTTPException(502, {
-      message: "Woodpecker did not return a valid ed25519 public key",
-    });
-  }
-  const [updated] = await db
-    .update(ciConnections)
-    .set({
-      extensionPublicKey: key,
-      extensionPublicKeyFetchedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(ciConnections.id, id))
-    .returning();
-  return updated ? toSafe(updated) : notFound();
 }

@@ -126,16 +126,10 @@ export function createWoodpeckerProvider(
     else await request("POST", base, { name, value, events });
   }
 
-  async function fetchExtensionPublicKey(): Promise<string> {
-    const res = await request("GET", "/api/signature/public-key");
-    return res.text();
-  }
-
   return {
     listRepos,
     activateRepo,
     updateRepoSettings,
     upsertRepoSecret,
-    fetchExtensionPublicKey,
   };
 }

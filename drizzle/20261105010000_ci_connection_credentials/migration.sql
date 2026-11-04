@@ -11,9 +11,7 @@ CREATE TYPE pipeline_mode AS ENUM ('custom', 'generated');
 ALTER TABLE ci_connections
   ADD COLUMN api_token text,
   ADD COLUMN forge_username text,
-  ADD COLUMN forge_token text,
-  ADD COLUMN extension_public_key text,
-  ADD COLUMN extension_public_key_fetched_at timestamp;
+  ADD COLUMN forge_token text;
 
 ALTER TABLE app_components
   ADD COLUMN pipeline_mode pipeline_mode NOT NULL DEFAULT 'custom',

@@ -69,11 +69,6 @@ function CiPage() {
                       <Badge variant={c.hasApiToken ? "secondary" : "outline"}>
                         {c.hasApiToken ? t("apiTokenSet") : t("apiTokenNotSet")}
                       </Badge>
-                      <Badge
-                        variant={c.hasExtensionKey ? "secondary" : "outline"}
-                      >
-                        {c.hasExtensionKey ? t("keyStored") : t("keyMissing")}
-                      </Badge>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
