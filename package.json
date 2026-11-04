@@ -9,7 +9,8 @@
   },
   "scripts": {
     "dev": "bun run --parallel dev:server dev:web",
-    "build": "vite build && bun build server/index.ts --target=bun --define process.env.NODE_ENV=process.env.NODE_ENV --outdir dist/server && bun build lib/terminal/main.ts --target=bun --define process.env.NODE_ENV=process.env.NODE_ENV --outdir dist --entry-naming terminal-server.[ext]",
+    "build:ops": "bun build scripts/deploy-app.ts scripts/encrypt-legacy-secrets.ts --target=bun --conditions react-server --define process.env.NODE_ENV=process.env.NODE_ENV --outdir dist --entry-naming [name].[ext]",
+    "build": "vite build && bun run build:ops && bun build server/index.ts --target=bun --define process.env.NODE_ENV=process.env.NODE_ENV --outdir dist/server && bun build lib/terminal/main.ts --target=bun --define process.env.NODE_ENV=process.env.NODE_ENV --outdir dist --entry-naming terminal-server.[ext]",
     "start": "bun dist/server/index.js",
     "dev:server": "bun --watch server/index.ts",
     "dev:web": "vite",
