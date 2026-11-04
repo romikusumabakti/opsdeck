@@ -1,5 +1,6 @@
 // Creates a deploy app or rotates its CI notify secret.
-// Usage: bun --conditions react-server scripts/deploy-app.ts <create|rotate> <appKey> [bundleImage]
+// Usage (production): docker exec opsdeck-app bun dist/deploy-app.js <create|rotate> <appKey> [bundleImage]
+// Local dev: bun --conditions react-server scripts/deploy-app.ts <create|rotate> <appKey> [bundleImage]
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { z } from "zod";
@@ -11,10 +12,18 @@ import { encryptSecret } from "@/lib/secrets";
 
 const [command, appKey, bundleImage] = process.argv.slice(2);
 
-function usage(): never {
-  console.error(
-    "Usage: bun --conditions react-server scripts/deploy-app.ts <create|rotate> <appKey> [bundleImage]"
+const USAGE =
+  "Usage: bun dist/deploy-app.js <create|rotate> <appKey> [bundleImage]";
+
+if (process.argv.slice(2).includes("--help")) {
+  console.log(
+    `${USAGE}\nCreates a deploy app or rotates its CI notify secret.`
   );
+  process.exit(0);
+}
+
+function usage(): never {
+  console.error(USAGE);
   process.exit(1);
 }
 

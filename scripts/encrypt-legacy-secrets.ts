@@ -1,7 +1,8 @@
 // One-off, idempotent: encrypts legacy plaintext secret columns with the
 // enc:v1 scheme. Dry run by default; pass --apply to write. Prints counts only,
 // never values.
-// Usage: bun --conditions react-server scripts/encrypt-legacy-secrets.ts [--apply]
+// Usage (production): docker exec opsdeck-app bun dist/encrypt-legacy-secrets.js [--apply]
+// Local dev: bun --conditions react-server scripts/encrypt-legacy-secrets.ts [--apply]
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -15,7 +16,7 @@ const args = process.argv.slice(2);
 
 if (args.includes("--help")) {
   console.log(
-    "Usage: bun --conditions react-server scripts/encrypt-legacy-secrets.ts [--apply]\n" +
+    "Usage: bun dist/encrypt-legacy-secrets.js [--apply]\n" +
       "Encrypts legacy plaintext secret columns. Dry run unless --apply is given."
   );
   process.exit(0);
