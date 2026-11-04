@@ -126,11 +126,13 @@ mirror_garage() {
 }
 
 write_checksums() {
+  # `|| fail` turns errexit off inside the subshell, so every step checks its
+  # own status: a failed sha256sum must never become SHA256SUMS.
   (
-    cd "$day_dir"
-    find . -type f ! -name SHA256SUMS ! -name '*.partial' -print0 |
-      sort -z | xargs -0 -r sha256sum >SHA256SUMS.partial
-    mv -f SHA256SUMS.partial SHA256SUMS
+    cd "$day_dir" &&
+      find . -type f ! -name SHA256SUMS ! -name '*.partial' -print0 |
+      sort -z | xargs -0 -r sha256sum >SHA256SUMS.partial &&
+      mv -f SHA256SUMS.partial SHA256SUMS
   ) || fail "checksums failed"
 }
 
