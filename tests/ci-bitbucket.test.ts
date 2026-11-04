@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { commitFile, getDefaultBranch } from "@/lib/ci/forges/bitbucket";
+import { commitFile } from "@/lib/ci/forges/bitbucket";
 import { CiProviderError } from "@/lib/ci/types";
 
 const AUTH = { username: "dev@example.test", token: "super-secret-token" };
@@ -92,20 +92,51 @@ describe("bitbucket commitFile", () => {
   });
 });
 
-describe("bitbucket getDefaultBranch", () => {
-  it("returns mainbranch.name", async () => {
-    const m = mockFetch(Response.json({ mainbranch: { name: "develop" } }));
-    expect(await getDefaultBranch(AUTH, REPO, m.impl)).toBe("develop");
-    expect(m.calls[0]?.url).toBe(
-      "https://api.bitbucket.org/2.0/repositories/acme/widgets"
+describe("bitbucket transport hardening", () => {
+  it("does not follow redirects and sets a 15 s timeout", async () => {
+    const m = mockFetch(
+      new Response(null, {
+        status: 201,
+        headers: {
+          Location:
+            "https://api.bitbucket.org/2.0/repositories/acme/widgets/commit/abc1234",
+        },
+      })
     );
+    await commitFile(AUTH, REPO, "main", "a.yaml", "b", "m", m.impl);
+    const init = m.calls[0]?.init as RequestInit;
+    expect(init.redirect).toBe("manual");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("fails when the repo has no main branch", async () => {
-    const m = mockFetch(Response.json({}));
-    await expect(getDefaultBranch(AUTH, REPO, m.impl)).rejects.toBeInstanceOf(
-      CiProviderError
+  it("reports a redirect instead of following it", async () => {
+    const m = mockFetch(
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://id.atlassian.com/login" },
+      })
     );
+    const err = await commitFile(AUTH, REPO, "main", "a", "b", "m", m.impl)
+      .then(() => null)
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect(err.status).toBe(302);
+    expect(err.message).toBe(
+      "Bitbucket POST acme/widgets/src redirected — check the URL/Access"
+    );
+    expect(m.calls).toHaveLength(1);
+  });
+
+  it("reports a timeout with a fixed message and status 0", async () => {
+    const impl = vi.fn(async () => {
+      throw new DOMException(`timed out ${AUTH.token}`, "TimeoutError");
+    }) as unknown as typeof fetch;
+    const err = await commitFile(AUTH, REPO, "main", "a", "b", "m", impl)
+      .then(() => null)
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect(err.status).toBe(0);
+    expect(err.message).toBe("Bitbucket POST acme/widgets/src timed out");
   });
 });
 
@@ -145,12 +176,11 @@ describe("bitbucket input validation", () => {
     "a b/c",
     "acme/w?x=1",
     "",
-  ])("rejects repo %j in both functions", async (repo) => {
+  ])("rejects repo %j", async (repo) => {
     const f = never();
     await expect(
       commitFile(AUTH, repo, "main", "a.yaml", "c", "m", f.fetchImpl)
     ).rejects.toThrow();
-    await expect(getDefaultBranch(AUTH, repo, f.fetchImpl)).rejects.toThrow();
     expect(f.impl).not.toHaveBeenCalled();
   });
 

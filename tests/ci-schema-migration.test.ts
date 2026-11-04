@@ -30,10 +30,19 @@ describe("CI connection credentials migration", () => {
       "forge_username",
       "forge_token",
       "build_spec",
+      "pipeline_file_commits",
+    ]) {
+      expect(sql).toContain(`ADD COLUMN ${column} `);
+    }
+  });
+
+  it("has no configuration extension or single-branch fallback columns", () => {
+    for (const column of [
+      "extension_public_key",
       "fallback_committed_sha",
       "fallback_commit_error",
     ]) {
-      expect(sql).toContain(`ADD COLUMN ${column} `);
+      expect(sql).not.toContain(column);
     }
   });
 

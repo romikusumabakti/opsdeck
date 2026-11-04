@@ -1,4 +1,4 @@
-import { and, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { type DbExecutor, db } from "@/lib/db";
 import {
@@ -119,20 +119,27 @@ export async function insertAppWithComponents(
 }
 
 /**
- * Records the outcome of committing the generated fallback file. A failure
- * keeps the last good sha, so the UI can still show what the repo holds.
+ * Records one branch's attempt to commit the generated pipeline file, merged
+ * into `pipeline_file_commits` in one statement so attempts on other branches
+ * are never overwritten. A failure keeps that branch's last good sha, so the
+ * UI can still show what the branch holds.
  */
-export async function setFallbackCommitResult(
+export async function setPipelineFileCommit(
   componentKey: string,
+  branch: string,
   result: { sha: string } | { error: string }
 ): Promise<void> {
+  const at = new Date().toISOString();
+  const column = appComponents.pipelineFileCommits;
+  const entry =
+    "sha" in result
+      ? sql`jsonb_build_object('sha', ${result.sha}::text, 'at', ${at}::text)`
+      : sql`jsonb_strip_nulls(jsonb_build_object('sha', ${column} -> ${branch}::text -> 'sha', 'error', ${result.error}::text, 'at', ${at}::text))`;
   await db
     .update(appComponents)
-    .set(
-      "sha" in result
-        ? { fallbackCommittedSha: result.sha, fallbackCommitError: null }
-        : { fallbackCommitError: result.error }
-    )
+    .set({
+      pipelineFileCommits: sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object(${branch}::text, ${entry})`,
+    })
     .where(eq(appComponents.componentKey, componentKey));
 }
 

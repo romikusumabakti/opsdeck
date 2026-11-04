@@ -49,13 +49,15 @@ import {
   pipelinePreviewQuery,
   type RegistrableRepoRow,
   registerApp,
+  useCanManagePipelines,
 } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 
 // The "Register app" form: per component, a CI connection, a repository from
 // that connection, the component key (prefilled from the repo name) and the
-// pipeline mode; generated components get a build spec editor with the YAML
-// the Panel will serve. Validated with the API's own schema before it submits.
+// pipeline mode; generated components (admins only) get a build spec editor
+// with the YAML the Panel will commit to every built branch. Validated with the
+// API's own schema before it submits.
 
 type ImageDraft = { name: string; dockerfile: string; context: string };
 type FileDraft = { from: string; to: string };
@@ -197,6 +199,8 @@ export function AppRegisterForm() {
   const router = useRouter();
   const connections = useSuspenseQuery(listCiConnectionOptionsQuery()).data;
   const firstConnection = connections[0]?.id ?? "";
+  // Generated pipelines need org integration:manage; maintainers get custom.
+  const canGenerate = useCanManagePipelines();
 
   const [appKey, setAppKey] = useState("");
   const [name, setName] = useState("");
@@ -252,13 +256,18 @@ export function AppRegisterForm() {
       const created = await registerApp(parsed.data as RegisterAppInput);
       toast.success(t("registered", { name: created.name }));
       for (const c of created.components) {
-        if (c.fallbackCommitError) {
-          toast.warning(
-            t("fallbackNotCommitted", {
-              component: c.componentKey,
-              reason: c.fallbackCommitError,
-            })
-          );
+        for (const [branch, commit] of Object.entries(
+          c.pipelineFileCommits ?? {}
+        )) {
+          if (commit.error) {
+            toast.warning(
+              t("pipelineFileNotCommitted", {
+                component: c.componentKey,
+                branch,
+                reason: commit.error,
+              })
+            );
+          }
         }
       }
       setAppKey("");
@@ -266,7 +275,13 @@ export function AppRegisterForm() {
       setComponents([]);
       router.push(`/apps/${created.appKey}`);
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 401) {
+      if (
+        error instanceof ApiError &&
+        error.status === 403 &&
+        parsed.data.components.some((c) => c.pipelineMode === "generated")
+      ) {
+        toast.error(t("generatedForbidden"));
+      } else if (error instanceof ApiError && error.status !== 401) {
         toast.error(error.message);
       } else {
         throw error;
@@ -306,6 +321,7 @@ export function AppRegisterForm() {
           index={index}
           component={component}
           connections={connections}
+          canGenerate={canGenerate}
           issues={issues}
           canRemove={components.length > 1}
           onRemove={() =>
@@ -392,6 +408,7 @@ function ComponentEditor({
   component,
   connections,
   issues,
+  canGenerate,
   canRemove,
   onRemove,
   onChange,
@@ -400,6 +417,7 @@ function ComponentEditor({
   index: number;
   component: ComponentDraft;
   connections: { id: string; name: string; hasForgeToken: boolean }[];
+  canGenerate: boolean;
   issues: Issues;
   canRemove: boolean;
   onRemove: () => void;
@@ -504,7 +522,9 @@ function ComponentEditor({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="custom">{t("modeCustom")}</SelectItem>
-              <SelectItem value="generated">{t("modeGenerated")}</SelectItem>
+              <SelectItem value="generated" disabled={!canGenerate}>
+                {t("modeGenerated")}
+              </SelectItem>
             </SelectContent>
           </Select>
           <FieldDescription>
@@ -512,6 +532,9 @@ function ComponentEditor({
               ? t("modeGeneratedDescription")
               : t("modeCustomDescription")}
           </FieldDescription>
+          {!canGenerate && (
+            <FieldDescription>{t("generatedAdminOnly")}</FieldDescription>
+          )}
         </Field>
 
         {component.pipelineMode === "generated" && (
@@ -905,7 +928,7 @@ function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-/** The YAML the Panel will serve for this spec, rendered by the server. */
+/** The YAML the Panel will commit for this spec, rendered by the server. */
 function PipelinePreview({
   componentKey,
   spec,

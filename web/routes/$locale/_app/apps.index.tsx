@@ -19,7 +19,7 @@ import { listAppsQuery, useCanRegisterApp } from "@/web/api/apps";
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { meQuery } from "@/web/api/session";
 import { loaderQuery } from "@/web/query-client";
-import { FallbackStatus } from "./-components/apps/fallback-status";
+import { PipelineFileStatus } from "./-components/apps/pipeline-file-status";
 import { ListPending } from "./-components/list-pending";
 
 export const Route = createFileRoute("/$locale/_app/apps/")({
@@ -70,7 +70,7 @@ function AppsPage() {
                 <TableHead>{t("colComponent")}</TableHead>
                 <TableHead>{t("colRepo")}</TableHead>
                 <TableHead>{t("colMode")}</TableHead>
-                <TableHead>{t("colFallback")}</TableHead>
+                <TableHead>{t("colPipelineFile")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,7 +113,7 @@ function AppsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <FallbackStatus component={component} />
+                      <PipelineFileStatus component={component} />
                     </TableCell>
                   </TableRow>
                 ));

@@ -1,25 +1,30 @@
 import { z } from "zod";
 import { buildSpecSchema } from "@/lib/ci/build-spec";
 import { registerAppSchema } from "@/lib/ci/registration";
-import { appKeySchema, componentKeySchema } from "@/lib/deploy/validation";
+import {
+  appKeySchema,
+  branchSchema,
+  componentKeySchema,
+} from "@/lib/deploy/validation";
 import { sessionRouter } from "@/server/router";
 import {
   listAllApps,
   previewPipeline,
   registerApp,
-  retryFallbackCommit,
+  retryPipelineFileCommit,
   rotateNotifySecret,
 } from "@/server/services/apps";
-import { json, jsonQuery, param } from "@/server/validation";
+import { json, jsonQuery, param, query } from "@/server/validation";
 
 const componentParam = param(
   z.object({ appKey: appKeySchema, componentKey: componentKeySchema })
 );
 
 /**
- * Apps and their components. Listing is for every signed-in user; the rest is
- * for app registrants (admins and project maintainers), checked by each
- * service function.
+ * Apps and their components. Listing is for every signed-in user; registering
+ * is for app registrants (admins and project maintainers; generated pipelines
+ * for admins only); rotating a notify secret and committing the pipeline file
+ * are for admins. Each service function checks its own permission.
  */
 export const appsRouter = sessionRouter()
   .get("/", async (c) => c.json(await listAllApps()))
@@ -45,11 +50,16 @@ export const appsRouter = sessionRouter()
       return c.json(await rotateNotifySecret(appKey, componentKey));
     }
   )
+  // Every built branch, or only `?branch=`.
   .post(
-    "/:appKey/components/:componentKey/commit-fallback",
+    "/:appKey/components/:componentKey/commit-pipeline-file",
     componentParam,
+    query(z.object({ branch: branchSchema.optional() })),
     async (c) => {
       const { appKey, componentKey } = c.req.valid("param");
-      return c.json(await retryFallbackCommit(appKey, componentKey));
+      const { branch } = c.req.valid("query");
+      return c.json(
+        await retryPipelineFileCommit(appKey, componentKey, branch)
+      );
     }
   );
