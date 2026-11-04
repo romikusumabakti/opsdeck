@@ -108,3 +108,63 @@ describe("bitbucket getDefaultBranch", () => {
     );
   });
 });
+
+describe("bitbucket input validation", () => {
+  const never = () => {
+    const impl = vi.fn();
+    return { impl, fetchImpl: impl as unknown as typeof fetch };
+  };
+
+  it.each(["", "message", "branch", "/etc/x", "a/../b", "../x"])(
+    "rejects path %j",
+    async (path) => {
+      const f = never();
+      await expect(
+        commitFile(AUTH, REPO, "main", path, "c", "m", f.fetchImpl)
+      ).rejects.toThrow();
+      expect(f.impl).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["", "ma in", "main\n", "a\tb", "a\u0000b"])(
+    "rejects branch %j",
+    async (branch) => {
+      const f = never();
+      await expect(
+        commitFile(AUTH, REPO, branch, "a.yaml", "c", "m", f.fetchImpl)
+      ).rejects.toThrow();
+      expect(f.impl).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    "acme",
+    "acme/widgets/extra",
+    "../widgets",
+    "acme/..",
+    "a b/c",
+    "acme/w?x=1",
+    "",
+  ])("rejects repo %j in both functions", async (repo) => {
+    const f = never();
+    await expect(
+      commitFile(AUTH, repo, "main", "a.yaml", "c", "m", f.fetchImpl)
+    ).rejects.toThrow();
+    await expect(getDefaultBranch(AUTH, repo, f.fetchImpl)).rejects.toThrow();
+    expect(f.impl).not.toHaveBeenCalled();
+  });
+
+  it("truncates long error details to 300 characters", async () => {
+    const m = mockFetch(
+      Response.json(
+        { type: "error", error: { message: "x".repeat(1000) } },
+        { status: 500 }
+      )
+    );
+    const err = await commitFile(AUTH, REPO, "main", "a", "b", "m", m.impl)
+      .then(() => null)
+      .catch((e) => e);
+    expect(err.message).toContain("x".repeat(300));
+    expect(err.message).not.toContain("x".repeat(301));
+  });
+});
