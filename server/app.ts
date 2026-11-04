@@ -8,6 +8,7 @@ import { locale } from "@/server/middleware/locale";
 import { securityHeaders } from "@/server/middleware/security-headers";
 import { accessRouter } from "@/server/routes/access";
 import { activityRouter } from "@/server/routes/activity";
+import { appsRouter } from "@/server/routes/apps";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
 import { ciConfigRouter } from "@/server/routes/ci-config";
@@ -118,6 +119,7 @@ export const app = createBaseApp()
   // router shares this prefix (/api/ci-connections is a different segment).
   .route("/api/ci/config", ciConfigRouter)
   .route("/api/deploys", deploysRouter)
+  .route("/api/apps", appsRouter)
   .route("/api/ci-connections", ciConnectionsRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);

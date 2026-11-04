@@ -1,5 +1,6 @@
 import {
   Activity,
+  Boxes,
   BookOpen,
   Cable,
   CircleDot,
@@ -277,6 +278,16 @@ export function AppSidebar({
                 >
                   <FolderKanban />
                   <span>{tNav("projects")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href="/apps" />}
+                  isActive={pathname.startsWith("/apps")}
+                  tooltip={tNav("apps")}
+                >
+                  <Boxes />
+                  <span>{tNav("apps")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

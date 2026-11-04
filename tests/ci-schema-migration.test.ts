@@ -39,6 +39,12 @@ describe("CI connection credentials migration", () => {
     }
   });
 
+  it("allows one component per CI repository", () => {
+    expect(sql).toContain(
+      "CREATE UNIQUE INDEX app_components_ci_repo_idx ON app_components (ci_connection_id, ci_repo_id);"
+    );
+  });
+
   it("is additive only", () => {
     expect(sql).not.toMatch(/DROP/i);
     expect(sql).not.toMatch(/RENAME/i);

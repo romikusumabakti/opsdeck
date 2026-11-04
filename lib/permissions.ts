@@ -208,3 +208,18 @@ export function canCreateEnvironment(
     canOrg(orgRole, { server: ["manage"] })
   );
 }
+
+// Registering an app activates a repository in the CI server and points its
+// pipeline at the Panel, so it is for admins (integration:manage) and for
+// maintainers of any project. Org roles that imply maintainer on every project
+// (infra) count, as does an explicit maintainer membership.
+export function canRegisterApp(
+  orgRole: string | null | undefined,
+  projectRoles: readonly ProjectRole[]
+): boolean {
+  if (canOrg(orgRole, { integration: ["manage"] })) return true;
+  if (effectiveProjectRole(orgRole, null) === "maintainer") return true;
+  return projectRoles.some(
+    (role) => effectiveProjectRole(orgRole, role) === "maintainer"
+  );
+}
