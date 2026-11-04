@@ -34,7 +34,7 @@ import {
   pgCreateDatabaseQuery,
   pgDropDatabaseQuery,
   pgPsqlPipeline,
-  pgRecreateDatabaseQuery,
+  pgRecreateDatabasePipeline,
   pgRenameDatabaseQuery,
   pgRestorePipeline,
 } from "@/lib/jobs/commands";
@@ -738,7 +738,7 @@ async function runPostgresRecreateDatabase(
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   // `runAsUser: "postgres"` is a no-op for docker/kubernetes.
-  const inner = pgPsqlPipeline(pgRecreateDatabaseQuery(database));
+  const inner = pgRecreateDatabasePipeline(database);
   const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: "postgres",
     sudoPassword: credentials.password,
