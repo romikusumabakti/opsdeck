@@ -20,6 +20,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AccentColor } from "@/lib/accents";
+import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { MotifPreference } from "@/lib/motifs";
 import type { WorkingHours } from "@/lib/user-display";
 
@@ -422,7 +423,7 @@ export const appComponents = pgTable(
     notifySecret: text("notify_secret").notNull(),
     pipelineMode: pipelineModeEnum("pipeline_mode").notNull().default("custom"),
     // Inputs for the generated pipeline; null while the mode is "custom".
-    buildSpec: jsonb("build_spec").$type<Record<string, unknown>>(),
+    buildSpec: jsonb("build_spec").$type<BuildSpec>(),
     // Commit that last wrote the generated fallback file to the repo.
     fallbackCommittedSha: text("fallback_committed_sha"),
     // Why the last fallback commit failed; null when it succeeded.

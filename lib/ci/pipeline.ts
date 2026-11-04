@@ -1,0 +1,257 @@
+import { Document, isMap, Scalar, YAMLMap, YAMLSeq } from "yaml";
+import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
+import {
+  componentKeySchema,
+  deployRegistrySchema,
+} from "@/lib/deploy/validation";
+
+// Generates the Woodpecker pipeline for a component in `generated` mode. The
+// output mirrors the hand-written pipelines the Panel already deploys from
+// (dplk-membership, hris; see docs/deploy.md): one image TAG
+// `origin-<branch, / -> ->-<sha>` written to `.tag`, images and the deploy
+// bundle built on the rootless BuildKit daemon over the remote driver, then a
+// signed build notification to the Panel. tests/fixtures/pipeline-two-images.yaml
+// is a hand-adapted copy of those files and pins the exact text.
+//
+// Woodpecker substitutes `${VAR}` and `$VAR` in the YAML before the shell sees
+// it, so every `$` meant for the shell is written as `$$`.
+
+const BUILD_IMAGE = "docker:29-cli";
+const NOTIFY_IMAGE = "alpine:3";
+const BUILDKIT_ADDR = "tcp://buildkitd:1234";
+const NOTIFY_URL = "https://panel.dssconsulting.id/api/deploy-hooks/builds";
+
+const STRINGIFY_OPTIONS = {
+  lineWidth: 0,
+  indent: 2,
+  indentSeq: true,
+  flowCollectionPadding: false,
+} as const;
+
+export type PipelineOptions = {
+  // Registry the images are pushed to, `host[:port]`. Defaults to
+  // DEPLOY_REGISTRY, which is where Panel deploys pull the bundle from.
+  registry?: string;
+};
+
+/** Escape a shell command for Woodpecker's variable substitution. */
+function escapeForWoodpecker(command: string): string {
+  return command.replaceAll("$", "$$$$");
+}
+
+type Command = { text: string; comment?: string };
+
+/** A sequence item: a block scalar (`- |`) when multi-line, plain otherwise. */
+function commandNode(doc: Document, command: Command): Scalar {
+  const multiLine = command.text.includes("\n");
+  const node = doc.createNode(
+    multiLine ? `${command.text}\n` : command.text
+  ) as Scalar;
+  if (multiLine) node.type = Scalar.BLOCK_LITERAL;
+  if (command.comment) node.commentBefore = command.comment;
+  return node;
+}
+
+const lines = (...parts: string[]) => parts.join("\n");
+
+function flowSeq(doc: Document, items: string[]): YAMLSeq {
+  const seq = doc.createNode(items) as YAMLSeq;
+  seq.flow = true;
+  return seq;
+}
+
+function step(
+  doc: Document,
+  fields: {
+    name: string;
+    image: string;
+    dependsOn?: string[];
+    environment?: Record<string, string | { from_secret: string }>;
+    commands: Command[];
+  }
+): YAMLMap {
+  const map = doc.createNode({
+    name: fields.name,
+    image: fields.image,
+  }) as YAMLMap;
+  if (fields.dependsOn && fields.dependsOn.length > 0) {
+    map.set("depends_on", flowSeq(doc, fields.dependsOn));
+  }
+  if (fields.environment) {
+    map.set("environment", doc.createNode(fields.environment));
+  }
+  const commands = new YAMLSeq();
+  commands.items = fields.commands.map((command) => commandNode(doc, command));
+  map.set("commands", commands);
+  return map;
+}
+
+function checkStep(doc: Document, check: BuildSpec["checks"][number]) {
+  const body = check.commands
+    .flatMap((command) => command.split("\n"))
+    .map((line) => (line === "" ? "" : `  ${escapeForWoodpecker(line)}`));
+  return step(doc, {
+    name: check.name,
+    image: check.image,
+    commands: [
+      {
+        comment: lines(
+          " All commands of a step run in ONE shell, so the check runs in a",
+          " subshell to keep its `cd` from leaking into the next block."
+        ),
+        text: lines("(", `  cd ${check.dir}`, ...body, ")"),
+      },
+    ],
+  });
+}
+
+function buildStep(
+  doc: Document,
+  componentKey: string,
+  spec: BuildSpec,
+  registry: string
+) {
+  const bundleCommands: string[] = [];
+  const madeDirs = new Set<string>();
+  for (const file of spec.bundleFiles) {
+    const slash = file.to.lastIndexOf("/");
+    const parent = slash === -1 ? "" : file.to.slice(0, slash);
+    if (parent && !madeDirs.has(parent)) {
+      madeDirs.add(parent);
+      bundleCommands.push(`mkdir -p .bundle/bundle/${parent}`);
+    }
+    bundleCommands.push(`cp -r ${file.from} .bundle/bundle/${file.to}`);
+  }
+
+  return step(doc, {
+    name: "build",
+    image: BUILD_IMAGE,
+    dependsOn: spec.checks.map((check) => check.name),
+    environment: {
+      REGISTRY: registry,
+      REGISTRY_USERNAME: { from_secret: "registry_username" },
+      REGISTRY_PASSWORD: { from_secret: "registry_password" },
+    },
+    commands: [
+      {
+        comment:
+          " Same tag Jenkins produced for a commit: origin-<branch, / -> ->-<sha>.",
+        text: lines(
+          `TAG="origin-$(printf '%s' "$\${CI_COMMIT_BRANCH}" | tr / -)-$(printf '%s' "$\${CI_COMMIT_SHA}" | cut -c1-${spec.tagShaLength})"`,
+          `printf '%s' "$\${TAG}" > .tag`,
+          `echo "tag $\${TAG}"`
+        ),
+      },
+      {
+        comment:
+          " docker login needs a daemon; write the client auth file directly.",
+        text: lines(
+          "mkdir -p ~/.docker",
+          `printf '{"auths":{"%s":{"auth":"%s"}}}' "$\${REGISTRY}" "$(printf '%s:%s' "$\${REGISTRY_USERNAME}" "$\${REGISTRY_PASSWORD}" | base64 | tr -d '\\n')" > ~/.docker/config.json`
+        ),
+      },
+      {
+        text: `docker buildx create --name remote --driver remote ${BUILDKIT_ADDR} --use`,
+      },
+      {
+        text: lines(
+          "TAG=$(cat .tag)",
+          ...spec.images.map(
+            (image) =>
+              `docker buildx build --push -f ${image.dockerfile} -t "$\${REGISTRY}/${image.name}:$\${TAG}" ${image.context}`
+          )
+        ),
+      },
+      {
+        comment:
+          " Deploy bundle: only the listed files, laid out as the deploy dir.",
+        text: lines(
+          "TAG=$(cat .tag)",
+          "mkdir -p .bundle/bundle",
+          ...bundleCommands,
+          "printf 'FROM scratch\\nCOPY bundle /bundle\\n' > .bundle/Dockerfile",
+          `docker buildx build --push -t "$\${REGISTRY}/${componentKey}-deploy:$\${TAG}" .bundle`
+        ),
+      },
+    ],
+  });
+}
+
+// Without check steps Woodpecker runs the steps in file order. With checks,
+// `build` declares `depends_on`, which switches the whole pipeline to a DAG in
+// which a step without `depends_on` starts at once — so notify must name build.
+function notifyStep(doc: Document, componentKey: string, dag: boolean) {
+  return step(doc, {
+    name: "notify-panel",
+    image: NOTIFY_IMAGE,
+    dependsOn: dag ? ["build"] : [],
+    environment: { OPSDECK_NOTIFY_SECRET: { from_secret: "opsdeck_notify" } },
+    commands: [
+      { text: "apk add --no-cache curl openssl >/dev/null" },
+      {
+        comment: lines(
+          " Values are safe in printf JSON: branch/tag/commit are validated by the",
+          " Panel against regexes that exclude quotes and backslashes."
+        ),
+        text: lines(
+          "TAG=$(cat .tag)",
+          'URL=""',
+          'if [ -n "$${CI_PIPELINE_URL:-}" ]; then URL=",\\"pipelineUrl\\":\\"$${CI_PIPELINE_URL}\\""; fi',
+          `printf '{"app":"${componentKey}","branch":"%s","tag":"%s","commit":"%s"%s}' "$\${CI_COMMIT_BRANCH}" "$\${TAG}" "$\${CI_COMMIT_SHA}" "$\${URL}" > body.json`,
+          `SIG=$(openssl dgst -sha256 -hmac "$\${OPSDECK_NOTIFY_SECRET}" -r body.json | cut -d' ' -f1)`,
+          `curl -sS --fail-with-body --retry 3 --retry-all-errors --max-time 30 -H 'Content-Type: application/json' -H "X-Opsdeck-Signature: sha256=$\${SIG}" --data-binary @body.json ${NOTIFY_URL}`
+        ),
+      },
+    ],
+  });
+}
+
+/**
+ * Render the `.woodpecker.yaml` for a component. Served by the configuration
+ * extension and committed to the repo as the fallback file. Re-validates the
+ * spec: it comes from a jsonb column, and every path in it lands in a shell.
+ */
+export function generateWoodpeckerPipeline(
+  componentKey: string,
+  spec: BuildSpec,
+  options: PipelineOptions = {}
+): string {
+  const key = componentKeySchema.parse(componentKey);
+  const parsed = buildSpecSchema.parse(spec);
+  const registry = options.registry ?? process.env.DEPLOY_REGISTRY;
+  if (!registry) {
+    throw new Error(
+      "Cannot generate a pipeline: DEPLOY_REGISTRY is not set and no registry was given"
+    );
+  }
+  deployRegistrySchema.parse(registry);
+
+  const doc = new Document();
+
+  const when = doc.createNode([{}]) as YAMLSeq;
+  const trigger = when.items[0];
+  if (!isMap(trigger)) throw new Error("unreachable: when item is not a map");
+  trigger.set("event", flowSeq(doc, ["push", "manual"]));
+  trigger.set("branch", flowSeq(doc, parsed.branches));
+
+  const steps = new YAMLSeq();
+  steps.items = [
+    ...parsed.checks.map((check) => checkStep(doc, check)),
+    buildStep(doc, key, parsed, registry),
+    notifyStep(doc, key, parsed.checks.length > 0),
+  ];
+  // Blank line between steps, as in the hand-written files.
+  for (const item of steps.items.slice(1)) {
+    (item as YAMLMap).spaceBefore = true;
+  }
+
+  const whenKey = doc.createNode("when") as Scalar;
+  whenKey.commentBefore = ` Generated by DSS Panel for ${key} — edit the build spec in the Panel, not this file.`;
+  const stepsKey = doc.createNode("steps") as Scalar;
+  stepsKey.spaceBefore = true;
+  const root = new YAMLMap();
+  root.items = [doc.createPair(whenKey, when), doc.createPair(stepsKey, steps)];
+  doc.contents = root;
+
+  return doc.toString(STRINGIFY_OPTIONS);
+}
