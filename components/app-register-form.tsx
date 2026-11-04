@@ -37,6 +37,11 @@ import {
   type RegisterAppInput,
   registerAppSchema,
 } from "@/lib/ci/registration";
+import {
+  type IssueKey,
+  type IssueMessage,
+  issueMessage,
+} from "@/lib/ci/registration-issues";
 import { cn } from "@/lib/utils";
 import {
   listCiConnectionOptionsQuery,
@@ -155,16 +160,25 @@ function toInput(
   };
 }
 
-/** Issue messages keyed by their dotted path, e.g. "components.0.componentKey". */
+/**
+ * Translated issue messages keyed by their dotted path, e.g.
+ * "components.0.componentKey". The schema's own text is never shown: each
+ * issue maps to an `appForm.issues` key (lib/ci/registration-issues.ts).
+ */
 type Issues = Map<string, string>;
 
-function issuesOf(input: unknown): Issues {
+function issuesOf(
+  input: unknown,
+  translate: (key: IssueKey, values?: IssueMessage["values"]) => string
+): Issues {
   const result = registerAppSchema.safeParse(input);
   const issues: Issues = new Map();
   if (result.success) return issues;
   for (const issue of result.error.issues) {
-    const key = issue.path.join(".");
-    if (!issues.has(key)) issues.set(key, issue.message);
+    const path = issue.path.join(".");
+    if (issues.has(path)) continue;
+    const { key, values } = issueMessage(issue);
+    issues.set(path, translate(key, values));
   }
   return issues;
 }
@@ -196,9 +210,13 @@ export function AppRegisterForm() {
     () => toInput(appKey, name, components),
     [appKey, name, components]
   );
+  const tIssues = useTranslations("appForm.issues");
   const issues = useMemo(
-    () => (submitted ? issuesOf(input) : new Map<string, string>()),
-    [submitted, input]
+    () =>
+      submitted
+        ? issuesOf(input, (key, values) => tIssues(key, values))
+        : new Map<string, string>(),
+    [submitted, input, tIssues]
   );
   const dirty =
     appKey !== "" || name !== "" || components.some((c) => c.repo !== null);
