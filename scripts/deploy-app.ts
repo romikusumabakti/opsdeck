@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { deployApps } from "@/lib/db/schema";
 import { appKeySchema, bundleImageSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
+import { describeDbError } from "@/lib/secrets-migration";
 import { encryptSecret } from "@/lib/secrets";
 
 const [command, appKey, bundleImage] = process.argv.slice(2);
@@ -42,6 +43,13 @@ function check(schema: z.ZodType<string>, value: string) {
 check(appKeySchema, appKey);
 if (command === "create") check(bundleImageSchema, bundleImage as string);
 
+// Drizzle errors embed the query params (the encrypted notify secret), so a
+// failure prints only a safe error code, never the error itself.
+function failDb(error: unknown): never {
+  console.error(`Database error (${describeDbError(error)})`);
+  process.exit(1);
+}
+
 const secret = randomBytes(32).toString("hex");
 const notifySecret = encryptSecret(secret);
 
@@ -51,16 +59,21 @@ if (command === "create") {
       .insert(deployApps)
       .values({ appKey, bundleImage: bundleImage as string, notifySecret });
   } catch (error) {
-    if (!isUniqueViolation(error)) throw error;
+    if (!isUniqueViolation(error)) failDb(error);
     console.error(`App ${appKey} already exists — use rotate`);
     process.exit(1);
   }
 } else {
-  const rows = await db
-    .update(deployApps)
-    .set({ notifySecret })
-    .where(eq(deployApps.appKey, appKey))
-    .returning({ appKey: deployApps.appKey });
+  let rows: { appKey: string }[] = [];
+  try {
+    rows = await db
+      .update(deployApps)
+      .set({ notifySecret })
+      .where(eq(deployApps.appKey, appKey))
+      .returning({ appKey: deployApps.appKey });
+  } catch (error) {
+    failDb(error);
+  }
   if (rows.length === 0) {
     console.error(`Unknown deploy app: ${appKey}`);
     process.exit(1);
