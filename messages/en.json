@@ -1139,6 +1139,7 @@
     "submitting": "Processing…"
   },
   "actionErrors": {
+    "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "Name and email are required",
     "domainNotAllowed": "Only @{domain} emails are allowed",
     "emailAlreadyRegistered": "Email is already registered",

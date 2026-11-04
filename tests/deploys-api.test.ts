@@ -51,6 +51,14 @@ const apps = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/apps", () => apps);
 
+// The app adoption and the target insert share one transaction.
+const txState = vi.hoisted(() => ({ tx: { marker: "tx" } }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    transaction: async (fn: (tx: unknown) => unknown) => fn(txState.tx),
+  },
+}));
+
 const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
 vi.mock("@/server/services/deployments", () => deployments);
 
@@ -347,7 +355,8 @@ describe("target configuration", () => {
         backupBeforeDeploy: false,
         preStartCommand: null,
         healthUrl: null,
-      })
+      }),
+      txState.tx
     );
   });
 
@@ -381,9 +390,24 @@ describe("target configuration", () => {
     expect(await res.json()).toEqual({ error: COMPONENT_OTHER_APP_MESSAGE });
     expect(apps.assertTargetMatchesEnvironmentApp).toHaveBeenCalledWith(
       ENV_ID,
-      "dplk-accounting"
+      "dplk-accounting",
+      txState.tx
     );
     expect(repo.upsertTarget).not.toHaveBeenCalled();
+  });
+
+  it("adopts the app and inserts the target in one transaction", async () => {
+    const res = await send("POST", "/api/deploys/targets", newTarget);
+    expect(res.status).toBe(200);
+    expect(apps.assertTargetMatchesEnvironmentApp).toHaveBeenCalledWith(
+      ENV_ID,
+      "dplk-accounting",
+      txState.tx
+    );
+    expect(repo.upsertTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ environmentId: ENV_ID }),
+      txState.tx
+    );
   });
 
   it("answers a duplicate target with a 409 that differs from the other-app one", async () => {

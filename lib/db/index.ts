@@ -55,3 +55,6 @@ export const db = new Proxy({} as ReturnType<typeof createDb>, {
     return typeof value === "function" ? value.bind(real) : value;
   },
 });
+
+/** The pool or a transaction handle: what a query helper can run against. */
+export type DbExecutor = Pick<typeof db, "select" | "update" | "insert">;

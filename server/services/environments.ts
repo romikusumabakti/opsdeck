@@ -1,4 +1,5 @@
 import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
 import { assignableUsersWhere } from "@/lib/assignees";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
@@ -11,6 +12,7 @@ import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
 import {
+  deployTargets,
   type Environment,
   type EnvironmentListItem,
   environmentAccess,
@@ -436,6 +438,26 @@ export async function updateEnvironment(
     (parsed.data.hasFrontend === false && hasService(stored, "frontend"));
   if (removesService || changedInfraFields(parsed.data, stored).length > 0) {
     await requireOrgPermission({ server: ["manage"] });
+  }
+  // A deploy that backs up first needs the db service; dropping it would make
+  // every later deploy of that target fail.
+  if (parsed.data.hasDatabase === false && hasService(stored, "db")) {
+    const [backupTarget] = await db
+      .select({ id: deployTargets.id })
+      .from(deployTargets)
+      .where(
+        and(
+          eq(deployTargets.environmentId, id),
+          eq(deployTargets.backupBeforeDeploy, true)
+        )
+      )
+      .limit(1);
+    if (backupTarget) {
+      const t = await getServerTranslator("actionErrors");
+      throw new HTTPException(409, {
+        message: t("backupTargetsBlockDatabaseRemoval"),
+      });
+    }
   }
   // Moving an environment into another project is a create there.
   if (parsed.data.projectId) {
