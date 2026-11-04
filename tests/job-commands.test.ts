@@ -3,6 +3,7 @@ import {
   chmodSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -39,7 +40,7 @@ import {
   pgPsqlPipeline,
   pgQuoteId,
   pgQuoteLiteral,
-  pgRecreateDatabaseQuery,
+  pgRecreateDatabasePipeline,
   pgRenameDatabaseQuery,
   pgRestorePipeline,
   posixDirname,
@@ -208,10 +209,103 @@ describe("dbBackupExtensionPattern", () => {
 });
 
 describe("Postgres statements", () => {
-  it("recreates with FORCE so an open connection can't block the drop", () => {
-    expect(pgRecreateDatabaseQuery("car2")).toBe(
-      `DROP DATABASE IF EXISTS "car2" WITH (FORCE); CREATE DATABASE "car2";`
-    );
+  describe("pgRecreateDatabasePipeline", () => {
+    // Runs the real pipeline under bash with stub psql, pg_dump and pg_restore
+    // on PATH that log their argv (and psql its stdin). `psql -c` answers the
+    // existence query; `pg_restore -C -l` prints a TOC listing.
+    const STUB_PSQL = `#!/bin/bash
+for a in "$@"; do [ "$a" = -c ] && { printf '%s' "$STUB_EXISTS"; exit 0; }; done
+{ echo "psql $*"; cat; } >> "$STUB_LOG"
+`;
+    const STUB_PG_DUMP = `#!/bin/bash
+echo "pg_dump $*" >> "$STUB_LOG"
+[ -n "$STUB_DUMP_FAIL" ] && exit 1
+exit 0
+`;
+    const STUB_PG_RESTORE = `#!/bin/bash
+if [ "$1 $2" = "-C -l" ]; then
+  printf '%s\\n' ';' '; Selected TOC Entries:' \\
+    '3436; 1262 16581 DATABASE - car2 app_owner' \\
+    '3437; 0 0 COMMENT - DATABASE "car2" app_owner' \\
+    '3440; 3079 16590 EXTENSION - citext ' \\
+    '3441; 0 0 COMMENT - EXTENSION citext ' \\
+    '3438; 0 0 ACL - DATABASE "car2" app_owner' \\
+    '3439; 0 0 DATABASE PROPERTIES - car2 app_owner'
+  exit 0
+fi
+echo "pg_restore $*" >> "$STUB_LOG"
+for a in "$@"; do prev=$cur; cur=$a; [ "$prev" = -L ] && cat "$a" >> "$STUB_LOG"; done
+exit 0
+`;
+
+    function recreate(env: Record<string, string>) {
+      const dir = mkdtempSync(join(tmpdir(), "pg-recreate-"));
+      for (const [name, body] of Object.entries({
+        psql: STUB_PSQL,
+        pg_dump: STUB_PG_DUMP,
+        pg_restore: STUB_PG_RESTORE,
+      })) {
+        writeFileSync(join(dir, name), body, { mode: 0o755 });
+      }
+      const log = join(dir, "log");
+      writeFileSync(log, "");
+      const out = spawnSync(
+        "bash",
+        ["-c", pgRecreateDatabasePipeline("car2")],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PATH: `${dir}:${process.env.PATH}`,
+            STUB_LOG: log,
+            ...env,
+          },
+        }
+      );
+      const result = {
+        status: out.status,
+        log: readFileSync(log, "utf8").replace(/\/[^ ]*\/db\./g, "<dir>/db."),
+      };
+      rmSync(dir, { recursive: true });
+      return result;
+    }
+
+    it("drops with FORCE, then restores only the database-level archive entries", () => {
+      const r = recreate({ STUB_EXISTS: "1" });
+      expect(r.status).toBe(0);
+      expect(r.log).toBe(
+        [
+          "pg_dump -U postgres -Fc --create --schema-only --exclude-schema=* -f <dir>/db.dump car2",
+          "psql -X -q -v ON_ERROR_STOP=on -U postgres -d postgres",
+          'DROP DATABASE IF EXISTS "car2" WITH (FORCE);',
+          "pg_restore -U postgres -d postgres --create --exit-on-error -L <dir>/db.list <dir>/db.dump",
+          "3436; 1262 16581 DATABASE - car2 app_owner",
+          '3437; 0 0 COMMENT - DATABASE "car2" app_owner',
+          '3438; 0 0 ACL - DATABASE "car2" app_owner',
+          "3439; 0 0 DATABASE PROPERTIES - car2 app_owner",
+          "",
+        ].join("\n")
+      );
+    });
+
+    it("creates a plain database when none exists, without an archive", () => {
+      const r = recreate({ STUB_EXISTS: "" });
+      expect(r.status).toBe(0);
+      expect(r.log).toBe(
+        [
+          "psql -v ON_ERROR_STOP=on -U postgres -d postgres",
+          'CREATE DATABASE "car2";',
+          "",
+        ].join("\n")
+      );
+    });
+
+    it("never drops the database when the capture fails", () => {
+      const r = recreate({ STUB_EXISTS: "1", STUB_DUMP_FAIL: "1" });
+      expect(r.status).not.toBe(0);
+      expect(r.log).not.toContain("DROP DATABASE");
+      expect(r.log).not.toContain("pg_restore");
+    });
   });
 
   it("drops with IF EXISTS and FORCE", () => {

@@ -182,21 +182,52 @@ export function pgBackupPipeline(
 }
 
 /**
- * Drop and recreate, so a dump pipes into a clean database — this is what lets
- * us restore dumps produced both with and without `--clean --if-exists`.
- * `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
- * doesn't fail with "database is being accessed by other users".
+ * `pg_restore -C -l` entries that make up the database itself: the DATABASE
+ * entry (CREATE DATABASE with its encoding and locale, plus its owner), its
+ * DATABASE PROPERTIES (per-database and per-role settings) and its comment,
+ * ACL and security labels. Selecting whole archive entries instead of SQL
+ * lines keeps multi-line string literals intact.
  */
-export function pgRecreateDatabaseQuery(database: string): string {
+const PG_DATABASE_TOC_PATTERN =
+  "^[0-9]+; [0-9]+ [0-9]+ (DATABASE|DATABASE PROPERTIES|(COMMENT|ACL|SECURITY LABEL) - DATABASE) ";
+
+/**
+ * The inner shell command that drops and recreates `database`, so a dump pipes
+ * into a clean database — this is what lets us restore dumps produced both
+ * with and without `--clean --if-exists`.
+ *
+ * A bare CREATE DATABASE would hand the database to postgres with default
+ * privileges: the app role loses ownership (and with it the PG15+ `public`
+ * schema, owned by pg_database_owner), REVOKEs from PUBLIC are undone and
+ * per-database settings vanish. So when the database exists, a schema-less
+ * archive of it is taken before the drop and only its database-level entries
+ * are restored with `pg_restore --create`. Any capture failure exits before
+ * the DROP. `WITH (FORCE)` (Postgres 13+) terminates active connections so the
+ * DROP doesn't fail with "database is being accessed by other users".
+ */
+export function pgRecreateDatabasePipeline(database: string): string {
   const dbId = pgQuoteId(database);
-  return `DROP DATABASE IF EXISTS ${dbId} WITH (FORCE); CREATE DATABASE ${dbId};`;
+  const drop = `printf '%s\\n' ${shq(`DROP DATABASE IF EXISTS ${dbId} WITH (FORCE);`)} | psql -X -q -v ON_ERROR_STOP=on -U postgres -d postgres`;
+  const exists =
+    `exists=$(psql -X -At -v ON_ERROR_STOP=on -U postgres -d postgres ` +
+    `-c ${shq(`SELECT 1 FROM pg_database WHERE datname = ${pgQuoteLiteral(database)}`)}) || exit 1`;
+  const fresh = pgPsqlPipeline(`CREATE DATABASE ${dbId};`);
+  const replay = [
+    `dir=$(mktemp -d) || exit 1`,
+    `trap 'rm -rf "$dir"' EXIT`,
+    `pg_dump -U postgres -Fc --create --schema-only --exclude-schema='*' -f "$dir/db.dump" ${shq(database)} || exit 1`,
+    `pg_restore -C -l "$dir/db.dump" | grep -E ${shq(PG_DATABASE_TOC_PATTERN)} > "$dir/db.list" || exit 1`,
+    `${drop} || exit 1`,
+    `pg_restore -U postgres -d postgres --create --exit-on-error -L "$dir/db.list" "$dir/db.dump"`,
+  ].join("; ");
+  return `set -o pipefail; ${exists}; if [ "$exists" != 1 ]; then ${fresh}; exit; fi; ${replay}`;
 }
 
 export function pgCreateDatabaseQuery(database: string): string {
   return `CREATE DATABASE ${pgQuoteId(database)};`;
 }
 
-/** See pgRecreateDatabaseQuery for why `WITH (FORCE)`. */
+/** See pgRecreateDatabasePipeline for why `WITH (FORCE)`. */
 export function pgDropDatabaseQuery(database: string): string {
   return `DROP DATABASE IF EXISTS ${pgQuoteId(database)} WITH (FORCE);`;
 }
