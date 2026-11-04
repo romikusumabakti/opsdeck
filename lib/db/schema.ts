@@ -355,6 +355,13 @@ export const forgeKindEnum = pgEnum("forge_kind", [
   "forgejo",
 ]);
 
+// Where a component's pipeline comes from: the repo's own file ("custom") or
+// one the Panel generates from the component's build spec ("generated").
+export const pipelineModeEnum = pgEnum("pipeline_mode", [
+  "custom",
+  "generated",
+]);
+
 // A CI server and the forge it builds from. Several connections may exist at
 // once so components can move between forges one at a time.
 export const ciConnections = pgTable("ci_connections", {
@@ -364,6 +371,17 @@ export const ciConnections = pgTable("ci_connections", {
   forge: forgeKindEnum("forge").notNull(),
   // CI root, no trailing slash (e.g. https://ci.example.net).
   baseUrl: text("base_url").notNull(),
+  // Woodpecker API token. Encrypted at rest via lib/secrets.ts; write-only,
+  // never sent to the client.
+  apiToken: text("api_token"),
+  // Forge account used to commit the fallback pipeline file.
+  forgeUsername: text("forge_username"),
+  // Forge access token. Encrypted at rest via lib/secrets.ts; write-only.
+  forgeToken: text("forge_token"),
+  // The CI server's ed25519 public key (PEM) that verifies configuration
+  // extension requests, cached from its signature endpoint.
+  extensionPublicKey: text("extension_public_key"),
+  extensionPublicKeyFetchedAt: timestamp("extension_public_key_fetched_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -402,6 +420,13 @@ export const appComponents = pgTable(
     // Shared secret for the CI build-notify webhook. Encrypted at rest via
     // lib/secrets.ts; never sent to the client.
     notifySecret: text("notify_secret").notNull(),
+    pipelineMode: pipelineModeEnum("pipeline_mode").notNull().default("custom"),
+    // Inputs for the generated pipeline; null while the mode is "custom".
+    buildSpec: jsonb("build_spec").$type<Record<string, unknown>>(),
+    // Commit that last wrote the generated fallback file to the repo.
+    fallbackCommittedSha: text("fallback_committed_sha"),
+    // Why the last fallback commit failed; null when it succeeded.
+    fallbackCommitError: text("fallback_commit_error"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
