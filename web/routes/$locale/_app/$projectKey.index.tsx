@@ -224,17 +224,19 @@ function ProjectOverviewPage() {
                           </div>
                           <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
                         </div>
-                        <div className="flex items-center gap-2 text-sm min-w-0">
-                          <Badge
-                            variant="secondary"
-                            className="text-xs shrink-0"
-                          >
-                            {tDash(`dbTypes.${env.dbType}`)}
-                          </Badge>
-                          <code className="font-mono text-xs text-muted-foreground truncate">
-                            {env.dbName}
-                          </code>
-                        </div>
+                        {env.dbType ? (
+                          <div className="flex items-center gap-2 text-sm min-w-0">
+                            <Badge
+                              variant="secondary"
+                              className="text-xs shrink-0"
+                            >
+                              {tDash(`dbTypes.${env.dbType}`)}
+                            </Badge>
+                            <code className="font-mono text-xs text-muted-foreground truncate">
+                              {env.dbName}
+                            </code>
+                          </div>
+                        ) : null}
                         <EnvironmentOwner owner={env.owner} />
                         <span className="text-xs text-muted-foreground">
                           {activity ? (

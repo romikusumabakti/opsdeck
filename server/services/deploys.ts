@@ -2,6 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
+import { db } from "@/lib/db";
 import type { DeployTarget } from "@/lib/db/schema";
 import {
   deleteTarget,
@@ -97,15 +98,21 @@ export async function createDeployTarget(
     fail(404, "Component not found");
   }
   await requireServerInEnvironment(input.environmentId, input.serverId);
-  await assertTargetMatchesEnvironmentApp(
-    input.environmentId,
-    input.componentKey
-  );
   try {
-    return await upsertTarget({
-      ...input,
-      preStartCommand: input.preStartCommand ?? null,
-      healthUrl: input.healthUrl ?? null,
+    return await db.transaction(async (tx) => {
+      await assertTargetMatchesEnvironmentApp(
+        input.environmentId,
+        input.componentKey,
+        tx
+      );
+      return upsertTarget(
+        {
+          ...input,
+          preStartCommand: input.preStartCommand ?? null,
+          healthUrl: input.healthUrl ?? null,
+        },
+        tx
+      );
     });
   } catch (error) {
     if (isUniqueViolation(error)) {

@@ -184,6 +184,13 @@ Runs on production data; the controller does it, not a subagent, and only after 
 
 - [ ] **Step 1:** Backup per the opsdeck db-migrations procedure (`dss_panel_pre_apps_model_<date>.dump` on .113 and a copy in `~/backups/opsdeck/`, md5 compared).
 - [ ] **Step 2:** Dry-run the migration against live with `COMMIT` → `ROLLBACK`; expect no error.
-- [ ] **Step 3:** Merge the branch into `main`, push; apply the migration; ask Romi to run Jenkins `DSS/dss-panel`.
+- [ ] **Step 3:** Merge the branch into `main` and push, then roll out. This migration is NOT backward compatible (it renames `deploy_apps` and `app_key`, and deletes duplicate frontend rows), so the old build breaks between applying it and the new build going live. Follow this order:
+  - (a) Verify the branch image builds the way Jenkins builds it (`docker build` of the repo's Dockerfile) before applying anything.
+  - (b) Check the live DB is quiet: `select status, count(*) from deployments where status in ('queued','running') group by status` returns no rows, and no Woodpecker pipeline is running.
+  - (c) Take a dump, apply the migration, then ask Romi to run Jenkins `DSS/dss-panel` immediately.
+  - (d) Re-run the notify step of any pipeline that failed during the window (the hook is idempotent).
+  - (e) Keep the rollback ready: the pre-migration dump plus `drizzle/20261105000000_apps_model/rollback.sql` (reverse renames, drops the new columns, tables and enums). It re-inserts nothing for the 4 deleted frontend rows; restoring the dump brings them back.
+  - (f) The live dry-run (migration inside a transaction that is rolled back) must print exactly `DELETE 4`, for the Sucor Investment Dev 1, Dev 2, Demo Local 1 and Demo Local 2 rows.
+  - (g) Before applying, check the screens by hand: run the branch locally against a DB restored from a live copy (a backend-only environment shows two cards with Databases and Mock time hidden, `/databases` shows its empty state, the project page shows no db badge; the portal Deploys page shows two targets).
 - [ ] **Step 4:** Verify on live: `curl -s -H 'Host: panel.dssconsulting.id' http://localhost:80/api/health` → 200; the queries of Task 1 Step 4 on live; Woodpecker re-run of one cheap pipeline (cms) records a build and auto-deploys Dev 1/Dev 2 as before; Romi opens Sucor Investment / Dev 1 dashboard (two service cards) and one portal environment's Deploys page (two targets).
 - [ ] **Step 5:** Record the migration in opsdeck memory `db-migrations.md`.

@@ -1139,6 +1139,7 @@
     "submitting": "处理中…"
   },
   "actionErrors": {
+    "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "姓名和邮箱为必填项",
     "domainNotAllowed": "只允许 @{domain} 邮箱",
     "emailAlreadyRegistered": "邮箱已注册",
