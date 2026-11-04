@@ -78,7 +78,7 @@ Builds are idempotent per `(app, tag)`:
 
 ## The bundle image
 
-Each app has a `bundleImage` (registered with `scripts/deploy-app.ts`). The
+Each app has a `bundleImage` (registered with `dist/deploy-app.js`). The
 deploy pulls `<DEPLOY_REGISTRY>/<bundleImage>:<tag>`.
 
 Convention:
@@ -186,8 +186,8 @@ Notes:
 Panel):
 
 ```sh
-bun --conditions react-server scripts/deploy-app.ts create <appKey> <bundleImage>
-bun --conditions react-server scripts/deploy-app.ts rotate <appKey>
+docker exec opsdeck-app bun dist/deploy-app.js create <appKey> <bundleImage>
+docker exec opsdeck-app bun dist/deploy-app.js rotate <appKey>
 ```
 
 `create` registers the app and prints a random notify secret to stdout, once. It
