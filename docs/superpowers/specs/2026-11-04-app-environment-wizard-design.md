@@ -38,7 +38,7 @@ UI, in one flow, without knowing Woodpecker, Cloudflare or SSH.**
 | Existing environments | **Migrate all at once** (~30, across Sucor, CAR, TMLI, DapenMU, DPSIU, Common, .136) |
 | Non-container environments | (CAR legacy systemd + SQL Server, etc.) migrate as **managed without deploy**: DB operations, mock time, service control and issues work as today; build/deploy stays outside the Panel until the app is containerised |
 | Who registers apps | **Maintainers and admins** register new apps (connect a repo). Every developer may add environments to registered apps |
-| Pipeline source | **Panel + fallback file:** Woodpecker gets the pipeline from the Panel's configuration extension; the Panel also commits the generated `.woodpecker.yaml` to the repo, so builds keep working with the last file while the Panel is down |
+| Pipeline source | **Committed file per built branch** (decided 2026-11-05, after the final review of plan 2): the Panel generates `.woodpecker.yaml` and commits it to every branch in the component's build spec; Woodpecker reads only that file. Woodpecker's configuration extension is **not used**: v3.20.1 fails the pipeline on any non-2xx or transport error from the extension (no fallback to the repo's file), so a Panel outage or a Cloudflare Access hiccup would fail every build |
 | CI/CD direction | Reviewed 2026-11-04: keep Woodpecker (build) + Panel (deploy). **No Dagger for now** (pipelines are three generated steps; its engine runs privileged by default, against the rootless BuildKit setup); revisit if CI grows heavy test matrices. Woodpecker sits behind a **CI provider** boundary in the Panel so a forge-native CI (GitLab CI, Forgejo Actions) can replace it later without changing the app/environment/deploy model |
 | Wizard shape | **Hybrid:** "New app" is a stepper (Repo → Environment → Database → Variables → Domain → Review); "Add environment" is one page with collapsible sections, prefilled by **copying from an existing environment**. Both end on the same Review screen |
 
@@ -65,12 +65,16 @@ spec + its tag variable.
   domain kind, deploy policy.
 - Optional: `managedOnly` for apps the Panel does not build/deploy (legacy).
 
-The app owns its pipeline. Woodpecker's **configuration extension** (stable, documented)
-asks the Panel for the pipeline on every build, and the Panel answers with the
-standard build → bundle → notify pipeline generated from the build spec. The Panel also
-commits that generated file to the repo as `.woodpecker.yaml` (fallback when the Panel is
-unreachable; the extension's answer wins while it is up). An app marked "custom
-pipeline" keeps the repo's own file and the extension returns it unchanged.
+The app owns its pipeline. For a component in "generated" mode the Panel renders the
+standard build → bundle → notify pipeline from the build spec and commits it as
+`.woodpecker.yaml` to **every branch the build spec builds**; Woodpecker builds from that
+committed file only, so builds never depend on the Panel being up. Each branch's commit
+is tracked separately (sha, or the reason it failed) and can be retried from the app
+page. Woodpecker's configuration extension is not used: v3.20.1 fails the build when the
+extension is unreachable or answers non-2xx, instead of falling back to the repo's file;
+registration clears any extension endpoint on the repo. Generated mode, pipeline file
+commits and notify-secret rotation are for admins (`integration:manage`); maintainers
+register "custom pipeline" components, which keep the repo's own file.
 
 ### Environment (existing table, extended)
 
@@ -217,8 +221,11 @@ All existing environments move to the new model in one migration project:
   - builds, tags (`origin-<branch>-<sha>`; SHAs survive a mirror push), deployments and
     environments are unchanged, so rollback to pre-move builds still works.
 - **Woodpecker v3.20.1** (.113): REST API with an admin-capable token (activate repo,
-  settings, secrets, trigger pipelines) and the configuration extension endpoint
-  served by the Panel (Woodpecker signs those requests; the Panel verifies them).
+  settings, secrets, trigger pipelines), reached by the Panel over an internal Docker
+  network on .113 (no public hop, no Cloudflare Access in between). No configuration
+  extension: pipelines come from the committed `.woodpecker.yaml` (see Pipeline source).
+- **Forge (Bitbucket):** an API token with repository write scope, stored encrypted on
+  the CI connection, to commit the generated pipeline file to each built branch.
 - **Cloudflare:** a long-lived API token scoped to Tunnel edit, DNS edit on the managed
   zone(s) and Access apps, stored encrypted in the Panel. Today no stored credential can
   edit `dssconsulting.id` DNS; creating that token is a prerequisite.

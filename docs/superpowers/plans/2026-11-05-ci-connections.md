@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Admins configure CI connections in the Panel, maintainers and admins register apps from the UI (repo activated in Woodpecker, notify secret set, settings applied), and Woodpecker gets each Panel-generated pipeline from the Panel through its configuration extension, with a committed `.woodpecker.yaml` as fallback.
+**Goal:** Admins configure CI connections in the Panel, maintainers and admins register apps from the UI (repo activated in Woodpecker, notify secret set, settings applied), and each Panel-generated pipeline is committed as `.woodpecker.yaml` to every branch the component builds (Woodpecker reads only that file; its configuration extension is not used — see the spec's "Pipeline source").
 
-**Architecture:** A provider interface (`lib/ci/`) hides Woodpecker behind `CiProvider`; a CI connection row carries the provider's URL and encrypted credentials. Each app component gets a pipeline mode: `custom` (the repo's own file; the extension answers 204) or `generated` (the Panel renders the standard build → bundle → notify pipeline from a build spec). The configuration extension endpoint verifies Woodpecker's RFC 9421 ed25519 request signature. Fallback files are committed through a forge client (Bitbucket only now).
+**Architecture:** A provider interface (`lib/ci/`) hides Woodpecker behind `CiProvider`; a CI connection row carries the provider's URL and encrypted credentials. Each app component gets a pipeline mode: `custom` (the repo's own file) or `generated` (the Panel renders the standard build → bundle → notify pipeline from a build spec and commits it to each built branch through a forge client, Bitbucket only now).
 
 **Tech Stack:** Bun, Hono, React 19 + TanStack Router/Query, Drizzle (hand-written SQL migrations), Zod, Vitest, Biome, node:crypto (ed25519, sha-256). No new dependencies.
 
@@ -12,10 +12,10 @@
 
 ## Global Constraints
 
-- Maintainers (of any project) and admins register new apps; CI connections are managed by org `integration:manage` (admins).
-- Pipeline source: the configuration extension supplies generated pipelines; the Panel also commits the generated file as `.woodpecker.yaml` (fallback). Apps marked custom keep the repo's file (extension answers `204 No Content`).
-- Woodpecker v3.20.1 facts (verified in its source, `server/services/config/http.go`, `server/pipeline/create.go`, `server/services/utils/http.go`): request body `{repo, pipeline, netrc?, restart, configuration?: [{name, data}]}`; response `{configs: [{name, data}]}` or 204; a non-200/204 status makes Woodpecker fall back to the repo's config, a transport failure fails the pipeline; requests are signed per RFC 9421 with ed25519, components `"@request-target"` and `"content-digest"`, signature name / key id `woodpecker-ci-extensions`; the public key is served at `GET <woodpecker>/api/signature/public-key`; extension hosts in private ranges are blocked unless `WOODPECKER_EXTENSIONS_ALLOWED_HOSTS` allows them; repo fields `config_extension_endpoint`, `config_extension_exclusive`, `config_extension_netrc`.
-- The extension endpoint is reached through the public Panel URL `https://panel.dssconsulting.id/api/ci/config/<connectionId>` with a Cloudflare Access bypass for that path (same pattern as `/api/deploy-hooks`).
+- Maintainers (of any project) and admins register new apps; CI connections are managed by org `integration:manage` (admins). Generated mode, pipeline file commits and notify-secret rotation also need `integration:manage`; maintainers register `custom` components only (403 otherwise).
+- Pipeline source (decided after the final review): the committed file only. The Panel commits the generated `.woodpecker.yaml` to every branch in the component's `buildSpec.branches`, recording each branch's sha or error; registration clears any configuration extension on the repo. Apps marked custom keep the repo's file.
+- Woodpecker v3.20.1 facts: a configuration extension that answers non-2xx or cannot be reached **fails the pipeline** — there is no fallback to the repo's config (verified in its source before the final fix wave), which is why the extension is not used; repo fields `config_extension_endpoint` (cleared with `""`), `config_extension_exclusive`, `config_extension_netrc`; `POST /api/repos?forge_remote_id=` answers 409 for an already active repo (the client then reuses it via lookup; any other status is an error).
+- Provider and forge calls: no redirects followed (a 3xx is reported as "redirected — check the URL/Access"), 15 s timeout per call. The Panel reaches Woodpecker over an internal Docker network on .113, not through Cloudflare Access.
 - Generated pipelines match the existing hand-written ones: tag `origin-<branch with / → ->-<sha cut to tagShaLength>`, BuildKit remote driver `tcp://buildkitd:1234`, org secrets `registry_username`/`registry_password`, repo secret `opsdeck_notify`, notify with curl and header `X-Opsdeck-Signature: sha256=<hex>` to `https://panel.dssconsulting.id/api/deploy-hooks/builds`, block scalars (`- |`) for multi-line commands, `$${VAR}` escaping, `cd` only inside subshells.
 - Credentials (Woodpecker token, forge token, notify secrets) are encrypted with `lib/secrets.ts`, write-only in the API and UI, never logged.
 - Woodpecker repo ids in URLs: the forge remote id contains `{}` and must be URL-encoded.
@@ -25,10 +25,10 @@
 
 ## Review Focus
 
-1. A request to the extension with a valid signature but a body that differs from the signed `content-digest` must be rejected (401), not answered.
-2. An extension call for a repo the Panel does not know, or a component in `custom` mode, must answer 204 so Woodpecker keeps the repo file — never 404/500 (which would also fall back, but logs a warning on every build).
+1. *(Removed with Task 5: no configuration extension.)*
+2. *(Removed with Task 5: no configuration extension.)*
 3. Registering an app whose repo is already active in Woodpecker (all seven current repos are) must reuse the existing Woodpecker repo and not fail or create a duplicate.
-4. A forge commit failure (no forge token, expired token, protected branch) must not undo an otherwise successful registration; the UI shows the fallback file as "not committed" with the reason.
+4. A forge commit failure on one branch (no forge token, expired token, protected branch) must not undo an otherwise successful registration or stop the other branches; the UI shows that branch's pipeline file as "not committed" with the reason.
 5. Rotating a notify secret from the app page must update both the Panel and the Woodpecker repo secret, or report which side failed.
 
 ---
@@ -118,7 +118,9 @@
 - [ ] **Step 2–4:** FAIL → implement → PASS.
 - [ ] **Step 5: Commit** `feat(ci): build spec and generated Woodpecker pipeline`
 
-### Task 5: Configuration extension endpoint
+### Task 5: Configuration extension endpoint — removed after final review (see spec)
+
+> Implemented in `805598d`, removed in the final fix wave: Woodpecker v3.20.1 fails builds when the extension is unreachable, so pipelines come from the committed file only. The text below is kept for history.
 
 **Files:**
 - Create: `lib/ci/http-signature.ts`, `server/routes/ci-config.ts`
@@ -137,6 +139,8 @@
 
 ### Task 6: Fallback file commit (Bitbucket)
 
+> Final fix wave: the file is the only pipeline source and is committed to every built branch; `getDefaultBranch` was removed, and Bitbucket calls no longer follow redirects and time out after 15 s.
+
 **Files:**
 - Create: `lib/ci/forges/bitbucket.ts`
 - Test: `tests/ci-bitbucket.test.ts`
@@ -149,6 +153,8 @@
 - [ ] **Step 5: Commit** `feat(ci): commit the fallback pipeline file to Bitbucket`
 
 ### Task 7: App registration and app pages
+
+> Final fix wave: `updateRepoSettings` clears the extension (`configExtensionEndpoint: null`); `fallback_committed_sha`/`fallback_commit_error` became `pipeline_file_commits` (branch → `{ sha?, error?, at }`); `commit-fallback` became `commit-pipeline-file` (admins; every branch, or `?branch=`); generated mode and rotate-secret need `integration:manage`.
 
 **Files:**
 - Create: `server/services/apps.ts`, `server/routes/apps.ts`, `web/api/apps.ts`, `web/routes/$locale/_app/apps.index.tsx`, `apps.new.tsx`, `apps.$appKey.tsx`
@@ -171,9 +177,11 @@
 
 ### Task 8: Go live (controller, after Romi's go-ahead)
 
-- [ ] **Step 1:** Backup + dry-run + apply `20261105010000_ci_connection_credentials` (additive, so applying before the deploy is safe); merge and push `main`; Romi runs Jenkins `DSS/dss-panel`; health 200.
-- [ ] **Step 2:** Cloudflare Access: add a bypass app for `panel.dssconsulting.id/api/ci/config` (pattern of `dss-panel-deploy-hooks`, token `~/.config/secrets/dss/cloudflare-access-token`); verify `curl -s -o /dev/null -w '%{http_code}' -X POST https://panel.dssconsulting.id/api/ci/config/<id>` → 401 from the origin, not a 302 to Access.
-- [ ] **Step 3:** Romi enters the Woodpecker token in Admin → CI connections and clicks "Refresh Woodpecker key"; the controller confirms the stored PEM matches `GET http://127.0.0.1:8000/api/signature/public-key` on .113.
-- [ ] **Step 4:** Link the 7 existing components to their Woodpecker repos' settings: set `config_extension_endpoint` on repo 2 (cms, custom) only; re-run its latest pipeline; Panel log shows a verified signature and a 204; the pipeline runs the repo file as before. Then set it on the other six.
-- [ ] **Step 5:** Forge token: Romi creates an Atlassian API token with Bitbucket repository write scope for his account and enters username + token in the connection (optional now — until then generated components show "not committed: no forge token").
-- [ ] **Step 6:** Memory: opsdeck `panel-deploy-feature.md`, DSS `woodpecker-113.md` (extension endpoint, allowed hosts unchanged because the URL is public), `cloudflare.md` (new bypass app).
+- [ ] **Step 1 (a):** Backup + dry-run + apply the final `20261105010000_ci_connection_credentials` (additive: credentials on `ci_connections`; `pipeline_mode`, `build_spec`, `pipeline_file_commits` and the unique repo index on `app_components`), so applying before the deploy is safe.
+- [ ] **Step 2 (b):** Merge and push `main`; Romi runs Jenkins `DSS/dss-panel`; health 200.
+- [ ] **Step 3 (c):** Give the opsdeck app and the Woodpecker server a shared Docker network on .113 and set the connection's `base_url` to the internal Woodpecker address. Romi re-enters a rotated Woodpecker token in Admin → CI connections (the code requires a token whenever `base_url` changes). Verify that listing repos works from the Panel ("Register app" → connection → repository list).
+- [ ] **Step 4 (d):** Forge token: Romi creates an Atlassian API token with Bitbucket repository write scope. Check the Atlassian docs for the Basic-auth username (account email vs Bitbucket username) before entering username + token in the connection.
+- [ ] **Step 5 (e):** Canary: register nothing new for the existing seven components. On a throwaway branch of a low-risk repo, or a new test app, register a generated component and confirm the committed `.woodpecker.yaml` triggers a green pipeline and a build shows up in the Panel.
+- [ ] **Step 6 (f):** Memory: opsdeck `panel-deploy-feature.md`, DSS `woodpecker-113.md` (no configuration extension; Panel reaches Woodpecker over the internal network).
+
+No Cloudflare Access bypass is needed (the extension endpoint no longer exists).
