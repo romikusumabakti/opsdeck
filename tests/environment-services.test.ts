@@ -13,6 +13,7 @@ type Call = {
 // What the transaction did, in order, and what the stored environment holds.
 const state = vi.hoisted(() => ({
   calls: [] as Call[],
+  backupTargets: [] as unknown[],
   stored: { id: "", projectId: "", ownerId: null, services: [] } as {
     id: string;
     projectId: string;
@@ -87,7 +88,7 @@ vi.mock("@/lib/db", () => {
   return {
     db: {
       transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
-      select: () => query({ op: "select" }, []),
+      select: () => query({ op: "select" }, state.backupTargets),
     },
   };
 });
@@ -122,6 +123,7 @@ const rolesInserted = () =>
 
 beforeEach(() => {
   state.calls = [];
+  state.backupTargets = [];
   state.stored = {
     id: ENV_ID,
     projectId: UUID,
@@ -167,6 +169,25 @@ describe("updateEnvironment with optional services", () => {
     expect(deletes[0]?.where).toEqual([ENV_ID, "frontend"]);
     expect(state.calls.filter((c) => c.op === "update")).toEqual([]);
     expect(rolesInserted()).toEqual([]);
+  });
+
+  it("refuses to drop the database while a target backs up before deploy", async () => {
+    state.backupTargets = [{ id: UUID }];
+    await expect(
+      updateEnvironment(ENV_ID, { hasDatabase: false })
+    ).rejects.toMatchObject({
+      status: 409,
+      message: "backupTargetsBlockDatabaseRemoval",
+    });
+    expect(state.calls.filter((c) => c.op === "delete")).toEqual([]);
+  });
+
+  it("drops the database when no target backs up before deploy", async () => {
+    const result = await updateEnvironment(ENV_ID, { hasDatabase: false });
+    expect(result.success).toBe(true);
+    expect(
+      state.calls.filter((c) => c.op === "delete").map((c) => c.where)
+    ).toEqual([[ENV_ID, "db"]]);
   });
 
   it("inserts the frontend when hasFrontend is true and the row is missing", async () => {

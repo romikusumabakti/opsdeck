@@ -1139,6 +1139,7 @@
     "submitting": "Memproses…"
   },
   "actionErrors": {
+    "backupTargetsBlockDatabaseRemoval": "Matikan cadangan sebelum deploy pada target deploy lingkungan ini terlebih dahulu.",
     "nameAndEmailRequired": "Nama dan email wajib diisi",
     "domainNotAllowed": "Hanya email @{domain} yang diizinkan",
     "emailAlreadyRegistered": "Email sudah terdaftar",

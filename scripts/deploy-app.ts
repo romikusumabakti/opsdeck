@@ -156,6 +156,6 @@ if (command === "create") {
 
 console.log(secret);
 console.error(
-  `Shown once. Put it in the Woodpecker org secret opsdeck_notify_${componentKey}.`
+  `Shown once. Put it in the Woodpecker repo secret opsdeck_notify.`
 );
 process.exit(0);

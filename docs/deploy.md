@@ -213,7 +213,7 @@ Notes:
   key** everywhere: the hook's `app` field, the Woodpecker secret name, and the
   deploy target.
 - A **CI connection** is one configured instance of a CI provider on a forge
-  (today: "Woodpecker - Bitbucket"). Each component points to one connection.
+  (today: "Woodpecker – Bitbucket"). Each component points to one connection.
 - An **environment** deploys one app. Its first deploy target sets the
   environment's app; after that only components of that app can be added
   (`409 Component belongs to another app than this environment`). Environments

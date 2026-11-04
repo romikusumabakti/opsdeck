@@ -1,5 +1,5 @@
 import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { type DbExecutor, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
   type Build,
@@ -350,11 +350,12 @@ export async function failStaleRunningDeployments(
 }
 
 export async function upsertTarget(
-  input: NewDeployTarget | (Partial<NewDeployTarget> & { id: string })
+  input: NewDeployTarget | (Partial<NewDeployTarget> & { id: string }),
+  executor: DbExecutor = db
 ): Promise<DeployTarget> {
   if (!("id" in input) || !input.id) {
     return one(
-      await db
+      await executor
         .insert(deployTargets)
         .values(input as NewDeployTarget)
         .returning(),
@@ -362,7 +363,7 @@ export async function upsertTarget(
     );
   }
   const { id, ...fields } = input;
-  const [row] = await db
+  const [row] = await executor
     .update(deployTargets)
     .set({ ...fields, updatedAt: new Date() })
     .where(eq(deployTargets.id, id))
