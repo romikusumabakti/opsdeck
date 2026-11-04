@@ -17,16 +17,29 @@ REMOTE=${REMOTE:-root@192.168.55.111:}
 SSH_KEY=${SSH_KEY:-/root/.ssh/dss-panel-backup}
 RETENTION_DAYS=${RETENTION_DAYS:-14}
 
-umask 077
-day=$(date +%F)
-day_dir="$BACKUP_DIR/$day"
+# S3 settings come only from $ENV_FILE. Drop inherited (possibly exported)
+# values so neither they nor the parsed ones reach the environment of
+# docker exec, rsync or ssh.
+unset S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY S3_SECRET_KEY
 
 log() { printf 'dss-panel-backup: %s\n' "$*"; }
-fail() { printf 'dss-panel-backup: %s\n' "$*" >&2; exit 1; }
+warn() { printf 'dss-panel-backup: %s\n' "$*" >&2; }
+fail() { warn "$@"; exit 1; }
 
-# A failed step must never leave a file under its final name.
+[[ $RETENTION_DAYS =~ ^[1-9][0-9]*$ ]] ||
+  fail "RETENTION_DAYS must be a positive integer"
+
+umask 077
+# Day names follow Jakarta time whatever the host timezone is.
+day=$(TZ=Asia/Jakarta date +%F)
+day_dir="$BACKUP_DIR/$day"
+
+# A failed step must never leave a file or directory under its final name.
 cleanup_partials() {
-  [[ -d $day_dir ]] && find "$day_dir" -maxdepth 1 -name '*.partial' -delete
+  if [[ -d $day_dir ]]; then
+    rm -rf -- "$day_dir/garage.partial"
+    find "$day_dir" -maxdepth 1 -name '*.partial' -delete
+  fi
   return 0
 }
 trap cleanup_partials EXIT
@@ -42,8 +55,7 @@ dump_to() {
 # Reads only the S3_* keys from the compose .env (never sourced: it may hold
 # values that are not valid shell). Strips one pair of surrounding quotes.
 read_s3_settings() {
-  [[ -r $ENV_FILE ]] || fail "cannot read $ENV_FILE"
-  S3_ENDPOINT='' S3_REGION='' S3_BUCKET='' S3_ACCESS_KEY='' S3_SECRET_KEY=''
+  [[ -r $ENV_FILE ]] || { warn "cannot read $ENV_FILE"; return 1; }
   local line key value
   while IFS= read -r line || [[ -n $line ]]; do
     [[ $line =~ ^(S3_ENDPOINT|S3_REGION|S3_BUCKET|S3_ACCESS_KEY|S3_SECRET_KEY)=(.*)$ ]] || continue
@@ -57,35 +69,56 @@ read_s3_settings() {
   done <"$ENV_FILE"
   local missing
   for missing in S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY; do
-    [[ -n ${!missing:-} ]] || fail "$missing missing in $ENV_FILE"
+    [[ -n ${!missing:-} ]] || { warn "$missing missing in $ENV_FILE"; return 1; }
   done
 }
 
 # rclone reads the remote `garage:` from RCLONE_CONFIG_GARAGE_* env vars;
 # `docker run -e NAME` copies them from this subshell's environment so the
-# values never appear on any command line.
+# values never appear on any command line. The mirror goes to garage.partial/
+# and becomes garage/ only on success. Returns non-zero on failure, leaving no
+# garage/ directory for that day.
 mirror_garage() {
-  read_s3_settings
-  mkdir -p "$day_dir/garage"
-  (
-    export RCLONE_CONFIG_GARAGE_TYPE=s3
-    export RCLONE_CONFIG_GARAGE_PROVIDER=Other
-    export RCLONE_CONFIG_GARAGE_ENDPOINT=$S3_ENDPOINT
-    export RCLONE_CONFIG_GARAGE_REGION=${S3_REGION:-garage}
-    export RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID=$S3_ACCESS_KEY
-    export RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY=$S3_SECRET_KEY
-    docker run --rm --network "$COMPOSE_NETWORK" \
-      -e RCLONE_CONFIG_GARAGE_TYPE \
-      -e RCLONE_CONFIG_GARAGE_PROVIDER \
-      -e RCLONE_CONFIG_GARAGE_ENDPOINT \
-      -e RCLONE_CONFIG_GARAGE_REGION \
-      -e RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID \
-      -e RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY \
-      -v "$day_dir/garage:/data/garage" \
-      rclone/rclone:1 sync "garage:${S3_BUCKET:-knowledge}" /data/garage
-  ) || fail "garage mirror failed"
+  local garage=$day_dir/garage partial=$day_dir/garage.partial status=0
+  rm -rf -- "$partial"
+  # A re-run on the same day syncs on top of the earlier mirror.
+  # Runs inside `if`, so set -e is off here: every step checks its own status.
+  if [[ -d $garage ]]; then
+    mv -- "$garage" "$partial" || return 1
+  else
+    mkdir -- "$partial" || return 1
+  fi
+  if read_s3_settings; then
+    (
+      export RCLONE_CONFIG_GARAGE_TYPE=s3
+      export RCLONE_CONFIG_GARAGE_PROVIDER=Other
+      export RCLONE_CONFIG_GARAGE_ENDPOINT=$S3_ENDPOINT
+      export RCLONE_CONFIG_GARAGE_REGION=${S3_REGION:-garage}
+      export RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID=$S3_ACCESS_KEY
+      export RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY=$S3_SECRET_KEY
+      docker run --rm --network "$COMPOSE_NETWORK" \
+        -e RCLONE_CONFIG_GARAGE_TYPE \
+        -e RCLONE_CONFIG_GARAGE_PROVIDER \
+        -e RCLONE_CONFIG_GARAGE_ENDPOINT \
+        -e RCLONE_CONFIG_GARAGE_REGION \
+        -e RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID \
+        -e RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY \
+        -v "$partial:/data/garage" \
+        rclone/rclone:1 sync "garage:${S3_BUCKET:-knowledge}" /data/garage
+    ) || status=$?
+  else
+    status=1
+  fi
   # rclone writes with the container's umask; keep the tree owner-only.
-  chmod -R u=rwX,go= "$day_dir/garage"
+  chmod -R u=rwX,go= "$partial" || status=1
+  if ((status == 0)); then
+    mv -- "$partial" "$garage" || status=1
+  fi
+  if ((status != 0)); then
+    rm -rf -- "$partial"
+    warn "garage mirror failed (exit $status)"
+  fi
+  return "$status"
 }
 
 write_checksums() {
@@ -100,7 +133,7 @@ write_checksums() {
 # Removes $1/<YYYY-MM-DD> directories dated more than $2 days before today.
 prune_older_than() {
   local root=$1 days=$2 cutoff dir name
-  cutoff=$(date -d "-$days days" +%F)
+  cutoff=$(TZ=Asia/Jakarta date -d "-$days days" +%F)
   for dir in "$root"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]; do
     [[ -d $dir && ! -L $dir ]] || continue
     name=${dir##*/}
@@ -124,17 +157,24 @@ done
 dump_to "$day_dir/globals.sql" docker exec "$PG_CONTAINER" pg_dumpall -U postgres --globals-only
 summary+=("globals=$(size_of "$day_dir/globals.sql")")
 
-# 3. Garage bucket mirror.
-mirror_garage
-summary+=("garage=$(size_of "$day_dir/garage")")
+# 3. Garage bucket mirror. A failure here does not stop the dumps from being
+# pushed off-host; it still fails the run at the end.
+garage=ok
+if mirror_garage; then
+  summary+=("garage=$(size_of "$day_dir/garage")")
+else
+  garage=failed
+  summary+=("garage=failed")
+fi
 
 # 4. Checksums.
 write_checksums
 summary+=("total=$(size_of "$day_dir")")
 
-# 5. Off-host copy, only now that every local step succeeded.
+# 5. Off-host copy, only now that the database dumps succeeded.
 remote=ok
-if ! rsync -a --partial -e "ssh -i $SSH_KEY -o BatchMode=yes" \
+if ! rsync -a --partial \
+  -e "ssh -i $SSH_KEY -o BatchMode=yes -o ConnectTimeout=30" \
   "$day_dir/" "$REMOTE$day/"; then
   remote=failed
 fi
@@ -144,4 +184,4 @@ prune_older_than "$BACKUP_DIR" "$RETENTION_DAYS"
 
 # 7. Summary.
 log "$day ${summary[*]} remote=$remote"
-[[ $remote == ok ]] || exit 1
+[[ $remote == ok && $garage == ok ]] || exit 1

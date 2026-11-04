@@ -28,6 +28,7 @@ const S3_ACCESS = "GKaccess-key-id";
 // secret reached it through the environment.
 const STUB_DOCKER = `#!/bin/bash
 printf 'docker %s\\n' "$*" >> "$STUB_LOG"
+if [ -n "\${S3_SECRET_KEY:-}" ]; then echo 'S3_SECRET_KEY leaked' >> "$STUB_LOG"; fi
 case "$1" in
   exec)
     if [ -n "\${STUB_PG_FAIL:-}" ]; then echo 'pg down' >&2; exit 1; fi
@@ -39,12 +40,14 @@ case "$1" in
     if [ "\${RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY:-}" = "$STUB_EXPECT_SECRET" ]; then
       echo 'rclone env ok' >> "$STUB_LOG"
     fi
-    mkdir -p "$host/notes" && printf 'object' > "$host/notes/a.md" ;;
+    mkdir -p "$host/notes" && printf 'object' > "$host/notes/a.md"
+    if [ -n "\${STUB_RCLONE_FAIL:-}" ]; then echo 'garage down' >&2; exit 1; fi ;;
 esac
 `;
 
 const STUB_RSYNC = `#!/bin/bash
 printf 'rsync %s\\n' "$*" >> "$STUB_LOG"
+if [ -n "\${S3_SECRET_KEY:-}" ]; then echo 'S3_SECRET_KEY leaked' >> "$STUB_LOG"; fi
 if [ -n "\${STUB_RSYNC_FAIL:-}" ]; then echo 'unreachable' >&2; exit 255; fi
 exit 0
 `;
@@ -112,10 +115,12 @@ function run(
   return { ...r, log: readFileSync(ctx.log, "utf8") };
 }
 
+// The scripts name days in Asia/Jakarta (UTC+7, no DST) whatever TZ says.
 function isoDay(offsetDays: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString(
+    "en-CA",
+    { timeZone: "Asia/Jakarta" }
+  );
 }
 
 describe("dss-panel-backup.sh", () => {
@@ -176,7 +181,7 @@ describe("dss-panel-backup.sh", () => {
     expect(lines[rclone]).toContain("rclone/rclone:1 sync garage:knowledge");
     expect(r.log).toContain("rclone env ok\n");
     expect(lines[rsync]).toBe(
-      `rsync -a --partial -e ssh -i /root/.ssh/dss-panel-backup -o BatchMode=yes ${dayDir}/ root@192.168.55.111:${day}/`
+      `rsync -a --partial -e ssh -i /root/.ssh/dss-panel-backup -o BatchMode=yes -o ConnectTimeout=30 ${dayDir}/ root@192.168.55.111:${day}/`
     );
     expect(r.stdout.trim().split("\n")).toHaveLength(1);
     expect(r.stdout).toMatch(/dss_panel=17 .*remote=ok/);
@@ -186,6 +191,9 @@ describe("dss-panel-backup.sh", () => {
     const ctx = setup();
     const r = run(BACKUP_SCRIPT, ctx, { STUB_PG_FAIL: "1" });
     expect(r.status).not.toBe(0);
+    expect(r.log).toContain(
+      "docker exec opsdeck-postgres pg_dump -U postgres -Fc dss_panel\n"
+    );
     const dayDir = join(ctx.backupDir, isoDay(0));
     const files = existsSync(dayDir) ? readdirSync(dayDir) : [];
     expect(files.filter((f) => f.endsWith(".dump"))).toEqual([]);
@@ -212,6 +220,25 @@ describe("dss-panel-backup.sh", () => {
     expect(r.stdout).toContain("remote=failed");
   });
 
+  it("garage mirror failure still pushes the dumps, without a garage dir, and exits non-zero", () => {
+    const ctx = setup();
+    const r = run(BACKUP_SCRIPT, ctx, { STUB_RCLONE_FAIL: "1" });
+    expect(r.status).not.toBe(0);
+    expect(r.log).toMatch(/^docker run /m);
+    expect(r.log).toMatch(/^rsync /m);
+    const dayDir = join(ctx.backupDir, isoDay(0));
+    expect(readdirSync(dayDir).sort()).toEqual([
+      "SHA256SUMS",
+      "dss_panel.dump",
+      "globals.sql",
+      "sonarqube_db.dump",
+    ]);
+    expect(readFileSync(join(dayDir, "SHA256SUMS"), "utf8")).not.toContain(
+      "garage"
+    );
+    expect(r.stdout).toMatch(/garage=failed .*remote=ok/);
+  });
+
   it("retention removes only date dirs older than RETENTION_DAYS", () => {
     const ctx = setup();
     const keep = [isoDay(-14), isoDay(-1), "notes"];
@@ -229,14 +256,28 @@ describe("dss-panel-backup.sh", () => {
     for (const name of drop) expect(left).not.toContain(name);
   });
 
+  it("refuses a RETENTION_DAYS that is not a positive integer and deletes nothing", () => {
+    const ctx = setup();
+    const old = isoDay(-40);
+    mkdirSync(join(ctx.backupDir, old), { recursive: true });
+    for (const days of ["-1", "0", "7x"]) {
+      const r = run(BACKUP_SCRIPT, ctx, { RETENTION_DAYS: days });
+      expect(r.status).not.toBe(0);
+    }
+    expect(readdirSync(ctx.backupDir)).toEqual([old]);
+    expect(readFileSync(ctx.log, "utf8")).toBe("");
+  });
+
   it("S3 secret never appears in the stub argv log", () => {
     const ctx = setup();
-    const r = run(BACKUP_SCRIPT, ctx);
+    // An inherited S3_SECRET_KEY must not reach docker exec/run or rsync.
+    const r = run(BACKUP_SCRIPT, ctx, { S3_SECRET_KEY: "inherited" });
     expect(r.status).toBe(0);
     expect(r.log).toContain("rclone env ok\n");
     expect(r.log).not.toContain(S3_SECRET);
     expect(r.log).not.toContain(S3_ACCESS);
     expect(r.stdout + r.stderr).not.toContain(S3_SECRET);
+    expect(r.log).not.toContain("S3_SECRET_KEY leaked");
   });
 });
 
@@ -252,5 +293,17 @@ describe("prune-received.sh", () => {
     expect(r.status).toBe(0);
     const left = readdirSync(ctx.backupDir).sort();
     expect(left).toEqual([...keep].sort());
+  });
+
+  it("refuses a negative RETENTION_DAYS and deletes nothing", () => {
+    const ctx = setup();
+    const old = isoDay(-90);
+    mkdirSync(join(ctx.backupDir, old), { recursive: true });
+    const r = run(PRUNE_SCRIPT, ctx, {
+      RECEIVED_DIR: ctx.backupDir,
+      RETENTION_DAYS: "-1",
+    });
+    expect(r.status).not.toBe(0);
+    expect(readdirSync(ctx.backupDir)).toEqual([old]);
   });
 });
