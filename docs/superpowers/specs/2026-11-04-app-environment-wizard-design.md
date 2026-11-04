@@ -34,7 +34,7 @@ UI, in one flow, without knowing Woodpecker, Cloudflare or SSH.**
 | Restriction | **Per server:** an admin marks which users/roles may place environments on each server. Deploy/rollback on an existing environment keeps today's project roles (maintainer) |
 | Database | **Chosen at creation:** shared postgres on the server (Panel creates DB + role), own postgres container per environment, or an existing database (connection details). The app's setting picks the default |
 | Domain | **Cloudflare Tunnel, fully automated** (ingress + DNS + optional Access app), or **no domain** (IP:port). Domains behind the office nginx on .245 (Sucor) are **not automated**: an "external domain" entry is recorded with manual instructions |
-| Forges | **One forge at a time** (Bitbucket now). The Panel's model is forge-neutral; moving DSS to GitHub/GitLab means switching Woodpecker's forge and re-linking repos. Woodpecker's multi-forge support is experimental per its docs, so it is not used |
+| Forges | **One forge per CI connection** (Bitbucket only today). Woodpecker's multi-forge support is experimental per its docs, so it is not used. DSS plans (long term) to leave Bitbucket for GitHub or self-hosted GitLab; that move will likely be **gradual**, so the Panel supports **several CI connections at once** (see CI connections) and moving a repo is a re-link that keeps its history |
 | Existing environments | **Migrate all at once** (~30, across Sucor, CAR, TMLI, DapenMU, DPSIU, Common, .136) |
 | Non-container environments | (CAR legacy systemd + SQL Server, etc.) migrate as **managed without deploy**: DB operations, mock time, service control and issues work as today; build/deploy stays outside the Panel until the app is containerised |
 | Who registers apps | **Maintainers and admins** register new apps (connect a repo). Every developer may add environments to registered apps |
@@ -53,8 +53,8 @@ frontend repo ships only its image), each with its own tag variable
 (`BACKEND_IMAGE_TAG`, `FRONTEND_IMAGE_TAG`). A **component** = one repo + its build
 spec + its tag variable.
 
-- Per component: forge repo reference (forge-neutral: forge kind + owner/name +
-  Woodpecker repo id) and its **build spec**, detected from the repo and editable:
+- Per component: its **CI connection**, the repo reference on that connection's forge
+  (forge kind + owner/name + the provider's repo id), and its **build spec**, detected from the repo and editable:
   - images: name, Dockerfile path, build context (e.g. `backend/Dockerfile` → `hris-backend`);
   - bundle files: paths copied into the deploy dir (`compose.yaml` always, plus extra
     config such as `migrate/` or observability files);
@@ -205,9 +205,17 @@ All existing environments move to the new model in one migration project:
 
 ## Integrations
 
-- **CI provider boundary:** everything CI-specific (activate repo, secrets, pipeline
-  generation, build notifications) goes through one provider interface; Woodpecker is
-  the only implementation now.
+- **CI connections:** everything CI-specific (list/activate repos, secrets, pipeline
+  generation, build notifications) goes through a provider interface. A **CI
+  connection** is one configured instance of a provider (e.g. "Woodpecker – Bitbucket"
+  on .113), with its URL, credentials (encrypted) and forge. Each app component points
+  to one connection. Today there is exactly one connection; during a forge move a
+  second one is added (a second Woodpecker instance for the new forge, or GitLab CI /
+  Forgejo Actions as another provider), and repos move one by one:
+  - re-link the component to the new connection (new repo reference, secrets and
+    pipeline set up there, old one deactivated);
+  - builds, tags (`origin-<branch>-<sha>`; SHAs survive a mirror push), deployments and
+    environments are unchanged, so rollback to pre-move builds still works.
 - **Woodpecker v3.20.1** (.113): REST API with an admin-capable token (activate repo,
   settings, secrets, trigger pipelines) and the configuration extension endpoint
   served by the Panel (Woodpecker signs those requests; the Panel verifies them).
