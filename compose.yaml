@@ -82,6 +82,9 @@ services:
       S3_BUCKET: ${S3_BUCKET:-knowledge}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY-}
       S3_SECRET_KEY: ${S3_SECRET_KEY-}
+      # Container registry the Panel deploys from (docs/deploy.md). Unset = deploy
+      # feature disabled: build notifications get 503 and deploy jobs fail.
+      DEPLOY_REGISTRY: ${DEPLOY_REGISTRY-}
       # Image processing (imgproxy). The app signs URLs with the same KEY/SALT
       # the imgproxy service verifies, then fetches transformed images over the
       # compose network — imgproxy itself is never exposed to the browser.
