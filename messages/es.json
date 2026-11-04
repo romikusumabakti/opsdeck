@@ -698,7 +698,7 @@
     "server": "Servidor",
     "pickServer": "Selecciona un servidor…",
     "newServerShort": "Nuevo servidor",
-    "pickServerRequired": "Elige un servidor para cada rol (base de datos, backend, frontend)",
+    "pickServerRequired": "Elige un servidor",
     "serviceType": "Tipo de servicio",
     "serviceName": "Nombre del servicio",
     "dbType": "Tipo de base de datos",

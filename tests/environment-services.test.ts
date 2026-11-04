@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 const UUID = "11111111-1111-4111-8111-111111111111";
 
-type Call = { op: string; table?: unknown; values?: unknown };
+type Call = {
+  op: string;
+  table?: unknown;
+  values?: unknown;
+  where?: unknown;
+};
 
 // What the transaction did, in order, and what the stored environment holds.
 const state = vi.hoisted(() => ({
@@ -36,6 +41,14 @@ vi.mock("@/lib/environments", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/environments")>()),
   loadEnvironmentWithServers: async () => state.stored,
 }));
+// Readable where-clauses: eq(column, value) -> value, and(...) -> array, so a
+// test can see which role a delete/update targeted.
+vi.mock("drizzle-orm", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("drizzle-orm")>()),
+  eq: (_column: unknown, value: unknown) => value,
+  and: (...conditions: unknown[]) => conditions,
+}));
+
 vi.mock("@/lib/db", () => {
   // A query builder: awaiting it yields rows, and every builder method returns
   // it again so any chain order works.
@@ -50,7 +63,10 @@ vi.mock("@/lib/db", () => {
         call.values = values;
         return chain;
       },
-      where: () => chain,
+      where: (condition: unknown) => {
+        call.where = condition;
+        return chain;
+      },
       from: () => chain,
       limit: async () => rows,
       returning: async () => [{ id: ENV_ID, projectId: UUID }],
@@ -148,6 +164,8 @@ describe("updateEnvironment with optional services", () => {
     expect(result.success).toBe(true);
     const deletes = state.calls.filter((c) => c.op === "delete");
     expect(deletes).toHaveLength(1);
+    expect(deletes[0]?.where).toEqual([ENV_ID, "frontend"]);
+    expect(state.calls.filter((c) => c.op === "update")).toEqual([]);
     expect(rolesInserted()).toEqual([]);
   });
 
@@ -161,6 +179,19 @@ describe("updateEnvironment with optional services", () => {
     });
     expect(result.success).toBe(true);
     expect(rolesInserted()).toEqual(["frontend"]);
+  });
+
+  it("does not recreate a missing service when no flag is sent", async () => {
+    state.stored.services = state.stored.services.filter(
+      (s) => s.role !== "frontend"
+    );
+    await updateEnvironment(ENV_ID, { ...frontend });
+    expect(rolesInserted()).toEqual([]);
+    expect(state.calls.some((c) => c.op === "delete")).toBe(false);
+    const updatedRoles = state.calls
+      .filter((c) => c.op === "update" && Array.isArray(c.where))
+      .map((c) => (c.where as unknown[])[1]);
+    expect(updatedRoles.filter((r) => r !== "frontend")).toEqual([]);
   });
 
   it("refuses hasFrontend true without frontend fields", async () => {
