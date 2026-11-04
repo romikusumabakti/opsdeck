@@ -44,3 +44,34 @@ describe("build:ops", () => {
     }
   );
 });
+
+describe("deploy-app database failures", () => {
+  it.each([
+    ["create", ["create", "demo-app", "dss/demo-bundle"]],
+    ["rotate", ["rotate", "demo-app"]],
+  ])(
+    "%s prints no query params or ciphertext when the DB is unreachable",
+    (_name, args) => {
+      const result = spawnSync(
+        "bun",
+        ["--conditions", "react-server", "scripts/deploy-app.ts", ...args],
+        {
+          encoding: "utf8",
+          env: {
+            PATH: process.env.PATH ?? "",
+            HOME: process.env.HOME ?? "",
+            DATABASE_URL: "postgres://u:p@127.0.0.1:1/none",
+            SECRETS_KEY: Buffer.alloc(32, 1).toString("base64"),
+          },
+        }
+      );
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Database error (");
+      for (const leak of ["enc:v1:", "params", "Failed query"]) {
+        expect(result.stderr).not.toContain(leak);
+        expect(result.stdout).not.toContain(leak);
+      }
+    },
+    30_000
+  );
+});
