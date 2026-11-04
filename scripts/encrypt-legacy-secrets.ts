@@ -4,8 +4,12 @@
 // Usage: bun --conditions react-server scripts/encrypt-legacy-secrets.ts [--apply]
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { isEncrypted } from "@/lib/secrets";
-import { planEncryption, SECRET_COLUMNS } from "@/lib/secrets-migration";
+import {
+  countSecrets,
+  describeDbError,
+  planEncryption,
+  SECRET_COLUMNS,
+} from "@/lib/secrets-migration";
 
 const args = process.argv.slice(2);
 
@@ -28,18 +32,26 @@ if (!process.env.SECRETS_KEY) {
   process.exit(1);
 }
 
+function fail(message: string): never {
+  console.error(message);
+  process.exit(1);
+}
+
 for (const { table, column } of SECRET_COLUMNS) {
   const t = sql.identifier(table);
   const c = sql.identifier(column);
-  const rows = (await db.execute(
-    sql`SELECT id::text AS id, ${c} AS value FROM ${t}`
-  )) as unknown as { id: string; value: string | null }[];
+  let rows: { id: string; value: string | null }[];
+  try {
+    rows = (await db.execute(
+      sql`SELECT id, ${c} AS value FROM ${t}`
+    )) as unknown as { id: string; value: string | null }[];
+  } catch (err) {
+    fail(`${table}.${column}: select failed (${describeDbError(err)})`);
+  }
 
-  const encrypted = rows.filter(
-    (r) => r.value != null && r.value !== "" && isEncrypted(r.value)
-  ).length;
   const changes = planEncryption(rows);
-  const label = `${table}.${column}: ${encrypted}/${changes.length}`;
+  const { encrypted, plaintext } = countSecrets(rows);
+  const label = `${table}.${column}: ${encrypted}/${plaintext}`;
 
   if (!apply) {
     console.log(`${label} (would change ${changes.length})`);
@@ -52,11 +64,18 @@ for (const { table, column } of SECRET_COLUMNS) {
   let changed = 0;
   let skipped = 0;
   for (const { id, from, to } of changes) {
-    const updated = await db.execute(
-      sql`UPDATE ${t} SET ${c} = ${to} WHERE id::text = ${id} AND ${c} = ${from} RETURNING 1`
-    );
-    if (updated.length === 1) changed++;
-    else skipped++;
+    try {
+      const updated = await db.execute(
+        sql`UPDATE ${t} SET ${c} = ${to} WHERE id = ${id}::uuid AND ${c} = ${from} RETURNING 1`
+      );
+      if (updated.length === 1) changed++;
+      else skipped++;
+    } catch (err) {
+      // drizzle's error message embeds the params (the secret): print a code only.
+      fail(
+        `${table}.${column}: update failed for row ${id} (${describeDbError(err)})`
+      );
+    }
   }
   console.log(
     `${label} (changed ${changed}${skipped ? `, skipped (changed concurrently) ${skipped}` : ""})`
