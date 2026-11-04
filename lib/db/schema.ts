@@ -166,10 +166,16 @@ export const environments = pgTable(
     host: text("host"),
     // Where the deployed app opens in a browser (absolute http/https URL).
     url: text("url"),
+    // The app this environment deploys. Null until one is assigned (e.g. an
+    // environment with no deploy targets yet). restrict: an app in use by an
+    // environment can't be deleted.
+    appId: uuid("app_id").references(() => apps.id, { onDelete: "restrict" }),
   },
   (t) => [
     // Every project page lists its environments; index the parent FK.
     index("environments_project_idx").on(t.projectId),
+    // FK index: environments of an app, and the onDelete:restrict check.
+    index("environments_app_idx").on(t.appId),
     // FK index: `on delete set null` scans by owner when a user is deleted.
     index("environments_owner_idx").on(t.ownerId),
     // Environment names are unique within a project (so "Dev"/"Release"/"QA-Budi"
@@ -340,19 +346,71 @@ export const deploymentStatusEnum = pgEnum("deployment_status", [
   "superseded",
 ]);
 
-// An application the Panel can deploy (one Docker Compose bundle image per app).
-export const deployApps = pgTable("deploy_apps", {
-  // Stable slug, e.g. "dplk-accounting".
-  appKey: text("app_key").primaryKey(),
-  // Image holding the compose bundle, e.g. "dplk-accounting-deploy".
-  bundleImage: text("bundle_image").notNull(),
-  // Shared secret for the CI build-notify webhook. Encrypted at rest via
-  // lib/secrets.ts; never sent to the client.
-  notifySecret: text("notify_secret").notNull(),
+export const ciProviderEnum = pgEnum("ci_provider", ["woodpecker"]);
+export const forgeKindEnum = pgEnum("forge_kind", [
+  "bitbucket",
+  "github",
+  "gitlab",
+  "gitea",
+  "forgejo",
+]);
+
+// A CI server and the forge it builds from. Several connections may exist at
+// once so components can move between forges one at a time.
+export const ciConnections = pgTable("ci_connections", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  name: text("name").notNull().unique(),
+  provider: ciProviderEnum("provider").notNull(),
+  forge: forgeKindEnum("forge").notNull(),
+  // CI root, no trailing slash (e.g. https://ci.dssconsulting.id).
+  baseUrl: text("base_url").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Where an app deploys to: one target per (environment, app).
+// A product the Panel deploys, e.g. the customer portal. Groups the
+// components (backend, frontend, ...) that ship together to an environment.
+export const apps = pgTable("apps", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  // Stable slug, e.g. "dplk-customer-portal".
+  appKey: text("app_key").notNull().unique(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// One deployable unit of an app: one repository built by CI into one Docker
+// Compose bundle image.
+export const appComponents = pgTable(
+  "app_components",
+  {
+    // Stable slug, e.g. "dplk-customer-portal-backend". Build-notify webhooks
+    // and bundle tags address the component by this key.
+    componentKey: text("component_key").primaryKey(),
+    appId: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "restrict" }),
+    ciConnectionId: uuid("ci_connection_id")
+      .notNull()
+      .references(() => ciConnections.id, { onDelete: "restrict" }),
+    // Repository on the connection's forge, e.g. "dss-consulting/hris".
+    repoFullName: text("repo_full_name").notNull(),
+    // The CI server's id for the repository; null until it is activated there.
+    ciRepoId: text("ci_repo_id"),
+    // Image holding the compose bundle, e.g. "dplk-accounting-deploy".
+    bundleImage: text("bundle_image").notNull(),
+    // Shared secret for the CI build-notify webhook. Encrypted at rest via
+    // lib/secrets.ts; never sent to the client.
+    notifySecret: text("notify_secret").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // FK index: components of an app, and the onDelete:restrict check.
+    index("app_components_app_idx").on(t.appId),
+  ]
+);
+
+// Where a component deploys to: one target per (environment, component).
 export const deployTargets = pgTable(
   "deploy_targets",
   {
@@ -360,9 +418,9 @@ export const deployTargets = pgTable(
     environmentId: uuid("environment_id")
       .notNull()
       .references(() => environments.id, { onDelete: "cascade" }),
-    appKey: text("app_key")
+    componentKey: text("component_key")
       .notNull()
-      .references(() => deployApps.appKey, { onDelete: "restrict" }),
+      .references(() => appComponents.componentKey, { onDelete: "restrict" }),
     serverId: uuid("server_id")
       .notNull()
       .references(() => servers.id, { onDelete: "restrict" }),
@@ -383,11 +441,11 @@ export const deployTargets = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("deploy_targets_environment_app_idx").on(
+    uniqueIndex("deploy_targets_environment_component_idx").on(
       t.environmentId,
-      t.appKey
+      t.componentKey
     ),
-    index("deploy_targets_app_idx").on(t.appKey),
+    index("deploy_targets_component_idx").on(t.componentKey),
   ]
 );
 
@@ -396,9 +454,9 @@ export const builds = pgTable(
   "builds",
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
-    appKey: text("app_key")
+    componentKey: text("component_key")
       .notNull()
-      .references(() => deployApps.appKey, { onDelete: "cascade" }),
+      .references(() => appComponents.componentKey, { onDelete: "cascade" }),
     branch: text("branch").notNull(),
     tag: text("tag").notNull(),
     commitSha: text("commit_sha").notNull(),
@@ -406,9 +464,9 @@ export const builds = pgTable(
     receivedAt: timestamp("received_at").notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("builds_app_tag_idx").on(t.appKey, t.tag),
-    index("builds_app_branch_received_idx").on(
-      t.appKey,
+    uniqueIndex("builds_component_tag_idx").on(t.componentKey, t.tag),
+    index("builds_component_branch_received_idx").on(
+      t.componentKey,
       t.branch,
       t.receivedAt.desc()
     ),
@@ -1461,7 +1519,9 @@ export type SafeEnvironmentWithServers = Environment & {
 
 export type Run = InferSelectModel<typeof runs>;
 
-export type DeployApp = InferSelectModel<typeof deployApps>;
+export type CiConnection = InferSelectModel<typeof ciConnections>;
+export type App = InferSelectModel<typeof apps>;
+export type AppComponent = InferSelectModel<typeof appComponents>;
 export type DeployTarget = InferSelectModel<typeof deployTargets>;
 export type NewDeployTarget = InferInsertModel<typeof deployTargets>;
 export type Build = InferSelectModel<typeof builds>;
