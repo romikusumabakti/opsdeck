@@ -29,7 +29,7 @@ describe("secrets migration", () => {
     expect(decryptSecret(change.to)).toBe("hunter2");
   });
 
-  it('a plaintext value starting with "enc:" but not a valid enc:v1 payload is encrypted', async () => {
+  it('a plaintext value with a different "enc:" prefix (not enc:v1:) is encrypted, since isEncrypted only checks enc:v1:', async () => {
     const { planEncryption } = await import("@/lib/secrets-migration");
     const { isEncrypted, decryptSecret } = await import("@/lib/secrets");
     const value = "enc:v2:not-ours";
@@ -59,5 +59,43 @@ describe("secrets migration", () => {
       { table: "environment_services", column: "mock_time_api_key" },
       { table: "s3_connections", column: "secret_key" },
     ]);
+  });
+
+  it("describeDbError never leaks the message, params or stack", async () => {
+    const { describeDbError } = await import("@/lib/secrets-migration");
+    class DrizzleQueryError extends Error {
+      constructor(
+        message: string,
+        readonly cause: unknown
+      ) {
+        super(message);
+      }
+    }
+    const secret = "s3cr3t-plaintext-value";
+    const msg = `Failed query: UPDATE x\nparams: ${secret},id`;
+    const withCode = new DrizzleQueryError(msg, { code: "23505" });
+    const noCode = new DrizzleQueryError(msg, new Error(secret));
+    for (const err of [withCode, noCode]) {
+      const out = describeDbError(err);
+      expect(out).not.toContain(secret);
+      expect(out).not.toContain("params");
+      expect(out).not.toContain("Failed query");
+    }
+    expect(describeDbError(withCode)).toBe("23505");
+    expect(describeDbError(noCode)).toBe("DrizzleQueryError");
+    expect(describeDbError("boom")).toBe("UnknownError");
+  });
+
+  it("countSecrets separates encrypted from plaintext", async () => {
+    const { countSecrets } = await import("@/lib/secrets-migration");
+    const { encryptSecret } = await import("@/lib/secrets");
+    expect(
+      countSecrets([
+        { value: null },
+        { value: "" },
+        { value: "a" },
+        { value: encryptSecret("b") },
+      ])
+    ).toEqual({ encrypted: 1, plaintext: 1 });
   });
 });
