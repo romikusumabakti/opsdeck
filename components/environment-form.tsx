@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
@@ -32,12 +33,7 @@ import type {
   Project as ProjectRow,
   SafeEnvironmentWithServers,
 } from "@/lib/db/schema";
-import {
-  backendService,
-  dbAdminUser,
-  dbService,
-  frontendService,
-} from "@/lib/services";
+import { backendService, dbAdminUser, findService } from "@/lib/services";
 import type { Serialized } from "@/web/api/client";
 import { createEnvironment, updateEnvironment } from "@/web/api/environments";
 import { listAssignableUsersQuery } from "@/web/api/users";
@@ -121,18 +117,23 @@ export function EnvironmentForm({
 
   const schema = infoSchema
     .extend({
-      dbServerId: z.string().min(1, t("pickServerRequired")),
+      // Database and frontend are optional services: while their switch is
+      // off the fields below are not validated (superRefine enforces them
+      // when it is on) and are left out of the payload.
+      hasDatabase: z.boolean(),
+      hasFrontend: z.boolean(),
+      dbServerId: z.string(),
       dbServiceType: z.enum(SERVICE_TYPES),
-      dbServiceName: z.string().min(1, tCommon("required")),
+      dbServiceName: z.string(),
       dbType: z.enum(DB_TYPES),
-      dbName: z.string().min(1, tCommon("required")),
+      dbName: z.string(),
       // Empty string means "use the engine's default admin account".
       dbUser: z.string(),
       // Empty string is valid here; superRefine enforces it for the TCP-auth
       // engines on create. On edit, empty means "keep the stored password"
       // (handled in onSubmit).
       dbPassword: z.string(),
-      dbBackupPath: z.string().min(1, tCommon("required")),
+      dbBackupPath: z.string(),
 
       backendServerId: z.string().min(1, t("pickServerRequired")),
       backendServiceType: z.enum(SERVICE_TYPES),
@@ -145,18 +146,39 @@ export function EnvironmentForm({
       // (handled in onSubmit). On create, empty means no auth header is sent.
       backendMockTimeApiKey: z.string(),
 
-      frontendServerId: z.string().min(1, t("pickServerRequired")),
+      frontendServerId: z.string(),
       frontendServiceType: z.enum(SERVICE_TYPES),
-      frontendServiceName: z.string().min(1, tCommon("required")),
+      frontendServiceName: z.string(),
     })
     .superRefine((data, ctx) => {
+      const requireFields = (
+        fields: (keyof typeof data)[],
+        message: string
+      ) => {
+        for (const field of fields) {
+          if (!data[field])
+            ctx.addIssue({ code: "custom", message, path: [field] });
+        }
+      };
+      if (data.hasDatabase) {
+        requireFields(["dbServerId"], t("pickServerRequired"));
+        requireFields(
+          ["dbServiceName", "dbName", "dbBackupPath"],
+          tCommon("required")
+        );
+      }
+      if (data.hasFrontend) {
+        requireFields(["frontendServerId"], t("pickServerRequired"));
+        requireFields(["frontendServiceName"], tCommon("required"));
+      }
       // The TCP-auth engines need a password to log in at all. On create, the
       // field must be filled. On edit, empty means "no change" — we only fail
       // if there's no stored password to fall back to (handled at submit time
       // too, but surface the error inline where possible).
-      if (!TCP_AUTH_DB_TYPES.has(data.dbType)) return;
+      if (!data.hasDatabase || !TCP_AUTH_DB_TYPES.has(data.dbType)) return;
       const hasStored =
-        mode.type === "edit" && dbService(mode.environment).hasDbPassword;
+        mode.type === "edit" &&
+        !!findService(mode.environment, "db")?.hasDbPassword;
       if (!data.dbPassword && !hasStored) {
         ctx.addIssue({
           code: "custom",
@@ -175,9 +197,9 @@ export function EnvironmentForm({
         ? mode.cloneFrom
         : null;
 
-  const dbSvc = source ? dbService(source) : undefined;
+  const dbSvc = source ? findService(source, "db") : undefined;
   const backendSvc = source ? backendService(source) : undefined;
-  const frontendSvc = source ? frontendService(source) : undefined;
+  const frontendSvc = source ? findService(source, "frontend") : undefined;
 
   const form = useForm<FormValues>({
     // Read-only infrastructure is never submitted, so only the info fields are
@@ -198,6 +220,10 @@ export function EnvironmentForm({
           ownerId: source.ownerId ?? "",
           host: source.host ?? "",
           url: source.url ?? "",
+          // Edit and clone mirror the stored services: a missing row is a
+          // switched-off service.
+          hasDatabase: !!dbSvc,
+          hasFrontend: !!frontendSvc,
           dbServerId: dbSvc?.serverId ?? "",
           dbServiceType: dbSvc?.serviceType ?? "docker",
           dbServiceName: dbSvc?.serviceName ?? "",
@@ -222,6 +248,8 @@ export function EnvironmentForm({
           ownerId: "",
           host: "",
           url: "",
+          hasDatabase: true,
+          hasFrontend: true,
           dbServerId: initialServers[0]?.id ?? "",
           dbServiceType: "docker",
           dbServiceName: "",
@@ -244,6 +272,8 @@ export function EnvironmentForm({
   // Owner candidates: whoever can be assigned issues in the selected project.
   // An edited environment keeps its stored owner while it stays in the same
   // project, even one deactivated since (not in the list, so added here).
+  const hasDatabase = form.watch("hasDatabase");
+  const hasFrontend = form.watch("hasFrontend");
   const projectId = form.watch("projectId");
   const ownerId = form.watch("ownerId");
   const eligibleOwners = useQuery({
@@ -304,10 +334,41 @@ export function EnvironmentForm({
       form.reset({ ...form.getValues(), ...values });
       return;
     }
-    const { dbPassword, backendMockTimeApiKey, ...rest } = values;
+    const {
+      dbPassword,
+      backendMockTimeApiKey,
+      dbServerId,
+      dbServiceType,
+      dbServiceName,
+      dbType,
+      dbName,
+      dbUser,
+      dbBackupPath,
+      frontendServerId,
+      frontendServiceType,
+      frontendServiceName,
+      ...rest
+    } = values;
+    // A switched-off service sends only its flag (the server then deletes the
+    // row on edit, or never creates it); a switched-on one sends its fields.
+    const database = values.hasDatabase
+      ? {
+          dbServerId,
+          dbServiceType,
+          dbServiceName,
+          dbType,
+          dbName,
+          dbUser: dbUser.trim() ? dbUser.trim() : null,
+          dbBackupPath,
+        }
+      : {};
+    const frontend = values.hasFrontend
+      ? { frontendServerId, frontendServiceType, frontendServiceName }
+      : {};
     const base = {
       ...rest,
-      dbUser: values.dbUser.trim() ? values.dbUser.trim() : null,
+      ...database,
+      ...frontend,
       backendMockTimeApiUrl: values.backendMockTimeApiUrl
         ? values.backendMockTimeApiUrl
         : null,
@@ -320,8 +381,9 @@ export function EnvironmentForm({
     // On create: persist password (null for postgres, which never uses one). On
     // edit: only include it when the user typed something — empty means "keep
     // stored value". A blank dbUser always stores null, i.e. "engine default".
-    const withPassword =
-      mode.type === "create"
+    const withPassword = !values.hasDatabase
+      ? base
+      : mode.type === "create"
         ? {
             ...base,
             dbPassword: TCP_AUTH_DB_TYPES.has(values.dbType)
@@ -562,134 +624,147 @@ export function EnvironmentForm({
           ) : (
             <>
               <Section title={t("database")}>
-                <ServerPicker
-                  t={t}
+                <ServiceSwitch
                   control={form.control}
-                  name="dbServerId"
-                  servers={servers}
-                  onRequestCreate={
-                    canManageServers ? () => setDialogRole("db") : undefined
-                  }
+                  name="hasDatabase"
+                  label={t("hasDatabase")}
+                  hint={t("hasDatabaseHint")}
                 />
-                <FormField
-                  control={form.control}
-                  name="dbServiceType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("serviceType")}</FormLabel>
-                      <EnumSelect
-                        field={field}
-                        options={SERVICE_TYPES}
-                        getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dbServiceName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("serviceName")}</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dbType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("dbType")}</FormLabel>
-                      <EnumSelect
-                        field={field}
-                        options={DB_TYPES}
-                        getLabel={(v) => tEnums(`dbTypes.${v}`)}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dbName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("dbName")}</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dbUser"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("dbUser")}</FormLabel>
-                      <FormControl>
-                        {/* Placeholder shows the account that will be used when the
+                {hasDatabase && (
+                  <>
+                    <ServerPicker
+                      t={t}
+                      control={form.control}
+                      name="dbServerId"
+                      servers={servers}
+                      onRequestCreate={
+                        canManageServers ? () => setDialogRole("db") : undefined
+                      }
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbServiceType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("serviceType")}</FormLabel>
+                          <EnumSelect
+                            field={field}
+                            options={SERVICE_TYPES}
+                            getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbServiceName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("serviceName")}</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("dbType")}</FormLabel>
+                          <EnumSelect
+                            field={field}
+                            options={DB_TYPES}
+                            getLabel={(v) => tEnums(`dbTypes.${v}`)}
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("dbName")}</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbUser"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("dbUser")}</FormLabel>
+                          <FormControl>
+                            {/* Placeholder shows the account that will be used when the
                             field is left blank, so the default is visible rather
                             than implied. */}
-                        <Input
-                          autoComplete="off"
-                          placeholder={dbAdminUser(form.watch("dbType"), null)}
-                          {...field}
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        {t("dbUserHint")}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dbPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("dbPassword")}</FormLabel>
-                      <FormControl>
-                        <PasswordInput
-                          autoComplete="new-password"
-                          placeholder={
-                            mode.type === "edit"
-                              ? t("dbPasswordEditPlaceholder")
-                              : ""
-                          }
-                          {...field}
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        {t("dbPasswordHint")}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dbBackupPath"
-                  render={({ field }) => (
-                    <FormItem className="sm:col-span-2">
-                      <FormLabel>{t("backupPath")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="/var/backups/db" {...field} />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground">
-                        {t("backupPathHint")}
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                            <Input
+                              autoComplete="off"
+                              placeholder={dbAdminUser(
+                                form.watch("dbType"),
+                                null
+                              )}
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            {t("dbUserHint")}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("dbPassword")}</FormLabel>
+                          <FormControl>
+                            <PasswordInput
+                              autoComplete="new-password"
+                              placeholder={
+                                mode.type === "edit"
+                                  ? t("dbPasswordEditPlaceholder")
+                                  : ""
+                              }
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            {t("dbPasswordHint")}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="dbBackupPath"
+                      render={({ field }) => (
+                        <FormItem className="sm:col-span-2">
+                          <FormLabel>{t("backupPath")}</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/var/backups/db" {...field} />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">
+                            {t("backupPathHint")}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
               </Section>
 
               <Section title={t("backend")}>
@@ -781,45 +856,55 @@ export function EnvironmentForm({
               </Section>
 
               <Section title={t("frontend")}>
-                <ServerPicker
-                  t={t}
+                <ServiceSwitch
                   control={form.control}
-                  name="frontendServerId"
-                  servers={servers}
-                  onRequestCreate={
-                    canManageServers
-                      ? () => setDialogRole("frontend")
-                      : undefined
-                  }
+                  name="hasFrontend"
+                  label={t("hasFrontend")}
+                  hint={t("hasFrontendHint")}
                 />
-                <FormField
-                  control={form.control}
-                  name="frontendServiceType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("serviceType")}</FormLabel>
-                      <EnumSelect
-                        field={field}
-                        options={SERVICE_TYPES}
-                        getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                      />
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="frontendServiceName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("serviceName")}</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {hasFrontend && (
+                  <>
+                    <ServerPicker
+                      t={t}
+                      control={form.control}
+                      name="frontendServerId"
+                      servers={servers}
+                      onRequestCreate={
+                        canManageServers
+                          ? () => setDialogRole("frontend")
+                          : undefined
+                      }
+                    />
+                    <FormField
+                      control={form.control}
+                      name="frontendServiceType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("serviceType")}</FormLabel>
+                          <EnumSelect
+                            field={field}
+                            options={SERVICE_TYPES}
+                            getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="frontendServiceName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("serviceName")}</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
               </Section>
             </>
           )}
@@ -861,15 +946,15 @@ export function EnvironmentForm({
 function InfraSummary({ environment }: { environment: Environment }) {
   const t = useTranslations("environmentForm");
   const tEnums = useTranslations("dashboard");
-  const db = dbService(environment);
+  const db = findService(environment, "db");
   const backend = backendService(environment);
-  const frontend = frontendService(environment);
+  const frontend = findService(environment, "frontend");
   const row = (label: string, value: string | null | undefined) => ({
     label,
     value: value || "—",
   });
   const sections = [
-    {
+    db && {
       title: t("database"),
       rows: [
         row(t("server"), db.server.name),
@@ -890,7 +975,7 @@ function InfraSummary({ environment }: { environment: Environment }) {
         row(t("mockTimeApiUrl"), backend.mockTimeApiUrl),
       ],
     },
-    {
+    frontend && {
       title: t("frontend"),
       rows: [
         row(t("server"), frontend.server.name),
@@ -898,7 +983,7 @@ function InfraSummary({ environment }: { environment: Environment }) {
         row(t("serviceName"), frontend.serviceName),
       ],
     },
-  ];
+  ].filter((section) => !!section);
   return (
     <>
       <p className="text-sm text-muted-foreground">{t("infraReadOnlyHint")}</p>
@@ -915,6 +1000,42 @@ function InfraSummary({ environment }: { environment: Environment }) {
         </Section>
       ))}
     </>
+  );
+}
+
+// On/off switch for an optional service; its fields render only while on.
+function ServiceSwitch({
+  control,
+  name,
+  label,
+  hint,
+}: {
+  // biome-ignore lint/suspicious/noExplicitAny: control type is generic over form values
+  control: any;
+  name: "hasDatabase" | "hasFrontend";
+  label: string;
+  hint: string;
+}) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="sm:col-span-2">
+          <div className="flex items-center gap-2">
+            <FormControl>
+              <Switch
+                id={`switch-${name}`}
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            </FormControl>
+            <FormLabel htmlFor={`switch-${name}`}>{label}</FormLabel>
+          </div>
+          <p className="text-xs text-muted-foreground">{hint}</p>
+        </FormItem>
+      )}
+    />
   );
 }
 

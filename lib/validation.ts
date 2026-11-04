@@ -105,22 +105,22 @@ export const projectMetaUpdateSchema = projectMetaInputSchema.partial();
 export type ProjectMetaInput = z.infer<typeof projectMetaInputSchema>;
 
 // An environment (deployment) belongs to one logical project.
-export const environmentInputSchema = z.object({
+const environmentFields = z.object({
   // The logical project this deployment belongs to (chosen via the form's
   // project picker).
   projectId: z.uuid(),
   name: z.string().trim().min(1).max(200),
 
-  dbServerId: z.uuid(),
-  dbServiceType: serviceTypeSchema,
-  dbServiceName: z.string().trim().min(1).max(255),
-  dbType: databaseTypeSchema,
-  dbName: z.string().trim().min(1).max(255),
+  dbServerId: z.uuid().optional(),
+  dbServiceType: serviceTypeSchema.optional(),
+  dbServiceName: z.string().trim().min(1).max(255).optional(),
+  dbType: databaseTypeSchema.optional(),
+  dbName: z.string().trim().min(1).max(255).optional(),
   // Admin login for the engines that authenticate over TCP; blank/absent falls
   // back to the engine default (see lib/services#dbAdminUser).
   dbUser: z.string().trim().max(255).nullish(),
   dbPassword: z.string().max(1024).nullish(),
-  dbBackupPath: z.string().trim().min(1).max(1024),
+  dbBackupPath: z.string().trim().min(1).max(1024).optional(),
 
   backendServerId: z.uuid(),
   backendServiceType: serviceTypeSchema,
@@ -128,9 +128,9 @@ export const environmentInputSchema = z.object({
   backendMockTimeApiUrl: z.url().max(2048).nullish(),
   backendMockTimeApiKey: z.string().max(1024).nullish(),
 
-  frontendServerId: z.uuid(),
-  frontendServiceType: serviceTypeSchema,
-  frontendServiceName: z.string().trim().min(1).max(255),
+  frontendServerId: z.uuid().optional(),
+  frontendServiceType: serviceTypeSchema.optional(),
+  frontendServiceName: z.string().trim().min(1).max(255).optional(),
 
   // Purpose + owner of this deployment (both optional). The owner must be
   // eligible for the project (server/services/environments checks that); the
@@ -156,7 +156,53 @@ export const environmentInputSchema = z.object({
     .transform((v) => (v ? v : null)),
 });
 
-export const environmentUpdateSchema = environmentInputSchema.partial();
+// Which optional services an environment has. Backend is always present;
+// database and frontend are off for apps without a database or whose backend
+// also serves the web UI.
+const SERVICE_REQUIREMENTS = [
+  {
+    flag: "hasDatabase",
+    fields: [
+      "dbServerId",
+      "dbServiceType",
+      "dbServiceName",
+      "dbType",
+      "dbName",
+      "dbBackupPath",
+    ],
+  },
+  {
+    flag: "hasFrontend",
+    fields: ["frontendServerId", "frontendServiceType", "frontendServiceName"],
+  },
+] as const;
+
+export const environmentInputSchema = environmentFields
+  .extend({
+    hasDatabase: z.boolean().default(true),
+    hasFrontend: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    for (const { flag, fields } of SERVICE_REQUIREMENTS) {
+      if (!value[flag]) continue;
+      for (const field of fields) {
+        if (value[field] === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: [field],
+            message: "Required",
+          });
+        }
+      }
+    }
+  });
+
+// A partial patch: the flags have no default here, so an absent flag leaves
+// the stored services alone (see server/services/environments#updateEnvironment).
+export const environmentUpdateSchema = environmentFields.partial().extend({
+  hasDatabase: z.boolean().optional(),
+  hasFrontend: z.boolean().optional(),
+});
 export const serverUpdateSchema = serverInputSchema.partial();
 
 // =========================
