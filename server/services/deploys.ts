@@ -1,12 +1,12 @@
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
 import type { DeployTarget } from "@/lib/db/schema";
 import {
   deleteTarget,
   environmentUsesServer,
   findBuild,
-  getDeployApp,
   getTagState,
   getTarget,
   listTargetsForEnvironment,
@@ -14,8 +14,8 @@ import {
   upsertTarget,
 } from "@/lib/deploy/repository";
 import {
-  appKeySchema,
   branchSchema,
+  componentKeySchema,
   deployDirSchema,
   envVarNameSchema,
   healthTimeoutSchema,
@@ -33,7 +33,7 @@ const fail = (status: 404 | 409 | 503, message: string): never => {
 
 export const createTargetSchema = z.object({
   environmentId: uuidSchema,
-  appKey: appKeySchema,
+  componentKey: componentKeySchema,
   serverId: uuidSchema,
   sourceBranch: branchSchema,
   autoDeploy: z.boolean().default(false),
@@ -46,7 +46,7 @@ export const createTargetSchema = z.object({
   backupBeforeDeploy: z.boolean().default(false),
 });
 
-// The app and environment of a target are fixed once it exists: its history
+// The component and environment of a target are fixed once it exists: its history
 // (builds, deployments) is keyed to them.
 export const updateTargetSchema = z
   .object({
@@ -93,8 +93,14 @@ export async function createDeployTarget(
     { environmentId: input.environmentId },
     { deploy: ["configure"] }
   );
-  if (!(await getDeployApp(input.appKey))) fail(404, "Deploy app not found");
+  if (!(await getComponent(input.componentKey))) {
+    fail(404, "Component not found");
+  }
   await requireServerInEnvironment(input.environmentId, input.serverId);
+  await assertTargetMatchesEnvironmentApp(
+    input.environmentId,
+    input.componentKey
+  );
   try {
     return await upsertTarget({
       ...input,
@@ -103,7 +109,10 @@ export async function createDeployTarget(
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
-      return fail(409, "This app already has a target in the environment");
+      return fail(
+        409,
+        "This component already has a target in the environment"
+      );
     }
     throw error;
   }
@@ -137,7 +146,7 @@ function requireDeployEnabled() {
   if (!process.env.DEPLOY_REGISTRY) fail(503, "Deploy disabled");
 }
 
-/** Manual deploy of a tag that CI built for the target's app and branch. */
+/** Manual deploy of a tag that CI built for the target's component and branch. */
 export async function deployTag(
   targetId: string,
   tag: string
@@ -148,7 +157,7 @@ export async function deployTag(
     { deploy: ["run"] }
   );
   requireDeployEnabled();
-  const build = await findBuild(target.appKey, tag);
+  const build = await findBuild(target.componentKey, tag);
   if (!build || build.branch !== target.sourceBranch) {
     fail(404, "Build not found");
   }
@@ -177,7 +186,7 @@ export async function rollbackTarget(
   requireDeployEnabled();
   const tag = (await getTagState(target.id)).previousTag;
   if (!tag) return fail(409, "No previous successful deploy");
-  const build = await findBuild(target.appKey, tag);
+  const build = await findBuild(target.componentKey, tag);
   return requestDeployment({
     targetId: target.id,
     tag,

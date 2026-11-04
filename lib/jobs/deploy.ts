@@ -1,8 +1,8 @@
+import { getComponent } from "@/lib/apps";
 import {
   claimDeployment,
   failStaleRunningDeployments,
   finishDeployment,
-  getDeployApp,
   getDeployment,
   getTarget,
   heartbeatDeployment,
@@ -204,8 +204,10 @@ async function runClaimedDeployment(
   const target = await getTarget(deployment.targetId);
   if (!target)
     throw new Error(`Deploy target ${deployment.targetId} not found`);
-  const app = await getDeployApp(target.appKey);
-  if (!app) throw new Error(`Deploy app ${target.appKey} not found`);
+  const component = await getComponent(target.componentKey);
+  if (!component) {
+    throw new Error(`Component ${target.componentKey} not found`);
+  }
   const credentials = await loadServerCredentials(target.serverId);
   if (!credentials) throw new Error(`Server ${target.serverId} not found`);
 
@@ -213,7 +215,7 @@ async function runClaimedDeployment(
   // without taking a backup first.
   const script = buildDeployScript({
     registry,
-    bundleImage: app.bundleImage,
+    bundleImage: component.bundleImage,
     tag: deployment.tag,
     deployDir: target.deployDir,
     services: target.services,
@@ -227,7 +229,7 @@ async function runClaimedDeployment(
     const backupRunId = await createRun({
       environmentId: target.environmentId,
       userId: null,
-      description: `Pre-deploy backup for ${target.appKey} ${deployment.tag}`,
+      description: `Pre-deploy backup for ${target.componentKey} ${deployment.tag}`,
       kind: "backup",
     });
     await appendRunOutput(
@@ -264,7 +266,7 @@ async function runClaimedDeployment(
 
   await appendRunOutput(
     runId,
-    `Deploying ${target.appKey} ${deployment.tag} to ${target.deployDir}`
+    `Deploying ${target.componentKey} ${deployment.tag} to ${target.deployDir}`
   );
   const output = await executeRemoteCommand(
     credentials,
