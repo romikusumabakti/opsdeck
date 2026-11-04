@@ -698,7 +698,7 @@
     "server": "الخادم",
     "pickServer": "اختر خادماً…",
     "newServerShort": "خادم جديد",
-    "pickServerRequired": "اختر خادماً لكل دور (قاعدة البيانات، الخلفية، الواجهة الأمامية)",
+    "pickServerRequired": "اختر خادماً",
     "serviceType": "نوع الخدمة",
     "serviceName": "اسم الخدمة",
     "dbType": "نوع قاعدة البيانات",
