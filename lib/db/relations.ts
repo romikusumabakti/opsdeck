@@ -33,10 +33,40 @@ export const relations = defineRelations(schema, (r) => ({
     issues: r.many.issues(),
     milestones: r.many.milestones(),
   },
+  ciConnections: {
+    components: r.many.appComponents({
+      from: r.ciConnections.id,
+      to: r.appComponents.ciConnectionId,
+    }),
+  },
+  apps: {
+    components: r.many.appComponents({
+      from: r.apps.id,
+      to: r.appComponents.appId,
+    }),
+    environments: r.many.environments({
+      from: r.apps.id,
+      to: r.environments.appId,
+    }),
+  },
+  appComponents: {
+    app: r.one.apps({
+      from: r.appComponents.appId,
+      to: r.apps.id,
+    }),
+    ciConnection: r.one.ciConnections({
+      from: r.appComponents.ciConnectionId,
+      to: r.ciConnections.id,
+    }),
+  },
   environments: {
     project: r.one.projects({
       from: r.environments.projectId,
       to: r.projects.id,
+    }),
+    app: r.one.apps({
+      from: r.environments.appId,
+      to: r.apps.id,
     }),
     owner: r.one.users({
       from: r.environments.ownerId,

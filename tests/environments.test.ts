@@ -104,6 +104,7 @@ function makeProject(
     ownerId: null,
     host: null,
     url: null,
+    appId: null,
     owner: null,
     services: [makeDbService(), makeBackendService(), makeFrontendService()],
     ...overrides,
