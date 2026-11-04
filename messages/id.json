@@ -136,7 +136,8 @@
     "badgeProjectOpen": "{count, plural, other {# isu terbuka di proyek ini}}",
     "badgeActiveRuns": "{count, plural, other {# tugas sedang berjalan}}",
     "tunnels": "Tunnel",
-    "mail": "Email"
+    "mail": "Email",
+    "ci": "CI"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -2206,5 +2207,50 @@
       "leave": "Sedang cuti",
       "wfh": "Bekerja dari rumah"
     }
+  },
+  "ci": {
+    "title": "Server CI",
+    "subtitle": "Server CI tempat Panel mendaftarkan aplikasi.",
+    "emptyTitle": "Belum ada server CI",
+    "empty": "Server CI ditambahkan oleh tim Panel.",
+    "colName": "Nama",
+    "colBaseUrl": "URL server",
+    "colCredentials": "Kredensial",
+    "apiTokenSet": "Token API terisi",
+    "apiTokenNotSet": "Token API belum diisi",
+    "keyStored": "Kunci penandatangan tersimpan",
+    "keyMissing": "Kunci penandatangan belum ada"
+  },
+  "editCi": {
+    "title": "Ubah {name}",
+    "description": "Perbarui server CI dan kredensialnya.",
+    "formTitle": "Detail server",
+    "formDescription": "Kosongkan token untuk mempertahankan yang tersimpan.",
+    "keyTitle": "Kunci ekstensi konfigurasi",
+    "keyDescription": "Panel memverifikasi permintaan ekstensi konfigurasi dengan kunci publik server CI ini. Segarkan setelah kunci server CI berubah.",
+    "refreshKey": "Segarkan kunci Woodpecker",
+    "keyFetchedAt": "Terakhir diambil {time}",
+    "keyNeverFetched": "Belum pernah diambil",
+    "keyRefreshed": "Kunci Woodpecker disegarkan"
+  },
+  "ciForm": {
+    "name": "Nama",
+    "baseUrl": "URL server",
+    "baseUrlInvalid": "Masukkan URL yang valid",
+    "baseUrlDescription": "Root CI, misalnya https://ci.example.com.",
+    "apiToken": "Token API",
+    "apiTokenDescription": "Personal access token Woodpecker. Dienkripsi saat disimpan dan tidak pernah dikirim ke browser.",
+    "forgeUsername": "Username forge",
+    "forgeUsernameDescription": "Akun yang dipakai untuk commit file pipeline cadangan.",
+    "forgeToken": "Token forge",
+    "forgeTokenDescription": "Access token untuk akun tersebut. Dienkripsi saat disimpan dan tidak pernah dikirim ke browser.",
+    "set": "Terisi",
+    "notSet": "Belum diisi",
+    "keepPlaceholder": "Kosongkan untuk mempertahankan token tersimpan",
+    "clearStored": "Hapus token tersimpan",
+    "keepStored": "Pertahankan token tersimpan",
+    "saveChanges": "Simpan perubahan",
+    "submitting": "Menyimpan…",
+    "saved": "Server CI disimpan"
   }
 }

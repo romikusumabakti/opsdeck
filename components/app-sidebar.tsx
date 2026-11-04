@@ -20,6 +20,7 @@ import {
   ShieldUser,
   Users,
   UsersRound,
+  Workflow,
 } from "lucide-react";
 import { useTranslations } from "use-intl";
 import {
@@ -45,6 +46,7 @@ import {
 import { UserMenu, type UserSummary } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { BrandName } from "@/lib/brands";
+import { type EnvSection, visibleEnvSections } from "@/lib/env-sections";
 import {
   parseNavPath,
   SECTION_PERMS,
@@ -58,7 +60,6 @@ import {
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
-import { type EnvSection, visibleEnvSections } from "@/lib/env-sections";
 import type { EnvironmentListItem } from "@/web/api/environments";
 import type { AssignedIssueCounts } from "@/web/api/issues";
 
@@ -115,6 +116,12 @@ const adminItems: {
     key: "jira",
     url: "/admin/jira",
     icon: Cable,
+    perm: { integration: ["manage"] },
+  },
+  {
+    key: "ci",
+    url: "/admin/ci",
+    icon: Workflow,
     perm: { integration: ["manage"] },
   },
   {

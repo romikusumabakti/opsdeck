@@ -10,6 +10,7 @@ import { accessRouter } from "@/server/routes/access";
 import { activityRouter } from "@/server/routes/activity";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
+import { ciConnectionsRouter } from "@/server/routes/ci-connections";
 import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
 import { deploysRouter } from "@/server/routes/deploys";
@@ -113,6 +114,7 @@ export const app = createBaseApp()
   // this prefix.
   .route("/api/deploy-hooks", deployHooksRouter)
   .route("/api/deploys", deploysRouter)
+  .route("/api/ci-connections", ciConnectionsRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);
 

@@ -136,7 +136,8 @@
     "badgeProjectOpen": "{count, plural, other {此项目中有 # 个未解决问题}}",
     "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}",
     "tunnels": "隧道",
-    "mail": "邮件"
+    "mail": "邮件",
+    "ci": "CI"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -2206,5 +2207,50 @@
       "leave": "休假中",
       "wfh": "在家办公"
     }
+  },
+  "ci": {
+    "title": "CI servers",
+    "subtitle": "CI servers the Panel registers apps with.",
+    "emptyTitle": "No CI servers",
+    "empty": "CI servers are added by the Panel team.",
+    "colName": "Name",
+    "colBaseUrl": "Server URL",
+    "colCredentials": "Credentials",
+    "apiTokenSet": "API token set",
+    "apiTokenNotSet": "API token not set",
+    "keyStored": "Signing key stored",
+    "keyMissing": "Signing key missing"
+  },
+  "editCi": {
+    "title": "Edit {name}",
+    "description": "Update the CI server and its credentials.",
+    "formTitle": "Server details",
+    "formDescription": "Leave a token blank to keep the stored one.",
+    "keyTitle": "Configuration extension key",
+    "keyDescription": "The Panel verifies configuration extension requests with the public key of this CI server. Refresh it after the CI server's key changes.",
+    "refreshKey": "Refresh Woodpecker key",
+    "keyFetchedAt": "Last fetched {time}",
+    "keyNeverFetched": "Not fetched yet",
+    "keyRefreshed": "Woodpecker key refreshed"
+  },
+  "ciForm": {
+    "name": "Name",
+    "baseUrl": "Server URL",
+    "baseUrlInvalid": "Enter a valid URL",
+    "baseUrlDescription": "The CI root, for example https://ci.example.com.",
+    "apiToken": "API token",
+    "apiTokenDescription": "A Woodpecker personal access token. Encrypted at rest and never sent to the browser.",
+    "forgeUsername": "Forge username",
+    "forgeUsernameDescription": "The account used to commit the fallback pipeline file.",
+    "forgeToken": "Forge token",
+    "forgeTokenDescription": "An access token for that account. Encrypted at rest and never sent to the browser.",
+    "set": "Set",
+    "notSet": "Not set",
+    "keepPlaceholder": "Leave blank to keep the stored token",
+    "clearStored": "Clear stored token",
+    "keepStored": "Keep stored token",
+    "saveChanges": "Save changes",
+    "submitting": "Saving…",
+    "saved": "CI server saved"
   }
 }
