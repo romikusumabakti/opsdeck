@@ -397,7 +397,8 @@
       "created": "تمت إضافة الهدف",
       "invalid": "هذه القيمة لا تطابق التنسيق الموضح أدناه.",
       "componentNotFound": "لا يوجد تطبيق نشر مسجّل بهذا المفتاح.",
-      "duplicateComponent": "لهذا التطبيق هدف بالفعل في هذه البيئة."
+      "duplicateComponent": "لهذا التطبيق هدف بالفعل في هذه البيئة.",
+      "otherApp": "This component belongs to another app than this environment."
     }
   },
   "backupDb": {
