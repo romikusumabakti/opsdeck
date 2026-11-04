@@ -17,6 +17,21 @@ export function bundleImageFor(componentKey: string): string {
 
 export const PIPELINE_MODES = ["custom", "generated"] as const;
 
+/**
+ * The custom issues this schema raises. Each issue's `message` is one of
+ * these stable keys (with `params` for its values), which the form
+ * translates (lib/ci/registration-issues.ts); the API answers a plain 400.
+ */
+export const REGISTRATION_ISSUES = [
+  "bundleImageMismatch",
+  "buildSpecRequired",
+  "buildSpecNotAllowed",
+  "imageIsBundle",
+  "duplicateComponentKey",
+  "duplicateRepo",
+] as const;
+export type RegistrationIssue = (typeof REGISTRATION_ISSUES)[number];
+
 export const registerComponentSchema = z
   .object({
     componentKey: componentKeySchema,
@@ -33,21 +48,22 @@ export const registerComponentSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["bundleImage"],
-        message: `Bundle image must be ${bundle}`,
+        message: "bundleImageMismatch",
+        params: { bundle },
       });
     }
     if (c.pipelineMode === "generated" && !c.buildSpec) {
       ctx.addIssue({
         code: "custom",
         path: ["buildSpec"],
-        message: "A generated pipeline needs a build spec",
+        message: "buildSpecRequired",
       });
     }
     if (c.pipelineMode === "custom" && c.buildSpec) {
       ctx.addIssue({
         code: "custom",
         path: ["buildSpec"],
-        message: "A custom pipeline has no build spec",
+        message: "buildSpecNotAllowed",
       });
     }
     // The generated pipeline pushes the bundle under this name; a build image
@@ -57,7 +73,8 @@ export const registerComponentSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["buildSpec", "images", index, "name"],
-          message: `Image name ${bundle} is the deploy bundle's`,
+          message: "imageIsBundle",
+          params: { bundle },
         });
       }
     });
@@ -77,7 +94,7 @@ export const registerAppSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["components", index, "componentKey"],
-          message: "Duplicate component key",
+          message: "duplicateComponentKey",
         });
       }
       keys.add(c.componentKey);
@@ -86,7 +103,7 @@ export const registerAppSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["components", index, "forgeRemoteId"],
-          message: "Duplicate repository",
+          message: "duplicateRepo",
         });
       }
       repos.add(repo);

@@ -2343,6 +2343,32 @@
     "submit": "Register app",
     "submitting": "Registering…",
     "registered": "{name} registered",
-    "fallbackNotCommitted": "{component}: pipeline file not committed: {reason}"
+    "fallbackNotCommitted": "{component}: pipeline file not committed: {reason}",
+    "issues": {
+      "bundleImageMismatch": "The bundle image must be {bundle}",
+      "buildSpecRequired": "A generated pipeline needs a build spec",
+      "buildSpecNotAllowed": "A custom pipeline has no build spec",
+      "imageIsBundle": "{bundle} is the deploy bundle's image; choose another name",
+      "duplicateComponentKey": "Another component already uses this key",
+      "duplicateRepo": "Another component already uses this repository",
+      "required": "This field is required",
+      "atLeastOne": "Add at least one",
+      "tooShort": "Use at least {min} characters",
+      "tooLong": "Too long (at most {max})",
+      "tooSmall": "Must be at least {min}",
+      "tooLarge": "Must be at most {max}",
+      "notANumber": "Enter a number",
+      "invalidKey": "Use lowercase letters, digits and '-', starting with a letter or digit",
+      "invalidBranch": "Branches use letters, digits, '/', '_', '.' or '-', without '..'",
+      "invalidImageName": "Image names are lowercase repository paths",
+      "invalidImage": "Enter a Docker image reference",
+      "invalidStepName": "Step names use lowercase letters, digits or '-'",
+      "reservedStepName": "This step name is used by the generated pipeline",
+      "invalidPath": "Use a relative path without '..' or empty segments (letters, digits, '.', '_', '-')",
+      "duplicateImage": "Two images have the same name",
+      "duplicateBundleTarget": "Two bundle files have the same target",
+      "duplicateCheck": "Two checks have the same name",
+      "invalid": "This value is not valid"
+    }
   }
 }

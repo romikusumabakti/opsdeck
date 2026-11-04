@@ -2343,6 +2343,32 @@
     "submit": "Daftarkan aplikasi",
     "submitting": "Mendaftarkan…",
     "registered": "{name} terdaftar",
-    "fallbackNotCommitted": "{component}: berkas pipeline tidak di-commit: {reason}"
+    "fallbackNotCommitted": "{component}: berkas pipeline tidak di-commit: {reason}",
+    "issues": {
+      "bundleImageMismatch": "Image bundle harus {bundle}",
+      "buildSpecRequired": "Pipeline yang dibuat Panel memerlukan build spec",
+      "buildSpecNotAllowed": "Pipeline kustom tidak memakai build spec",
+      "imageIsBundle": "{bundle} adalah image bundle deploy; pilih nama lain",
+      "duplicateComponentKey": "Kunci ini sudah dipakai komponen lain",
+      "duplicateRepo": "Repositori ini sudah dipakai komponen lain",
+      "required": "Kolom ini wajib diisi",
+      "atLeastOne": "Tambahkan minimal satu",
+      "tooShort": "Gunakan minimal {min} karakter",
+      "tooLong": "Terlalu panjang (maksimal {max})",
+      "tooSmall": "Minimal {min}",
+      "tooLarge": "Maksimal {max}",
+      "notANumber": "Masukkan angka",
+      "invalidKey": "Gunakan huruf kecil, angka, dan '-', diawali huruf atau angka",
+      "invalidBranch": "Branch memakai huruf, angka, '/', '_', '.' atau '-', tanpa '..'",
+      "invalidImageName": "Nama image berupa path repositori huruf kecil",
+      "invalidImage": "Masukkan referensi image Docker",
+      "invalidStepName": "Nama langkah memakai huruf kecil, angka, atau '-'",
+      "reservedStepName": "Nama langkah ini dipakai pipeline yang dibuat Panel",
+      "invalidPath": "Gunakan path relatif tanpa '..' atau segmen kosong (huruf, angka, '.', '_', '-')",
+      "duplicateImage": "Dua image memiliki nama yang sama",
+      "duplicateBundleTarget": "Dua berkas bundle memiliki tujuan yang sama",
+      "duplicateCheck": "Dua pemeriksaan memiliki nama yang sama",
+      "invalid": "Nilai ini tidak valid"
+    }
   }
 }

@@ -280,9 +280,12 @@ export async function registerApp(
     );
   } catch (error) {
     if (isUniqueViolation(error)) {
+      // Another registration won the race after this one had already
+      // replaced the Woodpecker secret of the repo(s) it shares with it.
+      const keys = prepared.map((item) => item.input.componentKey).join(", ");
       fail(
         409,
-        "The app, a component or a repository was registered meanwhile"
+        `The app, a component or a repository was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of ${keys} on its app page.`
       );
     }
     throw error;

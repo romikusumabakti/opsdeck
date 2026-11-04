@@ -295,6 +295,12 @@ describe("permissions", () => {
       (await send("GET", `/api/ci-connections/${CONN}/repos`)).status
     ).toBe(403);
     expect((await send("GET", "/api/ci-connections/options")).status).toBe(403);
+    const preview = new URLSearchParams({
+      q: JSON.stringify({ componentKey: "hris", buildSpec: SPEC }),
+    });
+    expect(
+      (await send("GET", `/api/apps/pipeline-preview?${preview}`)).status
+    ).toBe(403);
     expect(
       (await send("POST", "/api/apps/a/components/accounting/rotate-secret"))
         .status
@@ -499,10 +505,23 @@ describe("POST /api/apps", () => {
     expect(state.calls).not.toContain("insert");
   });
 
-  it("maps a unique violation on insert to 409", async () => {
+  it("maps a unique violation on insert to 409 that says to rotate", async () => {
     state.insertError = Object.assign(new Error("dup"), { code: "23505" });
     const res = await send("POST", "/api/apps", body());
     expect(res.status).toBe(409);
+    // The losing request has already replaced the Woodpecker secret.
+    expect((await res.json()).error).toBe(
+      "The app, a component or a repository was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of hris on its app page."
+    );
+  });
+
+  it("lets a registrant preview the generated pipeline", async () => {
+    const preview = new URLSearchParams({
+      q: JSON.stringify({ componentKey: "hris", buildSpec: SPEC }),
+    });
+    const res = await send("GET", `/api/apps/pipeline-preview?${preview}`);
+    expect(res.status).toBe(200);
+    expect((await res.json()).yaml).toContain("hris-deploy");
   });
 
   it("rejects a bundle image other than <componentKey>-deploy", async () => {
