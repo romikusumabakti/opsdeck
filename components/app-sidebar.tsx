@@ -58,8 +58,15 @@ import {
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
+import { type EnvSection, visibleEnvSections } from "@/lib/env-sections";
 import type { EnvironmentListItem } from "@/web/api/environments";
 import type { AssignedIssueCounts } from "@/web/api/issues";
+
+// Sidebar items that exist only when the environment has a matching service.
+const SERVICE_SECTION: Partial<Record<string, EnvSection>> = {
+  databases: "databases",
+  mockTime: "mockTime",
+};
 
 type ProjectItem = {
   key: string;
@@ -198,6 +205,12 @@ export function AppSidebar({
 
   const activeProjectName =
     projects.find((p) => p.id === activeEnv?.projectId)?.name ?? "";
+
+  const envSections = activeEnv
+    ? visibleEnvSections({
+        services: activeEnv.serviceRoles.map((role) => ({ role })),
+      })
+    : new Set<EnvSection>();
 
   const envRole = activeEnv
     ? (projectRoles[activeEnv.projectId] ?? null)
@@ -374,6 +387,11 @@ export function AppSidebar({
                     .filter(
                       (item) => !item.perm || canProject(envRole, item.perm)
                     )
+                    // Databases / Mock time need a db / backend service.
+                    .filter((item) => {
+                      const section = SERVICE_SECTION[item.key];
+                      return !section || envSections.has(section);
+                    })
                     // Mail only exists once a Mailpit is connected.
                     .filter(
                       (item) => item.key !== "mail" || activeEnv.hasMailpit

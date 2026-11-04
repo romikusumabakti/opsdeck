@@ -5,7 +5,7 @@ import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { canAnyProject, canProject } from "@/lib/permissions";
-import { dbService } from "@/lib/services";
+import { dbService, hasService } from "@/lib/services";
 import { type getBackupList, getBackupListQuery } from "@/web/api/backups";
 import { getDatabaseListQuery } from "@/web/api/databases";
 import {
@@ -74,6 +74,10 @@ function DatabasesPage() {
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
+  }
+
+  if (!hasService(environment, "db")) {
+    return <p className="text-muted-foreground">{t("noDatabase")}</p>;
   }
 
   const allowedTabs = [

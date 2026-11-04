@@ -466,6 +466,7 @@
   },
   "databases": {
     "title": "قواعد البيانات",
+    "noDatabase": "This environment has no database",
     "subtitle": "انسخ احتياطيًا واستعد وأدِر قواعد البيانات على خادم قاعدة بيانات البيئة.",
     "backupListTitle": "النسخ الاحتياطية",
     "colBackupName": "الاسم",
@@ -513,6 +514,7 @@
   },
   "mockTime": {
     "title": "محاكاة الوقت",
+    "noBackend": "This environment has no backend",
     "subtitle": "تجاوز الساعة المستخدمة بواسطة {name} للاختبار.",
     "formTitle": "التاريخ والوقت المحاكَى",
     "formDescription": "اختر التاريخ والوقت الذي يجب أن تعتقد البيئة أنه الحالي.",

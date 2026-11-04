@@ -466,6 +466,7 @@
   },
   "databases": {
     "title": "数据库",
+    "noDatabase": "This environment has no database",
     "subtitle": "在该环境的数据库服务器上备份、恢复和管理数据库。",
     "backupListTitle": "备份",
     "colBackupName": "名称",
@@ -513,6 +514,7 @@
   },
   "mockTime": {
     "title": "模拟时间",
+    "noBackend": "This environment has no backend",
     "subtitle": "覆盖 {name} 用于测试的时钟。",
     "formTitle": "模拟日期和时间",
     "formDescription": "选择希望该环境认为的日期和时间。",

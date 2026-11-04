@@ -14,7 +14,7 @@ import {
 import apiDocs from "@/docs/time-mocking-api.md?raw";
 import { useProjectName } from "@/hooks/use-project-name";
 import { stripProjectPrefix } from "@/lib/nav-path";
-import { backendService } from "@/lib/services";
+import { backendService, hasService } from "@/lib/services";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { loaderQuery } from "@/web/query-client";
 import { ApiDocsSheet } from "./-components/env/mock-time/api-docs-sheet";
@@ -42,6 +42,10 @@ function MockTimePage() {
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
+  }
+
+  if (!hasService(environment, "backend")) {
+    return <p className="text-muted-foreground">{t("noBackend")}</p>;
   }
 
   const hasApi = Boolean(backendService(environment).mockTimeApiUrl?.trim());
