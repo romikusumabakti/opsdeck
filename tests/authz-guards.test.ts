@@ -624,9 +624,6 @@ describe("API routers reach a guard", () => {
     // CI posts build notifications with no session; a per-app HMAC of the raw
     // body is the credential.
     "server/routes/deploy-hooks.ts": ["POST /builds"],
-    // Woodpecker's configuration extension: no session; its ed25519 HTTP
-    // message signature over the raw body digest is the credential.
-    "server/routes/ci-config.ts": ["POST /:connectionId"],
     // The favicon, linked by the signed-out sign-in, 404 and error pages.
     "server/routes/brand.ts": ["GET /icon.svg"],
   };

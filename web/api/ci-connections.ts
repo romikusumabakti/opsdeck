@@ -21,10 +21,6 @@ export async function updateCiConnection(
   return parseResponse(routes[":id"].$patch({ param: { id }, json: changes }));
 }
 
-export async function refreshCiExtensionKey(id: string) {
-  return parseResponse(routes[":id"]["refresh-key"].$post({ param: { id } }));
-}
-
 export type CiConnectionRow = Awaited<
   ReturnType<typeof listCiConnections>
 >[number];

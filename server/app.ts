@@ -11,7 +11,6 @@ import { activityRouter } from "@/server/routes/activity";
 import { appsRouter } from "@/server/routes/apps";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
-import { ciConfigRouter } from "@/server/routes/ci-config";
 import { ciConnectionsRouter } from "@/server/routes/ci-connections";
 import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
@@ -115,9 +114,6 @@ export const app = createBaseApp()
   // Public, HMAC-signed CI build notifications; no session router shares
   // this prefix.
   .route("/api/deploy-hooks", deployHooksRouter)
-  // Public, ed25519-signed Woodpecker configuration extension; no session
-  // router shares this prefix (/api/ci-connections is a different segment).
-  .route("/api/ci/config", ciConfigRouter)
   .route("/api/deploys", deploysRouter)
   .route("/api/apps", appsRouter)
   .route("/api/ci-connections", ciConnectionsRouter)

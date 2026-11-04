@@ -155,18 +155,6 @@ describe("woodpecker provider", () => {
     });
   });
 
-  it("returns the extension public key text", async () => {
-    const { calls, provider } = mockFetch([
-      new Response(
-        "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n"
-      ),
-    ]);
-    expect(await provider.fetchExtensionPublicKey()).toContain(
-      "BEGIN PUBLIC KEY"
-    );
-    expect(calls[0]?.url).toBe(`${BASE}/api/signature/public-key`);
-  });
-
   it("throws CiProviderError on 401 without leaking the token", async () => {
     const { provider } = mockFetch([
       new Response("unauthorized", { status: 401 }),

@@ -2219,21 +2219,13 @@
     "colBaseUrl": "Server URL",
     "colCredentials": "Credentials",
     "apiTokenSet": "API token set",
-    "apiTokenNotSet": "API token not set",
-    "keyStored": "Signing key stored",
-    "keyMissing": "Signing key missing"
+    "apiTokenNotSet": "API token not set"
   },
   "editCi": {
     "title": "Edit {name}",
     "description": "Update the CI server and its credentials.",
     "formTitle": "Server details",
-    "formDescription": "Leave a token blank to keep the stored one.",
-    "keyTitle": "Configuration extension key",
-    "keyDescription": "The Panel verifies configuration extension requests with the public key of this CI server. Refresh it after the CI server's key changes.",
-    "refreshKey": "Refresh Woodpecker key",
-    "keyFetchedAt": "Last fetched {time}",
-    "keyNeverFetched": "Not fetched yet",
-    "keyRefreshed": "Woodpecker key refreshed"
+    "formDescription": "Leave a token blank to keep the stored one."
   },
   "ciForm": {
     "name": "Name",

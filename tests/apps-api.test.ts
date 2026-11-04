@@ -153,7 +153,6 @@ const provider = vi.hoisted(() => ({
   activateRepo: vi.fn(),
   updateRepoSettings: vi.fn(),
   upsertRepoSecret: vi.fn(),
-  fetchExtensionPublicKey: vi.fn(),
 }));
 
 const connections = vi.hoisted(() => ({
