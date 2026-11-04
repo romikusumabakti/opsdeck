@@ -397,7 +397,8 @@
       "created": "目标已添加",
       "invalid": "该值不符合下方说明的格式。",
       "componentNotFound": "未注册使用此标识的部署应用。",
-      "duplicateComponent": "该应用在此环境中已有部署目标。"
+      "duplicateComponent": "该应用在此环境中已有部署目标。",
+      "otherApp": "This component belongs to another app than this environment."
     }
   },
   "backupDb": {

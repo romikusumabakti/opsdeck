@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
 import {
   branchSchema,
   componentKeySchema,
@@ -214,7 +215,12 @@ export function TargetFormDialog({
       if (error instanceof ApiError && !target && error.status === 404) {
         form.setError("componentKey", { message: t("componentNotFound") });
       } else if (error instanceof ApiError && !target && error.status === 409) {
-        form.setError("componentKey", { message: t("duplicateComponent") });
+        form.setError("componentKey", {
+          message:
+            error.message === COMPONENT_OTHER_APP_MESSAGE
+              ? t("otherApp")
+              : t("duplicateComponent"),
+        });
       } else {
         toast.error(
           error instanceof Error ? error.message : tCommon("errorGeneric")

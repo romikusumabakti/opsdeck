@@ -397,7 +397,8 @@
       "created": "Destino añadido",
       "invalid": "Este valor no coincide con el formato descrito abajo.",
       "componentNotFound": "No hay ninguna aplicación de despliegue registrada con esta clave.",
-      "duplicateComponent": "Esta aplicación ya tiene un destino en este entorno."
+      "duplicateComponent": "Esta aplicación ya tiene un destino en este entorno.",
+      "otherApp": "This component belongs to another app than this environment."
     }
   },
   "backupDb": {

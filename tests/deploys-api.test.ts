@@ -371,18 +371,33 @@ describe("target configuration", () => {
 
   it("rejects a component of another app than the environment's with 409", async () => {
     const { HTTPException } = await import("hono/http-exception");
+    const { COMPONENT_OTHER_APP_MESSAGE } = await import("@/lib/deploy/errors");
     apps.assertTargetMatchesEnvironmentApp.mockRejectedValue(
-      new HTTPException(409, {
-        message: "Component belongs to another app than this environment",
-      })
+      new HTTPException(409, { message: COMPONENT_OTHER_APP_MESSAGE })
     );
     const res = await send("POST", "/api/deploys/targets", newTarget);
     expect(res.status).toBe(409);
+    // The dialog tells this 409 from the duplicate-target one by this message.
+    expect(await res.json()).toEqual({ error: COMPONENT_OTHER_APP_MESSAGE });
     expect(apps.assertTargetMatchesEnvironmentApp).toHaveBeenCalledWith(
       ENV_ID,
       "dplk-accounting"
     );
     expect(repo.upsertTarget).not.toHaveBeenCalled();
+  });
+
+  it("answers a duplicate target with a 409 that differs from the other-app one", async () => {
+    const { COMPONENT_OTHER_APP_MESSAGE } = await import("@/lib/deploy/errors");
+    repo.upsertTarget.mockRejectedValue(
+      Object.assign(new Error("duplicate key value"), { code: "23505" })
+    );
+    const res = await send("POST", "/api/deploys/targets", newTarget);
+    expect(res.status).toBe(409);
+    const { error } = (await res.json()) as { error: string };
+    expect(error).toBe(
+      "This component already has a target in the environment"
+    );
+    expect(error).not.toBe(COMPONENT_OTHER_APP_MESSAGE);
   });
 
   it("rejects an unknown component with 404", async () => {

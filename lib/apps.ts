@@ -8,6 +8,7 @@ import {
   apps,
   environments,
 } from "@/lib/db/schema";
+import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
 
 /**
  * The component and its app, or undefined when the key is unknown.
@@ -72,8 +73,6 @@ export async function assertTargetMatchesEnvironmentApp(
     throw new HTTPException(404, { message: "Environment not found" });
   }
   if (environment.appId !== component.appId) {
-    throw new HTTPException(409, {
-      message: "Component belongs to another app than this environment",
-    });
+    throw new HTTPException(409, { message: COMPONENT_OTHER_APP_MESSAGE });
   }
 }

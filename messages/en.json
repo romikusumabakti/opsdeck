@@ -397,7 +397,8 @@
       "created": "Target added",
       "invalid": "This value doesn't match the format described below.",
       "componentNotFound": "No component with this key is registered.",
-      "duplicateComponent": "This component already has a target in this environment."
+      "duplicateComponent": "This component already has a target in this environment.",
+      "otherApp": "This component belongs to another app than this environment."
     }
   },
   "backupDb": {
