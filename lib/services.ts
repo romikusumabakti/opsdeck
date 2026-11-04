@@ -52,15 +52,31 @@ export type ServiceConfig = {
 // caller having to know which it holds.
 type WithServices<S> = { id: string; services: S[] };
 
+// The service of `role`, or undefined when the environment has none. Backend is
+// always present; database and frontend are optional.
+export function findService<S extends { role: string }>(
+  env: WithServices<S>,
+  role: ServiceRole
+): S | undefined {
+  return env.services.find((s) => s.role === role);
+}
+
+export function hasService<S extends { role: string }>(
+  env: WithServices<S>,
+  role: ServiceRole
+): boolean {
+  return findService(env, role) !== undefined;
+}
+
 // Resolve the single service of `role` in an environment. The
 // (environment_id, role) unique index guarantees at most one; throws if the
-// environment is missing the role (a data-integrity bug — every environment
-// materialises db/backend/frontend).
+// environment has no such service. Callers that cannot assume the role exists
+// (database, frontend) use findService/hasService instead.
 export function getService<S extends { role: string }>(
   env: WithServices<S>,
   role: ServiceRole
 ): S {
-  const service = env.services.find((s) => s.role === role);
+  const service = findService(env, role);
   if (!service) {
     throw new Error(`environment ${env.id} has no ${role} service`);
   }

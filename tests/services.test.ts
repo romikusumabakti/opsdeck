@@ -6,6 +6,9 @@ import {
   buildSqlcmdCommand,
   buildStatusCommand,
   dbAdminUser,
+  findService,
+  getService,
+  hasService,
   parseServiceState,
 } from "@/lib/services";
 
@@ -263,5 +266,31 @@ describe("buildMysqlCommand", () => {
     expect(base).not.toContain("-N");
     expect(withArgs).toContain("-N");
     expect(withArgs).toContain("-B");
+  });
+});
+
+describe("findService / hasService", () => {
+  const env = {
+    id: "env-1",
+    services: [{ role: "db" }, { role: "backend" }],
+  };
+
+  it("findService returns the service of that role", () => {
+    expect(findService(env, "db")).toBe(env.services[0]);
+  });
+
+  it("findService returns undefined for a missing role", () => {
+    expect(findService(env, "frontend")).toBeUndefined();
+  });
+
+  it("hasService reports presence", () => {
+    expect(hasService(env, "backend")).toBe(true);
+    expect(hasService(env, "frontend")).toBe(false);
+  });
+
+  it("getService still throws for a missing role", () => {
+    expect(() => getService(env, "frontend")).toThrow(
+      "environment env-1 has no frontend service"
+    );
   });
 });

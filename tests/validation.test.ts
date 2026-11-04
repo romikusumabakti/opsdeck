@@ -308,6 +308,82 @@ describe("environment schema host, url and owner", () => {
     frontendServiceName: "web",
   };
 
+  const withoutFrontend = (() => {
+    const {
+      frontendServerId,
+      frontendServiceType,
+      frontendServiceName,
+      ...rest
+    } = valid;
+    return rest;
+  })();
+  const withoutDatabase = (() => {
+    const {
+      dbServerId,
+      dbServiceType,
+      dbServiceName,
+      dbType,
+      dbName,
+      dbBackupPath,
+      ...rest
+    } = valid;
+    return rest;
+  })();
+
+  it("accepts hasFrontend: false without frontend fields", () => {
+    const r = environmentInputSchema.safeParse({
+      ...withoutFrontend,
+      hasFrontend: false,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("requires frontend fields when hasFrontend is true", () => {
+    const r = environmentInputSchema.safeParse({
+      ...withoutFrontend,
+      hasFrontend: true,
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.path[0])).toContain(
+      "frontendServiceName"
+    );
+  });
+
+  it("accepts hasDatabase: false without database fields", () => {
+    const r = environmentInputSchema.safeParse({
+      ...withoutDatabase,
+      hasDatabase: false,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("requires database fields when hasDatabase is true", () => {
+    const r = environmentInputSchema.safeParse({
+      ...withoutDatabase,
+      hasDatabase: true,
+    });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues.map((i) => i.path[0])).toContain("dbServiceName");
+  });
+
+  it("requires all three services when the flags are absent", () => {
+    expect(environmentInputSchema.safeParse(withoutFrontend).success).toBe(
+      false
+    );
+    expect(environmentInputSchema.safeParse(withoutDatabase).success).toBe(
+      false
+    );
+    const ok = environmentInputSchema.parse(valid);
+    expect(ok.hasDatabase).toBe(true);
+    expect(ok.hasFrontend).toBe(true);
+  });
+
+  it("leaves the flags undefined when an update omits them", () => {
+    const parsed = environmentUpdateSchema.parse({ name: "Dev" });
+    expect(parsed.hasDatabase).toBeUndefined();
+    expect(parsed.hasFrontend).toBeUndefined();
+  });
+
   it("environment schema trims host and maps empty to null", () => {
     expect(
       environmentInputSchema.parse({ ...valid, host: "  56.129  " }).host
