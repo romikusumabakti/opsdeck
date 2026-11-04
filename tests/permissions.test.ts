@@ -3,6 +3,7 @@ import {
   canCreateEnvironment,
   canOrg,
   canProject,
+  canRegisterApp,
   effectiveProjectRole,
   implicitProjectRole,
   normalizeOrgRole,
@@ -195,5 +196,26 @@ describe("canCreateEnvironment", () => {
   it("denies server:manage holders without environment:create", () => {
     expect(canCreateEnvironment("infra", "contributor")).toBe(false);
     expect(canCreateEnvironment("admin", null)).toBe(false);
+  });
+});
+
+describe("canRegisterApp", () => {
+  it("admins may register apps without any project membership", () => {
+    expect(canRegisterApp("admin", [])).toBe(true);
+  });
+  it("infra counts as maintainer through its implicit project role", () => {
+    expect(canRegisterApp("infra", [])).toBe(true);
+  });
+  it("a member who maintains one project may register apps", () => {
+    expect(canRegisterApp("member", ["viewer", "maintainer"])).toBe(true);
+  });
+  it("a member with only contributor or viewer roles may not", () => {
+    expect(canRegisterApp("member", ["contributor", "viewer"])).toBe(false);
+    expect(canRegisterApp("member", [])).toBe(false);
+  });
+  it("observers and junk org roles need a maintainer membership", () => {
+    expect(canRegisterApp("observer", [])).toBe(false);
+    expect(canRegisterApp("observer", ["maintainer"])).toBe(true);
+    for (const r of JUNK_ROLES) expect(canRegisterApp(r, [])).toBe(false);
   });
 });

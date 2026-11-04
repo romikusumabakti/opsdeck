@@ -21,4 +21,8 @@ ALTER TABLE app_components
   ADD COLUMN fallback_committed_sha text,
   ADD COLUMN fallback_commit_error text;
 
+-- A CI repository builds at most one component (NULLs, i.e. not yet activated,
+-- do not collide). The live ids backfilled by the apps model are distinct.
+CREATE UNIQUE INDEX app_components_ci_repo_idx ON app_components (ci_connection_id, ci_repo_id);
+
 COMMIT;

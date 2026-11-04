@@ -433,6 +433,8 @@ export const appComponents = pgTable(
   (t) => [
     // FK index: components of an app, and the onDelete:restrict check.
     index("app_components_app_idx").on(t.appId),
+    // One component per CI repository; registration answers 409 on a clash.
+    uniqueIndex("app_components_ci_repo_idx").on(t.ciConnectionId, t.ciRepoId),
   ]
 );
 

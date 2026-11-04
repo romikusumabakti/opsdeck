@@ -64,6 +64,20 @@ function getStaticSegments(pathname: string): StaticSegment[] {
       { kind: "static", labelKey: "breadcrumbs.edit" },
     ];
   }
+  // /apps/new
+  if (pathname === "/apps/new") {
+    return [
+      { kind: "static", href: "/apps", labelKey: "breadcrumbs.apps" },
+      { kind: "static", labelKey: "breadcrumbs.new" },
+    ];
+  }
+  // /apps/[appKey] — the app's page; the key is the crumb.
+  if (pathname.startsWith("/apps/")) {
+    return [
+      { kind: "static", href: "/apps", labelKey: "breadcrumbs.apps" },
+      { kind: "static", label: pathname.slice("/apps/".length) },
+    ];
+  }
   // /account/change-password
   if (pathname === "/account/change-password") {
     return [
