@@ -30,6 +30,7 @@ import {
 } from "@/lib/environments";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
+import { hasService, type ServiceRole } from "@/lib/services";
 import type { ActionResponse } from "@/lib/types";
 import type { EnvironmentInput } from "@/lib/validation";
 import {
@@ -48,8 +49,24 @@ import { getServerTranslator } from "@/server/i18n";
 // lib/environments#loadEnvironmentWithServers.
 
 type ServiceValues = Omit<NewEnvironmentService, "environmentId">;
+type EnvironmentUpdate = Partial<EnvironmentInput>;
 
-function dbServiceValues(d: EnvironmentInput): ServiceValues {
+// db and frontend are optional: the builders return undefined when a required
+// field is absent (the input schema guarantees them whenever the matching
+// flag is on; an update patch may omit them).
+function dbServiceValues(d: EnvironmentUpdate): ServiceValues | undefined {
+  if (
+    !(
+      d.dbServerId &&
+      d.dbServiceType &&
+      d.dbServiceName &&
+      d.dbType &&
+      d.dbName &&
+      d.dbBackupPath
+    )
+  ) {
+    return undefined;
+  }
   return {
     role: "db",
     serverId: d.dbServerId,
@@ -74,7 +91,12 @@ function backendServiceValues(d: EnvironmentInput): ServiceValues {
   };
 }
 
-function frontendServiceValues(d: EnvironmentInput): ServiceValues {
+function frontendServiceValues(
+  d: EnvironmentUpdate
+): ServiceValues | undefined {
+  if (!(d.frontendServerId && d.frontendServiceType && d.frontendServiceName)) {
+    return undefined;
+  }
   return {
     role: "frontend",
     serverId: d.frontendServerId,
@@ -91,8 +113,6 @@ function pickPresent<T extends Record<string, unknown>>(patch: T): Partial<T> {
     Object.entries(patch).filter(([, v]) => v !== undefined)
   ) as Partial<T>;
 }
-
-type EnvironmentUpdate = Partial<EnvironmentInput>;
 
 function dbServicePatch(d: EnvironmentUpdate) {
   return pickPresent({
@@ -366,15 +386,14 @@ export async function createEnvironment(
           .returning(),
         "environment"
       );
+      const services = [
+        input.hasDatabase ? dbServiceValues(input) : undefined,
+        backendServiceValues(input),
+        input.hasFrontend ? frontendServiceValues(input) : undefined,
+      ].filter((s): s is ServiceValues => s !== undefined);
       await tx
         .insert(environmentServices)
-        .values(
-          [
-            dbServiceValues(input),
-            backendServiceValues(input),
-            frontendServiceValues(input),
-          ].map((s) => ({ ...s, environmentId: env.id }))
-        );
+        .values(services.map((s) => ({ ...s, environmentId: env.id })));
       return env;
     });
 
@@ -406,7 +425,10 @@ export async function updateEnvironment(
   // changes count, so a maintainer re-saving the full form is still fine.
   const stored = await loadEnvironmentWithServers(id);
   if (!stored) return { success: false, message: "Environment not found" };
-  if (changedInfraFields(parsed.data, stored).length > 0) {
+  const removesService =
+    (parsed.data.hasDatabase === false && hasService(stored, "db")) ||
+    (parsed.data.hasFrontend === false && hasService(stored, "frontend"));
+  if (removesService || changedInfraFields(parsed.data, stored).length > 0) {
     await requireOrgPermission({ server: ["manage"] });
   }
   // Moving an environment into another project is a create there.
@@ -430,11 +452,43 @@ export async function updateEnvironment(
       host: input.host,
       url: input.url,
     });
-    const servicePatches = [
-      { role: "db" as const, patch: dbServicePatch(input) },
-      { role: "backend" as const, patch: backendServicePatch(input) },
-      { role: "frontend" as const, patch: frontendServicePatch(input) },
-    ].filter(({ patch }) => Object.keys(patch).length > 0);
+    // Optional services: a flag turned off drops the role's row, turned on
+    // while the row is missing inserts it from the payload (all required
+    // fields must be present), and an absent flag is today's partial patch.
+    const optional = [
+      {
+        role: "db" as const,
+        flag: input.hasDatabase,
+        values: dbServiceValues(input),
+        patch: dbServicePatch(input),
+        missingMessage: "Database fields are required",
+      },
+      {
+        role: "frontend" as const,
+        flag: input.hasFrontend,
+        values: frontendServiceValues(input),
+        patch: frontendServicePatch(input),
+        missingMessage: "Frontend fields are required",
+      },
+    ];
+    const servicePatches: { role: ServiceRole; patch: object }[] = [
+      { role: "backend", patch: backendServicePatch(input) },
+    ];
+    const removeRoles: ServiceRole[] = [];
+    const insertValues: ServiceValues[] = [];
+    for (const { role, flag, values, patch, missingMessage } of optional) {
+      if (flag === false) {
+        removeRoles.push(role);
+      } else if (flag === true && !hasService(stored, role)) {
+        if (!values) return { success: false, message: missingMessage };
+        insertValues.push(values);
+      } else {
+        servicePatches.push({ role, patch });
+      }
+    }
+    const patchesToApply = servicePatches.filter(
+      ({ patch }) => Object.keys(patch).length > 0
+    );
 
     const updatedEnvironment = await db.transaction(async (tx) => {
       // Always re-read the row so a services-only edit still reports "not found"
@@ -448,7 +502,22 @@ export async function updateEnvironment(
         : await tx.select().from(environments).where(eq(environments.id, id));
       if (!env) return undefined;
 
-      for (const { role, patch } of servicePatches) {
+      for (const role of removeRoles) {
+        await tx
+          .delete(environmentServices)
+          .where(
+            and(
+              eq(environmentServices.environmentId, id),
+              eq(environmentServices.role, role)
+            )
+          );
+      }
+      if (insertValues.length > 0) {
+        await tx
+          .insert(environmentServices)
+          .values(insertValues.map((v) => ({ ...v, environmentId: id })));
+      }
+      for (const { role, patch } of patchesToApply) {
         await tx
           .update(environmentServices)
           .set(patch)
