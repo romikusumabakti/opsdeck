@@ -2,11 +2,13 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const repo = vi.hoisted(() => ({
-  getDeployApp: vi.fn(),
   insertBuildIfNew: vi.fn(),
   findAutoTargets: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
+
+const apps = vi.hoisted(() => ({ getComponent: vi.fn() }));
+vi.mock("@/lib/apps", () => apps);
 
 const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
 vi.mock("@/server/services/deployments", () => deployments);
@@ -46,9 +48,11 @@ function deliver(body: string, signature?: string) {
 
 beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.56.113:5000");
-  repo.getDeployApp.mockImplementation(async (appKey: string) =>
+  apps.getComponent.mockImplementation(async (componentKey: string) =>
     // A secret without the enc:v1: prefix decrypts to itself (legacy rows).
-    appKey === "dplk-accounting" ? { appKey, notifySecret: SECRET } : null
+    componentKey === "dplk-accounting"
+      ? { componentKey, notifySecret: SECRET }
+      : null
   );
   repo.insertBuildIfNew.mockResolvedValue({
     build: { id: BUILD_ID },
@@ -120,8 +124,8 @@ describe("POST /api/deploy-hooks/builds", () => {
 
   it("401, the same as an unknown app, when the stored secret cannot be decrypted", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    repo.getDeployApp.mockResolvedValue({
-      appKey: "dplk-accounting",
+    apps.getComponent.mockResolvedValue({
+      componentKey: "dplk-accounting",
       notifySecret: "enc:v1:bm90LWEtcmVhbC1jaXBoZXJ0ZXh0",
     });
     const body = JSON.stringify(notification);
@@ -157,7 +161,7 @@ describe("POST /api/deploy-hooks/builds", () => {
     const body = JSON.stringify({ ...notification, pad: "x".repeat(20_000) });
     const res = await deliver(body, sign(body));
     expect(res.status).toBe(413);
-    expect(repo.getDeployApp).not.toHaveBeenCalled();
+    expect(apps.getComponent).not.toHaveBeenCalled();
   });
 
   it("202 and one auto deployment per matching target on first delivery", async () => {
@@ -171,7 +175,7 @@ describe("POST /api/deploy-hooks/builds", () => {
       deploymentIds: [`dep-${TARGET_A}`, `dep-${TARGET_B}`],
     });
     expect(repo.insertBuildIfNew).toHaveBeenCalledWith({
-      appKey: "dplk-accounting",
+      componentKey: "dplk-accounting",
       branch: "sucor/development",
       tag: TAG,
       commitSha: "abc1234def5678",
@@ -191,6 +195,15 @@ describe("POST /api/deploy-hooks/builds", () => {
         buildId: BUILD_ID,
       });
     }
+  });
+
+  it("maps the hook's app field to the component key", async () => {
+    const body = JSON.stringify(notification);
+    await deliver(body, sign(body));
+    expect(repo.insertBuildIfNew).toHaveBeenCalledWith(
+      expect.objectContaining({ componentKey: "dplk-accounting" })
+    );
+    expect(repo.findAutoTargets.mock.calls[0]?.[0]).toBe("dplk-accounting");
   });
 
   it("records the build and requests the other targets when one request fails", async () => {
@@ -249,7 +262,7 @@ describe("POST /api/deploy-hooks/builds", () => {
     const res = await deliver(body, sign(body));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "Deploy disabled" });
-    expect(repo.getDeployApp).not.toHaveBeenCalled();
+    expect(apps.getComponent).not.toHaveBeenCalled();
     expect(repo.insertBuildIfNew).not.toHaveBeenCalled();
   });
 });

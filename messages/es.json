@@ -370,8 +370,8 @@
       "createDescription": "Dónde se despliega una aplicación en este entorno.",
       "editTitle": "Editar destino de despliegue",
       "editDescription": "La aplicación de un destino no se puede cambiar.",
-      "appKey": "Clave de la aplicación",
-      "appKeyHint": "La aplicación tal como está registrada para las notificaciones de build, p. ej. dplk-accounting.",
+      "componentKey": "Clave de la aplicación",
+      "componentKeyHint": "La aplicación tal como está registrada para las notificaciones de build, p. ej. dplk-accounting.",
       "server": "Servidor",
       "serverPlaceholder": "Selecciona un servidor",
       "serverHint": "Uno de los servidores en los que se ejecutan los servicios de este entorno.",
@@ -396,8 +396,8 @@
       "saved": "Destino guardado",
       "created": "Destino añadido",
       "invalid": "Este valor no coincide con el formato descrito abajo.",
-      "appNotFound": "No hay ninguna aplicación de despliegue registrada con esta clave.",
-      "duplicateApp": "Esta aplicación ya tiene un destino en este entorno."
+      "componentNotFound": "No hay ninguna aplicación de despliegue registrada con esta clave.",
+      "duplicateComponent": "Esta aplicación ya tiene un destino en este entorno."
     }
   },
   "backupDb": {

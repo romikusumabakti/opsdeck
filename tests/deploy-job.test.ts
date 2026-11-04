@@ -11,7 +11,7 @@ const TAG = "origin-sucor-development-abc1234";
 const target = {
   id: TARGET_ID,
   environmentId: ENV_ID,
-  appKey: "dplk-accounting",
+  componentKey: "dplk-accounting",
   serverId: SERVER_ID,
   sourceBranch: "sucor/development",
   autoDeploy: true,
@@ -25,7 +25,6 @@ const target = {
 };
 
 const repo = vi.hoisted(() => ({
-  getDeployApp: vi.fn(),
   getTarget: vi.fn(),
   getDeployment: vi.fn(),
   insertDeployment: vi.fn(),
@@ -37,6 +36,9 @@ const repo = vi.hoisted(() => ({
   failStaleRunningDeployments: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
+
+const apps = vi.hoisted(() => ({ getComponent: vi.fn() }));
+vi.mock("@/lib/apps", () => apps);
 
 const ssh = vi.hoisted(() => ({ executeRemoteCommand: vi.fn() }));
 vi.mock("@/lib/ssh", () => ssh);
@@ -72,8 +74,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.56.113:5000");
   repo.getTarget.mockResolvedValue(target);
-  repo.getDeployApp.mockResolvedValue({
-    appKey: "dplk-accounting",
+  apps.getComponent.mockResolvedValue({
+    componentKey: "dplk-accounting",
     bundleImage: "dplk-accounting-deploy",
   });
   repo.getDeployment.mockResolvedValue({

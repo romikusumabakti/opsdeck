@@ -321,7 +321,7 @@
     "addTarget": "Tambah target",
     "editTarget": "Ubah target",
     "emptyTitle": "Belum ada target deploy",
-    "emptyDescription": "Target menghubungkan aplikasi dengan server dan project Compose di environment ini. Tambahkan target untuk men-deploy build yang dilaporkan CI.",
+    "emptyDescription": "Target menghubungkan komponen dengan server dan project Compose di environment ini. Tambahkan target untuk men-deploy build yang dilaporkan CI.",
     "autoDeploy": "Auto-deploy",
     "lastDeployFailed": "Deploy terakhir gagal",
     "currentTag": "Tag saat ini",
@@ -367,11 +367,11 @@
     },
     "form": {
       "createTitle": "Tambah target deploy",
-      "createDescription": "Tempat aplikasi di-deploy di environment ini.",
+      "createDescription": "Tempat komponen di-deploy di environment ini.",
       "editTitle": "Ubah target deploy",
-      "editDescription": "Aplikasi sebuah target tidak bisa diubah.",
-      "appKey": "App key",
-      "appKeyHint": "Aplikasi sesuai yang terdaftar untuk notifikasi build, misalnya dplk-accounting.",
+      "editDescription": "Komponen sebuah target tidak bisa diubah.",
+      "componentKey": "Component key",
+      "componentKeyHint": "Komponen sesuai yang terdaftar untuk notifikasi build, misalnya dplk-accounting.",
       "server": "Server",
       "serverPlaceholder": "Pilih server",
       "serverHint": "Salah satu server tempat service environment ini berjalan.",
@@ -396,8 +396,8 @@
       "saved": "Target disimpan",
       "created": "Target ditambahkan",
       "invalid": "Nilai ini tidak sesuai format yang dijelaskan di bawah.",
-      "appNotFound": "Belum ada deploy app terdaftar dengan key ini.",
-      "duplicateApp": "Aplikasi ini sudah punya target di environment ini."
+      "componentNotFound": "Belum ada komponen terdaftar dengan key ini.",
+      "duplicateComponent": "Komponen ini sudah punya target di environment ini."
     }
   },
   "backupDb": {

@@ -1,7 +1,7 @@
 import { bodyLimit } from "hono/body-limit";
-import { getDeployApp } from "@/lib/deploy/repository";
+import { getComponent } from "@/lib/apps";
 import { verifySignature } from "@/lib/deploy/signature";
-import { appKeySchema } from "@/lib/deploy/validation";
+import { componentKeySchema } from "@/lib/deploy/validation";
 import { decryptSecret } from "@/lib/secrets";
 import { publicRouter } from "@/server/router";
 import {
@@ -13,25 +13,25 @@ import {
 const MAX_BODY_BYTES = 16 * 1024;
 
 /**
- * Verified against when the app is unknown, so an unknown app costs the same
- * HMAC as a known one and the response time does not reveal which app keys
- * exist. Never matches: no real secret is this value.
+ * Verified against when the component is unknown, so an unknown component
+ * costs the same HMAC as a known one and the response time does not reveal
+ * which component keys exist. Never matches: no real secret is this value.
  */
-const UNKNOWN_APP_SECRET = "opsdeck-unknown-app-dummy-secret";
+const UNKNOWN_COMPONENT_SECRET = "opsdeck-unknown-component-dummy-secret";
 
 /**
- * The app's notify secret, or null when the app is unknown. A secret that
- * cannot be decrypted (a rotated SECRETS_KEY, a corrupt row) is logged and
- * treated like an unknown app, so it answers the same 401 rather than a 500.
+ * The component's notify secret, or null when the component is unknown. A
+ * secret that cannot be decrypted (a rotated SECRETS_KEY, a corrupt row) is
+ * logged and treated like an unknown component, so it answers the same 401 rather than a 500.
  */
-async function notifySecret(appKey: string): Promise<string | null> {
-  const app = await getDeployApp(appKey);
-  if (!app) return null;
+async function notifySecret(componentKey: string): Promise<string | null> {
+  const component = await getComponent(componentKey);
+  if (!component) return null;
   try {
-    return decryptSecret(app.notifySecret);
+    return decryptSecret(component.notifySecret);
   } catch (error) {
     console.error(
-      `Deploy hook: cannot decrypt the notify secret of app ${appKey}:`,
+      `Deploy hook: cannot decrypt the notify secret of component ${componentKey}:`,
       error
     );
     return null;
@@ -40,13 +40,14 @@ async function notifySecret(appKey: string): Promise<string | null> {
 
 /**
  * Build notifications from CI (Woodpecker), posted after the images are
- * pushed. Public: CI has no session. The credential is the per-app HMAC of the
+ * pushed. Public: CI has no session. The credential is the per-component HMAC of the
  * raw body in `X-Opsdeck-Signature` (lib/deploy/signature.ts).
  *
  * The body is read once, as text, and the signature is checked over exactly
- * those bytes before any field but `app` is trusted. An unknown app, a missing
- * or malformed header and a wrong signature all get the same 401, so a caller
- * cannot probe which app keys exist.
+ * those bytes before any field but `app` is trusted. The body field `app` holds
+ * the component key (the name is kept for pipelines already in the field). An
+ * unknown component, a missing or malformed header and a wrong signature all
+ * get the same 401, so a caller cannot probe which component keys exist.
  *
  * CI must send `Content-Type: application/json`: the CSRF guard refuses a
  * text/plain or form POST that carries no matching Origin.
@@ -73,12 +74,14 @@ export const deployHooksRouter = publicRouter().post(
     }
 
     const signature = c.req.header("X-Opsdeck-Signature");
-    const appKey = appKeySchema.safeParse(
+    const componentKey = componentKeySchema.safeParse(
       (payload as { app?: unknown } | null)?.app
     );
-    const secret = appKey.success ? await notifySecret(appKey.data) : null;
+    const secret = componentKey.success
+      ? await notifySecret(componentKey.data)
+      : null;
     if (secret === null) {
-      verifySignature(rawBody, signature, UNKNOWN_APP_SECRET);
+      verifySignature(rawBody, signature, UNKNOWN_COMPONENT_SECRET);
       return unauthorized();
     }
     if (!verifySignature(rawBody, signature, secret)) {

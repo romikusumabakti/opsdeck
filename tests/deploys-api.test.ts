@@ -41,10 +41,15 @@ const repo = vi.hoisted(() => ({
   findBuild: vi.fn(),
   upsertTarget: vi.fn(),
   deleteTarget: vi.fn(),
-  getDeployApp: vi.fn(),
   environmentUsesServer: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
+
+const apps = vi.hoisted(() => ({
+  getComponent: vi.fn(),
+  assertTargetMatchesEnvironmentApp: vi.fn(),
+}));
+vi.mock("@/lib/apps", () => apps);
 
 const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
 vi.mock("@/server/services/deployments", () => deployments);
@@ -55,14 +60,14 @@ const { requireProjectPermission } = await import("@/lib/authz");
 const target = {
   id: TARGET_ID,
   environmentId: ENV_ID,
-  appKey: "dplk-accounting",
+  componentKey: "dplk-accounting",
   serverId: SERVER_ID,
   sourceBranch: "sucor/development",
 };
 
 const newTarget = {
   environmentId: ENV_ID,
-  appKey: "dplk-accounting",
+  componentKey: "dplk-accounting",
   serverId: SERVER_ID,
   sourceBranch: "sucor/development",
   deployDir: "/opt/accounting",
@@ -82,7 +87,8 @@ beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.56.113:5000");
   state.role = "maintainer";
   repo.getTarget.mockResolvedValue(target);
-  repo.getDeployApp.mockResolvedValue({ appKey: "dplk-accounting" });
+  apps.getComponent.mockResolvedValue({ componentKey: "dplk-accounting" });
+  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(undefined);
   repo.environmentUsesServer.mockImplementation(
     async (_env: string, server: string) => server === SERVER_ID
   );
@@ -363,11 +369,27 @@ describe("target configuration", () => {
     expect(repo.upsertTarget).not.toHaveBeenCalled();
   });
 
-  it("rejects an unknown deploy app with 404", async () => {
-    repo.getDeployApp.mockResolvedValue(null);
+  it("rejects a component of another app than the environment's with 409", async () => {
+    const { HTTPException } = await import("hono/http-exception");
+    apps.assertTargetMatchesEnvironmentApp.mockRejectedValue(
+      new HTTPException(409, {
+        message: "Component belongs to another app than this environment",
+      })
+    );
+    const res = await send("POST", "/api/deploys/targets", newTarget);
+    expect(res.status).toBe(409);
+    expect(apps.assertTargetMatchesEnvironmentApp).toHaveBeenCalledWith(
+      ENV_ID,
+      "dplk-accounting"
+    );
+    expect(repo.upsertTarget).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown component with 404", async () => {
+    apps.getComponent.mockResolvedValue(null);
     const res = await send("POST", "/api/deploys/targets", newTarget);
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: "Deploy app not found" });
+    expect(await res.json()).toEqual({ error: "Component not found" });
   });
 
   it("answers 409 for a second target of the same app", async () => {
@@ -400,8 +422,11 @@ describe("target configuration", () => {
     expect(repo.upsertTarget).not.toHaveBeenCalled();
   });
 
-  it("update cannot change appKey or environmentId", async () => {
-    for (const patch of [{ appKey: "other" }, { environmentId: ENV_ID }]) {
+  it("update cannot change componentKey or environmentId", async () => {
+    for (const patch of [
+      { componentKey: "other" },
+      { environmentId: ENV_ID },
+    ]) {
       const res = await send(
         "PATCH",
         `/api/deploys/targets/${TARGET_ID}`,

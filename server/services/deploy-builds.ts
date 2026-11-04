@@ -1,16 +1,18 @@
 import { z } from "zod";
 import { findAutoTargets, insertBuildIfNew } from "@/lib/deploy/repository";
 import {
-  appKeySchema,
   branchSchema,
   commitShaSchema,
+  componentKeySchema,
   deployTagSchema,
 } from "@/lib/deploy/validation";
 import { requestDeployment } from "@/server/services/deployments";
 
 /** The body CI posts to /api/deploy-hooks/builds after pushing an image. */
 export const buildNotificationSchema = z.object({
-  app: appKeySchema,
+  // The field keeps its name (`app`): pipelines on several repos send it today.
+  // Its value is the component key.
+  app: componentKeySchema,
   branch: branchSchema,
   tag: deployTagSchema,
   commit: commitShaSchema,
@@ -37,7 +39,7 @@ export async function recordBuild(n: BuildNotification): Promise<{
   deploymentIds: string[];
 }> {
   const { build, created } = await insertBuildIfNew({
-    appKey: n.app,
+    componentKey: n.app,
     branch: n.branch,
     tag: n.tag,
     commitSha: n.commit,

@@ -48,7 +48,7 @@ import { environmentServers, TargetFormDialog } from "./target-form-dialog";
 
 type Deployment = DeployTargetState["recentDeployments"][number];
 type Build = DeployTargetState["recentBuilds"][number];
-type ActiveRun = { runId: string; tag: string; appKey: string };
+type ActiveRun = { runId: string; tag: string; componentKey: string };
 type FormState = { target: DeployTargetState | null } | null;
 
 export function DeploysClient({
@@ -129,7 +129,7 @@ export function DeploysClient({
         description={
           run ? (
             <code className="font-mono text-xs">
-              {run.appKey} · {run.tag}
+              {run.componentKey} · {run.tag}
             </code>
           ) : undefined
         }
@@ -179,7 +179,7 @@ function TargetCard({
     setPending(tag);
     try {
       const { runId } = await request();
-      onRun({ runId, tag, appKey: target.appKey });
+      onRun({ runId, tag, componentKey: target.componentKey });
     } catch (error) {
       toast.error(errorText(error));
     } finally {
@@ -192,7 +192,7 @@ function TargetCard({
       title: t("deployConfirmTitle", { tag }),
       description: t("deployConfirmDescription", {
         tag,
-        app: target.appKey,
+        app: target.componentKey,
         services,
       }),
       confirmText: t("deploy"),
@@ -206,7 +206,7 @@ function TargetCard({
       title: t("rollbackConfirmTitle", { tag }),
       description: t("rollbackConfirmDescription", {
         tag,
-        app: target.appKey,
+        app: target.componentKey,
       }),
       confirmText: t("rollbackTo", { tag }),
       cancelText: tCommon("cancel"),
@@ -219,7 +219,7 @@ function TargetCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
-          <span className="font-mono">{target.appKey}</span>
+          <span className="font-mono">{target.componentKey}</span>
           {target.autoDeploy && (
             <Badge variant="secondary">{t("autoDeploy")}</Badge>
           )}
@@ -313,7 +313,11 @@ function TargetCard({
             <DeploymentsTable
               deployments={target.recentDeployments}
               onViewRun={(d) =>
-                onRun({ runId: d.runId, tag: d.tag, appKey: target.appKey })
+                onRun({
+                  runId: d.runId,
+                  tag: d.tag,
+                  componentKey: target.componentKey,
+                })
               }
             />
           )}
