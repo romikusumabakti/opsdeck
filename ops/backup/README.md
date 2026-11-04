@@ -16,7 +16,7 @@ The timer starts the service every day at 02:30 Asia/Jakarta. With
 `Persistent=true`, a run missed while the host was down happens at the next
 boot. The script runs as root and does this:
 
-1. Creates `/var/backups/dss-panel/<YYYY-MM-DD>/` with mode 0700. Every file
+1. Creates `/var/backups/dss-panel/<YYYY-MM-DD>/` (the date in Asia/Jakarta) with mode 0700. Every file
    in it is 0600.
 2. Dumps from container `opsdeck-postgres`:
    - `dss_panel.dump` and `sonarqube_db.dump` with `pg_dump -Fc`.
@@ -26,8 +26,9 @@ boot. The script runs as root and does this:
    Each file is written as `*.partial` and renamed only when its dump
    succeeds.
 3. Mirrors the Garage bucket into `garage/`. It runs
-   `rclone/rclone:1 sync garage:<S3_BUCKET>` on the `dss-panel_default`
-   network. The S3 settings are read from the `S3_*` lines of
+   `rclone/rclone:1 sync garage:${S3_BUCKET:-knowledge}` on the
+   `dss-panel_default` network, into `garage.partial/`, and renames that to
+   `garage/` only when the sync succeeds. The S3 settings are read from the `S3_*` lines of
    `/deployments/dss-panel/.env` and passed to the container as
    `RCLONE_CONFIG_GARAGE_*` environment variables, never as arguments.
 4. Writes `SHA256SUMS` for every file in the day directory.
@@ -40,10 +41,12 @@ boot. The script runs as root and does this:
    `dss-panel-backup: 2026-11-05 dss_panel=… sonarqube_db=… globals=… garage=… total=… remote=ok`
    (sizes in bytes).
 
-If a dump, the Garage mirror or the checksums fail, the script exits non-zero
-before the push. If the push fails, the local copy stays, retention still
-runs, and the script exits non-zero. Either way the unit shows in
-`systemctl --failed`.
+If a dump or the checksums fail, the script exits non-zero before the push.
+If the Garage mirror fails, the day has no `garage/` directory, but the dumps
+are still checksummed and pushed, the summary shows `garage=failed`, and the
+script exits non-zero at the end. If the push fails, the local copy stays,
+retention still runs, and the script exits non-zero. In every case the unit
+shows in `systemctl --failed`. `RETENTION_DAYS` must be a positive integer.
 
 Every setting can be overridden through the environment: `BACKUP_DIR`,
 `PG_CONTAINER`, `DATABASES`, `COMPOSE_NETWORK`, `ENV_FILE`, `REMOTE`, `SSH_KEY`
@@ -162,12 +165,13 @@ Restore `sonarqube_db` the same way, with SonarQube stopped.
 make the bucket match the backup exactly. Run it from the day directory. The
 keys are `S3_ACCESS_KEY` and `S3_SECRET_KEY` in `/deployments/dss-panel/.env`;
 type them at the prompts so they never appear on a command line or in the
-shell history.
+shell history. If the .env sets an `S3_BUCKET` other than `knowledge`, set
+`S3_BUCKET` in the shell first.
 
 ```sh
 export RCLONE_CONFIG_GARAGE_TYPE=s3 RCLONE_CONFIG_GARAGE_PROVIDER=Other \
   RCLONE_CONFIG_GARAGE_ENDPOINT=http://garage:3900 RCLONE_CONFIG_GARAGE_REGION=garage
-read -r -p 'S3 access key: ' RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID
+read -rs -p 'S3 access key: ' RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID; echo
 read -rs -p 'S3 secret key: ' RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY; echo
 export RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY
 docker run --rm --network dss-panel_default \
@@ -175,5 +179,5 @@ docker run --rm --network dss-panel_default \
   -e RCLONE_CONFIG_GARAGE_ENDPOINT -e RCLONE_CONFIG_GARAGE_REGION \
   -e RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID -e RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY \
   -v "$PWD/garage:/data/garage:ro" \
-  rclone/rclone:1 copy /data/garage garage:knowledge
+  rclone/rclone:1 copy /data/garage "garage:${S3_BUCKET:-knowledge}"
 ```

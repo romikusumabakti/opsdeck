@@ -7,3 +7,4 @@ Requires=docker.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/dss-panel-backup.sh
+TimeoutStartSec=2h
