@@ -1,13 +1,16 @@
+import { generateKeyPairSync } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
-const PEM =
-  "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAabc\n-----END PUBLIC KEY-----\n";
+const PEM = generateKeyPairSync("ed25519")
+  .publicKey.export({ type: "spki", format: "pem" })
+  .toString();
 
 const state = vi.hoisted(() => ({
   role: "admin" as string,
   rows: [] as Record<string, unknown>[],
   lastSet: null as Record<string, unknown> | null,
+  updateError: null as Error | null,
 }));
 
 vi.mock("@/lib/auth-session", () => ({
@@ -45,6 +48,7 @@ vi.mock("@/lib/db", () => {
       return {
         where: () => ({
           returning: async () => {
+            if (state.updateError) throw state.updateError;
             if (state.rows.length === 0) return [];
             state.rows[0] = { ...state.rows[0], ...values };
             return [state.rows[0]];
@@ -103,6 +107,7 @@ beforeEach(() => {
   state.role = "admin";
   state.rows = [row()];
   state.lastSet = null;
+  state.updateError = null;
   woodpecker.create.mockReturnValue({
     fetchExtensionPublicKey: woodpecker.fetchExtensionPublicKey,
   });
@@ -188,6 +193,65 @@ describe("PATCH /api/ci-connections/:id", () => {
     expect(state.lastSet).toHaveProperty("forgeUsername", null);
   });
 
+  it("rejects a whitespace-only token with 400 and trims others", async () => {
+    const bad = await send("PATCH", `/api/ci-connections/${ID}`, {
+      apiToken: "   ",
+    });
+    expect(bad.status).toBe(400);
+    expect(state.lastSet).toBeNull();
+    await send("PATCH", `/api/ci-connections/${ID}`, {
+      forgeToken: "  padded  ",
+      forgeUsername: "  bot ",
+    });
+    expect(decryptSecret(state.lastSet?.forgeToken as string)).toBe("padded");
+    expect(state.lastSet?.forgeUsername).toBe("bot");
+  });
+
+  it("requires a new token when the URL changes", async () => {
+    const res = await send("PATCH", `/api/ci-connections/${ID}`, {
+      baseUrl: "https://other.example.test",
+    });
+    expect(res.status).toBe(400);
+    expect(state.lastSet).toBeNull();
+  });
+
+  it("with a new token, a URL change is saved and drops the cached key", async () => {
+    const res = await send("PATCH", `/api/ci-connections/${ID}`, {
+      baseUrl: "https://other.example.test",
+      apiToken: "new-token",
+    });
+    expect(res.status).toBe(200);
+    expect(state.lastSet).toMatchObject({
+      baseUrl: "https://other.example.test",
+      extensionPublicKey: null,
+      extensionPublicKeyFetchedAt: null,
+    });
+  });
+
+  it("keeps the cached key when the URL is unchanged", async () => {
+    await send("PATCH", `/api/ci-connections/${ID}`, {
+      baseUrl: "https://ci.example.test/",
+    });
+    expect(state.lastSet).not.toHaveProperty("extensionPublicKey");
+  });
+
+  it("maps a unique-name violation to 400", async () => {
+    state.updateError = Object.assign(new Error("dup"), { code: "23505" });
+    const res = await send("PATCH", `/api/ci-connections/${ID}`, {
+      name: "Taken",
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("That name is already in use");
+  });
+
+  it("does not hide other database errors", async () => {
+    state.updateError = new Error("connection lost");
+    const res = await send("PATCH", `/api/ci-connections/${ID}`, {
+      name: "Renamed",
+    });
+    expect(res.status).toBe(500);
+  });
+
   it("rejects an invalid base URL with 400", async () => {
     const res = await send("PATCH", `/api/ci-connections/${ID}`, {
       baseUrl: "not a url",
@@ -217,6 +281,24 @@ describe("POST /api/ci-connections/:id/refresh-key", () => {
     const body = await res.json();
     expect(body.hasExtensionKey).toBe(true);
     expect(JSON.stringify(body)).not.toContain("BEGIN PUBLIC KEY");
+  });
+
+  it("answers 502 and stores nothing for a non-key response", async () => {
+    woodpecker.fetchExtensionPublicKey.mockResolvedValue("<html>login</html>");
+    const res = await send("POST", `/api/ci-connections/${ID}/refresh-key`);
+    expect(res.status).toBe(502);
+    expect(state.lastSet).toBeNull();
+  });
+
+  it("rejects a PEM that is not ed25519", async () => {
+    woodpecker.fetchExtensionPublicKey.mockResolvedValue(
+      generateKeyPairSync("rsa", { modulusLength: 2048 })
+        .publicKey.export({ type: "spki", format: "pem" })
+        .toString()
+    );
+    const res = await send("POST", `/api/ci-connections/${ID}/refresh-key`);
+    expect(res.status).toBe(502);
+    expect(state.lastSet).toBeNull();
   });
 
   it("answers 409 when there is no API token", async () => {

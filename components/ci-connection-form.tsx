@@ -63,9 +63,11 @@ export function CiConnectionForm({
       forgeUsername: values.forgeUsername.trim(),
     };
     if (clearApiToken) changes.apiToken = "";
-    else if (values.apiToken) changes.apiToken = values.apiToken;
+    else if (values.apiToken.trim()) changes.apiToken = values.apiToken.trim();
     if (clearForgeToken) changes.forgeToken = "";
-    else if (values.forgeToken) changes.forgeToken = values.forgeToken;
+    else if (values.forgeToken.trim()) {
+      changes.forgeToken = values.forgeToken.trim();
+    }
 
     try {
       await updateCiConnection(connection.id, changes);

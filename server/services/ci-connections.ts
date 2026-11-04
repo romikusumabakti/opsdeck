@@ -1,3 +1,4 @@
+import { createPublicKey } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { type CiProvider, CiProviderError } from "@/lib/ci/types";
 import { createWoodpeckerProvider } from "@/lib/ci/woodpecker";
 import { db } from "@/lib/db";
 import { type CiConnection, ciConnections } from "@/lib/db/schema";
+import { isUniqueViolation } from "@/lib/people/names";
 import { decryptSecret, encryptNullable } from "@/lib/secrets";
 import { badRequest, notFound } from "@/server/errors";
 
@@ -45,13 +47,24 @@ function toSafe(row: CiConnection): SafeCiConnection {
   };
 }
 
-// Empty string clears a credential, an absent key keeps it.
+// Empty string clears a credential, an absent key keeps it. A non-empty value
+// is trimmed, and one that is only whitespace is rejected rather than cleared.
+const credential = z
+  .string()
+  .max(2048)
+  .transform((value, ctx) => {
+    if (value === "") return "";
+    const trimmed = value.trim();
+    if (trimmed === "") ctx.addIssue({ code: "custom", message: "Blank" });
+    return trimmed;
+  });
+
 export const updateCiConnectionSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   baseUrl: z.url().max(2048).optional(),
-  apiToken: z.string().max(2048).optional(),
+  apiToken: credential.optional(),
   forgeUsername: z.string().trim().max(255).optional(),
-  forgeToken: z.string().max(2048).optional(),
+  forgeToken: credential.optional(),
 });
 
 async function findConnection(id: string): Promise<CiConnection> {
@@ -82,7 +95,18 @@ export async function updateCiConnection(
   };
   if (changes.name !== undefined) patch.name = changes.name;
   if (changes.baseUrl !== undefined) {
-    patch.baseUrl = changes.baseUrl.replace(/\/+$/, "");
+    const baseUrl = changes.baseUrl.replace(/\/+$/, "");
+    const current = await findConnection(id);
+    if (baseUrl !== current.baseUrl) {
+      // The stored token must not follow the connection to another host.
+      if (!changes.apiToken) {
+        badRequest("Enter the API token again when changing the URL");
+      }
+      // The cached signing key belongs to the old server.
+      patch.extensionPublicKey = null;
+      patch.extensionPublicKeyFetchedAt = null;
+    }
+    patch.baseUrl = baseUrl;
   }
   if (changes.apiToken !== undefined) {
     patch.apiToken = encryptNullable(changes.apiToken) || null;
@@ -101,9 +125,7 @@ export async function updateCiConnection(
       .returning();
     return updated ? toSafe(updated) : notFound();
   } catch (error) {
-    if (error instanceof HTTPException) throw error;
-    // The only constraint a patch can hit is the unique name.
-    if (changes.name !== undefined) badRequest("That name is already in use");
+    if (isUniqueViolation(error)) badRequest("That name is already in use");
     throw error;
   }
 }
@@ -128,6 +150,14 @@ export async function getProviderForConnection(
   return providerFor(await findConnection(id));
 }
 
+function isEd25519PublicKey(pem: string): boolean {
+  try {
+    return createPublicKey(pem).asymmetricKeyType === "ed25519";
+  } catch {
+    return false;
+  }
+}
+
 /** Fetches the CI server's extension signing key and stores it. */
 export async function refreshExtensionKey(
   id: string
@@ -142,6 +172,11 @@ export async function refreshExtensionKey(
       throw new HTTPException(502, { message: error.message });
     }
     throw error;
+  }
+  if (!isEd25519PublicKey(key)) {
+    throw new HTTPException(502, {
+      message: "Woodpecker did not return a valid ed25519 public key",
+    });
   }
   const [updated] = await db
     .update(ciConnections)
