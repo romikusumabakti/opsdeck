@@ -8,9 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 import {
-  backendService,
-  dbService,
-  frontendService,
+  findService,
   type ServiceRole,
   type ServiceType,
 } from "@/lib/services";
@@ -70,12 +68,14 @@ export function EnvironmentStack({
     };
   }, [environment, tCommon]);
 
-  const dbSvc = dbService(environment);
-  const backendSvc = backendService(environment);
-  const frontendSvc = frontendService(environment);
+  // Only the services the environment has, in db, backend, frontend order.
+  const dbSvc = findService(environment, "db");
+  const backendSvc = findService(environment, "backend");
+  const frontendSvc = findService(environment, "frontend");
 
-  const roles: RoleMeta[] = [
-    {
+  const roles: RoleMeta[] = [];
+  if (dbSvc) {
+    roles.push({
       role: "db",
       icon: Database,
       titleKey: "database",
@@ -90,24 +90,28 @@ export function EnvironmentStack({
           <code className="font-mono truncate">{dbSvc.dbName ?? ""}</code>
         </span>
       ),
-    },
-    {
+    });
+  }
+  if (backendSvc) {
+    roles.push({
       role: "backend",
       icon: Plug,
       titleKey: "backend",
       serviceType: backendSvc.serviceType,
       serviceName: backendSvc.serviceName,
       serverName: backendSvc.server.name,
-    },
-    {
+    });
+  }
+  if (frontendSvc) {
+    roles.push({
       role: "frontend",
       icon: Atom,
       titleKey: "frontend",
       serviceType: frontendSvc.serviceType,
       serviceName: frontendSvc.serviceName,
       serverName: frontendSvc.server.name,
-    },
-  ];
+    });
+  }
 
   return (
     <Card>

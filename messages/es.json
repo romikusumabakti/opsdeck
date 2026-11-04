@@ -466,6 +466,7 @@
   },
   "databases": {
     "title": "Bases de datos",
+    "noDatabase": "This environment has no database",
     "subtitle": "Respalda, restaura y gestiona bases de datos en el servidor de base de datos del entorno.",
     "backupListTitle": "Copias de seguridad",
     "colBackupName": "Nombre",
@@ -513,6 +514,7 @@
   },
   "mockTime": {
     "title": "Tiempo simulado",
+    "noBackend": "This environment has no backend",
     "subtitle": "Sobrescribe el reloj que usa {name} para hacer pruebas.",
     "formTitle": "Fecha y hora simuladas",
     "formDescription": "Elige la fecha y la hora que el entorno debe creer que es.",

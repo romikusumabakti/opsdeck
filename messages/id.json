@@ -466,6 +466,7 @@
   },
   "databases": {
     "title": "Database",
+    "noDatabase": "Environment ini tidak memiliki database",
     "subtitle": "Backup, restore, dan kelola database di server database environment ini.",
     "backupListTitle": "Backup",
     "colBackupName": "Nama",
@@ -513,6 +514,7 @@
   },
   "mockTime": {
     "title": "Mock waktu",
+    "noBackend": "Environment ini tidak memiliki backend",
     "subtitle": "Atur ulang jam yang dipakai {name} untuk keperluan testing.",
     "formTitle": "Tanggal & waktu mock",
     "formDescription": "Pilih tanggal dan waktu yang harus dianggap berlaku oleh environment ini.",

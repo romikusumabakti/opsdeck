@@ -4,6 +4,7 @@ import { loadEnvironmentWithServers } from "@/lib/environments";
 import {
   buildFollowLogsCommand,
   getServiceConfig,
+  hasService,
   LOG_LINE_OPTIONS,
   type LogLines,
   type ServiceRole,
@@ -82,6 +83,10 @@ export const serviceLogsRouter = sessionRouter().get(
     // password opens the log stream and must never come from the client.
     const environment = await loadEnvironmentWithServers(environmentId);
     if (!environment) return new Response("Not found", { status: 404 });
+
+    if (!hasService(environment, role as ServiceRole)) {
+      return new Response("Not found", { status: 404 });
+    }
 
     const lines = parseLines(c.req.query("lines"));
     const cfg = getServiceConfig(environment, role as ServiceRole);
