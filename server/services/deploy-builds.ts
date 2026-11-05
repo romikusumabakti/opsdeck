@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { getComponent } from "@/lib/apps";
+import { parsePipelineNumber } from "@/lib/ci/woodpecker";
 import { findAutoTargets, insertBuildIfNew } from "@/lib/deploy/repository";
 import {
   branchSchema,
@@ -6,6 +8,7 @@ import {
   componentKeySchema,
   deployTagSchema,
 } from "@/lib/deploy/validation";
+import { getProviderForConnection } from "@/server/services/ci-connections";
 import { requestDeployment } from "@/server/services/deployments";
 
 /** The body CI posts to /api/deploy-hooks/builds after pushing an image. */
@@ -25,9 +28,76 @@ export const buildNotificationSchema = z.object({
 
 export type BuildNotification = z.infer<typeof buildNotificationSchema>;
 
+/** The longest a build notification waits for the CI provider. */
+export const BUILD_ACTORS_TIMEOUT_MS = 5_000;
+
+type BuildActors = {
+  pushedBy: string | null;
+  commitAuthorEmail: string | null;
+  commitMessage: string | null;
+};
+
+const NO_ACTORS: BuildActors = {
+  pushedBy: null,
+  commitAuthorEmail: null,
+  commitMessage: null,
+};
+
+const clip = (value: string | null, max: number) =>
+  value === null ? null : value.slice(0, max);
+
+/**
+ * Who pushed the build, read from the component's own CI connection and repo.
+ * The pipeline number comes from the notified `pipelineUrl`, used only when it
+ * points at that repo, so a notification cannot make the Panel read another
+ * repo's pipeline.
+ */
+async function fetchBuildActors(n: BuildNotification): Promise<BuildActors> {
+  const component = await getComponent(n.app);
+  if (!component?.ciConnectionId) return NO_ACTORS;
+  const number = parsePipelineNumber(n.pipelineUrl, component.ciRepoId);
+  if (number === null || !component.ciRepoId) return NO_ACTORS;
+  const provider = await getProviderForConnection(component.ciConnectionId);
+  const pipeline = await provider.getPipeline(component.ciRepoId, number);
+  return {
+    pushedBy: clip(pipeline.sender, 200),
+    // RFC 5321 caps an address at 254; a little slack for odd forges.
+    commitAuthorEmail: clip(pipeline.authorEmail, 320),
+    commitMessage: clip(pipeline.message, 500),
+  };
+}
+
+/**
+ * fetchBuildActors, best-effort: any failure, or no answer within
+ * BUILD_ACTORS_TIMEOUT_MS, gives nulls so the build and its deployments are
+ * recorded as without it. Logs the reason only (CiProviderError messages hold
+ * no credentials).
+ */
+async function buildActorsOrNulls(n: BuildNotification): Promise<BuildActors> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("timed out")),
+      BUILD_ACTORS_TIMEOUT_MS
+    );
+  });
+  try {
+    return await Promise.race([fetchBuildActors(n), timeout]);
+  } catch (error) {
+    console.warn(
+      `Build ${n.app} ${n.tag}: who pushed it is unknown:`,
+      error instanceof Error ? error.message : "unexpected error"
+    );
+    return NO_ACTORS;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Records a build and requests an `auto` deployment for every target that
- * follows its branch. Idempotent per (app, tag): a replayed notification finds
+ * follows its branch. Who pushed it is looked up first (best-effort, at most
+ * BUILD_ACTORS_TIMEOUT_MS) and stored on the build; its auto runs carry it. Idempotent per (app, tag): a replayed notification finds
  * the existing build and requests nothing, so CI may retry freely.
  *
  * One target failing to queue does not stop the others; the build is already
@@ -44,6 +114,7 @@ export async function recordBuild(n: BuildNotification): Promise<{
     tag: n.tag,
     commitSha: n.commit,
     pipelineUrl: n.pipelineUrl ?? null,
+    ...(await buildActorsOrNulls(n)),
   });
   const deploymentIds: string[] = [];
   if (!created) return { buildId: build.id, created, deploymentIds };

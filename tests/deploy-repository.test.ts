@@ -694,3 +694,88 @@ describe("supersedeHeldDeployments", () => {
     ]);
   });
 });
+
+describe("auto run actor (triggered_by)", () => {
+  const BUILD = "0197f3a0-1b2c-7def-8000-0123456789b1";
+
+  it("gives an auto run the pusher of its build", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "select" && r.table === "builds") {
+        return [{ pushedBy: "romi" }];
+      }
+      if (r.op === "select") return [];
+      if (r.op === "insert") {
+        return [{ id: r.table === "runs" ? "run-1" : "dep-1" }];
+      }
+      return [];
+    });
+    await placeDeployment({ ...placeInput, buildId: BUILD });
+    expect(
+      ops.find((o) => o.op === "insert" && o.table === "runs")?.values
+    ).toMatchObject({ userId: null, triggeredBy: "romi" });
+  });
+
+  it("leaves triggered_by null when the build has no pusher", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "select" && r.table === "builds")
+        return [{ pushedBy: null }];
+      if (r.op === "select") return [];
+      if (r.op === "insert") {
+        return [{ id: r.table === "runs" ? "run-1" : "dep-1" }];
+      }
+      return [];
+    });
+    await placeDeployment({ ...placeInput, buildId: BUILD });
+    expect(
+      ops.find((o) => o.op === "insert" && o.table === "runs")?.values
+    ).toMatchObject({ triggeredBy: null });
+  });
+
+  it("does not read the build for a manual run", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "select") return [];
+      if (r.op === "insert") {
+        return [{ id: r.table === "runs" ? "run-1" : "dep-1" }];
+      }
+      return [];
+    });
+    await placeDeployment({
+      ...placeInput,
+      trigger: "manual",
+      userId: "u1",
+      buildId: BUILD,
+    });
+    expect(ops.some((o) => o.table === "builds")).toBe(false);
+    expect(
+      ops.find((o) => o.op === "insert" && o.table === "runs")?.values
+    ).toMatchObject({ userId: "u1", triggeredBy: null });
+  });
+
+  it("a held build released later gives its new run the same pusher", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "delete") return [activeLock];
+      if (r.op === "select") {
+        return [
+          {
+            id: "a1",
+            targetId: "A",
+            createdAt: NOW,
+            tag: "origin-main-0000001",
+            trigger: "auto",
+            componentKey: "app",
+            pushedBy: "romi",
+          },
+        ];
+      }
+      if (r.op === "update" && r.values?.status === "queued") {
+        return [{ id: "a1" }];
+      }
+      if (r.op === "insert") return [{ id: "run-1" }];
+      return [];
+    });
+    await releaseDeployLock(ENV, {}, "u-owner");
+    expect(
+      ops.find((o) => o.op === "insert" && o.table === "runs")?.values
+    ).toMatchObject({ userId: "u-owner", triggeredBy: "romi" });
+  });
+});

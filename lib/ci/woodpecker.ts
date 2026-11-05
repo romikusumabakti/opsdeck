@@ -3,6 +3,7 @@ import {
   type CiProvider,
   CiProviderError,
   type CiRepo,
+  type PipelineActors,
   type RepoSettings,
 } from "@/lib/ci/types";
 
@@ -21,6 +22,44 @@ function toCiRepo(repo: WoodpeckerRepo): CiRepo {
     active: repo.active === true,
   };
 }
+
+type WoodpeckerPipeline = {
+  sender?: unknown;
+  author_email?: unknown;
+  message?: unknown;
+};
+
+const PIPELINE_PATH =
+  /^\/repos\/([1-9][0-9]{0,15})\/pipeline\/([1-9][0-9]{0,15})$/;
+
+/**
+ * The pipeline number in a Woodpecker pipeline URL (CI_PIPELINE_URL, e.g.
+ * `https://ci.example/repos/2/pipeline/7`), only when it belongs to the repo
+ * `ciRepoId`; null for anything else. The URL comes from the notification, so
+ * it must not choose which repo's pipeline is read. The host is not compared:
+ * the connection's base URL is often an internal address.
+ */
+export function parsePipelineNumber(
+  url: string | null | undefined,
+  ciRepoId: string | null | undefined
+): number | null {
+  if (!url || !ciRepoId) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  if (parsed.search || parsed.hash) return null;
+  const match = PIPELINE_PATH.exec(parsed.pathname);
+  if (!match || match[1] !== ciRepoId) return null;
+  const number = Number(match[2]);
+  return Number.isSafeInteger(number) ? number : null;
+}
+
+const orNull = (value: unknown) =>
+  typeof value === "string" && value !== "" ? value : null;
 
 export function createWoodpeckerProvider(
   baseUrl: string,
@@ -122,10 +161,35 @@ export function createWoodpeckerProvider(
     else await request("POST", base, { name, value, events });
   }
 
+  async function getPipeline(
+    ciRepoId: string,
+    number: number
+  ): Promise<PipelineActors> {
+    let res: Response;
+    try {
+      res = await request(
+        "GET",
+        `/api/repos/${encodeURIComponent(ciRepoId)}/pipelines/${number}`
+      );
+    } catch (error) {
+      if (error instanceof CiProviderError && error.status === 404) {
+        return { sender: null, authorEmail: null, message: null };
+      }
+      throw error;
+    }
+    const pipeline = (await res.json()) as WoodpeckerPipeline | null;
+    return {
+      sender: orNull(pipeline?.sender),
+      authorEmail: orNull(pipeline?.author_email),
+      message: orNull(pipeline?.message),
+    };
+  }
+
   return {
     listRepos,
     activateRepo,
     updateRepoSettings,
     upsertRepoSecret,
+    getPipeline,
   };
 }
