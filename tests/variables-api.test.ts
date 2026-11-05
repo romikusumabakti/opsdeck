@@ -57,6 +57,7 @@ const store = vi.hoisted(() => ({
     envFileManaged: false,
   },
   tags: ["IMAGE_TAG"] as string[],
+  sharedDeployDir: false,
   vars: new Map<string, Row>(),
   templates: [] as Template[],
 }));
@@ -108,6 +109,7 @@ vi.mock("@/lib/variables/repository", () => {
       environmentId === store.env.id ? { ...store.env } : undefined
     ),
     listTagVariableNames: vi.fn(async () => [...store.tags]),
+    hasSharedDeployDir: vi.fn(async () => store.sharedDeployDir),
     listVariables: vi.fn(async () =>
       [...store.vars.values()]
         .sort((a, b) => (a.name < b.name ? -1 : 1))
@@ -264,6 +266,7 @@ beforeEach(() => {
   store.env.url = "https://dev.example.test";
   store.env.appId = APP_ID;
   store.tags = ["IMAGE_TAG"];
+  store.sharedDeployDir = false;
   store.vars = new Map([
     ["APP_NAME", row("APP_NAME", "plain", "hris")],
     ["DB_PASSWORD", row("DB_PASSWORD", "secret", SECRET_PLAIN)],
@@ -772,6 +775,29 @@ describe("env-file-managed", () => {
       enabled: false,
     });
     expect(off.status).toBe(200);
+    expect(store.env.envFileManaged).toBe(false);
+  });
+
+  it("refuses turning it on when another environment deploys into the same dir", async () => {
+    store.vars.set("SMTP_HOST", row("SMTP_HOST", "plain", "mail"));
+    store.sharedDeployDir = true;
+    const res = await send("PATCH", `${base}/env-file-managed`, {
+      enabled: true,
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toBe(
+      "Another environment deploys into this directory"
+    );
+    expect(store.env.envFileManaged).toBe(false);
+  });
+
+  it("turning it off is allowed even when the dir is shared", async () => {
+    store.env.envFileManaged = true;
+    store.sharedDeployDir = true;
+    const res = await send("PATCH", `${base}/env-file-managed`, {
+      enabled: false,
+    });
+    expect(res.status).toBe(200);
     expect(store.env.envFileManaged).toBe(false);
   });
 });

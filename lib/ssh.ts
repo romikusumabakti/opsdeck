@@ -117,10 +117,14 @@ export async function uploadRemoteContent(
   }: { host: string; username: string; password: string },
   content: string,
   remotePath: string,
-  mode: number
+  mode: number,
+  // Wall-clock bound on the whole operation (connect included), like
+  // executeRemoteCommand's: a stuck SFTP server must not hang the deploy.
+  timeoutMs = 30_000
 ): Promise<void> {
   const ssh = new NodeSSH();
-  try {
+
+  const transfer = async () => {
     await ssh.connect({ host, username, password, readyTimeout: 5000 });
     const sftp = await ssh.requestSFTP();
     try {
@@ -153,7 +157,23 @@ export async function uploadRemoteContent(
     } finally {
       sftp.end();
     }
+  };
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // On timeout, dispose (below) tears the connection down; the abandoned
+    // transfer's late rejection is already handled by the race.
+    await Promise.race([
+      transfer(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`SFTP upload timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      }),
+    ]);
   } finally {
+    clearTimeout(timer);
     ssh.dispose();
   }
 }

@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -35,10 +36,16 @@ const base: DeployScriptInput = {
   stableSeconds: 0,
 };
 
-// Lines that install the staged `.env` (the only lines the flag adds).
+const DEPLOYMENT_ID = "0197f3a0-1b2c-7def-8000-0123456789a4";
+const STAGED = `.env.opsdeck-new.${DEPLOYMENT_ID}`;
+const MANAGED = { deploymentId: DEPLOYMENT_ID, variableCount: 3 };
+
+// Lines that install the staged `.env` (the only lines the option adds).
 const INSTALL_LINES = [
   "if [ -f .env ]; then cp -p .env .env.opsdeck-prev && chmod 600 .env.opsdeck-prev || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
-  "chmod 600 .env.opsdeck-new && mv -f .env.opsdeck-new .env || { echo 'ENV INSTALL FAILED'; exit 1; }",
+  `chmod 600 '${STAGED}' && mv -f '${STAGED}' .env || { echo 'ENV INSTALL FAILED'; exit 1; }`,
+  "rm -f .env.opsdeck-new* || true",
+  "echo 'Wrote .env (3 variables)'",
 ];
 
 describe("buildDeployScript validation", () => {
@@ -188,23 +195,49 @@ describe("buildDeployScript output", () => {
     };
     const script = buildDeployScript(input);
     expect(script).toMatchSnapshot();
-    expect(buildDeployScript({ ...input, installStagedEnvFile: false })).toBe(
-      script
-    );
+    expect(
+      buildDeployScript({ ...input, installStagedEnvFile: undefined })
+    ).toBe(script);
     expect(script).not.toContain(".env.opsdeck");
   });
 
-  it("with installStagedEnvFile installs the staged .env after the lock and before any pull", () => {
+  it("with installStagedEnvFile installs the staged .env after the bundle step and before the tag step and any compose pull", () => {
     const without = buildDeployScript(base);
-    const script = buildDeployScript({ ...base, installStagedEnvFile: true });
-    const lock = script.indexOf("flock -w");
+    const script = buildDeployScript({
+      ...base,
+      installStagedEnvFile: MANAGED,
+    });
     const install = script.indexOf(INSTALL_LINES.join("\n"));
-    expect(lock).toBeGreaterThanOrEqual(0);
-    expect(install).toBeGreaterThan(lock);
-    expect(install).toBeLessThan(script.indexOf("docker pull"));
+    expect(install).toBeGreaterThan(script.indexOf("flock -w"));
+    expect(install).toBeGreaterThan(script.indexOf("docker pull"));
+    expect(install).toBeGreaterThan(
+      script.indexOf('docker rm "$cid" >/dev/null\n')
+    );
+    expect(install).toBeLessThan(script.indexOf("grep -q"));
+    expect(install).toBeLessThan(script.indexOf("sed -i"));
     expect(install).toBeLessThan(script.indexOf("docker compose pull"));
     // Nothing else changes.
     expect(script.replace(`${INSTALL_LINES.join("\n")}\n`, "")).toBe(without);
+  });
+
+  it("rejects a staged-file deployment id that is not a UUID, or a bad count", () => {
+    for (const deploymentId of ["x", "../etc/passwd", `${DEPLOYMENT_ID}*`]) {
+      expect(() =>
+        buildDeployScript({
+          ...base,
+          installStagedEnvFile: { deploymentId, variableCount: 1 },
+        })
+      ).toThrow();
+    }
+    expect(() =>
+      buildDeployScript({
+        ...base,
+        installStagedEnvFile: {
+          deploymentId: DEPLOYMENT_ID,
+          variableCount: -1,
+        },
+      })
+    ).toThrow();
   });
 });
 
@@ -226,7 +259,8 @@ case "$1" in
   create) echo stubcid ;;
   cp)
     if [ -n "\${STUB_CP_FAIL:-}" ]; then echo 'cp failed' >&2; exit 1; fi
-    mkdir -p "$3" && printf 'services: {}\\n' > "$3/compose.yaml" ;;
+    mkdir -p "$3" && printf 'services: {}\\n' > "$3/compose.yaml"
+    if [ -n "\${STUB_CP_ENV:-}" ]; then printf 'FROM_BUNDLE=1\\n' > "$3/.env"; fi ;;
   compose)
     if [ "$2" = ps ]; then
       table=$STUB_CONTAINERS
@@ -266,7 +300,8 @@ interface StubRun {
   /** `.env.opsdeck-prev`, null when absent. */
   prev: string | null;
   prevMode: number | null;
-  stagedLeft: boolean;
+  /** Staged files still in the deploy dir. */
+  stagedLeft: string[];
   log: string;
   elapsedMs: number;
 }
@@ -279,7 +314,8 @@ async function runStub(
   containers: string,
   stubEnv: Record<string, string> = {},
   extraStubs: Record<string, string> = {},
-  staged: string | null = null
+  staged: string | null = null,
+  leftovers: string[] = []
 ): Promise<StubRun> {
   const root = mkdtempSync(join(tmpdir(), "deploy-script-"));
   const bin = join(root, "bin");
@@ -299,9 +335,10 @@ async function runStub(
     chmodSync(join(deployDir, ".env"), 0o644);
   }
   if (staged !== null) {
-    writeFileSync(join(deployDir, ".env.opsdeck-new"), staged);
-    chmodSync(join(deployDir, ".env.opsdeck-new"), 0o644);
+    writeFileSync(join(deployDir, STAGED), staged);
+    chmodSync(join(deployDir, STAGED), 0o644);
   }
+  for (const name of leftovers) writeFileSync(join(deployDir, name), "OLD=1\n");
   const log = join(root, "argv.log");
   writeFileSync(log, "");
 
@@ -334,7 +371,9 @@ async function runStub(
     envMode: modeOf(envPath),
     prev: existsSync(prevPath) ? readFileSync(prevPath, "utf8") : null,
     prevMode: existsSync(prevPath) ? modeOf(prevPath) : null,
-    stagedLeft: existsSync(join(deployDir, ".env.opsdeck-new")),
+    stagedLeft: readdirSync(deployDir).filter((f) =>
+      f.startsWith(".env.opsdeck-new")
+    ),
     log: readFileSync(log, "utf8"),
     elapsedMs: Date.now() - started,
   };
@@ -580,7 +619,7 @@ describe.concurrent("buildDeployScript stub runs", () => {
     async () => {
       const staged = `SECRET='s3cr3t'\nIMAGE_TAG=${base.tag}\n`;
       const r = await runStub(
-        { installStagedEnvFile: true },
+        { installStagedEnvFile: MANAGED },
         "IMAGE_TAG=old\nOLD=1\n",
         "backend running healthy",
         {},
@@ -593,7 +632,8 @@ describe.concurrent("buildDeployScript stub runs", () => {
       expect(r.envMode).toBe(0o600);
       expect(r.prev).toBe("IMAGE_TAG=old\nOLD=1\n");
       expect(r.prevMode).toBe(0o600);
-      expect(r.stagedLeft).toBe(false);
+      expect(r.stagedLeft).toEqual([]);
+      expect(r.stdout).toContain("Wrote .env (3 variables)\n");
     },
     SLOW
   );
@@ -603,7 +643,7 @@ describe.concurrent("buildDeployScript stub runs", () => {
     async () => {
       const staged = `IMAGE_TAG=${base.tag}\n`;
       const r = await runStub(
-        { installStagedEnvFile: true },
+        { installStagedEnvFile: MANAGED },
         null,
         "backend running healthy",
         {},
@@ -618,23 +658,78 @@ describe.concurrent("buildDeployScript stub runs", () => {
     SLOW
   );
 
-  // Review Focus 3: a failed install stops before any pull and leaves the
-  // previous .env in place.
+  it(
+    "stub run, leftover staged files are removed after the install",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: MANAGED },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [
+          ".env.opsdeck-new",
+          ".env.opsdeck-new.0197f3a0-1b2c-7def-8000-000000000001",
+        ]
+      );
+      expect(r.status).toBe(0);
+      expect(r.stagedLeft).toEqual([]);
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, the managed .env wins over a .env shipped in the bundle",
+    async () => {
+      const staged = `A='1'\nIMAGE_TAG=${base.tag}\n`;
+      const r = await runStub(
+        { installStagedEnvFile: MANAGED },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        { STUB_CP_ENV: "1" },
+        {},
+        staged
+      );
+      expect(r.status).toBe(0);
+      expect(r.env).toBe(staged);
+    },
+    SLOW
+  );
+
+  // Review Focus 3: a failed bundle step or install stops before the tag step
+  // and any compose pull, and leaves the previous .env in place.
+  it("stub run, managed: a failed bundle step leaves .env untouched", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: MANAGED },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      { STUB_CP_FAIL: "1" },
+      {},
+      "IMAGE_TAG=new\n"
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.log).not.toContain("compose");
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.prev).toBeNull();
+  });
+
   it("stub run, staged .env missing: fails before any pull, .env untouched", async () => {
     const r = await runStub(
-      { installStagedEnvFile: true },
+      { installStagedEnvFile: MANAGED },
       "IMAGE_TAG=old\n",
       "backend running healthy"
     );
     expect(r.status).not.toBe(0);
     expect(r.stdout).toContain("ENV INSTALL FAILED");
-    expect(r.log).toBe("");
+    expect(r.log).toContain("rm stubcid\n");
+    expect(r.log).not.toContain("compose");
     expect(r.env).toBe("IMAGE_TAG=old\n");
   });
 
   it("stub run, backup copy fails: fails before any pull, .env untouched", async () => {
     const r = await runStub(
-      { installStagedEnvFile: true },
+      { installStagedEnvFile: MANAGED },
       "IMAGE_TAG=old\n",
       "backend running healthy",
       {},
@@ -643,13 +738,14 @@ describe.concurrent("buildDeployScript stub runs", () => {
     );
     expect(r.status).not.toBe(0);
     expect(r.stdout).toContain("ENV INSTALL FAILED");
-    expect(r.log).toBe("");
+    expect(r.log).toContain("rm stubcid\n");
+    expect(r.log).not.toContain("compose");
     expect(r.env).toBe("IMAGE_TAG=old\n");
   });
 
   it("stub run, rename fails: fails before any pull, .env untouched", async () => {
     const r = await runStub(
-      { installStagedEnvFile: true },
+      { installStagedEnvFile: MANAGED },
       "IMAGE_TAG=old\n",
       "backend running healthy",
       {},
@@ -658,7 +754,8 @@ describe.concurrent("buildDeployScript stub runs", () => {
     );
     expect(r.status).not.toBe(0);
     expect(r.stdout).toContain("ENV INSTALL FAILED");
-    expect(r.log).toBe("");
+    expect(r.log).toContain("rm stubcid\n");
+    expect(r.log).not.toContain("compose");
     expect(r.env).toBe("IMAGE_TAG=old\n");
   });
 });
