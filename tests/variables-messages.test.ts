@@ -27,6 +27,21 @@ const SHARED_KEYS = [
   "breadcrumbs.variables",
   "apps.variableTemplates",
   "activity.variablesRevealed",
+  "activity.variableCreated",
+  "activity.variableUpdated",
+  "activity.variableDeleted",
+  "activity.variableRegenerated",
+  "activity.variableEscrowRemoved",
+  "activity.envFileManagedOn",
+  "activity.envFileManagedOff",
+  "activity.variablesTemplateApplied",
+  "activity.variableTemplateSaved",
+  "activity.variableTemplateDeleted",
+  "activity.environmentDeletedWithVariables",
+  "actionErrors.environmentHasEscrowedVariables",
+  "actionErrors.placementServiceName",
+  "environmentSettings.deleteEscrowedTitle",
+  "environmentSettings.deleteEscrowedDescription",
 ];
 
 describe("variables messages", () => {

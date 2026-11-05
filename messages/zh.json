@@ -1834,7 +1834,17 @@
     "runAcknowledged": "{actor} 确认了 {environment} 中的 {count, plural, other {# 次失败运行}}",
     "runUnacknowledged": "{actor} 重新打开了 {environment} 中的 {count, plural, other {# 次失败运行}}",
     "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）",
-    "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）"
+    "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）",
+    "variableCreated": "{actor} 向 {environment} 添加了变量 {name}",
+    "variableUpdated": "{actor} 修改了 {environment} 中的变量 {name}",
+    "variableDeleted": "{actor} 从 {environment} 删除了变量 {name}",
+    "variableRegenerated": "{actor} 重新生成了 {environment} 中的变量 {name}",
+    "variableEscrowRemoved": "{actor} 取消了 {environment} 中变量 {name} 的托管",
+    "envFileManagedOn": "{actor} 允许面板写入 {environment} 的 .env",
+    "envFileManagedOff": "{actor} 停止面板写入 {environment} 的 .env",
+    "variablesTemplateApplied": "{actor} 向 {environment} 添加了模板变量（{names}）",
+    "variableTemplateSaved": "{actor} 保存了 {app} 的变量模板 {name}",
+    "variableTemplateDeleted": "{actor} 删除了 {app} 的变量模板 {name}"
   },
   "jira": {
     "title": "Jira",

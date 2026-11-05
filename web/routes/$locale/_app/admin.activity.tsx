@@ -26,6 +26,14 @@ export const Route = createFileRoute("/$locale/_app/admin/activity")({
   component: ActivityPage,
 });
 
+const VARIABLE_MESSAGES = {
+  "variable.created": "variableCreated",
+  "variable.updated": "variableUpdated",
+  "variable.deleted": "variableDeleted",
+  "variable.regenerated": "variableRegenerated",
+  "variable.escrowRemoved": "variableEscrowRemoved",
+} as const;
+
 // Render one event to a localized sentence. `data` is the denormalized params
 // snapshotted at write time (see lib/activity.ts).
 function message(
@@ -114,6 +122,44 @@ function message(
         actor,
         names: String(d.names) || "—",
         environment: String(d.environment),
+      });
+    case "variable.created":
+    case "variable.updated":
+    case "variable.deleted":
+    case "variable.regenerated":
+    case "variable.escrowRemoved":
+      return t(VARIABLE_MESSAGES[row.action], {
+        actor,
+        name: String(d.name),
+        environment: String(d.environment),
+      });
+    case "variables.envFileManagedOn":
+      return t("envFileManagedOn", {
+        actor,
+        environment: String(d.environment),
+      });
+    case "variables.envFileManagedOff":
+      return t("envFileManagedOff", {
+        actor,
+        environment: String(d.environment),
+      });
+    case "variables.templateApplied":
+      return t("variablesTemplateApplied", {
+        actor,
+        names: String(d.names),
+        environment: String(d.environment),
+      });
+    case "variableTemplate.saved":
+      return t("variableTemplateSaved", {
+        actor,
+        name: String(d.name),
+        app: String(d.app),
+      });
+    case "variableTemplate.deleted":
+      return t("variableTemplateDeleted", {
+        actor,
+        name: String(d.name),
+        app: String(d.app),
       });
     case "environment.deletedWithVariables":
       return t("environmentDeletedWithVariables", {
