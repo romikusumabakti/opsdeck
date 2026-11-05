@@ -133,6 +133,7 @@ export function DeployLockPanel({
             <p>
               {t("until", {
                 expiresAt: format.dateTime(new Date(lock.expiresAt), {
+                  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                   dateStyle: "medium",
                   timeStyle: "short",
                 }),
@@ -197,7 +198,7 @@ export function DeployLockPanel({
         onOpenChange={(open) => !open && setDialog(null)}
         environmentId={environmentId}
         initialReason={lock?.reason ?? ""}
-        initialExpiry={lock ? new Date(lock.expiresAt) : null}
+        initialExpiry={lock?.expiresAt ?? null}
         onDone={refresh}
       />
       <ForceUnlockDialog
@@ -222,7 +223,7 @@ function LockDialog({
   onOpenChange: (open: boolean) => void;
   environmentId: string;
   initialReason: string;
-  initialExpiry: Date | null;
+  initialExpiry: string | null;
   onDone: () => void;
 }) {
   const t = useTranslations("deploys.lock");
@@ -232,13 +233,28 @@ function LockDialog({
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
 
+  // Read through a ref so a parent re-render (the lock refetches every 30 s)
+  // never resets what the user is typing; only opening the dialog does.
+  const initial = React.useRef({
+    reason: initialReason,
+    expiry: initialExpiry,
+  });
+  initial.current = { reason: initialReason, expiry: initialExpiry };
+
   // Start from the current lock (or the default expiry) on every open.
   React.useEffect(() => {
     if (!open) return;
-    setReason(initialReason);
-    setExpiry(toLocalInput(initialExpiry ?? defaultLockExpiry(new Date())));
+    const current = initial.current;
+    setReason(current.reason);
+    setExpiry(
+      toLocalInput(
+        current.expiry
+          ? new Date(current.expiry)
+          : defaultLockExpiry(new Date())
+      )
+    );
     setError(null);
-  }, [open, initialReason, initialExpiry]);
+  }, [open]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -286,6 +302,8 @@ function LockDialog({
             <Input
               id="deploy-lock-expiry"
               type="datetime-local"
+              min={toLocalInput(new Date())}
+              max={toLocalInput(new Date(Date.now() + 7 * 86_400_000))}
               value={expiry}
               onChange={(e) => setExpiry(e.target.value)}
             />
@@ -301,7 +319,7 @@ function LockDialog({
               {tCommon("cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {t("lock")}
+              {t(initialExpiry ? "saveLock" : "lock")}
             </Button>
           </DialogFooter>
         </form>

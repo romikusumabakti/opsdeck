@@ -430,7 +430,8 @@
       "failed": "无法更新部署锁定。",
       "holderUnknown": "某人",
       "disabledHint": "部署已锁定：{reason}",
-      "heldBuilds": "{count, plural, =0 {没有被暂扣的构建。} other {已暂扣 # 个构建。}}"
+      "heldBuilds": "{count, plural, =0 {没有被暂扣的构建。} other {已暂扣 # 个构建。}}",
+      "saveLock": "保存锁定"
     }
   },
   "backupDb": {

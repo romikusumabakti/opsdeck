@@ -20,6 +20,16 @@ describe("deploy lock messages", () => {
     });
   }
 
+  for (const locale of locales) {
+    it(`${locale} has the held status label and saveLock`, () => {
+      const m = JSON.parse(readFileSync(`messages/${locale}.json`, "utf8"));
+      expect(String(m.deploys.status.held).trim().length).toBeGreaterThan(0);
+      expect(
+        String(lockMessages(locale).saveLock).trim().length
+      ).toBeGreaterThan(0);
+    });
+  }
+
   it("id is translated, not a copy of en", () => {
     const id = lockMessages("id");
     for (const key of Object.keys(en)) {

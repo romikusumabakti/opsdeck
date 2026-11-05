@@ -430,7 +430,8 @@
       "failed": "No se pudo actualizar el bloqueo de despliegues.",
       "holderUnknown": "Alguien",
       "disabledHint": "Los despliegues están bloqueados: {reason}",
-      "heldBuilds": "{count, plural, =0 {No hay compilaciones retenidas.} one {# compilación retenida.} other {# compilaciones retenidas.}}"
+      "heldBuilds": "{count, plural, =0 {No hay compilaciones retenidas.} one {# compilación retenida.} other {# compilaciones retenidas.}}",
+      "saveLock": "Guardar bloqueo"
     }
   },
   "backupDb": {
