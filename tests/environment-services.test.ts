@@ -30,7 +30,10 @@ vi.mock("@/lib/authz", () => ({
   getProjectRole: async () => null,
   projectScope: () => undefined,
   requireOrgPermission: async () => undefined,
-  requireProjectPermission: async () => undefined,
+  requireProjectPermission: async () => ({
+    session: { user: { id: "user-1", role: "admin" } },
+    role: "maintainer",
+  }),
 }));
 vi.mock("@/lib/secrets", () => ({
   encryptNullable: (v: string | null | undefined) => v ?? null,

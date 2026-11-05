@@ -79,6 +79,8 @@ const projectStatements = {
   // Panel deploys: anyone can see history; only maintainers trigger, roll back
   // or edit deploy targets.
   deploy: ["view", "run", "rollback", "configure"],
+  // Environment variables (the managed .env): reading includes secret values.
+  variable: ["read", "write"],
 } as const;
 
 export const projectAc = createAccessControl(projectStatements);
@@ -112,6 +114,7 @@ export const projectRoles = {
     member: ["manage"],
     run: ["acknowledge"],
     deploy: ["view", "run", "rollback", "configure"],
+    variable: ["read", "write"],
   }),
 } satisfies Record<ProjectRole, unknown>;
 
@@ -207,6 +210,58 @@ export function canCreateEnvironment(
     canProject(projectRole, { environment: ["create"] }) &&
     canOrg(orgRole, { server: ["manage"] })
   );
+}
+
+// Who may put a new environment on a server, by the server's placement policy.
+// `restricted` is the rule above; `open` admits anyone who may create
+// environments in the project or holds contributor and above there. Existing
+// environments are never re-checked: placement only gates new bindings.
+export function canPlaceEnvironment(
+  orgRole: string | null | undefined,
+  projectRole: ProjectRole | null,
+  placement: "restricted" | "open"
+): boolean {
+  if (placement === "restricted") {
+    return canCreateEnvironment(orgRole, projectRole);
+  }
+  return (
+    canProject(projectRole, { environment: ["create"] }) ||
+    projectRole === "contributor" ||
+    projectRole === "maintainer"
+  );
+}
+
+// What an environment's owner (environments.owner_id) may do on that one
+// environment, whatever their project role. The owner still needs a project
+// role (viewer at least); see canEnvironment.
+export const OWNER_PERMISSIONS: ProjectPermissions = {
+  deploy: ["view", "run", "rollback", "configure"],
+  environment: ["update", "delete"],
+  variable: ["read", "write"],
+};
+
+// True when every action of the request is among the owner rights. Own-key
+// lookups only, so an inherited name such as "toString" never matches.
+function ownerCovers(perms: ProjectPermissions): boolean {
+  return Object.entries(perms).every(([resource, actions]) => {
+    if (!Object.hasOwn(OWNER_PERMISSIONS, resource)) return false;
+    const allowed: readonly string[] =
+      OWNER_PERMISSIONS[resource as keyof ProjectPermissions] ?? [];
+    return (actions ?? []).every((action: string) => allowed.includes(action));
+  });
+}
+
+// A request on one environment: the project role decides, and the
+// environment's owner additionally holds OWNER_PERMISSIONS, never more and
+// never without a project role. `isOwner` must be about the environment the
+// request targets.
+export function canEnvironment(
+  role: ProjectRole | null,
+  isOwner: boolean,
+  perms: ProjectPermissions
+): boolean {
+  if (!role) return false;
+  return canProject(role, perms) || (isOwner && ownerCovers(perms));
 }
 
 // Registering an app activates a repository in the CI server and sets its

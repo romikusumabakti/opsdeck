@@ -78,6 +78,10 @@ export const serverInputSchema = z.object({
     .max(1024)
     .regex(/^\//, "SFTP root must be an absolute path")
     .optional(),
+  // Who may place new environments on the server (lib/permissions
+  // #canPlaceEnvironment). Optional on input: the column defaults to
+  // "restricted".
+  placement: z.enum(["restricted", "open"]).optional(),
 });
 
 // The logical project (parent). `key` is the uppercase issue-prefix used to

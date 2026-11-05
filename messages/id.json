@@ -879,6 +879,10 @@
     "usageEmptyDescription": "Belum ada environment yang memakai server ini.",
     "sftpRoot": "Root SFTP",
     "sftpRootDescription": "Jalur absolut tempat penjelajah berkas dibatasi. Gunakan / untuk seluruh host.",
+    "placement": "Penempatan environment",
+    "placementRestricted": "Terbatas: hanya admin dan infra",
+    "placementOpen": "Terbuka: kontributor proyek ke atas",
+    "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Environment yang sudah ada tidak terpengaruh.",
     "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)"
   },
   "newServer": {

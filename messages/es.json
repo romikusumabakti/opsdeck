@@ -879,6 +879,10 @@
     "usageEmptyDescription": "Ningún entorno está usando este servidor actualmente.",
     "sftpRoot": "Raíz SFTP",
     "sftpRootDescription": "Ruta absoluta a la que se limita el explorador de archivos. Usa / para todo el host.",
+    "placement": "Ubicación de entornos",
+    "placementRestricted": "Restringida: solo administradores e infra",
+    "placementOpen": "Abierta: colaboradores del proyecto o superior",
+    "placementDescription": "Quién puede crear entornos nuevos en este servidor. Los entornos existentes no se ven afectados.",
     "sftpRootInvalid": "Debe ser una ruta absoluta (empezar por /)"
   },
   "newServer": {
