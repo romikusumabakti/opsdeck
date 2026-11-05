@@ -2445,7 +2445,8 @@
       "clearEscrow": "移除托管",
       "clearEscrowConfirmTitle": "移除 {name} 的托管？",
       "clearEscrowConfirmDescription": "之后其值可以被更改、重新生成或删除。请确保在面板之外保存了副本。",
-      "escrowCleared": "已移除 {name} 的托管"
+      "escrowCleared": "已移除 {name} 的托管",
+      "valueRequiredForPlain": "请输入值：机密变量改为普通后不会保留已存储的值"
     }
   },
   "variableTemplates": {

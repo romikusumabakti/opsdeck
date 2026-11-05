@@ -2445,7 +2445,8 @@
       "clearEscrow": "Quitar custodia",
       "clearEscrowConfirmTitle": "¿Quitar la custodia de {name}?",
       "clearEscrowConfirmDescription": "Su valor podrá cambiarse, regenerarse o eliminarse. Asegúrate de guardar una copia fuera del Panel.",
-      "escrowCleared": "Custodia quitada de {name}"
+      "escrowCleared": "Custodia quitada de {name}",
+      "valueRequiredForPlain": "Introduce un valor: una variable secreta convertida en simple no conserva su valor guardado"
     }
   },
   "variableTemplates": {

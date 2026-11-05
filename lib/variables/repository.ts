@@ -105,9 +105,18 @@ export type VariableWrite = {
   updatedBy: string | null;
 };
 
-/** Inserts the variable, or replaces its kind, value and escrow flag. */
-export async function saveVariable(input: VariableWrite): Promise<void> {
-  await db
+/**
+ * Inserts the variable, or replaces its kind, value and escrow flag. Unless
+ * `overwriteEscrowed` (the caller already cleared an escrowed row for this
+ * write), an existing escrowed row is left alone: the check and the write are
+ * one statement, so an escrow set concurrently is never overwritten. Returns
+ * whether a row was written.
+ */
+export async function saveVariable(
+  input: VariableWrite,
+  { overwriteEscrowed = false }: { overwriteEscrowed?: boolean } = {}
+): Promise<boolean> {
+  const rows = await db
     .insert(environmentVariables)
     .values(input)
     .onConflictDoUpdate({
@@ -119,21 +128,64 @@ export async function saveVariable(input: VariableWrite): Promise<void> {
         updatedBy: input.updatedBy,
         updatedAt: sql`now()`,
       },
-    });
+      setWhere: overwriteEscrowed
+        ? undefined
+        : eq(environmentVariables.escrow, false),
+    })
+    .returning({ id: environmentVariables.id });
+  return rows.length > 0;
 }
 
+/**
+ * Replaces the value of an existing, non-escrowed generated variable; never
+ * creates one and never touches the escrow flag. Returns whether a row was
+ * written (false: gone, escrowed or no longer generated).
+ */
+export async function replaceGeneratedValue(input: {
+  environmentId: string;
+  name: string;
+  /** Already encrypted. */
+  value: string;
+  updatedBy: string | null;
+}): Promise<boolean> {
+  const rows = await db
+    .update(environmentVariables)
+    .set({
+      value: input.value,
+      updatedBy: input.updatedBy,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(environmentVariables.environmentId, input.environmentId),
+        eq(environmentVariables.name, input.name),
+        eq(environmentVariables.escrow, false),
+        eq(environmentVariables.kind, "generated")
+      )
+    )
+    .returning({ id: environmentVariables.id });
+  return rows.length > 0;
+}
+
+/**
+ * Deletes a non-escrowed variable. Returns whether a row was deleted (false:
+ * gone or escrowed, checked in the same statement).
+ */
 export async function deleteVariable(
   environmentId: string,
   name: string
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const rows = await db
     .delete(environmentVariables)
     .where(
       and(
         eq(environmentVariables.environmentId, environmentId),
-        eq(environmentVariables.name, name)
+        eq(environmentVariables.name, name),
+        eq(environmentVariables.escrow, false)
       )
-    );
+    )
+    .returning({ id: environmentVariables.id });
+  return rows.length > 0;
 }
 
 /**

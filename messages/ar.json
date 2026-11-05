@@ -2445,7 +2445,8 @@
       "clearEscrow": "إزالة الإيداع",
       "clearEscrowConfirmTitle": "إزالة الإيداع عن {name}؟",
       "clearEscrowConfirmDescription": "يمكن بعدها تغيير قيمته أو إعادة توليدها أو حذفها. تأكد من وجود نسخة خارج اللوحة.",
-      "escrowCleared": "أُزيل الإيداع عن {name}"
+      "escrowCleared": "أُزيل الإيداع عن {name}",
+      "valueRequiredForPlain": "أدخل قيمة: المتغير السري الذي يتحول إلى عادي لا يحتفظ بقيمته المحفوظة"
     }
   },
   "variableTemplates": {

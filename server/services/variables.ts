@@ -16,6 +16,7 @@ import {
   MISSING_REQUIRED_PREFIX,
   NO_APP_MESSAGE,
   NOT_GENERATED_MESSAGE,
+  SECRET_TO_PLAIN_MESSAGE,
 } from "@/lib/variables/errors";
 import {
   deleteTemplate as deleteTemplateRow,
@@ -28,6 +29,7 @@ import {
   listTagVariableNames,
   listTemplates,
   listVariables as listVariableRows,
+  replaceGeneratedValue,
   type StoredVariable,
   saveTemplate,
   saveVariable,
@@ -203,7 +205,9 @@ export async function listVariables(
 /**
  * Creates or updates a variable. Without a value an existing variable keeps
  * its own, and a new generated one is generated now (the template's length,
- * else 32); a new plain or secret one needs a value.
+ * else 32); a new plain or secret one needs a value. Turning a secret or
+ * generated variable into a plain one needs an explicit value: keeping the
+ * stored one would store and answer the secret in clear without a reveal.
  */
 export async function putVariable(
   environmentId: string,
@@ -237,6 +241,15 @@ export async function putVariable(
     }
   }
 
+  if (
+    existing &&
+    !isPlain(existing.kind) &&
+    isPlain(input.kind) &&
+    input.value === undefined
+  ) {
+    badRequest(SECRET_TO_PLAIN_MESSAGE);
+  }
+
   let value: string;
   if (input.value !== undefined) value = input.value;
   else if (existing) value = decode(existing);
@@ -246,14 +259,20 @@ export async function putVariable(
     );
   } else return badRequest("Value is required");
 
-  await saveVariable({
-    environmentId: env.id,
-    name,
-    kind: input.kind,
-    value: encode(input.kind, value),
-    escrow,
-    updatedBy: session.user.id,
-  });
+  // An escrowed row is only overwritten when it was escrowed when checked
+  // above (and the checks passed); one escrowed since then is left alone.
+  const written = await saveVariable(
+    {
+      environmentId: env.id,
+      name,
+      kind: input.kind,
+      value: encode(input.kind, value),
+      escrow,
+      updatedBy: session.user.id,
+    },
+    { overwriteEscrowed: existing?.escrow === true }
+  );
+  if (!written) fail(409, ESCROWED_MESSAGE);
   return {
     name,
     kind: input.kind,
@@ -281,7 +300,8 @@ export async function deleteVariable(
   await requireProjectPermission({ environmentId }, { variable: ["write"] });
   const env = await requireEnvironment(environmentId);
   await requireMutableVariable(env, name);
-  await deleteVariableRow(env.id, name);
+  // The delete re-checks escrow itself: one set since the read is kept.
+  if (!(await deleteVariableRow(env.id, name))) fail(409, ESCROWED_MESSAGE);
 }
 
 /** A new random value for a generated variable; the response stays masked. */
@@ -300,14 +320,15 @@ export async function regenerateVariable(
   const value = generateValue(
     template?.generatedLength ?? DEFAULT_GENERATED_LENGTH
   );
-  await saveVariable({
+  // Never an upsert: the update re-checks escrow and kind itself, so it can
+  // neither recreate a deleted variable nor touch one escrowed since the read.
+  const written = await replaceGeneratedValue({
     environmentId: env.id,
     name,
-    kind: "generated",
     value: encryptSecret(value),
-    escrow: false,
     updatedBy: session.user.id,
   });
+  if (!written) fail(409, ESCROWED_MESSAGE);
   return {
     name,
     kind: "generated",
