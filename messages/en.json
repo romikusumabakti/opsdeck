@@ -2445,7 +2445,8 @@
       "clearEscrow": "Remove escrow",
       "clearEscrowConfirmTitle": "Remove escrow from {name}?",
       "clearEscrowConfirmDescription": "Its value can then be changed, regenerated or deleted. Make sure a copy is kept outside the Panel.",
-      "escrowCleared": "Escrow removed from {name}"
+      "escrowCleared": "Escrow removed from {name}",
+      "valueRequiredForPlain": "Enter a value: a secret turned plain does not keep its stored value"
     }
   },
   "variableTemplates": {

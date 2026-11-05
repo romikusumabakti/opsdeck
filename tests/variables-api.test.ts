@@ -119,19 +119,43 @@ vi.mock("@/lib/variables/repository", () => {
     getVariable: vi.fn(async (_env: string, name: string) =>
       store.vars.get(name)
     ),
+    // Mirrors the SQL: the escrow condition is part of the write itself.
     saveVariable: vi.fn(
-      async (input: Omit<Row, "id" | "createdAt" | "updatedAt">) => {
+      async (
+        input: Omit<Row, "id" | "createdAt" | "updatedAt">,
+        { overwriteEscrowed = false }: { overwriteEscrowed?: boolean } = {}
+      ) => {
         const existing = store.vars.get(input.name);
+        if (existing?.escrow && !overwriteEscrowed) return false;
         store.vars.set(input.name, {
           id: existing?.id ?? id(),
           createdAt: existing?.createdAt ?? new Date(),
           updatedAt: new Date(),
           ...input,
         });
+        return true;
+      }
+    ),
+    replaceGeneratedValue: vi.fn(
+      async (input: { name: string; value: string; updatedBy: string }) => {
+        const existing = store.vars.get(input.name);
+        if (!existing || existing.escrow || existing.kind !== "generated") {
+          return false;
+        }
+        store.vars.set(input.name, {
+          ...existing,
+          value: input.value,
+          updatedBy: input.updatedBy,
+          updatedAt: new Date(),
+        });
+        return true;
       }
     ),
     deleteVariable: vi.fn(async (_env: string, name: string) => {
+      const existing = store.vars.get(name);
+      if (!existing || existing.escrow) return false;
       store.vars.delete(name);
+      return true;
     }),
     insertVariablesIfMissing: vi.fn(
       async (rows: Omit<Row, "id" | "createdAt" | "updatedAt">[]) => {
@@ -183,6 +207,7 @@ vi.mock("@/lib/variables/repository", () => {
 });
 
 const { app } = await import("@/server/app");
+const repository = await import("@/lib/variables/repository");
 const { encryptSecret, decryptSecret } = await import("@/lib/secrets");
 
 function send(method: string, path: string, body?: unknown) {
@@ -462,6 +487,32 @@ describe("writing", () => {
     expect(stored?.escrow).toBe(true);
   });
 
+  it("refuses turning a secret or generated variable plain without a value", async () => {
+    for (const name of ["DB_PASSWORD", "JWT_SECRET"]) {
+      const before = store.vars.get(name);
+      const res = await send("PUT", `${base}/variables/${name}`, {
+        kind: "plain",
+      });
+      expect(res.status, name).toBe(400);
+      const text = await res.text();
+      expect(text).not.toContain(SECRET_PLAIN);
+      expect(text).not.toContain(GENERATED_PLAIN);
+      expect(store.vars.get(name)).toEqual(before);
+    }
+  });
+
+  it("turns a secret plain with an explicit value", async () => {
+    const res = await send("PUT", `${base}/variables/DB_PASSWORD`, {
+      kind: "plain",
+      value: "now-public",
+    });
+    expect(res.status).toBe(200);
+    expect(store.vars.get("DB_PASSWORD")).toMatchObject({
+      kind: "plain",
+      value: "now-public",
+    });
+  });
+
   it("requires a value for a new plain or secret variable", async () => {
     const res = await send("PUT", `${base}/variables/NEW_SECRET`, {
       kind: "secret",
@@ -575,6 +626,54 @@ describe("escrow", () => {
     const stored = store.vars.get("DATA_ENCRYPTION_KEY");
     expect(stored?.escrow).toBe(false);
     expect(decryptSecret(stored?.value ?? "")).toBe(ESCROW_PLAIN);
+  });
+
+  // The row became escrowed between the service's read and its write: the
+  // write itself must refuse (the read is simulated stale).
+  describe("escrow set concurrently", () => {
+    beforeEach(() => {
+      store.vars.set("JWT_SECRET", {
+        ...(store.vars.get("JWT_SECRET") as Row),
+        escrow: true,
+      });
+      vi.mocked(repository.getVariable).mockImplementationOnce(
+        async (_env: string, name: string) => {
+          const row = store.vars.get(name);
+          return row && { ...row, escrow: false };
+        }
+      );
+    });
+
+    it("delete answers 409 and keeps the row", async () => {
+      expect(
+        (await send("DELETE", `${base}/variables/JWT_SECRET`)).status
+      ).toBe(409);
+      expect(store.vars.has("JWT_SECRET")).toBe(true);
+    });
+
+    it("regenerate answers 409, keeps the value and never clears escrow", async () => {
+      expect(
+        (await send("POST", `${base}/variables/JWT_SECRET/regenerate`)).status
+      ).toBe(409);
+      const row = store.vars.get("JWT_SECRET");
+      expect(row?.escrow).toBe(true);
+      expect(decryptSecret(row?.value ?? "")).toBe(GENERATED_PLAIN);
+      expect(repository.saveVariable).not.toHaveBeenCalled();
+    });
+
+    it("put answers 409 and keeps the value", async () => {
+      expect(
+        (
+          await send("PUT", `${base}/variables/JWT_SECRET`, {
+            kind: "generated",
+            value: "overwrite-attempt",
+          })
+        ).status
+      ).toBe(409);
+      expect(decryptSecret(store.vars.get("JWT_SECRET")?.value ?? "")).toBe(
+        GENERATED_PLAIN
+      );
+    });
   });
 
   it("keeps escrow when the flag is omitted", async () => {
@@ -755,6 +854,17 @@ describe("no decrypted value without reveal", () => {
         method: "PUT",
         path: `${base}/variables/JWT_SECRET`,
         body: { kind: "generated" },
+      },
+      // Turning a secret plain without a value must not answer it in clear.
+      {
+        method: "PUT",
+        path: `${base}/variables/DB_PASSWORD`,
+        body: { kind: "plain" },
+      },
+      {
+        method: "PUT",
+        path: `${base}/variables/JWT_SECRET`,
+        body: { kind: "plain" },
       },
       { method: "POST", path: `${base}/variables/apply-template` },
       { method: "GET", path: `${base}/variables` },
