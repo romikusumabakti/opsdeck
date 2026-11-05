@@ -7,9 +7,11 @@ import {
   isNull,
   lte,
   ne,
+  or,
   type SQL,
   sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { type DbExecutor, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -28,9 +30,40 @@ import {
   users,
 } from "@/lib/db/schema";
 import { isLockActive, placementFor, planHeldRelease } from "@/lib/deploy/lock";
+import { autoRunActor } from "@/lib/deploy/run-actor";
 import { isUniqueViolation } from "@/lib/people/names";
+import type { UserRef } from "@/lib/types";
 
 const RECENT_LIMIT = 20;
+
+/**
+ * The Panel user an auto run's actor (runs.triggered_by, a forge login or a
+ * commit author email) resolves to: the user with that email, ignoring case.
+ * Left-join it with {@link autoUserOn}; only runs without a Panel user match.
+ */
+export const autoUsers = alias(users, "auto_user");
+export const autoUserOn = and(
+  isNull(runs.userId),
+  eq(sql`lower(${autoUsers.email})`, sql`lower(${runs.triggeredBy})`)
+);
+
+/** A user reference from {@link autoUsers}, or null when nothing matched. */
+export function autoUserRef(row: {
+  autoUserId: string | null;
+  autoUserName: string | null;
+  autoUserImage: string | null;
+}): UserRef | null {
+  return row.autoUserId && row.autoUserName
+    ? { id: row.autoUserId, name: row.autoUserName, image: row.autoUserImage }
+    : null;
+}
+
+/** Columns that feed {@link autoUserRef}. */
+export const autoUserColumns = {
+  autoUserId: autoUsers.id,
+  autoUserName: autoUsers.name,
+  autoUserImage: autoUsers.image,
+};
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -54,6 +87,8 @@ export type TargetState = DeployTarget &
     recentDeployments: (Deployment & {
       userName: string | null;
       triggeredBy: string | null;
+      /** The Panel user `triggeredBy` resolves to; see {@link autoUsers}. */
+      autoUser: UserRef | null;
     })[];
   };
 
@@ -230,11 +265,13 @@ export async function listTargetsForEnvironment(
             deployment: deployments,
             userName: users.name,
             triggeredBy: runs.triggeredBy,
+            ...autoUserColumns,
           })
           .from(deployments)
           // Left join: a held deployment has no run yet.
           .leftJoin(runs, eq(runs.id, deployments.runId))
           .leftJoin(users, eq(users.id, runs.userId))
+          .leftJoin(autoUsers, autoUserOn)
           .where(eq(deployments.targetId, target.id))
           .orderBy(desc(deployments.createdAt), desc(deployments.id))
           .limit(RECENT_LIMIT),
@@ -247,6 +284,7 @@ export async function listTargetsForEnvironment(
           ...r.deployment,
           userName: r.userName,
           triggeredBy: r.triggeredBy,
+          autoUser: autoUserRef(r),
         })),
       };
     })
@@ -639,7 +677,7 @@ export async function placeDeployment(input: {
               userId: input.userId,
               triggeredBy:
                 input.trigger === "auto"
-                  ? await buildPusher(tx, input.buildId)
+                  ? await buildActor(tx, input.buildId)
                   : null,
               description: input.description,
               kind: "deploy",
@@ -675,19 +713,22 @@ export async function placeDeployment(input: {
 }
 
 /**
- * The forge login that pushed the build behind an auto run (runs.triggered_by),
- * or null without a build or when it is unknown.
+ * The actor of the build behind an auto run (runs.triggered_by, see
+ * autoRunActor), or null without a build or when it is unknown.
  */
-async function buildPusher(
+async function buildActor(
   tx: Tx,
   buildId: string | null
 ): Promise<string | null> {
   if (!buildId) return null;
   const [build] = await tx
-    .select({ pushedBy: builds.pushedBy })
+    .select({
+      pushedBy: builds.pushedBy,
+      commitAuthorEmail: builds.commitAuthorEmail,
+    })
     .from(builds)
     .where(eq(builds.id, buildId));
-  return build?.pushedBy ?? null;
+  return build ? autoRunActor(build) : null;
 }
 
 export type ReleasedLock = {
@@ -755,6 +796,7 @@ async function releaseLockIn(
       trigger: deployments.trigger,
       componentKey: deployTargets.componentKey,
       pushedBy: builds.pushedBy,
+      commitAuthorEmail: builds.commitAuthorEmail,
     })
     .from(deployments)
     .innerJoin(deployTargets, eq(deployTargets.id, deployments.targetId))
@@ -791,8 +833,14 @@ async function releaseLockIn(
         .values({
           environmentId,
           userId: actorId,
-          // The same pusher a run placed without the lock would carry.
-          triggeredBy: row.trigger === "auto" ? (row.pushedBy ?? null) : null,
+          // The same actor a run placed without the lock would carry.
+          triggeredBy:
+            row.trigger === "auto"
+              ? autoRunActor({
+                  pushedBy: row.pushedBy ?? null,
+                  commitAuthorEmail: row.commitAuthorEmail ?? null,
+                })
+              : null,
           description: deploymentRunDescription(
             row.componentKey,
             row.tag,
@@ -1035,7 +1083,10 @@ export async function deleteTarget(id: string): Promise<void> {
   await db.delete(deployTargets).where(eq(deployTargets.id, id));
 }
 
-/** A build whose pusher is unknown but whose pipeline URL may still tell. */
+/**
+ * A build with no actor yet (neither pusher nor commit author email) whose
+ * pipeline URL may still tell.
+ */
 export type BuildMissingActors = {
   id: string;
   componentKey: string;
@@ -1052,14 +1103,23 @@ export async function listBuildsMissingActors(): Promise<BuildMissingActors[]> {
       pipelineUrl: builds.pipelineUrl,
     })
     .from(builds)
-    .where(and(isNull(builds.pushedBy), isNotNull(builds.pipelineUrl)))
+    .where(
+      and(
+        isNull(builds.pushedBy),
+        isNull(builds.commitAuthorEmail),
+        isNotNull(builds.pipelineUrl)
+      )
+    )
     .orderBy(desc(builds.receivedAt), desc(builds.id));
   return rows.flatMap((r) =>
     r.pipelineUrl ? [{ ...r, pipelineUrl: r.pipelineUrl }] : []
   );
 }
 
-/** Only fills a build whose pusher is still unknown, so a rerun is harmless. */
+/**
+ * Fills only the columns of a build that are still null, so a value already
+ * stored is never overwritten and a rerun is harmless.
+ */
 export async function setBuildActors(
   buildId: string,
   actors: {
@@ -1070,30 +1130,42 @@ export async function setBuildActors(
 ): Promise<void> {
   await db
     .update(builds)
-    .set(actors)
-    .where(and(eq(builds.id, buildId), isNull(builds.pushedBy)));
+    .set({
+      pushedBy: sql`coalesce(${builds.pushedBy}, ${actors.pushedBy})`,
+      commitAuthorEmail: sql`coalesce(${builds.commitAuthorEmail}, ${actors.commitAuthorEmail})`,
+      commitMessage: sql`coalesce(${builds.commitMessage}, ${actors.commitMessage})`,
+    })
+    .where(eq(builds.id, buildId));
 }
 
-/** Builds with a known pusher that still have an auto run without one. */
+/**
+ * Builds with a known actor (pusher or commit author email) that still have
+ * an auto run without one, with the actor those runs get (autoRunActor).
+ */
 export async function listBuildsWithUnfilledRuns(): Promise<
-  { id: string; pushedBy: string }[]
+  { id: string; actor: string }[]
 > {
   const rows = await db
-    .selectDistinct({ id: builds.id, pushedBy: builds.pushedBy })
+    .selectDistinct({
+      id: builds.id,
+      pushedBy: builds.pushedBy,
+      commitAuthorEmail: builds.commitAuthorEmail,
+    })
     .from(builds)
     .innerJoin(deployments, eq(deployments.buildId, builds.id))
     .innerJoin(runs, eq(runs.id, deployments.runId))
     .where(
       and(
-        isNotNull(builds.pushedBy),
+        or(isNotNull(builds.pushedBy), isNotNull(builds.commitAuthorEmail)),
         eq(deployments.trigger, "auto"),
         isNull(runs.userId),
         isNull(runs.triggeredBy)
       )
     );
-  return rows.flatMap((r) =>
-    r.pushedBy ? [{ id: r.id, pushedBy: r.pushedBy }] : []
-  );
+  return rows.flatMap((r) => {
+    const actor = autoRunActor(r);
+    return actor ? [{ id: r.id, actor }] : [];
+  });
 }
 
 /** Ids of the auto runs of a build that show no actor yet. */

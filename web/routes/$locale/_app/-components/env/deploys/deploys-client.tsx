@@ -518,12 +518,20 @@ function DeploymentActor({ deployment: d }: { deployment: Deployment }) {
   const t = useTranslations("deploys");
   const actor = runActorLabel({
     userName: d.userName,
+    autoUserName: d.autoUser?.name,
     triggeredBy: d.triggeredBy,
     auto: d.trigger === "auto",
   });
   switch (actor.kind) {
     case "user":
       return actor.name;
+    case "autoUser":
+      return (
+        <span className="inline-flex items-center gap-1.5">
+          <Zap className="size-3.5 shrink-0" aria-hidden />
+          {t("byAutoUser", { user: actor.name })}
+        </span>
+      );
     case "auto":
       return (
         <span className="inline-flex items-center gap-1.5">

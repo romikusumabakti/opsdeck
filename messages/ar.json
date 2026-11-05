@@ -676,6 +676,7 @@
     "colDuration": "المدة",
     "userUnknown": "غير معروف",
     "byAutoUser": "تلقائي · {user}",
+    "byAutoPanelUser": "تلقائي · <user>{name}</user>",
     "statusRunning": "قيد التشغيل",
     "statusSuccess": "ناجح",
     "statusFailed": "فشل",

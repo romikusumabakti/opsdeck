@@ -7,12 +7,20 @@ import {
   requireProjectPage,
 } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { environments, type Run, runs } from "@/lib/db/schema";
+import { environments, type Run, runs, users } from "@/lib/db/schema";
+import {
+  autoUserColumns,
+  autoUserOn,
+  autoUserRef,
+  autoUsers,
+} from "@/lib/deploy/repository";
 import type { UserRef } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
 export type RunWithUser = Run & {
   user: UserRef | null;
+  /** The Panel user an auto run's `triggeredBy` resolves to (by email). */
+  autoUser: UserRef | null;
 };
 
 export type ActiveRun = Pick<
@@ -110,16 +118,27 @@ export async function getEnvironmentRuns(
 ): Promise<RunWithUser[]> {
   await requireProjectPage({ environmentId });
   try {
-    const rows = await db.query.runs.findMany({
-      where: { environmentId: environmentId },
-      with: {
-        user: {
-          columns: { id: true, name: true, image: true },
-        },
-      },
-      orderBy: { runAt: "desc" },
-    });
-    return rows as RunWithUser[];
+    const rows = await db
+      .select({
+        run: runs,
+        userId: users.id,
+        userName: users.name,
+        userImage: users.image,
+        ...autoUserColumns,
+      })
+      .from(runs)
+      .leftJoin(users, eq(users.id, runs.userId))
+      .leftJoin(autoUsers, autoUserOn)
+      .where(eq(runs.environmentId, environmentId))
+      .orderBy(desc(runs.runAt));
+    return rows.map((r) => ({
+      ...r.run,
+      user:
+        r.userId && r.userName
+          ? { id: r.userId, name: r.userName, image: r.userImage }
+          : null,
+      autoUser: autoUserRef(r),
+    }));
   } catch (error) {
     console.error(
       `Failed to fetch runs for environment ${environmentId}:`,

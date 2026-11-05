@@ -676,6 +676,7 @@
     "colDuration": "持续时间",
     "userUnknown": "未知",
     "byAutoUser": "自动 · {user}",
+    "byAutoPanelUser": "自动 · <user>{name}</user>",
     "statusRunning": "运行中",
     "statusSuccess": "成功",
     "statusFailed": "失败",

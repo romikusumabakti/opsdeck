@@ -676,6 +676,7 @@
     "colDuration": "Duration",
     "userUnknown": "Unknown",
     "byAutoUser": "auto · {user}",
+    "byAutoPanelUser": "auto · <user>{name}</user>",
     "statusRunning": "Running",
     "statusSuccess": "Success",
     "statusFailed": "Failed",
