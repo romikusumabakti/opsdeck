@@ -48,8 +48,12 @@ const repo = vi.hoisted(() => ({
   deleteTarget: vi.fn(),
   environmentUsesServer: vi.fn(),
   getDeployLock: vi.fn(),
+  getEnvironmentForLock: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
+
+const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
+vi.mock("@/lib/activity", () => activity);
 
 const apps = vi.hoisted(() => ({
   getComponent: vi.fn(),
@@ -105,6 +109,11 @@ beforeEach(() => {
   state.role = "maintainer";
   repo.getTarget.mockResolvedValue(target);
   repo.getDeployLock.mockResolvedValue(null);
+  repo.getEnvironmentForLock.mockResolvedValue({
+    id: ENV_ID,
+    name: "Sucor Dev",
+    ownerId: null,
+  });
   apps.getComponent.mockResolvedValue({ componentKey: "dplk-accounting" });
   apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(undefined);
   repo.environmentUsesServer.mockImplementation(
@@ -652,5 +661,119 @@ describe("target configuration", () => {
     const res = await send("DELETE", `/api/deploys/targets/${TARGET_ID}`);
     expect(res.status).toBe(200);
     expect(repo.deleteTarget).toHaveBeenCalledWith(TARGET_ID);
+  });
+});
+
+describe("target audit", () => {
+  const full = {
+    ...target,
+    autoDeploy: false,
+    deployDir: "/opt/accounting",
+    services: ["backend"],
+    tagVariable: "IMAGE_TAG",
+    preStartCommand: "echo secret-token",
+    healthUrl: null,
+    healthTimeoutSeconds: 180,
+    backupBeforeDeploy: false,
+  };
+
+  beforeEach(() => {
+    repo.getTarget.mockResolvedValue(full);
+  });
+
+  function entries() {
+    return activity.recordActivity.mock.calls.map((c) => c[0]);
+  }
+
+  it("records a create with actor, environment and component", async () => {
+    const res = await send("POST", "/api/deploys/targets", newTarget);
+    expect(res.status).toBe(200);
+    expect(entries()).toEqual([
+      {
+        actorId: "user-1",
+        action: "deployTarget.created",
+        entityType: "environment",
+        entityId: ENV_ID,
+        data: { environment: "Sucor Dev", component: "dplk-accounting" },
+      },
+    ]);
+  });
+
+  it("records no create that failed", async () => {
+    repo.upsertTarget.mockRejectedValue(
+      Object.assign(new Error("dup"), { code: "23505" })
+    );
+    await send("POST", "/api/deploys/targets", newTarget);
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records an update with the changed field names and safe old → new values", async () => {
+    const res = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      autoDeploy: true,
+      sourceBranch: "sucor/demo",
+      // Unchanged: left out.
+      deployDir: "/opt/accounting",
+      services: ["backend", "frontend"],
+      healthUrl: "http://localhost:8080/health",
+      healthTimeoutSeconds: 60,
+      backupBeforeDeploy: true,
+      preStartCommand: "echo other-secret",
+      serverId: SERVER_ID,
+    });
+    expect(res.status).toBe(200);
+    const [entry] = entries();
+    expect(entry).toMatchObject({
+      actorId: "user-1",
+      action: "deployTarget.updated",
+      entityType: "environment",
+      entityId: ENV_ID,
+      data: {
+        environment: "Sucor Dev",
+        component: "dplk-accounting",
+        fields:
+          "sourceBranch, autoDeploy, services, preStartCommand, healthUrl, healthTimeoutSeconds, backupBeforeDeploy",
+        changes:
+          'sourceBranch: "sucor/development" → "sucor/demo"; autoDeploy: false → true; ' +
+          'services: ["backend"] → ["backend","frontend"]; preStartCommand: changed; ' +
+          'healthUrl: null → "http://localhost:8080/health"; healthTimeoutSeconds: 180 → 60; ' +
+          "backupBeforeDeploy: false → true",
+      },
+    });
+    // The pre-start command never reaches the log.
+    expect(JSON.stringify(entries())).not.toContain("secret");
+  });
+
+  it("names a server change without its ids", async () => {
+    repo.environmentUsesServer.mockResolvedValue(true);
+    await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      serverId: OTHER_SERVER_ID,
+    });
+    expect(entries()[0]?.data).toMatchObject({
+      fields: "serverId",
+      changes: "serverId: changed",
+    });
+  });
+
+  it("records no update when nothing changed", async () => {
+    const res = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      autoDeploy: false,
+      tagVariable: "IMAGE_TAG",
+    });
+    expect(res.status).toBe(200);
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("records a delete", async () => {
+    const res = await send("DELETE", `/api/deploys/targets/${TARGET_ID}`);
+    expect(res.status).toBe(200);
+    expect(entries()).toEqual([
+      {
+        actorId: "user-1",
+        action: "deployTarget.deleted",
+        entityType: "environment",
+        entityId: ENV_ID,
+        data: { environment: "Sucor Dev", component: "dplk-accounting" },
+      },
+    ]);
   });
 });

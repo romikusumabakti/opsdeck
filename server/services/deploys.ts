@@ -1,5 +1,6 @@
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { recordActivity } from "@/lib/activity";
 import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -9,6 +10,7 @@ import {
   deleteTarget,
   environmentUsesServer,
   findBuild,
+  getEnvironmentForLock,
   getTagState,
   getTarget,
   listTargetsForEnvironment,
@@ -107,6 +109,68 @@ async function requireTagVariableFree(
   }
 }
 
+// Target fields whose old and new values go to the activity log. The others
+// (the server's id, the pre-start command, which may carry a secret) are
+// logged as "changed" only.
+const LOGGED_VALUES = [
+  "autoDeploy",
+  "sourceBranch",
+  "deployDir",
+  "services",
+  "tagVariable",
+  "healthUrl",
+  "healthTimeoutSeconds",
+  "backupBeforeDeploy",
+] as const satisfies readonly (keyof DeployTarget)[];
+
+type TargetChanges = z.infer<typeof updateTargetSchema>;
+
+/**
+ * The fields an update really changes, in schema order, and one
+ * `name: old → new` (or `name: changed`) entry each for the activity log.
+ */
+export function describeTargetChanges(
+  before: DeployTarget,
+  changes: TargetChanges
+): { fields: string[]; changes: string[] } {
+  const fields = (
+    Object.keys(updateTargetSchema.shape) as (keyof TargetChanges)[]
+  ).filter(
+    (field) =>
+      changes[field] !== undefined &&
+      JSON.stringify(changes[field]) !== JSON.stringify(before[field])
+  );
+  return {
+    fields,
+    changes: fields.map((field) =>
+      (LOGGED_VALUES as readonly string[]).includes(field)
+        ? `${field}: ${JSON.stringify(before[field])} → ${JSON.stringify(changes[field])}`
+        : `${field}: changed`
+    ),
+  };
+}
+
+/** One activity entry for a change to a deploy target of an environment. */
+async function auditTarget(
+  actorId: string,
+  target: Pick<DeployTarget, "environmentId" | "componentKey">,
+  action: string,
+  data: Record<string, string> = {}
+): Promise<void> {
+  const environment = await getEnvironmentForLock(target.environmentId);
+  await recordActivity({
+    actorId,
+    action,
+    entityType: "environment",
+    entityId: target.environmentId,
+    data: {
+      environment: environment?.name ?? target.environmentId,
+      component: target.componentKey,
+      ...data,
+    },
+  });
+}
+
 export async function listDeployTargets(
   environmentId: string
 ): Promise<TargetState[]> {
@@ -117,7 +181,7 @@ export async function listDeployTargets(
 export async function createDeployTarget(
   input: z.infer<typeof createTargetSchema>
 ): Promise<DeployTarget> {
-  await requireProjectPermission(
+  const { session } = await requireProjectPermission(
     { environmentId: input.environmentId },
     { deploy: ["configure"] }
   );
@@ -126,8 +190,9 @@ export async function createDeployTarget(
   }
   await requireServerInEnvironment(input.environmentId, input.serverId);
   await requireTagVariableFree(input.environmentId, input.tagVariable);
+  let created: DeployTarget;
   try {
-    return await db.transaction(async (tx) => {
+    created = await db.transaction(async (tx) => {
       await assertTargetMatchesEnvironmentApp(
         input.environmentId,
         input.componentKey,
@@ -151,6 +216,8 @@ export async function createDeployTarget(
     }
     throw error;
   }
+  await auditTarget(session.user.id, created, "deployTarget.created");
+  return created;
 }
 
 export async function updateDeployTarget(
@@ -158,7 +225,7 @@ export async function updateDeployTarget(
   changes: z.infer<typeof updateTargetSchema>
 ): Promise<DeployTarget> {
   const target = await requireTarget(id);
-  await requireProjectPermission(
+  const { session } = await requireProjectPermission(
     { environmentId: target.environmentId },
     { deploy: ["configure"] }
   );
@@ -176,20 +243,29 @@ export async function updateDeployTarget(
     changes.autoDeploy === false ||
     (changes.sourceBranch !== undefined &&
       changes.sourceBranch !== target.sourceBranch);
-  return db.transaction(async (tx) => {
-    const updated = await upsertTarget({ ...changes, id }, tx);
+  const updated = await db.transaction(async (tx) => {
+    const row = await upsertTarget({ ...changes, id }, tx);
     if (dropHeld) await supersedeHeldDeployments(id, tx);
-    return updated;
+    return row;
   });
+  const changed = describeTargetChanges(target, changes);
+  if (changed.fields.length > 0) {
+    await auditTarget(session.user.id, target, "deployTarget.updated", {
+      fields: changed.fields.join(", "),
+      changes: changed.changes.join("; "),
+    });
+  }
+  return updated;
 }
 
 export async function deleteDeployTarget(id: string): Promise<void> {
   const target = await requireTarget(id);
-  await requireProjectPermission(
+  const { session } = await requireProjectPermission(
     { environmentId: target.environmentId },
     { deploy: ["configure"] }
   );
   await deleteTarget(id);
+  await auditTarget(session.user.id, target, "deployTarget.deleted");
 }
 
 // Only `auto` deployments are ever held; a manual deploy or rollback is
