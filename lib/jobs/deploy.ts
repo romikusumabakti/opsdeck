@@ -6,9 +6,11 @@ import {
   getDeployment,
   getTarget,
   heartbeatDeployment,
+  listTagVariablesInDeployDir,
   markScriptStarted,
 } from "@/lib/deploy/repository";
 import { buildDeployScript } from "@/lib/deploy/script";
+import { deployTagSchema, envVarNameSchema } from "@/lib/deploy/validation";
 import { loadServerCredentials } from "@/lib/environments";
 import { handleCreateDatabaseBackup } from "@/lib/jobs/processor";
 import { enqueue, type JobMap } from "@/lib/queue";
@@ -18,7 +20,10 @@ import {
   createRun,
   failRun,
 } from "@/lib/run-progress";
-import { executeRemoteCommand } from "@/lib/ssh";
+import { shq } from "@/lib/sh";
+import { executeRemoteCommand, uploadRemoteContent } from "@/lib/ssh";
+import { renderEnvFile } from "@/lib/variables/env-file";
+import { loadManagedEnvFileVariables } from "@/server/services/variables";
 
 // How long a deploy waits before re-trying the claim while another deploy runs
 // in the same environment.
@@ -35,6 +40,13 @@ const DEPLOY_COMMAND_TIMEOUT_MS = 20 * 60_000;
  */
 export const HEARTBEAT_INTERVAL_MS = 60_000;
 export const STALE_RUNNING_DEPLOY_MS = 5 * 60_000;
+
+// Where the job stages a managed environment's rendered .env; the script
+// renames it over .env (lib/deploy/script.ts, installStagedEnvFile).
+const STAGED_ENV_FILE = ".env.opsdeck-new";
+
+// Bound on reading the other components' tag lines from the server's .env.
+const READ_TAGS_TIMEOUT_MS = 30_000;
 
 const INTERRUPTED_MESSAGE =
   "Worker restarted during deploy — server state unknown";
@@ -211,6 +223,25 @@ async function runClaimedDeployment(
   const credentials = await loadServerCredentials(target.serverId);
   if (!credentials) throw new Error(`Server ${target.serverId} not found`);
 
+  // A managed environment gets its whole .env rendered from the Panel's
+  // variables; null leaves the deploy exactly as it was before (tag line only).
+  const managedVars = await loadManagedEnvFileVariables(target.environmentId);
+  // Every tag variable written to this deploy dir's .env: this target's and,
+  // for a multi-component app, the other components'.
+  const tagVariables = managedVars
+    ? await listTagVariablesInDeployDir(target.serverId, target.deployDir)
+    : [];
+  if (managedVars) {
+    // Validate now, with the deploying tag standing in for the values still
+    // to be read from the server, so bad variables abort before the backup.
+    renderManagedEnvFile(
+      managedVars,
+      Object.fromEntries(
+        [...tagVariables, target.tagVariable].map((n) => [n, deployment.tag])
+      )
+    );
+  }
+
   // Built (and validated) before the backup, so a bad target fails the deploy
   // without taking a backup first.
   const script = buildDeployScript({
@@ -223,6 +254,7 @@ async function runClaimedDeployment(
     preStartCommand: target.preStartCommand,
     healthUrl: target.healthUrl,
     healthTimeoutSeconds: target.healthTimeoutSeconds,
+    ...(managedVars ? { installStagedEnvFile: true } : {}),
   });
 
   if (target.backupBeforeDeploy) {
@@ -260,6 +292,35 @@ async function runClaimedDeployment(
       "Deployment was marked failed while waiting (stale) — not deploying"
     );
   }
+  if (managedVars) {
+    // Staging the file changes nothing the server runs: a failure here fails
+    // the deploy with the server's .env and containers untouched.
+    const otherTags = tagVariables.filter((n) => n !== target.tagVariable);
+    const tags = {
+      ...(otherTags.length > 0
+        ? await readServerTags(credentials, target.deployDir, otherTags)
+        : {}),
+      [target.tagVariable]: deployment.tag,
+    };
+    const content = renderManagedEnvFile(managedVars, tags);
+    try {
+      await uploadRemoteContent(
+        credentials,
+        content,
+        `${target.deployDir}/${STAGED_ENV_FILE}`,
+        0o600
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Uploading .env failed: ${message}`);
+    }
+    // The count only: variable names and values never reach the run output.
+    await appendRunOutput(
+      runId,
+      `Wrote .env (${managedVars.length} variables)`
+    );
+  }
+
   // From here the server may run this tag, even if the deploy then fails. Not
   // best-effort: if it cannot be recorded, do not touch the server.
   await markScriptStarted(deploymentId);
@@ -275,4 +336,78 @@ async function runClaimedDeployment(
   );
   const trimmed = output.trim();
   if (trimmed) await appendRunOutput(runId, trimmed);
+}
+
+/**
+ * Renders a managed .env. Stored variables were validated when saved, so a
+ * failure here is unexpected; its detail could quote a variable, so the run
+ * only gets a generic sentence.
+ */
+function renderManagedEnvFile(
+  vars: { name: string; value: string }[],
+  tags: Record<string, string>
+): string {
+  try {
+    return renderEnvFile(vars, tags);
+  } catch {
+    throw new DeployAborted(
+      "The environment's variables cannot be written to .env — check them in the Panel"
+    );
+  }
+}
+
+/**
+ * The current values of `names` in the server's `<deployDir>/.env`, for the
+ * tag variables of the other components sharing that file, so deploying one
+ * component keeps the others' tags. The command carries only the variable
+ * names (grep patterns), and only those lines come back — never other values.
+ * A name missing from the file (or no file) is left out. Like Compose, the
+ * last line wins; one pair of surrounding quotes is dropped.
+ */
+async function readServerTags(
+  credentials: { host: string; username: string; password: string },
+  deployDir: string,
+  names: string[]
+): Promise<Record<string, string>> {
+  const patterns = names
+    .map((n) => `-e ${shq(`^${envVarNameSchema.parse(n)}=`)}`)
+    .join(" ");
+  // grep exits 1 when nothing matches (fine) and 2 on an error (not fine).
+  const command = [
+    `cd ${shq(deployDir)} || exit 1`,
+    "[ -f .env ] || exit 0",
+    `grep ${patterns} .env`,
+    `[ "$?" -le 1 ]`,
+  ].join("\n");
+  const output = await executeRemoteCommand(
+    credentials,
+    command,
+    READ_TAGS_TIMEOUT_MS
+  );
+
+  const found: Record<string, string> = {};
+  for (const line of output.split("\n")) {
+    const eq = line.indexOf("=");
+    if (eq < 0) continue;
+    const name = line.slice(0, eq);
+    if (!names.includes(name)) continue;
+    let value = line.slice(eq + 1).trim();
+    const quote = value[0];
+    if (
+      value.length >= 2 &&
+      (quote === '"' || quote === "'") &&
+      value.endsWith(quote)
+    ) {
+      value = value.slice(1, -1);
+    }
+    found[name] = value;
+  }
+  for (const [name, value] of Object.entries(found)) {
+    if (!deployTagSchema.safeParse(value).success) {
+      throw new DeployAborted(
+        `${name} in ${deployDir}/.env on the server is not a valid deploy tag — fix it there before deploying`
+      );
+    }
+  }
+  return found;
 }
