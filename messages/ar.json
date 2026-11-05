@@ -368,7 +368,8 @@
       "running": "قيد التشغيل",
       "success": "ناجح",
       "failed": "فشل",
-      "superseded": "مُستبدَل"
+      "superseded": "مُستبدَل",
+      "held": "معلّق"
     },
     "form": {
       "createTitle": "إضافة هدف نشر",
@@ -1262,7 +1263,13 @@
     "environmentOwnerIneligible": "يجب أن يكون المالك عضوًا نشطًا في مشروع هذه البيئة، أو مستخدمًا بدور مسؤول أو بنية تحتية في المؤسسة.",
     "placementServiceInUse": "هذه الخدمة مستخدمة بالفعل من بيئة أخرى على هذا الخادم؛ اطلب المساعدة من مسؤول.",
     "placementServiceName": "على الخادم المفتوح، اربط فقط أسماء الخدمات التي تبدأ بـ {prefix} (مفتاح هذا المشروع)؛ اطلب المساعدة من مسؤول لأسماء أخرى.",
-    "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة."
+    "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة.",
+    "deployLocked": "عمليات النشر إلى هذه البيئة مقفلة من قبل {name} حتى {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
+    "deployLockHolderUnknown": "مستخدم سابق",
+    "deployLockReasonInvalid": "اكتب سببًا من 1 إلى 200 حرف.",
+    "deployLockExpiryInvalid": "اختر وقت انتهاء في المستقبل، خلال 7 أيام على الأكثر.",
+    "deployLockChanged": "تغيّر قفل النشر في الأثناء. أعد التحميل وحاول مرة أخرى.",
+    "deployForceUnlockReasonRequired": "اكتب سببًا لفك القفل بالقوة."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1845,7 +1852,11 @@
     "envFileManagedOff": "{actor} أوقف كتابة اللوحة لملف ‎.env الخاص بـ {environment}",
     "variablesTemplateApplied": "{actor} أضاف متغيرات القالب إلى {environment} ({names})",
     "variableTemplateSaved": "{actor} حفظ قالب المتغير {name} للتطبيق {app}",
-    "variableTemplateDeleted": "{actor} حذف قالب المتغير {name} للتطبيق {app}"
+    "variableTemplateDeleted": "{actor} حذف قالب المتغير {name} للتطبيق {app}",
+    "deployLockLocked": "قفل {actor} عمليات النشر إلى {environment} ({reason})",
+    "deployLockUnlocked": "فك {actor} قفل النشر إلى {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
+    "deployLockForceUnlocked": "فك {actor} قفل النشر إلى {environment} بالقوة ({reason})؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
+    "deployLockExpired": "انتهى قفل النشر على {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}"
   },
   "jira": {
     "title": "Jira",

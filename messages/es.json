@@ -368,7 +368,8 @@
       "running": "En curso",
       "success": "Correcto",
       "failed": "Fallido",
-      "superseded": "Reemplazado"
+      "superseded": "Reemplazado",
+      "held": "Retenido"
     },
     "form": {
       "createTitle": "Añadir destino de despliegue",
@@ -1262,7 +1263,13 @@
     "environmentOwnerIneligible": "El responsable debe ser un miembro activo del proyecto de este entorno, o un usuario administrador o de infraestructura de la organización.",
     "placementServiceInUse": "Este servicio ya lo usa otro entorno en este servidor; pide ayuda a un administrador.",
     "placementServiceName": "En un servidor abierto, vincula solo nombres de servicio que empiecen por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",
-    "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno."
+    "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno.",
+    "deployLocked": "Los despliegues a este entorno están bloqueados por {name} hasta el {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
+    "deployLockHolderUnknown": "un antiguo usuario",
+    "deployLockReasonInvalid": "Indica un motivo de 1 a 200 caracteres.",
+    "deployLockExpiryInvalid": "Elige una caducidad futura, como máximo dentro de 7 días.",
+    "deployLockChanged": "El bloqueo de despliegue cambió mientras tanto. Recarga e inténtalo de nuevo.",
+    "deployForceUnlockReasonRequired": "Indica un motivo para el desbloqueo forzado."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1845,7 +1852,11 @@
     "envFileManagedOff": "{actor} dejó de permitir que el Panel escriba el .env de {environment}",
     "variablesTemplateApplied": "{actor} añadió variables de plantilla a {environment} ({names})",
     "variableTemplateSaved": "{actor} guardó la plantilla de variable {name} de {app}",
-    "variableTemplateDeleted": "{actor} eliminó la plantilla de variable {name} de {app}"
+    "variableTemplateDeleted": "{actor} eliminó la plantilla de variable {name} de {app}",
+    "deployLockLocked": "{actor} bloqueó los despliegues a {environment} ({reason})",
+    "deployLockUnlocked": "{actor} desbloqueó los despliegues a {environment}; {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}",
+    "deployLockForceUnlocked": "{actor} forzó el desbloqueo de los despliegues a {environment} ({reason}); {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}",
+    "deployLockExpired": "El bloqueo de despliegue de {environment} caducó; {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}"
   },
   "jira": {
     "title": "Jira",

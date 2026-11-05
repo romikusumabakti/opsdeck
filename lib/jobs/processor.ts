@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Job } from "bullmq";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
+import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { pushComment, pushIssue } from "@/lib/jira/push";
 import { pullProject, syncIssueById } from "@/lib/jira/sync";
@@ -1261,6 +1262,9 @@ export async function processJob(job: Job): Promise<unknown> {
       return pushComment(parseJobPayload(name, raw).commentId);
     case "deploy/run.requested":
       return handleDeploy(parseJobPayload(name, raw));
+    case "deploy/lock-sweep":
+      parseJobPayload(name, raw);
+      return sweepExpiredLocks();
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;

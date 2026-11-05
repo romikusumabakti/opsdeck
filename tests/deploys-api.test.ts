@@ -11,6 +11,10 @@ const PREVIOUS_TAG = "origin-sucor-development-0000001";
 
 const state = vi.hoisted(() => ({ role: "maintainer" as string }));
 
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession: async () => null }, handler: vi.fn() },
+}));
+
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "user-1" } })),
 }));
@@ -42,6 +46,7 @@ const repo = vi.hoisted(() => ({
   upsertTarget: vi.fn(),
   deleteTarget: vi.fn(),
   environmentUsesServer: vi.fn(),
+  getDeployLock: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
@@ -98,6 +103,7 @@ beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.56.113:5000");
   state.role = "maintainer";
   repo.getTarget.mockResolvedValue(target);
+  repo.getDeployLock.mockResolvedValue(null);
   apps.getComponent.mockResolvedValue({ componentKey: "dplk-accounting" });
   apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(undefined);
   repo.environmentUsesServer.mockImplementation(
@@ -342,6 +348,65 @@ describe("rollback", () => {
       targetId: TARGET_ID,
     });
     expect(res.status).toBe(503);
+  });
+});
+
+describe("deploy lock", () => {
+  const lock = {
+    environmentId: ENV_ID,
+    lockedBy: "0197f3a0-1b2c-7def-8000-0123456789f1",
+    lockerName: "Owner Olga",
+    reason: "UAT with the client",
+    expiresAt: new Date(Date.now() + 3_600_000),
+    createdAt: new Date(),
+  };
+
+  it("refuses a manual deploy while locked with a 409 naming the lock", async () => {
+    repo.getDeployLock.mockResolvedValue(lock);
+    const res = await send("POST", "/api/deploys/deploy", {
+      targetId: TARGET_ID,
+      tag: TAG,
+    });
+    expect(res.status).toBe(409);
+    const { error } = await res.json();
+    expect(error).toContain("Owner Olga");
+    expect(error).toContain("UAT with the client");
+    expect(deployments.requestDeployment).not.toHaveBeenCalled();
+  });
+
+  it("refuses a rollback while locked, translated", async () => {
+    repo.getDeployLock.mockResolvedValue(lock);
+    const res = await app.request("/api/deploys/rollback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Locale": "id" },
+      body: JSON.stringify({ targetId: TARGET_ID }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("dikunci");
+    expect(deployments.requestDeployment).not.toHaveBeenCalled();
+  });
+
+  it("an expired lock does not block", async () => {
+    repo.getDeployLock.mockResolvedValue({
+      ...lock,
+      expiresAt: new Date(Date.now() - 1000),
+    });
+    const res = await send("POST", "/api/deploys/deploy", {
+      targetId: TARGET_ID,
+      tag: TAG,
+    });
+    expect(res.status).toBe(200);
+    expect(deployments.requestDeployment).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks the lock only after the permission check", async () => {
+    repo.getDeployLock.mockResolvedValue(lock);
+    state.role = "contributor";
+    const res = await send("POST", "/api/deploys/deploy", {
+      targetId: TARGET_ID,
+      tag: TAG,
+    });
+    expect(res.status).toBe(403);
   });
 });
 
