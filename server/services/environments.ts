@@ -1,8 +1,9 @@
-import { and, asc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { assignableUsersWhere } from "@/lib/assignees";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
+  ForbiddenError,
   getProjectRole,
   projectScope,
   requireOrgPermission,
@@ -22,6 +23,7 @@ import {
   type NewEnvironmentService,
   projectMembers,
   projects,
+  servers,
   users as userTable,
 } from "@/lib/db/schema";
 import {
@@ -30,6 +32,7 @@ import {
   loadSafeEnvironment,
   ownerIdToVerify,
 } from "@/lib/environments";
+import { canPlaceEnvironment, type ProjectRole } from "@/lib/permissions";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
 import { hasService, type ServiceRole } from "@/lib/services";
@@ -354,6 +357,43 @@ async function requireEligibleOwner(
   badRequest(t("environmentOwnerIneligible"));
 }
 
+// The servers a new environment binds: backend always, db and frontend when
+// the payload enables them (the same rule the service rows follow).
+function boundServerIds(input: EnvironmentInput): string[] {
+  const ids = [
+    input.hasDatabase ? input.dbServerId : undefined,
+    input.backendServerId,
+    input.hasFrontend ? input.frontendServerId : undefined,
+  ].filter((id): id is string => !!id);
+  return [...new Set(ids)];
+}
+
+// A new environment binds servers, service names and database credentials,
+// which service control, drop/restore and logs then act on. Every bound server
+// must admit the caller under its placement policy (lib/permissions
+// #canPlaceEnvironment). A server that cannot be found counts as restricted.
+async function requireEnvironmentPlacement(
+  orgRole: string | null | undefined,
+  projectRole: ProjectRole,
+  serverIds: string[]
+): Promise<void> {
+  const rows = serverIds.length
+    ? await db
+        .select({ id: servers.id, placement: servers.placement })
+        .from(servers)
+        .where(inArray(servers.id, serverIds))
+    : [];
+  const placementOf = new Map(rows.map((r) => [r.id, r.placement]));
+  const allowed = serverIds.every((id) =>
+    canPlaceEnvironment(
+      orgRole,
+      projectRole,
+      placementOf.get(id) ?? "restricted"
+    )
+  );
+  if (!allowed) throw new ForbiddenError();
+}
+
 export async function createEnvironment(
   data: unknown
 ): Promise<ActionResponse<Environment>> {
@@ -361,14 +401,17 @@ export async function createEnvironment(
   if (!parsed.success) {
     return { success: false, message: "Invalid environment data" };
   }
-  await requireProjectPermission(
+  // Visibility first (404 for an invisible project), then the placement rule
+  // of the chosen servers decides who may create here.
+  const { session, role } = await requireProjectPermission(
     { projectId: parsed.data.projectId },
-    { environment: ["create"] }
+    { project: ["read"] }
   );
-  // A new environment binds servers, service names and database credentials,
-  // which service control, drop/restore and logs then act on: org-level
-  // server:manage, not just a project role.
-  await requireOrgPermission({ server: ["manage"] });
+  await requireEnvironmentPlacement(
+    session.user.role,
+    role,
+    boundServerIds(parsed.data)
+  );
   await requireEligibleOwner(
     ownerIdToVerify(parsed.data),
     parsed.data.projectId
@@ -387,7 +430,8 @@ export async function createEnvironment(
             name: input.name,
             slug,
             kind: input.kind,
-            ownerId: input.ownerId,
+            // The creator owns the environment unless the form names someone.
+            ownerId: input.ownerId ?? session.user.id,
             host: input.host,
             url: input.url,
           })

@@ -879,6 +879,10 @@
     "usageEmptyDescription": "No environment is currently using this server.",
     "sftpRoot": "SFTP root",
     "sftpRootDescription": "Absolute path the file explorer is confined to. Use / for the whole host.",
+    "placement": "Environment placement",
+    "placementRestricted": "Restricted: admins and infra only",
+    "placementOpen": "Open: project contributors and above",
+    "placementDescription": "Who may create new environments on this server. Existing environments are not affected.",
     "sftpRootInvalid": "Must be an absolute path (start with /)"
   },
   "newServer": {

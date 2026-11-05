@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import {
   canAnyProject,
+  canEnvironment,
   canOrg,
   canProject,
   effectiveProjectRole,
@@ -131,13 +132,19 @@ export async function projectIdsWhere(): Promise<{ in: string[] } | undefined> {
   return ids === "all" ? undefined : { in: ids };
 }
 
-const projectIdOfEnvironment = requestCache(async (environmentId: string) => {
+// The environment's project and owner, read together. Request-cached like the
+// rest of the access lookups, so an ownership change applies from the next
+// request on.
+const environmentRef = requestCache(async (environmentId: string) => {
   const [row] = await db
-    .select({ projectId: environments.projectId })
+    .select({
+      projectId: environments.projectId,
+      ownerId: environments.ownerId,
+    })
     .from(environments)
     .where(eq(environments.id, environmentId))
     .limit(1);
-  return row?.projectId ?? null;
+  return row ?? null;
 });
 
 const projectIdOfIssue = requestCache(async (issueId: string) => {
@@ -159,7 +166,7 @@ async function projectIdOf(scope: ProjectScope): Promise<string | null> {
   }
   if ("environmentId" in scope) {
     return uuidSchema.safeParse(scope.environmentId).success
-      ? projectIdOfEnvironment(scope.environmentId)
+      ? ((await environmentRef(scope.environmentId))?.projectId ?? null)
       : null;
   }
   return uuidSchema.safeParse(scope.issueId).success
@@ -198,14 +205,36 @@ async function resolveScoped(scope: ProjectScope) {
   return { session, projectId, role };
 }
 
+// Whether the caller owns the environment the scope names. Only an
+// environment scope can make someone an owner: a project- or issue-scoped
+// request never picks up owner rights.
+async function ownsScopedEnvironment(
+  scope: ProjectScope,
+  userId: string
+): Promise<boolean> {
+  if (!("environmentId" in scope)) return false;
+  if (!uuidSchema.safeParse(scope.environmentId).success) return false;
+  const ref = await environmentRef(scope.environmentId);
+  return ref?.ownerId != null && ref.ownerId === userId;
+}
+
+// The project role decides; on an environment scope the environment's owner
+// also holds OWNER_PERMISSIONS (lib/permissions#canEnvironment), provided
+// they can see the project at all.
 export async function requireProjectPermission(
   scope: ProjectScope,
   perms: ProjectPermissions
-): Promise<{ session: Session; role: ProjectRole; projectId: string }> {
+): Promise<{
+  session: Session;
+  role: ProjectRole;
+  projectId: string;
+  isOwner: boolean;
+}> {
   const { session, projectId, role } = await resolveScoped(scope);
   if (!projectId || !role) notFound();
-  if (!canProject(role, perms)) throw new ForbiddenError();
-  return { session, role, projectId };
+  const isOwner = await ownsScopedEnvironment(scope, session.user.id);
+  if (!canEnvironment(role, isOwner, perms)) throw new ForbiddenError();
+  return { session, role, projectId, isOwner };
 }
 
 // Like requireProjectPermission, but one of several alternative requests is
@@ -225,7 +254,7 @@ export async function requireAnyProjectPermission(
 export function requireProjectPage(
   scope: ProjectScope,
   perms: ProjectPermissions = { project: ["read"] }
-): Promise<{ session: Session; role: ProjectRole; projectId: string }> {
+): ReturnType<typeof requireProjectPermission> {
   return requireProjectPermission(scope, perms);
 }
 
