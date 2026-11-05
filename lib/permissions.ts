@@ -213,9 +213,10 @@ export function canCreateEnvironment(
 }
 
 // Who may put a new environment on a server, by the server's placement policy.
-// `restricted` is the rule above; `open` admits anyone who may create
-// environments in the project or holds contributor and above there. Existing
-// environments are never re-checked: placement only gates new bindings.
+// `restricted` is the rule above; `open` admits project maintainers
+// (environment:create) without org server:manage, so contributors (QA) never
+// create environments. Existing environments are never re-checked: placement
+// only gates new bindings.
 export function canPlaceEnvironment(
   orgRole: string | null | undefined,
   projectRole: ProjectRole | null,
@@ -224,48 +225,7 @@ export function canPlaceEnvironment(
   if (placement === "restricted") {
     return canCreateEnvironment(orgRole, projectRole);
   }
-  return (
-    canProject(projectRole, { environment: ["create"] }) ||
-    projectRole === "contributor" ||
-    projectRole === "maintainer"
-  );
-}
-
-// What an environment's owner (environments.owner_id) may do on that one
-// environment, whatever their project role: deploy, roll back, delete it and
-// see/edit its variables. Deliberately not deploy:configure (a target's
-// pre-start command runs on the server, and with open placement a contributor
-// could create an environment and own it) nor environment:update (rebinding
-// and Mailpit stay with maintainers). The owner still needs a project role
-// (viewer at least); see canEnvironment.
-export const OWNER_PERMISSIONS: ProjectPermissions = {
-  deploy: ["view", "run", "rollback"],
-  environment: ["delete"],
-  variable: ["read", "write"],
-};
-
-// True when every action of the request is among the owner rights. Own-key
-// lookups only, so an inherited name such as "toString" never matches.
-function ownerCovers(perms: ProjectPermissions): boolean {
-  return Object.entries(perms).every(([resource, actions]) => {
-    if (!Object.hasOwn(OWNER_PERMISSIONS, resource)) return false;
-    const allowed: readonly string[] =
-      OWNER_PERMISSIONS[resource as keyof ProjectPermissions] ?? [];
-    return (actions ?? []).every((action: string) => allowed.includes(action));
-  });
-}
-
-// A request on one environment: the project role decides, and the
-// environment's owner additionally holds OWNER_PERMISSIONS, never more and
-// never without a project role. `isOwner` must be about the environment the
-// request targets.
-export function canEnvironment(
-  role: ProjectRole | null,
-  isOwner: boolean,
-  perms: ProjectPermissions
-): boolean {
-  if (!role) return false;
-  return canProject(role, perms) || (isOwner && ownerCovers(perms));
+  return canProject(projectRole, { environment: ["create"] });
 }
 
 // Registering an app activates a repository in the CI server and sets its

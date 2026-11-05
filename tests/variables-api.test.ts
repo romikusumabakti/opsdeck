@@ -42,7 +42,6 @@ type Template = {
 
 const state = vi.hoisted(() => ({
   role: "maintainer" as string | null,
-  isOwner: false,
   orgRole: "member" as string,
 }));
 
@@ -69,23 +68,22 @@ vi.mock("@/lib/auth-session", () => ({
 }));
 
 vi.mock("@/lib/authz", async () => {
-  const { canEnvironment, canOrg } = await import("@/lib/permissions");
+  const { canOrg, canProject } = await import("@/lib/permissions");
   const { HTTPException } = await import("hono/http-exception");
   const session = () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", role: state.orgRole },
   });
   return {
     requireProjectPermission: vi.fn(
-      async (_scope: unknown, perms: Parameters<typeof canEnvironment>[2]) => {
+      async (_scope: unknown, perms: Parameters<typeof canProject>[1]) => {
         if (!state.role) throw new HTTPException(404, { message: "Not Found" });
-        if (!canEnvironment(state.role as "viewer", state.isOwner, perms)) {
+        if (!canProject(state.role as "viewer", perms)) {
           throw new HTTPException(403, { message: "Forbidden" });
         }
         return {
           session: session(),
           role: state.role,
           projectId: "project-1",
-          isOwner: state.isOwner,
         };
       }
     ),
@@ -260,7 +258,6 @@ function template(
 beforeEach(() => {
   vi.clearAllMocks();
   state.role = "maintainer";
-  state.isOwner = false;
   state.orgRole = "member";
   store.env.envFileManaged = false;
   store.env.url = "https://dev.example.test";
@@ -308,27 +305,7 @@ describe("permissions", () => {
     }
   });
 
-  it("the environment's owner with only viewer may use the variable routes", async () => {
-    state.role = "viewer";
-    state.isOwner = true;
-    for (const call of VARIABLE_ROUTES) {
-      const res = await send(call.method, call.path, call.body);
-      expect(res.status, `${call.method} ${call.path}`).toBe(200);
-    }
-  });
-
-  it("the owner may not switch env_file_managed (needs deploy:configure)", async () => {
-    state.role = "viewer";
-    state.isOwner = true;
-    const res = await send(
-      ENV_FILE_ROUTE.method,
-      ENV_FILE_ROUTE.path,
-      ENV_FILE_ROUTE.body
-    );
-    expect(res.status).toBe(403);
-  });
-
-  it("a contributor who does not own the environment gets 403 everywhere", async () => {
+  it("a contributor gets 403 everywhere", async () => {
     state.role = "contributor";
     const before = JSON.stringify([...store.vars.entries()]);
     for (const call of [...VARIABLE_ROUTES, ENV_FILE_ROUTE]) {
@@ -339,7 +316,7 @@ describe("permissions", () => {
     expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 
-  it("a viewer who does not own the environment gets 403", async () => {
+  it("a viewer gets 403", async () => {
     state.role = "viewer";
     const res = await send("GET", `${base}/variables`);
     expect(res.status).toBe(403);
