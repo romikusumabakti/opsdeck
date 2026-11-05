@@ -20,6 +20,7 @@ function makeServer(name: string): Server {
     username: "ops",
     password: "super-secret-ssh-password",
     sftpRoot: "/",
+    placement: "restricted",
     createdAt: new Date("2024-01-01T00:00:00Z"),
     updatedAt: new Date("2024-01-01T00:00:00Z"),
   };
@@ -105,6 +106,7 @@ function makeProject(
     host: null,
     url: null,
     appId: null,
+    envFileManaged: false,
     owner: null,
     services: [makeDbService(), makeBackendService(), makeFrontendService()],
     ...overrides,

@@ -48,6 +48,26 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.apps.id,
       to: r.environments.appId,
     }),
+    variableTemplates: r.many.appVariableTemplates({
+      from: r.apps.id,
+      to: r.appVariableTemplates.appId,
+    }),
+  },
+  appVariableTemplates: {
+    app: r.one.apps({
+      from: r.appVariableTemplates.appId,
+      to: r.apps.id,
+    }),
+  },
+  environmentVariables: {
+    environment: r.one.environments({
+      from: r.environmentVariables.environmentId,
+      to: r.environments.id,
+    }),
+    updatedByUser: r.one.users({
+      from: r.environmentVariables.updatedBy,
+      to: r.users.id,
+    }),
   },
   appComponents: {
     app: r.one.apps({
@@ -67,6 +87,10 @@ export const relations = defineRelations(schema, (r) => ({
     app: r.one.apps({
       from: r.environments.appId,
       to: r.apps.id,
+    }),
+    variables: r.many.environmentVariables({
+      from: r.environments.id,
+      to: r.environmentVariables.environmentId,
     }),
     owner: r.one.users({
       from: r.environments.ownerId,
