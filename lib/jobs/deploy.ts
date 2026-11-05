@@ -24,7 +24,7 @@ import {
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand, uploadRemoteContent } from "@/lib/ssh";
 import { renderEnvFile } from "@/lib/variables/env-file";
-import { loadManagedEnvFileVariables } from "@/server/services/variables";
+import { loadManagedEnvFileVariables } from "@/lib/variables/managed-env";
 
 // How long a deploy waits before re-trying the claim while another deploy runs
 // in the same environment.
@@ -330,6 +330,14 @@ async function runClaimedDeployment(
     try {
       await uploadRemoteContent(credentials, content, path, 0o600);
     } catch (err) {
+      // A partial or timed-out upload may have left the file behind.
+      await bestEffort("remove the staged .env", () =>
+        executeRemoteCommand(
+          credentials,
+          `rm -f ${shq(path)}`,
+          REMOVE_STAGED_TIMEOUT_MS
+        )
+      );
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`Uploading .env failed: ${message}`);
     }

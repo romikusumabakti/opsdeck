@@ -72,7 +72,7 @@ vi.mock("@/lib/jobs/processor", () => processor);
 const variables = vi.hoisted(() => ({
   loadManagedEnvFileVariables: vi.fn(),
 }));
-vi.mock("@/server/services/variables", () => variables);
+vi.mock("@/lib/variables/managed-env", () => variables);
 
 const { handleDeploy, HEARTBEAT_INTERVAL_MS, STALE_RUNNING_DEPLOY_MS } =
   await import("@/lib/jobs/deploy");
@@ -589,7 +589,12 @@ describe("handleDeploy with a managed .env", () => {
 
     await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
 
-    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    // A partial or timed-out upload may have left the file: removed again,
+    // and nothing else runs.
+    expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+    expect(ssh.executeRemoteCommand.mock.calls[0]?.[1]).toBe(
+      `rm -f '${STAGED_PATH}'`
+    );
     expect(repo.markScriptStarted).not.toHaveBeenCalled();
     expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
     expect(progress.failRun).toHaveBeenCalledWith(
@@ -598,6 +603,21 @@ describe("handleDeploy with a managed .env", () => {
     );
     expect(outputLines().some((l) => l.startsWith("Staged .env"))).toBe(false);
     expectNoSecrets();
+  });
+
+  it("a failed upload still fails when removing the staged file fails too", async () => {
+    silenceErrors();
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    ssh.uploadRemoteContent.mockRejectedValue(new Error("Upload timed out"));
+    ssh.executeRemoteCommand.mockRejectedValue(new Error("connection lost"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(repo.markScriptStarted).not.toHaveBeenCalled();
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      expect.stringContaining("Upload timed out")
+    );
   });
 
   it("variables that cannot be rendered fail the deploy before the backup", async () => {

@@ -750,3 +750,13 @@ describe("API routers reach a guard", () => {
     }
   });
 });
+
+// The deploy job runs as the system, outside any request: it reads managed
+// variables through lib/variables, never through a request-scoped service.
+describe("the deploy job does not import server services", () => {
+  it("lib/jobs/deploy.ts imports nothing from @/server/services", () => {
+    expect(readFileSync("lib/jobs/deploy.ts", "utf8")).not.toMatch(
+      /from "@\/server\/services\//
+    );
+  });
+});

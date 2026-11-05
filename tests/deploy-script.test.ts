@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildDeployScript, type DeployScriptInput } from "@/lib/deploy/script";
+import { deployDirSchema } from "@/lib/deploy/validation";
 
 // The deploy script is what runs on a client's Compose host over SSH. Like the
 // job command builders, it is tested both by asserting on the produced text
@@ -42,11 +43,50 @@ const MANAGED = { deploymentId: DEPLOYMENT_ID, variableCount: 3 };
 
 // Lines that install the staged `.env` (the only lines the option adds).
 const INSTALL_LINES = [
+  "if [ ! -e .env.opsdeck-unmanaged ] && [ -e .env ]; then cp -p .env .env.opsdeck-unmanaged && chmod 600 .env.opsdeck-unmanaged || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
   "if [ -f .env ]; then cp -p .env .env.opsdeck-prev && chmod 600 .env.opsdeck-prev || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
   `chmod 600 '${STAGED}' && mv -f '${STAGED}' .env || { echo 'ENV INSTALL FAILED'; exit 1; }`,
   "rm -f .env.opsdeck-new* || true",
   "echo 'Wrote .env (3 variables)'",
 ];
+
+// Deploy dirs are compared as strings (shared-dir guard, multi-component tag
+// lookup), so only one spelling of a directory is valid: no trailing '/', no
+// empty, '.' or '..' segment.
+describe("deployDirSchema", () => {
+  it("accepts normalized absolute paths, including every live value", () => {
+    for (const dir of [
+      "/srv/accounting",
+      "/opt/a.b/c_d-e",
+      // `select distinct deploy_dir from deploy_targets` on the migrated
+      // live copy, 2026-11-05.
+      "/deployments/dplk-accounting",
+      "/deployments/dplk-customer-portal",
+      "/deployments/dplk-customer-portal-cms",
+      "/deployments/dplk-investment",
+      "/deployments/dplk-membership",
+      "/deployments/hris",
+    ]) {
+      expect(deployDirSchema.safeParse(dir).success, dir).toBe(true);
+    }
+  });
+
+  it("rejects a trailing slash, '//', '.' and '..' segments", () => {
+    for (const dir of [
+      "/srv/app/",
+      "/srv/app//",
+      "/srv//app",
+      "//srv/app",
+      "/srv/./app",
+      "/srv/app/.",
+      "/srv/../app",
+      "/srv/app/..",
+      "/./srv/app",
+    ]) {
+      expect(deployDirSchema.safeParse(dir).success, dir).toBe(false);
+    }
+  });
+});
 
 describe("buildDeployScript validation", () => {
   it('rejects tag "latest" and "LATEST"', () => {
@@ -300,6 +340,9 @@ interface StubRun {
   /** `.env.opsdeck-prev`, null when absent. */
   prev: string | null;
   prevMode: number | null;
+  /** `.env.opsdeck-unmanaged`, null when absent. */
+  unmanaged: string | null;
+  unmanagedMode: number | null;
   /** Staged files still in the deploy dir. */
   stagedLeft: string[];
   log: string;
@@ -364,6 +407,7 @@ async function runStub(
   });
   const envPath = join(deployDir, ".env");
   const prevPath = join(deployDir, ".env.opsdeck-prev");
+  const unmanagedPath = join(deployDir, ".env.opsdeck-unmanaged");
   const result = {
     status,
     stdout,
@@ -371,6 +415,10 @@ async function runStub(
     envMode: modeOf(envPath),
     prev: existsSync(prevPath) ? readFileSync(prevPath, "utf8") : null,
     prevMode: existsSync(prevPath) ? modeOf(prevPath) : null,
+    unmanaged: existsSync(unmanagedPath)
+      ? readFileSync(unmanagedPath, "utf8")
+      : null,
+    unmanagedMode: existsSync(unmanagedPath) ? modeOf(unmanagedPath) : null,
     stagedLeft: readdirSync(deployDir).filter((f) =>
       f.startsWith(".env.opsdeck-new")
     ),
@@ -638,6 +686,45 @@ describe.concurrent("buildDeployScript stub runs", () => {
     SLOW
   );
 
+  // The hand-written .env from before the Panel managed it is kept once and
+  // never overwritten, so it survives later deploys and rollbacks.
+  it(
+    "stub run, first managed install keeps the hand-written .env once (0600)",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: MANAGED },
+        "IMAGE_TAG=old\nHAND=written\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`
+      );
+      expect(r.status).toBe(0);
+      expect(r.unmanaged).toBe("IMAGE_TAG=old\nHAND=written\n");
+      expect(r.unmanagedMode).toBe(0o600);
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, an existing .env.opsdeck-unmanaged is never overwritten",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: MANAGED },
+        "IMAGE_TAG=old\nMANAGED=1\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [".env.opsdeck-unmanaged"]
+      );
+      expect(r.status).toBe(0);
+      expect(r.unmanaged).toBe("OLD=1\n");
+      expect(r.prev).toBe("IMAGE_TAG=old\nMANAGED=1\n");
+    },
+    SLOW
+  );
+
   it(
     "stub run, staged .env installed when the server has no .env yet",
     async () => {
@@ -654,6 +741,7 @@ describe.concurrent("buildDeployScript stub runs", () => {
       expect(r.env).toBe(staged);
       expect(r.envMode).toBe(0o600);
       expect(r.prev).toBeNull();
+      expect(r.unmanaged).toBeNull();
     },
     SLOW
   );
@@ -741,6 +829,22 @@ describe.concurrent("buildDeployScript stub runs", () => {
     expect(r.log).toContain("rm stubcid\n");
     expect(r.log).not.toContain("compose");
     expect(r.env).toBe("IMAGE_TAG=old\n");
+  });
+
+  it("stub run, keeping the hand-written .env fails: fails before any pull, .env untouched", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: MANAGED },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      { chmod: "#!/bin/sh\nexit 1\n" },
+      "IMAGE_TAG=new\n"
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("ENV INSTALL FAILED");
+    expect(r.log).not.toContain("compose");
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.prev).toBeNull();
   });
 
   it("stub run, rename fails: fails before any pull, .env untouched", async () => {
