@@ -743,6 +743,61 @@ describe("target audit", () => {
     expect(JSON.stringify(entries())).not.toContain("secret");
   });
 
+  it("logs a health URL as origin and path only, never credentials or a query", async () => {
+    repo.getTarget.mockResolvedValue({
+      ...full,
+      healthUrl: "https://old:secret@h/old?key=xyz#frag",
+    });
+    const res = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      healthUrl: "https://u:p@h/x?token=abc",
+    });
+    expect(res.status).toBe(200);
+    const data = entries()[0]?.data;
+    expect(data).toMatchObject({
+      fields: "healthUrl",
+      changes: 'healthUrl: "https://h/old" → "https://h/x"',
+    });
+    const recorded = JSON.stringify(entries());
+    for (const leak of [
+      "u:p",
+      "p@",
+      "token",
+      "abc",
+      "old:secret",
+      "key=",
+      "frag",
+    ]) {
+      expect(recorded).not.toContain(leak);
+    }
+  });
+
+  it("logs a health URL it cannot parse as changed", async () => {
+    repo.getTarget.mockResolvedValue({ ...full, healthUrl: "not a url" });
+    await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      healthUrl: null,
+    });
+    expect(entries()[0]?.data).toMatchObject({ changes: "healthUrl: changed" });
+  });
+
+  it("a failing environment lookup falls back to the id and never fails the request", async () => {
+    repo.getEnvironmentForLock.mockRejectedValue(new Error("db blip"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const created = await send("POST", "/api/deploys/targets", newTarget);
+    const updated = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      autoDeploy: true,
+    });
+    const deleted = await send("DELETE", `/api/deploys/targets/${TARGET_ID}`);
+    error.mockRestore();
+    expect([created.status, updated.status, deleted.status]).toEqual([
+      200, 200, 200,
+    ]);
+    expect(entries().map((e) => e.data.environment)).toEqual([
+      ENV_ID,
+      ENV_ID,
+      ENV_ID,
+    ]);
+  });
+
   it("names a server change without its ids", async () => {
     repo.environmentUsesServer.mockResolvedValue(true);
     await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
