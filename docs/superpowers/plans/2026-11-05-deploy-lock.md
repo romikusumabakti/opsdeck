@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Who may lock: the environment's owner (`environments.owner_id`, any project role ≥ viewer) and project maintainers. Who may unlock: the user who locked, the owner, project maintainers. Force-unlock with a reason: org admins only (`integration:manage`), recorded in the activity log. Nobody else.
+- Who may lock: the environment's owner (`environments.owner_id`, any project role ≥ viewer) and project maintainers. Who may unlock: the user who locked and the environment's owner only — maintainers cannot unlock a lock they did not set (owner decision 2026-11-05). Force-unlock with a reason: org admins only (`integration:manage`), recorded in the activity log. Nobody else.
 - A lock has a reason (1–200 chars) and an expiry; default expiry = 17:00 Asia/Jakarta today, or now + 2 h when it is already past 16:00 Asia/Jakarta; maximum 7 days ahead. Timestamps stored UTC (Panel convention).
 - While locked: manual deploys and rollbacks → 409 with the lock's holder, reason and expiry in the message (translated); auto deploys → status `held` (not run), and a new held deployment supersedes older held auto deployments of the same target.
 - On unlock/expiry: per target of the environment, the newest held deployment becomes `queued` and is enqueued; older held ones are `superseded`. Nothing is run for targets with no held deployment.
@@ -28,7 +28,7 @@
 2. Unlock must not start two deployments for the same environment at once (the existing one-running-per-environment index) — queued deployments of several targets are claimed one after another as today.
 3. A lock that expired while the worker was down is released on the next sweep after restart, and its held builds deploy.
 4. A user who is only `viewer` and not the owner cannot lock or unlock; the owner losing ownership loses lock rights immediately (a lock they already set stays until unlock/expiry).
-5. Force-unlock without a reason, or by a maintainer, is refused.
+5. Force-unlock without a reason, or by a maintainer, is refused; a maintainer cannot DELETE a lock set by the owner.
 
 ---
 
@@ -40,7 +40,7 @@
 - Test: `tests/deploy-lock-migration.test.ts`, `tests/deploy-lock-rules.test.ts`
 
 **Interfaces:**
-- Produces: `deploymentStatusEnum` gains `held`; table `environment_deploy_locks` (`environment_id uuid pk → environments.id on delete cascade`, `locked_by uuid null → users.id on delete set null`, `reason text not null`, `expires_at timestamp not null`, `created_at timestamp not null default now()`); `lib/deploy/lock.ts`: `defaultLockExpiry(now: Date): Date`, `lockExpirySchema` (must be > now and ≤ now + 7 d), `isLockActive(lock: { expiresAt: Date } | null, now: Date): boolean`, `canLock(role: ProjectRole | null, isOwner: boolean): boolean`, `canUnlock(role, isOwner, isLocker): boolean`.
+- Produces: `deploymentStatusEnum` gains `held`; table `environment_deploy_locks` (`environment_id uuid pk → environments.id on delete cascade`, `locked_by uuid null → users.id on delete set null`, `reason text not null`, `expires_at timestamp not null`, `created_at timestamp not null default now()`); `lib/deploy/lock.ts`: `defaultLockExpiry(now: Date): Date`, `lockExpirySchema` (must be > now and ≤ now + 7 d), `isLockActive(lock: { expiresAt: Date } | null, now: Date): boolean`, `canLock(role: ProjectRole | null, isOwner: boolean): boolean`, `canUnlock(isOwner: boolean, isLocker: boolean): boolean` (true iff owner or locker).
 - [ ] Step 1: failing tests — migration static (ADD VALUE 'held', table, cascade, no DROP); `defaultLockExpiry` at 09:00 WIB → 17:00 WIB same day, at 16:30 WIB → 18:30 WIB, at 23:00 WIB → 01:00 WIB next day; expiry 8 days ahead rejected; `isLockActive` false at/after expiry; permission matrix (viewer non-owner false; viewer owner true; maintainer true; null role false).
 - [ ] Step 2–4: FAIL → implement → PASS; apply on the controller's scratch copy (`lock-mig-scratch`).
 - [ ] Step 5: Commit `feat(db): environment deploy locks`
@@ -54,7 +54,7 @@
 
 **Interfaces:**
 - Consumes: Task 1.
-- Produces: `GET /api/environments/:id/deploy-lock` (`deploy:view`; `{ lock: { lockedBy: {id,name} | null, reason, expiresAt } | null, heldCount }`), `PUT /api/environments/:id/deploy-lock` (`{ reason, expiresAt? }`; owner or maintainer), `DELETE /api/environments/:id/deploy-lock` (locker, owner, maintainer), `POST /api/environments/:id/deploy-lock/force-unlock` (`{ reason }`, org `integration:manage`); `releaseLock(environmentId, cause: "unlock" | "force" | "expired", actorId: string | null): Promise<{ queued: string[] }>` — deletes the lock and, in one transaction per target, turns the newest `held` into `queued` and older `held` into `superseded`, then enqueues the queued ones; `sweepExpiredLocks(now)`.
+- Produces: `GET /api/environments/:id/deploy-lock` (`deploy:view`; `{ lock: { lockedBy: {id,name} | null, reason, expiresAt } | null, heldCount }`), `PUT /api/environments/:id/deploy-lock` (`{ reason, expiresAt? }`; owner or maintainer), `DELETE /api/environments/:id/deploy-lock` (locker or owner only), `POST /api/environments/:id/deploy-lock/force-unlock` (`{ reason }`, org `integration:manage`); `releaseLock(environmentId, cause: "unlock" | "force" | "expired", actorId: string | null): Promise<{ queued: string[] }>` — deletes the lock and, in one transaction per target, turns the newest `held` into `queued` and older `held` into `superseded`, then enqueues the queued ones; `sweepExpiredLocks(now)`.
 - `requestDeployment`: when an active lock exists — `manual`/`rollback` → 409 (message key `deploy.locked` with holder, reason, expiry); `auto` → insert with status `held` and supersede older held auto deployments of the target (reuse/extend `supersedeQueuedAuto`); do not enqueue.
 - [ ] Step 1: failing tests for Review Focus 1–5 plus: manual deploy while locked → 409 with the lock message; held then unlock → exactly the newest held queued and enqueued, older superseded; expired lock does not block; sweep releases expired locks; activity entries for lock/unlock/force/expired.
 - [ ] Step 2–4: FAIL → implement → PASS.
