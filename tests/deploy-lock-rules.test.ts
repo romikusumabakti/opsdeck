@@ -5,6 +5,8 @@ import {
   defaultLockExpiry,
   isLockActive,
   lockExpirySchema,
+  placementFor,
+  planHeldRelease,
 } from "@/lib/deploy/lock";
 
 // Asia/Jakarta is UTC+7 without DST.
@@ -84,5 +86,51 @@ describe("permissions", () => {
     expect(canUnlock(true, false)).toBe(true);
     expect(canUnlock(false, true)).toBe(true);
     expect(canUnlock(false, false)).toBe(false);
+  });
+});
+
+describe("placementFor", () => {
+  const now = new Date("2026-11-05T03:00:00Z");
+  const active = { expiresAt: new Date("2026-11-05T10:00:00Z") };
+  const expired = { expiresAt: new Date("2026-11-05T02:59:59Z") };
+
+  it("queues every trigger without an active lock", () => {
+    for (const trigger of ["auto", "manual", "rollback"] as const) {
+      expect(placementFor(null, trigger, now)).toBe("queued");
+      expect(placementFor(expired, trigger, now)).toBe("queued");
+    }
+  });
+
+  it("holds auto and refuses manual and rollback while locked", () => {
+    expect(placementFor(active, "auto", now)).toBe("held");
+    expect(placementFor(active, "manual", now)).toBe("locked");
+    expect(placementFor(active, "rollback", now)).toBe("locked");
+  });
+});
+
+describe("planHeldRelease", () => {
+  const at = (s: number) => new Date(Date.UTC(2026, 10, 5, 3, 0, s));
+
+  it("queues the newest held per target and supersedes the rest", () => {
+    const plan = planHeldRelease([
+      { id: "a1", targetId: "A", createdAt: at(1) },
+      { id: "b1", targetId: "B", createdAt: at(2) },
+      { id: "a3", targetId: "A", createdAt: at(3) },
+      { id: "a2", targetId: "A", createdAt: at(2) },
+    ]);
+    expect(plan.queue.sort()).toEqual(["a3", "b1"]);
+    expect(plan.supersede.sort()).toEqual(["a1", "a2"]);
+  });
+
+  it("breaks a same-instant tie by the newer (uuidv7) id", () => {
+    const plan = planHeldRelease([
+      { id: "0197-0001", targetId: "A", createdAt: at(1) },
+      { id: "0197-0002", targetId: "A", createdAt: at(1) },
+    ]);
+    expect(plan).toEqual({ queue: ["0197-0002"], supersede: ["0197-0001"] });
+  });
+
+  it("does nothing without held deployments", () => {
+    expect(planHeldRelease([])).toEqual({ queue: [], supersede: [] });
   });
 });

@@ -168,6 +168,30 @@ function message(
         count: Number(d.count),
         names: String(d.names) || "—",
       });
+    case "deployLock.locked":
+      return t("deployLockLocked", {
+        actor,
+        environment: String(d.environment),
+        reason: String(d.reason),
+      });
+    case "deployLock.unlocked":
+      return t("deployLockUnlocked", {
+        actor,
+        environment: String(d.environment),
+        count: Number(d.count),
+      });
+    case "deployLock.forceUnlocked":
+      return t("deployLockForceUnlocked", {
+        actor,
+        environment: String(d.environment),
+        reason: String(d.reason),
+        count: Number(d.count),
+      });
+    case "deployLock.expired":
+      return t("deployLockExpired", {
+        environment: String(d.environment),
+        count: Number(d.count),
+      });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "mail.deleted":

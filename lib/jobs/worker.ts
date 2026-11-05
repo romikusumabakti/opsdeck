@@ -2,10 +2,12 @@ import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { jiraProjectLinks } from "@/lib/db/schema";
+import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
 import { failStaleDeployments } from "@/lib/jobs/deploy";
 import { processJob } from "@/lib/jobs/processor";
 import {
   createRedisConnection,
+  scheduleDeployLockSweep,
   scheduleJiraSweep,
   TASKS_QUEUE,
 } from "@/lib/queue";
@@ -66,6 +68,16 @@ export function startWorker(): Worker | null {
   // environment; fail the ones older than any live deploy can be.
   failStaleDeployments().catch((error) => {
     console.error("Failed to sweep stale deployments:", error);
+  });
+
+  // Expired deploy locks are released every 60 s by a repeatable job. Its
+  // scheduler lives in Redis like the Jira ones, so re-register it on boot,
+  // and release right away what expired while the worker was down.
+  scheduleDeployLockSweep().catch((error) => {
+    console.error("Failed to schedule the deploy lock sweep:", error);
+  });
+  sweepExpiredLocks().catch((error) => {
+    console.error("Failed to sweep expired deploy locks:", error);
   });
 
   globalForWorker.__tasksWorker = worker;

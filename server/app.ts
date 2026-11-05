@@ -14,6 +14,7 @@ import { brandRouter } from "@/server/routes/brand";
 import { ciConnectionsRouter } from "@/server/routes/ci-connections";
 import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
+import { deployLocksRouter } from "@/server/routes/deploy-locks";
 import { deploysRouter } from "@/server/routes/deploys";
 import { environmentsRouter } from "@/server/routes/environments";
 import { explorerRouter } from "@/server/routes/explorer";
@@ -99,6 +100,7 @@ export const app = createBaseApp()
   .route("/api/environments", mailFilesRouter)
   .route("/api/environments", serviceLogsRouter)
   .route("/api/environments", environmentVariablesRouter)
+  .route("/api/environments", deployLocksRouter)
   .route("/api/services", servicesRouter)
   .route("/api/runs", runsRouter)
   .route("/api/backups", backupsRouter)

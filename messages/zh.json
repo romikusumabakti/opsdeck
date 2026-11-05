@@ -368,7 +368,8 @@
       "running": "运行中",
       "success": "成功",
       "failed": "失败",
-      "superseded": "已被取代"
+      "superseded": "已被取代",
+      "held": "暂缓"
     },
     "form": {
       "createTitle": "添加部署目标",
@@ -1262,7 +1263,13 @@
     "environmentOwnerIneligible": "负责人必须是此环境所属项目的有效成员，或组织的管理员或基础设施用户。",
     "placementServiceInUse": "此服务已被此服务器上的另一个环境使用；请联系管理员。",
     "placementServiceName": "在开放的服务器上，只能绑定以 {prefix}（本项目的键）开头的服务名称；其他名称请联系管理员。",
-    "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。"
+    "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。",
+    "deployLocked": "此环境的部署已被 {name} 锁定，直到 {expiresAt, date, medium} {expiresAt, time, short}：{reason}",
+    "deployLockHolderUnknown": "一位前用户",
+    "deployLockReasonInvalid": "请填写 1 到 200 个字符的原因。",
+    "deployLockExpiryInvalid": "请选择未来的到期时间，最多 7 天后。",
+    "deployLockChanged": "部署锁在此期间已更改。请重新加载后再试。",
+    "deployForceUnlockReasonRequired": "请填写强制解锁的原因。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1845,7 +1852,11 @@
     "envFileManagedOff": "{actor} 停止面板写入 {environment} 的 .env",
     "variablesTemplateApplied": "{actor} 向 {environment} 添加了模板变量（{names}）",
     "variableTemplateSaved": "{actor} 保存了 {app} 的变量模板 {name}",
-    "variableTemplateDeleted": "{actor} 删除了 {app} 的变量模板 {name}"
+    "variableTemplateDeleted": "{actor} 删除了 {app} 的变量模板 {name}",
+    "deployLockLocked": "{actor} 锁定了 {environment} 的部署（{reason}）",
+    "deployLockUnlocked": "{actor} 解锁了 {environment} 的部署；{count, plural, =0 {没有暂缓的构建} other {# 个暂缓的构建已排队}}",
+    "deployLockForceUnlocked": "{actor} 强制解锁了 {environment} 的部署（{reason}）；{count, plural, =0 {没有暂缓的构建} other {# 个暂缓的构建已排队}}",
+    "deployLockExpired": "{environment} 的部署锁已到期；{count, plural, =0 {没有暂缓的构建} other {# 个暂缓的构建已排队}}"
   },
   "jira": {
     "title": "Jira",

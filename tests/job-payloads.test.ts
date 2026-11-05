@@ -195,6 +195,10 @@ describe("parseJobPayload", () => {
     ).toThrow();
   });
 
+  it("deploy lock sweep payload is empty", () => {
+    expect(parseJobPayload("deploy/lock-sweep", {})).toEqual({});
+  });
+
   it("still accepts a Jira issue push queued before actorId existed", () => {
     expect(
       parseJobPayload("jira/push.issue", { issueId: ENV_ID, fields: [] })

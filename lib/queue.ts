@@ -92,6 +92,8 @@ export type JobMap = {
     deploymentId: string;
     runId: string;
   };
+  // Release every expired deploy lock (repeatable; see scheduleDeployLockSweep).
+  "deploy/lock-sweep": Record<string, never>;
 };
 
 export type JobName = keyof JobMap;
@@ -223,4 +225,32 @@ export async function scheduleJiraSweep(
 /** Stop sweeping a project (link disabled or removed). */
 export async function unscheduleJiraSweep(projectId: string): Promise<void> {
   await getQueue().removeJobScheduler(jiraSchedulerId(projectId));
+}
+
+// How often expired deploy locks are released. A lock past its expiry already
+// stops blocking requests; the sweep is what deploys the builds it held.
+export const DEPLOY_LOCK_SWEEP_INTERVAL_MS = 60_000;
+const DEPLOY_LOCK_SWEEP_SCHEDULER_ID = "deploy-lock-sweep";
+
+/**
+ * Register the recurring deploy lock sweep. Keyed like the Jira sweep, so
+ * calling it on every worker boot replaces the schedule instead of stacking a
+ * second one.
+ */
+export async function scheduleDeployLockSweep(
+  everyMs: number = DEPLOY_LOCK_SWEEP_INTERVAL_MS
+): Promise<void> {
+  await getQueue().upsertJobScheduler(
+    DEPLOY_LOCK_SWEEP_SCHEDULER_ID,
+    { every: everyMs },
+    {
+      name: "deploy/lock-sweep",
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 50 },
+      },
+    }
+  );
 }
