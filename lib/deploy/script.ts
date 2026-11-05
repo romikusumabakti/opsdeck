@@ -46,9 +46,11 @@ export interface DeployScriptInput {
    * The environment's `.env` is managed by the Panel: the job has uploaded the
    * rendered file as {@link stagedEnvFileName}(deploymentId). After the bundle
    * step (so a failed pull leaves `.env` alone and a bundle `.env` never wins)
-   * the script keeps the current `.env` as `.env.opsdeck-prev` and moves the
-   * staged file into place (both `0600`), or exits non-zero before the tag
-   * step and any compose pull with the previous `.env` untouched. Then it
+   * the script keeps the first hand-written `.env` once as
+   * `.env.opsdeck-unmanaged` (never overwritten), the current `.env` as
+   * `.env.opsdeck-prev`, and moves the staged file into place (all `0600`),
+   * or exits non-zero before the tag step and any compose pull with the
+   * previous `.env` untouched. Then it
    * removes leftover staged files and prints `Wrote .env (N variables)`.
    * Absent: the script is exactly what it was before this option existed.
    */
@@ -135,13 +137,18 @@ export function buildDeployScript(input: DeployScriptInput): string {
     `docker cp "$cid":/bundle/. . || { docker rm "$cid" >/dev/null || true; exit 1; }`,
     `docker rm "$cid" >/dev/null`,
 
-    // 1b. Managed .env: keep the current file once, then rename the staged one
-    //     over it (atomic, same directory). Any failure stops here, before the
-    //     tag step and any compose pull, with the previous .env in place.
-    //     Leftover staged files (an earlier deploy that never got this far)
-    //     are removed; the cleanup itself never fails the deploy.
+    // 1b. Managed .env: the hand-written file from before the Panel managed
+    //     it is kept once as .env.opsdeck-unmanaged (0600, never
+    //     overwritten), so neither later deploys nor a rollback lose it.
+    //     Then the current file is kept as .env.opsdeck-prev and the staged
+    //     one renamed over it (atomic, same directory). Any failure stops
+    //     here, before the tag step and any compose pull, with the previous
+    //     .env in place. Leftover staged files (an earlier deploy that never
+    //     got this far) are removed; the cleanup itself never fails the
+    //     deploy.
     ...(v.installStagedEnvFile
       ? [
+          "if [ ! -e .env.opsdeck-unmanaged ] && [ -e .env ]; then cp -p .env .env.opsdeck-unmanaged && chmod 600 .env.opsdeck-unmanaged || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
           "if [ -f .env ]; then cp -p .env .env.opsdeck-prev && chmod 600 .env.opsdeck-prev || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
           `chmod 600 ${staged} && mv -f ${staged} .env || { echo 'ENV INSTALL FAILED'; exit 1; }`,
           `rm -f ${STAGED_ENV_FILE_PREFIX}* || true`,

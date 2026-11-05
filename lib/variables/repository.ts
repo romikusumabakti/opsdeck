@@ -15,8 +15,8 @@ import {
 
 // Database access for environment variables and app variable templates.
 // Values are stored as given: encrypting and decrypting is the service's job
-// (server/services/variables.ts), so nothing here ever sees plaintext secrets
-// on purpose.
+// (server/services/variables.ts, and lib/variables/managed-env.ts for the
+// deploy job), so nothing here ever sees plaintext secrets on purpose.
 
 /** What the variables service needs to know about an environment. */
 export type EnvironmentContext = {

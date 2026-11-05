@@ -9,7 +9,7 @@ import {
   variableKindEnum,
 } from "@/lib/db/schema";
 import { canOrg } from "@/lib/permissions";
-import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { encryptSecret } from "@/lib/secrets";
 import {
   ESCROW_REMOVAL_MESSAGE,
   ESCROWED_MESSAGE,
@@ -19,6 +19,7 @@ import {
   SECRET_TO_PLAIN_MESSAGE,
   SHARED_DEPLOY_DIR_MESSAGE,
 } from "@/lib/variables/errors";
+import { decodeVariableValue } from "@/lib/variables/managed-env";
 import {
   deleteTemplate as deleteTemplateRow,
   deleteVariable as deleteVariableRow,
@@ -112,15 +113,11 @@ function encode(kind: VariableKind, value: string): string {
   return isPlain(kind) ? value : encryptSecret(value);
 }
 
-function decode(row: Pick<EnvironmentVariable, "kind" | "value">): string {
-  return isPlain(row.kind) ? row.value : decryptSecret(row.value);
-}
-
 function view(row: StoredVariable, reveal: boolean): VariableView {
   return {
     name: row.name,
     kind: row.kind,
-    value: isPlain(row.kind) || reveal ? decode(row) : null,
+    value: isPlain(row.kind) || reveal ? decodeVariableValue(row) : null,
     hasValue: true,
     escrow: row.escrow,
     updatedByName: row.updatedByName,
@@ -258,7 +255,8 @@ export async function putVariable(
       escrowRemoved = true;
     } else if (
       input.kind !== existing.kind ||
-      (input.value !== undefined && input.value !== decode(existing))
+      (input.value !== undefined &&
+        input.value !== decodeVariableValue(existing))
     ) {
       fail(409, ESCROWED_MESSAGE);
     }
@@ -275,7 +273,7 @@ export async function putVariable(
 
   let value: string;
   if (input.value !== undefined) value = input.value;
-  else if (existing) value = decode(existing);
+  else if (existing) value = decodeVariableValue(existing);
   else if (input.kind === "generated") {
     value = generateValue(
       template?.generatedLength ?? DEFAULT_GENERATED_LENGTH
@@ -451,21 +449,6 @@ function templateValue(
     // A placeholder the environment has no value for.
     return null;
   }
-}
-
-/**
- * The decrypted variables of an environment whose `.env` the Panel manages,
- * or null when it does not manage it. For the deploy job, which runs as the
- * system: there is no permission check, so never call it for an HTTP request.
- */
-export async function loadManagedEnvFileVariables(
-  environmentId: string
-): Promise<{ name: string; value: string }[] | null> {
-  const env = await getEnvironmentContext(environmentId);
-  if (!env) throw new Error(`Environment ${environmentId} not found`);
-  if (!env.envFileManaged) return null;
-  const rows = await listVariableRows(env.id);
-  return rows.map((row) => ({ name: row.name, value: decode(row) }));
 }
 
 /**
