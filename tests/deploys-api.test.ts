@@ -59,6 +59,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const variables = vi.hoisted(() => ({ getVariable: vi.fn() }));
+vi.mock("@/lib/variables/repository", () => variables);
+
 const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
 vi.mock("@/server/services/deployments", () => deployments);
 
@@ -422,6 +425,42 @@ describe("target configuration", () => {
       "This component already has a target in the environment"
     );
     expect(error).not.toBe(COMPONENT_OTHER_APP_MESSAGE);
+  });
+
+  // The deploy writes the tag variable itself: a variable of the same name
+  // would be overwritten (and the .env render refuses the pair).
+  it("refuses a tag variable named like a variable of the environment (409)", async () => {
+    const { TAG_VARIABLE_IS_VARIABLE_MESSAGE } = await import(
+      "@/lib/deploy/errors"
+    );
+    variables.getVariable.mockImplementation(
+      async (environmentId: string, name: string) =>
+        environmentId === ENV_ID && name === "APP_TAG"
+          ? { name: "APP_TAG" }
+          : undefined
+    );
+    const created = await send("POST", "/api/deploys/targets", {
+      ...newTarget,
+      tagVariable: "APP_TAG",
+    });
+    expect(created.status).toBe(409);
+    expect(await created.json()).toEqual({
+      error: TAG_VARIABLE_IS_VARIABLE_MESSAGE,
+    });
+    const updated = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+      tagVariable: "APP_TAG",
+    });
+    expect(updated.status).toBe(409);
+    expect(repo.upsertTarget).not.toHaveBeenCalled();
+    // Other names are fine.
+    expect(
+      (
+        await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+          tagVariable: "IMAGE_TAG",
+        })
+      ).status
+    ).toBe(200);
+    expect(variables.getVariable).toHaveBeenCalledWith(ENV_ID, "IMAGE_TAG");
   });
 
   it("rejects an unknown component with 404", async () => {

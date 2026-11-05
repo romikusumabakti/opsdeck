@@ -403,6 +403,7 @@
       "invalid": "Nilai ini tidak sesuai format yang dijelaskan di bawah.",
       "componentNotFound": "Belum ada komponen terdaftar dengan key ini.",
       "duplicateComponent": "Komponen ini sudah punya target di environment ini.",
+      "tagVariableIsVariable": "Environment ini sudah punya variabel dengan nama ini; deploy menulis baris tag sendiri. Pilih nama lain atau hapus variabelnya.",
       "otherApp": "Komponen ini milik app lain dari environment ini."
     }
   },

@@ -4,6 +4,7 @@ import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import type { DeployTarget } from "@/lib/db/schema";
+import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import {
   deleteTarget,
   environmentUsesServer,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { uuidSchema } from "@/lib/validation";
+import { getVariable } from "@/lib/variables/repository";
 import { requestDeployment } from "@/server/services/deployments";
 
 const fail = (status: 404 | 409 | 503, message: string): never => {
@@ -80,6 +82,17 @@ async function requireServerInEnvironment(
   }
 }
 
+// The deploy writes the tag line itself, so the tag variable may not also be
+// one of the environment's variables (the variables API refuses the reverse).
+async function requireTagVariableFree(
+  environmentId: string,
+  tagVariable: string
+) {
+  if (await getVariable(environmentId, tagVariable)) {
+    fail(409, TAG_VARIABLE_IS_VARIABLE_MESSAGE);
+  }
+}
+
 export async function listDeployTargets(
   environmentId: string
 ): Promise<TargetState[]> {
@@ -98,6 +111,7 @@ export async function createDeployTarget(
     fail(404, "Component not found");
   }
   await requireServerInEnvironment(input.environmentId, input.serverId);
+  await requireTagVariableFree(input.environmentId, input.tagVariable);
   try {
     return await db.transaction(async (tx) => {
       await assertTargetMatchesEnvironmentApp(
@@ -136,6 +150,9 @@ export async function updateDeployTarget(
   );
   if (changes.serverId) {
     await requireServerInEnvironment(target.environmentId, changes.serverId);
+  }
+  if (changes.tagVariable) {
+    await requireTagVariableFree(target.environmentId, changes.tagVariable);
   }
   return upsertTarget({ ...changes, id });
 }
