@@ -439,11 +439,15 @@ function changesBindings(
 // - every bound server must admit the caller under its placement policy
 //   (lib/permissions#canPlaceEnvironment); a server not found is restricted;
 // - on an open server, a caller without org server:manage may only bind
-//   service names no other environment on that server uses, so an open
-//   placement never reaches another environment's containers or databases.
+//   service names that start with the project's key lowercased plus "-"
+//   (`hris-backend` in HRIS) and that no other environment on that server
+//   uses, so an open placement never reaches another environment's
+//   containers or databases, nor an unregistered container (the Panel's own
+//   database, ZITADEL, the CI server).
 // Changing a server's placement re-checks nothing: only new placements.
 async function requireEnvironmentPlacement(
   orgRole: string | null | undefined,
+  projectId: string,
   projectRole: ProjectRole,
   bindings: Binding[],
   exceptEnvironmentId?: string
@@ -467,6 +471,25 @@ async function requireEnvironmentPlacement(
   if (canOrg(orgRole, { server: ["manage"] })) return;
   const openIds = serverIds.filter((id) => placementOf.get(id) === "open");
   if (openIds.length === 0) return;
+  const [project] = await db
+    .select({ key: projects.key })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const prefix = project ? `${project.key.toLowerCase()}-` : null;
+  const unprefixed = bindings.some(
+    (b) =>
+      openIds.includes(b.serverId) &&
+      (prefix === null ||
+        !b.serviceName.startsWith(prefix) ||
+        b.serviceName.length === prefix.length)
+  );
+  if (unprefixed) {
+    const t = await getServerTranslator("actionErrors");
+    throw new ForbiddenError(
+      t("placementServiceName", { prefix: prefix ?? "" })
+    );
+  }
   const used = await db
     .select({
       environmentId: environmentServices.environmentId,
@@ -504,6 +527,7 @@ export async function createEnvironment(
   );
   await requireEnvironmentPlacement(
     session.user.role,
+    parsed.data.projectId,
     role,
     createdBindings(parsed.data)
   );
@@ -610,6 +634,7 @@ export async function updateEnvironment(
     );
     await requireEnvironmentPlacement(
       session.user.role,
+      targetProjectId,
       targetRole,
       updatedBindings(parsed.data, stored),
       id
@@ -617,6 +642,7 @@ export async function updateEnvironment(
   } else if (changesBindings(parsed.data, stored)) {
     await requireEnvironmentPlacement(
       session.user.role,
+      stored.projectId,
       role,
       updatedBindings(parsed.data, stored),
       id

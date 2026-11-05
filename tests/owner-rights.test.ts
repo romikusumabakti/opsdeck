@@ -1,34 +1,18 @@
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  canEnvironment,
-  canProject,
-  OWNER_PERMISSIONS,
-  type ProjectPermissions,
-} from "@/lib/permissions";
+import { canProject, type ProjectPermissions } from "@/lib/permissions";
 
-// The environment owner (environments.owner_id) may deploy, roll back, delete
-// the environment and read/write its variables without the maintainer role —
-// not configure deploy targets nor update the environment — but only on that environment and
-// only while they hold at least `viewer` on the project.
+// The environment owner (environments.owner_id) is a label: owning an
+// environment grants nothing. Deploys and variables follow the project role
+// only (owner decision 2026-11-05: QA do not deploy; developers are project
+// maintainers). A deploy lock for the owner is a separate follow-up plan.
 
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
-const OTHER_PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f2";
 const ENV_A = "0197f3a0-1b2c-7def-8000-0123456789e1";
 const ENV_B = "0197f3a0-1b2c-7def-8000-0123456789e2";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const OTHER_USER = "0197f3a0-1b2c-7def-8000-0123456789a2";
-
-describe("OWNER_PERMISSIONS", () => {
-  it("is exactly the rights the spec gives an owner", () => {
-    expect(OWNER_PERMISSIONS).toEqual({
-      deploy: ["view", "run", "rollback"],
-      environment: ["delete"],
-      variable: ["read", "write"],
-    });
-  });
-});
 
 describe("variable statement", () => {
   it("is held by maintainers only", () => {
@@ -37,53 +21,6 @@ describe("variable statement", () => {
       expect(canProject("contributor", { variable: [action] })).toBe(false);
       expect(canProject("viewer", { variable: [action] })).toBe(false);
     }
-  });
-});
-
-describe("canEnvironment", () => {
-  it("adds the owner rights on top of the project role", () => {
-    expect(canEnvironment("viewer", true, { deploy: ["run"] })).toBe(true);
-    expect(canEnvironment("viewer", false, { deploy: ["run"] })).toBe(false);
-    expect(
-      canEnvironment("contributor", true, {
-        environment: ["delete"],
-        variable: ["read"],
-      })
-    ).toBe(true);
-  });
-
-  it("never grants an owner without a project role", () => {
-    expect(canEnvironment(null, true, { deploy: ["view"] })).toBe(false);
-  });
-
-  it("refuses a request not fully covered by the owner rights", () => {
-    const outside: ProjectPermissions[] = [
-      { environment: ["create"] },
-      { environment: ["update"] },
-      { deploy: ["configure"] },
-      { member: ["manage"] },
-      { database: ["drop"] },
-      { service: ["control"] },
-      { deploy: ["run"], service: ["control"] },
-    ];
-    for (const perms of outside) {
-      expect(canEnvironment("viewer", true, perms)).toBe(false);
-    }
-  });
-
-  it("is not fooled by inherited property names", () => {
-    // better-auth's authorize throws on such a key before the owner branch
-    // runs; either way (throw or false) the request is not granted.
-    const granted = (() => {
-      try {
-        return canEnvironment("viewer", true, {
-          toString: ["x"],
-        } as unknown as ProjectPermissions);
-      } catch {
-        return false;
-      }
-    })();
-    expect(granted).toBe(false);
   });
 });
 
@@ -161,104 +98,42 @@ beforeEach(() => {
 });
 
 describe("requireProjectPermission and the environment owner", () => {
-  it("lets an owner who is only viewer deploy their own environment", async () => {
-    for (const perms of [
-      { deploy: ["run"] },
-      { deploy: ["rollback"] },
-      { environment: ["delete"] },
-      { variable: ["read", "write"] },
-    ] satisfies ProjectPermissions[]) {
-      const result = await requireProjectPermission(
-        { environmentId: ENV_A },
-        perms
-      );
-      expect(result.role).toBe("viewer");
-      expect(result.isOwner).toBe(true);
-    }
-  });
+  const OWNER_REQUESTS = [
+    { deploy: ["run"] },
+    { deploy: ["rollback"] },
+    { environment: ["delete"] },
+    { variable: ["read"] },
+    { variable: ["write"] },
+  ] satisfies ProjectPermissions[];
 
-  it("refuses the same owner on a sibling environment", async () => {
-    await expect(
-      requireProjectPermission({ environmentId: ENV_B }, { deploy: ["run"] })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-  });
-
-  it("refuses the owner anything beyond the owner rights", async () => {
-    for (const perms of [
-      { deploy: ["configure"] },
-      { environment: ["update"] },
-      { deploy: ["run", "configure"] },
-      { service: ["control"] },
-      { database: ["drop"] },
-      { deploy: ["run"], service: ["control"] },
-    ] satisfies ProjectPermissions[]) {
-      await expect(
-        requireProjectPermission({ environmentId: ENV_A }, perms)
-      ).rejects.toBeInstanceOf(ForbiddenError);
-    }
-  });
-
-  it("does not apply the owner rule to a project-scoped request", async () => {
-    await expect(
-      requireProjectPermission({ projectId: PROJECT_ID }, { deploy: ["run"] })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-  });
-
-  it("removes the right as soon as the owner changes", async () => {
-    await requireProjectPermission(
-      { environmentId: ENV_A },
-      {
-        deploy: ["run"],
+  for (const role of ["viewer", "contributor"] as const) {
+    it(`refuses an owner who is only ${role} (403) on their own environment`, async () => {
+      state.memberships = [{ projectId: PROJECT_ID, role }];
+      for (const perms of OWNER_REQUESTS) {
+        await expect(
+          requireProjectPermission({ environmentId: ENV_A }, perms)
+        ).rejects.toBeInstanceOf(ForbiddenError);
       }
-    );
-    state.environments[ENV_A] = { projectId: PROJECT_ID, ownerId: OTHER_USER };
-    await expect(
-      requireProjectPermission({ environmentId: ENV_A }, { deploy: ["run"] })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-    state.environments[ENV_A] = { projectId: PROJECT_ID, ownerId: null };
-    await expect(
-      requireProjectPermission({ environmentId: ENV_A }, { deploy: ["run"] })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-  });
+    });
+  }
 
-  it("denies an owner without any project role (project invisible: 404)", async () => {
-    state.memberships = [];
-    await expect(
-      requireProjectPermission({ environmentId: ENV_A }, { deploy: ["run"] })
-    ).rejects.toMatchObject({ status: 404 });
-    // A membership in another project does not help either.
-    state.memberships = [{ projectId: OTHER_PROJECT_ID, role: "maintainer" }];
-    await expect(
-      requireProjectPermission({ environmentId: ENV_A }, { deploy: ["run"] })
-    ).rejects.toMatchObject({ status: 404 });
-  });
-
-  it("gives an observer owner (implicit viewer) the owner rights", async () => {
+  it("refuses an observer owner (implicit viewer) too", async () => {
     state.orgRole = "observer";
     state.memberships = [];
-    const result = await requireProjectPermission(
-      { environmentId: ENV_A },
-      { deploy: ["run"] }
-    );
-    expect(result.isOwner).toBe(true);
-  });
-
-  it("leaves a contributor who is not the owner without deploy rights", async () => {
-    state.memberships = [{ projectId: PROJECT_ID, role: "contributor" }];
     await expect(
-      requireProjectPermission({ environmentId: ENV_B }, { deploy: ["run"] })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(
-      requireProjectPermission({ environmentId: ENV_B }, { variable: ["read"] })
+      requireProjectPermission({ environmentId: ENV_A }, { deploy: ["run"] })
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it("still answers maintainers from their role", async () => {
+  it("answers maintainers from their role, owner or not", async () => {
     state.memberships = [{ projectId: PROJECT_ID, role: "maintainer" }];
-    const result = await requireProjectPermission(
-      { environmentId: ENV_B },
-      { deploy: ["run"] }
-    );
-    expect(result.isOwner).toBe(false);
+    for (const environmentId of [ENV_A, ENV_B]) {
+      const result = await requireProjectPermission(
+        { environmentId },
+        { deploy: ["run"], variable: ["read", "write"] }
+      );
+      expect(result.role).toBe("maintainer");
+      expect(result).not.toHaveProperty("isOwner");
+    }
   });
 });

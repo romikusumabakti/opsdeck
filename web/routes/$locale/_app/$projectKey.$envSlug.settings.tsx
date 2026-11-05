@@ -29,8 +29,8 @@ import { SettingsPending } from "./-components/env/skeletons";
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/settings"
 )({
-  beforeLoad: ({ context: { role, isOwner } }) =>
-    requireRole(role, { environment: ["update"] }, isOwner),
+  beforeLoad: ({ context: { role } }) =>
+    requireRole(role, { environment: ["update"] }),
   loader: async ({ context: { queryClient, environmentId } }) => {
     const me = await queryClient.query(meQuery());
     await Promise.all([

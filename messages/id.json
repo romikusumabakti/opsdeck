@@ -883,8 +883,8 @@
     "sftpRootDescription": "Jalur absolut tempat penjelajah berkas dibatasi. Gunakan / untuk seluruh host.",
     "placement": "Penempatan environment",
     "placementRestricted": "Terbatas: hanya admin dan infra",
-    "placementOpen": "Terbuka: kontributor proyek ke atas",
-    "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Di server terbuka, kontributor proyek bisa membuat environment di sini lalu mem-backup dan me-restore database yang mereka hubungkan, jadi tandai server sebagai terbuka hanya jika datanya boleh hilang (dev atau sandbox). Environment yang sudah ada tidak terpengaruh.",
+    "placementOpen": "Terbuka: maintainer proyek",
+    "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Di server terbuka, maintainer proyek bisa membuat environment di server ini tanpa izin server; tandai terbuka hanya server dev/sandbox yang datanya boleh hilang. Environment yang sudah ada tidak terpengaruh.",
     "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)"
   },
   "newServer": {
@@ -1257,7 +1257,8 @@
     "cannotRemoveLastAdmin": "Admin terakhir tidak bisa diturunkan",
     "avatarRemoved": "Foto dihapus",
     "environmentOwnerIneligible": "Pemilik harus anggota aktif proyek environment ini, atau pengguna admin atau infra organisasi.",
-    "placementServiceInUse": "Layanan ini sudah dipakai environment lain di server ini; minta bantuan admin."
+    "placementServiceInUse": "Layanan ini sudah dipakai environment lain di server ini; minta bantuan admin.",
+    "placementServiceName": "Di server terbuka, hubungkan hanya nama layanan yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",

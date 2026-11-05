@@ -7,8 +7,11 @@ import {
 
 // Server placement: who may put a new environment on a server. `restricted`
 // keeps today's rule (project environment:create + org server:manage); `open`
-// also admits project contributors. Changing a server's placement only affects
-// later placements, never the environments already on it.
+// admits project maintainers without server:manage, never contributors (QA).
+// There, a caller without server:manage may only bind service names that
+// start with the project key lowercased plus "-" and that no other environment
+// on the server uses. Changing a server's placement only affects later
+// placements, never the environments already on it.
 
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
 const SERVER_OPEN = "0197f3a0-1b2c-7def-8000-0123456789c1";
@@ -22,13 +25,13 @@ describe("canPlaceEnvironment", () => {
   // [orgRole, projectRole, restricted, open]
   const MATRIX: [string, ProjectRole, boolean, boolean][] = [
     ["admin", "viewer", false, false],
-    ["admin", "contributor", false, true],
+    ["admin", "contributor", false, false],
     ["admin", "maintainer", true, true],
     ["infra", "viewer", false, false],
-    ["infra", "contributor", false, true],
+    ["infra", "contributor", false, false],
     ["infra", "maintainer", true, true],
     ["member", "viewer", false, false],
-    ["member", "contributor", false, true],
+    ["member", "contributor", false, false],
     ["member", "maintainer", false, true],
   ];
   for (const [org, project, restricted, open] of MATRIX) {
@@ -52,7 +55,9 @@ type Service = { role: string; serverId: string; serviceName: string };
 const state = vi.hoisted(() => ({
   orgRole: "member" as string,
   // Role in the environment's (or the created environment's) project.
-  projectRole: "contributor" as string | null,
+  projectRole: "maintainer" as string | null,
+  // Key of the project a placement is checked for (the projects lookup).
+  projectKey: "HRIS",
   // Role in the project an update moves the environment into.
   targetProjectRole: "maintainer" as string | null,
   userId: "0197f3a0-1b2c-7def-8000-0123456789a9",
@@ -113,7 +118,6 @@ vi.mock("@/lib/authz", async (importOriginal) => {
         session: { user: { id: state.userId, role: state.orgRole } },
         role,
         projectId: scope.projectId ?? PROJECT_ID,
-        isOwner: false,
       };
     },
   };
@@ -141,6 +145,7 @@ vi.mock("@/lib/db", async () => {
       }));
     }
     if (table === schema.users) return [{ id: OWNER_ID }];
+    if (table === schema.projects) return [{ key: state.projectKey }];
     if (table === schema.environmentServices) return state.used;
     if (table === schema.environments) {
       return [{ id: "0197f3a0-1b2c-7def-8000-0123456789e1", slug: "taken" }];
@@ -215,13 +220,13 @@ const { serverInputSchema, serverUpdateSchema } = await import(
 const backend = {
   backendServerId: SERVER_OPEN,
   backendServiceType: "docker",
-  backendServiceName: "api",
+  backendServiceName: "hris-api",
 };
 const databaseOn = (serverId: string) => ({
   hasDatabase: true,
   dbServerId: serverId,
   dbServiceType: "docker",
-  dbServiceName: "pg",
+  dbServiceName: "hris-pg",
   dbType: "postgres",
   dbName: "app",
   dbBackupPath: "/backups",
@@ -233,7 +238,8 @@ const insertedEnvironment = () =>
 
 beforeEach(() => {
   state.orgRole = "member";
-  state.projectRole = "contributor";
+  state.projectRole = "maintainer";
+  state.projectKey = "HRIS";
   state.placements = {
     [SERVER_OPEN]: "open",
     [SERVER_RESTRICTED]: "restricted",
@@ -244,7 +250,9 @@ beforeEach(() => {
     id: ENV_ID,
     projectId: PROJECT_ID,
     ownerId: null,
-    services: [{ role: "backend", serverId: SERVER_OPEN, serviceName: "api" }],
+    services: [
+      { role: "backend", serverId: SERVER_OPEN, serviceName: "hris-api" },
+    ],
   };
   state.guards = [];
   state.calls = [];
@@ -276,13 +284,13 @@ describe("createEnvironment guards", () => {
 });
 
 describe("open placement: service names in use", () => {
-  it("refuses a contributor binding a service another environment uses there", async () => {
+  it("refuses a maintainer binding a service another environment uses there", async () => {
     state.used = [
       {
         environmentId: OTHER_ENV_ID,
         role: "backend",
         serverId: SERVER_OPEN,
-        serviceName: "api",
+        serviceName: "hris-api",
       },
     ];
     await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
@@ -298,7 +306,7 @@ describe("open placement: service names in use", () => {
         environmentId: OTHER_ENV_ID,
         role: "db",
         serverId: SERVER_RESTRICTED,
-        serviceName: "api",
+        serviceName: "hris-api",
       },
     ];
     expect((await createEnvironment(newOnOpen)).success).toBe(true);
@@ -307,12 +315,67 @@ describe("open placement: service names in use", () => {
         environmentId: OTHER_ENV_ID,
         role: "frontend",
         serverId: SERVER_OPEN,
-        serviceName: "api",
+        serviceName: "hris-api",
       },
     ];
     await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
       status: 403,
     });
+  });
+
+  it("refuses a service name without the project key prefix", async () => {
+    for (const name of ["api", "hris", "hris-", "hrisapi", "other-api"]) {
+      state.calls = [];
+      await expect(
+        createEnvironment({ ...newOnOpen, backendServiceName: name })
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "placementServiceName",
+      });
+      expect(insertedEnvironment()).toBeUndefined();
+    }
+  });
+
+  it("checks the prefix on every binding on an open server", async () => {
+    await expect(
+      createEnvironment({
+        ...newOnOpen,
+        ...databaseOn(SERVER_OPEN),
+        dbServiceName: "dplk-postgres",
+      })
+    ).rejects.toMatchObject({ status: 403, message: "placementServiceName" });
+    expect(
+      (
+        await createEnvironment({
+          ...newOnOpen,
+          ...databaseOn(SERVER_OPEN),
+        })
+      ).success
+    ).toBe(true);
+  });
+
+  it("uses the key of the project the environment is placed in", async () => {
+    state.projectKey = "KESTREL";
+    await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
+      status: 403,
+      message: "placementServiceName",
+    });
+    expect(
+      (
+        await createEnvironment({
+          ...newOnOpen,
+          backendServiceName: "kestrel-api",
+        })
+      ).success
+    ).toBe(true);
+  });
+
+  it("lets a caller with server:manage bind any name", async () => {
+    state.orgRole = "infra";
+    expect(
+      (await createEnvironment({ ...newOnOpen, backendServiceName: "api" }))
+        .success
+    ).toBe(true);
   });
 
   it("lets a caller with server:manage share a service name", async () => {
@@ -323,7 +386,7 @@ describe("open placement: service names in use", () => {
         environmentId: OTHER_ENV_ID,
         role: "backend",
         serverId: SERVER_OPEN,
-        serviceName: "api",
+        serviceName: "hris-api",
       },
     ];
     expect((await createEnvironment(newOnOpen)).success).toBe(true);
@@ -339,7 +402,7 @@ describe("updateEnvironment placement", () => {
     state.projectRole = "maintainer";
     state.targetProjectRole = "maintainer";
     state.stored.services = [
-      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "api" },
+      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "hris-api" },
     ];
     await expect(
       updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
@@ -356,7 +419,7 @@ describe("updateEnvironment placement", () => {
     state.projectRole = "maintainer";
     state.targetProjectRole = "maintainer";
     state.stored.services = [
-      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "api" },
+      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "hris-api" },
     ];
     const result = await updateEnvironment(ENV_ID, {
       projectId: TARGET_PROJECT_ID,
@@ -371,13 +434,17 @@ describe("updateEnvironment placement", () => {
       updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
     ).rejects.toMatchObject({ status: 403 });
     state.targetProjectRole = "contributor";
+    await expect(
+      updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
+    ).rejects.toMatchObject({ status: 403 });
+    state.targetProjectRole = "maintainer";
     // Open server, own service rows do not count as "in use".
     state.used = [
       {
         environmentId: ENV_ID,
         role: "backend",
         serverId: SERVER_OPEN,
-        serviceName: "api",
+        serviceName: "hris-api",
       },
     ];
     expect(
@@ -393,7 +460,7 @@ describe("updateEnvironment placement", () => {
         environmentId: OTHER_ENV_ID,
         role: "backend",
         serverId: SERVER_OPEN,
-        serviceName: "api",
+        serviceName: "hris-api",
       },
     ];
     await expect(
@@ -405,7 +472,7 @@ describe("updateEnvironment placement", () => {
   it("does not re-check placement when the project id is re-sent unchanged", async () => {
     state.projectRole = "maintainer";
     state.stored.services = [
-      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "api" },
+      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "hris-api" },
     ];
     const result = await updateEnvironment(ENV_ID, {
       projectId: PROJECT_ID,
@@ -417,7 +484,7 @@ describe("updateEnvironment placement", () => {
   it("refuses a service-name change without server:manage", async () => {
     state.projectRole = "maintainer";
     await expect(
-      updateEnvironment(ENV_ID, { backendServiceName: "api-2" })
+      updateEnvironment(ENV_ID, { backendServiceName: "hris-api-2" })
     ).rejects.toMatchObject({ status: 403 });
     expect(updates()).toEqual([]);
   });
@@ -437,7 +504,15 @@ describe("updateEnvironment placement", () => {
 });
 
 describe("createEnvironment placement", () => {
-  it("lets a contributor place an environment on open servers", async () => {
+  it("refuses a contributor even on open servers", async () => {
+    state.projectRole = "contributor";
+    await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(insertedEnvironment()).toBeUndefined();
+  });
+
+  it("lets a maintainer without server:manage place an environment on open servers", async () => {
     const result = await createEnvironment({
       projectId: PROJECT_ID,
       name: "Dev",
@@ -449,7 +524,7 @@ describe("createEnvironment placement", () => {
     expect(insertedEnvironment()).toBeDefined();
   });
 
-  it("refuses a contributor when any bound server is restricted", async () => {
+  it("refuses a maintainer without server:manage when any bound server is restricted", async () => {
     await expect(
       createEnvironment({
         projectId: PROJECT_ID,
