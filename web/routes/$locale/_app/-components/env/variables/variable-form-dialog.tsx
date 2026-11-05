@@ -39,6 +39,7 @@ import {
   ESCROWED_MESSAGE,
   NO_APP_MESSAGE,
   NOT_GENERATED_MESSAGE,
+  SECRET_TO_PLAIN_MESSAGE,
 } from "@/lib/variables/errors";
 import {
   variableNameSchema,
@@ -65,6 +66,8 @@ export function useVariableErrorText() {
           return t("notGeneratedError");
         case NO_APP_MESSAGE:
           return t("noAppHint");
+        case SECRET_TO_PLAIN_MESSAGE:
+          return t("form.valueRequiredForPlain");
       }
       return error.message;
     }
@@ -130,6 +133,16 @@ export function VariableFormDialog({
       (values) =>
         variable !== null || values.kind !== "secret" || values.value !== "",
       { path: ["value"], message: tCommon("required") }
+    )
+    .refine(
+      // Turning a secret or generated variable plain needs its new value:
+      // an empty one would replace the secret with "" (the API refuses it).
+      (values) =>
+        variable === null ||
+        variable.kind === "plain" ||
+        values.kind !== "plain" ||
+        values.value !== "",
+      { path: ["value"], message: tForm("valueRequiredForPlain") }
     );
 
   const form = useForm<Values>({

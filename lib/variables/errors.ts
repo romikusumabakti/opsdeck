@@ -14,6 +14,9 @@ export const ESCROW_REMOVAL_MESSAGE =
 export const NOT_GENERATED_MESSAGE =
   "Only generated variables can be regenerated";
 
+export const SECRET_TO_PLAIN_MESSAGE =
+  "Enter a value when changing a secret to plain";
+
 export const NO_APP_MESSAGE = "Environment has no app";
 
 /** The variable names a MISSING_REQUIRED_PREFIX message lists, else null. */

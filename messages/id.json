@@ -2445,7 +2445,8 @@
       "clearEscrow": "Lepas escrow",
       "clearEscrowConfirmTitle": "Lepas escrow dari {name}?",
       "clearEscrowConfirmDescription": "Nilainya lalu dapat diubah, dibuat ulang, atau dihapus. Pastikan salinannya tersimpan di luar Panel.",
-      "escrowCleared": "Escrow dilepas dari {name}"
+      "escrowCleared": "Escrow dilepas dari {name}",
+      "valueRequiredForPlain": "Isi nilainya: rahasia yang diubah menjadi biasa tidak mempertahankan nilai tersimpannya"
     }
   },
   "variableTemplates": {
