@@ -16,7 +16,7 @@ import {
 import { requireSession } from "@/lib/auth-session";
 import { getProjectAccess, requireOrgPermission } from "@/lib/authz";
 import type { BuildSpec } from "@/lib/ci/build-spec";
-import { commitFile } from "@/lib/ci/forges/bitbucket";
+import { branchExists, commitFile } from "@/lib/ci/forges/bitbucket";
 import { generateWoodpeckerPipeline } from "@/lib/ci/pipeline";
 import type { RegisterAppInput } from "@/lib/ci/registration";
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
@@ -162,8 +162,12 @@ async function commitPipelineFiles(
       const error = "The CI connection has no forge username and forge token";
       commit = async () => ({ error });
     } else {
-      commit = (branch) =>
-        commitFile(
+      // Committing to a missing branch would make Bitbucket create it.
+      commit = async (branch) => {
+        if (!(await branchExists(auth, component.repoFullName, branch))) {
+          return { error: `Branch ${branch} does not exist` };
+        }
+        return commitFile(
           auth,
           component.repoFullName,
           branch,
@@ -171,6 +175,7 @@ async function commitPipelineFiles(
           yaml,
           PIPELINE_FILE_MESSAGE
         );
+      };
     }
   } catch (error) {
     console.error("Reading the forge credentials failed", error);

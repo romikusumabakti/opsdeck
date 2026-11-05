@@ -17,6 +17,13 @@ function assertRepo(repoFullName: string): void {
   }
 }
 
+function assertBranch(branch: string): void {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point
+  if (branch === "" || /[\s\u0000-\u001f\u007f]/.test(branch)) {
+    throw new Error("Invalid branch name for a Bitbucket commit");
+  }
+}
+
 function assertCommitInput(path: string, branch: string): void {
   if (
     path === "" ||
@@ -27,10 +34,7 @@ function assertCommitInput(path: string, branch: string): void {
   ) {
     throw new Error("Invalid file path for a Bitbucket commit");
   }
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point
-  if (branch === "" || /[\s\u0000-\u001f\u007f]/.test(branch)) {
-    throw new Error("Invalid branch name for a Bitbucket commit");
-  }
+  assertBranch(branch);
 }
 
 async function request(
@@ -104,4 +108,29 @@ export async function commitFile(
     );
   }
   return { sha };
+}
+
+/** True when the branch exists, false on 404; any other failure throws. */
+export async function branchExists(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  branch: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<boolean> {
+  assertRepo(repoFullName);
+  assertBranch(branch);
+  try {
+    await request(
+      auth,
+      "GET",
+      repoFullName,
+      `/refs/branches/${encodeURIComponent(branch)}`,
+      undefined,
+      fetchImpl
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof CiProviderError && error.status === 404) return false;
+    throw error;
+  }
 }
