@@ -45,6 +45,7 @@ import {
   preStartCommandSchema,
   servicesSchema,
 } from "@/lib/deploy/validation";
+import { hasReservedPrefix } from "@/lib/variables/validation";
 import { ApiError } from "@/web/api/client";
 import {
   createDeployTarget,
@@ -160,7 +161,8 @@ export function TargetFormDialog({
       .string()
       .trim()
       .min(1, required)
-      .refine(matches(envVarNameSchema), invalid),
+      .refine(matches(envVarNameSchema), invalid)
+      .refine((value) => !hasReservedPrefix(value), t("tagVariableReserved")),
     preStartCommand: z
       .string()
       .refine(optional(preStartCommandSchema), invalid),

@@ -405,6 +405,7 @@
       "componentNotFound": "لا يوجد تطبيق نشر مسجّل بهذا المفتاح.",
       "duplicateComponent": "لهذا التطبيق هدف بالفعل في هذه البيئة.",
       "tagVariableIsVariable": "تحتوي هذه البيئة بالفعل على متغير بهذا الاسم؛ النشر يكتب سطر الوسم بنفسه. اختر اسمًا آخر أو احذف المتغير.",
+      "tagVariableReserved": "البادئات COMPOSE_ وDOCKER_ وBUILDKIT_ محجوزة: يقرؤها Docker من ‎.env وقد تحوّل النشر",
       "otherApp": "This component belongs to another app than this environment."
     },
     "lock": {
@@ -1290,6 +1291,7 @@
     "placementServiceInUse": "هذه الخدمة مستخدمة بالفعل من بيئة أخرى على هذا الخادم؛ اطلب المساعدة من مسؤول.",
     "placementServiceName": "على الخادم المفتوح، اربط فقط أسماء الخدمات التي تبدأ بـ {prefix} (مفتاح هذا المشروع)؛ اطلب المساعدة من مسؤول لأسماء أخرى.",
     "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة.",
+    "projectHasEscrowedVariables": "تحتوي بيئات هذا المشروع على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف المشروع.",
     "deployLocked": "عمليات النشر إلى هذه البيئة مقفلة من قبل {name} حتى {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "مستخدم سابق",
     "deployLockReasonInvalid": "اكتب سببًا من 1 إلى 200 حرف.",
@@ -1677,6 +1679,8 @@
     "deleteButton": "حذف المشروع",
     "deleteTitle": "حذف المشروع",
     "deleteDescription": "هل تريد حذف المشروع {name}؟ سيؤدي هذا أيضًا إلى حذف {count, plural, other {# بيئة}} وكل المشكلات فيه. لا يمكن التراجع عن هذا الإجراء.",
+    "deleteEscrowedTitle": "هل تريد حذف المتغيرات المحفوظة أيضًا؟",
+    "deleteEscrowedDescription": "تحتوي بيئات هذا المشروع على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. حذف المشروع يدمرها نهائيًا: أكّد فقط بعد حفظها في مكان آخر.",
     "deletedSuccess": "تم حذف المشروع {name}",
     "tabJira": "Jira",
     "jiraTitle": "مزامنة Jira",

@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { api, orFailure, type PostJson } from "@/web/api/client";
+import { ApiError, api, orFailure, type PostJson } from "@/web/api/client";
 
 const routes = api.api["project-catalog"];
 type Body<K extends keyof typeof routes> = PostJson<typeof routes, K>;
@@ -82,11 +82,31 @@ export async function editProject(
   );
 }
 
-export async function removeProject(id: Body<"remove-project">["id"]) {
-  return orFailure(
-    () => parseResponse(routes["remove-project"].$post({ json: { id } })),
-    (message) => ({ success: false, message }) as const
-  );
+/**
+ * `escrowed` is true when the delete was refused because an environment has
+ * escrowed variables (409); an admin may then repeat it with
+ * `confirmEscrowedDeletion`.
+ */
+export async function removeProject(
+  id: Body<"remove-project">["id"],
+  confirmEscrowedDeletion?: boolean
+): Promise<{ success: boolean; message?: string; escrowed?: boolean }> {
+  try {
+    return await parseResponse(
+      routes["remove-project"].$post({
+        json: { id, confirmEscrowedDeletion },
+      })
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status !== 401) {
+      return {
+        success: false,
+        message: error.message,
+        escrowed: error.status === 409,
+      };
+    }
+    throw error;
+  }
 }
 
 /** Page data: the caller's project roles (`{ all, roles }`). */

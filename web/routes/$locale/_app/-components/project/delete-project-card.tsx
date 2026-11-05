@@ -6,7 +6,9 @@ import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import type { Project } from "@/lib/db/schema";
+import { canOrg } from "@/lib/permissions";
 import { removeProject } from "@/web/api/project-catalog";
+import { useMe } from "@/web/api/session";
 
 export function DeleteProjectCard({
   project,
@@ -20,6 +22,10 @@ export function DeleteProjectCard({
   const dialog = useDialog();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // Only admins with integration:manage may delete escrowed variables too.
+  const canDeleteEscrowed = canOrg(useMe()?.orgRole, {
+    integration: ["manage"],
+  });
 
   async function onDelete() {
     // Type-the-name confirmation, as with environments — deleting a project
@@ -39,7 +45,18 @@ export function DeleteProjectCard({
     if (!ok) return;
 
     startTransition(async () => {
-      const result = await removeProject(project.id);
+      let result = await removeProject(project.id);
+      if (!result.success && result.escrowed && canDeleteEscrowed) {
+        const confirmed = await dialog.confirm({
+          title: t("deleteEscrowedTitle"),
+          description: t("deleteEscrowedDescription"),
+          confirmText: tCommon("delete"),
+          cancelText: tCommon("cancel"),
+          destructive: true,
+        });
+        if (!confirmed) return;
+        result = await removeProject(project.id, true);
+      }
       if (!result.success) {
         toast.error(result.message ?? tCommon("errorGeneric"));
         return;

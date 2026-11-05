@@ -59,6 +59,17 @@ export const projectCatalogRouter = sessionRouter()
       return c.json(await editProject(id, data));
     }
   )
-  .post("/remove-project", json(z.object({ id: uuidSchema })), async (c) =>
-    c.json(await removeProject(c.req.valid("json").id))
+  .post(
+    "/remove-project",
+    json(
+      z.object({
+        id: uuidSchema,
+        // Admins (integration:manage) only: also deletes escrowed variables.
+        confirmEscrowedDeletion: z.boolean().optional(),
+      })
+    ),
+    async (c) => {
+      const { id, confirmEscrowedDeletion } = c.req.valid("json");
+      return c.json(await removeProject(id, { confirmEscrowedDeletion }));
+    }
   );

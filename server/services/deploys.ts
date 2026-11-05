@@ -27,7 +27,9 @@ import {
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { uuidSchema } from "@/lib/validation";
+import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import { getVariable } from "@/lib/variables/repository";
+import { hasReservedPrefix } from "@/lib/variables/validation";
 import { assertNotDeployLocked } from "@/server/services/deploy-locks";
 import {
   type RequestedDeployment,
@@ -38,6 +40,13 @@ const fail = (status: 404 | 409 | 503, message: string): never => {
   throw new HTTPException(status, { message });
 };
 
+// The deploy writes the tag line into the project's `.env`, so the name
+// follows the same reserved-prefix rule as the variables there.
+const tagVariableSchema = envVarNameSchema.refine(
+  (name) => !hasReservedPrefix(name),
+  RESERVED_PREFIX_MESSAGE
+);
+
 export const createTargetSchema = z.object({
   environmentId: uuidSchema,
   componentKey: componentKeySchema,
@@ -46,7 +55,7 @@ export const createTargetSchema = z.object({
   autoDeploy: z.boolean().default(false),
   deployDir: deployDirSchema,
   services: servicesSchema,
-  tagVariable: envVarNameSchema.default("IMAGE_TAG"),
+  tagVariable: tagVariableSchema.default("IMAGE_TAG"),
   preStartCommand: preStartCommandSchema.nullish(),
   healthUrl: healthUrlSchema.nullish(),
   healthTimeoutSeconds: healthTimeoutSchema.default(180),
@@ -62,7 +71,7 @@ export const updateTargetSchema = z
     autoDeploy: z.boolean(),
     deployDir: deployDirSchema,
     services: servicesSchema,
-    tagVariable: envVarNameSchema,
+    tagVariable: tagVariableSchema,
     preStartCommand: preStartCommandSchema.nullable(),
     healthUrl: healthUrlSchema.nullable(),
     healthTimeoutSeconds: healthTimeoutSchema,
