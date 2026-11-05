@@ -1890,7 +1890,10 @@
     "deployLockUnlocked": "{actor} 解锁了 {environment} 的部署；{count, plural, =0 {没有暂缓的构建} other {# 个暂缓的构建已排队}}",
     "deployLockForceUnlocked": "{actor} 强制解锁了 {environment} 的部署（{reason}）；{count, plural, =0 {没有暂缓的构建} other {# 个暂缓的构建已排队}}",
     "deployLockExpired": "{environment} 的部署锁已到期；{count, plural, =0 {没有暂缓的构建} other {# 个暂缓的构建已排队}}",
-    "deployLockUpdated": "{actor} 更改了 {environment} 的部署锁（{reason}）"
+    "deployLockUpdated": "{actor} 更改了 {environment} 的部署锁（{reason}）",
+    "deployTargetCreated": "{actor} 在 {environment} 中添加了 {component} 的部署目标",
+    "deployTargetUpdated": "{actor} 更改了 {environment} 中 {component} 的部署目标（{changes}）",
+    "deployTargetDeleted": "{actor} 从 {environment} 中删除了 {component} 的部署目标"
   },
   "jira": {
     "title": "Jira",

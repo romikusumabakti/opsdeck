@@ -198,6 +198,27 @@ function message(
         environment: String(d.environment),
         count: Number(d.count),
       });
+    case "deployTarget.created":
+      return t("deployTargetCreated", {
+        actor,
+        component: String(d.component),
+        environment: String(d.environment),
+      });
+    case "deployTarget.updated":
+      // `changes` lists each changed field (`name: old → new`, or
+      // `name: changed` for the server and the pre-start command).
+      return t("deployTargetUpdated", {
+        actor,
+        component: String(d.component),
+        environment: String(d.environment),
+        changes: String(d.changes),
+      });
+    case "deployTarget.deleted":
+      return t("deployTargetDeleted", {
+        actor,
+        component: String(d.component),
+        environment: String(d.environment),
+      });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "mail.deleted":

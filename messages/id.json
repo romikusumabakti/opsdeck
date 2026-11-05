@@ -1890,7 +1890,10 @@
     "deployLockUnlocked": "{actor} membuka kunci deploy ke {environment}; {count, plural, =0 {tidak ada build tertahan} other {# build tertahan masuk antrean}}",
     "deployLockForceUnlocked": "{actor} membuka paksa kunci deploy ke {environment} ({reason}); {count, plural, =0 {tidak ada build tertahan} other {# build tertahan masuk antrean}}",
     "deployLockExpired": "Kunci deploy pada {environment} kedaluwarsa; {count, plural, =0 {tidak ada build tertahan} other {# build tertahan masuk antrean}}",
-    "deployLockUpdated": "{actor} mengubah kunci deploy pada {environment} ({reason})"
+    "deployLockUpdated": "{actor} mengubah kunci deploy pada {environment} ({reason})",
+    "deployTargetCreated": "{actor} menambahkan target deploy {component} di {environment}",
+    "deployTargetUpdated": "{actor} mengubah target deploy {component} di {environment} ({changes})",
+    "deployTargetDeleted": "{actor} menghapus target deploy {component} dari {environment}"
   },
   "jira": {
     "title": "Jira",

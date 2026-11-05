@@ -1890,7 +1890,10 @@
     "deployLockUnlocked": "{actor} unlocked deploys to {environment}; {count, plural, =0 {no held builds} one {# held build queued} other {# held builds queued}}",
     "deployLockForceUnlocked": "{actor} force-unlocked deploys to {environment} ({reason}); {count, plural, =0 {no held builds} one {# held build queued} other {# held builds queued}}",
     "deployLockExpired": "The deploy lock on {environment} expired; {count, plural, =0 {no held builds} one {# held build queued} other {# held builds queued}}",
-    "deployLockUpdated": "{actor} changed the deploy lock on {environment} ({reason})"
+    "deployLockUpdated": "{actor} changed the deploy lock on {environment} ({reason})",
+    "deployTargetCreated": "{actor} added a deploy target for {component} in {environment}",
+    "deployTargetUpdated": "{actor} changed the deploy target for {component} in {environment} ({changes})",
+    "deployTargetDeleted": "{actor} removed the deploy target for {component} from {environment}"
   },
   "jira": {
     "title": "Jira",
