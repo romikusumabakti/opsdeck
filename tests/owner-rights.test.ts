@@ -8,9 +8,9 @@ import {
   type ProjectPermissions,
 } from "@/lib/permissions";
 
-// The environment owner (environments.owner_id) may deploy, roll back,
-// configure deploys, update/delete the environment and read/write its
-// variables without the maintainer role, but only on that environment and
+// The environment owner (environments.owner_id) may deploy, roll back, delete
+// the environment and read/write its variables without the maintainer role —
+// not configure deploy targets nor update the environment — but only on that environment and
 // only while they hold at least `viewer` on the project.
 
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
@@ -23,8 +23,8 @@ const OTHER_USER = "0197f3a0-1b2c-7def-8000-0123456789a2";
 describe("OWNER_PERMISSIONS", () => {
   it("is exactly the rights the spec gives an owner", () => {
     expect(OWNER_PERMISSIONS).toEqual({
-      deploy: ["view", "run", "rollback", "configure"],
-      environment: ["update", "delete"],
+      deploy: ["view", "run", "rollback"],
+      environment: ["delete"],
       variable: ["read", "write"],
     });
   });
@@ -59,6 +59,8 @@ describe("canEnvironment", () => {
   it("refuses a request not fully covered by the owner rights", () => {
     const outside: ProjectPermissions[] = [
       { environment: ["create"] },
+      { environment: ["update"] },
+      { deploy: ["configure"] },
       { member: ["manage"] },
       { database: ["drop"] },
       { service: ["control"] },
@@ -163,8 +165,6 @@ describe("requireProjectPermission and the environment owner", () => {
     for (const perms of [
       { deploy: ["run"] },
       { deploy: ["rollback"] },
-      { deploy: ["configure"] },
-      { environment: ["update"] },
       { environment: ["delete"] },
       { variable: ["read", "write"] },
     ] satisfies ProjectPermissions[]) {
@@ -185,6 +185,9 @@ describe("requireProjectPermission and the environment owner", () => {
 
   it("refuses the owner anything beyond the owner rights", async () => {
     for (const perms of [
+      { deploy: ["configure"] },
+      { environment: ["update"] },
+      { deploy: ["run", "configure"] },
       { service: ["control"] },
       { database: ["drop"] },
       { deploy: ["run"], service: ["control"] },
