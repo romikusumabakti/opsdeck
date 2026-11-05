@@ -1834,7 +1834,17 @@
     "runAcknowledged": "أقرّ {actor} بـ {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
     "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
     "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})",
-    "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})"
+    "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})",
+    "variableCreated": "{actor} أضاف المتغير {name} إلى {environment}",
+    "variableUpdated": "{actor} غيّر المتغير {name} في {environment}",
+    "variableDeleted": "{actor} حذف المتغير {name} من {environment}",
+    "variableRegenerated": "{actor} أعاد توليد المتغير {name} في {environment}",
+    "variableEscrowRemoved": "{actor} أزال الحفظ عن المتغير {name} في {environment}",
+    "envFileManagedOn": "{actor} سمح للوحة بكتابة ملف ‎.env الخاص بـ {environment}",
+    "envFileManagedOff": "{actor} أوقف كتابة اللوحة لملف ‎.env الخاص بـ {environment}",
+    "variablesTemplateApplied": "{actor} أضاف متغيرات القالب إلى {environment} ({names})",
+    "variableTemplateSaved": "{actor} حفظ قالب المتغير {name} للتطبيق {app}",
+    "variableTemplateDeleted": "{actor} حذف قالب المتغير {name} للتطبيق {app}"
   },
   "jira": {
     "title": "Jira",

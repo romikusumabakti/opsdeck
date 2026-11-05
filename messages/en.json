@@ -1834,7 +1834,17 @@
     "runAcknowledged": "{actor} acknowledged {count, plural, one {# failed run} other {# failed runs}} in {environment}",
     "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}",
     "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})",
-    "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})"
+    "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})",
+    "variableCreated": "{actor} added variable {name} to {environment}",
+    "variableUpdated": "{actor} changed variable {name} in {environment}",
+    "variableDeleted": "{actor} deleted variable {name} from {environment}",
+    "variableRegenerated": "{actor} regenerated variable {name} in {environment}",
+    "variableEscrowRemoved": "{actor} removed escrow from variable {name} in {environment}",
+    "envFileManagedOn": "{actor} let the Panel write the .env of {environment}",
+    "envFileManagedOff": "{actor} stopped the Panel writing the .env of {environment}",
+    "variablesTemplateApplied": "{actor} added template variables to {environment} ({names})",
+    "variableTemplateSaved": "{actor} saved variable template {name} of {app}",
+    "variableTemplateDeleted": "{actor} deleted variable template {name} of {app}"
   },
   "jira": {
     "title": "Jira",

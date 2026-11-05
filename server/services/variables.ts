@@ -136,6 +136,25 @@ function parseOr400<T>(schema: z.ZodType<T>, value: unknown): T {
   return result.data;
 }
 
+/**
+ * One activity entry for a change to an environment's variables: the names
+ * involved, never a value.
+ */
+async function audit(
+  actorId: string,
+  env: EnvironmentContext,
+  action: string,
+  data: Record<string, string> = {}
+): Promise<void> {
+  await recordActivity({
+    actorId,
+    action,
+    entityType: "environment",
+    entityId: env.id,
+    data: { environment: env.name, ...data },
+  });
+}
+
 async function requireEnvironment(
   environmentId: string
 ): Promise<EnvironmentContext> {
@@ -228,6 +247,7 @@ export async function putVariable(
   const template = await templateFor(env, name);
 
   let escrow = input.escrow ?? existing?.escrow ?? template?.escrow ?? false;
+  let escrowRemoved = false;
   if (existing?.escrow) {
     if (input.escrow === false) {
       if (!input.confirmEscrowRemoval) fail(409, ESCROW_REMOVAL_MESSAGE);
@@ -235,6 +255,7 @@ export async function putVariable(
         fail(403, "Forbidden");
       }
       escrow = false;
+      escrowRemoved = true;
     } else if (
       input.kind !== existing.kind ||
       (input.value !== undefined && input.value !== decode(existing))
@@ -275,6 +296,16 @@ export async function putVariable(
     { overwriteEscrowed: existing?.escrow === true }
   );
   if (!written) fail(409, ESCROWED_MESSAGE);
+  await audit(
+    session.user.id,
+    env,
+    escrowRemoved
+      ? "variable.escrowRemoved"
+      : existing
+        ? "variable.updated"
+        : "variable.created",
+    { name }
+  );
   return {
     name,
     kind: input.kind,
@@ -299,11 +330,15 @@ export async function deleteVariable(
   environmentId: string,
   name: string
 ): Promise<void> {
-  await requireProjectPermission({ environmentId }, { variable: ["write"] });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { variable: ["write"] }
+  );
   const env = await requireEnvironment(environmentId);
   await requireMutableVariable(env, name);
   // The delete re-checks escrow itself: one set since the read is kept.
   if (!(await deleteVariableRow(env.id, name))) fail(409, ESCROWED_MESSAGE);
+  await audit(session.user.id, env, "variable.deleted", { name });
 }
 
 /** A new random value for a generated variable; the response stays masked. */
@@ -331,6 +366,7 @@ export async function regenerateVariable(
     updatedBy: session.user.id,
   });
   if (!written) fail(409, ESCROWED_MESSAGE);
+  await audit(session.user.id, env, "variable.regenerated", { name });
   return {
     name,
     kind: "generated",
@@ -384,6 +420,11 @@ export async function applyTemplate(
 
   const added = await insertVariablesIfMissing(writes);
   for (const name of added) present.add(name);
+  if (added.length > 0) {
+    await audit(session.user.id, env, "variables.templateApplied", {
+      names: [...added].sort().join(", "),
+    });
+  }
   return {
     added: added.sort(),
     missing: missingRequired(templates, present, tagNames),
@@ -437,7 +478,7 @@ export async function setEnvFileManaged(
   environmentId: string,
   enabled: boolean
 ): Promise<{ envFileManaged: boolean }> {
-  await requireProjectPermission(
+  const { session } = await requireProjectPermission(
     { environmentId },
     { variable: ["write"], deploy: ["configure"] }
   );
@@ -461,6 +502,11 @@ export async function setEnvFileManaged(
     }
   }
   await setEnvFileManagedRow(env.id, enabled);
+  await audit(
+    session.user.id,
+    env,
+    enabled ? "variables.envFileManagedOn" : "variables.envFileManagedOff"
+  );
   return { envFileManaged: enabled };
 }
 
@@ -510,11 +556,11 @@ export async function putVariableTemplate(
   name: string,
   input: z.infer<typeof templateInputSchema>
 ): Promise<AppVariableTemplate> {
-  await requireOrgPermission({ ...INTEGRATION_MANAGE });
+  const session = await requireOrgPermission({ ...INTEGRATION_MANAGE });
   const appId = await requireApp(appKey);
   parseOr400(variableNameSchema(), name);
   const { defaultValue, generatedLength } = checkTemplateKind(input);
-  return saveTemplate(appId, {
+  const saved = await saveTemplate(appId, {
     name,
     kind: input.kind,
     required: input.required,
@@ -523,13 +569,41 @@ export async function putVariableTemplate(
     escrow: input.escrow,
     description: input.description || null,
   });
+  await auditTemplate(
+    session.user.id,
+    "variableTemplate.saved",
+    { id: appId, key: appKey },
+    name
+  );
+  return saved;
+}
+
+async function auditTemplate(
+  actorId: string,
+  action: string,
+  app: { id: string; key: string },
+  name: string
+): Promise<void> {
+  await recordActivity({
+    actorId,
+    action,
+    entityType: "app",
+    entityId: app.id,
+    data: { app: app.key, name },
+  });
 }
 
 export async function deleteVariableTemplate(
   appKey: string,
   name: string
 ): Promise<void> {
-  await requireOrgPermission({ ...INTEGRATION_MANAGE });
+  const session = await requireOrgPermission({ ...INTEGRATION_MANAGE });
   const appId = await requireApp(appKey);
   if (!(await deleteTemplateRow(appId, name))) notFound();
+  await auditTemplate(
+    session.user.id,
+    "variableTemplate.deleted",
+    { id: appId, key: appKey },
+    name
+  );
 }

@@ -1834,7 +1834,17 @@
     "runAcknowledged": "{actor} menandai {count, plural, other {# run gagal}} di {environment} sudah ditangani",
     "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}",
     "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})",
-    "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})"
+    "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})",
+    "variableCreated": "{actor} menambahkan variabel {name} ke {environment}",
+    "variableUpdated": "{actor} mengubah variabel {name} di {environment}",
+    "variableDeleted": "{actor} menghapus variabel {name} dari {environment}",
+    "variableRegenerated": "{actor} membuat ulang nilai variabel {name} di {environment}",
+    "variableEscrowRemoved": "{actor} mencabut escrow variabel {name} di {environment}",
+    "envFileManagedOn": "{actor} mengizinkan Panel menulis .env {environment}",
+    "envFileManagedOff": "{actor} menghentikan Panel menulis .env {environment}",
+    "variablesTemplateApplied": "{actor} menambahkan variabel templat ke {environment} ({names})",
+    "variableTemplateSaved": "{actor} menyimpan templat variabel {name} milik {app}",
+    "variableTemplateDeleted": "{actor} menghapus templat variabel {name} milik {app}"
   },
   "jira": {
     "title": "Jira",
