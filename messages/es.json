@@ -1834,7 +1834,17 @@
     "runAcknowledged": "{actor} reconoció {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
     "runUnacknowledged": "{actor} reabrió {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
     "variablesRevealed": "{actor} mostró los valores secretos de {environment} ({names})",
-    "environmentDeletedWithVariables": "{actor} eliminó {environment} y {count, plural, one {su # variable} other {sus # variables}} ({names})"
+    "environmentDeletedWithVariables": "{actor} eliminó {environment} y {count, plural, one {su # variable} other {sus # variables}} ({names})",
+    "variableCreated": "{actor} añadió la variable {name} a {environment}",
+    "variableUpdated": "{actor} cambió la variable {name} en {environment}",
+    "variableDeleted": "{actor} eliminó la variable {name} de {environment}",
+    "variableRegenerated": "{actor} regeneró la variable {name} en {environment}",
+    "variableEscrowRemoved": "{actor} quitó la custodia de la variable {name} en {environment}",
+    "envFileManagedOn": "{actor} permitió que el Panel escriba el .env de {environment}",
+    "envFileManagedOff": "{actor} dejó de permitir que el Panel escriba el .env de {environment}",
+    "variablesTemplateApplied": "{actor} añadió variables de plantilla a {environment} ({names})",
+    "variableTemplateSaved": "{actor} guardó la plantilla de variable {name} de {app}",
+    "variableTemplateDeleted": "{actor} eliminó la plantilla de variable {name} de {app}"
   },
   "jira": {
     "title": "Jira",

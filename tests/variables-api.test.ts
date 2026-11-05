@@ -908,3 +908,127 @@ describe("no decrypted value without reveal", () => {
     }
   });
 });
+
+// Every change to variables, escrow, the env-file switch and templates leaves
+// one activity entry naming what changed, never a value.
+describe("audit", () => {
+  const entries = () =>
+    activity.recordActivity.mock.calls.map(
+      ([entry]) =>
+        entry as {
+          action: string;
+          entityId?: string;
+          data: Record<string, unknown>;
+        }
+    );
+  const expectNoValues = () => {
+    const logged = JSON.stringify(activity.recordActivity.mock.calls);
+    for (const secret of [
+      SECRET_PLAIN,
+      GENERATED_PLAIN,
+      ESCROW_PLAIN,
+      "brand-new-api-key-123",
+      "enc:v1:",
+    ]) {
+      expect(logged).not.toContain(secret);
+    }
+  };
+
+  it("records a variable created, then updated", async () => {
+    await send("PUT", `${base}/variables/API_KEY`, {
+      kind: "secret",
+      value: "brand-new-api-key-123",
+    });
+    await send("PUT", `${base}/variables/API_KEY`, { kind: "secret" });
+    expect(entries()).toEqual([
+      expect.objectContaining({
+        action: "variable.created",
+        entityId: store.env.id,
+        data: { environment: "Kestrel Dev", name: "API_KEY" },
+      }),
+      expect.objectContaining({
+        action: "variable.updated",
+        data: { environment: "Kestrel Dev", name: "API_KEY" },
+      }),
+    ]);
+    expectNoValues();
+  });
+
+  it("records a delete and a regenerate", async () => {
+    await send("DELETE", `${base}/variables/APP_NAME`);
+    await send("POST", `${base}/variables/JWT_SECRET/regenerate`);
+    expect(entries().map((e) => [e.action, e.data.name])).toEqual([
+      ["variable.deleted", "APP_NAME"],
+      ["variable.regenerated", "JWT_SECRET"],
+    ]);
+    expectNoValues();
+  });
+
+  it("records an escrow removal as such", async () => {
+    state.orgRole = "admin";
+    const res = await send("PUT", `${base}/variables/DATA_ENCRYPTION_KEY`, {
+      kind: "generated",
+      escrow: false,
+      confirmEscrowRemoval: true,
+    });
+    expect(res.status).toBe(200);
+    expect(entries().map((e) => e.action)).toEqual(["variable.escrowRemoved"]);
+    expectNoValues();
+  });
+
+  it("records the env-file switch both ways", async () => {
+    await send("PATCH", `${base}/env-file-managed`, { enabled: true });
+    await send("PATCH", `${base}/env-file-managed`, { enabled: false });
+    expect(entries().map((e) => e.action)).toEqual([
+      "variables.envFileManagedOn",
+      "variables.envFileManagedOff",
+    ]);
+  });
+
+  it("records the variables a template added, and nothing when none", async () => {
+    store.templates = [
+      {
+        id: "0197f3a0-1b2c-7def-8000-0000000000f1",
+        appId: APP_ID,
+        name: "APP_URL",
+        kind: "plain",
+        required: false,
+        defaultValue: "{url}",
+        generatedLength: null,
+        escrow: false,
+        description: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    await send("POST", `${base}/variables/apply-template`);
+    await send("POST", `${base}/variables/apply-template`);
+    expect(entries()).toEqual([
+      expect.objectContaining({
+        action: "variables.templateApplied",
+        data: { environment: "Kestrel Dev", names: "APP_URL" },
+      }),
+    ]);
+  });
+
+  it("records template saves and deletes", async () => {
+    state.orgRole = "admin";
+    await send("PUT", "/api/apps/hris/variable-templates/APP_URL", {
+      kind: "plain",
+      defaultValue: "{url}",
+    });
+    await send("DELETE", "/api/apps/hris/variable-templates/APP_URL");
+    expect(entries()).toEqual([
+      expect.objectContaining({
+        action: "variableTemplate.saved",
+        entityType: "app",
+        entityId: APP_ID,
+        data: { app: "hris", name: "APP_URL" },
+      }),
+      expect.objectContaining({
+        action: "variableTemplate.deleted",
+        data: { app: "hris", name: "APP_URL" },
+      }),
+    ]);
+  });
+});
