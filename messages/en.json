@@ -2429,6 +2429,7 @@
       "name": "Name",
       "nameHint": "Upper-case letters, digits and _, not starting with a digit.",
       "nameInvalid": "Use upper-case letters, digits and _, not starting with a digit",
+      "nameReservedPrefix": "COMPOSE_, DOCKER_ and BUILDKIT_ are reserved: Docker reads them from .env and they could redirect the deploy",
       "kind": "Kind",
       "kindHint": {
         "plain": "Shown to everyone who can open this page.",
@@ -2472,6 +2473,7 @@
       "description": "Plain templates may have a default; generated ones a length; secrets neither.",
       "name": "Name",
       "nameInvalid": "Use upper-case letters, digits and _, not starting with a digit",
+      "nameReservedPrefix": "COMPOSE_, DOCKER_ and BUILDKIT_ are reserved: Docker reads them from .env and they could redirect the deploy",
       "kind": "Kind",
       "defaultValue": "Default value",
       "defaultValueHint": "Optional. Placeholders: '{host}', '{url}' and '{envSlug}' are replaced with the environment's values.",

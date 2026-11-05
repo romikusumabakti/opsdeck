@@ -31,7 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import {
+  hasReservedPrefix,
   variableNameSchema,
   variableValueSchema,
 } from "@/lib/variables/validation";
@@ -93,9 +95,12 @@ export function TemplateFormDialog({
       .trim()
       .min(1, tCommon("required"))
       .refine(
-        (name) => variableNameSchema().safeParse(name).success,
+        (name) =>
+          hasReservedPrefix(name) ||
+          variableNameSchema().safeParse(name).success,
         t("nameInvalid")
-      ),
+      )
+      .refine((name) => !hasReservedPrefix(name), t("nameReservedPrefix")),
     kind: z.enum(VARIABLE_KINDS),
     required: z.boolean(),
     defaultValue: z
@@ -148,6 +153,13 @@ export function TemplateFormDialog({
       toast.success(t("saved", { name }));
       onOpenChange(false);
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.message === RESERVED_PREFIX_MESSAGE
+      ) {
+        form.setError("name", { message: t("nameReservedPrefix") });
+        return;
+      }
       toast.error(
         error instanceof ApiError ? error.message : tCommon("errorGeneric")
       );
