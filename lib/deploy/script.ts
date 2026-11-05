@@ -19,8 +19,10 @@ import { shq } from "@/lib/sh";
  *
  * Invariants the tests hold it to: it never runs `compose down/stop/rm`, it
  * only (re)starts the listed services (`--no-deps`), the only `.env` line it
- * touches is the tag variable, and a stack that never turns (and stays)
- * healthy makes it exit non-zero within `healthTimeoutSeconds`.
+ * touches is the tag variable — unless `installStagedEnvFile`, when it first
+ * replaces `.env` with the staged `.env.opsdeck-new` the Panel uploaded — and
+ * a stack that never turns (and stays) healthy makes it exit non-zero within
+ * `healthTimeoutSeconds`.
  */
 
 export interface DeployScriptInput {
@@ -40,6 +42,15 @@ export interface DeployScriptInput {
    * later. Defaults to {@link DEFAULT_STABLE_SECONDS}.
    */
   stableSeconds?: number;
+  /**
+   * The environment's `.env` is managed by the Panel: the job has uploaded the
+   * rendered file as `.env.opsdeck-new`. Right after taking the lock, the
+   * script keeps the current `.env` as `.env.opsdeck-prev` and moves the
+   * staged file into place (both `0600`), or exits non-zero before any pull
+   * with the previous `.env` untouched. Off by default; when off, the script
+   * is exactly what it was before this option existed.
+   */
+  installStagedEnvFile?: boolean;
 }
 
 export const DEFAULT_STABLE_SECONDS = 30;
@@ -70,6 +81,7 @@ const deployScriptInputSchema = z.object({
     .min(0)
     .max(600)
     .default(DEFAULT_STABLE_SECONDS),
+  installStagedEnvFile: z.boolean().default(false),
 });
 
 /** Throws a ZodError when any field of the input is invalid. */
@@ -94,6 +106,16 @@ export function buildDeployScript(input: DeployScriptInput): string {
     // dropped session is still running.
     "exec 9>.opsdeck-deploy.lock",
     `flock -w ${LOCK_WAIT_SECONDS} 9 || { echo 'DEPLOY LOCKED'; exit 1; }`,
+
+    // 0. Managed .env: keep the current file once, then rename the staged one
+    //    over it (atomic, same directory). Any failure stops here, before any
+    //    pull, with the previous .env still in place.
+    ...(v.installStagedEnvFile
+      ? [
+          `if [ -f .env ]; then cp -p .env .env.opsdeck-prev && chmod 600 .env.opsdeck-prev || { echo 'ENV INSTALL FAILED'; exit 1; }; fi`,
+          `chmod 600 .env.opsdeck-new && mv -f .env.opsdeck-new .env || { echo 'ENV INSTALL FAILED'; exit 1; }`,
+        ]
+      : []),
 
     // 1. Deploy bundle: compose.yaml and friends, extracted into the deploy dir.
     `docker pull ${image}`,

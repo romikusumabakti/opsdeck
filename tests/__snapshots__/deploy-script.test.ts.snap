@@ -1,0 +1,57 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildDeployScript output > without installStagedEnvFile the script is unchanged (snapshot) 1`] = `
+"set -eu
+trap '' HUP PIPE
+cd '/srv/accounting'
+exec 9>.opsdeck-deploy.lock
+flock -w 600 9 || { echo 'DEPLOY LOCKED'; exit 1; }
+docker pull '192.168.10.113:5000/dplk-accounting-deploy:origin-kestrel-development-abc1234'
+cid=$(docker create '192.168.10.113:5000/dplk-accounting-deploy:origin-kestrel-development-abc1234' noop)
+docker cp "$cid":/bundle/. . || { docker rm "$cid" >/dev/null || true; exit 1; }
+docker rm "$cid" >/dev/null
+if [ -f .env ] && grep -q '^IMAGE_TAG=' .env; then
+  sed -i 's|^IMAGE_TAG=.*|IMAGE_TAG=origin-kestrel-development-abc1234|' .env
+else
+  if [ -s .env ] && [ -n "$(tail -c 1 .env)" ]; then echo >> .env; fi
+  printf '%s\\n' 'IMAGE_TAG=origin-kestrel-development-abc1234' >> .env
+fi
+docker compose pull 'backend' 'frontend'
+(
+echo PRE_START_MARKER
+
+)
+docker compose up -d --no-deps 'backend' 'frontend'
+deadline=$(( $(date +%s) + 180 ))
+ok_since=
+prev_snap=
+while :; do
+  ok=1
+  snap=
+  for svc in 'backend' 'frontend'; do
+    ids=$(docker compose ps -q "$svc") || ok=0
+    if [ -z "$ids" ]; then ok=0; fi
+    for id in $ids; do
+      info=$(docker inspect -f '{{.RestartCount}} {{.State.StartedAt}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id") || { ok=0; continue; }
+      snap="$snap $id $(printf '%s
+' "$info" | awk '{ print $1, $2 }')"
+      printf '%s
+' "$info" | awk '{ exit !($3 == "running" && ($4 == "" || $4 == "healthy")) }' || ok=0
+    done
+  done
+  if [ "$snap" != "$prev_snap" ]; then ok=0; fi
+  prev_snap=$snap
+  if [ "$ok" = 1 ]; then curl -fsS -o /dev/null --max-time 5 'http://localhost:8080/actuator/health' || ok=0; fi
+  now=$(date +%s)
+  if [ "$ok" = 1 ]; then
+    if [ -z "$ok_since" ]; then ok_since=$now; fi
+    if [ $(( now - ok_since )) -ge 0 ]; then echo 'HEALTHY'; exit 0; fi
+  else
+    ok_since=
+  fi
+  if [ "$now" -ge "$deadline" ]; then echo 'HEALTH TIMEOUT'; exit 1; fi
+  left=$(( deadline - now ))
+  sleep $(( left < 5 ? left : 5 ))
+done
+"
+`;

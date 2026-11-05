@@ -411,6 +411,21 @@ function templateValue(
 }
 
 /**
+ * The decrypted variables of an environment whose `.env` the Panel manages,
+ * or null when it does not manage it. For the deploy job, which runs as the
+ * system: there is no permission check, so never call it for an HTTP request.
+ */
+export async function loadManagedEnvFileVariables(
+  environmentId: string
+): Promise<{ name: string; value: string }[] | null> {
+  const env = await getEnvironmentContext(environmentId);
+  if (!env) throw new Error(`Environment ${environmentId} not found`);
+  if (!env.envFileManaged) return null;
+  const rows = await listVariableRows(env.id);
+  return rows.map((row) => ({ name: row.name, value: decode(row) }));
+}
+
+/**
  * Switches whether deploys render this environment's `.env`. Turning it on
  * needs every required template variable to exist (409 listing them).
  */

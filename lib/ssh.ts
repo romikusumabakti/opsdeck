@@ -101,6 +101,63 @@ export async function uploadRemoteFile(
   }
 }
 
+/**
+ * SFTP in-memory content ONTO a remote host, for files that hold secrets (a
+ * rendered `.env`): no local temp file, and the content never appears in a
+ * command line. The file is created with `mode`, and the open handle is
+ * chmod'ed to `mode` before any byte is written — an existing file keeps its
+ * old mode on open — so it is never readable by others while it holds the
+ * new content.
+ */
+export async function uploadRemoteContent(
+  {
+    host,
+    username,
+    password,
+  }: { host: string; username: string; password: string },
+  content: string,
+  remotePath: string,
+  mode: number
+): Promise<void> {
+  const ssh = new NodeSSH();
+  try {
+    await ssh.connect({ host, username, password, readyTimeout: 5000 });
+    const sftp = await ssh.requestSFTP();
+    try {
+      const handle = await new Promise<Buffer>((resolve, reject) =>
+        sftp.open(remotePath, "w", { mode }, (err, h) =>
+          err ? reject(err) : resolve(h)
+        )
+      );
+      let failure: unknown = null;
+      try {
+        await new Promise<void>((resolve, reject) =>
+          sftp.fchmod(handle, mode, (err) => (err ? reject(err) : resolve()))
+        );
+        const data = Buffer.from(content, "utf8");
+        await new Promise<void>((resolve, reject) =>
+          sftp.write(handle, data, 0, data.length, 0, (err) =>
+            err ? reject(err) : resolve()
+          )
+        );
+      } catch (err) {
+        failure = err;
+      }
+      // Always close the handle; a close error only surfaces when nothing
+      // failed before it, so it never masks the first failure.
+      const closeError = await new Promise<Error | undefined>((resolve) =>
+        sftp.close(handle, (err) => resolve(err ?? undefined))
+      );
+      if (failure) throw failure;
+      if (closeError) throw closeError;
+    } finally {
+      sftp.end();
+    }
+  } finally {
+    ssh.dispose();
+  }
+}
+
 export type SshStreamHandlers = {
   onChunk: (chunk: Buffer, source: "stdout" | "stderr") => void;
   onClose: (info: { code: number | null; signal: string | null }) => void;
