@@ -405,6 +405,7 @@
       "componentNotFound": "No component with this key is registered.",
       "duplicateComponent": "This component already has a target in this environment.",
       "tagVariableIsVariable": "This environment already has a variable with this name; the deploy writes the tag line itself. Pick another name or delete the variable.",
+      "tagVariableReserved": "COMPOSE_, DOCKER_ and BUILDKIT_ are reserved: Docker reads them from .env and they could redirect the deploy",
       "otherApp": "This component belongs to another app than this environment."
     },
     "lock": {
@@ -1290,6 +1291,7 @@
     "placementServiceInUse": "This service is already used by another environment on this server; ask an admin.",
     "placementServiceName": "On an open server, bind only service names that start with {prefix} (this project's key); ask an admin for other names.",
     "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment.",
+    "projectHasEscrowedVariables": "This project has environments with escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the project.",
     "deployLocked": "Deploys to this environment are locked by {name} until {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "a former user",
     "deployLockReasonInvalid": "Give a reason of 1 to 200 characters.",
@@ -1677,6 +1679,8 @@
     "deleteButton": "Delete project",
     "deleteTitle": "Delete project",
     "deleteDescription": "Delete project {name}? This also deletes {count, plural, =0 {no environments} one {# environment} other {# environments}} and every issue in it. This action cannot be undone.",
+    "deleteEscrowedTitle": "Delete escrowed variables too?",
+    "deleteEscrowedDescription": "This project has environments with escrowed variables (such as a data encryption key) that exist only in the Panel. Deleting the project destroys them for good: confirm only once they are stored elsewhere.",
     "deletedSuccess": "Project {name} deleted",
     "tabJira": "Jira",
     "jiraTitle": "Jira sync",

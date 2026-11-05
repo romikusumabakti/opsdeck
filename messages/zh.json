@@ -405,6 +405,7 @@
       "componentNotFound": "未注册使用此标识的部署应用。",
       "duplicateComponent": "该应用在此环境中已有部署目标。",
       "tagVariableIsVariable": "此环境已有同名变量；部署会自行写入标签行。请换一个名称或删除该变量。",
+      "tagVariableReserved": "COMPOSE_、DOCKER_ 和 BUILDKIT_ 为保留前缀：Docker 会从 .env 读取它们，可能改变部署目标",
       "otherApp": "This component belongs to another app than this environment."
     },
     "lock": {
@@ -1290,6 +1291,7 @@
     "placementServiceInUse": "此服务已被此服务器上的另一个环境使用；请联系管理员。",
     "placementServiceName": "在开放的服务器上，只能绑定以 {prefix}（本项目的键）开头的服务名称；其他名称请联系管理员。",
     "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。",
+    "projectHasEscrowedVariables": "此项目的环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此项目。",
     "deployLocked": "此环境的部署已被 {name} 锁定，直到 {expiresAt, date, medium} {expiresAt, time, short}：{reason}",
     "deployLockHolderUnknown": "一位前用户",
     "deployLockReasonInvalid": "请填写 1 到 200 个字符的原因。",
@@ -1677,6 +1679,8 @@
     "deleteButton": "删除项目",
     "deleteTitle": "删除项目",
     "deleteDescription": "确定删除项目 {name}？这也会删除 {count, plural, other {# 个环境}} 及其中的全部问题。此操作无法撤销。",
+    "deleteEscrowedTitle": "同时删除托管变量？",
+    "deleteEscrowedDescription": "此项目的环境包含仅存在于面板中的托管变量（例如数据加密密钥）。删除项目会永久销毁它们：请在已将其保存到别处后再确认。",
     "deletedSuccess": "项目 {name} 已删除",
     "tabJira": "Jira",
     "jiraTitle": "Jira 同步",

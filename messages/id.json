@@ -405,6 +405,7 @@
       "componentNotFound": "Belum ada komponen terdaftar dengan key ini.",
       "duplicateComponent": "Komponen ini sudah punya target di environment ini.",
       "tagVariableIsVariable": "Environment ini sudah punya variabel dengan nama ini; deploy menulis baris tag sendiri. Pilih nama lain atau hapus variabelnya.",
+      "tagVariableReserved": "COMPOSE_, DOCKER_, dan BUILDKIT_ dicadangkan: Docker membacanya dari .env dan bisa mengalihkan deploy",
       "otherApp": "Komponen ini milik app lain dari environment ini."
     },
     "lock": {
@@ -1290,6 +1291,7 @@
     "placementServiceInUse": "Layanan ini sudah dipakai environment lain di server ini; minta bantuan admin.",
     "placementServiceName": "Di server terbuka, hubungkan hanya nama layanan yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
     "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini.",
+    "projectHasEscrowedVariables": "Project ini punya environment dengan variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus project ini.",
     "deployLocked": "Deploy ke environment ini dikunci oleh {name} sampai {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "mantan pengguna",
     "deployLockReasonInvalid": "Isi alasan 1 sampai 200 karakter.",
@@ -1677,6 +1679,8 @@
     "deleteButton": "Hapus proyek",
     "deleteTitle": "Hapus proyek",
     "deleteDescription": "Hapus proyek {name}? Ini juga menghapus {count, plural, other {# environment}} dan semua isu di dalamnya. Tindakan ini tidak bisa dibatalkan.",
+    "deleteEscrowedTitle": "Hapus juga variabel escrow?",
+    "deleteEscrowedDescription": "Project ini punya environment dengan variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Menghapus project memusnahkan variabel itu selamanya: konfirmasi hanya jika sudah disimpan di tempat lain.",
     "deletedSuccess": "Proyek {name} dihapus",
     "tabJira": "Jira",
     "jiraTitle": "Sinkronisasi Jira",
