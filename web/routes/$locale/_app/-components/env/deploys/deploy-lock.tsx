@@ -22,6 +22,7 @@ import {
   canUnlock,
   defaultLockExpiry,
   LOCK_REASON_MAX,
+  lockBannerActions,
 } from "@/lib/deploy/lock";
 import { canOrg } from "@/lib/permissions";
 import { ApiError } from "@/web/api/client";
@@ -89,6 +90,7 @@ export function DeployLockPanel({
     lock !== null && canUnlock(isOwner, lock.lockedBy?.id === userId);
   const mayForce =
     lock !== null && canOrg(me?.orgRole, { integration: ["manage"] });
+  const actions = lockBannerActions({ mayLock, mayUnlock, mayForce });
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["deploy-locks"] });
@@ -140,15 +142,15 @@ export function DeployLockPanel({
               })}{" "}
               {t("heldBuilds", { count: state.heldCount })}
             </p>
-            {(mayLock || mayUnlock || mayForce) && (
+            {(actions.unlock || actions.force || actions.edit) && (
               <div className="mt-2 flex flex-wrap gap-2">
-                {mayUnlock && (
+                {actions.unlock && (
                   <Button size="sm" disabled={busy} onClick={onUnlock}>
                     <LockOpen data-icon="inline-start" />
                     {t("unlock")}
                   </Button>
                 )}
-                {mayForce && !mayUnlock && (
+                {actions.force && (
                   <Button
                     size="sm"
                     variant="destructive"
@@ -158,7 +160,7 @@ export function DeployLockPanel({
                     {t("forceUnlock")}
                   </Button>
                 )}
-                {mayUnlock && (
+                {actions.edit && (
                   <Button
                     size="sm"
                     variant="outline"

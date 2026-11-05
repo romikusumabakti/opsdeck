@@ -12,6 +12,7 @@ import {
   getTagState,
   getTarget,
   listTargetsForEnvironment,
+  supersedeHeldDeployments,
   type TargetState,
   upsertTarget,
 } from "@/lib/deploy/repository";
@@ -167,7 +168,19 @@ export async function updateDeployTarget(
   if (changes.tagVariable) {
     await requireTagVariableFree(target.environmentId, changes.tagVariable);
   }
-  return upsertTarget({ ...changes, id });
+  // Builds held by the deploy lock were meant for the old settings: once the
+  // target stops auto-deploying or follows another branch, they must not
+  // deploy on unlock. Same transaction as the change. (No deploy-lock row is
+  // touched here, so the lock order of lib/deploy/repository is unaffected.)
+  const dropHeld =
+    changes.autoDeploy === false ||
+    (changes.sourceBranch !== undefined &&
+      changes.sourceBranch !== target.sourceBranch);
+  return db.transaction(async (tx) => {
+    const updated = await upsertTarget({ ...changes, id }, tx);
+    if (dropHeld) await supersedeHeldDeployments(id, tx);
+    return updated;
+  });
 }
 
 export async function deleteDeployTarget(id: string): Promise<void> {

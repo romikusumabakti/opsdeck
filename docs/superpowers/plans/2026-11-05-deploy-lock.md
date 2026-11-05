@@ -17,6 +17,9 @@
 - While locked: manual deploys and rollbacks → 409 with the lock's holder, reason and expiry in the message (translated); auto deploys → status `held` (not run), and a new held deployment supersedes older held auto deployments of the same target.
 - On unlock/expiry: per target of the environment, the newest held deployment becomes `queued` and is enqueued; older held ones are `superseded`. Nothing is run for targets with no held deployment.
 - An expired lock is released by a worker sweep running every 60 s; a lock past its expiry no longer blocks requests even before the sweep runs.
+- Ruling (final review): setting a lock stops deployments that have not started — the environment's queued `auto` deployments become `held` (their never-started runs are deleted) and queued `manual` deployments and rollbacks are cancelled (status `failed`, run failed with "Cancelled: deploys locked by <name> — <reason>", nothing more). `claimDeployment` re-reads the lock `FOR SHARE` and applies the same rule to anything it would claim while locked (outcomes `held` / `cancelled`, which the worker treats as done).
+- Ruling (final review): `placeDeployment` releases an expired, unswept lock (cause `expired`, same semantics as the sweep) in its own transaction before placing, so held builds are queued before the new request.
+- Lock order: every transaction that changes deployments under the lock touches the `environment_deploy_locks` row before any `deployments` row, and never upgrades a `FOR SHARE` lock row to a `DELETE` (two such holders deadlock).
 - Every lock, unlock, force-unlock and expiry release writes an activity entry.
 - Migrations additive (`ALTER TYPE … ADD VALUE` is fine), `BEGIN; … COMMIT;` where Postgres allows; applied before the build.
 - English for code/comments/commits; UI strings in all five `messages/*.json` (en, id translated).
@@ -82,6 +85,8 @@
 ### Task 5: Go live 3a + 3a.1 (controller, after Romi's go-ahead)
 
 - [ ] Probe the new conditional SQL (environment delete with escrow, project delete guard, held/release) against a port-mapped Postgres restored from the scratch copy.
+- [ ] Run the real-SQL concurrency probe on a fresh copy of live (not the scratch copy): `placeDeployment` vs `releaseDeployLock` in both orders; two concurrent `auto` inserts for one target while locked; lock insert vs a claim of a queued deployment.
+- [ ] Before any image rollback to a pre-3a.1 build: set held deployments to `superseded` (`UPDATE deployments SET status = 'superseded', finished_at = now() WHERE status = 'held';`) — the old code knows no `held` and would leave them stuck.
 - [ ] Backup; dry-run and apply `20261105020000_variables_and_access` then `20261105030000_deploy_locks`; merge both plans' branch into `main`, push; Romi runs Jenkins `DSS/dss-panel`; health 200.
 - [ ] Canary (plan 3a Task 7 steps on `panel-canary`, with `docker compose config --environment`), then: lock the canary environment, push a commit to `panel-canary` → the build is `held`; manual deploy refused; unlock → the held build deploys.
 - [ ] Memory: opsdeck `panel-deploy-feature.md`, `db-migrations.md`.
