@@ -615,6 +615,25 @@ describe("handleDeploy with a managed .env", () => {
     expectNoSecrets();
   });
 
+  it("a variable with a reserved prefix saved earlier fails the deploy with the generic message", async () => {
+    repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+    variables.loadManagedEnvFileVariables.mockResolvedValue([
+      ...managedVars,
+      { name: "COMPOSE_PROJECT_NAME", value: "other-stack" },
+    ]);
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
+    expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      "The environment's variables cannot be written to .env — check them in the Panel"
+    );
+    expectNoSecrets();
+  });
+
   it("a deploy dir another environment also deploys into fails before the backup", async () => {
     repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);

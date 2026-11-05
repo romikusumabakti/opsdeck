@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 
 // Rules for the variables an environment's `.env` is rendered from
 // (lib/variables/env-file.ts). Values are stored as one line each: the `.env`
@@ -10,10 +11,22 @@ export const VARIABLE_VALUE_MAX_LENGTH = 8192;
 const NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 /**
+ * Docker Compose and the Docker CLI read variables with these prefixes from
+ * the project's `.env` (`COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`,
+ * `DOCKER_HOST`, …): one could retarget the deploy at another stack, so no
+ * variable may carry them.
+ */
+export const RESERVED_NAME_PREFIXES = ["COMPOSE_", "DOCKER_", "BUILDKIT_"];
+
+export function hasReservedPrefix(name: string): boolean {
+  return RESERVED_NAME_PREFIXES.some((prefix) => name.startsWith(prefix));
+}
+
+/**
  * A variable name: upper-case letters, digits and `_`, not starting with a
- * digit, at most 128 characters. `reservedNames` are the environment's tag
- * variable names; the deploy writes those itself, so a variable may not take
- * one.
+ * digit or a {@link RESERVED_NAME_PREFIXES} prefix, at most 128 characters.
+ * `reservedNames` are the environment's tag variable names; the deploy writes
+ * those itself, so a variable may not take one.
  */
 export function variableNameSchema(reservedNames: readonly string[] = []) {
   return z
@@ -23,6 +36,7 @@ export function variableNameSchema(reservedNames: readonly string[] = []) {
       NAME_PATTERN,
       "Variable name must be uppercase letters, digits or '_', not starting with a digit"
     )
+    .refine((name) => !hasReservedPrefix(name), RESERVED_PREFIX_MESSAGE)
     .refine(
       (name) => !reservedNames.includes(name),
       "Variable name is reserved for the image tag"

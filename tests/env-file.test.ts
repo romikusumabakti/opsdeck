@@ -257,4 +257,10 @@ describe("renderEnvFile", () => {
     expect(() => renderEnvFile([], { IMAGE_TAG: "latest" })).toThrow();
     expect(() => renderEnvFile([], { "bad name": "t1" })).toThrow();
   });
+
+  it("refuses variables with a reserved prefix (rows saved before the rule)", () => {
+    for (const name of ["COMPOSE_PROJECT_NAME", "DOCKER_HOST", "BUILDKIT_X"]) {
+      expect(() => renderEnvFile([{ name, value: "x" }], {}), name).toThrow();
+    }
+  });
 });
