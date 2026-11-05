@@ -2391,6 +2391,7 @@
     "managedOn": "下次部署将根据这些变量写入 .env",
     "managedOff": "部署将保留服务器上的 .env",
     "missingRequired": "请先添加必需变量：{names}",
+    "sharedDeployDir": "另一个环境也部署到此目录，因此无法在此管理其 .env",
     "escrowWarning": "托管变量无法在此重新生成、删除或更改。请同时在面板之外保存副本：丢失它们可能导致数据无法读取。",
     "emptyTitle": "暂无变量",
     "emptyDescription": "逐个添加变量，或从应用模板填充。",

@@ -1,4 +1,5 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   type AppVariableTemplate,
@@ -56,6 +57,31 @@ export async function listTagVariableNames(
     .from(deployTargets)
     .where(eq(deployTargets.environmentId, environmentId));
   return rows.map((row) => row.name);
+}
+
+/**
+ * Whether any deploy target of the environment shares its server and deploy
+ * dir with a target of another environment. A managed `.env` replaces the
+ * whole file, so such a dir cannot be managed.
+ */
+export async function hasSharedDeployDir(
+  environmentId: string
+): Promise<boolean> {
+  const other = alias(deployTargets, "other");
+  const rows = await db
+    .select({ id: deployTargets.id })
+    .from(deployTargets)
+    .innerJoin(
+      other,
+      and(
+        eq(other.serverId, deployTargets.serverId),
+        eq(other.deployDir, deployTargets.deployDir),
+        ne(other.environmentId, deployTargets.environmentId)
+      )
+    )
+    .where(eq(deployTargets.environmentId, environmentId))
+    .limit(1);
+  return rows.length > 0;
 }
 
 export type StoredVariable = EnvironmentVariable & {

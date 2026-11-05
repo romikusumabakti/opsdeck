@@ -155,6 +155,29 @@ export async function listTagVariablesInDeployDir(
   return rows.map((row) => row.name);
 }
 
+/**
+ * Whether a deploy target of another environment also deploys into this
+ * deploy dir on this server — then the dir's `.env` cannot be managed.
+ */
+export async function deployDirSharedWithOtherEnvironment(
+  serverId: string,
+  deployDir: string,
+  environmentId: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: deployTargets.id })
+    .from(deployTargets)
+    .where(
+      and(
+        eq(deployTargets.serverId, serverId),
+        eq(deployTargets.deployDir, deployDir),
+        ne(deployTargets.environmentId, environmentId)
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function listTargetsForEnvironment(
   environmentId: string
 ): Promise<TargetState[]> {

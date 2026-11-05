@@ -8,11 +8,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type Call = [string, ...unknown[]];
 const calls: Call[] = [];
 let failWrite = false;
+let hangOpen = false;
 type Callback = (err: Error | null, value?: unknown) => void;
 
 const fakeSftp = {
   open(path: string, flags: string, attrs: unknown, cb: Callback) {
     calls.push(["open", path, flags, attrs]);
+    if (hangOpen) return;
     cb(null, Buffer.from("h1"));
   },
   fchmod(handle: Buffer, mode: number, cb: Callback) {
@@ -64,6 +66,7 @@ const creds = { host: "10.0.0.5", username: "ops", password: "pw" };
 beforeEach(() => {
   calls.length = 0;
   failWrite = false;
+  hangOpen = false;
 });
 
 describe("uploadRemoteContent", () => {
@@ -99,5 +102,13 @@ describe("uploadRemoteContent", () => {
     const names = calls.map((c) => c[0]);
     expect(names).toContain("close");
     expect(names.at(-1)).toBe("dispose");
+  });
+
+  it("a stuck SFTP operation fails with a fixed message and disposes", async () => {
+    hangOpen = true;
+    await expect(
+      uploadRemoteContent(creds, "x\n", "/srv/a/f", 0o600, 20)
+    ).rejects.toThrow("SFTP upload timed out after 20ms");
+    expect(calls.at(-1)?.[0]).toBe("dispose");
   });
 });

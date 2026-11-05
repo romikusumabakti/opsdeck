@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const TARGET_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
@@ -35,6 +39,7 @@ const repo = vi.hoisted(() => ({
   markScriptStarted: vi.fn(),
   failStaleRunningDeployments: vi.fn(),
   listTagVariablesInDeployDir: vi.fn(),
+  deployDirSharedWithOtherEnvironment: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
@@ -113,6 +118,7 @@ beforeEach(() => {
   ssh.uploadRemoteContent.mockResolvedValue(undefined);
   variables.loadManagedEnvFileVariables.mockResolvedValue(null);
   repo.listTagVariablesInDeployDir.mockResolvedValue(["IMAGE_TAG"]);
+  repo.deployDirSharedWithOtherEnvironment.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -496,7 +502,7 @@ const managedVars = [
   { name: "API_TOKEN", value: SECRETS.API_TOKEN },
   { name: "APP_URL", value: "https://app.example.test" },
 ];
-const STAGED_PATH = "/opt/dplk-accounting/.env.opsdeck-new";
+const STAGED_PATH = `/opt/dplk-accounting/.env.opsdeck-new.${DEPLOYMENT_ID}`;
 
 function everythingVisible(): string {
   return [
@@ -539,7 +545,7 @@ describe("handleDeploy with a managed .env", () => {
         healthTimeoutSeconds: target.healthTimeoutSeconds,
       })
     );
-    expect(outputLines().some((l) => l.startsWith("Wrote .env"))).toBe(false);
+    expect(outputLines().some((l) => l.startsWith("Staged .env"))).toBe(false);
   });
 
   it("uploads the rendered .env (0600) before the script, which installs it", async () => {
@@ -564,14 +570,15 @@ describe("handleDeploy with a managed .env", () => {
     // Single component: no read of the server's .env, only the script.
     expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
     const script = String(ssh.executeRemoteCommand.mock.calls[0]?.[1]);
-    expect(script).toContain("mv -f .env.opsdeck-new .env");
+    expect(script).toContain(`mv -f '.env.opsdeck-new.${DEPLOYMENT_ID}' .env`);
+    expect(script).toContain("echo 'Wrote .env (3 variables)'");
     const uploaded = ssh.uploadRemoteContent.mock.invocationCallOrder[0] ?? 0;
     const marked = repo.markScriptStarted.mock.invocationCallOrder[0] ?? 0;
     const sent = ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0;
     expect(uploaded).toBeLessThan(marked);
     expect(marked).toBeLessThan(sent);
 
-    expect(outputLines()).toContain("Wrote .env (3 variables)");
+    expect(outputLines()).toContain("Staged .env (3 variables)");
     expectNoSecrets();
   });
 
@@ -589,7 +596,7 @@ describe("handleDeploy with a managed .env", () => {
       RUN_ID,
       expect.stringContaining("Permission denied")
     );
-    expect(outputLines().some((l) => l.startsWith("Wrote .env"))).toBe(false);
+    expect(outputLines().some((l) => l.startsWith("Staged .env"))).toBe(false);
     expectNoSecrets();
   });
 
@@ -606,6 +613,59 @@ describe("handleDeploy with a managed .env", () => {
     expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
     expectNoSecrets();
+  });
+
+  it("a deploy dir another environment also deploys into fails before the backup", async () => {
+    repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    repo.deployDirSharedWithOtherEnvironment.mockResolvedValue(true);
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(repo.deployDirSharedWithOtherEnvironment).toHaveBeenCalledWith(
+      SERVER_ID,
+      "/opt/dplk-accounting",
+      ENV_ID
+    );
+    expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
+    expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      "Another environment deploys into /opt/dplk-accounting — a managed .env needs the directory to itself"
+    );
+  });
+
+  it("removes the staged file when the script start cannot be recorded", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    repo.markScriptStarted.mockRejectedValue(new Error("db down"));
+    ssh.executeRemoteCommand.mockResolvedValue("");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+    expect(ssh.executeRemoteCommand.mock.calls[0]?.[1]).toBe(
+      `rm -f '${STAGED_PATH}'`
+    );
+    expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, "db down");
+  });
+
+  it("removes the staged file when the script fails to run, and still fails", async () => {
+    silenceErrors();
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    ssh.executeRemoteCommand
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"))
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand.mock.calls[1]?.[1]).toBe(
+      `rm -f '${STAGED_PATH}'`
+    );
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      "connect ECONNREFUSED"
+    );
   });
 
   describe("multi-component deploy dir", () => {
@@ -646,7 +706,7 @@ describe("handleDeploy with a managed .env", () => {
       expect(content).toContain(`\nBACKEND_IMAGE_TAG=${TAG}\n`);
       expect(content).toContain("\nFRONTEND_IMAGE_TAG=fe-main-1234567\n");
       expect(ssh.uploadRemoteContent.mock.calls[0]?.[2]).toBe(
-        "/opt/portal/.env.opsdeck-new"
+        `/opt/portal/.env.opsdeck-new.${DEPLOYMENT_ID}`
       );
       // The read happens before the upload, the script after it.
       const readAt = ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0;
@@ -680,6 +740,48 @@ describe("handleDeploy with a managed .env", () => {
       });
       expect(uploadedContent()).not.toContain("FRONTEND_IMAGE_TAG");
       expect(uploadedContent()).toContain(`BACKEND_IMAGE_TAG=${TAG}`);
+    });
+
+    it("a failing read of the server's .env (grep exit 2) fails before the upload", async () => {
+      ssh.executeRemoteCommand.mockRejectedValueOnce(
+        new Error("SSH Command Failed (exit 1): grep: .env: Permission denied")
+      );
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "failed",
+      });
+      expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+      expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+      expect(repo.markScriptStarted).not.toHaveBeenCalled();
+    });
+
+    it("the read command, run under sh: only tag lines; missing .env ok; unreadable .env fails", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "deploy-read-tags-"));
+      try {
+        repo.getTarget.mockResolvedValue({ ...backendTarget, deployDir: dir });
+        ssh.executeRemoteCommand.mockRejectedValueOnce(new Error("stop here"));
+        await handleDeploy(payload);
+        const command = String(ssh.executeRemoteCommand.mock.calls[0]?.[1]);
+        expect(command).not.toContain(SECRETS.DB_PASSWORD);
+        const run = () =>
+          spawnSync("sh", ["-c", command], { encoding: "utf8" });
+
+        expect(run().status).toBe(0); // no .env yet
+        writeFileSync(
+          join(dir, ".env"),
+          `DB_PASSWORD='${SECRETS.DB_PASSWORD}'\nFRONTEND_IMAGE_TAG=fe-1\nBACKEND_IMAGE_TAG=be-1\n`
+        );
+        const ok = run();
+        expect(ok.status).toBe(0);
+        expect(ok.stdout).toBe("FRONTEND_IMAGE_TAG=fe-1\n");
+        writeFileSync(join(dir, ".env"), "OTHER=1\n");
+        expect(run().status).toBe(0); // grep exit 1: no match is fine
+        chmodSync(join(dir, ".env"), 0o000);
+        // grep exit 2 (root reads anything, so only checked as a user)
+        if (process.getuid?.() !== 0) expect(run().status).not.toBe(0);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("an invalid tag on the server aborts before the upload", async () => {
