@@ -387,6 +387,22 @@ describe("build actors on notify", () => {
     );
   });
 
+  it("stores the commit email and message when the forge sends no pusher (Bitbucket)", async () => {
+    ci.getPipeline.mockResolvedValue({
+      sender: null,
+      authorEmail: "Romi@dss.test",
+      message: "fix: thing",
+    });
+    await deliverOk();
+    expect(repo.insertBuildIfNew).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pushedBy: null,
+        commitAuthorEmail: "Romi@dss.test",
+        commitMessage: "fix: thing",
+      })
+    );
+  });
+
   it("truncates the pusher to 200 and the message to 500 characters", async () => {
     ci.getPipeline.mockResolvedValue({
       sender: "s".repeat(300),

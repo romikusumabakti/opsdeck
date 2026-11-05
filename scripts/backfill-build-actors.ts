@@ -1,5 +1,5 @@
-// Fills who pushed existing builds (and the auto runs behind them) from their
-// CI pipelines. Prints counts only.
+// Fills who pushed existing builds (or their commit author email when the forge
+// sends no login) and the auto runs behind them from their CI pipelines. Prints counts only.
 // Usage (production): docker exec opsdeck-app bun dist/backfill-build-actors.js [--dry-run]
 // Local dev: bun --conditions react-server scripts/backfill-build-actors.ts [--dry-run]
 import "reflect-metadata";
@@ -11,7 +11,7 @@ const args = process.argv.slice(2);
 
 if (args.includes("--help")) {
   console.log(
-    `${USAGE}\nFills who pushed existing builds and their auto runs from CI. --dry-run writes nothing.`
+    `${USAGE}\nFills who pushed existing builds (or their commit author email) and their auto runs from CI. --dry-run writes nothing.`
   );
   process.exit(0);
 }

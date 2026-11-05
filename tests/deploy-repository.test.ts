@@ -731,6 +731,23 @@ describe("auto run actor (triggered_by)", () => {
     ).toMatchObject({ triggeredBy: null });
   });
 
+  it("gives an auto run the commit author email when the pusher is unknown", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "select" && r.table === "builds") {
+        return [{ pushedBy: null, commitAuthorEmail: " Romi@DSS.test" }];
+      }
+      if (r.op === "select") return [];
+      if (r.op === "insert") {
+        return [{ id: r.table === "runs" ? "run-1" : "dep-1" }];
+      }
+      return [];
+    });
+    await placeDeployment({ ...placeInput, buildId: BUILD });
+    expect(
+      ops.find((o) => o.op === "insert" && o.table === "runs")?.values
+    ).toMatchObject({ userId: null, triggeredBy: "romi@dss.test" });
+  });
+
   it("does not read the build for a manual run", async () => {
     const ops = recordingTx((r) => {
       if (r.op === "select") return [];
@@ -777,5 +794,34 @@ describe("auto run actor (triggered_by)", () => {
     expect(
       ops.find((o) => o.op === "insert" && o.table === "runs")?.values
     ).toMatchObject({ userId: "u-owner", triggeredBy: "romi" });
+  });
+
+  it("a held build released later falls back to its commit author email", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "delete") return [activeLock];
+      if (r.op === "select") {
+        return [
+          {
+            id: "a1",
+            targetId: "A",
+            createdAt: NOW,
+            tag: "origin-main-0000001",
+            trigger: "auto",
+            componentKey: "app",
+            pushedBy: null,
+            commitAuthorEmail: "Romi@DSS.test",
+          },
+        ];
+      }
+      if (r.op === "update" && r.values?.status === "queued") {
+        return [{ id: "a1" }];
+      }
+      if (r.op === "insert") return [{ id: "run-1" }];
+      return [];
+    });
+    await releaseDeployLock(ENV, {}, "u-owner");
+    expect(
+      ops.find((o) => o.op === "insert" && o.table === "runs")?.values
+    ).toMatchObject({ triggeredBy: "romi@dss.test" });
   });
 });

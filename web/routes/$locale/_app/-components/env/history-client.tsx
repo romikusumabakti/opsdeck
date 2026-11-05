@@ -104,36 +104,12 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
       },
       {
         id: "user",
-        accessorFn: (row) => row.user?.id ?? USER_UNKNOWN,
+        // An auto run resolved to a Panel user filters under that user.
+        accessorFn: (row) => row.user?.id ?? row.autoUser?.id ?? USER_UNKNOWN,
         filterFn: facetFilterFn,
         meta: { label: t("colUser") },
         header: t("colUser"),
-        cell: ({ row }) => {
-          const run = row.original;
-          const actor = runActorLabel({
-            userName: run.user?.name,
-            triggeredBy: run.triggeredBy,
-          });
-          if (run.user) {
-            return (
-              <UserName
-                user={run.user}
-                avatar
-                className="text-sm text-muted-foreground"
-              />
-            );
-          }
-          return actor.kind === "auto" ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Zap className="size-3.5 shrink-0" aria-hidden />
-              {t("byAutoUser", { user: actor.by ?? "" })}
-            </span>
-          ) : (
-            <span className="text-sm italic text-muted-foreground">
-              {t("userUnknown")}
-            </span>
-          );
-        },
+        cell: ({ row }) => <RunActorCell run={row.original} />,
       },
       {
         accessorKey: "runAt",
@@ -184,12 +160,13 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
   const facets = React.useMemo<DataTableFacet[]>(() => {
     const users = new Map<string, string>();
     for (const run of runs) {
-      if (run.user) users.set(run.user.id, run.user.name);
+      const user = run.user ?? run.autoUser;
+      if (user) users.set(user.id, user.name);
     }
     const userOptions = [...users]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label));
-    if (runs.some((run) => !run.user)) {
+    if (runs.some((run) => !(run.user ?? run.autoUser))) {
       userOptions.push({ value: USER_UNKNOWN, label: t("userUnknown") });
     }
     return [
@@ -234,6 +211,48 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
       initialColumnVisibility={{ kind: false }}
     />
   );
+}
+
+function RunActorCell({ run }: { run: RunWithUser }) {
+  const t = useTranslations("history");
+  const actor = runActorLabel({
+    userName: run.user?.name,
+    autoUserName: run.autoUser?.name,
+    triggeredBy: run.triggeredBy,
+  });
+  switch (actor.kind) {
+    case "user":
+      return (
+        <UserName
+          user={run.user}
+          avatar
+          className="text-sm text-muted-foreground"
+        />
+      );
+    case "autoUser":
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Zap className="size-3.5 shrink-0" aria-hidden />
+          {t.rich("byAutoPanelUser", {
+            name: actor.name,
+            user: () => <UserName user={run.autoUser} avatar />,
+          })}
+        </span>
+      );
+    case "auto":
+      return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Zap className="size-3.5 shrink-0" aria-hidden />
+          {t("byAutoUser", { user: actor.by ?? "" })}
+        </span>
+      );
+    default:
+      return (
+        <span className="text-sm italic text-muted-foreground">
+          {t("userUnknown")}
+        </span>
+      );
+  }
 }
 
 function StatusBadge({

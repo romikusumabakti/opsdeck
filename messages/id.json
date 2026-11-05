@@ -676,6 +676,7 @@
     "colDuration": "Durasi",
     "userUnknown": "Tidak diketahui",
     "byAutoUser": "otomatis · {user}",
+    "byAutoPanelUser": "otomatis · <user>{name}</user>",
     "statusRunning": "Berjalan",
     "statusSuccess": "Sukses",
     "statusFailed": "Gagal",
