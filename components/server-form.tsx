@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { SafeServer } from "@/lib/db/schema";
@@ -28,6 +35,8 @@ import {
 } from "@/web/api/servers";
 
 type Server = Serialized<SafeServer>;
+
+const PLACEMENTS = ["restricted", "open"] as const;
 
 type Mode = { type: "create" } | { type: "edit"; server: Server };
 
@@ -73,6 +82,7 @@ export function ServerForm({
       .string()
       .min(1, tCommon("required"))
       .regex(/^\//, t("sftpRootInvalid")),
+    placement: z.enum(PLACEMENTS),
   });
 
   const form = useForm<z.infer<typeof schema>>({
@@ -83,6 +93,7 @@ export function ServerForm({
       username: initial?.username ?? "",
       password: "",
       sftpRoot: initial?.sftpRoot ?? "/",
+      placement: initial?.placement ?? "restricted",
     },
   });
 
@@ -124,6 +135,7 @@ export function ServerForm({
         username: values.username.trim(),
         password: values.password,
         sftpRoot: values.sftpRoot.trim(),
+        placement: values.placement,
       });
       if (!result.success) {
         toast.error(result.message);
@@ -144,11 +156,13 @@ export function ServerForm({
       username: string;
       password?: string;
       sftpRoot: string;
+      placement: (typeof PLACEMENTS)[number];
     } = {
       name: values.name.trim(),
       host: values.host.trim(),
       username: values.username.trim(),
       sftpRoot: values.sftpRoot.trim(),
+      placement: values.placement,
     };
     if (values.password.length > 0) data.password = values.password;
 
@@ -281,6 +295,34 @@ export function ServerForm({
                   <Input placeholder="/" {...field} />
                 </FormControl>
                 <FormDescription>{t("sftpRootDescription")}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="placement"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("placement")}</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => v && field.onChange(v)}
+                  disabled={readOnly}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="restricted">
+                      {t("placementRestricted")}
+                    </SelectItem>
+                    <SelectItem value="open">{t("placementOpen")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>{t("placementDescription")}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

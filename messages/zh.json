@@ -879,6 +879,10 @@
     "usageEmptyDescription": "当前没有环境使用此服务器。",
     "sftpRoot": "SFTP 根目录",
     "sftpRootDescription": "文件浏览器限定的绝对路径。使用 / 表示整个主机。",
+    "placement": "环境放置",
+    "placementRestricted": "受限：仅管理员和基础设施",
+    "placementOpen": "开放：项目贡献者及以上",
+    "placementDescription": "谁可以在此服务器上创建新环境。现有环境不受影响。",
     "sftpRootInvalid": "必须是绝对路径（以 / 开头）"
   },
   "newServer": {

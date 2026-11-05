@@ -140,7 +140,8 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     testMailpitConnection: /environment: \["update"\]/,
   },
   "server/services/environments.ts": {
-    createEnvironment: /environment: \["create"\]/,
+    // The placement policy of the bound servers decides (canPlaceEnvironment).
+    createEnvironment: /requireEnvironmentPlacement\(/,
     updateEnvironment: /environment: \["update"\]/,
     deleteEnvironment: /environment: \["delete"\]/,
   },
@@ -333,10 +334,16 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
 // so it needs org server:manage, not just a project role.
 describe("environment infrastructure bindings need server:manage", () => {
   const source = readFileSync("server/services/environments.ts", "utf8");
-  it("createEnvironment requires server:manage", () => {
-    expect(body(source, "createEnvironment")).toMatch(
-      /requireOrgPermission\(\{ server: \["manage"\] \}\)/
+  // Restricted servers keep the server:manage rule; open ones admit project
+  // contributors (tests/placement.test.ts). The check must run before the try
+  // block, so ForbiddenError propagates.
+  it("createEnvironment checks the placement of every bound server", () => {
+    const fn = body(source, "createEnvironment");
+    expect(fn).toMatch(/requireEnvironmentPlacement\([\s\S]*boundServerIds\(/);
+    expect(fn.indexOf("requireEnvironmentPlacement(")).toBeLessThan(
+      fn.indexOf("try {")
     );
+    expect(source).toMatch(/canPlaceEnvironment\(/);
   });
   it("updateEnvironment requires server:manage when an infra field changes", () => {
     const fn = body(source, "updateEnvironment");
