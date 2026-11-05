@@ -17,9 +17,15 @@ function assertRepo(repoFullName: string): void {
   }
 }
 
+// A "." or ".." segment ("..", "a/../b") is no git branch, and in a URL it
+// can collapse into another path, so it is refused like control characters.
 function assertBranch(branch: string): void {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point
-  if (branch === "" || /[\s\u0000-\u001f\u007f]/.test(branch)) {
+  if (
+    branch === "" ||
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point
+    /[\s\u0000-\u001f\u007f]/.test(branch) ||
+    branch.split("/").some((segment) => segment === "." || segment === "..")
+  ) {
     throw new Error("Invalid branch name for a Bitbucket commit");
   }
 }
