@@ -309,6 +309,10 @@ export const runs = pgTable(
       onDelete: "set null",
     }),
     description: text("description").notNull(),
+    // Display text for a run without a Panel user: the forge login that pushed
+    // the build behind an auto-deploy (max 200 characters). Never used for
+    // authorization; a run with userId shows that user instead.
+    triggeredBy: text("triggered_by"),
     status: runStatusEnum("status").notNull().default("started"),
     kind: runKindEnum("kind"),
     // Set on `test` runs to tie a QA result to the issue it verifies. set null:
@@ -582,6 +586,12 @@ export const builds = pgTable(
     tag: text("tag").notNull(),
     commitSha: text("commit_sha").notNull(),
     pipelineUrl: text("pipeline_url"),
+    // Best-effort from the CI provider at notify time (null when unavailable):
+    // the forge login that pushed (or merged), the head commit's author email
+    // and its message (max 500 characters). Display only.
+    pushedBy: text("pushed_by"),
+    commitAuthorEmail: text("commit_author_email"),
+    commitMessage: text("commit_message"),
     receivedAt: timestamp("received_at").notNull().defaultNow(),
   },
   (t) => [

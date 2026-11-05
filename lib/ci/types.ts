@@ -25,6 +25,16 @@ export type PipelineFileCommit = { sha?: string; error?: string; at: string };
 /** Branch → its PipelineFileCommit (`app_components.pipeline_file_commits`). */
 export type PipelineFileCommits = Record<string, PipelineFileCommit>;
 
+/**
+ * Who and what started a pipeline: the forge login that pushed (or merged),
+ * the head commit's author email, and the commit message. Null when unknown.
+ */
+export type PipelineActors = {
+  sender: string | null;
+  authorEmail: string | null;
+  message: string | null;
+};
+
 export interface CiProvider {
   listRepos(): Promise<CiRepo[]>;
   /** Activates the repo; an already active repo is returned as is. */
@@ -36,6 +46,8 @@ export interface CiProvider {
     value: string,
     events: SecretEvent[]
   ): Promise<void>;
+  /** All null when the pipeline does not exist (404). */
+  getPipeline(ciRepoId: string, number: number): Promise<PipelineActors>;
 }
 
 /** A failed CI provider call. The message never contains credentials. */
