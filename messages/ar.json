@@ -1890,7 +1890,10 @@
     "deployLockUnlocked": "فك {actor} قفل النشر إلى {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
     "deployLockForceUnlocked": "فك {actor} قفل النشر إلى {environment} بالقوة ({reason})؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
     "deployLockExpired": "انتهى قفل النشر على {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
-    "deployLockUpdated": "غيّر {actor} قفل النشر على {environment} ({reason})"
+    "deployLockUpdated": "غيّر {actor} قفل النشر على {environment} ({reason})",
+    "deployTargetCreated": "أضاف {actor} هدف نشر لـ {component} في {environment}",
+    "deployTargetUpdated": "غيّر {actor} هدف نشر {component} في {environment} ({changes})",
+    "deployTargetDeleted": "أزال {actor} هدف نشر {component} من {environment}"
   },
   "jira": {
     "title": "Jira",
