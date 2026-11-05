@@ -358,6 +358,7 @@ export const deploymentStatusEnum = pgEnum("deployment_status", [
   "success",
   "failed",
   "superseded",
+  "held",
 ]);
 
 export const ciProviderEnum = pgEnum("ci_provider", ["woodpecker"]);
@@ -507,6 +508,26 @@ export const environmentVariables = pgTable(
     ),
     // FK index: `on delete set null` scans by updater when a user is deleted.
     index("environment_variables_updated_by_idx").on(t.updatedBy),
+  ]
+);
+
+// At most one deploy lock per environment; see lib/deploy/lock.ts.
+export const environmentDeployLocks = pgTable(
+  "environment_deploy_locks",
+  {
+    environmentId: uuid("environment_id")
+      .primaryKey()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    lockedBy: uuid("locked_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("environment_deploy_locks_locked_by_idx").on(t.lockedBy),
+    index("environment_deploy_locks_expires_at_idx").on(t.expiresAt),
   ]
 );
 
@@ -1631,6 +1652,9 @@ export type EnvironmentVariable = InferSelectModel<typeof environmentVariables>;
 export type VariableKind = (typeof variableKindEnum.enumValues)[number];
 export type NewDeployTarget = InferInsertModel<typeof deployTargets>;
 export type Build = InferSelectModel<typeof builds>;
+export type EnvironmentDeployLock = InferSelectModel<
+  typeof environmentDeployLocks
+>;
 export type Deployment = InferSelectModel<typeof deployments>;
 export type NewRun = InferInsertModel<typeof runs>;
 
