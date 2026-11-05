@@ -762,6 +762,8 @@
     "deleteButton": "Eliminar entorno",
     "deleteTitle": "Eliminar entorno",
     "deleteDescription": "¿Eliminar el entorno {name}? Esta acción no se puede deshacer.",
+    "deleteEscrowedTitle": "¿Eliminar también las variables en custodia?",
+    "deleteEscrowedDescription": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Eliminarlo las destruye para siempre: confirma solo si ya están guardadas en otro lugar.",
     "deleteFailed": "No se pudo eliminar el entorno",
     "deletedSuccess": "Entorno {name} eliminado",
     "tabConfig": "Configuración",
@@ -1258,7 +1260,8 @@
     "avatarRemoved": "Foto eliminada",
     "environmentOwnerIneligible": "El responsable debe ser un miembro activo del proyecto de este entorno, o un usuario administrador o de infraestructura de la organización.",
     "placementServiceInUse": "Este servicio ya lo usa otro entorno en este servidor; pide ayuda a un administrador.",
-    "placementServiceName": "En un servidor abierto, vincula solo nombres de servicio que empiecen por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres."
+    "placementServiceName": "En un servidor abierto, vincula solo nombres de servicio que empiecen por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",
+    "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1830,7 +1833,8 @@
     "profileUpdated": "{actor} actualizó el perfil de {user}",
     "runAcknowledged": "{actor} reconoció {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
     "runUnacknowledged": "{actor} reabrió {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
-    "variablesRevealed": "{actor} mostró los valores secretos de {environment} ({names})"
+    "variablesRevealed": "{actor} mostró los valores secretos de {environment} ({names})",
+    "environmentDeletedWithVariables": "{actor} eliminó {environment} y {count, plural, one {su # variable} other {sus # variables}} ({names})"
   },
   "jira": {
     "title": "Jira",

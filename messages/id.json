@@ -762,6 +762,8 @@
     "deleteButton": "Hapus environment",
     "deleteTitle": "Hapus environment",
     "deleteDescription": "Hapus environment {name}? Tindakan ini tidak bisa dibatalkan.",
+    "deleteEscrowedTitle": "Hapus juga variabel escrow?",
+    "deleteEscrowedDescription": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Menghapusnya memusnahkan variabel itu selamanya: konfirmasi hanya jika sudah disimpan di tempat lain.",
     "deleteFailed": "Gagal menghapus environment",
     "deletedSuccess": "Environment {name} dihapus",
     "tabConfig": "Konfigurasi",
@@ -1258,7 +1260,8 @@
     "avatarRemoved": "Foto dihapus",
     "environmentOwnerIneligible": "Pemilik harus anggota aktif proyek environment ini, atau pengguna admin atau infra organisasi.",
     "placementServiceInUse": "Layanan ini sudah dipakai environment lain di server ini; minta bantuan admin.",
-    "placementServiceName": "Di server terbuka, hubungkan hanya nama layanan yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain."
+    "placementServiceName": "Di server terbuka, hubungkan hanya nama layanan yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
+    "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1830,7 +1833,8 @@
     "profileUpdated": "{actor} memperbarui profil {user}",
     "runAcknowledged": "{actor} menandai {count, plural, other {# run gagal}} di {environment} sudah ditangani",
     "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}",
-    "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})"
+    "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})",
+    "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})"
   },
   "jira": {
     "title": "Jira",
