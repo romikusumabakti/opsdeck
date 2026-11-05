@@ -19,6 +19,10 @@ export const SECRET_TO_PLAIN_MESSAGE =
 
 export const NO_APP_MESSAGE = "Environment has no app";
 
+/** 409 for turning on env_file_managed in a deploy dir another env uses. */
+export const SHARED_DEPLOY_DIR_MESSAGE =
+  "Another environment deploys into this directory";
+
 /** The variable names a MISSING_REQUIRED_PREFIX message lists, else null. */
 export function missingRequiredNames(message: string): string[] | null {
   if (!message.startsWith(MISSING_REQUIRED_PREFIX)) return null;

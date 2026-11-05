@@ -2391,6 +2391,7 @@
     "managedOn": "Deploy berikutnya menulis .env dari variabel ini",
     "managedOff": "Deploy membiarkan .env di server apa adanya",
     "missingRequired": "Tambahkan dulu variabel wajib: {names}",
+    "sharedDeployDir": "Environment lain juga deploy ke direktori ini, jadi .env-nya tidak bisa dikelola di sini",
     "escrowWarning": "Variabel escrow tidak dapat dibuat ulang, dihapus, atau diubah di sini. Simpan juga salinannya di luar Panel: kehilangan nilainya dapat membuat data tidak terbaca.",
     "emptyTitle": "Belum ada variabel",
     "emptyDescription": "Tambahkan variabel satu per satu, atau isi dari template aplikasi.",

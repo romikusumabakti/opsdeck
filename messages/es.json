@@ -2391,6 +2391,7 @@
     "managedOn": "El próximo despliegue escribe el .env con estas variables",
     "managedOff": "Los despliegues dejan el .env del servidor como está",
     "missingRequired": "Primero añade las variables obligatorias: {names}",
+    "sharedDeployDir": "Otro entorno despliega en este directorio, así que su .env no se puede gestionar aquí",
     "escrowWarning": "Las variables en custodia no se pueden regenerar, eliminar ni cambiar aquí. Guarda también una copia fuera del Panel: perderlas puede dejar datos ilegibles.",
     "emptyTitle": "Aún no hay variables",
     "emptyDescription": "Añade variables una a una o rellénalas desde la plantilla de la app.",

@@ -17,6 +17,7 @@ import {
   NO_APP_MESSAGE,
   NOT_GENERATED_MESSAGE,
   SECRET_TO_PLAIN_MESSAGE,
+  SHARED_DEPLOY_DIR_MESSAGE,
 } from "@/lib/variables/errors";
 import {
   deleteTemplate as deleteTemplateRow,
@@ -25,6 +26,7 @@ import {
   getAppIdByKey,
   getEnvironmentContext,
   getVariable,
+  hasSharedDeployDir,
   insertVariablesIfMissing,
   listTagVariableNames,
   listTemplates,
@@ -427,7 +429,9 @@ export async function loadManagedEnvFileVariables(
 
 /**
  * Switches whether deploys render this environment's `.env`. Turning it on
- * needs every required template variable to exist (409 listing them).
+ * needs the deploy dirs to itself (a rendered `.env` replaces the whole file;
+ * 409 when another environment deploys into one) and every required template
+ * variable to exist (409 listing them). Deploys check the dir again.
  */
 export async function setEnvFileManaged(
   environmentId: string,
@@ -438,6 +442,9 @@ export async function setEnvFileManaged(
     { variable: ["write"], deploy: ["configure"] }
   );
   const env = await requireEnvironment(environmentId);
+  if (enabled && (await hasSharedDeployDir(env.id))) {
+    fail(409, SHARED_DEPLOY_DIR_MESSAGE);
+  }
   if (enabled && env.appId) {
     const [templates, rows, tagNames] = await Promise.all([
       listTemplates(env.appId),

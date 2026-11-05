@@ -1,6 +1,7 @@
 import { getComponent } from "@/lib/apps";
 import {
   claimDeployment,
+  deployDirSharedWithOtherEnvironment,
   failStaleRunningDeployments,
   finishDeployment,
   getDeployment,
@@ -9,7 +10,7 @@ import {
   listTagVariablesInDeployDir,
   markScriptStarted,
 } from "@/lib/deploy/repository";
-import { buildDeployScript } from "@/lib/deploy/script";
+import { buildDeployScript, stagedEnvFileName } from "@/lib/deploy/script";
 import { deployTagSchema, envVarNameSchema } from "@/lib/deploy/validation";
 import { loadServerCredentials } from "@/lib/environments";
 import { handleCreateDatabaseBackup } from "@/lib/jobs/processor";
@@ -41,12 +42,11 @@ const DEPLOY_COMMAND_TIMEOUT_MS = 20 * 60_000;
 export const HEARTBEAT_INTERVAL_MS = 60_000;
 export const STALE_RUNNING_DEPLOY_MS = 5 * 60_000;
 
-// Where the job stages a managed environment's rendered .env; the script
-// renames it over .env (lib/deploy/script.ts, installStagedEnvFile).
-const STAGED_ENV_FILE = ".env.opsdeck-new";
-
 // Bound on reading the other components' tag lines from the server's .env.
 const READ_TAGS_TIMEOUT_MS = 30_000;
+
+// Bound on removing a staged .env the script never installed.
+const REMOVE_STAGED_TIMEOUT_MS = 30_000;
 
 const INTERRUPTED_MESSAGE =
   "Worker restarted during deploy — server state unknown";
@@ -232,6 +232,19 @@ async function runClaimedDeployment(
     ? await listTagVariablesInDeployDir(target.serverId, target.deployDir)
     : [];
   if (managedVars) {
+    // The rendered .env replaces the whole file, so it must not be shared with
+    // another environment's deploys (their variables would be overwritten).
+    if (
+      await deployDirSharedWithOtherEnvironment(
+        target.serverId,
+        target.deployDir,
+        target.environmentId
+      )
+    ) {
+      throw new DeployAborted(
+        `Another environment deploys into ${target.deployDir} — a managed .env needs the directory to itself`
+      );
+    }
     // Validate now, with the deploying tag standing in for the values still
     // to be read from the server, so bad variables abort before the backup.
     renderManagedEnvFile(
@@ -254,7 +267,14 @@ async function runClaimedDeployment(
     preStartCommand: target.preStartCommand,
     healthUrl: target.healthUrl,
     healthTimeoutSeconds: target.healthTimeoutSeconds,
-    ...(managedVars ? { installStagedEnvFile: true } : {}),
+    ...(managedVars
+      ? {
+          installStagedEnvFile: {
+            deploymentId,
+            variableCount: managedVars.length,
+          },
+        }
+      : {}),
   });
 
   if (target.backupBeforeDeploy) {
@@ -292,6 +312,9 @@ async function runClaimedDeployment(
       "Deployment was marked failed while waiting (stale) — not deploying"
     );
   }
+  // Set once the rendered .env is staged on the server; a failure before the
+  // script ran removes it again (best-effort).
+  let stagedPath: string | null = null;
   if (managedVars) {
     // Staging the file changes nothing the server runs: a failure here fails
     // the deploy with the server's .env and containers untouched.
@@ -303,37 +326,50 @@ async function runClaimedDeployment(
       [target.tagVariable]: deployment.tag,
     };
     const content = renderManagedEnvFile(managedVars, tags);
+    const path = `${target.deployDir}/${stagedEnvFileName(deploymentId)}`;
     try {
-      await uploadRemoteContent(
-        credentials,
-        content,
-        `${target.deployDir}/${STAGED_ENV_FILE}`,
-        0o600
-      );
+      await uploadRemoteContent(credentials, content, path, 0o600);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`Uploading .env failed: ${message}`);
     }
+    stagedPath = path;
     // The count only: variable names and values never reach the run output.
+    // The script prints `Wrote .env (N variables)` once it is installed.
     await appendRunOutput(
       runId,
-      `Wrote .env (${managedVars.length} variables)`
+      `Staged .env (${managedVars.length} variables)`
     );
   }
 
-  // From here the server may run this tag, even if the deploy then fails. Not
-  // best-effort: if it cannot be recorded, do not touch the server.
-  await markScriptStarted(deploymentId);
+  let output: string;
+  try {
+    // From here the server may run this tag, even if the deploy then fails.
+    // Not best-effort: if it cannot be recorded, do not touch the server.
+    await markScriptStarted(deploymentId);
 
-  await appendRunOutput(
-    runId,
-    `Deploying ${target.componentKey} ${deployment.tag} to ${target.deployDir}`
-  );
-  const output = await executeRemoteCommand(
-    credentials,
-    script,
-    DEPLOY_COMMAND_TIMEOUT_MS
-  );
+    await appendRunOutput(
+      runId,
+      `Deploying ${target.componentKey} ${deployment.tag} to ${target.deployDir}`
+    );
+    output = await executeRemoteCommand(
+      credentials,
+      script,
+      DEPLOY_COMMAND_TIMEOUT_MS
+    );
+  } catch (err) {
+    // The script never ran, or failed. Either way the staged file is no longer
+    // wanted: after an install it is gone already (rm -f is a no-op), and a
+    // script still waiting on the lock then fails its install instead of
+    // installing a file from a deploy that was given up on.
+    if (stagedPath) {
+      const remove = `rm -f ${shq(stagedPath)}`;
+      await bestEffort("remove the staged .env", () =>
+        executeRemoteCommand(credentials, remove, REMOVE_STAGED_TIMEOUT_MS)
+      );
+    }
+    throw err;
+  }
   const trimmed = output.trim();
   if (trimmed) await appendRunOutput(runId, trimmed);
 }

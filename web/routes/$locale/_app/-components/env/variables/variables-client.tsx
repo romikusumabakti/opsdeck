@@ -40,7 +40,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { canOrg } from "@/lib/permissions";
-import { missingRequiredNames } from "@/lib/variables/errors";
+import {
+  missingRequiredNames,
+  SHARED_DEPLOY_DIR_MESSAGE,
+} from "@/lib/variables/errors";
 import { ApiError } from "@/web/api/client";
 import { useMe } from "@/web/api/session";
 import {
@@ -134,14 +137,14 @@ export function VariablesClient({
       await setEnvFileManaged(environmentId, enabled);
       toast.success(t(enabled ? "managedOn" : "managedOff"));
     } catch (error) {
-      const names =
-        error instanceof ApiError && error.status === 409
-          ? missingRequiredNames(error.message)
-          : null;
+      const conflict = error instanceof ApiError && error.status === 409;
+      const names = conflict ? missingRequiredNames(error.message) : null;
       toast.error(
         names
           ? t("missingRequired", { names: names.join(", ") })
-          : errorText(error)
+          : conflict && error.message === SHARED_DEPLOY_DIR_MESSAGE
+            ? t("sharedDeployDir")
+            : errorText(error)
       );
     } finally {
       setBusy(null);
