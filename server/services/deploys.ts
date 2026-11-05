@@ -126,8 +126,37 @@ const LOGGED_VALUES = [
 type TargetChanges = z.infer<typeof updateTargetSchema>;
 
 /**
- * The fields an update really changes, in schema order, and one
- * `name: old → new` (or `name: changed`) entry each for the activity log.
+ * A health URL as the activity log may show it: origin and path only, since
+ * userinfo, query and fragment can carry credentials or tokens. Undefined
+ * when it does not parse (the entry then says "changed").
+ */
+function loggableHealthUrl(url: unknown): string | null | undefined {
+  if (url === null) return null;
+  if (typeof url !== "string" || !URL.canParse(url)) return undefined;
+  const { origin, pathname } = new URL(url);
+  return `${origin}${pathname}`;
+}
+
+/** One `name: old → new` (or `name: changed`) entry for the activity log. */
+function describeChange(
+  field: keyof TargetChanges,
+  before: unknown,
+  after: unknown
+): string {
+  if (!(LOGGED_VALUES as readonly string[]).includes(field)) {
+    return `${field}: changed`;
+  }
+  if (field === "healthUrl") {
+    const [from, to] = [loggableHealthUrl(before), loggableHealthUrl(after)];
+    if (from === undefined || to === undefined) return `${field}: changed`;
+    [before, after] = [from, to];
+  }
+  return `${field}: ${JSON.stringify(before)} → ${JSON.stringify(after)}`;
+}
+
+/**
+ * The fields an update really changes, in schema order, and one entry each
+ * for the activity log (see describeChange).
  */
 export function describeTargetChanges(
   before: DeployTarget,
@@ -143,9 +172,7 @@ export function describeTargetChanges(
   return {
     fields,
     changes: fields.map((field) =>
-      (LOGGED_VALUES as readonly string[]).includes(field)
-        ? `${field}: ${JSON.stringify(before[field])} → ${JSON.stringify(changes[field])}`
-        : `${field}: changed`
+      describeChange(field, before[field], changes[field])
     ),
   };
 }
@@ -157,7 +184,13 @@ async function auditTarget(
   action: string,
   data: Record<string, string> = {}
 ): Promise<void> {
-  const environment = await getEnvironmentForLock(target.environmentId);
+  // Runs after the change is committed: a failed lookup only costs the name.
+  const environment = await getEnvironmentForLock(target.environmentId).catch(
+    (error: unknown) => {
+      console.error("Deploy target audit: environment lookup failed:", error);
+      return null;
+    }
+  );
   await recordActivity({
     actorId,
     action,

@@ -52,7 +52,8 @@ export type BackfillCounts = {
  * builds. Sequential, each lookup capped like the live hook (best-effort: a
  * failure skips the build). Last, pre-deploy backup runs get the actor of
  * their deploy run (filled by then). Safe to rerun: only columns (or, for the
- * backup runs, runs) still without a value are written. With `dryRun` nothing is written; the counts say what would be.
+ * backup runs, runs) still without a value are written. With `dryRun` nothing
+ * is written; the counts say what would be.
  */
 export async function backfillBuildActors(
   options: { dryRun: boolean },
