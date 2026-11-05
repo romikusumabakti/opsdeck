@@ -85,7 +85,8 @@
     "issues": "Issues",
     "jira": "Jira",
     "mail": "Mail",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "Variables"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",
@@ -139,7 +140,8 @@
     "tunnels": "Tunnels",
     "mail": "Mail",
     "ci": "CI",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "Variables"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -1826,7 +1828,8 @@
     "userInvitationResent": "{actor} resent the invitation to {email}",
     "profileUpdated": "{actor} updated the profile of {user}",
     "runAcknowledged": "{actor} acknowledged {count, plural, one {# failed run} other {# failed runs}} in {environment}",
-    "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}"
+    "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}",
+    "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})"
   },
   "jira": {
     "title": "Jira",
@@ -2281,7 +2284,8 @@
     "retryBranch": "Commit to {branch} again",
     "commitDone": "Pipeline file committed to every branch",
     "commitDoneBranch": "Pipeline file committed to {branch}",
-    "commitFailed": "Pipeline file not committed to {branch}: {reason}"
+    "commitFailed": "Pipeline file not committed to {branch}: {reason}",
+    "variableTemplates": "Variables"
   },
   "appForm": {
     "title": "Register app",
@@ -2370,6 +2374,114 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    }
+  },
+  "variables": {
+    "title": "Variables",
+    "subtitle": "The variables this environment's .env is rendered from. Secret and generated values are encrypted and shown only on request.",
+    "add": "Add variable",
+    "applyTemplate": "Fill from app template",
+    "revealValues": "Reveal values",
+    "hideValues": "Hide values",
+    "noAppHint": "This environment has no app, so there is no template to fill from.",
+    "templateApplied": "{count, plural, =0 {No variables were missing} one {# variable added from the template} other {# variables added from the template}}",
+    "templateMissing": "Still missing required variables: {names}",
+    "managedTitle": "Manage .env from the Panel",
+    "managedDescription": "When on, the next deploy replaces the server's .env with these variables. When off, the server's .env stays as it is and only the image tag changes.",
+    "managedOn": "The next deploy writes the .env from these variables",
+    "managedOff": "Deploys leave the server's .env as it is",
+    "missingRequired": "Add the required variables first: {names}",
+    "escrowWarning": "Escrowed variables can't be regenerated, deleted or changed here. Keep a copy outside the Panel as well: losing them can make data unreadable.",
+    "emptyTitle": "No variables yet",
+    "emptyDescription": "Add variables one by one, or fill them from the app's template.",
+    "colName": "Name",
+    "colKind": "Kind",
+    "colValue": "Value",
+    "colUpdated": "Updated",
+    "escrow": "Escrow",
+    "kind": {
+      "plain": "Plain",
+      "secret": "Secret",
+      "generated": "Generated"
+    },
+    "emptyValue": "empty",
+    "updatedByUnknown": "Unknown",
+    "rowActions": "Actions for {name}",
+    "edit": "Edit",
+    "regenerate": "Regenerate",
+    "delete": "Delete",
+    "escrowLocked": "Escrowed",
+    "regenerateConfirmTitle": "Regenerate {name}?",
+    "regenerateConfirmDescription": "The old value is replaced for good. The app picks up the new one on its next deploy.",
+    "regenerated": "{name} regenerated",
+    "deleteConfirmTitle": "Delete {name}?",
+    "deleteConfirmDescription": "The variable is removed from the Panel. A managed .env drops it on the next deploy.",
+    "deleted": "{name} deleted",
+    "escrowedError": "Escrowed variables can't be regenerated, deleted or changed.",
+    "escrowRemovalError": "Only an admin can remove escrow, explicitly.",
+    "notGeneratedError": "Only generated variables can be regenerated.",
+    "form": {
+      "createTitle": "Add variable",
+      "editTitle": "Edit {name}",
+      "description": "Values are saved as one line. Secret and generated values are stored encrypted.",
+      "name": "Name",
+      "nameHint": "Upper-case letters, digits and _, not starting with a digit.",
+      "nameInvalid": "Use upper-case letters, digits and _, not starting with a digit",
+      "kind": "Kind",
+      "kindHint": {
+        "plain": "Shown to everyone who can open this page.",
+        "secret": "Encrypted; shown only on request, and each reveal is logged.",
+        "generated": "A random value the Panel creates; encrypted like a secret."
+      },
+      "value": "Value",
+      "valueHint": "One line; quotes, $, # and spaces are kept as typed.",
+      "valueHintGenerated": "Leave empty to generate a random value.",
+      "valueHintGeneratedKeep": "Leave empty to keep the current value; use Regenerate for a new one.",
+      "valueHintSecretKeep": "Leave empty to keep the current value.",
+      "valueInvalid": "The value must be one line (no line breaks)",
+      "escrow": "Escrow",
+      "escrowHint": "An escrowed variable can't be regenerated, deleted or changed here; only an admin can remove escrow.",
+      "saved": "{name} saved",
+      "clearEscrow": "Remove escrow",
+      "clearEscrowConfirmTitle": "Remove escrow from {name}?",
+      "clearEscrowConfirmDescription": "Its value can then be changed, regenerated or deleted. Make sure a copy is kept outside the Panel.",
+      "escrowCleared": "Escrow removed from {name}"
+    }
+  },
+  "variableTemplates": {
+    "title": "Variable templates",
+    "subtitle": "The variables every environment of {app} expects in its .env.",
+    "add": "Add template",
+    "emptyTitle": "No variable templates",
+    "emptyDescription": "Templates let environments fill their variables in one step.",
+    "colName": "Name",
+    "colKind": "Kind",
+    "colDefault": "Default",
+    "colDescription": "Description",
+    "required": "Required",
+    "length": "{length} characters",
+    "deleteConfirmTitle": "Delete the template {name}?",
+    "deleteConfirmDescription": "Environments keep the variables they already have.",
+    "deleted": "Template {name} deleted",
+    "form": {
+      "createTitle": "Add variable template",
+      "editTitle": "Edit {name}",
+      "description": "Plain templates may have a default; generated ones a length; secrets neither.",
+      "name": "Name",
+      "nameInvalid": "Use upper-case letters, digits and _, not starting with a digit",
+      "kind": "Kind",
+      "defaultValue": "Default value",
+      "defaultValueHint": "Optional. Placeholders: '{host}', '{url}' and '{envSlug}' are replaced with the environment's values.",
+      "defaultInvalid": "The default must be one line (no line breaks)",
+      "generatedLength": "Length",
+      "generatedLengthHint": "{min} to {max} characters; empty means 32.",
+      "lengthInvalid": "Enter a whole number from {min} to {max}",
+      "required": "Required",
+      "requiredHint": "An environment can't manage its .env until this variable exists.",
+      "escrow": "Escrow",
+      "escrowHint": "Variables filled from this template can't be regenerated or deleted; keep a copy outside the Panel.",
+      "descriptionLabel": "Description",
+      "saved": "Template {name} saved"
     }
   }
 }

@@ -149,6 +149,7 @@ export function groupEnvironmentsByProject<
 export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "services",
   "deploys",
+  "variables",
   "databases",
   "mock-time",
   "mail",
@@ -164,6 +165,7 @@ export const SECTION_PERMS = {
   "mock-time": { clock: ["control"] },
   mail: { mail: ["read"] },
   settings: { environment: ["update"] },
+  variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;
 
 export type SwitchEnvironment = {

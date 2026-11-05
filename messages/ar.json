@@ -85,7 +85,8 @@
     "issues": "المشكلات",
     "jira": "Jira",
     "mail": "البريد",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "المتغيرات"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",
@@ -139,7 +140,8 @@
     "tunnels": "الأنفاق",
     "mail": "البريد",
     "ci": "CI",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "المتغيرات"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -1826,7 +1828,8 @@
     "userInvitationResent": "{actor} أعاد إرسال الدعوة إلى {email}",
     "profileUpdated": "{actor} حدّث الملف الشخصي لـ {user}",
     "runAcknowledged": "أقرّ {actor} بـ {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
-    "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}"
+    "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
+    "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})"
   },
   "jira": {
     "title": "Jira",
@@ -2281,7 +2284,8 @@
     "retryBranch": "Commit to {branch} again",
     "commitDone": "Pipeline file committed to every branch",
     "commitDoneBranch": "Pipeline file committed to {branch}",
-    "commitFailed": "Pipeline file not committed to {branch}: {reason}"
+    "commitFailed": "Pipeline file not committed to {branch}: {reason}",
+    "variableTemplates": "المتغيرات"
   },
   "appForm": {
     "title": "Register app",
@@ -2370,6 +2374,114 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    }
+  },
+  "variables": {
+    "title": "المتغيرات",
+    "subtitle": "المتغيرات التي يُنشأ منها ملف .env لهذه البيئة. القيم السرية والمولّدة مشفّرة ولا تُعرض إلا عند الطلب.",
+    "add": "إضافة متغير",
+    "applyTemplate": "التعبئة من قالب التطبيق",
+    "revealValues": "إظهار القيم",
+    "hideValues": "إخفاء القيم",
+    "noAppHint": "لا يوجد تطبيق لهذه البيئة، لذا لا يوجد قالب للتعبئة منه.",
+    "templateApplied": "{count, plural, =0 {لم يكن هناك متغير ناقص} one {أُضيف متغير واحد من القالب} other {أُضيف # من المتغيرات من القالب}}",
+    "templateMissing": "ما زالت متغيرات مطلوبة ناقصة: {names}",
+    "managedTitle": "إدارة .env من اللوحة",
+    "managedDescription": "عند التفعيل، يستبدل النشر التالي ملف .env على الخادم بهذه المتغيرات. عند الإيقاف، يبقى ملف .env على الخادم كما هو ويتغير وسم الصورة فقط.",
+    "managedOn": "يكتب النشر التالي ملف .env من هذه المتغيرات",
+    "managedOff": "تترك عمليات النشر ملف .env على الخادم كما هو",
+    "missingRequired": "أضف المتغيرات المطلوبة أولاً: {names}",
+    "escrowWarning": "لا يمكن إعادة توليد المتغيرات المودعة أو حذفها أو تغييرها هنا. احتفظ بنسخة منها خارج اللوحة أيضاً: فقدانها قد يجعل البيانات غير قابلة للقراءة.",
+    "emptyTitle": "لا توجد متغيرات بعد",
+    "emptyDescription": "أضف المتغيرات واحداً تلو الآخر، أو عبّئها من قالب التطبيق.",
+    "colName": "الاسم",
+    "colKind": "النوع",
+    "colValue": "القيمة",
+    "colUpdated": "آخر تحديث",
+    "escrow": "إيداع",
+    "kind": {
+      "plain": "عادي",
+      "secret": "سري",
+      "generated": "مولّد"
+    },
+    "emptyValue": "فارغ",
+    "updatedByUnknown": "غير معروف",
+    "rowActions": "إجراءات {name}",
+    "edit": "تعديل",
+    "regenerate": "إعادة التوليد",
+    "delete": "حذف",
+    "escrowLocked": "مودع",
+    "regenerateConfirmTitle": "إعادة توليد {name}؟",
+    "regenerateConfirmDescription": "تُستبدل القيمة القديمة نهائياً. يستخدم التطبيق القيمة الجديدة في النشر التالي.",
+    "regenerated": "أُعيد توليد {name}",
+    "deleteConfirmTitle": "حذف {name}؟",
+    "deleteConfirmDescription": "يُحذف المتغير من اللوحة. ملف .env المُدار يُسقطه في النشر التالي.",
+    "deleted": "حُذف {name}",
+    "escrowedError": "لا يمكن إعادة توليد المتغيرات المودعة أو حذفها أو تغييرها.",
+    "escrowRemovalError": "لا يمكن إزالة الإيداع إلا من قبل مسؤول وبشكل صريح.",
+    "notGeneratedError": "لا يمكن إعادة توليد إلا المتغيرات المولّدة.",
+    "form": {
+      "createTitle": "إضافة متغير",
+      "editTitle": "تعديل {name}",
+      "description": "تُحفظ القيم في سطر واحد. القيم السرية والمولّدة تُحفظ مشفّرة.",
+      "name": "الاسم",
+      "nameHint": "أحرف إنجليزية كبيرة وأرقام و _، ولا يبدأ برقم.",
+      "nameInvalid": "استخدم أحرفاً إنجليزية كبيرة وأرقاماً و _، ولا تبدأ برقم",
+      "kind": "النوع",
+      "kindHint": {
+        "plain": "مرئي لكل من يمكنه فتح هذه الصفحة.",
+        "secret": "مشفّر؛ لا يُعرض إلا عند الطلب، وكل كشف يُسجّل.",
+        "generated": "قيمة عشوائية تنشئها اللوحة؛ مشفّرة مثل القيمة السرية."
+      },
+      "value": "القيمة",
+      "valueHint": "سطر واحد؛ تُحفظ علامات الاقتباس و $ و # والمسافات كما كُتبت.",
+      "valueHintGenerated": "اتركه فارغاً لتوليد قيمة عشوائية.",
+      "valueHintGeneratedKeep": "اتركه فارغاً للإبقاء على القيمة الحالية؛ استخدم إعادة التوليد لقيمة جديدة.",
+      "valueHintSecretKeep": "اتركه فارغاً للإبقاء على القيمة الحالية.",
+      "valueInvalid": "يجب أن تكون القيمة سطراً واحداً (بلا فواصل أسطر)",
+      "escrow": "إيداع",
+      "escrowHint": "لا يمكن إعادة توليد المتغير المودع أو حذفه أو تغييره هنا؛ ولا يزيل الإيداع إلا مسؤول.",
+      "saved": "حُفظ {name}",
+      "clearEscrow": "إزالة الإيداع",
+      "clearEscrowConfirmTitle": "إزالة الإيداع عن {name}؟",
+      "clearEscrowConfirmDescription": "يمكن بعدها تغيير قيمته أو إعادة توليدها أو حذفها. تأكد من وجود نسخة خارج اللوحة.",
+      "escrowCleared": "أُزيل الإيداع عن {name}"
+    }
+  },
+  "variableTemplates": {
+    "title": "قوالب المتغيرات",
+    "subtitle": "المتغيرات التي تتوقعها كل بيئة من {app} في ملف .env.",
+    "add": "إضافة قالب",
+    "emptyTitle": "لا توجد قوالب متغيرات",
+    "emptyDescription": "تتيح القوالب للبيئات تعبئة متغيراتها بخطوة واحدة.",
+    "colName": "الاسم",
+    "colKind": "النوع",
+    "colDefault": "الافتراضي",
+    "colDescription": "الوصف",
+    "required": "مطلوب",
+    "length": "{length} حرفاً",
+    "deleteConfirmTitle": "حذف القالب {name}؟",
+    "deleteConfirmDescription": "تحتفظ البيئات بالمتغيرات الموجودة لديها.",
+    "deleted": "حُذف القالب {name}",
+    "form": {
+      "createTitle": "إضافة قالب متغير",
+      "editTitle": "تعديل {name}",
+      "description": "القوالب العادية قد يكون لها قيمة افتراضية؛ والمولّدة طول؛ والسرية لا هذا ولا ذاك.",
+      "name": "الاسم",
+      "nameInvalid": "استخدم أحرفاً إنجليزية كبيرة وأرقاماً و _، ولا تبدأ برقم",
+      "kind": "النوع",
+      "defaultValue": "القيمة الافتراضية",
+      "defaultValueHint": "اختياري. تُستبدل العناصر النائبة '{host}' و '{url}' و '{envSlug}' بقيم البيئة.",
+      "defaultInvalid": "يجب أن تكون القيمة الافتراضية سطراً واحداً (بلا فواصل أسطر)",
+      "generatedLength": "الطول",
+      "generatedLengthHint": "من {min} إلى {max} حرفاً؛ الفارغ يعني 32.",
+      "lengthInvalid": "أدخل عدداً صحيحاً من {min} إلى {max}",
+      "required": "مطلوب",
+      "requiredHint": "لا يمكن للبيئة إدارة ملف .env قبل وجود هذا المتغير.",
+      "escrow": "إيداع",
+      "escrowHint": "لا يمكن إعادة توليد المتغيرات المعبأة من هذا القالب أو حذفها؛ احتفظ بنسخة خارج اللوحة.",
+      "descriptionLabel": "الوصف",
+      "saved": "حُفظ القالب {name}"
     }
   }
 }

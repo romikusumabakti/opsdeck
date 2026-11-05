@@ -109,6 +109,12 @@ function message(
         actor,
         environment: String(d.environment),
       });
+    case "variables.revealed":
+      return t("variablesRevealed", {
+        actor,
+        names: String(d.names) || "—",
+        environment: String(d.environment),
+      });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "mail.deleted":
