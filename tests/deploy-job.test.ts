@@ -34,13 +34,17 @@ const repo = vi.hoisted(() => ({
   heartbeatDeployment: vi.fn(),
   markScriptStarted: vi.fn(),
   failStaleRunningDeployments: vi.fn(),
+  listTagVariablesInDeployDir: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
 const apps = vi.hoisted(() => ({ getComponent: vi.fn() }));
 vi.mock("@/lib/apps", () => apps);
 
-const ssh = vi.hoisted(() => ({ executeRemoteCommand: vi.fn() }));
+const ssh = vi.hoisted(() => ({
+  executeRemoteCommand: vi.fn(),
+  uploadRemoteContent: vi.fn(),
+}));
 vi.mock("@/lib/ssh", () => ssh);
 
 const progress = vi.hoisted(() => ({
@@ -60,9 +64,15 @@ vi.mock("@/lib/queue", () => queue);
 const processor = vi.hoisted(() => ({ handleCreateDatabaseBackup: vi.fn() }));
 vi.mock("@/lib/jobs/processor", () => processor);
 
+const variables = vi.hoisted(() => ({
+  loadManagedEnvFileVariables: vi.fn(),
+}));
+vi.mock("@/server/services/variables", () => variables);
+
 const { handleDeploy, HEARTBEAT_INTERVAL_MS, STALE_RUNNING_DEPLOY_MS } =
   await import("@/lib/jobs/deploy");
 const { requestDeployment } = await import("@/server/services/deployments");
+const { buildDeployScript } = await import("@/lib/deploy/script");
 
 const payload = { deploymentId: DEPLOYMENT_ID, runId: RUN_ID };
 
@@ -100,6 +110,9 @@ beforeEach(() => {
   });
   progress.createRun.mockResolvedValue(RUN_ID);
   ssh.executeRemoteCommand.mockResolvedValue("HEALTHY\n");
+  ssh.uploadRemoteContent.mockResolvedValue(undefined);
+  variables.loadManagedEnvFileVariables.mockResolvedValue(null);
+  repo.listTagVariablesInDeployDir.mockResolvedValue(["IMAGE_TAG"]);
 });
 
 afterEach(() => {
@@ -469,6 +482,231 @@ describe("handleDeploy", () => {
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
     expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
     expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, "decrypt failed");
+  });
+});
+
+// Distinctive secret strings: none of them, nor the names of the variables,
+// may appear in run output, failure messages or any command sent over SSH.
+const SECRETS = {
+  DB_PASSWORD: "s3cr3t-Pa55word-XYZZY",
+  API_TOKEN: "tok-QWERTY-998877 with $HOME #x",
+};
+const managedVars = [
+  { name: "DB_PASSWORD", value: SECRETS.DB_PASSWORD },
+  { name: "API_TOKEN", value: SECRETS.API_TOKEN },
+  { name: "APP_URL", value: "https://app.example.test" },
+];
+const STAGED_PATH = "/opt/dplk-accounting/.env.opsdeck-new";
+
+function everythingVisible(): string {
+  return [
+    ...progress.appendRunOutput.mock.calls.map((c) => String(c[1])),
+    ...progress.failRun.mock.calls.map((c) => String(c[1])),
+    ...ssh.executeRemoteCommand.mock.calls.map((c) => String(c[1])),
+  ].join("\n");
+}
+
+function expectNoSecrets(): void {
+  const visible = everythingVisible();
+  for (const [name, value] of Object.entries(SECRETS)) {
+    expect(visible).not.toContain(value);
+    expect(visible).not.toContain(name);
+  }
+}
+
+function uploadedContent(): string {
+  return String(ssh.uploadRemoteContent.mock.calls[0]?.[1]);
+}
+
+describe("handleDeploy with a managed .env", () => {
+  // Review Focus 2.
+  it("an unmanaged environment uploads nothing and runs today's script", async () => {
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+
+    expect(variables.loadManagedEnvFileVariables).toHaveBeenCalledWith(ENV_ID);
+    expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+    expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+    expect(ssh.executeRemoteCommand.mock.calls[0]?.[1]).toBe(
+      buildDeployScript({
+        registry: "192.168.56.113:5000",
+        bundleImage: "dplk-accounting-deploy",
+        tag: TAG,
+        deployDir: target.deployDir,
+        services: target.services,
+        tagVariable: target.tagVariable,
+        preStartCommand: target.preStartCommand,
+        healthUrl: target.healthUrl,
+        healthTimeoutSeconds: target.healthTimeoutSeconds,
+      })
+    );
+    expect(outputLines().some((l) => l.startsWith("Wrote .env"))).toBe(false);
+  });
+
+  it("uploads the rendered .env (0600) before the script, which installs it", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+
+    expect(ssh.uploadRemoteContent).toHaveBeenCalledTimes(1);
+    const [creds, content, path, mode] =
+      ssh.uploadRemoteContent.mock.calls[0] ?? [];
+    expect(creds).toEqual({
+      host: "10.0.0.5",
+      username: "ops",
+      password: "pw",
+    });
+    expect(path).toBe(STAGED_PATH);
+    expect(mode).toBe(0o600);
+    expect(content).toContain(`DB_PASSWORD='${SECRETS.DB_PASSWORD}'`);
+    expect(content).toContain("APP_URL='https://app.example.test'");
+    expect(content).toMatch(new RegExp(`\nIMAGE_TAG=${TAG}\n$`));
+
+    // Single component: no read of the server's .env, only the script.
+    expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+    const script = String(ssh.executeRemoteCommand.mock.calls[0]?.[1]);
+    expect(script).toContain("mv -f .env.opsdeck-new .env");
+    const uploaded = ssh.uploadRemoteContent.mock.invocationCallOrder[0] ?? 0;
+    const marked = repo.markScriptStarted.mock.invocationCallOrder[0] ?? 0;
+    const sent = ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0;
+    expect(uploaded).toBeLessThan(marked);
+    expect(marked).toBeLessThan(sent);
+
+    expect(outputLines()).toContain("Wrote .env (3 variables)");
+    expectNoSecrets();
+  });
+
+  // Review Focus 3.
+  it("a failed upload fails the deployment without running the script", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    ssh.uploadRemoteContent.mockRejectedValue(new Error("Permission denied"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expect(repo.markScriptStarted).not.toHaveBeenCalled();
+    expect(repo.finishDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, "failed");
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      expect.stringContaining("Permission denied")
+    );
+    expect(outputLines().some((l) => l.startsWith("Wrote .env"))).toBe(false);
+    expectNoSecrets();
+  });
+
+  it("variables that cannot be rendered fail the deploy before the backup", async () => {
+    repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+    variables.loadManagedEnvFileVariables.mockResolvedValue([
+      ...managedVars,
+      { name: "IMAGE_TAG", value: SECRETS.DB_PASSWORD },
+    ]);
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
+    expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+    expectNoSecrets();
+  });
+
+  describe("multi-component deploy dir", () => {
+    const backendTarget = {
+      ...target,
+      componentKey: "dplk-customer-portal-backend",
+      deployDir: "/opt/portal",
+      tagVariable: "BACKEND_IMAGE_TAG",
+    };
+
+    beforeEach(() => {
+      repo.getTarget.mockResolvedValue(backendTarget);
+      variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+      repo.listTagVariablesInDeployDir.mockResolvedValue([
+        "BACKEND_IMAGE_TAG",
+        "FRONTEND_IMAGE_TAG",
+      ]);
+    });
+
+    it("keeps the other component's tag from the server's .env", async () => {
+      ssh.executeRemoteCommand
+        .mockResolvedValueOnce("FRONTEND_IMAGE_TAG=fe-main-1234567\n")
+        .mockResolvedValueOnce("HEALTHY\n");
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "success",
+      });
+
+      expect(repo.listTagVariablesInDeployDir).toHaveBeenCalledWith(
+        SERVER_ID,
+        "/opt/portal"
+      );
+      const read = String(ssh.executeRemoteCommand.mock.calls[0]?.[1]);
+      expect(read).toContain("'/opt/portal'");
+      expect(read).toContain("FRONTEND_IMAGE_TAG");
+      expect(read).not.toContain("BACKEND_IMAGE_TAG");
+      const content = uploadedContent();
+      expect(content).toContain(`\nBACKEND_IMAGE_TAG=${TAG}\n`);
+      expect(content).toContain("\nFRONTEND_IMAGE_TAG=fe-main-1234567\n");
+      expect(ssh.uploadRemoteContent.mock.calls[0]?.[2]).toBe(
+        "/opt/portal/.env.opsdeck-new"
+      );
+      // The read happens before the upload, the script after it.
+      const readAt = ssh.executeRemoteCommand.mock.invocationCallOrder[0] ?? 0;
+      const upAt = ssh.uploadRemoteContent.mock.invocationCallOrder[0] ?? 0;
+      const runAt = ssh.executeRemoteCommand.mock.invocationCallOrder[1] ?? 0;
+      expect(readAt).toBeLessThan(upAt);
+      expect(upAt).toBeLessThan(runAt);
+      expectNoSecrets();
+    });
+
+    it("reads quoted values and takes the last line, as Compose does", async () => {
+      ssh.executeRemoteCommand
+        .mockResolvedValueOnce(
+          'FRONTEND_IMAGE_TAG=fe-old-1\nFRONTEND_IMAGE_TAG="fe-new-2"\r\n'
+        )
+        .mockResolvedValueOnce("HEALTHY\n");
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "success",
+      });
+      expect(uploadedContent()).toContain("\nFRONTEND_IMAGE_TAG=fe-new-2\n");
+    });
+
+    it("leaves out a tag the server's .env does not have", async () => {
+      ssh.executeRemoteCommand
+        .mockResolvedValueOnce("")
+        .mockResolvedValueOnce("HEALTHY\n");
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "success",
+      });
+      expect(uploadedContent()).not.toContain("FRONTEND_IMAGE_TAG");
+      expect(uploadedContent()).toContain(`BACKEND_IMAGE_TAG=${TAG}`);
+    });
+
+    it("an invalid tag on the server aborts before the upload", async () => {
+      ssh.executeRemoteCommand.mockResolvedValueOnce(
+        "FRONTEND_IMAGE_TAG=latest\n"
+      );
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "failed",
+      });
+      expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+      expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+      expect(progress.failRun).toHaveBeenCalledWith(
+        RUN_ID,
+        expect.stringContaining("FRONTEND_IMAGE_TAG")
+      );
+    });
+
+    it("an unmanaged environment does not read the server's .env", async () => {
+      variables.loadManagedEnvFileVariables.mockResolvedValue(null);
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "success",
+      });
+      expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+      expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+    });
   });
 });
 

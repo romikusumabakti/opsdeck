@@ -133,6 +133,28 @@ export async function getTarget(id: string): Promise<DeployTarget | null> {
   return row ?? null;
 }
 
+/**
+ * The tag variables of every deploy target that writes the `.env` in this
+ * deploy dir on this server (a multi-component app has one per component),
+ * once each, sorted.
+ */
+export async function listTagVariablesInDeployDir(
+  serverId: string,
+  deployDir: string
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ name: deployTargets.tagVariable })
+    .from(deployTargets)
+    .where(
+      and(
+        eq(deployTargets.serverId, serverId),
+        eq(deployTargets.deployDir, deployDir)
+      )
+    )
+    .orderBy(deployTargets.tagVariable);
+  return rows.map((row) => row.name);
+}
+
 export async function listTargetsForEnvironment(
   environmentId: string
 ): Promise<TargetState[]> {
