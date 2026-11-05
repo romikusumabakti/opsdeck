@@ -7,6 +7,7 @@ import {
 import {
   type AnyPgColumn,
   boolean,
+  check,
   customType,
   index,
   integer,
@@ -22,6 +23,7 @@ import {
 import type { AccentColor } from "@/lib/accents";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { PipelineFileCommits } from "@/lib/ci/types";
+import type { ServerPreflight } from "@/lib/provisioning/preflight";
 import type { MotifPreference } from "@/lib/motifs";
 import type { WorkingHours } from "@/lib/user-display";
 
@@ -107,6 +109,28 @@ export const serverPlacementEnum = pgEnum("server_placement", [
   "open",
 ]);
 
+// Where a db service's database lives: "shared" is a database host's
+// container, "container" a Postgres container of its own, "external" a server
+// the Panel does not manage.
+export const databaseKindEnum = pgEnum("database_kind", [
+  "shared",
+  "container",
+  "external",
+]);
+
+export const provisioningStepKindEnum = pgEnum("provisioning_step_kind", [
+  "prepare_deploy_dir",
+  "create_database",
+  "deploy",
+]);
+
+export const provisioningStepStatusEnum = pgEnum("provisioning_step_status", [
+  "pending",
+  "running",
+  "done",
+  "failed",
+]);
+
 export const servers = pgTable("servers", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   name: text("name").notNull(),
@@ -118,9 +142,40 @@ export const servers = pgTable("servers", {
   // "/home/deploy" or "/var/www" — to limit the blast radius of the explorer.
   sftpRoot: text("sftp_root").notNull().default("/"),
   placement: serverPlacementEnum("placement").notNull().default("restricted"),
+  // Last preflight scan (non-secret facts) and when it ran; null until the
+  // server has been scanned.
+  preflight: jsonb("preflight").$type<ServerPreflight>(),
+  preflightAt: timestamp("preflight_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// A Postgres container on a server that environments can share; the Panel
+// creates a database and role inside it.
+export const databaseHosts = pgTable(
+  "database_hosts",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    // restrict: a server backing a database host can't be deleted.
+    serverId: uuid("server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    containerName: text("container_name").notNull(),
+    // Where backups are written, as a path inside the container.
+    backupPath: text("backup_path").notNull(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("database_hosts_server_container_idx").on(
+      t.serverId,
+      t.containerName
+    ),
+    // FK index: the onDelete:restrict check scans by server.
+    index("database_hosts_server_idx").on(t.serverId),
+  ]
+);
 
 // The real, logical project — one application (e.g. "Common Membership",
 // "TMLI Portal"), independent of how many times it is deployed. An issue
@@ -184,8 +239,14 @@ export const environments = pgTable(
     // Whether the Panel renders this environment's .env on every deploy. False
     // keeps the server-side file hand-managed (only the tag line changes).
     envFileManaged: boolean("env_file_managed").notNull().default(false),
+    // Host port the environment's entry point listens on. Null until chosen.
+    entryPort: integer("entry_port"),
   },
   (t) => [
+    check(
+      "environments_entry_port_range",
+      sql`${t.entryPort} between 1 and 65535`
+    ),
     // Every project page lists its environments; index the parent FK.
     index("environments_project_idx").on(t.projectId),
     // FK index: environments of an app, and the onDelete:restrict check.
@@ -237,6 +298,18 @@ export const environmentServices = pgTable(
     // docker/kubernetes — path inside the container/pod; systemd — path on the
     // host filesystem, writable by the DB's OS user (postgres/mssql/mysql).
     dbBackupPath: text("db_backup_path"),
+    // Where the database lives; null on services that predate provisioning.
+    dbKind: databaseKindEnum("db_kind"),
+    // Set when dbKind is "shared". restrict: a host in use can't be deleted.
+    databaseHostId: uuid("database_host_id").references(
+      () => databaseHosts.id,
+      { onDelete: "restrict" }
+    ),
+    // The role the app connects as. Not a secret.
+    dbRole: text("db_role"),
+    // Name of the environment variable that holds the role's password; the
+    // value itself is never stored here.
+    dbPasswordVariable: text("db_password_variable"),
 
     // --- backend-role config (null on non-backend services) ---
     // URL of the environment's clock resource (e.g. `https://api.example.com/v1/clock`).
@@ -256,6 +329,12 @@ export const environmentServices = pgTable(
     ),
     // Server-usage lookups + the onDelete:restrict check scan by server_id.
     index("environment_services_server_idx").on(t.serverId),
+    // FK index: the onDelete:restrict check scans by database host.
+    index("environment_services_database_host_idx").on(t.databaseHostId),
+    // A database name is unique within its host.
+    uniqueIndex("environment_services_host_db_name_idx")
+      .on(t.databaseHostId, t.dbName)
+      .where(sql`${t.databaseHostId} is not null`),
   ]
 );
 
@@ -293,6 +372,8 @@ export const runKindEnum = pgEnum("run_kind", [
   "mock_time",
   "test",
   "deploy",
+  // Added by the provisioning migration (outside its transaction).
+  "provision",
 ]);
 
 export const runs = pgTable(
@@ -534,6 +615,38 @@ export const environmentDeployLocks = pgTable(
   (t) => [
     index("environment_deploy_locks_locked_by_idx").on(t.lockedBy),
     index("environment_deploy_locks_expires_at_idx").on(t.expiresAt),
+  ]
+);
+
+// Ordered steps of an environment's provisioning; see lib/provisioning.
+export const provisioningSteps = pgTable(
+  "provisioning_steps",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    kind: provisioningStepKindEnum("kind").notNull(),
+    // Non-secret parameters only; secrets come from the environment's
+    // variables at run time.
+    params: jsonb("params").$type<Record<string, unknown>>().notNull(),
+    status: provisioningStepStatusEnum("status").notNull().default("pending"),
+    lastError: text("last_error"),
+    // set null: the step outlives the run that last executed it.
+    lastRunId: uuid("last_run_id").references(() => runs.id, {
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("provisioning_steps_environment_position_idx").on(
+      t.environmentId,
+      t.position
+    ),
+    // FK index: "on delete set null" scans by run when a run is deleted.
+    index("provisioning_steps_last_run_idx").on(t.lastRunId),
   ]
 );
 
@@ -1664,6 +1777,10 @@ export type EnvironmentVariable = InferSelectModel<typeof environmentVariables>;
 export type VariableKind = (typeof variableKindEnum.enumValues)[number];
 export type NewDeployTarget = InferInsertModel<typeof deployTargets>;
 export type Build = InferSelectModel<typeof builds>;
+export type DatabaseHost = InferSelectModel<typeof databaseHosts>;
+export type NewDatabaseHost = InferInsertModel<typeof databaseHosts>;
+export type ProvisioningStep = InferSelectModel<typeof provisioningSteps>;
+export type NewProvisioningStep = InferInsertModel<typeof provisioningSteps>;
 export type EnvironmentDeployLock = InferSelectModel<
   typeof environmentDeployLocks
 >;
