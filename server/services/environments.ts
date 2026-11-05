@@ -1,5 +1,14 @@
-import { and, asc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  inArray,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
+import { recordActivity } from "@/lib/activity";
 import { assignableUsersWhere } from "@/lib/assignees";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
@@ -23,6 +32,7 @@ import {
   environmentMailpit,
   environmentServices,
   environments,
+  environmentVariables,
   type NewEnvironmentService,
   projectMembers,
   projects,
@@ -760,16 +770,89 @@ export async function updateEnvironment(
   }
 }
 
-export async function deleteEnvironment(id: string): Promise<ActionResponse> {
-  await requireProjectPermission(
+/**
+ * Deletes an environment; its services, deploy targets and variables go with
+ * it. Escrowed variables (e.g. a data encryption key) exist nowhere else, so
+ * while the environment has any the delete is refused (409) unless an admin
+ * with org integration:manage passes `confirmEscrowedDeletion`. The delete
+ * itself re-checks escrow, so a variable escrowed after the check still
+ * blocks it. A delete that removes variables is recorded in the activity
+ * feed with their names and count, never their values.
+ */
+export async function deleteEnvironment(
+  id: string,
+  {
+    confirmEscrowedDeletion = false,
+  }: { confirmEscrowedDeletion?: boolean } = {}
+): Promise<ActionResponse> {
+  const { session } = await requireProjectPermission(
     { environmentId: id },
     { environment: ["delete"] }
   );
+  const variables = await db
+    .select({
+      name: environmentVariables.name,
+      escrow: environmentVariables.escrow,
+    })
+    .from(environmentVariables)
+    .where(eq(environmentVariables.environmentId, id))
+    .orderBy(asc(environmentVariables.name));
+  const confirmed =
+    confirmEscrowedDeletion &&
+    canOrg(session.user.role, { integration: ["manage"] });
+  const refuseEscrowed = async (): Promise<never> => {
+    const t = await getServerTranslator("actionErrors");
+    throw new HTTPException(409, {
+      message: t("environmentHasEscrowedVariables"),
+    });
+  };
+  if (!confirmed && variables.some((v) => v.escrow)) await refuseEscrowed();
+
+  let deleted: { name: string } | undefined;
   try {
-    await db.delete(environments).where(eq(environments.id, id));
-    return { success: true, message: "Environment deleted successfully" };
+    [deleted] = await db
+      .delete(environments)
+      .where(
+        confirmed
+          ? eq(environments.id, id)
+          : and(
+              eq(environments.id, id),
+              notExists(
+                db
+                  .select({ id: environmentVariables.id })
+                  .from(environmentVariables)
+                  .where(
+                    and(
+                      eq(environmentVariables.environmentId, id),
+                      eq(environmentVariables.escrow, true)
+                    )
+                  )
+              )
+            )
+      )
+      .returning({ name: environments.name });
   } catch (error) {
     console.error(`Failed to delete environment ${id}:`, error);
     return { success: false, message: "Failed to delete environment" };
   }
+  // The environment exists (the guard found it): nothing deleted means a
+  // variable was escrowed since the check.
+  if (!deleted) {
+    if (!confirmed) await refuseEscrowed();
+    return { success: false, message: "Environment not found" };
+  }
+  if (variables.length > 0) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "environment.deletedWithVariables",
+      entityType: "environment",
+      entityId: id,
+      data: {
+        environment: deleted.name,
+        count: variables.length,
+        names: variables.map((v) => v.name).join(", "),
+      },
+    });
+  }
+  return { success: true, message: "Environment deleted successfully" };
 }

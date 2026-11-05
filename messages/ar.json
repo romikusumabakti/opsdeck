@@ -762,6 +762,8 @@
     "deleteButton": "حذف البيئة",
     "deleteTitle": "حذف البيئة",
     "deleteDescription": "حذف البيئة {name}؟ لا يمكن التراجع عن هذا الإجراء.",
+    "deleteEscrowedTitle": "حذف المتغيرات المحفوظة أيضًا؟",
+    "deleteEscrowedDescription": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. حذفها يتلفها نهائيًا: أكّد فقط إذا كانت محفوظة في مكان آخر.",
     "deleteFailed": "فشل حذف البيئة",
     "deletedSuccess": "تم حذف البيئة {name}",
     "tabConfig": "التهيئة",
@@ -1258,7 +1260,8 @@
     "avatarRemoved": "تمت إزالة الصورة",
     "environmentOwnerIneligible": "يجب أن يكون المالك عضوًا نشطًا في مشروع هذه البيئة، أو مستخدمًا بدور مسؤول أو بنية تحتية في المؤسسة.",
     "placementServiceInUse": "هذه الخدمة مستخدمة بالفعل من بيئة أخرى على هذا الخادم؛ اطلب المساعدة من مسؤول.",
-    "placementServiceName": "على الخادم المفتوح، اربط فقط أسماء الخدمات التي تبدأ بـ {prefix} (مفتاح هذا المشروع)؛ اطلب المساعدة من مسؤول لأسماء أخرى."
+    "placementServiceName": "على الخادم المفتوح، اربط فقط أسماء الخدمات التي تبدأ بـ {prefix} (مفتاح هذا المشروع)؛ اطلب المساعدة من مسؤول لأسماء أخرى.",
+    "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1830,7 +1833,8 @@
     "profileUpdated": "{actor} حدّث الملف الشخصي لـ {user}",
     "runAcknowledged": "أقرّ {actor} بـ {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
     "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
-    "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})"
+    "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})",
+    "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})"
   },
   "jira": {
     "title": "Jira",

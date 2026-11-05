@@ -762,6 +762,8 @@
     "deleteButton": "Delete environment",
     "deleteTitle": "Delete environment",
     "deleteDescription": "Delete environment {name}? This action cannot be undone.",
+    "deleteEscrowedTitle": "Delete escrowed variables too?",
+    "deleteEscrowedDescription": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Deleting it destroys them for good: confirm only once they are stored elsewhere.",
     "deleteFailed": "Failed to delete environment",
     "deletedSuccess": "Environment {name} deleted",
     "tabConfig": "Configuration",
@@ -1258,7 +1260,8 @@
     "avatarRemoved": "Photo removed",
     "environmentOwnerIneligible": "The owner must be an active member of this environment's project, or an org admin or infra user.",
     "placementServiceInUse": "This service is already used by another environment on this server; ask an admin.",
-    "placementServiceName": "On an open server, bind only service names that start with {prefix} (this project's key); ask an admin for other names."
+    "placementServiceName": "On an open server, bind only service names that start with {prefix} (this project's key); ask an admin for other names.",
+    "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1830,7 +1833,8 @@
     "profileUpdated": "{actor} updated the profile of {user}",
     "runAcknowledged": "{actor} acknowledged {count, plural, one {# failed run} other {# failed runs}} in {environment}",
     "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}",
-    "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})"
+    "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})",
+    "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})"
   },
   "jira": {
     "title": "Jira",

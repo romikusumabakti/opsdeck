@@ -71,6 +71,17 @@ export const environmentsRouter = sessionRouter()
       return c.json(await updateEnvironment(id, data));
     }
   )
-  .post("/delete-environment", json(z.object({ id: uuidSchema })), async (c) =>
-    c.json(await deleteEnvironment(c.req.valid("json").id))
+  .post(
+    "/delete-environment",
+    json(
+      z.object({
+        id: uuidSchema,
+        // Admins (integration:manage) only: also deletes escrowed variables.
+        confirmEscrowedDeletion: z.boolean().optional(),
+      })
+    ),
+    async (c) => {
+      const { id, confirmEscrowedDeletion } = c.req.valid("json");
+      return c.json(await deleteEnvironment(id, { confirmEscrowedDeletion }));
+    }
   );
