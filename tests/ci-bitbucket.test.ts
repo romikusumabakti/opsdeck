@@ -157,16 +157,27 @@ describe("bitbucket input validation", () => {
     }
   );
 
-  it.each(["", "ma in", "main\n", "a\tb", "a\u0000b"])(
-    "rejects branch %j",
-    async (branch) => {
-      const f = never();
-      await expect(
-        commitFile(AUTH, REPO, branch, "a.yaml", "c", "m", f.fetchImpl)
-      ).rejects.toThrow();
-      expect(f.impl).not.toHaveBeenCalled();
-    }
-  );
+  it.each([
+    "",
+    "ma in",
+    "main\n",
+    "a\tb",
+    "a\u0000b",
+    ".",
+    "..",
+    "a/../b",
+    "a/./b",
+    "../main",
+    "./main",
+    "main/..",
+    "main/.",
+  ])("rejects branch %j", async (branch) => {
+    const f = never();
+    await expect(
+      commitFile(AUTH, REPO, branch, "a.yaml", "c", "m", f.fetchImpl)
+    ).rejects.toThrow();
+    expect(f.impl).not.toHaveBeenCalled();
+  });
 
   it.each([
     "acme",
@@ -226,9 +237,19 @@ describe("bitbucket branchExists", () => {
 
   it("rejects invalid branch names before fetching", async () => {
     const m = mockFetch(new Response("{}", { status: 200 }));
-    await expect(branchExists(AUTH, REPO, "a b", m.impl)).rejects.toThrow(
-      /Invalid branch name/
-    );
+    // "." and ".." segments collapse in the URL and would ask about another
+    // ref (a false "exists").
+    for (const branch of ["a b", ".", "..", "release/../main", "a/./b"]) {
+      await expect(branchExists(AUTH, REPO, branch, m.impl)).rejects.toThrow(
+        /Invalid branch name/
+      );
+    }
     expect(m.calls).toHaveLength(0);
+  });
+
+  it("still accepts dots inside a segment", async () => {
+    const m = mockFetch(new Response("{}", { status: 200 }));
+    expect(await branchExists(AUTH, REPO, "release/1.2.x", m.impl)).toBe(true);
+    expect(await branchExists(AUTH, REPO, "v1..2", m.impl)).toBe(true);
   });
 });
