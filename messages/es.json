@@ -1300,7 +1300,8 @@
     "deployLockReasonInvalid": "Indica un motivo de 1 a 200 caracteres.",
     "deployLockExpiryInvalid": "Elige una caducidad futura, como máximo dentro de 7 días.",
     "deployLockChanged": "El bloqueo de despliegue cambió mientras tanto. Recarga e inténtalo de nuevo.",
-    "deployForceUnlockReasonRequired": "Indica un motivo para el desbloqueo forzado."
+    "deployForceUnlockReasonRequired": "Indica un motivo para el desbloqueo forzado.",
+    "preflightFailed": "No se pudo conectar al servidor por SSH para ejecutar el preflight"
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1893,7 +1894,8 @@
     "deployLockUpdated": "{actor} cambió el bloqueo de despliegue de {environment} ({reason})",
     "deployTargetCreated": "{actor} añadió un destino de despliegue para {component} en {environment}",
     "deployTargetUpdated": "{actor} cambió el destino de despliegue de {component} en {environment} ({changes})",
-    "deployTargetDeleted": "{actor} eliminó el destino de despliegue de {component} de {environment}"
+    "deployTargetDeleted": "{actor} eliminó el destino de despliegue de {component} de {environment}",
+    "serverPreflight": "{actor} ejecutó un preflight en {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2551,5 +2553,32 @@
       "descriptionLabel": "Descripción",
       "saved": "Plantilla {name} guardada"
     }
+  },
+  "serverPreflight": {
+    "title": "Preflight",
+    "description": "Datos recopilados por SSH: runtime de contenedores, registry, disco, túnel de Cloudflare, puertos y contenedores Postgres.",
+    "run": "Ejecutar preflight",
+    "running": "Ejecutando…",
+    "lastRun": "Última ejecución {time}",
+    "never": "Aún no se ha ejecutado.",
+    "failed": "El preflight falló",
+    "done": "Preflight terminado",
+    "runtime": "Runtime",
+    "docker": "Docker",
+    "compose": "Compose",
+    "podman": "Podman",
+    "notInstalled": "No instalado",
+    "registry": "Registry",
+    "reachable": "Accesible (HTTP {status})",
+    "unreachable": "Inaccesible",
+    "notConfigured": "No configurado",
+    "disk": "Disco libre",
+    "diskFree": "{free} libres de {total}",
+    "cloudflared": "Túnel de Cloudflare",
+    "systemdActive": "Servicio systemd activo",
+    "systemdInactive": "Sin servicio systemd",
+    "containers": "Contenedores: {names}",
+    "postgres": "Contenedores Postgres",
+    "postgresNone": "No se encontró ningún contenedor Postgres"
   }
 }

@@ -20,6 +20,7 @@ import { canOrg } from "@/lib/permissions";
 import { getServerByIdQuery, getServerUsageQuery } from "@/web/api/servers";
 import { useMe } from "@/web/api/session";
 import { orNotFound, requireOrgRole } from "@/web/project-guard";
+import { PreflightCard } from "./-components/servers/preflight-card";
 import { ServerPending } from "./-components/servers/skeletons";
 
 export const Route = createFileRoute("/$locale/_app/servers/$id/")({
@@ -81,6 +82,12 @@ function EditServerPage() {
             <ServerForm mode={{ type: "edit", server }} readOnly={!canManage} />
           </CardContent>
         </Card>
+
+        {canManage ? (
+          <div className="lg:col-span-2">
+            <PreflightCard serverId={id} />
+          </div>
+        ) : null}
 
         <Card className="h-fit">
           <CardHeader>
