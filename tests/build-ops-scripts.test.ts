@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const scripts = ["deploy-app.js", "encrypt-legacy-secrets.js"];
+const scripts = [
+  "deploy-app.js",
+  "encrypt-legacy-secrets.js",
+  "backfill-build-actors.js",
+];
 
 describe("build:ops", () => {
   let outDir: string;
