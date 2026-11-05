@@ -85,7 +85,8 @@
     "issues": "Isu",
     "jira": "Jira",
     "mail": "Email",
-    "apps": "Aplikasi"
+    "apps": "Aplikasi",
+    "variables": "Variabel"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -139,7 +140,8 @@
     "tunnels": "Tunnel",
     "mail": "Email",
     "ci": "CI",
-    "apps": "Aplikasi"
+    "apps": "Aplikasi",
+    "variables": "Variabel"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -1826,7 +1828,8 @@
     "userInvitationResent": "{actor} mengirim ulang undangan ke {email}",
     "profileUpdated": "{actor} memperbarui profil {user}",
     "runAcknowledged": "{actor} menandai {count, plural, other {# run gagal}} di {environment} sudah ditangani",
-    "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}"
+    "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}",
+    "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})"
   },
   "jira": {
     "title": "Jira",
@@ -2281,7 +2284,8 @@
     "retryBranch": "Commit ulang ke {branch}",
     "commitDone": "Berkas pipeline di-commit ke semua branch",
     "commitDoneBranch": "Berkas pipeline di-commit ke {branch}",
-    "commitFailed": "Berkas pipeline tidak di-commit ke {branch}: {reason}"
+    "commitFailed": "Berkas pipeline tidak di-commit ke {branch}: {reason}",
+    "variableTemplates": "Variabel"
   },
   "appForm": {
     "title": "Daftarkan aplikasi",
@@ -2370,6 +2374,114 @@
       "duplicateBundleTarget": "Dua berkas bundle memiliki tujuan yang sama",
       "duplicateCheck": "Dua pemeriksaan memiliki nama yang sama",
       "invalid": "Nilai ini tidak valid"
+    }
+  },
+  "variables": {
+    "title": "Variabel",
+    "subtitle": "Variabel sumber .env environment ini. Nilai rahasia dan nilai acak dienkripsi dan hanya ditampilkan bila diminta.",
+    "add": "Tambah variabel",
+    "applyTemplate": "Isi dari template aplikasi",
+    "revealValues": "Tampilkan nilai",
+    "hideValues": "Sembunyikan nilai",
+    "noAppHint": "Environment ini belum punya aplikasi, jadi tidak ada template untuk diisi.",
+    "templateApplied": "{count, plural, =0 {Tidak ada variabel yang kurang} other {# variabel ditambahkan dari template}}",
+    "templateMissing": "Variabel wajib yang masih kurang: {names}",
+    "managedTitle": "Kelola .env dari Panel",
+    "managedDescription": "Bila aktif, deploy berikutnya mengganti .env di server dengan variabel ini. Bila nonaktif, .env di server dibiarkan dan hanya tag image yang berubah.",
+    "managedOn": "Deploy berikutnya menulis .env dari variabel ini",
+    "managedOff": "Deploy membiarkan .env di server apa adanya",
+    "missingRequired": "Tambahkan dulu variabel wajib: {names}",
+    "escrowWarning": "Variabel escrow tidak dapat dibuat ulang, dihapus, atau diubah di sini. Simpan juga salinannya di luar Panel: kehilangan nilainya dapat membuat data tidak terbaca.",
+    "emptyTitle": "Belum ada variabel",
+    "emptyDescription": "Tambahkan variabel satu per satu, atau isi dari template aplikasi.",
+    "colName": "Nama",
+    "colKind": "Jenis",
+    "colValue": "Nilai",
+    "colUpdated": "Diperbarui",
+    "escrow": "Escrow",
+    "kind": {
+      "plain": "Biasa",
+      "secret": "Rahasia",
+      "generated": "Acak"
+    },
+    "emptyValue": "kosong",
+    "updatedByUnknown": "Tidak diketahui",
+    "rowActions": "Aksi untuk {name}",
+    "edit": "Ubah",
+    "regenerate": "Buat ulang",
+    "delete": "Hapus",
+    "escrowLocked": "Escrow",
+    "regenerateConfirmTitle": "Buat ulang {name}?",
+    "regenerateConfirmDescription": "Nilai lama diganti permanen. Aplikasi memakai nilai baru pada deploy berikutnya.",
+    "regenerated": "{name} dibuat ulang",
+    "deleteConfirmTitle": "Hapus {name}?",
+    "deleteConfirmDescription": "Variabel dihapus dari Panel. .env yang dikelola Panel tidak lagi memuatnya pada deploy berikutnya.",
+    "deleted": "{name} dihapus",
+    "escrowedError": "Variabel escrow tidak dapat dibuat ulang, dihapus, atau diubah.",
+    "escrowRemovalError": "Hanya admin yang dapat melepas escrow, secara eksplisit.",
+    "notGeneratedError": "Hanya variabel acak yang dapat dibuat ulang.",
+    "form": {
+      "createTitle": "Tambah variabel",
+      "editTitle": "Ubah {name}",
+      "description": "Nilai disimpan dalam satu baris. Nilai rahasia dan acak disimpan terenkripsi.",
+      "name": "Nama",
+      "nameHint": "Huruf kapital, angka, dan _, tidak diawali angka.",
+      "nameInvalid": "Gunakan huruf kapital, angka, dan _, tidak diawali angka",
+      "kind": "Jenis",
+      "kindHint": {
+        "plain": "Terlihat oleh semua yang dapat membuka halaman ini.",
+        "secret": "Terenkripsi; hanya ditampilkan bila diminta, dan setiap penampilan dicatat.",
+        "generated": "Nilai acak yang dibuat Panel; terenkripsi seperti rahasia."
+      },
+      "value": "Nilai",
+      "valueHint": "Satu baris; tanda kutip, $, # dan spasi disimpan apa adanya.",
+      "valueHintGenerated": "Kosongkan untuk membuat nilai acak.",
+      "valueHintGeneratedKeep": "Kosongkan untuk mempertahankan nilai sekarang; pakai Buat ulang untuk nilai baru.",
+      "valueHintSecretKeep": "Kosongkan untuk mempertahankan nilai sekarang.",
+      "valueInvalid": "Nilai harus satu baris (tanpa baris baru)",
+      "escrow": "Escrow",
+      "escrowHint": "Variabel escrow tidak dapat dibuat ulang, dihapus, atau diubah di sini; hanya admin yang dapat melepas escrow.",
+      "saved": "{name} disimpan",
+      "clearEscrow": "Lepas escrow",
+      "clearEscrowConfirmTitle": "Lepas escrow dari {name}?",
+      "clearEscrowConfirmDescription": "Nilainya lalu dapat diubah, dibuat ulang, atau dihapus. Pastikan salinannya tersimpan di luar Panel.",
+      "escrowCleared": "Escrow dilepas dari {name}"
+    }
+  },
+  "variableTemplates": {
+    "title": "Template variabel",
+    "subtitle": "Variabel yang dibutuhkan setiap environment {app} di .env-nya.",
+    "add": "Tambah template",
+    "emptyTitle": "Belum ada template variabel",
+    "emptyDescription": "Dengan template, environment dapat mengisi variabelnya dalam satu langkah.",
+    "colName": "Nama",
+    "colKind": "Jenis",
+    "colDefault": "Bawaan",
+    "colDescription": "Deskripsi",
+    "required": "Wajib",
+    "length": "{length} karakter",
+    "deleteConfirmTitle": "Hapus template {name}?",
+    "deleteConfirmDescription": "Environment tetap menyimpan variabel yang sudah ada.",
+    "deleted": "Template {name} dihapus",
+    "form": {
+      "createTitle": "Tambah template variabel",
+      "editTitle": "Ubah {name}",
+      "description": "Template biasa boleh punya nilai bawaan; template acak punya panjang; rahasia tidak keduanya.",
+      "name": "Nama",
+      "nameInvalid": "Gunakan huruf kapital, angka, dan _, tidak diawali angka",
+      "kind": "Jenis",
+      "defaultValue": "Nilai bawaan",
+      "defaultValueHint": "Opsional. Placeholder '{host}', '{url}' dan '{envSlug}' diganti dengan nilai environment.",
+      "defaultInvalid": "Nilai bawaan harus satu baris (tanpa baris baru)",
+      "generatedLength": "Panjang",
+      "generatedLengthHint": "{min} sampai {max} karakter; kosong berarti 32.",
+      "lengthInvalid": "Masukkan bilangan bulat {min} sampai {max}",
+      "required": "Wajib",
+      "requiredHint": "Environment belum dapat mengelola .env-nya sebelum variabel ini ada.",
+      "escrow": "Escrow",
+      "escrowHint": "Variabel yang diisi dari template ini tidak dapat dibuat ulang atau dihapus; simpan salinannya di luar Panel.",
+      "descriptionLabel": "Deskripsi",
+      "saved": "Template {name} disimpan"
     }
   }
 }

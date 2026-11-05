@@ -85,7 +85,8 @@
     "issues": "问题",
     "jira": "Jira",
     "mail": "邮件",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "变量"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",
@@ -139,7 +140,8 @@
     "tunnels": "隧道",
     "mail": "邮件",
     "ci": "CI",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "变量"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -1826,7 +1828,8 @@
     "userInvitationResent": "{actor} 重新发送了给 {email} 的邀请",
     "profileUpdated": "{actor} 更新了 {user} 的资料",
     "runAcknowledged": "{actor} 确认了 {environment} 中的 {count, plural, other {# 次失败运行}}",
-    "runUnacknowledged": "{actor} 重新打开了 {environment} 中的 {count, plural, other {# 次失败运行}}"
+    "runUnacknowledged": "{actor} 重新打开了 {environment} 中的 {count, plural, other {# 次失败运行}}",
+    "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）"
   },
   "jira": {
     "title": "Jira",
@@ -2281,7 +2284,8 @@
     "retryBranch": "Commit to {branch} again",
     "commitDone": "Pipeline file committed to every branch",
     "commitDoneBranch": "Pipeline file committed to {branch}",
-    "commitFailed": "Pipeline file not committed to {branch}: {reason}"
+    "commitFailed": "Pipeline file not committed to {branch}: {reason}",
+    "variableTemplates": "变量"
   },
   "appForm": {
     "title": "Register app",
@@ -2370,6 +2374,114 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    }
+  },
+  "variables": {
+    "title": "变量",
+    "subtitle": "用于生成此环境 .env 的变量。机密值和生成值已加密，仅在请求时显示。",
+    "add": "添加变量",
+    "applyTemplate": "从应用模板填充",
+    "revealValues": "显示值",
+    "hideValues": "隐藏值",
+    "noAppHint": "此环境没有应用，因此没有可填充的模板。",
+    "templateApplied": "{count, plural, =0 {没有缺少的变量} other {已从模板添加 # 个变量}}",
+    "templateMissing": "仍缺少必需变量：{names}",
+    "managedTitle": "由面板管理 .env",
+    "managedDescription": "开启后，下次部署会用这些变量替换服务器上的 .env。关闭时，服务器上的 .env 保持不变，只更改镜像标签。",
+    "managedOn": "下次部署将根据这些变量写入 .env",
+    "managedOff": "部署将保留服务器上的 .env",
+    "missingRequired": "请先添加必需变量：{names}",
+    "escrowWarning": "托管变量无法在此重新生成、删除或更改。请同时在面板之外保存副本：丢失它们可能导致数据无法读取。",
+    "emptyTitle": "暂无变量",
+    "emptyDescription": "逐个添加变量，或从应用模板填充。",
+    "colName": "名称",
+    "colKind": "类型",
+    "colValue": "值",
+    "colUpdated": "更新",
+    "escrow": "托管",
+    "kind": {
+      "plain": "普通",
+      "secret": "机密",
+      "generated": "生成"
+    },
+    "emptyValue": "空",
+    "updatedByUnknown": "未知",
+    "rowActions": "{name} 的操作",
+    "edit": "编辑",
+    "regenerate": "重新生成",
+    "delete": "删除",
+    "escrowLocked": "已托管",
+    "regenerateConfirmTitle": "重新生成 {name}？",
+    "regenerateConfirmDescription": "旧值将被永久替换。应用会在下次部署时使用新值。",
+    "regenerated": "已重新生成 {name}",
+    "deleteConfirmTitle": "删除 {name}？",
+    "deleteConfirmDescription": "该变量将从面板中删除。受管理的 .env 会在下次部署时去掉它。",
+    "deleted": "已删除 {name}",
+    "escrowedError": "托管变量无法重新生成、删除或更改。",
+    "escrowRemovalError": "只有管理员可以显式移除托管。",
+    "notGeneratedError": "只有生成变量可以重新生成。",
+    "form": {
+      "createTitle": "添加变量",
+      "editTitle": "编辑 {name}",
+      "description": "值保存为单行。机密值和生成值以加密形式存储。",
+      "name": "名称",
+      "nameHint": "大写字母、数字和 _，不能以数字开头。",
+      "nameInvalid": "请使用大写字母、数字和 _，且不能以数字开头",
+      "kind": "类型",
+      "kindHint": {
+        "plain": "所有能打开此页面的人都可见。",
+        "secret": "已加密；仅在请求时显示，每次显示都会记录。",
+        "generated": "由面板生成的随机值；像机密一样加密。"
+      },
+      "value": "值",
+      "valueHint": "单行；引号、$、# 和空格按原样保存。",
+      "valueHintGenerated": "留空以生成随机值。",
+      "valueHintGeneratedKeep": "留空以保留当前值；使用“重新生成”获取新值。",
+      "valueHintSecretKeep": "留空以保留当前值。",
+      "valueInvalid": "值必须是单行（不含换行）",
+      "escrow": "托管",
+      "escrowHint": "托管变量无法在此重新生成、删除或更改；只有管理员可以移除托管。",
+      "saved": "已保存 {name}",
+      "clearEscrow": "移除托管",
+      "clearEscrowConfirmTitle": "移除 {name} 的托管？",
+      "clearEscrowConfirmDescription": "之后其值可以被更改、重新生成或删除。请确保在面板之外保存了副本。",
+      "escrowCleared": "已移除 {name} 的托管"
+    }
+  },
+  "variableTemplates": {
+    "title": "变量模板",
+    "subtitle": "{app} 的每个环境在其 .env 中需要的变量。",
+    "add": "添加模板",
+    "emptyTitle": "暂无变量模板",
+    "emptyDescription": "有了模板，环境可以一步填充其变量。",
+    "colName": "名称",
+    "colKind": "类型",
+    "colDefault": "默认值",
+    "colDescription": "说明",
+    "required": "必需",
+    "length": "{length} 个字符",
+    "deleteConfirmTitle": "删除模板 {name}？",
+    "deleteConfirmDescription": "环境会保留已有的变量。",
+    "deleted": "已删除模板 {name}",
+    "form": {
+      "createTitle": "添加变量模板",
+      "editTitle": "编辑 {name}",
+      "description": "普通模板可以有默认值；生成模板可以有长度；机密模板两者都没有。",
+      "name": "名称",
+      "nameInvalid": "请使用大写字母、数字和 _，且不能以数字开头",
+      "kind": "类型",
+      "defaultValue": "默认值",
+      "defaultValueHint": "可选。占位符 '{host}'、'{url}' 和 '{envSlug}' 会被替换为环境的值。",
+      "defaultInvalid": "默认值必须是单行（不含换行）",
+      "generatedLength": "长度",
+      "generatedLengthHint": "{min} 到 {max} 个字符；留空表示 32。",
+      "lengthInvalid": "请输入 {min} 到 {max} 之间的整数",
+      "required": "必需",
+      "requiredHint": "在此变量存在之前，环境无法管理其 .env。",
+      "escrow": "托管",
+      "escrowHint": "从此模板填充的变量无法重新生成或删除；请在面板之外保存副本。",
+      "descriptionLabel": "说明",
+      "saved": "已保存模板 {name}"
     }
   }
 }

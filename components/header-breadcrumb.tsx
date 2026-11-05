@@ -71,6 +71,19 @@ function getStaticSegments(pathname: string): StaticSegment[] {
       { kind: "static", labelKey: "breadcrumbs.new" },
     ];
   }
+  // /apps/[appKey]/variables — the app's variable templates.
+  const appVariables = /^\/apps\/([^/]+)\/variables$/.exec(pathname);
+  if (appVariables?.[1]) {
+    return [
+      { kind: "static", href: "/apps", labelKey: "breadcrumbs.apps" },
+      {
+        kind: "static",
+        href: `/apps/${appVariables[1]}`,
+        label: appVariables[1],
+      },
+      { kind: "static", labelKey: "breadcrumbs.variables" },
+    ];
+  }
   // /apps/[appKey] — the app's page; the key is the crumb.
   if (pathname.startsWith("/apps/")) {
     return [
@@ -98,6 +111,8 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.services";
     case "deploys":
       return "breadcrumbs.deploys";
+    case "variables":
+      return "breadcrumbs.variables";
     case "databases":
       return "breadcrumbs.databases";
     case "backup-restore":

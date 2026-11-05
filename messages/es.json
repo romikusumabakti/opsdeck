@@ -85,7 +85,8 @@
     "issues": "Incidencias",
     "jira": "Jira",
     "mail": "Correo",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "Variables"
   },
   "commandPalette": {
     "triggerLabel": "Buscar o ir a…",
@@ -139,7 +140,8 @@
     "tunnels": "Túneles",
     "mail": "Correo",
     "ci": "CI",
-    "apps": "Apps"
+    "apps": "Apps",
+    "variables": "Variables"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -1826,7 +1828,8 @@
     "userInvitationResent": "{actor} reenvió la invitación a {email}",
     "profileUpdated": "{actor} actualizó el perfil de {user}",
     "runAcknowledged": "{actor} reconoció {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
-    "runUnacknowledged": "{actor} reabrió {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}"
+    "runUnacknowledged": "{actor} reabrió {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
+    "variablesRevealed": "{actor} mostró los valores secretos de {environment} ({names})"
   },
   "jira": {
     "title": "Jira",
@@ -2281,7 +2284,8 @@
     "retryBranch": "Commit to {branch} again",
     "commitDone": "Pipeline file committed to every branch",
     "commitDoneBranch": "Pipeline file committed to {branch}",
-    "commitFailed": "Pipeline file not committed to {branch}: {reason}"
+    "commitFailed": "Pipeline file not committed to {branch}: {reason}",
+    "variableTemplates": "Variables"
   },
   "appForm": {
     "title": "Register app",
@@ -2370,6 +2374,114 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    }
+  },
+  "variables": {
+    "title": "Variables",
+    "subtitle": "Las variables con las que se genera el .env de este entorno. Los valores secretos y generados se cifran y solo se muestran a petición.",
+    "add": "Añadir variable",
+    "applyTemplate": "Rellenar desde la plantilla de la app",
+    "revealValues": "Mostrar valores",
+    "hideValues": "Ocultar valores",
+    "noAppHint": "Este entorno no tiene app, así que no hay plantilla de la que rellenar.",
+    "templateApplied": "{count, plural, =0 {No faltaba ninguna variable} one {# variable añadida desde la plantilla} other {# variables añadidas desde la plantilla}}",
+    "templateMissing": "Siguen faltando variables obligatorias: {names}",
+    "managedTitle": "Gestionar .env desde el Panel",
+    "managedDescription": "Si está activado, el próximo despliegue reemplaza el .env del servidor con estas variables. Si no, el .env del servidor se queda como está y solo cambia la etiqueta de la imagen.",
+    "managedOn": "El próximo despliegue escribe el .env con estas variables",
+    "managedOff": "Los despliegues dejan el .env del servidor como está",
+    "missingRequired": "Primero añade las variables obligatorias: {names}",
+    "escrowWarning": "Las variables en custodia no se pueden regenerar, eliminar ni cambiar aquí. Guarda también una copia fuera del Panel: perderlas puede dejar datos ilegibles.",
+    "emptyTitle": "Aún no hay variables",
+    "emptyDescription": "Añade variables una a una o rellénalas desde la plantilla de la app.",
+    "colName": "Nombre",
+    "colKind": "Tipo",
+    "colValue": "Valor",
+    "colUpdated": "Actualizada",
+    "escrow": "Custodia",
+    "kind": {
+      "plain": "Simple",
+      "secret": "Secreta",
+      "generated": "Generada"
+    },
+    "emptyValue": "vacío",
+    "updatedByUnknown": "Desconocido",
+    "rowActions": "Acciones de {name}",
+    "edit": "Editar",
+    "regenerate": "Regenerar",
+    "delete": "Eliminar",
+    "escrowLocked": "En custodia",
+    "regenerateConfirmTitle": "¿Regenerar {name}?",
+    "regenerateConfirmDescription": "El valor anterior se reemplaza para siempre. La app usa el nuevo en su próximo despliegue.",
+    "regenerated": "{name} regenerada",
+    "deleteConfirmTitle": "¿Eliminar {name}?",
+    "deleteConfirmDescription": "La variable se elimina del Panel. Un .env gestionado la quita en el próximo despliegue.",
+    "deleted": "{name} eliminada",
+    "escrowedError": "Las variables en custodia no se pueden regenerar, eliminar ni cambiar.",
+    "escrowRemovalError": "Solo un administrador puede quitar la custodia, de forma explícita.",
+    "notGeneratedError": "Solo se pueden regenerar las variables generadas.",
+    "form": {
+      "createTitle": "Añadir variable",
+      "editTitle": "Editar {name}",
+      "description": "Los valores se guardan en una línea. Los secretos y generados se guardan cifrados.",
+      "name": "Nombre",
+      "nameHint": "Mayúsculas, dígitos y _, sin empezar por un dígito.",
+      "nameInvalid": "Usa mayúsculas, dígitos y _, sin empezar por un dígito",
+      "kind": "Tipo",
+      "kindHint": {
+        "plain": "Visible para todos los que pueden abrir esta página.",
+        "secret": "Cifrada; solo se muestra a petición y cada vez queda registrada.",
+        "generated": "Un valor aleatorio que crea el Panel; cifrado como un secreto."
+      },
+      "value": "Valor",
+      "valueHint": "Una línea; comillas, $, # y espacios se guardan tal cual.",
+      "valueHintGenerated": "Déjalo vacío para generar un valor aleatorio.",
+      "valueHintGeneratedKeep": "Déjalo vacío para conservar el valor actual; usa Regenerar para uno nuevo.",
+      "valueHintSecretKeep": "Déjalo vacío para conservar el valor actual.",
+      "valueInvalid": "El valor debe ser una sola línea (sin saltos de línea)",
+      "escrow": "Custodia",
+      "escrowHint": "Una variable en custodia no se puede regenerar, eliminar ni cambiar aquí; solo un administrador puede quitar la custodia.",
+      "saved": "{name} guardada",
+      "clearEscrow": "Quitar custodia",
+      "clearEscrowConfirmTitle": "¿Quitar la custodia de {name}?",
+      "clearEscrowConfirmDescription": "Su valor podrá cambiarse, regenerarse o eliminarse. Asegúrate de guardar una copia fuera del Panel.",
+      "escrowCleared": "Custodia quitada de {name}"
+    }
+  },
+  "variableTemplates": {
+    "title": "Plantillas de variables",
+    "subtitle": "Las variables que cada entorno de {app} espera en su .env.",
+    "add": "Añadir plantilla",
+    "emptyTitle": "No hay plantillas de variables",
+    "emptyDescription": "Con las plantillas, los entornos rellenan sus variables en un paso.",
+    "colName": "Nombre",
+    "colKind": "Tipo",
+    "colDefault": "Predeterminado",
+    "colDescription": "Descripción",
+    "required": "Obligatoria",
+    "length": "{length} caracteres",
+    "deleteConfirmTitle": "¿Eliminar la plantilla {name}?",
+    "deleteConfirmDescription": "Los entornos conservan las variables que ya tienen.",
+    "deleted": "Plantilla {name} eliminada",
+    "form": {
+      "createTitle": "Añadir plantilla de variable",
+      "editTitle": "Editar {name}",
+      "description": "Las simples pueden tener un valor predeterminado; las generadas, una longitud; las secretas, ninguno.",
+      "name": "Nombre",
+      "nameInvalid": "Usa mayúsculas, dígitos y _, sin empezar por un dígito",
+      "kind": "Tipo",
+      "defaultValue": "Valor predeterminado",
+      "defaultValueHint": "Opcional. Los marcadores '{host}', '{url}' y '{envSlug}' se sustituyen por los valores del entorno.",
+      "defaultInvalid": "El valor predeterminado debe ser una sola línea (sin saltos de línea)",
+      "generatedLength": "Longitud",
+      "generatedLengthHint": "De {min} a {max} caracteres; vacío significa 32.",
+      "lengthInvalid": "Introduce un número entero de {min} a {max}",
+      "required": "Obligatoria",
+      "requiredHint": "Un entorno no puede gestionar su .env hasta que exista esta variable.",
+      "escrow": "Custodia",
+      "escrowHint": "Las variables creadas con esta plantilla no se pueden regenerar ni eliminar; guarda una copia fuera del Panel.",
+      "descriptionLabel": "Descripción",
+      "saved": "Plantilla {name} guardada"
     }
   }
 }
