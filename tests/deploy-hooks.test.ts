@@ -13,6 +13,15 @@ vi.mock("@/lib/apps", () => apps);
 const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
 vi.mock("@/server/services/deployments", () => deployments);
 
+const ci = vi.hoisted(() => ({
+  getProviderForConnection: vi.fn(),
+  getPipeline: vi.fn(),
+}));
+vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getProviderForConnection: ci.getProviderForConnection,
+}));
+
 const { verifySignature } = await import("@/lib/deploy/signature");
 const { app } = await import("@/server/app");
 
@@ -51,9 +60,22 @@ beforeEach(() => {
   apps.getComponent.mockImplementation(async (componentKey: string) =>
     // A secret without the enc:v1: prefix decrypts to itself (legacy rows).
     componentKey === "dplk-accounting"
-      ? { componentKey, notifySecret: SECRET }
+      ? {
+          componentKey,
+          notifySecret: SECRET,
+          ciConnectionId: "conn-1",
+          ciRepoId: "1",
+        }
       : null
   );
+  ci.getProviderForConnection.mockResolvedValue({
+    getPipeline: ci.getPipeline,
+  });
+  ci.getPipeline.mockResolvedValue({
+    sender: "romi",
+    authorEmail: "romi@example.test",
+    message: "fix: thing",
+  });
   repo.insertBuildIfNew.mockResolvedValue({
     build: { id: BUILD_ID },
     created: true,
@@ -68,6 +90,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.clearAllMocks();
 });
@@ -180,7 +203,12 @@ describe("POST /api/deploy-hooks/builds", () => {
       tag: TAG,
       commitSha: "abc1234def5678",
       pipelineUrl: notification.pipelineUrl,
+      pushedBy: "romi",
+      commitAuthorEmail: "romi@example.test",
+      commitMessage: "fix: thing",
     });
+    expect(ci.getProviderForConnection).toHaveBeenCalledWith("conn-1");
+    expect(ci.getPipeline).toHaveBeenCalledWith("1", 42);
     expect(repo.findAutoTargets).toHaveBeenCalledWith(
       "dplk-accounting",
       "kestrel/development"
@@ -234,8 +262,9 @@ describe("POST /api/deploy-hooks/builds", () => {
     const res = await deliver(body, sign(body));
     expect(res.status).toBe(202);
     expect(repo.insertBuildIfNew).toHaveBeenCalledWith(
-      expect.objectContaining({ pipelineUrl: null })
+      expect.objectContaining({ pipelineUrl: null, pushedBy: null })
     );
+    expect(ci.getPipeline).not.toHaveBeenCalled();
   });
 
   it("replayed build: created=false, requestDeployment not called", async () => {
@@ -264,5 +293,110 @@ describe("POST /api/deploy-hooks/builds", () => {
     expect(await res.json()).toEqual({ error: "Deploy disabled" });
     expect(apps.getComponent).not.toHaveBeenCalled();
     expect(repo.insertBuildIfNew).not.toHaveBeenCalled();
+  });
+});
+
+describe("build actors on notify", () => {
+  const NULLS = {
+    pushedBy: null,
+    commitAuthorEmail: null,
+    commitMessage: null,
+  };
+
+  async function deliverOk() {
+    const body = JSON.stringify(notification);
+    const res = await deliver(body, sign(body));
+    expect(res.status).toBe(202);
+    return res.json();
+  }
+
+  function expectRecordedWithNulls() {
+    expect(repo.insertBuildIfNew).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: TAG, ...NULLS })
+    );
+    expect(deployments.requestDeployment).toHaveBeenCalledTimes(2);
+  }
+
+  it("records the build with null actors and still deploys when the CI API fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { CiProviderError } = await import("@/lib/ci/types");
+    ci.getPipeline.mockRejectedValue(
+      new CiProviderError(
+        "Woodpecker GET /api/repos/1/pipelines/42 unreachable",
+        0
+      )
+    );
+    await expect(deliverOk()).resolves.toMatchObject({
+      created: true,
+      deploymentIds: [`dep-${TARGET_A}`, `dep-${TARGET_B}`],
+    });
+    expectRecordedWithNulls();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it("records nulls when the connection cannot give a provider (no token)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    ci.getProviderForConnection.mockRejectedValue(new Error("no token"));
+    await deliverOk();
+    expectRecordedWithNulls();
+    warn.mockRestore();
+  });
+
+  it("gives up after 5 s and records nulls when the CI API hangs", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    ci.getPipeline.mockReturnValue(new Promise(() => {}));
+    const body = JSON.stringify(notification);
+    const pending = deliver(body, sign(body));
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(repo.insertBuildIfNew).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    const res = await pending;
+    expect(res.status).toBe(202);
+    expectRecordedWithNulls();
+    warn.mockRestore();
+  });
+
+  it("does not fetch a pipeline URL of another repo", async () => {
+    const other = {
+      ...notification,
+      pipelineUrl: "https://ci.example.test/repos/9/pipeline/42",
+    };
+    const body = JSON.stringify(other);
+    const res = await deliver(body, sign(body));
+    expect(res.status).toBe(202);
+    expect(ci.getProviderForConnection).not.toHaveBeenCalled();
+    expect(ci.getPipeline).not.toHaveBeenCalled();
+    expect(repo.insertBuildIfNew).toHaveBeenCalledWith(
+      expect.objectContaining(NULLS)
+    );
+  });
+
+  it("does not fetch when the component has no CI connection", async () => {
+    apps.getComponent.mockResolvedValue({
+      componentKey: "dplk-accounting",
+      notifySecret: SECRET,
+      ciConnectionId: null,
+      ciRepoId: null,
+    });
+    await deliverOk();
+    expect(ci.getProviderForConnection).not.toHaveBeenCalled();
+    expect(repo.insertBuildIfNew).toHaveBeenCalledWith(
+      expect.objectContaining(NULLS)
+    );
+  });
+
+  it("truncates the pusher to 200 and the message to 500 characters", async () => {
+    ci.getPipeline.mockResolvedValue({
+      sender: "s".repeat(300),
+      authorEmail: `${"e".repeat(400)}@example.test`,
+      message: "m".repeat(800),
+    });
+    await deliverOk();
+    const stored = repo.insertBuildIfNew.mock.calls[0]?.[0];
+    expect(stored.pushedBy).toBe("s".repeat(200));
+    expect(stored.commitAuthorEmail).toHaveLength(320);
+    expect(stored.commitMessage).toBe("m".repeat(500));
   });
 });

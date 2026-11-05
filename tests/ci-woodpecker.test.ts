@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { CiProviderError } from "@/lib/ci/types";
-import { createWoodpeckerProvider } from "@/lib/ci/woodpecker";
+import {
+  createWoodpeckerProvider,
+  parsePipelineNumber,
+} from "@/lib/ci/woodpecker";
 
 const BASE = "https://ci.example.test";
 const TOKEN = "super-secret-token";
@@ -228,5 +231,114 @@ describe("woodpecker provider", () => {
     const err = await provider.listRepos().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CiProviderError);
     expect((err as CiProviderError).message).not.toContain(TOKEN);
+  });
+});
+
+describe("woodpecker getPipeline", () => {
+  it("GETs the pipeline by repo id and number and maps the actor fields", async () => {
+    const { calls, provider } = mockFetch([
+      json({
+        number: 7,
+        sender: "romi",
+        author: "romi",
+        author_email: "romi@example.test",
+        message: "fix: thing\n\nbody",
+      }),
+    ]);
+    await expect(provider.getPipeline("2", 7)).resolves.toEqual({
+      sender: "romi",
+      authorEmail: "romi@example.test",
+      message: "fix: thing\n\nbody",
+    });
+    expect(calls[0]?.method).toBe("GET");
+    expect(calls[0]?.url).toBe(`${BASE}/api/repos/2/pipelines/7`);
+    expect(calls[0]?.headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(calls[0]?.init.redirect).toBe("manual");
+  });
+
+  it("maps missing and empty fields to null", async () => {
+    const { provider } = mockFetch([json({ sender: "", message: null })]);
+    await expect(provider.getPipeline("2", 7)).resolves.toEqual({
+      sender: null,
+      authorEmail: null,
+      message: null,
+    });
+  });
+
+  it("answers nulls for a pipeline that does not exist (404)", async () => {
+    const { provider } = mockFetch([json({ message: "not found" }, 404)]);
+    await expect(provider.getPipeline("2", 7)).resolves.toEqual({
+      sender: null,
+      authorEmail: null,
+      message: null,
+    });
+  });
+
+  it("throws CiProviderError on other failures", async () => {
+    const { provider } = mockFetch([json({}, 500)]);
+    const err = await provider.getPipeline("2", 7).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect((err as CiProviderError).status).toBe(500);
+    expect((err as CiProviderError).message).not.toContain(TOKEN);
+  });
+});
+
+describe("parsePipelineNumber", () => {
+  it("reads the number from a pipeline URL of the component's repo", () => {
+    expect(
+      parsePipelineNumber("https://ci.example.net/repos/2/pipeline/7", "2")
+    ).toBe(7);
+    // The host is not checked: the connection's base URL is internal.
+    expect(
+      parsePipelineNumber("http://woodpecker:8000/repos/12/pipeline/345", "12")
+    ).toBe(345);
+  });
+
+  it("rejects another repo's pipeline", () => {
+    expect(
+      parsePipelineNumber("https://ci.example.net/repos/3/pipeline/7", "2")
+    ).toBeNull();
+    expect(
+      parsePipelineNumber(
+        "https://ci.example.net/repos/22/pipeline/7",
+        "2"
+      )
+    ).toBeNull();
+  });
+
+  it("rejects a missing URL or a missing repo id", () => {
+    expect(parsePipelineNumber(null, "2")).toBeNull();
+    expect(parsePipelineNumber(undefined, "2")).toBeNull();
+    expect(
+      parsePipelineNumber(
+        "https://ci.example.net/repos/2/pipeline/7",
+        null
+      )
+    ).toBeNull();
+    expect(
+      parsePipelineNumber("https://ci.example.net/repos/2/pipeline/7", "")
+    ).toBeNull();
+  });
+
+  it("rejects any other shape", () => {
+    for (const url of [
+      "https://ci.example.net/repos/2/pipeline/abc",
+      "https://ci.example.net/repos/2/pipeline/7a",
+      "https://ci.example.net/repos/2/pipeline/-7",
+      "https://ci.example.net/repos/2/pipeline/0",
+      "https://ci.example.net/repos/2/pipeline/",
+      "https://ci.example.net/repos/2/pipeline/7/",
+      "https://ci.example.net/repos/2/pipeline/7/debug",
+      "https://ci.example.net/x/repos/2/pipeline/7",
+      "https://ci.example.net/repos/2/pipelines/7",
+      "https://ci.example.net/repos/2/pipeline/7?x=1",
+      "https://ci.example.net/repos/2/pipeline/99999999999999999999",
+      "https://ci.example.net/repos/%32/pipeline/7",
+      "ftp://ci.example.net/repos/2/pipeline/7",
+      "not a url",
+      "",
+    ]) {
+      expect(parsePipelineNumber(url, "2"), url).toBeNull();
+    }
   });
 });

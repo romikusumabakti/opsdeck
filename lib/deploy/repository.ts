@@ -109,6 +109,9 @@ export async function insertBuildIfNew(b: {
   tag: string;
   commitSha: string;
   pipelineUrl: string | null;
+  pushedBy: string | null;
+  commitAuthorEmail: string | null;
+  commitMessage: string | null;
 }): Promise<{ build: Build; created: boolean }> {
   const [inserted] = await db
     .insert(builds)
@@ -625,6 +628,10 @@ export async function placeDeployment(input: {
             .values({
               environmentId: input.environmentId,
               userId: input.userId,
+              triggeredBy:
+                input.trigger === "auto"
+                  ? await buildPusher(tx, input.buildId)
+                  : null,
               description: input.description,
               kind: "deploy",
               runAt: input.now,
@@ -656,6 +663,22 @@ export async function placeDeployment(input: {
       ? { kind: "held", deploymentId: deployment.id, runId: null, released }
       : { kind: "queued", deploymentId: deployment.id, runId, released };
   });
+}
+
+/**
+ * The forge login that pushed the build behind an auto run (runs.triggered_by),
+ * or null without a build or when it is unknown.
+ */
+async function buildPusher(
+  tx: Tx,
+  buildId: string | null
+): Promise<string | null> {
+  if (!buildId) return null;
+  const [build] = await tx
+    .select({ pushedBy: builds.pushedBy })
+    .from(builds)
+    .where(eq(builds.id, buildId));
+  return build?.pushedBy ?? null;
 }
 
 export type ReleasedLock = {
@@ -722,9 +745,11 @@ async function releaseLockIn(
       tag: deployments.tag,
       trigger: deployments.trigger,
       componentKey: deployTargets.componentKey,
+      pushedBy: builds.pushedBy,
     })
     .from(deployments)
     .innerJoin(deployTargets, eq(deployTargets.id, deployments.targetId))
+    .leftJoin(builds, eq(builds.id, deployments.buildId))
     .where(
       and(
         eq(deployments.environmentId, environmentId),
@@ -757,6 +782,8 @@ async function releaseLockIn(
         .values({
           environmentId,
           userId: actorId,
+          // The same pusher a run placed without the lock would carry.
+          triggeredBy: row.trigger === "auto" ? (row.pushedBy ?? null) : null,
           description: deploymentRunDescription(
             row.componentKey,
             row.tag,
