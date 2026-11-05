@@ -1856,7 +1856,8 @@
     "deployLockLocked": "{actor} bloqueó los despliegues a {environment} ({reason})",
     "deployLockUnlocked": "{actor} desbloqueó los despliegues a {environment}; {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}",
     "deployLockForceUnlocked": "{actor} forzó el desbloqueo de los despliegues a {environment} ({reason}); {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}",
-    "deployLockExpired": "El bloqueo de despliegue de {environment} caducó; {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}"
+    "deployLockExpired": "El bloqueo de despliegue de {environment} caducó; {count, plural, =0 {ninguna build retenida} one {# build retenida en cola} other {# builds retenidas en cola}}",
+    "deployLockUpdated": "{actor} cambió el bloqueo de despliegue de {environment} ({reason})"
   },
   "jira": {
     "title": "Jira",

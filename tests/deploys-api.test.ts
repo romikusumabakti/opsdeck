@@ -128,6 +128,7 @@ beforeEach(() => {
   deployments.requestDeployment.mockResolvedValue({
     deploymentId: "dep-1",
     runId: "run-1",
+    status: "queued",
   });
 });
 

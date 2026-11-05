@@ -16,7 +16,7 @@ const TARGET_B = "0197f3a0-1b2c-7def-8000-0123456789a2";
 type Dep = {
   id: string;
   targetId: string;
-  runId: string;
+  runId: string | null;
   status: "held" | "queued" | "superseded" | "running";
   createdAt: Date;
 };
@@ -43,7 +43,7 @@ const store = vi.hoisted(() => ({
   deps: [] as {
     id: string;
     targetId: string;
-    runId: string;
+    runId: string | null;
     status: "held" | "queued" | "superseded" | "running";
     createdAt: Date;
   }[],
@@ -163,7 +163,9 @@ vi.mock("@/lib/deploy/repository", async () => {
         const queued = [];
         for (const d of store.deps) {
           if (plan.queue.includes(d.id)) {
+            // The run is created on release; held rows have none.
             d.status = "queued";
+            d.runId = `run-${d.id}`;
             queued.push({ deploymentId: d.id, runId: d.runId });
           } else if (plan.supersede.includes(d.id)) {
             d.status = "superseded";
@@ -212,7 +214,7 @@ function held(id: string, targetId: string, second: number): Dep {
   return {
     id,
     targetId,
-    runId: `run-${id}`,
+    runId: null,
     status: "held",
     createdAt: new Date(Date.UTC(2026, 10, 5, 2, 0, second)),
   };
@@ -331,6 +333,7 @@ describe("PUT deploy-lock (who may lock)", () => {
       lockedBy: MAINTAINER,
       reason: "Longer UAT",
     });
+    expect(actions()).toEqual(["deployLock.updated"]);
   });
 
   it("releases an expired lock before setting the new one", async () => {
@@ -448,6 +451,37 @@ describe("DELETE deploy-lock (who may unlock)", () => {
     expect([first.status, second.status]).toEqual([200, 200]);
     expect(queue.enqueue).toHaveBeenCalledTimes(1);
     expect(actions()).toEqual(["deployLock.unlocked"]);
+  });
+
+  it("answers 409 when the lock it checked was replaced before the delete", async () => {
+    // The newer lock is in place; the request read the older one.
+    setLock(OWNER);
+    const { getDeployLock } = await import("@/lib/deploy/repository");
+    vi.mocked(getDeployLock).mockResolvedValueOnce({
+      ...(store.lock as NonNullable<typeof store.lock>),
+      lockedBy: MAINTAINER,
+      createdAt: new Date(NOW.getTime() - 3_600_000),
+      lockerName: "Maintainer Mira",
+    });
+    const res = await send("DELETE", lockPath);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(
+      "The deploy lock changed in the meantime. Reload and try again."
+    );
+    expect(store.lock?.lockedBy).toBe(OWNER);
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("lets any project member clear an expired, unswept lock, logged as expired", async () => {
+    setLock(OWNER, new Date(NOW.getTime() - 1));
+    as(VIEWER, "viewer");
+    const res = await send("DELETE", lockPath);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ queued: [] });
+    expect(store.lock).toBeNull();
+    expect(activity.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: null, action: "deployLock.expired" })
+    );
   });
 
   it("does nothing when there is no lock", async () => {

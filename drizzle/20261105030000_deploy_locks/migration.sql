@@ -10,6 +10,11 @@ BEGIN;
 -- line on its own, outside the transaction.
 ALTER TYPE deployment_status ADD VALUE 'held';
 
+-- A held deployment has no run until the lock is released and it is queued
+-- (a superseded held one never gets one). Relaxing the constraint only: the
+-- running build always sets run_id.
+ALTER TABLE deployments ALTER COLUMN run_id DROP NOT NULL;
+
 -- At most one lock per environment. "locked_by" is nulled when the user is
 -- deleted; the lock stays until unlocked or expired. Timestamps are UTC.
 CREATE TABLE environment_deploy_locks (

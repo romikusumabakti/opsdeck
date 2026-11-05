@@ -607,9 +607,9 @@ export const deployments = pgTable(
     environmentId: uuid("environment_id")
       .notNull()
       .references(() => environments.id, { onDelete: "cascade" }),
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => runs.id, { onDelete: "cascade" }),
+    // Null while `held`: the run is created when the deployment is queued
+    // (at request time, or when the deploy lock is released).
+    runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
     tag: text("tag").notNull(),
     trigger: deployTriggerEnum("trigger").notNull(),
     status: deploymentStatusEnum("status").notNull().default("queued"),

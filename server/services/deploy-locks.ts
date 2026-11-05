@@ -137,6 +137,7 @@ export async function lockEnvironment(
   }
   const lock = { reason: reason.data, expiresAt };
 
+  let action = "deployLock.locked";
   const existing = await getDeployLock(environmentId);
   if (existing && isLockActive(existing, now)) {
     if (!canUnlock(isOwner, existing.lockedBy === userId)) {
@@ -147,6 +148,7 @@ export async function lockEnvironment(
     if (!(await updateDeployLock(environmentId, existing.createdAt, lock))) {
       throw new HTTPException(409, { message: t("deployLockChanged") });
     }
+    action = "deployLock.updated";
   } else {
     if (existing) {
       await releaseLock(environmentId, "expired", null, {
@@ -172,7 +174,7 @@ export async function lockEnvironment(
 
   await recordActivity({
     actorId: userId,
-    action: "deployLock.locked",
+    action,
     entityType: "environment",
     entityId: environmentId,
     data: {
@@ -186,7 +188,9 @@ export async function lockEnvironment(
 
 /**
  * Removes the lock — only whoever set it, or the environment's owner — and
- * queues the newest held build of each target. No lock: nothing to do.
+ * queues the newest held build of each target. No lock: nothing to do. A lock
+ * past its expiry that the sweep has not removed yet no longer binds anyone:
+ * any project member clearing it releases it as expired.
  */
 export async function unlockEnvironment(
   environmentId: string
@@ -194,10 +198,28 @@ export async function unlockEnvironment(
   const { userId, isOwner } = await lockContext(environmentId);
   const lock = await getDeployLock(environmentId);
   if (!lock) return { queued: [] };
+  const now = new Date();
+  if (!isLockActive(lock, now)) {
+    const { queued } = await releaseLock(environmentId, "expired", null, {
+      expectedCreatedAt: lock.createdAt,
+      now,
+    });
+    return { queued };
+  }
   if (!canUnlock(isOwner, lock.lockedBy === userId)) forbidden();
-  return releaseLock(environmentId, "unlock", userId, {
-    expectedCreatedAt: lock.createdAt,
-  });
+  const { released, queued } = await releaseLock(
+    environmentId,
+    "unlock",
+    userId,
+    { expectedCreatedAt: lock.createdAt }
+  );
+  if (!released && (await getDeployLock(environmentId))) {
+    // The lock checked above was replaced by another before the delete; the
+    // caller's right to remove the new one was never checked.
+    const t = await getServerTranslator("actionErrors");
+    throw new HTTPException(409, { message: t("deployLockChanged") });
+  }
+  return { queued };
 }
 
 /** An org admin removes someone's lock; the reason goes to the activity log. */
@@ -210,7 +232,13 @@ export async function forceUnlockEnvironment(
   const reason = lockReasonSchema.safeParse(input.reason);
   if (!reason.success) badRequest(t("deployForceUnlockReasonRequired"));
   if (!(await getEnvironmentForLock(environmentId))) notFound();
-  return releaseLock(environmentId, "force", session.user.id, {
-    reason: reason.data,
-  });
+  const { queued } = await releaseLock(
+    environmentId,
+    "force",
+    session.user.id,
+    {
+      reason: reason.data,
+    }
+  );
+  return { queued };
 }

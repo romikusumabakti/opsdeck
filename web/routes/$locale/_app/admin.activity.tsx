@@ -174,6 +174,12 @@ function message(
         environment: String(d.environment),
         reason: String(d.reason),
       });
+    case "deployLock.updated":
+      return t("deployLockUpdated", {
+        actor,
+        environment: String(d.environment),
+        reason: String(d.reason),
+      });
     case "deployLock.unlocked":
       return t("deployLockUnlocked", {
         actor,

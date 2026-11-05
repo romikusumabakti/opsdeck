@@ -312,9 +312,9 @@ function TargetCard({
           ) : (
             <DeploymentsTable
               deployments={target.recentDeployments}
-              onViewRun={(d) =>
+              onViewRun={(d, runId) =>
                 onRun({
-                  runId: d.runId,
+                  runId,
                   tag: d.tag,
                   componentKey: target.componentKey,
                 })
@@ -415,7 +415,7 @@ function DeploymentsTable({
   onViewRun,
 }: {
   deployments: Deployment[];
-  onViewRun: (deployment: Deployment) => void;
+  onViewRun: (deployment: Deployment, runId: string) => void;
 }) {
   const t = useTranslations("deploys");
   return (
@@ -451,10 +451,17 @@ function DeploymentsTable({
               <RelativeTime date={d.createdAt} />
             </TableCell>
             <TableCell className="text-end">
-              <Button variant="ghost" size="sm" onClick={() => onViewRun(d)}>
-                <ScrollText data-icon="inline-start" />
-                {t("viewRun")}
-              </Button>
+              {/* A held deployment has no run until the lock is released. */}
+              {d.runId !== null && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => d.runId && onViewRun(d, d.runId)}
+                >
+                  <ScrollText data-icon="inline-start" />
+                  {t("viewRun")}
+                </Button>
+              )}
             </TableCell>
           </TableRow>
         ))}

@@ -1856,7 +1856,8 @@
     "deployLockLocked": "قفل {actor} عمليات النشر إلى {environment} ({reason})",
     "deployLockUnlocked": "فك {actor} قفل النشر إلى {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
     "deployLockForceUnlocked": "فك {actor} قفل النشر إلى {environment} بالقوة ({reason})؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
-    "deployLockExpired": "انتهى قفل النشر على {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}"
+    "deployLockExpired": "انتهى قفل النشر على {environment}؛ {count, plural, =0 {لا توجد بنيات معلّقة} other {# بنية معلّقة في قائمة الانتظار}}",
+    "deployLockUpdated": "غيّر {actor} قفل النشر على {environment} ({reason})"
   },
   "jira": {
     "title": "Jira",
