@@ -128,7 +128,7 @@ export async function getEnvironmentRuns(
       })
       .from(runs)
       .leftJoin(users, eq(users.id, runs.userId))
-      .leftJoin(autoUsers, autoUserOn)
+      .leftJoinLateral(autoUsers, autoUserOn)
       .where(eq(runs.environmentId, environmentId))
       .orderBy(desc(runs.runAt));
     return rows.map((r) => ({
