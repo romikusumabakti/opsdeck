@@ -430,7 +430,8 @@
       "failed": "Could not update the deploy lock.",
       "holderUnknown": "Someone",
       "disabledHint": "Deploys are locked: {reason}",
-      "heldBuilds": "{count, plural, =0 {No builds are held.} one {# build is held.} other {# builds are held.}}"
+      "heldBuilds": "{count, plural, =0 {No builds are held.} one {# build is held.} other {# builds are held.}}",
+      "saveLock": "Save lock"
     }
   },
   "backupDb": {
