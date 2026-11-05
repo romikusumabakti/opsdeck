@@ -16,6 +16,7 @@ import {
   DashboardKpis,
   DashboardKpisSkeleton,
 } from "./-components/env/dashboard-kpis";
+import { DeployLockBadge } from "./-components/env/deploys/deploy-lock";
 import { EnvironmentStack } from "./-components/env/environment-stack";
 import {
   RecentActivity,
@@ -65,6 +66,7 @@ function DashboardPage() {
             />
           </>
         }
+        action={<DeployLockBadge environmentId={environmentId} />}
       />
       <Suspense fallback={<DashboardKpisSkeleton />}>
         <DashboardKpis environmentId={environmentId} />

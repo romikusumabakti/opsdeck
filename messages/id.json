@@ -406,6 +406,31 @@
       "duplicateComponent": "Komponen ini sudah punya target di environment ini.",
       "tagVariableIsVariable": "Environment ini sudah punya variabel dengan nama ini; deploy menulis baris tag sendiri. Pilih nama lain atau hapus variabelnya.",
       "otherApp": "Komponen ini milik app lain dari environment ini."
+    },
+    "lock": {
+      "badge": "Deploy dikunci",
+      "lockedTitle": "Deploy sedang dikunci",
+      "lockedBy": "{name} mengunci deploy: {reason}",
+      "until": "Sampai {expiresAt}.",
+      "unlockedHint": "Deploy terbuka.",
+      "lock": "Kunci deploy",
+      "unlock": "Buka kunci",
+      "edit": "Ubah kunci",
+      "forceUnlock": "Paksa buka kunci",
+      "dialogTitle": "Kunci deploy",
+      "dialogDescription": "Deploy manual dan rollback ditolak selama terkunci. Build dari auto-deploy ditahan dan yang terbaru per target di-deploy saat kunci berakhir.",
+      "reason": "Alasan",
+      "expiry": "Kunci berakhir",
+      "expiryHint": "Ditampilkan dalam waktu lokal Anda. Maksimal 7 hari ke depan.",
+      "forceTitle": "Paksa buka kunci",
+      "forceDescription": "Melepas kunci yang dipasang orang lain. Build yang ditahan akan diantrekan dan alasannya dicatat di log aktivitas.",
+      "forceReason": "Alasan membuka paksa",
+      "locked": "Deploy dikunci.",
+      "unlocked": "Kunci deploy dibuka.",
+      "failed": "Gagal memperbarui kunci deploy.",
+      "holderUnknown": "Seseorang",
+      "disabledHint": "Deploy dikunci: {reason}",
+      "heldBuilds": "{count, plural, =0 {Tidak ada build yang ditahan.} other {# build ditahan.}}"
     }
   },
   "backupDb": {
