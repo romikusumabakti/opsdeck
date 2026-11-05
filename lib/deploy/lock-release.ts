@@ -2,6 +2,7 @@ import { recordActivity } from "@/lib/activity";
 import {
   getEnvironmentForLock,
   listExpiredDeployLocks,
+  type ReleasedLock,
   releaseDeployLock,
 } from "@/lib/deploy/repository";
 import { enqueue } from "@/lib/queue";
@@ -32,6 +33,9 @@ const ACTIONS: Record<ReleaseCause, string> = {
  *   since then.
  * - `now`: with cause `expired`, release only a lock expired by then.
  * - `reason`: the force-unlock reason, for the activity entry.
+ *
+ * The runs of the queued deployments belong to the actor for an unlock or a
+ * force-unlock, and to nobody for an expiry.
  */
 export async function releaseLock(
   environmentId: string,
@@ -39,12 +43,38 @@ export async function releaseLock(
   actorId: string | null,
   options: { reason?: string; expectedCreatedAt?: Date; now?: Date } = {}
 ): Promise<{ released: boolean; queued: string[] }> {
-  const released = await releaseDeployLock(environmentId, {
-    createdAt: options.expectedCreatedAt,
-    expiredAt: cause === "expired" ? (options.now ?? new Date()) : undefined,
-  });
+  const released = await releaseDeployLock(
+    environmentId,
+    {
+      createdAt: options.expectedCreatedAt,
+      expiredAt: cause === "expired" ? (options.now ?? new Date()) : undefined,
+    },
+    cause === "expired" ? null : actorId
+  );
   if (!released) return { released: false, queued: [] };
+  const queued = await announceRelease(
+    environmentId,
+    cause,
+    actorId,
+    released,
+    options.reason
+  );
+  return { released: true, queued };
+}
 
+/**
+ * What follows a committed release: enqueue the queued deployments (in
+ * order) and record the activity entry. Also used by requestDeployment for an
+ * expired lock that placeDeployment released in its own transaction. Returns
+ * the queued deployment ids.
+ */
+export async function announceRelease(
+  environmentId: string,
+  cause: ReleaseCause,
+  actorId: string | null,
+  released: ReleasedLock,
+  reason?: string
+): Promise<string[]> {
   for (const job of released.queued) {
     try {
       await enqueue("deploy/run.requested", job);
@@ -67,15 +97,12 @@ export async function releaseLock(
     data: {
       environment: environment?.name ?? environmentId,
       ...(cause === "force"
-        ? { reason: options.reason ?? "", lockReason: released.lock.reason }
+        ? { reason: reason ?? "", lockReason: released.lock.reason }
         : { reason: released.lock.reason }),
       count: released.queued.length,
     },
   });
-  return {
-    released: true,
-    queued: released.queued.map((job) => job.deploymentId),
-  };
+  return released.queued.map((job) => job.deploymentId);
 }
 
 /**

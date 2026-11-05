@@ -200,10 +200,13 @@ export async function unlockEnvironment(
   if (!lock) return { queued: [] };
   const now = new Date();
   if (!isLockActive(lock, now)) {
-    const { queued } = await releaseLock(environmentId, "expired", null, {
-      expectedCreatedAt: lock.createdAt,
-      now,
-    });
+    const { released, queued } = await releaseLock(
+      environmentId,
+      "expired",
+      null,
+      { expectedCreatedAt: lock.createdAt, now }
+    );
+    if (!released) await assertLockUnchanged(environmentId);
     return { queued };
   }
   if (!canUnlock(isOwner, lock.lockedBy === userId)) forbidden();
@@ -213,13 +216,21 @@ export async function unlockEnvironment(
     userId,
     { expectedCreatedAt: lock.createdAt }
   );
-  if (!released && (await getDeployLock(environmentId))) {
-    // The lock checked above was replaced by another before the delete; the
-    // caller's right to remove the new one was never checked.
+  if (!released) await assertLockUnchanged(environmentId);
+  return { queued };
+}
+
+/**
+ * After a conditional release matched nothing: 409 when a lock is in place —
+ * the one checked was replaced by another before the delete, and the caller's
+ * right to remove the new one was never checked. No lock at all (a concurrent
+ * unlock or the sweep removed it) is fine.
+ */
+async function assertLockUnchanged(environmentId: string): Promise<void> {
+  if (await getDeployLock(environmentId)) {
     const t = await getServerTranslator("actionErrors");
     throw new HTTPException(409, { message: t("deployLockChanged") });
   }
-  return { queued };
 }
 
 /** An org admin removes someone's lock; the reason goes to the activity log. */

@@ -215,6 +215,32 @@ describe("handleDeploy", () => {
     expect(progress.completeRun).not.toHaveBeenCalled();
   });
 
+  it("claims with the job's run, so a stale job cannot claim a re-queued deployment", async () => {
+    await handleDeploy(payload);
+    expect(repo.claimDeployment).toHaveBeenCalledWith(DEPLOYMENT_ID, RUN_ID);
+  });
+
+  it.each([
+    ["held", "held"],
+    ["cancelled", "cancelled"],
+  ])(
+    "a deployment the lock stopped at claim (%s) is done: nothing runs, nothing more is written",
+    async (claim, status) => {
+      repo.claimDeployment.mockResolvedValue(claim);
+
+      await expect(handleDeploy(payload)).resolves.toEqual({ status });
+
+      expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+      expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
+      expect(repo.finishDeployment).not.toHaveBeenCalled();
+      // Held: the run was deleted; cancelled: the claim already failed it.
+      expect(progress.appendRunOutput).not.toHaveBeenCalled();
+      expect(progress.completeRun).not.toHaveBeenCalled();
+      expect(progress.failRun).not.toHaveBeenCalled();
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    }
+  );
+
   it("duplicate delivery of a finished deployment leaves the run untouched", async () => {
     repo.claimDeployment.mockResolvedValue("finished");
 
