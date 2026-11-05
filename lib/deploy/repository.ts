@@ -4,6 +4,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  isNull,
   lte,
   ne,
   type SQL,
@@ -50,7 +51,10 @@ export type TagState = {
 export type TargetState = DeployTarget &
   TagState & {
     recentBuilds: Build[];
-    recentDeployments: (Deployment & { userName: string | null })[];
+    recentDeployments: (Deployment & {
+      userName: string | null;
+      triggeredBy: string | null;
+    })[];
   };
 
 type TagStateRow = Pick<
@@ -222,7 +226,11 @@ export async function listTargetsForEnvironment(
           .orderBy(desc(builds.receivedAt), desc(builds.id))
           .limit(RECENT_LIMIT),
         db
-          .select({ deployment: deployments, userName: users.name })
+          .select({
+            deployment: deployments,
+            userName: users.name,
+            triggeredBy: runs.triggeredBy,
+          })
           .from(deployments)
           // Left join: a held deployment has no run yet.
           .leftJoin(runs, eq(runs.id, deployments.runId))
@@ -238,6 +246,7 @@ export async function listTargetsForEnvironment(
         recentDeployments: recentDeployments.map((r) => ({
           ...r.deployment,
           userName: r.userName,
+          triggeredBy: r.triggeredBy,
         })),
       };
     })
@@ -1024,4 +1033,101 @@ export async function environmentUsesServer(
 
 export async function deleteTarget(id: string): Promise<void> {
   await db.delete(deployTargets).where(eq(deployTargets.id, id));
+}
+
+/** A build whose pusher is unknown but whose pipeline URL may still tell. */
+export type BuildMissingActors = {
+  id: string;
+  componentKey: string;
+  tag: string;
+  pipelineUrl: string;
+};
+
+export async function listBuildsMissingActors(): Promise<BuildMissingActors[]> {
+  const rows = await db
+    .select({
+      id: builds.id,
+      componentKey: builds.componentKey,
+      tag: builds.tag,
+      pipelineUrl: builds.pipelineUrl,
+    })
+    .from(builds)
+    .where(and(isNull(builds.pushedBy), isNotNull(builds.pipelineUrl)))
+    .orderBy(desc(builds.receivedAt), desc(builds.id));
+  return rows.flatMap((r) =>
+    r.pipelineUrl ? [{ ...r, pipelineUrl: r.pipelineUrl }] : []
+  );
+}
+
+/** Only fills a build whose pusher is still unknown, so a rerun is harmless. */
+export async function setBuildActors(
+  buildId: string,
+  actors: {
+    pushedBy: string | null;
+    commitAuthorEmail: string | null;
+    commitMessage: string | null;
+  }
+): Promise<void> {
+  await db
+    .update(builds)
+    .set(actors)
+    .where(and(eq(builds.id, buildId), isNull(builds.pushedBy)));
+}
+
+/** Builds with a known pusher that still have an auto run without one. */
+export async function listBuildsWithUnfilledRuns(): Promise<
+  { id: string; pushedBy: string }[]
+> {
+  const rows = await db
+    .selectDistinct({ id: builds.id, pushedBy: builds.pushedBy })
+    .from(builds)
+    .innerJoin(deployments, eq(deployments.buildId, builds.id))
+    .innerJoin(runs, eq(runs.id, deployments.runId))
+    .where(
+      and(
+        isNotNull(builds.pushedBy),
+        eq(deployments.trigger, "auto"),
+        isNull(runs.userId),
+        isNull(runs.triggeredBy)
+      )
+    );
+  return rows.flatMap((r) =>
+    r.pushedBy ? [{ id: r.id, pushedBy: r.pushedBy }] : []
+  );
+}
+
+/** Ids of the auto runs of a build that show no actor yet. */
+export async function listUnfilledAutoRunIds(
+  buildId: string
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: runs.id })
+    .from(deployments)
+    .innerJoin(runs, eq(runs.id, deployments.runId))
+    .where(
+      and(
+        eq(deployments.buildId, buildId),
+        eq(deployments.trigger, "auto"),
+        isNull(runs.userId),
+        isNull(runs.triggeredBy)
+      )
+    );
+  return rows.map((r) => r.id);
+}
+
+export async function setRunsTriggeredBy(
+  runIds: string[],
+  triggeredBy: string
+): Promise<void> {
+  if (runIds.length === 0) return;
+  await db
+    .update(runs)
+    .set({ triggeredBy })
+    .where(
+      and(
+        inArray(runs.id, runIds),
+        isNull(runs.userId),
+        isNull(runs.triggeredBy)
+      )
+    );
 }

@@ -10,6 +10,7 @@ import {
   Rocket,
   ScrollText,
   Undo2,
+  Zap,
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -43,6 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { firstLine, runActorLabel } from "@/lib/deploy/run-actor";
 import { ApiError } from "@/web/api/client";
 import {
   type DeployTargetState,
@@ -391,6 +393,7 @@ function BuildsTable({
               title={build.commitSha}
             >
               {build.commitSha.slice(0, 7)}
+              <BuildCommitDetail build={build} />
             </TableCell>
             <TableCell className="text-muted-foreground">
               <RelativeTime date={build.receivedAt} />
@@ -441,6 +444,20 @@ function BuildsTable({
   );
 }
 
+// The commit's first message line, with the author's email on hover.
+function BuildCommitDetail({ build }: { build: Build }) {
+  const message = firstLine(build.commitMessage);
+  if (!message) return null;
+  return (
+    <span
+      className="block max-w-[28rem] truncate font-sans"
+      title={build.commitAuthorEmail ?? undefined}
+    >
+      {message}
+    </span>
+  );
+}
+
 function DeploymentsTable({
   deployments,
   onViewRun,
@@ -472,11 +489,7 @@ function DeploymentsTable({
               <DeploymentStatusBadge status={d.status} />
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {d.trigger === "auto"
-                ? t("byAuto")
-                : (d.userName ?? (
-                    <span className="italic">{t("userUnknown")}</span>
-                  ))}
+              <DeploymentActor deployment={d} />
             </TableCell>
             <TableCell className="text-muted-foreground">
               <RelativeTime date={d.createdAt} />
@@ -499,6 +512,30 @@ function DeploymentsTable({
       </TableBody>
     </Table>
   );
+}
+
+function DeploymentActor({ deployment: d }: { deployment: Deployment }) {
+  const t = useTranslations("deploys");
+  const actor = runActorLabel({
+    userName: d.userName,
+    triggeredBy: d.triggeredBy,
+    auto: d.trigger === "auto",
+  });
+  switch (actor.kind) {
+    case "user":
+      return actor.name;
+    case "auto":
+      return (
+        <span className="inline-flex items-center gap-1.5">
+          <Zap className="size-3.5 shrink-0" aria-hidden />
+          {actor.by === null
+            ? t("byAuto")
+            : t("byAutoUser", { user: actor.by })}
+        </span>
+      );
+    default:
+      return <span className="italic">{t("userUnknown")}</span>;
+  }
 }
 
 function DeploymentStatusBadge({ status }: { status: Deployment["status"] }) {

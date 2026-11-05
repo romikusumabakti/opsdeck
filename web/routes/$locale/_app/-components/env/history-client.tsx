@@ -4,6 +4,7 @@ import {
   CircleAlert,
   History as HistoryIcon,
   Loader2,
+  Zap,
 } from "lucide-react";
 import * as React from "react";
 import { useFormatter, useTranslations } from "use-intl";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { UserName } from "@/components/user/user-name";
+import { runActorLabel } from "@/lib/deploy/run-actor";
 import { facetFilterFn } from "@/lib/facet-filter";
 import { DATE_TIME } from "@/lib/format-date";
 import type { RunWithUser } from "@/web/api/runs";
@@ -107,13 +109,25 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
         meta: { label: t("colUser") },
         header: t("colUser"),
         cell: ({ row }) => {
-          const user = row.original.user;
-          return user ? (
-            <UserName
-              user={user}
-              avatar
-              className="text-sm text-muted-foreground"
-            />
+          const run = row.original;
+          const actor = runActorLabel({
+            userName: run.user?.name,
+            triggeredBy: run.triggeredBy,
+          });
+          if (run.user) {
+            return (
+              <UserName
+                user={run.user}
+                avatar
+                className="text-sm text-muted-foreground"
+              />
+            );
+          }
+          return actor.kind === "auto" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Zap className="size-3.5 shrink-0" aria-hidden />
+              {t("byAutoUser", { user: actor.by ?? "" })}
+            </span>
           ) : (
             <span className="text-sm italic text-muted-foreground">
               {t("userUnknown")}

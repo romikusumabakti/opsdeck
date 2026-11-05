@@ -31,6 +31,11 @@ export type BuildNotification = z.infer<typeof buildNotificationSchema>;
 /** The longest a build notification waits for the CI provider. */
 export const BUILD_ACTORS_TIMEOUT_MS = 5_000;
 
+/** What the lookup needs of a build notification or a stored build. */
+export type BuildActorsInput = Pick<BuildNotification, "app" | "tag"> & {
+  pipelineUrl?: string | null;
+};
+
 type BuildActors = {
   pushedBy: string | null;
   commitAuthorEmail: string | null;
@@ -52,7 +57,7 @@ const clip = (value: string | null, max: number) =>
  * points at that repo, so a notification cannot make the Panel read another
  * repo's pipeline.
  */
-async function fetchBuildActors(n: BuildNotification): Promise<BuildActors> {
+async function fetchBuildActors(n: BuildActorsInput): Promise<BuildActors> {
   const component = await getComponent(n.app);
   if (!component?.ciConnectionId) return NO_ACTORS;
   const number = parsePipelineNumber(n.pipelineUrl, component.ciRepoId);
@@ -73,7 +78,9 @@ async function fetchBuildActors(n: BuildNotification): Promise<BuildActors> {
  * recorded as without it. Logs the reason only (CiProviderError messages hold
  * no credentials).
  */
-async function buildActorsOrNulls(n: BuildNotification): Promise<BuildActors> {
+export async function buildActorsOrNulls(
+  n: BuildActorsInput
+): Promise<BuildActors> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(
