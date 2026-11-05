@@ -1,5 +1,4 @@
 import { shq } from "@/lib/sh";
-import { parsePublishedPorts } from "@/lib/tunnels/remote";
 
 // Facts gathered from a server by the preflight scan; stored in
 // servers.preflight. Non-secret by construction.
@@ -34,10 +33,17 @@ export function buildPreflightCommand(registry: string | null): string {
     "podman version --format '{{.Version}}' 2>/dev/null || true",
   ];
   if (registry) {
+    // https first; plain-HTTP registries answer 000 there, so retry over http.
+    const probe = (scheme: "https" | "http") =>
+      `s=$(curl -s -o /dev/null -m 5 -w '%{http_code}' ${shq(`${scheme}://${registry}/v2/`)} 2>/dev/null || true)`;
     lines.push(
       `echo ${MARK}registry`,
-      `curl -s -o /dev/null -m 5 -w '%{http_code}' ${shq(`https://${registry}/v2/`)} 2>/dev/null || true`,
-      "echo"
+      probe("https"),
+      'echo "https $s"',
+      'if [ -z "$s" ] || [ "$s" = 000 ]; then',
+      `  ${probe("http")}`,
+      '  echo "http $s"',
+      "fi"
     );
   }
   lines.push(
@@ -51,6 +57,24 @@ export function buildPreflightCommand(registry: string | null): string {
     "ss -Htln 2>/dev/null || true"
   );
   return lines.join("\n");
+}
+
+/**
+ * HOST-side ports out of a `docker ps` Ports column, e.g.
+ * `127.0.0.1:8091->80/tcp, [::]:8100-8102->8100-8102/tcp, 3000/tcp`.
+ * Ranges are expanded; bare exposures (no `->`) publish nothing and are skipped.
+ */
+export function parseHostPublishedPorts(ports: string): number[] {
+  const found = new Set<number>();
+  for (const part of ports.split(",")) {
+    const match = /(?:^|:)(\d+)(?:-(\d+))?->/.exec(part.trim());
+    if (!match) continue;
+    const from = Number(match[1]);
+    const to = match[2] ? Number(match[2]) : from;
+    // Guard against absurd ranges; a real mapping is far smaller.
+    for (let p = from; p <= to && p - from < 65536; p++) found.add(p);
+  }
+  return [...found].sort((a, b) => a - b);
 }
 
 function sections(output: string): Map<string, string[]> {
@@ -91,14 +115,21 @@ export function parsePreflight(
 
   let registryResult: ServerPreflight["registry"] = null;
   if (registry) {
-    const code = Number(firstLine(found.get("registry")));
-    const status = Number.isInteger(code) && code > 0 ? code : null;
+    // Lines look like "https 000" / "http 200"; the first scheme that got an
+    // HTTP answer wins, else report the https URL as unanswered.
+    let url = `https://${registry}/v2/`;
+    let status: number | null = null;
+    for (const line of found.get("registry") ?? []) {
+      const [scheme, raw] = line.trim().split(/\s+/);
+      const code = Number(raw);
+      if ((scheme === "https" || scheme === "http") && code > 0) {
+        url = `${scheme}://${registry}/v2/`;
+        status = code;
+        break;
+      }
+    }
     // 401 is the registry's auth challenge: it answers, so it is reachable.
-    registryResult = {
-      url: `https://${registry}/v2/`,
-      ok: status === 200 || status === 401,
-      status,
-    };
+    registryResult = { url, ok: status === 200 || status === 401, status };
   }
 
   const disk: ServerPreflight["disk"] = [];
@@ -128,7 +159,7 @@ export function parsePreflight(
 
   const published = new Set<number>();
   for (const c of containers) {
-    for (const p of parsePublishedPorts(c.ports)) published.add(p);
+    for (const p of parseHostPublishedPorts(c.ports)) published.add(p);
   }
 
   return {
