@@ -114,9 +114,9 @@ vi.mock("@/lib/deploy/repository", async () => {
       async () => store.deps.filter((d) => d.status === "held").length
     ),
     insertDeployLock: vi.fn(async (lock: NonNullable<typeof store.lock>) => {
-      if (store.lock) return false;
+      if (store.lock) return null;
       store.lock = { ...lock };
-      return true;
+      return { held: [], cancelled: [] };
     }),
     updateDeployLock: vi.fn(
       async (
@@ -140,7 +140,8 @@ vi.mock("@/lib/deploy/repository", async () => {
     releaseDeployLock: vi.fn(
       async (
         id: string,
-        match: { createdAt?: Date; expiredAt?: Date } = {}
+        match: { createdAt?: Date; expiredAt?: Date } = {},
+        _actorId: string | null = null
       ) => {
         const lock = store.lock;
         if (!lock || lock.environmentId !== id) return null;
@@ -484,6 +485,38 @@ describe("DELETE deploy-lock (who may unlock)", () => {
     );
   });
 
+  it("answers 409 when an expired lock it would clear was replaced by a fresh one", async () => {
+    // The request read the expired lock; a new one was set before the delete.
+    setLock(OWNER);
+    const { getDeployLock } = await import("@/lib/deploy/repository");
+    vi.mocked(getDeployLock).mockResolvedValueOnce({
+      ...(store.lock as NonNullable<typeof store.lock>),
+      expiresAt: new Date(NOW.getTime() - 1),
+      createdAt: new Date(NOW.getTime() - 3_600_000),
+      lockerName: "Owner Olga",
+    });
+    as(VIEWER, "viewer");
+    const res = await send("DELETE", lockPath);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe(
+      "The deploy lock changed in the meantime. Reload and try again."
+    );
+    expect(store.lock).not.toBeNull();
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("gives the released runs to the unlocking user, and to nobody on expiry", async () => {
+    const { releaseDeployLock } = await import("@/lib/deploy/repository");
+    setLock(MAINTAINER);
+    await send("DELETE", lockPath);
+    expect(vi.mocked(releaseDeployLock).mock.calls.at(-1)?.[2]).toBe(
+      MAINTAINER
+    );
+    setLock(MAINTAINER, new Date(NOW.getTime() - 1));
+    await sweepExpiredLocks(NOW);
+    expect(vi.mocked(releaseDeployLock).mock.calls.at(-1)?.[2]).toBeNull();
+  });
+
   it("does nothing when there is no lock", async () => {
     const res = await send("DELETE", lockPath);
     expect(res.status).toBe(200);
@@ -534,6 +567,16 @@ describe("POST deploy-lock/force-unlock", () => {
         }),
       })
     );
+  });
+});
+
+describe("POST deploy-lock/force-unlock run owner", () => {
+  it("gives the released runs to the admin who forced the unlock", async () => {
+    const { releaseDeployLock } = await import("@/lib/deploy/repository");
+    setLock(OWNER);
+    as(ADMIN, "maintainer", "admin");
+    await send("POST", forcePath, { reason: "Production hotfix" });
+    expect(vi.mocked(releaseDeployLock).mock.calls.at(-1)?.[2]).toBe(ADMIN);
   });
 });
 

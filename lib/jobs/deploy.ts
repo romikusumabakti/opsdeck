@@ -52,7 +52,14 @@ const INTERRUPTED_MESSAGE =
   "Worker restarted during deploy — server state unknown";
 
 export type DeployJobResult = {
-  status: "success" | "failed" | "superseded" | "requeued" | "already-finished";
+  status:
+    | "success"
+    | "failed"
+    | "superseded"
+    | "held"
+    | "cancelled"
+    | "requeued"
+    | "already-finished";
 };
 
 // An expected failure; its message is the whole story for the run log.
@@ -73,8 +80,15 @@ export async function handleDeploy(
 ): Promise<DeployJobResult> {
   const { deploymentId, runId } = data;
 
-  const claim = await claimDeployment(deploymentId);
+  const claim = await claimDeployment(deploymentId, runId);
   switch (claim) {
+    // The environment was locked after this deployment was queued; the claim
+    // already wrote the outcome: held (its run deleted — it deploys with a
+    // new run on release) or cancelled (it and its run failed). Done, without
+    // touching the run.
+    case "held":
+    case "cancelled":
+      return { status: claim };
     case "superseded":
       await appendRunOutput(runId, "Superseded by a newer build");
       await completeRun(runId);
