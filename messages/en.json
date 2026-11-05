@@ -403,6 +403,7 @@
       "invalid": "This value doesn't match the format described below.",
       "componentNotFound": "No component with this key is registered.",
       "duplicateComponent": "This component already has a target in this environment.",
+      "tagVariableIsVariable": "This environment already has a variable with this name; the deploy writes the tag line itself. Pick another name or delete the variable.",
       "otherApp": "This component belongs to another app than this environment."
     }
   },
