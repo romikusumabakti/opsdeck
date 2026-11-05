@@ -587,6 +587,7 @@ describe("handleDeploy with a managed .env", () => {
     expect(mode).toBe(0o600);
     expect(content).toContain(`DB_PASSWORD='${SECRETS.DB_PASSWORD}'`);
     expect(content).toContain("APP_URL='https://app.example.test'");
+    expect(content).toContain("\nDOCKER_REGISTRY=192.168.10.113:5000\n");
     expect(content).toMatch(new RegExp(`\nIMAGE_TAG=${TAG}\n$`));
 
     // Single component: no read of the server's .env, only the script.

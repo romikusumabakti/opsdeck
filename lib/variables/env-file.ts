@@ -1,4 +1,8 @@
-import { deployTagSchema, envVarNameSchema } from "@/lib/deploy/validation";
+import {
+  deployRegistrySchema,
+  deployTagSchema,
+  envVarNameSchema,
+} from "@/lib/deploy/validation";
 import {
   variableNameSchema,
   variableValueSchema,
@@ -36,14 +40,18 @@ function quoteValue(value: string): string {
 
 /**
  * Renders an environment's `.env`: the header, the variables sorted by name,
- * then the tag variables sorted by name. Tag lines stay unquoted
- * (`IMAGE_TAG=<tag>`), the form the deploy script greps and `sed`s; tags are
- * validated to characters that need no quoting. Throws on an invalid name or
- * value, a duplicate name, or a variable named like a tag variable.
+ * `DOCKER_REGISTRY=<registry>`, then the tag variables sorted by name. The
+ * registry is the deploy registry; the Panel writes it because `DOCKER_` names
+ * are reserved for user variables while every compose file pulls
+ * `${DOCKER_REGISTRY}/…`. Registry and tag lines stay unquoted (the form the
+ * deploy script greps and `sed`s); both are validated to characters that need
+ * no quoting. Throws on an invalid name, value, tag or registry, a duplicate
+ * name, or a variable named like a tag variable.
  */
 export function renderEnvFile(
   vars: { name: string; value: string }[],
-  tags: Record<string, string>
+  tags: Record<string, string>,
+  registry: string
 ): string {
   const tagNames = Object.keys(tags).sort();
   const nameSchema = variableNameSchema(tagNames);
@@ -62,6 +70,7 @@ export function renderEnvFile(
   for (const { name, value } of sorted) {
     lines.push(`${name}=${quoteValue(value)}`);
   }
+  lines.push(`DOCKER_REGISTRY=${deployRegistrySchema.parse(registry)}`);
   for (const name of tagNames) {
     envVarNameSchema.parse(name);
     lines.push(`${name}=${deployTagSchema.parse(tags[name])}`);

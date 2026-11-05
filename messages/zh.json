@@ -2486,7 +2486,7 @@
       "name": "名称",
       "nameHint": "大写字母、数字和 _，不能以数字开头。",
       "nameInvalid": "请使用大写字母、数字和 _，且不能以数字开头",
-      "nameReservedPrefix": "COMPOSE_、DOCKER_ 和 BUILDKIT_ 为保留前缀：Docker 会从 .env 读取它们，可能改变部署目标",
+      "nameReservedPrefix": "COMPOSE_、DOCKER_ 和 BUILDKIT_ 为保留前缀：Docker 会从 .env 读取它们，可能改变部署目标。DOCKER_REGISTRY 由 Panel 自动写入",
       "kind": "类型",
       "kindHint": {
         "plain": "所有能打开此页面的人都可见。",
@@ -2530,7 +2530,7 @@
       "description": "普通模板可以有默认值；生成模板可以有长度；机密模板两者都没有。",
       "name": "名称",
       "nameInvalid": "请使用大写字母、数字和 _，且不能以数字开头",
-      "nameReservedPrefix": "COMPOSE_、DOCKER_ 和 BUILDKIT_ 为保留前缀：Docker 会从 .env 读取它们，可能改变部署目标",
+      "nameReservedPrefix": "COMPOSE_、DOCKER_ 和 BUILDKIT_ 为保留前缀：Docker 会从 .env 读取它们，可能改变部署目标。DOCKER_REGISTRY 由 Panel 自动写入",
       "kind": "类型",
       "defaultValue": "默认值",
       "defaultValueHint": "可选。占位符 '{host}'、'{url}' 和 '{envSlug}' 会被替换为环境的值。",

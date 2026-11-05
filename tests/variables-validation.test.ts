@@ -35,6 +35,10 @@ describe("variableNameSchema", () => {
     }
   });
 
+  it("says in the reserved-prefix message that the Panel writes DOCKER_REGISTRY", () => {
+    expect(RESERVED_PREFIX_MESSAGE).toContain("DOCKER_REGISTRY");
+  });
+
   // Compose and the Docker CLI read these from the project's .env: a
   // COMPOSE_PROJECT_NAME or COMPOSE_FILE would retarget another stack.
   it("rejects the COMPOSE_, DOCKER_ and BUILDKIT_ prefixes", () => {

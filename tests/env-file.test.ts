@@ -7,6 +7,8 @@ import { ENV_FILE_HEADER, renderEnvFile } from "@/lib/variables/env-file";
 // template/template.go), independently of the renderer. Any interpolation it
 // performs yields INTERPOLATED, so a `$` that leaks through fails loudly.
 
+const REGISTRY = "192.168.10.113:5000";
+
 const INTERPOLATED = "<INTERPOLATED>";
 
 function isSpace(c: string): boolean {
@@ -166,8 +168,11 @@ const ROUND_TRIP = [
 
 describe("renderEnvFile", () => {
   it.each(ROUND_TRIP)("round-trips %j", (value) => {
-    const file = renderEnvFile([{ name: "VALUE", value }], {});
-    expect(parseDotenv(file)).toEqual({ VALUE: value });
+    const file = renderEnvFile([{ name: "VALUE", value }], {}, REGISTRY);
+    expect(parseDotenv(file)).toEqual({
+      VALUE: value,
+      DOCKER_REGISTRY: REGISTRY,
+    });
   });
 
   it("round-trips random values over the risky characters", () => {
@@ -183,8 +188,11 @@ describe("renderEnvFile", () => {
       for (let i = 0; i < length; i++) {
         value += alphabet[next() % alphabet.length];
       }
-      const file = renderEnvFile([{ name: "V", value }], {});
-      expect(parseDotenv(file)).toEqual({ V: value });
+      const file = renderEnvFile([{ name: "V", value }], {}, REGISTRY);
+      expect(parseDotenv(file)).toEqual({
+        V: value,
+        DOCKER_REGISTRY: REGISTRY,
+      });
     }
   });
 
@@ -195,7 +203,8 @@ describe("renderEnvFile", () => {
         { name: "B", value: "it's $x" },
         { name: "C", value: 'a\\b"' },
       ],
-      {}
+      {},
+      REGISTRY
     );
     expect(file).toContain("A='$HOME #x'\n");
     expect(file).toContain('B="it\'s $$x"\n');
@@ -209,7 +218,8 @@ describe("renderEnvFile", () => {
         { name: "ALPHA", value: "a" },
         { name: "MID_1", value: "m" },
       ],
-      { WEB_TAG: "origin-main-def5678", IMAGE_TAG: "origin-main-abc1234" }
+      { WEB_TAG: "origin-main-def5678", IMAGE_TAG: "origin-main-abc1234" },
+      REGISTRY
     );
     expect(file).toBe(
       [
@@ -217,6 +227,7 @@ describe("renderEnvFile", () => {
         "ALPHA='a'",
         "MID_1='m'",
         "ZETA='z'",
+        `DOCKER_REGISTRY=${REGISTRY}`,
         "IMAGE_TAG=origin-main-abc1234",
         "WEB_TAG=origin-main-def5678",
         "",
@@ -226,41 +237,81 @@ describe("renderEnvFile", () => {
       ALPHA: "a",
       MID_1: "m",
       ZETA: "z",
+      DOCKER_REGISTRY: REGISTRY,
       IMAGE_TAG: "origin-main-abc1234",
       WEB_TAG: "origin-main-def5678",
     });
+  });
+
+  it("writes DOCKER_REGISTRY unquoted, just before the tag lines", () => {
+    const file = renderEnvFile(
+      [{ name: "A", value: "1" }],
+      { IMAGE_TAG: "t1" },
+      "registry.example.test:5000"
+    );
+    expect(file).toBe(
+      `${ENV_FILE_HEADER}\nA='1'\nDOCKER_REGISTRY=registry.example.test:5000\nIMAGE_TAG=t1\n`
+    );
+  });
+
+  it("rejects an invalid registry", () => {
+    for (const bad of ["", "a b", "http://x", "x'y", "x\ny", "host:99999x"]) {
+      expect(() => renderEnvFile([], {}, bad), bad).toThrow();
+    }
+  });
+
+  it("still refuses a user variable named DOCKER_REGISTRY", () => {
+    expect(() =>
+      renderEnvFile([{ name: "DOCKER_REGISTRY", value: "evil" }], {}, REGISTRY)
+    ).toThrow();
   });
 
   it("uses the exact header", () => {
     expect(ENV_FILE_HEADER).toBe(
       "# Managed by DSS Panel — edit variables in the Panel; local edits are overwritten on the next deploy."
     );
-    expect(renderEnvFile([], {})).toBe(`${ENV_FILE_HEADER}\n`);
+    expect(renderEnvFile([], {}, REGISTRY)).toBe(
+      `${ENV_FILE_HEADER}\nDOCKER_REGISTRY=${REGISTRY}\n`
+    );
   });
 
   it("rejects invalid names, values and tags, and a variable named like a tag", () => {
-    expect(() => renderEnvFile([{ name: "lower", value: "x" }], {})).toThrow();
-    expect(() => renderEnvFile([{ name: "A", value: "x\ny" }], {})).toThrow();
+    expect(() =>
+      renderEnvFile([{ name: "lower", value: "x" }], {}, REGISTRY)
+    ).toThrow();
+    expect(() =>
+      renderEnvFile([{ name: "A", value: "x\ny" }], {}, REGISTRY)
+    ).toThrow();
     expect(() =>
       renderEnvFile(
         [
           { name: "A", value: "1" },
           { name: "A", value: "2" },
         ],
-        {}
+        {},
+        REGISTRY
       )
     ).toThrow();
     expect(() =>
-      renderEnvFile([{ name: "IMAGE_TAG", value: "x" }], { IMAGE_TAG: "t1" })
+      renderEnvFile(
+        [{ name: "IMAGE_TAG", value: "x" }],
+        { IMAGE_TAG: "t1" },
+        REGISTRY
+      )
     ).toThrow();
-    expect(() => renderEnvFile([], { IMAGE_TAG: "a b" })).toThrow();
-    expect(() => renderEnvFile([], { IMAGE_TAG: "latest" })).toThrow();
-    expect(() => renderEnvFile([], { "bad name": "t1" })).toThrow();
+    expect(() => renderEnvFile([], { IMAGE_TAG: "a b" }, REGISTRY)).toThrow();
+    expect(() =>
+      renderEnvFile([], { IMAGE_TAG: "latest" }, REGISTRY)
+    ).toThrow();
+    expect(() => renderEnvFile([], { "bad name": "t1" }, REGISTRY)).toThrow();
   });
 
   it("refuses variables with a reserved prefix (rows saved before the rule)", () => {
     for (const name of ["COMPOSE_PROJECT_NAME", "DOCKER_HOST", "BUILDKIT_X"]) {
-      expect(() => renderEnvFile([{ name, value: "x" }], {}), name).toThrow();
+      expect(
+        () => renderEnvFile([{ name, value: "x" }], {}, REGISTRY),
+        name
+      ).toThrow();
     }
   });
 });

@@ -265,7 +265,8 @@ async function runClaimedDeployment(
       managedVars,
       Object.fromEntries(
         [...tagVariables, target.tagVariable].map((n) => [n, deployment.tag])
-      )
+      ),
+      registry
     );
   }
 
@@ -339,7 +340,7 @@ async function runClaimedDeployment(
         : {}),
       [target.tagVariable]: deployment.tag,
     };
-    const content = renderManagedEnvFile(managedVars, tags);
+    const content = renderManagedEnvFile(managedVars, tags, registry);
     const path = `${target.deployDir}/${stagedEnvFileName(deploymentId)}`;
     try {
       await uploadRemoteContent(credentials, content, path, 0o600);
@@ -403,10 +404,11 @@ async function runClaimedDeployment(
  */
 function renderManagedEnvFile(
   vars: { name: string; value: string }[],
-  tags: Record<string, string>
+  tags: Record<string, string>,
+  registry: string
 ): string {
   try {
-    return renderEnvFile(vars, tags);
+    return renderEnvFile(vars, tags, registry);
   } catch {
     throw new DeployAborted(
       "The environment's variables cannot be written to .env — check them in the Panel"
