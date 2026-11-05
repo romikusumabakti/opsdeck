@@ -5,11 +5,13 @@ import {
   failStaleRunningDeployments,
   finishDeployment,
   getDeployment,
+  getRunActor,
   getTarget,
   heartbeatDeployment,
   listTagVariablesInDeployDir,
   markScriptStarted,
 } from "@/lib/deploy/repository";
+import { preDeployBackupDescription } from "@/lib/deploy/run-actor";
 import { buildDeployScript, stagedEnvFileName } from "@/lib/deploy/script";
 import { deployTagSchema, envVarNameSchema } from "@/lib/deploy/validation";
 import { loadServerCredentials } from "@/lib/environments";
@@ -293,10 +295,17 @@ async function runClaimedDeployment(
   });
 
   if (target.backupBeforeDeploy) {
+    // The backup is part of the deploy: it carries the deploy run's actor
+    // (the Panel user, or the forge actor of an auto-deploy).
+    const actor = await getRunActor(runId);
     const backupRunId = await createRun({
       environmentId: target.environmentId,
-      userId: null,
-      description: `Pre-deploy backup for ${target.componentKey} ${deployment.tag}`,
+      userId: actor?.userId ?? null,
+      triggeredBy: actor?.triggeredBy ?? null,
+      description: preDeployBackupDescription(
+        target.componentKey,
+        deployment.tag
+      ),
       kind: "backup",
     });
     await appendRunOutput(

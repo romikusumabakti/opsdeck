@@ -38,6 +38,7 @@ const repo = vi.hoisted(() => ({
   failStaleRunningDeployments: vi.fn(),
   listTagVariablesInDeployDir: vi.fn(),
   deployDirSharedWithOtherEnvironment: vi.fn(),
+  getRunActor: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
@@ -115,6 +116,7 @@ beforeEach(() => {
   variables.loadManagedEnvFileVariables.mockResolvedValue(null);
   repo.listTagVariablesInDeployDir.mockResolvedValue(["IMAGE_TAG"]);
   repo.deployDirSharedWithOtherEnvironment.mockResolvedValue(false);
+  repo.getRunActor.mockResolvedValue({ userId: null, triggeredBy: null });
 });
 
 afterEach(() => {
@@ -299,6 +301,37 @@ describe("handleDeploy", () => {
     expect(progress.completeRun).not.toHaveBeenCalled();
   });
 
+  // The pre-deploy backup is part of the deploy: History shows the same
+  // actor for both runs instead of "Unknown" on the backup.
+  it.each([
+    [
+      "a Panel user (manual, rollback, unlock)",
+      { userId: "user-1", triggeredBy: null },
+    ],
+    ["a forge actor (auto)", { userId: null, triggeredBy: "alice" }],
+  ])(
+    "the backup run carries the deploy run's actor: %s",
+    async (_label, actor) => {
+      repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+      progress.createRun.mockResolvedValue(BACKUP_RUN_ID);
+      processor.handleCreateDatabaseBackup.mockResolvedValue({ success: true });
+      repo.getRunActor.mockResolvedValue(actor);
+
+      await expect(handleDeploy(payload)).resolves.toEqual({
+        status: "success",
+      });
+
+      expect(repo.getRunActor).toHaveBeenCalledWith(RUN_ID);
+      expect(progress.createRun).toHaveBeenCalledWith({
+        environmentId: ENV_ID,
+        userId: actor.userId,
+        triggeredBy: actor.triggeredBy,
+        description: `Pre-deploy backup for dplk-accounting ${TAG}`,
+        kind: "backup",
+      });
+    }
+  );
+
   it("backup that throws before its own run handling gets its run failed", async () => {
     repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
     progress.createRun.mockResolvedValue(BACKUP_RUN_ID);
@@ -424,6 +457,7 @@ describe("handleDeploy", () => {
         kind: "backup",
         environmentId: ENV_ID,
         userId: null,
+        triggeredBy: null,
       })
     );
     expect(processor.handleCreateDatabaseBackup).toHaveBeenCalledWith({

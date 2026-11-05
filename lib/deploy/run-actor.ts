@@ -47,3 +47,20 @@ export function firstLine(message: string | null): string | null {
   const line = message?.split(/\r?\n/, 1)[0]?.trim();
   return line ? line : null;
 }
+
+/**
+ * The description prefix of a deploy's pre-deploy backup run; the backfill
+ * finds those runs by it.
+ */
+export const PRE_DEPLOY_BACKUP_PREFIX = "Pre-deploy backup for ";
+
+/**
+ * The description of a deploy's pre-deploy backup run. Its "<component> <tag>"
+ * matches the deploy run's (see deploymentRunDescription).
+ */
+export function preDeployBackupDescription(
+  componentKey: string,
+  tag: string
+): string {
+  return `${PRE_DEPLOY_BACKUP_PREFIX}${componentKey} ${tag}`;
+}
