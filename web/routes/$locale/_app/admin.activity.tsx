@@ -235,6 +235,8 @@ function message(
       });
     case "mail.cleared":
       return t("mailCleared", { actor, environment: String(d.environment) });
+    case "server.preflight":
+      return t("serverPreflight", { actor, server: String(d.server) });
     case "terminal.open":
       return t("terminalOpened", { actor, server: String(d.server) });
     case "terminal.close":

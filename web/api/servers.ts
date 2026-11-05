@@ -85,3 +85,19 @@ export async function deleteServer(id: Body<"delete-server">["id"]) {
 }
 
 export type ServerRow = Awaited<ReturnType<typeof getServers>>[number];
+
+export async function runServerPreflight(id: string) {
+  return parseResponse(routes[":id"].preflight.$post({ param: { id } }));
+}
+
+export async function getServerPreflight(id: string) {
+  return parseResponse(routes[":id"].preflight.$get({ param: { id } }));
+}
+
+export const getServerPreflightQuery = (
+  ...args: Parameters<typeof getServerPreflight>
+) =>
+  queryOptions({
+    queryKey: ["servers", "getServerPreflight", args],
+    queryFn: () => getServerPreflight(...args),
+  });
