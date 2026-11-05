@@ -44,6 +44,7 @@ const repo = vi.hoisted(() => ({
   listTargetsForEnvironment: vi.fn(),
   findBuild: vi.fn(),
   upsertTarget: vi.fn(),
+  supersedeHeldDeployments: vi.fn(),
   deleteTarget: vi.fn(),
   environmentUsesServer: vi.fn(),
   getDeployLock: vi.fn(),
@@ -602,15 +603,49 @@ describe("target configuration", () => {
       healthUrl: null,
     });
     expect(ok.status).toBe(200);
-    expect(repo.upsertTarget).toHaveBeenCalledWith({
-      id: TARGET_ID,
-      autoDeploy: true,
-      healthUrl: null,
-    });
+    expect(repo.upsertTarget).toHaveBeenCalledWith(
+      { id: TARGET_ID, autoDeploy: true, healthUrl: null },
+      txState.tx
+    );
     const bad = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
       serverId: OTHER_SERVER_ID,
     });
     expect(bad.status).toBe(400);
+  });
+
+  // Held builds would otherwise deploy on unlock although the target no
+  // longer auto-deploys, or builds from the old branch.
+  it.each([
+    ["auto-deploy is turned off", { autoDeploy: false }],
+    ["the source branch changes", { sourceBranch: "kestrel/demo" }],
+  ])(
+    "supersedes the target's held deployments when %s, in the update's transaction",
+    async (_label, patch) => {
+      const res = await send(
+        "PATCH",
+        `/api/deploys/targets/${TARGET_ID}`,
+        patch
+      );
+      expect(res.status).toBe(200);
+      expect(repo.upsertTarget).toHaveBeenCalledWith(
+        { id: TARGET_ID, ...patch },
+        txState.tx
+      );
+      expect(repo.supersedeHeldDeployments).toHaveBeenCalledWith(
+        TARGET_ID,
+        txState.tx
+      );
+    }
+  );
+
+  it.each([
+    ["auto-deploy stays on", { autoDeploy: true }],
+    ["the branch is unchanged", { sourceBranch: "kestrel/development" }],
+    ["other fields change", { healthTimeoutSeconds: 60 }],
+  ])("keeps held deployments when %s", async (_label, patch) => {
+    const res = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, patch);
+    expect(res.status).toBe(200);
+    expect(repo.supersedeHeldDeployments).not.toHaveBeenCalled();
   });
 
   it("deletes a target", async () => {

@@ -62,6 +62,22 @@ export function canUnlock(isOwner: boolean, isLocker: boolean): boolean {
   return isOwner || isLocker;
 }
 
+// The buttons on an active lock's banner. Changing the lock is a PUT, which
+// needs the right to lock as well as the right to remove this lock: a former
+// owner who set it may still unlock it, but not change it. Force unlock is
+// offered only to an admin who may not simply unlock.
+export function lockBannerActions(rights: {
+  mayLock: boolean;
+  mayUnlock: boolean;
+  mayForce: boolean;
+}): { unlock: boolean; force: boolean; edit: boolean } {
+  return {
+    unlock: rights.mayUnlock,
+    force: rights.mayForce && !rights.mayUnlock,
+    edit: rights.mayUnlock && rights.mayLock,
+  };
+}
+
 export type Placement = "queued" | "held" | "locked";
 
 // What a deploy request does under the environment's lock: without an active
