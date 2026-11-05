@@ -115,6 +115,13 @@ function message(
         names: String(d.names) || "—",
         environment: String(d.environment),
       });
+    case "environment.deletedWithVariables":
+      return t("environmentDeletedWithVariables", {
+        actor,
+        environment: String(d.environment),
+        count: Number(d.count),
+        names: String(d.names) || "—",
+      });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "mail.deleted":

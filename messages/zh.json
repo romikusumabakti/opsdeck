@@ -762,6 +762,8 @@
     "deleteButton": "删除环境",
     "deleteTitle": "删除环境",
     "deleteDescription": "删除环境 {name}？此操作无法撤销。",
+    "deleteEscrowedTitle": "同时删除托管变量？",
+    "deleteEscrowedDescription": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。删除环境会永久销毁它们：仅在已保存到别处后再确认。",
     "deleteFailed": "删除环境失败",
     "deletedSuccess": "环境 {name} 已删除",
     "tabConfig": "配置",
@@ -1258,7 +1260,8 @@
     "avatarRemoved": "照片已移除",
     "environmentOwnerIneligible": "负责人必须是此环境所属项目的有效成员，或组织的管理员或基础设施用户。",
     "placementServiceInUse": "此服务已被此服务器上的另一个环境使用；请联系管理员。",
-    "placementServiceName": "在开放的服务器上，只能绑定以 {prefix}（本项目的键）开头的服务名称；其他名称请联系管理员。"
+    "placementServiceName": "在开放的服务器上，只能绑定以 {prefix}（本项目的键）开头的服务名称；其他名称请联系管理员。",
+    "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1830,7 +1833,8 @@
     "profileUpdated": "{actor} 更新了 {user} 的资料",
     "runAcknowledged": "{actor} 确认了 {environment} 中的 {count, plural, other {# 次失败运行}}",
     "runUnacknowledged": "{actor} 重新打开了 {environment} 中的 {count, plural, other {# 次失败运行}}",
-    "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）"
+    "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）",
+    "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）"
   },
   "jira": {
     "title": "Jira",

@@ -6,7 +6,9 @@ import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import type { Environment } from "@/lib/db/schema";
+import { canOrg } from "@/lib/permissions";
 import { deleteEnvironment } from "@/web/api/environments";
+import { useMe } from "@/web/api/session";
 
 export function DeleteEnvironmentCard({
   environment,
@@ -18,6 +20,10 @@ export function DeleteEnvironmentCard({
   const dialog = useDialog();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // Only admins with integration:manage may delete escrowed variables too.
+  const canDeleteEscrowed = canOrg(useMe()?.orgRole, {
+    integration: ["manage"],
+  });
 
   async function onDelete() {
     const ok = await dialog.confirmTyping({
@@ -32,7 +38,18 @@ export function DeleteEnvironmentCard({
     if (!ok) return;
 
     startTransition(async () => {
-      const result = await deleteEnvironment(environment.id);
+      let result = await deleteEnvironment(environment.id);
+      if (!result.success && result.escrowed && canDeleteEscrowed) {
+        const confirmed = await dialog.confirm({
+          title: t("deleteEscrowedTitle"),
+          description: t("deleteEscrowedDescription"),
+          confirmText: tCommon("delete"),
+          cancelText: tCommon("cancel"),
+          destructive: true,
+        });
+        if (!confirmed) return;
+        result = await deleteEnvironment(environment.id, true);
+      }
       if (!result.success) {
         toast.error(result.message);
         return;
