@@ -1300,7 +1300,8 @@
     "deployLockReasonInvalid": "请填写 1 到 200 个字符的原因。",
     "deployLockExpiryInvalid": "请选择未来的到期时间，最多 7 天后。",
     "deployLockChanged": "部署锁在此期间已更改。请重新加载后再试。",
-    "deployForceUnlockReasonRequired": "请填写强制解锁的原因。"
+    "deployForceUnlockReasonRequired": "请填写强制解锁的原因。",
+    "preflightFailed": "无法通过 SSH 连接服务器以运行预检"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1893,7 +1894,8 @@
     "deployLockUpdated": "{actor} 更改了 {environment} 的部署锁（{reason}）",
     "deployTargetCreated": "{actor} 在 {environment} 中添加了 {component} 的部署目标",
     "deployTargetUpdated": "{actor} 更改了 {environment} 中 {component} 的部署目标（{changes}）",
-    "deployTargetDeleted": "{actor} 从 {environment} 中删除了 {component} 的部署目标"
+    "deployTargetDeleted": "{actor} 从 {environment} 中删除了 {component} 的部署目标",
+    "serverPreflight": "{actor} 在 {server} 上运行了预检"
   },
   "jira": {
     "title": "Jira",
@@ -2551,5 +2553,32 @@
       "descriptionLabel": "说明",
       "saved": "已保存模板 {name}"
     }
+  },
+  "serverPreflight": {
+    "title": "预检",
+    "description": "通过 SSH 收集的信息：容器运行时、镜像仓库、磁盘、Cloudflare 隧道、端口和 Postgres 容器。",
+    "run": "运行预检",
+    "running": "运行中…",
+    "lastRun": "上次运行 {time}",
+    "never": "尚未运行。",
+    "failed": "预检失败",
+    "done": "预检完成",
+    "runtime": "运行时",
+    "docker": "Docker",
+    "compose": "Compose",
+    "podman": "Podman",
+    "notInstalled": "未安装",
+    "registry": "镜像仓库",
+    "reachable": "可访问（HTTP {status}）",
+    "unreachable": "无法访问",
+    "notConfigured": "未配置",
+    "disk": "可用磁盘",
+    "diskFree": "共 {total}，可用 {free}",
+    "cloudflared": "Cloudflare 隧道",
+    "systemdActive": "systemd 服务运行中",
+    "systemdInactive": "没有 systemd 服务",
+    "containers": "容器：{names}",
+    "postgres": "Postgres 容器",
+    "postgresNone": "未找到 Postgres 容器"
   }
 }

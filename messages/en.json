@@ -1300,7 +1300,8 @@
     "deployLockReasonInvalid": "Give a reason of 1 to 200 characters.",
     "deployLockExpiryInvalid": "Pick an expiry in the future, at most 7 days ahead.",
     "deployLockChanged": "The deploy lock changed in the meantime. Reload and try again.",
-    "deployForceUnlockReasonRequired": "Give a reason for the force unlock."
+    "deployForceUnlockReasonRequired": "Give a reason for the force unlock.",
+    "preflightFailed": "Could not reach the server over SSH to run the preflight"
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1893,7 +1894,8 @@
     "deployLockUpdated": "{actor} changed the deploy lock on {environment} ({reason})",
     "deployTargetCreated": "{actor} added a deploy target for {component} in {environment}",
     "deployTargetUpdated": "{actor} changed the deploy target for {component} in {environment} ({changes})",
-    "deployTargetDeleted": "{actor} removed the deploy target for {component} from {environment}"
+    "deployTargetDeleted": "{actor} removed the deploy target for {component} from {environment}",
+    "serverPreflight": "{actor} ran a preflight on {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2551,5 +2553,32 @@
       "descriptionLabel": "Description",
       "saved": "Template {name} saved"
     }
+  },
+  "serverPreflight": {
+    "title": "Preflight",
+    "description": "Facts gathered over SSH: container runtime, registry, disk, Cloudflare tunnel, ports and Postgres containers.",
+    "run": "Run preflight",
+    "running": "Running…",
+    "lastRun": "Last run {time}",
+    "never": "Not run yet.",
+    "failed": "Preflight failed",
+    "done": "Preflight finished",
+    "runtime": "Runtime",
+    "docker": "Docker",
+    "compose": "Compose",
+    "podman": "Podman",
+    "notInstalled": "Not installed",
+    "registry": "Registry",
+    "reachable": "Reachable (HTTP {status})",
+    "unreachable": "Unreachable",
+    "notConfigured": "Not configured",
+    "disk": "Free disk",
+    "diskFree": "{free} free of {total}",
+    "cloudflared": "Cloudflare tunnel",
+    "systemdActive": "systemd service active",
+    "systemdInactive": "No systemd service",
+    "containers": "Containers: {names}",
+    "postgres": "Postgres containers",
+    "postgresNone": "No Postgres container found"
   }
 }

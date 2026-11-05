@@ -7,6 +7,11 @@ import {
 } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
+  getServerPreflight,
+  runServerPreflight,
+  suggestEntryPort,
+} from "@/server/services/preflight";
+import {
   bulkDeleteServers,
   createServer,
   deleteServer,
@@ -16,7 +21,7 @@ import {
   testServerConnection,
   updateServer,
 } from "@/server/services/servers";
-import { json, query } from "@/server/validation";
+import { json, param, query } from "@/server/validation";
 
 // The services return whole rows, encrypted SSH password included; under Next
 // the pages projected it away before rendering. No client form reads it (edit
@@ -27,6 +32,8 @@ function toSafe({ password: _password, ...rest }: Server): SafeServer {
 
 // Bulk delete acts on what the servers table shows; the cap keeps a crafted
 // request from naming the whole table.
+const idParam = param(z.object({ id: uuidSchema }));
+
 const serverIds = z.array(uuidSchema).max(500);
 
 export const serversRouter = sessionRouter()
@@ -78,4 +85,14 @@ export const serversRouter = sessionRouter()
   )
   .post("/delete-server", json(z.object({ id: uuidSchema })), async (c) =>
     c.json(await deleteServer(c.req.valid("json").id))
+  )
+  // Preflight scan and entry-port suggestion; the services check server:manage.
+  .post("/:id/preflight", idParam, async (c) =>
+    c.json(await runServerPreflight(c.req.valid("param").id))
+  )
+  .get("/:id/preflight", idParam, async (c) =>
+    c.json(await getServerPreflight(c.req.valid("param").id))
+  )
+  .get("/:id/free-port", idParam, async (c) =>
+    c.json(await suggestEntryPort(c.req.valid("param").id))
   );

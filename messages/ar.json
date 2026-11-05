@@ -1300,7 +1300,8 @@
     "deployLockReasonInvalid": "اكتب سببًا من 1 إلى 200 حرف.",
     "deployLockExpiryInvalid": "اختر وقت انتهاء في المستقبل، خلال 7 أيام على الأكثر.",
     "deployLockChanged": "تغيّر قفل النشر في الأثناء. أعد التحميل وحاول مرة أخرى.",
-    "deployForceUnlockReasonRequired": "اكتب سببًا لفك القفل بالقوة."
+    "deployForceUnlockReasonRequired": "اكتب سببًا لفك القفل بالقوة.",
+    "preflightFailed": "تعذر الاتصال بالخادم عبر SSH لتشغيل الفحص المسبق"
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1893,7 +1894,8 @@
     "deployLockUpdated": "غيّر {actor} قفل النشر على {environment} ({reason})",
     "deployTargetCreated": "أضاف {actor} هدف نشر لـ {component} في {environment}",
     "deployTargetUpdated": "غيّر {actor} هدف نشر {component} في {environment} ({changes})",
-    "deployTargetDeleted": "أزال {actor} هدف نشر {component} من {environment}"
+    "deployTargetDeleted": "أزال {actor} هدف نشر {component} من {environment}",
+    "serverPreflight": "{actor} شغّل فحصًا مسبقًا على {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2551,5 +2553,32 @@
       "descriptionLabel": "الوصف",
       "saved": "حُفظ القالب {name}"
     }
+  },
+  "serverPreflight": {
+    "title": "الفحص المسبق",
+    "description": "معلومات تُجمع عبر SSH: بيئة تشغيل الحاويات، السجل، القرص، نفق Cloudflare، المنافذ وحاويات Postgres.",
+    "run": "تشغيل الفحص المسبق",
+    "running": "جارٍ التشغيل…",
+    "lastRun": "آخر تشغيل {time}",
+    "never": "لم يُشغَّل بعد.",
+    "failed": "فشل الفحص المسبق",
+    "done": "اكتمل الفحص المسبق",
+    "runtime": "بيئة التشغيل",
+    "docker": "Docker",
+    "compose": "Compose",
+    "podman": "Podman",
+    "notInstalled": "غير مثبت",
+    "registry": "السجل",
+    "reachable": "متاح (HTTP {status})",
+    "unreachable": "غير متاح",
+    "notConfigured": "غير مهيأ",
+    "disk": "المساحة الحرة",
+    "diskFree": "{free} حرة من {total}",
+    "cloudflared": "نفق Cloudflare",
+    "systemdActive": "خدمة systemd تعمل",
+    "systemdInactive": "لا توجد خدمة systemd",
+    "containers": "الحاويات: {names}",
+    "postgres": "حاويات Postgres",
+    "postgresNone": "لم يتم العثور على حاوية Postgres"
   }
 }

@@ -1300,7 +1300,8 @@
     "deployLockReasonInvalid": "Isi alasan 1 sampai 200 karakter.",
     "deployLockExpiryInvalid": "Pilih waktu kedaluwarsa di masa depan, paling lama 7 hari lagi.",
     "deployLockChanged": "Kunci deploy berubah sementara itu. Muat ulang lalu coba lagi.",
-    "deployForceUnlockReasonRequired": "Isi alasan untuk membuka kunci secara paksa."
+    "deployForceUnlockReasonRequired": "Isi alasan untuk membuka kunci secara paksa.",
+    "preflightFailed": "Tidak bisa terhubung ke server lewat SSH untuk menjalankan preflight"
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1893,7 +1894,8 @@
     "deployLockUpdated": "{actor} mengubah kunci deploy pada {environment} ({reason})",
     "deployTargetCreated": "{actor} menambahkan target deploy {component} di {environment}",
     "deployTargetUpdated": "{actor} mengubah target deploy {component} di {environment} ({changes})",
-    "deployTargetDeleted": "{actor} menghapus target deploy {component} dari {environment}"
+    "deployTargetDeleted": "{actor} menghapus target deploy {component} dari {environment}",
+    "serverPreflight": "{actor} menjalankan preflight di {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2551,5 +2553,32 @@
       "descriptionLabel": "Deskripsi",
       "saved": "Template {name} disimpan"
     }
+  },
+  "serverPreflight": {
+    "title": "Preflight",
+    "description": "Fakta yang dikumpulkan lewat SSH: runtime container, registry, disk, tunnel Cloudflare, port, dan container Postgres.",
+    "run": "Jalankan preflight",
+    "running": "Menjalankan…",
+    "lastRun": "Terakhir dijalankan {time}",
+    "never": "Belum pernah dijalankan.",
+    "failed": "Preflight gagal",
+    "done": "Preflight selesai",
+    "runtime": "Runtime",
+    "docker": "Docker",
+    "compose": "Compose",
+    "podman": "Podman",
+    "notInstalled": "Tidak terpasang",
+    "registry": "Registry",
+    "reachable": "Terjangkau (HTTP {status})",
+    "unreachable": "Tidak terjangkau",
+    "notConfigured": "Belum dikonfigurasi",
+    "disk": "Disk tersisa",
+    "diskFree": "{free} tersisa dari {total}",
+    "cloudflared": "Tunnel Cloudflare",
+    "systemdActive": "Service systemd aktif",
+    "systemdInactive": "Tidak ada service systemd",
+    "containers": "Container: {names}",
+    "postgres": "Container Postgres",
+    "postgresNone": "Tidak ada container Postgres"
   }
 }
