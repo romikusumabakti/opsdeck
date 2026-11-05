@@ -2486,7 +2486,7 @@
       "name": "Nama",
       "nameHint": "Huruf kapital, angka, dan _, tidak diawali angka.",
       "nameInvalid": "Gunakan huruf kapital, angka, dan _, tidak diawali angka",
-      "nameReservedPrefix": "COMPOSE_, DOCKER_, dan BUILDKIT_ dicadangkan: Docker membacanya dari .env dan bisa mengalihkan deploy",
+      "nameReservedPrefix": "COMPOSE_, DOCKER_, dan BUILDKIT_ dicadangkan: Docker membacanya dari .env dan bisa mengalihkan deploy. Panel menulis DOCKER_REGISTRY sendiri",
       "kind": "Jenis",
       "kindHint": {
         "plain": "Terlihat oleh semua yang dapat membuka halaman ini.",
@@ -2530,7 +2530,7 @@
       "description": "Template biasa boleh punya nilai bawaan; template acak punya panjang; rahasia tidak keduanya.",
       "name": "Nama",
       "nameInvalid": "Gunakan huruf kapital, angka, dan _, tidak diawali angka",
-      "nameReservedPrefix": "COMPOSE_, DOCKER_, dan BUILDKIT_ dicadangkan: Docker membacanya dari .env dan bisa mengalihkan deploy",
+      "nameReservedPrefix": "COMPOSE_, DOCKER_, dan BUILDKIT_ dicadangkan: Docker membacanya dari .env dan bisa mengalihkan deploy. Panel menulis DOCKER_REGISTRY sendiri",
       "kind": "Jenis",
       "defaultValue": "Nilai bawaan",
       "defaultValueHint": "Opsional. Placeholder '{host}', '{url}' dan '{envSlug}' diganti dengan nilai environment.",
