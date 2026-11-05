@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import {
   generateValue,
   resolvePlaceholders,
@@ -31,6 +32,33 @@ describe("variableNameSchema", () => {
       "A".repeat(129),
     ]) {
       expect(variableNameSchema().safeParse(name).success).toBe(false);
+    }
+  });
+
+  // Compose and the Docker CLI read these from the project's .env: a
+  // COMPOSE_PROJECT_NAME or COMPOSE_FILE would retarget another stack.
+  it("rejects the COMPOSE_, DOCKER_ and BUILDKIT_ prefixes", () => {
+    for (const name of [
+      "COMPOSE_PROJECT_NAME",
+      "COMPOSE_FILE",
+      "COMPOSE_",
+      "DOCKER_HOST",
+      "DOCKER_DEFAULT_PLATFORM",
+      "BUILDKIT_PROGRESS",
+    ]) {
+      const result = variableNameSchema().safeParse(name);
+      expect(result.success, name).toBe(false);
+      expect(result.error?.issues[0]?.message, name).toBe(
+        RESERVED_PREFIX_MESSAGE
+      );
+    }
+    for (const name of [
+      "COMPOSE",
+      "DOCKER",
+      "MY_COMPOSE_FILE",
+      "XDOCKER_HOST",
+    ]) {
+      expect(variableNameSchema().safeParse(name).success, name).toBe(true);
     }
   });
 

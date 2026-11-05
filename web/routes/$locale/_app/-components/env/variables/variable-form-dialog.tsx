@@ -39,9 +39,11 @@ import {
   ESCROWED_MESSAGE,
   NO_APP_MESSAGE,
   NOT_GENERATED_MESSAGE,
+  RESERVED_PREFIX_MESSAGE,
   SECRET_TO_PLAIN_MESSAGE,
 } from "@/lib/variables/errors";
 import {
+  hasReservedPrefix,
   variableNameSchema,
   variableValueSchema,
 } from "@/lib/variables/validation";
@@ -68,6 +70,8 @@ export function useVariableErrorText() {
           return t("noAppHint");
         case SECRET_TO_PLAIN_MESSAGE:
           return t("form.valueRequiredForPlain");
+        case RESERVED_PREFIX_MESSAGE:
+          return t("form.nameReservedPrefix");
       }
       return error.message;
     }
@@ -116,8 +120,14 @@ export function VariableFormDialog({
         .trim()
         .min(1, tCommon("required"))
         .refine(
-          (name) => variableNameSchema().safeParse(name).success,
+          (name) =>
+            hasReservedPrefix(name) ||
+            variableNameSchema().safeParse(name).success,
           tForm("nameInvalid")
+        )
+        .refine(
+          (name) => !hasReservedPrefix(name),
+          tForm("nameReservedPrefix")
         ),
       kind: z.enum(VARIABLE_KINDS),
       value: z
@@ -170,7 +180,13 @@ export function VariableFormDialog({
       toast.success(tForm("saved", { name: values.name.trim() }));
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 400) {
+      if (
+        error instanceof ApiError &&
+        error.status === 400 &&
+        error.message === RESERVED_PREFIX_MESSAGE
+      ) {
+        form.setError("name", { message: tForm("nameReservedPrefix") });
+      } else if (error instanceof ApiError && error.status === 400) {
         form.setError("value", { message: error.message });
       } else {
         toast.error(errorText(error));

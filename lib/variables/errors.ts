@@ -2,6 +2,10 @@
 // text (ApiError carries only status and message), so they live here, shared
 // by both sides.
 
+/** 400 for a variable or template name with a reserved prefix. */
+export const RESERVED_PREFIX_MESSAGE =
+  "Variable names must not start with COMPOSE_, DOCKER_ or BUILDKIT_";
+
 /** Prefix of the 409 for turning on env_file_managed; the names follow it. */
 export const MISSING_REQUIRED_PREFIX = "Missing required variables: ";
 

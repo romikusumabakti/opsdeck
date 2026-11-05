@@ -209,6 +209,7 @@ vi.mock("@/lib/variables/repository", () => {
 const { app } = await import("@/server/app");
 const repository = await import("@/lib/variables/repository");
 const { encryptSecret, decryptSecret } = await import("@/lib/secrets");
+const { RESERVED_PREFIX_MESSAGE } = await import("@/lib/variables/errors");
 
 function send(method: string, path: string, body?: unknown) {
   return app.request(path, {
@@ -491,6 +492,18 @@ describe("writing", () => {
       kind: "plain",
       value: "now-public",
     });
+  });
+
+  it("refuses a reserved name prefix with its own message (400)", async () => {
+    for (const name of ["COMPOSE_PROJECT_NAME", "DOCKER_HOST", "BUILDKIT_X"]) {
+      const res = await send("PUT", `${base}/variables/${name}`, {
+        kind: "plain",
+        value: "x",
+      });
+      expect(res.status, name).toBe(400);
+      expect(await res.text(), name).toContain(RESERVED_PREFIX_MESSAGE);
+      expect(store.vars.has(name)).toBe(false);
+    }
   });
 
   it("requires a value for a new plain or secret variable", async () => {
@@ -830,6 +843,9 @@ describe("templates", () => {
       (await put("G", { kind: "plain", defaultValue: "a\nb" })).status
     ).toBe(400);
     expect((await put("lower", { kind: "plain" })).status).toBe(400);
+    const reserved = await put("COMPOSE_FILE", { kind: "plain" });
+    expect(reserved.status).toBe(400);
+    expect(await reserved.text()).toContain(RESERVED_PREFIX_MESSAGE);
     expect(store.templates).toHaveLength(0);
   });
 

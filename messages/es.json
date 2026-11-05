@@ -2429,6 +2429,7 @@
       "name": "Nombre",
       "nameHint": "Mayúsculas, dígitos y _, sin empezar por un dígito.",
       "nameInvalid": "Usa mayúsculas, dígitos y _, sin empezar por un dígito",
+      "nameReservedPrefix": "COMPOSE_, DOCKER_ y BUILDKIT_ están reservados: Docker los lee de .env y podrían desviar el despliegue",
       "kind": "Tipo",
       "kindHint": {
         "plain": "Visible para todos los que pueden abrir esta página.",
@@ -2472,6 +2473,7 @@
       "description": "Las simples pueden tener un valor predeterminado; las generadas, una longitud; las secretas, ninguno.",
       "name": "Nombre",
       "nameInvalid": "Usa mayúsculas, dígitos y _, sin empezar por un dígito",
+      "nameReservedPrefix": "COMPOSE_, DOCKER_ y BUILDKIT_ están reservados: Docker los lee de .env y podrían desviar el despliegue",
       "kind": "Tipo",
       "defaultValue": "Valor predeterminado",
       "defaultValueHint": "Opcional. Los marcadores '{host}', '{url}' y '{envSlug}' se sustituyen por los valores del entorno.",
