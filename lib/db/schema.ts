@@ -99,6 +99,14 @@ export const environmentKindEnum = pgEnum("environment_kind", [
 // built-in `uuidv7()` function for tables we own; better-auth tables generate
 // IDs in JS via `uuid` package (configured in lib/auth.ts).
 
+// Who may place an environment on a server: "restricted" needs project
+// environment:create plus org server:manage (today's rule); "open" also admits
+// project contributors and above.
+export const serverPlacementEnum = pgEnum("server_placement", [
+  "restricted",
+  "open",
+]);
+
 export const servers = pgTable("servers", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   name: text("name").notNull(),
@@ -109,6 +117,7 @@ export const servers = pgTable("servers", {
   // Defaults to "/" (whole host as the SSH user). Narrow it per server — e.g.
   // "/home/deploy" or "/var/www" — to limit the blast radius of the explorer.
   sftpRoot: text("sftp_root").notNull().default("/"),
+  placement: serverPlacementEnum("placement").notNull().default("restricted"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -172,6 +181,9 @@ export const environments = pgTable(
     // environment with no deploy targets yet). restrict: an app in use by an
     // environment can't be deleted.
     appId: uuid("app_id").references(() => apps.id, { onDelete: "restrict" }),
+    // Whether the Panel renders this environment's .env on every deploy. False
+    // keeps the server-side file hand-managed (only the tag line changes).
+    envFileManaged: boolean("env_file_managed").notNull().default(false),
   },
   (t) => [
     // Every project page lists its environments; index the parent FK.
@@ -433,6 +445,68 @@ export const appComponents = pgTable(
     index("app_components_app_idx").on(t.appId),
     // One component per CI repository; registration answers 409 on a clash.
     uniqueIndex("app_components_ci_repo_idx").on(t.ciConnectionId, t.ciRepoId),
+  ]
+);
+
+export const variableKindEnum = pgEnum("variable_kind", [
+  "plain",
+  "secret",
+  "generated",
+]);
+
+// A variable an app expects in every environment's .env.
+export const appVariableTemplates = pgTable(
+  "app_variable_templates",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    appId: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    kind: variableKindEnum("kind").notNull(),
+    required: boolean("required").notNull().default(false),
+    // Plain only. May contain the placeholders {host}, {url} and {envSlug}.
+    defaultValue: text("default_value"),
+    // Generated only: length of the random value, 16-128 (the service
+    // defaults it to 32).
+    generatedLength: integer("generated_length"),
+    // Escrowed variables can never be regenerated or deleted via the UI/API.
+    escrow: boolean("escrow").notNull().default(false),
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("app_variable_templates_app_name_idx").on(t.appId, t.name),
+  ]
+);
+
+// The value of one variable in one environment.
+export const environmentVariables = pgTable(
+  "environment_variables",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    kind: variableKindEnum("kind").notNull(),
+    // Encrypted at rest via lib/secrets.ts unless the kind is "plain".
+    value: text("value").notNull(),
+    escrow: boolean("escrow").notNull().default(false),
+    updatedBy: uuid("updated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("environment_variables_environment_name_idx").on(
+      t.environmentId,
+      t.name
+    ),
+    // FK index: `on delete set null` scans by updater when a user is deleted.
+    index("environment_variables_updated_by_idx").on(t.updatedBy),
   ]
 );
 
