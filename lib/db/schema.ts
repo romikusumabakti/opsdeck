@@ -311,9 +311,9 @@ export const runs = pgTable(
     description: text("description").notNull(),
     // Display text for a run without a Panel user: the forge login that pushed
     // the build behind an auto-deploy (max 200 characters), else its head
-    // commit's author email, lower-cased (Bitbucket sends no login); shown as
-    // the Panel user with that email when there is one. Never used for
-    // authorization; a run with userId shows that user instead.
+    // commit's author email, lower-cased (max 320 characters; Bitbucket sends
+    // no login), shown as the Panel user with that email when there is one.
+    // Never used for authorization; a run with userId shows that user instead.
     triggeredBy: text("triggered_by"),
     status: runStatusEnum("status").notNull().default("started"),
     kind: runKindEnum("kind"),

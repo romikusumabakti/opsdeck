@@ -11,7 +11,7 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 import { type DbExecutor, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -39,13 +39,29 @@ const RECENT_LIMIT = 20;
 /**
  * The Panel user an auto run's actor (runs.triggered_by, a forge login or a
  * commit author email) resolves to: the user with that email, ignoring case.
- * Left-join it with {@link autoUserOn}; only runs without a Panel user match.
+ * Only runs without a Panel user match. A lateral subquery with LIMIT 1, so a
+ * run yields at most one row even if two users' emails differ only in case
+ * (users.email is unique case-sensitively). Join it with
+ * `.leftJoinLateral(autoUsers, autoUserOn)`.
  */
-export const autoUsers = alias(users, "auto_user");
-export const autoUserOn = and(
-  isNull(runs.userId),
-  eq(sql`lower(${autoUsers.email})`, sql`lower(${runs.triggeredBy})`)
-);
+const matchedUser = alias(users, "matched_user");
+export const autoUsers = new QueryBuilder()
+  .select({
+    id: matchedUser.id,
+    name: matchedUser.name,
+    image: matchedUser.image,
+  })
+  .from(matchedUser)
+  .where(
+    and(
+      isNull(runs.userId),
+      eq(sql`lower(${matchedUser.email})`, sql`lower(${runs.triggeredBy})`)
+    )
+  )
+  .orderBy(matchedUser.id)
+  .limit(1)
+  .as("auto_user");
+export const autoUserOn = sql`true`;
 
 /** A user reference from {@link autoUsers}, or null when nothing matched. */
 export function autoUserRef(row: {
@@ -271,7 +287,7 @@ export async function listTargetsForEnvironment(
           // Left join: a held deployment has no run yet.
           .leftJoin(runs, eq(runs.id, deployments.runId))
           .leftJoin(users, eq(users.id, runs.userId))
-          .leftJoin(autoUsers, autoUserOn)
+          .leftJoinLateral(autoUsers, autoUserOn)
           .where(eq(deployments.targetId, target.id))
           .orderBy(desc(deployments.createdAt), desc(deployments.id))
           .limit(RECENT_LIMIT),
