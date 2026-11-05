@@ -882,7 +882,7 @@
     "placement": "环境放置",
     "placementRestricted": "受限：仅管理员和基础设施",
     "placementOpen": "开放：项目贡献者及以上",
-    "placementDescription": "谁可以在此服务器上创建新环境。现有环境不受影响。",
+    "placementDescription": "谁可以在此服务器上创建新环境。在开放的服务器上，项目贡献者可以在此创建环境，然后备份和恢复他们绑定的数据库，因此只有数据可丢弃的服务器（开发或沙盒）才应设为开放。现有环境不受影响。",
     "sftpRootInvalid": "必须是绝对路径（以 / 开头）"
   },
   "newServer": {
@@ -1254,7 +1254,8 @@
     "networkAlreadyAttached": "已经接入该网络",
     "cannotRemoveLastAdmin": "不能降级最后一位管理员",
     "avatarRemoved": "照片已移除",
-    "environmentOwnerIneligible": "负责人必须是此环境所属项目的有效成员，或组织的管理员或基础设施用户。"
+    "environmentOwnerIneligible": "负责人必须是此环境所属项目的有效成员，或组织的管理员或基础设施用户。",
+    "placementServiceInUse": "此服务已被此服务器上的另一个环境使用；请联系管理员。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",

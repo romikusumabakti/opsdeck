@@ -232,11 +232,15 @@ export function canPlaceEnvironment(
 }
 
 // What an environment's owner (environments.owner_id) may do on that one
-// environment, whatever their project role. The owner still needs a project
-// role (viewer at least); see canEnvironment.
+// environment, whatever their project role: deploy, roll back, delete it and
+// see/edit its variables. Deliberately not deploy:configure (a target's
+// pre-start command runs on the server, and with open placement a contributor
+// could create an environment and own it) nor environment:update (rebinding
+// and Mailpit stay with maintainers). The owner still needs a project role
+// (viewer at least); see canEnvironment.
 export const OWNER_PERMISSIONS: ProjectPermissions = {
-  deploy: ["view", "run", "rollback", "configure"],
-  environment: ["update", "delete"],
+  deploy: ["view", "run", "rollback"],
+  environment: ["delete"],
   variable: ["read", "write"],
 };
 
