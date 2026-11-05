@@ -29,7 +29,10 @@ import { isUniqueViolation } from "@/lib/people/names";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
 import { assertNotDeployLocked } from "@/server/services/deploy-locks";
-import { requestDeployment } from "@/server/services/deployments";
+import {
+  type RequestedDeployment,
+  requestDeployment,
+} from "@/server/services/deployments";
 
 const fail = (status: 404 | 409 | 503, message: string): never => {
   throw new HTTPException(status, { message });
@@ -167,6 +170,18 @@ export async function deleteDeployTarget(id: string): Promise<void> {
   await deleteTarget(id);
 }
 
+// Only `auto` deployments are ever held; a manual deploy or rollback is
+// refused while locked, so it always comes back queued with its run.
+function queuedRun(requested: RequestedDeployment): {
+  deploymentId: string;
+  runId: string;
+} {
+  if (requested.status === "held") {
+    throw new Error(`Deployment ${requested.deploymentId} was held`);
+  }
+  return { deploymentId: requested.deploymentId, runId: requested.runId };
+}
+
 function requireDeployEnabled() {
   if (!process.env.DEPLOY_REGISTRY) fail(503, "Deploy disabled");
 }
@@ -187,13 +202,15 @@ export async function deployTag(
   if (!build || build.branch !== target.sourceBranch) {
     fail(404, "Build not found");
   }
-  return requestDeployment({
-    targetId: target.id,
-    tag,
-    trigger: "manual",
-    userId: session.user.id,
-    buildId: build?.id ?? null,
-  });
+  return queuedRun(
+    await requestDeployment({
+      targetId: target.id,
+      tag,
+      trigger: "manual",
+      userId: session.user.id,
+      buildId: build?.id ?? null,
+    })
+  );
 }
 
 /**
@@ -214,11 +231,13 @@ export async function rollbackTarget(
   const tag = (await getTagState(target.id)).previousTag;
   if (!tag) return fail(409, "No previous successful deploy");
   const build = await findBuild(target.componentKey, tag);
-  return requestDeployment({
-    targetId: target.id,
-    tag,
-    trigger: "rollback",
-    userId: session.user.id,
-    buildId: build?.id ?? null,
-  });
+  return queuedRun(
+    await requestDeployment({
+      targetId: target.id,
+      tag,
+      trigger: "rollback",
+      userId: session.user.id,
+      buildId: build?.id ?? null,
+    })
+  );
 }
