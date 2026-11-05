@@ -1,0 +1,126 @@
+import { describe, expect, it } from "vitest";
+import {
+  generateValue,
+  resolvePlaceholders,
+  variableNameSchema,
+  variableValueSchema,
+} from "@/lib/variables/validation";
+
+describe("variableNameSchema", () => {
+  it("accepts upper-case names with digits and underscores", () => {
+    for (const name of [
+      "A",
+      "_X",
+      "DATABASE_URL",
+      "S3_BUCKET_2",
+      "A".repeat(128),
+    ]) {
+      expect(variableNameSchema().safeParse(name).success).toBe(true);
+    }
+  });
+
+  it("rejects other names", () => {
+    for (const name of [
+      "",
+      "1A",
+      "lower",
+      "Mixed",
+      "WITH-DASH",
+      "WITH SPACE",
+      "A.B",
+      "A".repeat(129),
+    ]) {
+      expect(variableNameSchema().safeParse(name).success).toBe(false);
+    }
+  });
+
+  it("rejects the environment's tag variable names", () => {
+    const schema = variableNameSchema(["IMAGE_TAG", "WEB_TAG"]);
+    expect(schema.safeParse("IMAGE_TAG").success).toBe(false);
+    expect(schema.safeParse("WEB_TAG").success).toBe(false);
+    expect(schema.safeParse("OTHER_TAG").success).toBe(true);
+  });
+});
+
+describe("variableValueSchema", () => {
+  it("accepts any single-line text up to 8192 characters", () => {
+    for (const value of [
+      "",
+      "a#b $HOME 'x' \"y\" \\z",
+      "ü",
+      "\t",
+      "x".repeat(8192),
+    ]) {
+      expect(variableValueSchema.safeParse(value).success).toBe(true);
+    }
+  });
+
+  it("rejects newline, carriage return, NUL and over-long values", () => {
+    for (const value of ["a\nb", "a\rb", "a\0b", "\n", "x".repeat(8193)]) {
+      expect(variableValueSchema.safeParse(value).success).toBe(false);
+    }
+  });
+});
+
+describe("resolvePlaceholders", () => {
+  const ctx = {
+    host: "app.example.com",
+    url: "https://app.example.com",
+    envSlug: "sucor-dev",
+  };
+
+  it("replaces {host}, {url} and {envSlug}, every occurrence", () => {
+    expect(
+      resolvePlaceholders("{url}/cb?h={host}&e={envSlug}&again={host}", ctx)
+    ).toBe(
+      "https://app.example.com/cb?h=app.example.com&e=sucor-dev&again=app.example.com"
+    );
+  });
+
+  it("leaves unknown placeholders and plain braces alone", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: .env text
+    const value = "{other} ${VAR} {} {HOST} {";
+    expect(resolvePlaceholders(value, ctx)).toBe(value);
+  });
+
+  it("fails when a used placeholder has no value", () => {
+    expect(() => resolvePlaceholders("x={url}", { ...ctx, url: null })).toThrow(
+      "Placeholder {url} has no value for this environment"
+    );
+    expect(() => resolvePlaceholders("{host}", { ...ctx, host: null })).toThrow(
+      "Placeholder {host} has no value for this environment"
+    );
+    // An unused null placeholder is fine.
+    expect(
+      resolvePlaceholders("{envSlug}", { host: null, url: null, envSlug: "e" })
+    ).toBe("e");
+  });
+
+  it("does not resolve placeholders inside substituted values", () => {
+    expect(resolvePlaceholders("{host}", { ...ctx, host: "{url}" })).toBe(
+      "{url}"
+    );
+  });
+});
+
+describe("generateValue", () => {
+  it("returns exactly the requested number of URL-safe characters", () => {
+    for (const length of [1, 2, 3, 4, 31, 32, 33, 64, 100]) {
+      const value = generateValue(length);
+      expect(value).toHaveLength(length);
+      expect(value).toMatch(/^[A-Za-z0-9_-]+$/);
+    }
+    expect(generateValue(32).length).toBe(32);
+  });
+
+  it("differs between calls", () => {
+    expect(generateValue(32)).not.toBe(generateValue(32));
+  });
+
+  it("rejects a non-positive or fractional length", () => {
+    expect(() => generateValue(0)).toThrow();
+    expect(() => generateValue(-1)).toThrow();
+    expect(() => generateValue(1.5)).toThrow();
+    expect(() => generateValue(8193)).toThrow();
+  });
+});
