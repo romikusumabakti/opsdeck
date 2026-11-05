@@ -1,4 +1,6 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, notExists } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
+import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import {
   getProjectRole,
@@ -13,11 +15,15 @@ import {
   type Environment,
   type EnvironmentOwner,
   type EnvironmentSummaryWithOwner,
+  environments,
+  environmentVariables,
   type Project,
   projects,
 } from "@/lib/db/schema";
 import { OWNER_COLUMNS } from "@/lib/environments";
+import { canOrg } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
+import { getServerTranslator } from "@/server/i18n";
 import {
   projectMetaInputSchema,
   projectMetaUpdateSchema,
@@ -202,16 +208,102 @@ export async function editProject(
 }
 
 /**
- * Delete a project. Cascades to its environments (and their runs) and to its
- * issues — the caller must confirm this destructive action first.
+ * Delete a project. Cascades to its environments (their runs and variables)
+ * and to its issues — the caller must confirm this destructive action first.
+ * Escrowed variables exist nowhere else, so while any environment of the
+ * project has one the delete is refused (409) unless an admin with org
+ * integration:manage passes `confirmEscrowedDeletion`. The delete itself
+ * re-checks escrow, so a variable escrowed after the check still blocks it.
+ * Each environment that loses variables is recorded in the activity feed with
+ * their names and count, never their values.
  */
-export async function removeProject(id: string): Promise<ActionResponse> {
-  await requireOrgPermission({ project: ["delete"] });
+export async function removeProject(
+  id: string,
+  {
+    confirmEscrowedDeletion = false,
+  }: { confirmEscrowedDeletion?: boolean } = {}
+): Promise<ActionResponse> {
+  const session = await requireOrgPermission({ project: ["delete"] });
+  const variables = await db
+    .select({
+      environmentId: environments.id,
+      environment: environments.name,
+      name: environmentVariables.name,
+      escrow: environmentVariables.escrow,
+    })
+    .from(environmentVariables)
+    .innerJoin(
+      environments,
+      eq(environments.id, environmentVariables.environmentId)
+    )
+    .where(eq(environments.projectId, id))
+    .orderBy(asc(environments.name), asc(environmentVariables.name));
+  const confirmed =
+    confirmEscrowedDeletion &&
+    canOrg(session.user.role, { integration: ["manage"] });
+  const refuseEscrowed = async (): Promise<never> => {
+    const t = await getServerTranslator("actionErrors");
+    throw new HTTPException(409, { message: t("projectHasEscrowedVariables") });
+  };
+  if (!confirmed && variables.some((v) => v.escrow)) await refuseEscrowed();
+
+  let deleted: { id: string } | undefined;
   try {
-    await db.delete(projects).where(eq(projects.id, id));
-    return { success: true };
+    [deleted] = await db
+      .delete(projects)
+      .where(
+        confirmed
+          ? eq(projects.id, id)
+          : and(
+              eq(projects.id, id),
+              notExists(
+                db
+                  .select({ id: environmentVariables.id })
+                  .from(environmentVariables)
+                  .innerJoin(
+                    environments,
+                    eq(environments.id, environmentVariables.environmentId)
+                  )
+                  .where(
+                    and(
+                      eq(environments.projectId, id),
+                      eq(environmentVariables.escrow, true)
+                    )
+                  )
+              )
+            )
+      )
+      .returning({ id: projects.id });
   } catch (error) {
     console.error(`Failed to delete project ${id}:`, error);
     return { success: false, message: "Failed to delete project" };
   }
+  // Nothing deleted: either a variable was escrowed since the check, or the
+  // project is gone.
+  if (!deleted) {
+    if (!confirmed && variables.length > 0) await refuseEscrowed();
+    return { success: false, message: "Project not found" };
+  }
+  const byEnvironment = new Map<
+    string,
+    { environment: string; names: string[] }
+  >();
+  for (const v of variables) {
+    const entry = byEnvironment.get(v.environmentId) ?? {
+      environment: v.environment,
+      names: [],
+    };
+    entry.names.push(v.name);
+    byEnvironment.set(v.environmentId, entry);
+  }
+  for (const [environmentId, { environment, names }] of byEnvironment) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "environment.deletedWithVariables",
+      entityType: "environment",
+      entityId: environmentId,
+      data: { environment, count: names.length, names: names.join(", ") },
+    });
+  }
+  return { success: true };
 }

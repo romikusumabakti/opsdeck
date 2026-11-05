@@ -405,6 +405,7 @@
       "componentNotFound": "No hay ninguna aplicación de despliegue registrada con esta clave.",
       "duplicateComponent": "Esta aplicación ya tiene un destino en este entorno.",
       "tagVariableIsVariable": "Este entorno ya tiene una variable con este nombre; el despliegue escribe la línea de la etiqueta por sí mismo. Elige otro nombre o elimina la variable.",
+      "tagVariableReserved": "COMPOSE_, DOCKER_ y BUILDKIT_ están reservados: Docker los lee de .env y podrían desviar el despliegue",
       "otherApp": "This component belongs to another app than this environment."
     },
     "lock": {
@@ -1290,6 +1291,7 @@
     "placementServiceInUse": "Este servicio ya lo usa otro entorno en este servidor; pide ayuda a un administrador.",
     "placementServiceName": "En un servidor abierto, vincula solo nombres de servicio que empiecen por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",
     "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno.",
+    "projectHasEscrowedVariables": "Este proyecto tiene entornos con variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el proyecto.",
     "deployLocked": "Los despliegues a este entorno están bloqueados por {name} hasta el {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "un antiguo usuario",
     "deployLockReasonInvalid": "Indica un motivo de 1 a 200 caracteres.",
@@ -1677,6 +1679,8 @@
     "deleteButton": "Eliminar proyecto",
     "deleteTitle": "Eliminar proyecto",
     "deleteDescription": "¿Eliminar el proyecto {name}? Esto también elimina {count, plural, =0 {ningún entorno} one {# entorno} other {# entornos}} y todas sus incidencias. Esta acción no se puede deshacer.",
+    "deleteEscrowedTitle": "¿Eliminar también las variables en custodia?",
+    "deleteEscrowedDescription": "Este proyecto tiene entornos con variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Eliminar el proyecto las destruye para siempre: confirma solo cuando estén guardadas en otro lugar.",
     "deletedSuccess": "Proyecto {name} eliminado",
     "tabJira": "Jira",
     "jiraTitle": "Sincronización con Jira",

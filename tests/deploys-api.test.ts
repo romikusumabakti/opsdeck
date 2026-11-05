@@ -529,6 +529,21 @@ describe("target configuration", () => {
     expect(variables.getVariable).toHaveBeenCalledWith(ENV_ID, "IMAGE_TAG");
   });
 
+  it("rejects reserved prefixes as a tag variable name (400)", async () => {
+    for (const tagVariable of ["COMPOSE_TAG", "DOCKER_TAG", "BUILDKIT_TAG"]) {
+      const created = await send("POST", "/api/deploys/targets", {
+        ...newTarget,
+        tagVariable,
+      });
+      expect(created.status, tagVariable).toBe(400);
+      const updated = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+        tagVariable,
+      });
+      expect(updated.status, tagVariable).toBe(400);
+    }
+    expect(repo.upsertTarget).not.toHaveBeenCalled();
+  });
+
   it("rejects an unknown component with 404", async () => {
     apps.getComponent.mockResolvedValue(null);
     const res = await send("POST", "/api/deploys/targets", newTarget);
