@@ -883,8 +883,8 @@
     "sftpRootDescription": "Absolute path the file explorer is confined to. Use / for the whole host.",
     "placement": "Environment placement",
     "placementRestricted": "Restricted: admins and infra only",
-    "placementOpen": "Open: project contributors and above",
-    "placementDescription": "Who may create new environments on this server. On an open server, project contributors can create environments here and then back up and restore the databases they bind, so mark a server open only if its data is disposable (dev or sandbox). Existing environments are not affected.",
+    "placementOpen": "Open: project maintainers",
+    "placementDescription": "Who may create new environments on this server. On an open server, project maintainers can create environments on this server without server permissions; only mark disposable dev/sandbox servers open. Existing environments are not affected.",
     "sftpRootInvalid": "Must be an absolute path (start with /)"
   },
   "newServer": {
@@ -1257,7 +1257,8 @@
     "cannotRemoveLastAdmin": "The last admin can't be demoted",
     "avatarRemoved": "Photo removed",
     "environmentOwnerIneligible": "The owner must be an active member of this environment's project, or an org admin or infra user.",
-    "placementServiceInUse": "This service is already used by another environment on this server; ask an admin."
+    "placementServiceInUse": "This service is already used by another environment on this server; ask an admin.",
+    "placementServiceName": "On an open server, bind only service names that start with {prefix} (this project's key); ask an admin for other names."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",

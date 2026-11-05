@@ -1,42 +1,33 @@
 import { createContext, useContext } from "react";
 import {
-  canEnvironment,
+  canProject,
   type ProjectPermissions,
   type ProjectRole,
 } from "@/lib/permissions";
 
-// The caller's effective role on the project in scope, and whether they own
-// the environment in scope, computed once in the environment layout. Buttons
-// read it to disable what the caller can't do; the server actions enforce the
-// same rules (lib/permissions#canEnvironment) regardless.
-type ProjectRoleValue = { role: ProjectRole | null; isOwner: boolean };
-
-const ProjectRoleContext = createContext<ProjectRoleValue>({
-  role: null,
-  isOwner: false,
-});
+// The caller's effective role on the project in scope, computed once in the
+// environment layout. Buttons read it to disable what the role can't do; the
+// server actions enforce the same statements regardless.
+const ProjectRoleContext = createContext<ProjectRole | null>(null);
 
 export function ProjectRoleProvider({
   role,
-  isOwner = false,
   children,
 }: {
   role: ProjectRole;
-  isOwner?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <ProjectRoleContext.Provider value={{ role, isOwner }}>
+    <ProjectRoleContext.Provider value={role}>
       {children}
     </ProjectRoleContext.Provider>
   );
 }
 
 export function useProjectRole(): ProjectRole | null {
-  return useContext(ProjectRoleContext).role;
+  return useContext(ProjectRoleContext);
 }
 
 export function useProjectCan(perms: ProjectPermissions): boolean {
-  const { role, isOwner } = useContext(ProjectRoleContext);
-  return canEnvironment(role, isOwner, perms);
+  return canProject(useContext(ProjectRoleContext), perms);
 }

@@ -46,8 +46,8 @@ export const environmentsRouter = sessionRouter()
     async (c) => {
       const { projectKey, envSlug } = c.req.valid("query");
       const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
-      const { role, isOwner } = await requireProjectPage({ environmentId });
-      return c.json({ environmentId, role, isOwner });
+      const { role } = await requireProjectPage({ environmentId });
+      return c.json({ environmentId, role });
     }
   )
   .post(

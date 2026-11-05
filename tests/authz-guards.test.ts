@@ -358,7 +358,7 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
 describe("environment infrastructure bindings need server:manage", () => {
   const source = readFileSync("server/services/environments.ts", "utf8");
   // Restricted servers keep the server:manage rule; open ones admit project
-  // contributors (tests/placement.test.ts). The check must run before the try
+  // maintainers (tests/placement.test.ts). The check must run before the try
   // block, so ForbiddenError propagates.
   it("createEnvironment checks the placement of every bound server", () => {
     const fn = body(source, "createEnvironment");

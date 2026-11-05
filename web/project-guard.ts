@@ -1,7 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 import {
-  canEnvironment,
   canOrg,
   canProject,
   canRegisterApp,
@@ -49,16 +48,13 @@ export async function requireProjectRole(
 
 /**
  * The same page guard for a role already in hand (the environment layout puts
- * the caller's role, and whether they own the environment, in the route
- * context): a 404 when it lacks `perms`. Owner rights follow
- * lib/permissions#canEnvironment, as on the server.
+ * the caller's role in the route context): a 404 when it lacks `perms`.
  */
 export function requireRole(
   role: ProjectRole,
-  perms: ProjectPermissions,
-  isOwner = false
+  perms: ProjectPermissions
 ): void {
-  if (!canEnvironment(role, isOwner, perms)) throw notFound();
+  if (!canProject(role, perms)) throw notFound();
 }
 
 /**

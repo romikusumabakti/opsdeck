@@ -6,13 +6,13 @@ import { loaderQuery } from "@/web/query-client";
 import { HistoryPending } from "./-components/env/skeletons";
 import { VariablesClient } from "./-components/env/variables/variables-client";
 
-// The environment's variables: maintainers, admins and the environment's
-// owner (project variable:read, owner-aware like the API).
+// The environment's variables: maintainers and admins (project
+// variable:read, like the API).
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/variables"
 )({
-  beforeLoad: ({ context: { role, isOwner } }) =>
-    requireRole(role, { variable: ["read"] }, isOwner),
+  beforeLoad: ({ context: { role } }) =>
+    requireRole(role, { variable: ["read"] }),
   loader: async ({ context: { queryClient, environmentId } }) => {
     await loaderQuery(queryClient, listVariablesQuery(environmentId));
   },

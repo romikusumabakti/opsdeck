@@ -9,10 +9,9 @@ import {
 import { EnvError } from "./-components/env/env-error";
 
 // The environment area (the port of `[projectKey]/[envSlug]/layout.tsx`).
-// `/<KEY>/<envSlug>` resolves to an environment id, the caller's role on its
-// project and whether they own the environment; an unknown key or slug, or an
-// invisible project, is a 404. The server enforces the same rules on every
-// endpoint, regardless.
+// `/<KEY>/<envSlug>` resolves to an environment id and the caller's role on
+// its project; an unknown key or slug, or an invisible project, is a 404. The
+// server enforces the same rules on every endpoint, regardless.
 export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug")({
   beforeLoad: async ({
     params: { projectKey, envSlug },
@@ -32,7 +31,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug")({
 });
 
 function EnvironmentLayout() {
-  const { environmentId, role, isOwner } = Route.useRouteContext();
+  const { environmentId, role } = Route.useRouteContext();
 
   // Bump the environment's recency for this user so the header switcher lists
   // it first. Runs on entering the environment (and when switching to
@@ -43,7 +42,7 @@ function EnvironmentLayout() {
   }, [environmentId]);
 
   return (
-    <ProjectRoleProvider role={role} isOwner={isOwner}>
+    <ProjectRoleProvider role={role}>
       <Outlet />
     </ProjectRoleProvider>
   );
