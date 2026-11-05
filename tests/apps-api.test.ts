@@ -179,6 +179,7 @@ vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
 
 const forge = vi.hoisted(() => ({
   commitFile: vi.fn(),
+  branchExists: vi.fn(),
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => forge);
 
@@ -286,6 +287,7 @@ beforeEach(() => {
   provider.upsertRepoSecret.mockImplementation(async (id: string) => {
     state.calls.push(`secret:${id}`);
   });
+  forge.branchExists.mockResolvedValue(true);
   forge.commitFile.mockImplementation(
     async (_auth: unknown, _repo: string, branch: string) => {
       state.calls.push(`commit:${branch}`);
@@ -558,6 +560,27 @@ describe("POST /api/apps", () => {
       "release/1.x": { sha: "sha-release/1.x", at: expect.any(String) },
     });
     expect(state.components).toHaveLength(1);
+  });
+
+  it("records a missing branch without committing and still commits the others", async () => {
+    forge.branchExists.mockImplementation(
+      async (_auth: unknown, _repo: string, branch: string) =>
+        branch !== "release/1.x"
+    );
+    const res = await send("POST", "/api/apps", body());
+    expect(res.status).toBe(201);
+    expect(state.calls).toContain("commit:main");
+    expect(state.calls).not.toContain("commit:release/1.x");
+    expect(forge.commitFile).toHaveBeenCalledTimes(1);
+    const commits = at(state.components).pipelineFileCommits as Record<
+      string,
+      Row
+    >;
+    expect(commits.main).toMatchObject({ sha: "sha-main" });
+    expect(commits["release/1.x"]).toEqual({
+      error: "Branch release/1.x does not exist",
+      at: expect.any(String),
+    });
   });
 
   it("keeps the registration when an unexpected error hits one branch", async () => {
