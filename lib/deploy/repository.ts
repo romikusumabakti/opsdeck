@@ -5,6 +5,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   lte,
   ne,
   or,
@@ -21,6 +22,7 @@ import {
   type DeployTarget,
   deployments,
   deployTargets,
+  deployTriggerEnum,
   type EnvironmentDeployLock,
   environmentDeployLocks,
   environmentServices,
@@ -30,7 +32,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { isLockActive, placementFor, planHeldRelease } from "@/lib/deploy/lock";
-import { autoRunActor } from "@/lib/deploy/run-actor";
+import { autoRunActor, PRE_DEPLOY_BACKUP_PREFIX } from "@/lib/deploy/run-actor";
 import { isUniqueViolation } from "@/lib/people/names";
 import type { UserRef } from "@/lib/types";
 
@@ -1217,5 +1219,106 @@ export async function setRunsTriggeredBy(
         isNull(runs.userId),
         isNull(runs.triggeredBy)
       )
+    );
+}
+
+/** Who a run was started by: a Panel user, or the actor of an auto-deploy. */
+export type RunActorColumns = {
+  userId: string | null;
+  triggeredBy: string | null;
+};
+
+/** The actor columns of a run, or null when it does not exist. */
+export async function getRunActor(
+  runId: string
+): Promise<RunActorColumns | null> {
+  const [row] = await db
+    .select({ userId: runs.userId, triggeredBy: runs.triggeredBy })
+    .from(runs)
+    .where(eq(runs.id, runId));
+  return row ?? null;
+}
+
+const backupRun = alias(runs, "backup_run");
+const deployRun = alias(runs, "deploy_run");
+// "<component> <tag>" of a pre-deploy backup run.
+const backupSubject = sql`substr(${backupRun.description}, ${PRE_DEPLOY_BACKUP_PREFIX.length + 1})`;
+/**
+ * The deploy run a pre-deploy backup run belongs to: same environment, same
+ * component and tag (see deploymentRunDescription), any trigger. The deploy
+ * run is created when the deployment is queued, the backup run only once the
+ * worker runs it, so the deploy run started at or before the backup. Of
+ * several (a tag deployed again), the one whose log names the backup run
+ * ("Backing up the database (run <id>)") wins, else the latest one.
+ */
+const sourceDeployRun = new QueryBuilder()
+  .select({ userId: deployRun.userId, triggeredBy: deployRun.triggeredBy })
+  .from(deployRun)
+  .where(
+    and(
+      eq(deployRun.environmentId, backupRun.environmentId),
+      eq(deployRun.kind, "deploy"),
+      sql`${deployRun.description} in (${sql.join(
+        deployTriggerEnum.enumValues.map(
+          (trigger) => sql`'Deploy ' || ${backupSubject} || ${` (${trigger})`}`
+        ),
+        sql`, `
+      )})`,
+      lte(deployRun.runAt, backupRun.runAt)
+    )
+  )
+  .orderBy(
+    sql`strpos(${deployRun.output}, '(run ' || ${backupRun.id} || ')') > 0 desc`,
+    desc(deployRun.runAt),
+    desc(deployRun.id)
+  )
+  .limit(1)
+  .as("source_run");
+
+const backupActorColumns = {
+  runId: backupRun.id,
+  userId: sourceDeployRun.userId,
+  triggeredBy: sourceDeployRun.triggeredBy,
+};
+const unfilledPreDeployBackup = and(
+  eq(backupRun.kind, "backup"),
+  like(backupRun.description, `${PRE_DEPLOY_BACKUP_PREFIX}%`),
+  isNull(backupRun.userId),
+  isNull(backupRun.triggeredBy)
+);
+
+/**
+ * Pre-deploy backup runs without an actor, each with the actor of its deploy
+ * run (both null when there is none, or it has none either). For the backfill;
+ * the query of {@link listPreDeployBackupActors}, exported for its SQL test.
+ */
+export const preDeployBackupActors = new QueryBuilder()
+  .select(backupActorColumns)
+  .from(backupRun)
+  .leftJoinLateral(sourceDeployRun, sql`true`)
+  .where(unfilledPreDeployBackup)
+  .orderBy(backupRun.runAt, backupRun.id);
+
+export async function listPreDeployBackupActors(): Promise<
+  ({ runId: string } & RunActorColumns)[]
+> {
+  return db
+    .select(backupActorColumns)
+    .from(backupRun)
+    .leftJoinLateral(sourceDeployRun, sql`true`)
+    .where(unfilledPreDeployBackup)
+    .orderBy(backupRun.runAt, backupRun.id);
+}
+
+/** Sets the actor of a run that has none yet; a run with an actor is kept. */
+export async function setRunActor(
+  runId: string,
+  actor: RunActorColumns
+): Promise<void> {
+  await db
+    .update(runs)
+    .set(actor)
+    .where(
+      and(eq(runs.id, runId), isNull(runs.userId), isNull(runs.triggeredBy))
     );
 }

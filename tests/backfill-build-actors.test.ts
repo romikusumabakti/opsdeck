@@ -8,6 +8,8 @@ vi.mock("@/lib/deploy/repository", () => ({
   listBuildsWithUnfilledRuns: vi.fn(),
   listUnfilledAutoRunIds: vi.fn(),
   setRunsTriggeredBy: vi.fn(),
+  listPreDeployBackupActors: vi.fn(),
+  setRunActor: vi.fn(),
 }));
 vi.mock("@/server/services/deploy-builds", () => ({
   buildActorsOrNulls: vi.fn(),
@@ -50,10 +52,42 @@ function fakeStore() {
     { id: "r4", buildId: "b4", triggeredBy: null as string | null },
     { id: "r5", buildId: "b5", triggeredBy: null as string | null },
   ];
+  type Actor = { userId: string | null; triggeredBy: string | null };
+  const backups: ({ id: string; source: Actor } & Actor)[] = [
+    // Manual deploy by a Panel user.
+    {
+      id: "k1",
+      userId: null,
+      triggeredBy: null,
+      source: { userId: "u1", triggeredBy: null },
+    },
+    // Auto-deploy by a forge login.
+    {
+      id: "k2",
+      userId: null,
+      triggeredBy: null,
+      source: { userId: null, triggeredBy: "alice" },
+    },
+    // Its deploy run has no actor either: nothing to copy.
+    {
+      id: "k3",
+      userId: null,
+      triggeredBy: null,
+      source: { userId: null, triggeredBy: null },
+    },
+    // Already has an actor: never listed.
+    {
+      id: "k4",
+      userId: "u9",
+      triggeredBy: null,
+      source: { userId: "u1", triggeredBy: null },
+    },
+  ];
   const find = (id: string) => builds.find((b) => b.id === id) as B;
   return {
     builds,
     runs,
+    backups,
     store: {
       listBuildsMissingActors: async () =>
         builds
@@ -83,6 +117,23 @@ function fakeStore() {
       setRunsTriggeredBy: vi.fn(async (ids: string[], by: string) => {
         for (const r of runs) if (ids.includes(r.id)) r.triggeredBy = by;
       }),
+      // Pre-deploy backup runs without an actor, with the actor of their
+      // deploy run (computed by the real query).
+      listPreDeployBackupActors: async () =>
+        backups
+          .filter((b) => !b.userId && !b.triggeredBy)
+          .map((b) => ({ runId: b.id, ...b.source })),
+      setRunActor: vi.fn(
+        async (
+          id: string,
+          a: { userId: string | null; triggeredBy: string | null }
+        ) => {
+          const b = backups.find((x) => x.id === id);
+          if (!b || b.userId || b.triggeredBy) return;
+          b.userId = a.userId;
+          b.triggeredBy = a.triggeredBy;
+        }
+      ),
     },
   };
 }
@@ -119,8 +170,17 @@ describe("backfillBuildActors", () => {
       buildsFilled: 2,
       buildsSkipped: 1,
       runsFilled: 4,
+      backupRuns: 3,
+      backupRunsFilled: 2,
     });
     expect(f.store.setBuildActors).not.toHaveBeenCalled();
+    expect(f.store.setRunActor).not.toHaveBeenCalled();
+    expect(f.backups.map((b) => b.userId ?? b.triggeredBy)).toEqual([
+      null,
+      null,
+      null,
+      "u9",
+    ]);
     expect(f.store.setRunsTriggeredBy).not.toHaveBeenCalled();
     expect(f.builds.map((b) => b.pushedBy)).toEqual([
       null,
@@ -143,6 +203,8 @@ describe("backfillBuildActors", () => {
       buildsFilled: 2,
       buildsSkipped: 1,
       runsFilled: 4,
+      backupRuns: 3,
+      backupRunsFilled: 2,
     });
     expect(f.runs.map((r) => r.triggeredBy)).toEqual([
       "alice",
@@ -169,6 +231,9 @@ describe("backfillBuildActors", () => {
       buildsFilled: 0,
       buildsSkipped: 1,
       runsFilled: 0,
+      // k3 stays without an actor: listed again, filled never.
+      backupRuns: 1,
+      backupRunsFilled: 0,
     });
   });
 
@@ -177,5 +242,41 @@ describe("backfillBuildActors", () => {
     f.runs.push({ id: "r6", buildId: "b2", triggeredBy: null });
     await backfillBuildActors({ dryRun: false }, { store: f.store, lookup });
     expect(f.runs.find((r) => r.id === "r6")?.triggeredBy).toBe("bob@x.test");
+  });
+});
+
+describe("pre-deploy backup runs", () => {
+  it("copy the actor of their deploy run, null-only, and skip unknown ones", async () => {
+    const f = fakeStore();
+    await backfillBuildActors({ dryRun: false }, { store: f.store, lookup });
+    expect(
+      f.backups.map((b) => ({ userId: b.userId, triggeredBy: b.triggeredBy }))
+    ).toEqual([
+      { userId: "u1", triggeredBy: null },
+      { userId: null, triggeredBy: "alice" },
+      { userId: null, triggeredBy: null },
+      { userId: "u9", triggeredBy: null },
+    ]);
+    // Never asked to write a run with nothing to copy.
+    expect(f.store.setRunActor).toHaveBeenCalledTimes(2);
+  });
+
+  it("run after the build pass, so a deploy run filled there is copied", async () => {
+    const f = fakeStore();
+    const order: string[] = [];
+    const store = {
+      ...f.store,
+      setRunsTriggeredBy: vi.fn(async (ids: string[], by: string) => {
+        order.push("runs");
+        await f.store.setRunsTriggeredBy(ids, by);
+      }),
+      listPreDeployBackupActors: async () => {
+        order.push("backups");
+        return f.store.listPreDeployBackupActors();
+      },
+    };
+    await backfillBuildActors({ dryRun: false }, { store, lookup });
+    expect(order.at(-1)).toBe("backups");
+    expect(order.indexOf("backups")).toBe(order.length - 1);
   });
 });
