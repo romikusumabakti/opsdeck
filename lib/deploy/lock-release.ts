@@ -22,7 +22,8 @@ const ACTIONS: Record<ReleaseCause, string> = {
  * Idempotent and safe under concurrency: the delete and the status changes are
  * one transaction (releaseDeployLock), so of two concurrent releases — two
  * unlocks, or an unlock and the sweep — only the first finds a lock and queues
- * anything; the other returns `{ queued: [] }` and records nothing.
+ * anything; the other returns `{ released: false, queued: [] }` and records
+ * nothing.
  *
  * The queued deployments are only enqueued: the worker claims them one at a
  * time, as for any deploy (one running deployment per environment).
@@ -37,12 +38,12 @@ export async function releaseLock(
   cause: ReleaseCause,
   actorId: string | null,
   options: { reason?: string; expectedCreatedAt?: Date; now?: Date } = {}
-): Promise<{ queued: string[] }> {
+): Promise<{ released: boolean; queued: string[] }> {
   const released = await releaseDeployLock(environmentId, {
     createdAt: options.expectedCreatedAt,
     expiredAt: cause === "expired" ? (options.now ?? new Date()) : undefined,
   });
-  if (!released) return { queued: [] };
+  if (!released) return { released: false, queued: [] };
 
   for (const job of released.queued) {
     try {
@@ -71,7 +72,10 @@ export async function releaseLock(
       count: released.queued.length,
     },
   });
-  return { queued: released.queued.map((job) => job.deploymentId) };
+  return {
+    released: true,
+    queued: released.queued.map((job) => job.deploymentId),
+  };
 }
 
 /**

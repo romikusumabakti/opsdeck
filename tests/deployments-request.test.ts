@@ -13,6 +13,8 @@ const TAG = "origin-sucor-development-abc1234";
 const repo = vi.hoisted(() => ({
   getTarget: vi.fn(),
   placeDeployment: vi.fn(),
+  deploymentRunDescription: (key: string, tag: string, trigger: string) =>
+    `Deploy ${key} ${tag} (${trigger})`,
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
@@ -31,7 +33,9 @@ const lock = {
 };
 
 beforeEach(() => {
-  vi.resetAllMocks();
+  repo.getTarget.mockReset();
+  repo.placeDeployment.mockReset();
+  queue.enqueue.mockReset();
   repo.getTarget.mockResolvedValue({
     id: TARGET_ID,
     environmentId: ENV_ID,
@@ -80,11 +84,11 @@ describe("requestDeployment", () => {
     repo.placeDeployment.mockResolvedValue({
       kind: "held",
       deploymentId: "dep-2",
-      runId: "run-2",
+      runId: null,
     });
     await expect(request("auto")).resolves.toEqual({
       deploymentId: "dep-2",
-      runId: "run-2",
+      runId: null,
       status: "held",
     });
     expect(queue.enqueue).not.toHaveBeenCalled();
@@ -92,8 +96,8 @@ describe("requestDeployment", () => {
 
   it("holds two notifications for one target in the same second, enqueuing neither", async () => {
     repo.placeDeployment
-      .mockResolvedValueOnce({ kind: "held", deploymentId: "d1", runId: "r1" })
-      .mockResolvedValueOnce({ kind: "held", deploymentId: "d2", runId: "r2" });
+      .mockResolvedValueOnce({ kind: "held", deploymentId: "d1", runId: null })
+      .mockResolvedValueOnce({ kind: "held", deploymentId: "d2", runId: null });
     await Promise.all([request("auto"), request("auto")]);
     expect(repo.placeDeployment).toHaveBeenCalledTimes(2);
     expect(queue.enqueue).not.toHaveBeenCalled();

@@ -29,7 +29,17 @@ describe("deploy locks migration", () => {
     expect(sql).toMatch(/created_at timestamp NOT NULL DEFAULT now\(\)/);
   });
 
-  it("is additive", () => {
-    expect(sql).not.toMatch(/DROP\s/i);
+  it("lets a held deployment have no run yet", () => {
+    expect(sql).toContain(
+      "ALTER TABLE deployments ALTER COLUMN run_id DROP NOT NULL"
+    );
+  });
+
+  it("is additive: drops no table, column, type, index or constraint", () => {
+    expect(sql).not.toMatch(
+      /DROP\s+(TABLE|COLUMN|TYPE|INDEX|CONSTRAINT|SCHEMA|VIEW)\b/i
+    );
+    // The only DROP is the relaxing DROP NOT NULL.
+    expect(sql.match(/DROP\s/gi)?.length).toBe(1);
   });
 });
