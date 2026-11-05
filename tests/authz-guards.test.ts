@@ -152,6 +152,14 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     updateProjectMemberRole: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,
   },
+  "server/services/variables.ts": {
+    listVariables: /variable: \["read"\]/,
+    putVariable: /variable: \["write"\]/,
+    deleteVariable: /variable: \["write"\]/,
+    regenerateVariable: /variable: \["write"\]/,
+    applyTemplate: /variable: \["write"\]/,
+    setEnvFileManaged: /variable: \["write"\], deploy: \["configure"\]/,
+  },
   "server/services/jira.ts": {
     getJiraLink: /project: \["read"\]/,
     saveJiraLink: /environment: \["update"\]/,
@@ -293,6 +301,21 @@ describe("access changes are recorded in the activity log", () => {
       expect(page).toContain(`case "${action}":`);
     });
   }
+});
+
+// Revealing secret values leaves a trail the activity page can render.
+describe("revealing variables is recorded in the activity log", () => {
+  it("listVariables records variables.revealed and the page renders it", () => {
+    const code = body(
+      readFileSync("server/services/variables.ts", "utf8"),
+      "listVariables"
+    );
+    expect(code).toMatch(/if \(reveal\) \{\s*await recordActivity\(/);
+    expect(code).toContain('action: "variables.revealed"');
+    expect(readFileSync(`${APP}/admin.activity.tsx`, "utf8")).toContain(
+      'case "variables.revealed":'
+    );
+  });
 });
 
 // The old catch-all helpers have been removed. Everything under server, lib,

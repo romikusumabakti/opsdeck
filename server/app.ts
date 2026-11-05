@@ -44,6 +44,10 @@ import { terminalRouter } from "@/server/routes/terminal";
 import { testRunsRouter } from "@/server/routes/test-runs";
 import { tunnelsRouter } from "@/server/routes/tunnels";
 import { onboardingRouter, usersRouter } from "@/server/routes/users";
+import {
+  environmentVariablesRouter,
+  variableTemplatesRouter,
+} from "@/server/routes/variables";
 
 /**
  * A Hono instance with the stack every request goes through. Order matters:
@@ -94,6 +98,7 @@ export const app = createBaseApp()
   .route("/api/environments", environmentsRouter)
   .route("/api/environments", mailFilesRouter)
   .route("/api/environments", serviceLogsRouter)
+  .route("/api/environments", environmentVariablesRouter)
   .route("/api/services", servicesRouter)
   .route("/api/runs", runsRouter)
   .route("/api/backups", backupsRouter)
@@ -116,6 +121,7 @@ export const app = createBaseApp()
   .route("/api/deploy-hooks", deployHooksRouter)
   .route("/api/deploys", deploysRouter)
   .route("/api/apps", appsRouter)
+  .route("/api/apps", variableTemplatesRouter)
   .route("/api/ci-connections", ciConnectionsRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);

@@ -1,7 +1,7 @@
 import {
   Activity,
-  Boxes,
   BookOpen,
+  Boxes,
   Cable,
   CircleDot,
   Clock,
@@ -11,6 +11,7 @@ import {
   HardDrive,
   History,
   House,
+  KeyRound,
   LayoutDashboard,
   type LucideIcon,
   Mail,
@@ -54,8 +55,8 @@ import {
   stripProjectPrefix,
 } from "@/lib/nav-path";
 import {
+  canEnvironment,
   canOrg,
-  canProject,
   type OrgPermissions,
   type OrgRole,
   type ProjectPermissions,
@@ -81,6 +82,12 @@ const projectItems: ProjectItem[] = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
   { key: "services", url: "/services", icon: ServerCog },
   { key: "deploys", url: "/deploys", icon: Rocket },
+  {
+    key: "variables",
+    url: "/variables",
+    icon: KeyRound,
+    perm: SECTION_PERMS.variables,
+  },
   { key: "databases", url: "/databases", icon: DatabaseZap },
   {
     key: "mockTime",
@@ -223,6 +230,9 @@ export function AppSidebar({
   const envRole = activeEnv
     ? (projectRoles[activeEnv.projectId] ?? null)
     : null;
+  // The environment's owner holds extra rights on it (lib/permissions
+  // OWNER_PERMISSIONS), e.g. its Variables page.
+  const envOwned = activeEnv?.ownerId != null && activeEnv.ownerId === user.id;
 
   // Issues live on the environment's parent project, so the group badge counts
   // every open issue in that project — the set the env's Issues page lists,
@@ -403,7 +413,9 @@ export function AppSidebar({
                 <SidebarMenu>
                   {projectItems
                     .filter(
-                      (item) => !item.perm || canProject(envRole, item.perm)
+                      (item) =>
+                        !item.perm ||
+                        canEnvironment(envRole, envOwned, item.perm)
                     )
                     // Databases / Mock time need a db / backend service.
                     .filter((item) => {

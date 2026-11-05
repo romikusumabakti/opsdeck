@@ -1,6 +1,12 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { GitCommitHorizontal, KeyRound, Loader2, Package } from "lucide-react";
+import {
+  GitCommitHorizontal,
+  KeyRound,
+  ListTree,
+  Loader2,
+  Package,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -25,6 +31,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import {
   type AppComponentRow,
   commitPipelineFile,
@@ -37,7 +44,7 @@ import { meQuery } from "@/web/api/session";
 import { loaderQuery } from "@/web/query-client";
 import { PipelineFileStatus } from "./-components/apps/pipeline-file-status";
 
-export const Route = createFileRoute("/$locale/_app/apps/$appKey")({
+export const Route = createFileRoute("/$locale/_app/apps/$appKey/")({
   loader: async ({ params: { appKey }, context: { queryClient } }) => {
     const [apps] = await Promise.all([
       loaderQuery(queryClient, listAppsQuery()),
@@ -60,7 +67,24 @@ function AppDetailPage() {
 
   return (
     <>
-      <PageHeader title={app.name} subtitle={app.appKey} />
+      <PageHeader
+        title={app.name}
+        subtitle={app.appKey}
+        action={
+          // The variable templates are for integration:manage, like the
+          // actions below.
+          canManage && (
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/apps/${app.appKey}/variables`} />}
+            >
+              <ListTree data-icon="inline-start" />
+              {t("variableTemplates")}
+            </Button>
+          )
+        }
+      />
       <div className="flex flex-col gap-4 max-w-3xl w-full">
         {app.components.length === 0 && (
           <p className="text-sm text-muted-foreground">{t("noComponents")}</p>
