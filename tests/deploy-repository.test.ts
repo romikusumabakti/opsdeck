@@ -581,6 +581,11 @@ describe("claimDeployment", () => {
       return [];
     });
   }
+  // Real-time expiry: claimDeployment compares against the wall clock.
+  const liveLock = {
+    ...activeLock,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  };
   const [auto, manual] = queuedRows as [
     (typeof queuedRows)[number],
     (typeof queuedRows)[number],
@@ -615,14 +620,14 @@ describe("claimDeployment", () => {
   });
 
   it('holds a queued auto deploy while locked: "held", run deleted, never running', async () => {
-    const ops = claimTx({ row: auto, lock: activeLock });
+    const ops = claimTx({ row: auto, lock: liveLock });
     await expect(claimDeployment("q-auto", "r-auto")).resolves.toBe("held");
     expect(ops.some((o) => o.values?.status === "running")).toBe(false);
     expect(ops.some((o) => o.op === "delete" && o.table === "runs")).toBe(true);
   });
 
   it('cancels a queued manual deploy while locked: "cancelled"', async () => {
-    const ops = claimTx({ row: manual, lock: activeLock });
+    const ops = claimTx({ row: manual, lock: liveLock });
     await expect(claimDeployment("q-man", "r-man")).resolves.toBe("cancelled");
     expect(ops.some((o) => o.values?.status === "running")).toBe(false);
     expect(
@@ -648,7 +653,7 @@ describe("claimDeployment", () => {
     await expect(claimDeployment("A", "rA")).resolves.toBe("claimed");
     const ops = claimTx({
       row: { ...auto, id: "B", runId: "rB" },
-      lock: activeLock,
+      lock: liveLock,
     });
     await expect(claimDeployment("B", "rB")).resolves.toBe("held");
     expect(ops.some((o) => o.values?.status === "running")).toBe(false);
