@@ -419,7 +419,7 @@
       "edit": "Ubah kunci",
       "forceUnlock": "Paksa buka kunci",
       "dialogTitle": "Kunci deploy",
-      "dialogDescription": "Deploy manual dan rollback ditolak selama terkunci. Build dari auto-deploy ditahan dan yang terbaru per target di-deploy saat kunci berakhir.",
+      "dialogDescription": "Deploy manual dan rollback ditolak selama terkunci; deploy manual dan rollback yang sudah antre dibatalkan. Build dari auto-deploy, termasuk yang sudah antre, ditahan dan yang terbaru per target di-deploy saat kunci berakhir.",
       "reason": "Alasan",
       "expiry": "Kunci berakhir",
       "expiryHint": "Ditampilkan dalam waktu lokal Anda. Maksimal 7 hari ke depan.",

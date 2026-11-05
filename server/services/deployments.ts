@@ -1,5 +1,6 @@
 import { HTTPException } from "hono/http-exception";
 import type { Deployment } from "@/lib/db/schema";
+import { announceRelease } from "@/lib/deploy/lock-release";
 import {
   deploymentRunDescription,
   getTarget,
@@ -28,6 +29,8 @@ export type DeploymentRequest = {
  * While the environment's deploy lock is active, an `auto` deployment is
  * recorded as `held` and not enqueued (it deploys when the lock is released),
  * and a `manual` deployment or rollback is refused with a 409 naming the lock.
+ * A lock past its expiry that the sweep has not removed yet is released first
+ * (cause "expired"), so its held builds deploy before this request.
  */
 export type RequestedDeployment =
   | { deploymentId: string; runId: string; status: "queued" }
@@ -55,6 +58,16 @@ export async function requestDeployment(
     ),
     now: new Date(),
   });
+  if (placed.released) {
+    // An expired lock the sweep had not removed yet: its held builds were
+    // queued ahead of this request, so they are enqueued first.
+    await announceRelease(
+      target.environmentId,
+      "expired",
+      null,
+      placed.released
+    );
+  }
   if (placed.kind === "locked") {
     throw new HTTPException(409, {
       message: await deployLockedMessage(placed.lock),

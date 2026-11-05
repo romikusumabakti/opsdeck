@@ -13,6 +13,11 @@ const TAG = "origin-kestrel-development-abc1234";
 const repo = vi.hoisted(() => ({
   getTarget: vi.fn(),
   placeDeployment: vi.fn(),
+  getEnvironmentForLock: vi.fn(async () => ({
+    id: "0197f3a0-1b2c-7def-8000-0123456789e1",
+    name: "Kestrel Dev",
+    ownerId: null,
+  })),
   deploymentRunDescription: (key: string, tag: string, trigger: string) =>
     `Deploy ${key} ${tag} (${trigger})`,
 }));
@@ -20,6 +25,9 @@ vi.mock("@/lib/deploy/repository", () => repo);
 
 const queue = vi.hoisted(() => ({ enqueue: vi.fn() }));
 vi.mock("@/lib/queue", () => queue);
+
+const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
+vi.mock("@/lib/activity", () => activity);
 
 const { requestDeployment } = await import("@/server/services/deployments");
 
@@ -36,6 +44,7 @@ beforeEach(() => {
   repo.getTarget.mockReset();
   repo.placeDeployment.mockReset();
   queue.enqueue.mockReset();
+  activity.recordActivity.mockReset();
   repo.getTarget.mockResolvedValue({
     id: TARGET_ID,
     environmentId: ENV_ID,
@@ -130,5 +139,48 @@ describe("requestDeployment", () => {
     ).rejects.toThrow();
     expect(repo.placeDeployment).not.toHaveBeenCalled();
     expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("enqueues the builds of an expired lock it released before its own (17:00 case)", async () => {
+    // Held v4, lock expired but not swept, manual v5 requested: the
+    // transaction released the lock first (v4 queued), then placed v5.
+    repo.placeDeployment.mockResolvedValue({
+      kind: "queued",
+      deploymentId: "v5",
+      runId: "run-v5",
+      released: {
+        lock,
+        queued: [{ deploymentId: "v4", runId: "run-v4" }],
+        superseded: [],
+      },
+    });
+    await expect(request("manual")).resolves.toMatchObject({
+      deploymentId: "v5",
+      status: "queued",
+    });
+    expect(queue.enqueue.mock.calls).toEqual([
+      ["deploy/run.requested", { deploymentId: "v4", runId: "run-v4" }],
+      ["deploy/run.requested", { deploymentId: "v5", runId: "run-v5" }],
+    ]);
+    expect(activity.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: null,
+        action: "deployLock.expired",
+        entityId: ENV_ID,
+        data: expect.objectContaining({ count: 1 }),
+      })
+    );
+  });
+
+  it("records nothing more when no expired lock was released", async () => {
+    repo.placeDeployment.mockResolvedValue({
+      kind: "queued",
+      deploymentId: "dep-1",
+      runId: "run-1",
+      released: null,
+    });
+    await request("manual");
+    expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 });

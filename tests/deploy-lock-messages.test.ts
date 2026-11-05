@@ -37,3 +37,11 @@ describe("deploy lock messages", () => {
     }
   });
 });
+
+describe("lock dialog description", () => {
+  it("tells that queued manual deploys and rollbacks are cancelled and queued builds held", () => {
+    const text = lockMessages("en").dialogDescription;
+    expect(text).toMatch(/queued manual deploys and rollbacks are cancelled/i);
+    expect(text).toMatch(/held/);
+  });
+});

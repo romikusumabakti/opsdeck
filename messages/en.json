@@ -419,7 +419,7 @@
       "edit": "Change lock",
       "forceUnlock": "Force unlock",
       "dialogTitle": "Lock deploys",
-      "dialogDescription": "Manual deploys and rollbacks are refused while locked. Builds from auto-deploy are held and the newest one per target deploys when the lock ends.",
+      "dialogDescription": "Manual deploys and rollbacks are refused while locked; queued manual deploys and rollbacks are cancelled. Builds from auto-deploy, including queued ones, are held and the newest one per target deploys when the lock ends.",
       "reason": "Reason",
       "expiry": "Lock ends",
       "expiryHint": "Shown in your local time. At most 7 days ahead.",
