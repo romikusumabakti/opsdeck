@@ -14,6 +14,9 @@ const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
 const SERVER_OPEN = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const SERVER_RESTRICTED = "0197f3a0-1b2c-7def-8000-0123456789c2";
 const OWNER_ID = "0197f3a0-1b2c-7def-8000-0123456789d1";
+const TARGET_PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f3";
+const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
+const OTHER_ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e9";
 
 describe("canPlaceEnvironment", () => {
   // [orgRole, projectRole, restricted, open]
@@ -44,12 +47,27 @@ describe("canPlaceEnvironment", () => {
 });
 
 type Call = { op: string; table?: unknown; values?: unknown };
+type Service = { role: string; serverId: string; serviceName: string };
 
 const state = vi.hoisted(() => ({
   orgRole: "member" as string,
+  // Role in the environment's (or the created environment's) project.
   projectRole: "contributor" as string | null,
+  // Role in the project an update moves the environment into.
+  targetProjectRole: "maintainer" as string | null,
   userId: "0197f3a0-1b2c-7def-8000-0123456789a9",
   placements: {} as Record<string, "restricted" | "open">,
+  // environment_services rows of every environment (for the in-use check).
+  used: [] as (Service & { environmentId: string })[],
+  // The environment an update loads.
+  stored: { id: "", projectId: "", ownerId: null, services: [] } as {
+    id: string;
+    projectId: string;
+    ownerId: string | null;
+    services: Service[];
+  },
+  // Every requireProjectPermission call: [scope, perms].
+  guards: [] as [Record<string, string>, unknown][],
   calls: [] as Call[],
 }));
 
@@ -66,7 +84,7 @@ vi.mock("@/lib/auth-session", () => ({
 // from the state, with the real permission table.
 vi.mock("@/lib/authz", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/authz")>();
-  const { canOrg } = await import("@/lib/permissions");
+  const { canOrg, canProject } = await import("@/lib/permissions");
   return {
     ForbiddenError: real.ForbiddenError,
     getProjectRole: async () => state.projectRole,
@@ -75,15 +93,26 @@ vi.mock("@/lib/authz", async (importOriginal) => {
       if (!canOrg(state.orgRole, perms)) throw new real.ForbiddenError();
       return { user: { id: state.userId, role: state.orgRole } };
     },
-    requireProjectPermission: async () => {
-      if (!state.projectRole) {
+    requireProjectPermission: async (
+      scope: Record<string, string>,
+      perms: Parameters<typeof canProject>[1]
+    ) => {
+      state.guards.push([scope, perms]);
+      const role =
+        scope.projectId === TARGET_PROJECT_ID
+          ? state.targetProjectRole
+          : state.projectRole;
+      if (!role) {
         const { HTTPException } = await import("hono/http-exception");
         throw new HTTPException(404, { message: "Not Found" });
       }
+      if (!canProject(role as "viewer", perms)) {
+        throw new real.ForbiddenError();
+      }
       return {
         session: { user: { id: state.userId, role: state.orgRole } },
-        role: state.projectRole,
-        projectId: PROJECT_ID,
+        role,
+        projectId: scope.projectId ?? PROJECT_ID,
         isOwner: false,
       };
     },
@@ -97,6 +126,10 @@ vi.mock("@/lib/secrets", () => ({
 vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
+vi.mock("@/lib/environments", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/environments")>()),
+  loadEnvironmentWithServers: async () => state.stored,
+}));
 
 vi.mock("@/lib/db", async () => {
   const schema = await import("@/lib/db/schema");
@@ -108,6 +141,10 @@ vi.mock("@/lib/db", async () => {
       }));
     }
     if (table === schema.users) return [{ id: OWNER_ID }];
+    if (table === schema.environmentServices) return state.used;
+    if (table === schema.environments) {
+      return [{ id: "0197f3a0-1b2c-7def-8000-0123456789e1", slug: "taken" }];
+    }
     return [];
   };
   // A query builder: awaiting it yields rows; every method returns it again.
@@ -167,7 +204,9 @@ vi.mock("@/lib/db", async () => {
 });
 
 const schema = await import("@/lib/db/schema");
-const { createEnvironment } = await import("@/server/services/environments");
+const { createEnvironment, updateEnvironment } = await import(
+  "@/server/services/environments"
+);
 const { updateServer } = await import("@/server/services/servers");
 const { serverInputSchema, serverUpdateSchema } = await import(
   "@/lib/validation"
@@ -199,7 +238,202 @@ beforeEach(() => {
     [SERVER_OPEN]: "open",
     [SERVER_RESTRICTED]: "restricted",
   };
+  state.targetProjectRole = "maintainer";
+  state.used = [];
+  state.stored = {
+    id: ENV_ID,
+    projectId: PROJECT_ID,
+    ownerId: null,
+    services: [{ role: "backend", serverId: SERVER_OPEN, serviceName: "api" }],
+  };
+  state.guards = [];
   state.calls = [];
+});
+
+const newOnOpen = {
+  projectId: PROJECT_ID,
+  name: "Dev",
+  hasDatabase: false,
+  hasFrontend: false,
+  ...backend,
+};
+
+describe("createEnvironment guards", () => {
+  it("asks only for project:read on the target project, then placement", async () => {
+    await createEnvironment(newOnOpen);
+    expect(state.guards).toEqual([
+      [{ projectId: PROJECT_ID }, { project: ["read"] }],
+    ]);
+  });
+
+  it("is a 404 for a project the caller cannot see", async () => {
+    state.projectRole = null;
+    await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(insertedEnvironment()).toBeUndefined();
+  });
+});
+
+describe("open placement: service names in use", () => {
+  it("refuses a contributor binding a service another environment uses there", async () => {
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "backend",
+        serverId: SERVER_OPEN,
+        serviceName: "api",
+      },
+    ];
+    await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
+      status: 403,
+      message: "placementServiceInUse",
+    });
+    expect(insertedEnvironment()).toBeUndefined();
+  });
+
+  it("counts any role's service name, and only on the same server", async () => {
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "db",
+        serverId: SERVER_RESTRICTED,
+        serviceName: "api",
+      },
+    ];
+    expect((await createEnvironment(newOnOpen)).success).toBe(true);
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "frontend",
+        serverId: SERVER_OPEN,
+        serviceName: "api",
+      },
+    ];
+    await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("lets a caller with server:manage share a service name", async () => {
+    state.orgRole = "infra";
+    state.projectRole = "maintainer";
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "backend",
+        serverId: SERVER_OPEN,
+        serviceName: "api",
+      },
+    ];
+    expect((await createEnvironment(newOnOpen)).success).toBe(true);
+  });
+});
+
+describe("updateEnvironment placement", () => {
+  const updates = () => state.calls.filter((c) => c.op === "update");
+
+  it("refuses moving an environment on a restricted server without server:manage", async () => {
+    // Maintainer of both projects, org member: may update here, may create
+    // environments there, but not place one on a restricted server.
+    state.projectRole = "maintainer";
+    state.targetProjectRole = "maintainer";
+    state.stored.services = [
+      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "api" },
+    ];
+    await expect(
+      updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+    expect(state.guards).toContainEqual([
+      { projectId: TARGET_PROJECT_ID },
+      { project: ["read"] },
+    ]);
+  });
+
+  it("lets admins move it (restricted rule satisfied)", async () => {
+    state.orgRole = "admin";
+    state.projectRole = "maintainer";
+    state.targetProjectRole = "maintainer";
+    state.stored.services = [
+      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "api" },
+    ];
+    const result = await updateEnvironment(ENV_ID, {
+      projectId: TARGET_PROJECT_ID,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("judges a move by the role in the target project", async () => {
+    state.projectRole = "maintainer";
+    state.targetProjectRole = "viewer";
+    await expect(
+      updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
+    ).rejects.toMatchObject({ status: 403 });
+    state.targetProjectRole = "contributor";
+    // Open server, own service rows do not count as "in use".
+    state.used = [
+      {
+        environmentId: ENV_ID,
+        role: "backend",
+        serverId: SERVER_OPEN,
+        serviceName: "api",
+      },
+    ];
+    expect(
+      (await updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID }))
+        .success
+    ).toBe(true);
+  });
+
+  it("refuses a move onto an open server whose service another environment shares", async () => {
+    state.projectRole = "maintainer";
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "backend",
+        serverId: SERVER_OPEN,
+        serviceName: "api",
+      },
+    ];
+    await expect(
+      updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
+    ).rejects.toMatchObject({ status: 403, message: "placementServiceInUse" });
+    expect(updates()).toEqual([]);
+  });
+
+  it("does not re-check placement when the project id is re-sent unchanged", async () => {
+    state.projectRole = "maintainer";
+    state.stored.services = [
+      { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "api" },
+    ];
+    const result = await updateEnvironment(ENV_ID, {
+      projectId: PROJECT_ID,
+      name: "Renamed",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("refuses a service-name change without server:manage", async () => {
+    state.projectRole = "maintainer";
+    await expect(
+      updateEnvironment(ENV_ID, { backendServiceName: "api-2" })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+  });
+
+  it("checks placement of a binding change (restricted rule for infra)", async () => {
+    state.orgRole = "infra";
+    state.projectRole = "maintainer";
+    const result = await updateEnvironment(ENV_ID, {
+      backendServerId: SERVER_RESTRICTED,
+    });
+    expect(result).toMatchObject({ success: true });
+    // The placement lookup ran against the servers table.
+    expect(
+      state.calls.some((c) => c.op === "select" && c.table === schema.servers)
+    ).toBe(true);
+  });
 });
 
 describe("createEnvironment placement", () => {

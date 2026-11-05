@@ -11,7 +11,10 @@ import {
 } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
-import type { SafeEnvironmentWithServers } from "@/lib/db/schema";
+import type {
+  EnvironmentWithServers,
+  SafeEnvironmentWithServers,
+} from "@/lib/db/schema";
 import {
   deployTargets,
   type Environment,
@@ -32,10 +35,14 @@ import {
   loadSafeEnvironment,
   ownerIdToVerify,
 } from "@/lib/environments";
-import { canPlaceEnvironment, type ProjectRole } from "@/lib/permissions";
+import {
+  canOrg,
+  canPlaceEnvironment,
+  type ProjectRole,
+} from "@/lib/permissions";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
-import { hasService, type ServiceRole } from "@/lib/services";
+import { findService, hasService, type ServiceRole } from "@/lib/services";
 import type { ActionResponse } from "@/lib/types";
 import type { EnvironmentInput } from "@/lib/validation";
 import {
@@ -357,26 +364,91 @@ async function requireEligibleOwner(
   badRequest(t("environmentOwnerIneligible"));
 }
 
-// The servers a new environment binds: backend always, db and frontend when
-// the payload enables them (the same rule the service rows follow).
-function boundServerIds(input: EnvironmentInput): string[] {
-  const ids = [
-    input.hasDatabase ? input.dbServerId : undefined,
-    input.backendServerId,
-    input.hasFrontend ? input.frontendServerId : undefined,
-  ].filter((id): id is string => !!id);
-  return [...new Set(ids)];
+// A service an environment binds: the server and the service name that
+// service control, logs and database backup/restore then act on.
+type Binding = { serverId: string; serviceName: string };
+
+// The bindings of a new environment: backend always, db and frontend when the
+// payload enables them (the same rule the service rows follow).
+function createdBindings(input: EnvironmentInput): Binding[] {
+  return [
+    input.hasDatabase && input.dbServerId && input.dbServiceName
+      ? { serverId: input.dbServerId, serviceName: input.dbServiceName }
+      : undefined,
+    { serverId: input.backendServerId, serviceName: input.backendServiceName },
+    input.hasFrontend && input.frontendServerId && input.frontendServiceName
+      ? {
+          serverId: input.frontendServerId,
+          serviceName: input.frontendServiceName,
+        }
+      : undefined,
+  ].filter((b): b is Binding => b !== undefined);
 }
 
-// A new environment binds servers, service names and database credentials,
-// which service control, drop/restore and logs then act on. Every bound server
-// must admit the caller under its placement policy (lib/permissions
-// #canPlaceEnvironment). A server that cannot be found counts as restricted.
+const BINDING_FIELDS = {
+  db: ["dbServerId", "dbServiceName"],
+  backend: ["backendServerId", "backendServiceName"],
+  frontend: ["frontendServerId", "frontendServiceName"],
+} as const satisfies Record<ServiceRole, readonly [string, string]>;
+
+function bindingFlag(input: EnvironmentUpdate, role: ServiceRole) {
+  if (role === "db") return input.hasDatabase;
+  if (role === "frontend") return input.hasFrontend;
+  return undefined;
+}
+
+// The bindings an update leaves the environment with: stored services patched
+// by the payload, minus the ones it turns off, plus the ones it turns on.
+function updatedBindings(
+  input: EnvironmentUpdate,
+  stored: EnvironmentWithServers
+): Binding[] {
+  const bindings: Binding[] = [];
+  for (const role of ["db", "backend", "frontend"] as const) {
+    const flag = bindingFlag(input, role);
+    const service = findService(stored, role);
+    if (flag === false || (!service && flag !== true)) continue;
+    const [serverKey, nameKey] = BINDING_FIELDS[role];
+    const serverId = input[serverKey] ?? service?.serverId;
+    const serviceName = input[nameKey] ?? service?.serviceName;
+    if (serverId && serviceName) bindings.push({ serverId, serviceName });
+  }
+  return bindings;
+}
+
+// True when the update adds a service or points one at another server or
+// service name.
+function changesBindings(
+  input: EnvironmentUpdate,
+  stored: EnvironmentWithServers
+): boolean {
+  return (["db", "backend", "frontend"] as const).some((role) => {
+    const service = findService(stored, role);
+    if (bindingFlag(input, role) === true && !service) return true;
+    const [serverKey, nameKey] = BINDING_FIELDS[role];
+    return (
+      (input[serverKey] !== undefined &&
+        input[serverKey] !== service?.serverId) ||
+      (input[nameKey] !== undefined && input[nameKey] !== service?.serviceName)
+    );
+  });
+}
+
+// Binding servers and service names gives service control, logs and database
+// backup/restore over them, so a placement is checked like this:
+// - every bound server must admit the caller under its placement policy
+//   (lib/permissions#canPlaceEnvironment); a server not found is restricted;
+// - on an open server, a caller without org server:manage may only bind
+//   service names no other environment on that server uses, so an open
+//   placement never reaches another environment's containers or databases.
+// Changing a server's placement re-checks nothing: only new placements.
 async function requireEnvironmentPlacement(
   orgRole: string | null | undefined,
   projectRole: ProjectRole,
-  serverIds: string[]
+  bindings: Binding[],
+  exceptEnvironmentId?: string
 ): Promise<void> {
+  const serverIds = [...new Set(bindings.map((b) => b.serverId))];
   const rows = serverIds.length
     ? await db
         .select({ id: servers.id, placement: servers.placement })
@@ -392,6 +464,29 @@ async function requireEnvironmentPlacement(
     )
   );
   if (!allowed) throw new ForbiddenError();
+  if (canOrg(orgRole, { server: ["manage"] })) return;
+  const openIds = serverIds.filter((id) => placementOf.get(id) === "open");
+  if (openIds.length === 0) return;
+  const used = await db
+    .select({
+      environmentId: environmentServices.environmentId,
+      serverId: environmentServices.serverId,
+      serviceName: environmentServices.serviceName,
+    })
+    .from(environmentServices)
+    .where(inArray(environmentServices.serverId, openIds));
+  const clash = bindings.some((b) =>
+    used.some(
+      (u) =>
+        u.serverId === b.serverId &&
+        u.serviceName === b.serviceName &&
+        u.environmentId !== exceptEnvironmentId
+    )
+  );
+  if (clash) {
+    const t = await getServerTranslator("actionErrors");
+    throw new ForbiddenError(t("placementServiceInUse"));
+  }
 }
 
 export async function createEnvironment(
@@ -410,7 +505,7 @@ export async function createEnvironment(
   await requireEnvironmentPlacement(
     session.user.role,
     role,
-    boundServerIds(parsed.data)
+    createdBindings(parsed.data)
   );
   await requireEligibleOwner(
     ownerIdToVerify(parsed.data),
@@ -464,7 +559,7 @@ export async function updateEnvironment(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Environment>> {
-  await requireProjectPermission(
+  const { session, role } = await requireProjectPermission(
     { environmentId: id },
     { environment: ["update"] }
   );
@@ -503,11 +598,28 @@ export async function updateEnvironment(
       });
     }
   }
-  // Moving an environment into another project is a create there.
-  if (parsed.data.projectId) {
-    await requireProjectPermission(
-      { projectId: parsed.data.projectId },
-      { environment: ["create"] }
+  // Moving an environment into another project is a placement there: the
+  // caller's role in the target project must pass the placement rule of the
+  // servers the environment ends up bound to. A binding change within the
+  // project is checked the same way against the current project role.
+  const targetProjectId = parsed.data.projectId;
+  if (targetProjectId !== undefined && targetProjectId !== stored.projectId) {
+    const { role: targetRole } = await requireProjectPermission(
+      { projectId: targetProjectId },
+      { project: ["read"] }
+    );
+    await requireEnvironmentPlacement(
+      session.user.role,
+      targetRole,
+      updatedBindings(parsed.data, stored),
+      id
+    );
+  } else if (changesBindings(parsed.data, stored)) {
+    await requireEnvironmentPlacement(
+      session.user.role,
+      role,
+      updatedBindings(parsed.data, stored),
+      id
     );
   }
   await requireEligibleOwner(

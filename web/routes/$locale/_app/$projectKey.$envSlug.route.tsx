@@ -9,9 +9,10 @@ import {
 import { EnvError } from "./-components/env/env-error";
 
 // The environment area (the port of `[projectKey]/[envSlug]/layout.tsx`).
-// `/<KEY>/<envSlug>` resolves to an environment id and the caller's role on
-// its project (and whether they own the environment); an unknown key or slug, or an invisible project, is a 404. The
-// server enforces the same rules on every endpoint, regardless.
+// `/<KEY>/<envSlug>` resolves to an environment id, the caller's role on its
+// project and whether they own the environment; an unknown key or slug, or an
+// invisible project, is a 404. The server enforces the same rules on every
+// endpoint, regardless.
 export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug")({
   beforeLoad: async ({
     params: { projectKey, envSlug },

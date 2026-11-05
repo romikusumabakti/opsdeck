@@ -339,11 +339,20 @@ describe("environment infrastructure bindings need server:manage", () => {
   // block, so ForbiddenError propagates.
   it("createEnvironment checks the placement of every bound server", () => {
     const fn = body(source, "createEnvironment");
-    expect(fn).toMatch(/requireEnvironmentPlacement\([\s\S]*boundServerIds\(/);
+    expect(fn).toMatch(/requireEnvironmentPlacement\([\s\S]*createdBindings\(/);
     expect(fn.indexOf("requireEnvironmentPlacement(")).toBeLessThan(
       fn.indexOf("try {")
     );
     expect(source).toMatch(/canPlaceEnvironment\(/);
+  });
+  it("updateEnvironment checks placement on a project move or binding change", () => {
+    const fn = body(source, "updateEnvironment");
+    expect(fn).toMatch(
+      /targetProjectId !== stored\.projectId[\s\S]*requireEnvironmentPlacement\([\s\S]*changesBindings\([\s\S]*requireEnvironmentPlacement\(/
+    );
+    expect(fn.lastIndexOf("requireEnvironmentPlacement(")).toBeLessThan(
+      fn.indexOf("try {")
+    );
   });
   it("updateEnvironment requires server:manage when an infra field changes", () => {
     const fn = body(source, "updateEnvironment");

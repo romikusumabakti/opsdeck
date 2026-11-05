@@ -882,7 +882,7 @@
     "placement": "Ubicación de entornos",
     "placementRestricted": "Restringida: solo administradores e infra",
     "placementOpen": "Abierta: colaboradores del proyecto o superior",
-    "placementDescription": "Quién puede crear entornos nuevos en este servidor. Los entornos existentes no se ven afectados.",
+    "placementDescription": "Quién puede crear entornos nuevos en este servidor. En un servidor abierto, los colaboradores del proyecto pueden crear entornos aquí y luego hacer copias de seguridad y restaurar las bases de datos que vinculen, así que marca como abierto solo un servidor cuyos datos sean desechables (desarrollo o sandbox). Los entornos existentes no se ven afectados.",
     "sftpRootInvalid": "Debe ser una ruta absoluta (empezar por /)"
   },
   "newServer": {
@@ -1254,7 +1254,8 @@
     "networkAlreadyAttached": "Ya está conectado a esa red",
     "cannotRemoveLastAdmin": "No se puede degradar al último administrador",
     "avatarRemoved": "Foto eliminada",
-    "environmentOwnerIneligible": "El responsable debe ser un miembro activo del proyecto de este entorno, o un usuario administrador o de infraestructura de la organización."
+    "environmentOwnerIneligible": "El responsable debe ser un miembro activo del proyecto de este entorno, o un usuario administrador o de infraestructura de la organización.",
+    "placementServiceInUse": "Este servicio ya lo usa otro entorno en este servidor; pide ayuda a un administrador."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",

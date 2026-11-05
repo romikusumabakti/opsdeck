@@ -882,7 +882,7 @@
     "placement": "Environment placement",
     "placementRestricted": "Restricted: admins and infra only",
     "placementOpen": "Open: project contributors and above",
-    "placementDescription": "Who may create new environments on this server. Existing environments are not affected.",
+    "placementDescription": "Who may create new environments on this server. On an open server, project contributors can create environments here and then back up and restore the databases they bind, so mark a server open only if its data is disposable (dev or sandbox). Existing environments are not affected.",
     "sftpRootInvalid": "Must be an absolute path (start with /)"
   },
   "newServer": {
@@ -1254,7 +1254,8 @@
     "networkAlreadyAttached": "Already attached to that network",
     "cannotRemoveLastAdmin": "The last admin can't be demoted",
     "avatarRemoved": "Photo removed",
-    "environmentOwnerIneligible": "The owner must be an active member of this environment's project, or an org admin or infra user."
+    "environmentOwnerIneligible": "The owner must be an active member of this environment's project, or an org admin or infra user.",
+    "placementServiceInUse": "This service is already used by another environment on this server; ask an admin."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
