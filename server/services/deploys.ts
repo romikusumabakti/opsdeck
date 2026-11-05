@@ -28,6 +28,7 @@ import {
 import { isUniqueViolation } from "@/lib/people/names";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
+import { assertNotDeployLocked } from "@/server/services/deploy-locks";
 import { requestDeployment } from "@/server/services/deployments";
 
 const fail = (status: 404 | 409 | 503, message: string): never => {
@@ -181,6 +182,7 @@ export async function deployTag(
     { deploy: ["run"] }
   );
   requireDeployEnabled();
+  await assertNotDeployLocked(target.environmentId);
   const build = await findBuild(target.componentKey, tag);
   if (!build || build.branch !== target.sourceBranch) {
     fail(404, "Build not found");
@@ -208,6 +210,7 @@ export async function rollbackTarget(
     { deploy: ["rollback"] }
   );
   requireDeployEnabled();
+  await assertNotDeployLocked(target.environmentId);
   const tag = (await getTagState(target.id)).previousTag;
   if (!tag) return fail(409, "No previous successful deploy");
   const build = await findBuild(target.componentKey, tag);

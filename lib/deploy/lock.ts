@@ -61,3 +61,47 @@ export function canLock(role: ProjectRole | null, isOwner: boolean): boolean {
 export function canUnlock(isOwner: boolean, isLocker: boolean): boolean {
   return isOwner || isLocker;
 }
+
+export type Placement = "queued" | "held" | "locked";
+
+// What a deploy request does under the environment's lock: without an active
+// lock everything queues; while locked an auto deploy is held (it deploys on
+// release) and a manual deploy or rollback is refused.
+export function placementFor(
+  lock: { expiresAt: Date } | null,
+  trigger: "auto" | "manual" | "rollback",
+  now: Date
+): Placement {
+  if (!isLockActive(lock, now)) {
+    return "queued";
+  }
+  return trigger === "auto" ? "held" : "locked";
+}
+
+type HeldRow = { id: string; targetId: string; createdAt: Date };
+
+// On release, per target the newest held deployment deploys and the older ones
+// are superseded. Newest by creation time, then by id (uuidv7, so a later
+// insert in the same instant still sorts after an earlier one).
+export function planHeldRelease(rows: HeldRow[]): {
+  queue: string[];
+  supersede: string[];
+} {
+  const newest = new Map<string, HeldRow>();
+  for (const row of rows) {
+    const current = newest.get(row.targetId);
+    if (!current || isNewer(row, current)) {
+      newest.set(row.targetId, row);
+    }
+  }
+  const queue = new Set([...newest.values()].map((row) => row.id));
+  return {
+    queue: rows.filter((row) => queue.has(row.id)).map((row) => row.id),
+    supersede: rows.filter((row) => !queue.has(row.id)).map((row) => row.id),
+  };
+}
+
+function isNewer(a: HeldRow, b: HeldRow): boolean {
+  const diff = a.createdAt.getTime() - b.createdAt.getTime();
+  return diff > 0 || (diff === 0 && a.id > b.id);
+}

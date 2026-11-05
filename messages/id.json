@@ -368,7 +368,8 @@
       "running": "Berjalan",
       "success": "Sukses",
       "failed": "Gagal",
-      "superseded": "Digantikan"
+      "superseded": "Digantikan",
+      "held": "Tertahan"
     },
     "form": {
       "createTitle": "Tambah target deploy",
@@ -1262,7 +1263,13 @@
     "environmentOwnerIneligible": "Pemilik harus anggota aktif proyek environment ini, atau pengguna admin atau infra organisasi.",
     "placementServiceInUse": "Layanan ini sudah dipakai environment lain di server ini; minta bantuan admin.",
     "placementServiceName": "Di server terbuka, hubungkan hanya nama layanan yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
-    "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini."
+    "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini.",
+    "deployLocked": "Deploy ke environment ini dikunci oleh {name} sampai {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
+    "deployLockHolderUnknown": "mantan pengguna",
+    "deployLockReasonInvalid": "Isi alasan 1 sampai 200 karakter.",
+    "deployLockExpiryInvalid": "Pilih waktu kedaluwarsa di masa depan, paling lama 7 hari lagi.",
+    "deployLockChanged": "Kunci deploy berubah sementara itu. Muat ulang lalu coba lagi.",
+    "deployForceUnlockReasonRequired": "Isi alasan untuk membuka kunci secara paksa."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1845,7 +1852,11 @@
     "envFileManagedOff": "{actor} menghentikan Panel menulis .env {environment}",
     "variablesTemplateApplied": "{actor} menambahkan variabel templat ke {environment} ({names})",
     "variableTemplateSaved": "{actor} menyimpan templat variabel {name} milik {app}",
-    "variableTemplateDeleted": "{actor} menghapus templat variabel {name} milik {app}"
+    "variableTemplateDeleted": "{actor} menghapus templat variabel {name} milik {app}",
+    "deployLockLocked": "{actor} mengunci deploy ke {environment} ({reason})",
+    "deployLockUnlocked": "{actor} membuka kunci deploy ke {environment}; {count, plural, =0 {tidak ada build tertahan} other {# build tertahan masuk antrean}}",
+    "deployLockForceUnlocked": "{actor} membuka paksa kunci deploy ke {environment} ({reason}); {count, plural, =0 {tidak ada build tertahan} other {# build tertahan masuk antrean}}",
+    "deployLockExpired": "Kunci deploy pada {environment} kedaluwarsa; {count, plural, =0 {tidak ada build tertahan} other {# build tertahan masuk antrean}}"
   },
   "jira": {
     "title": "Jira",

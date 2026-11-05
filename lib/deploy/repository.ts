@@ -1,4 +1,14 @@
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  lte,
+  ne,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { type DbExecutor, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -8,11 +18,15 @@ import {
   type DeployTarget,
   deployments,
   deployTargets,
+  type EnvironmentDeployLock,
+  environmentDeployLocks,
   environmentServices,
+  environments,
   type NewDeployTarget,
   runs,
   users,
 } from "@/lib/db/schema";
+import { placementFor, planHeldRelease } from "@/lib/deploy/lock";
 import { isUniqueViolation } from "@/lib/people/names";
 
 const RECENT_LIMIT = 20;
@@ -235,17 +249,6 @@ export async function findBuild(
   return row ?? null;
 }
 
-export async function insertDeployment(d: {
-  targetId: string;
-  environmentId: string;
-  runId: string;
-  tag: string;
-  trigger: Deployment["trigger"];
-  buildId: string | null;
-}): Promise<Deployment> {
-  return one(await db.insert(deployments).values(d).returning(), "deployment");
-}
-
 export async function getDeployment(id: string): Promise<Deployment | null> {
   const [row] = await db
     .select()
@@ -254,24 +257,337 @@ export async function getDeployment(id: string): Promise<Deployment | null> {
   return row ?? null;
 }
 
-/** Marks older queued auto deployments of the target as superseded. */
+/**
+ * Marks the target's older queued or held auto deployments as superseded, so
+ * of several quick builds only the newest deploys — now, or when the
+ * environment's deploy lock is released.
+ */
 export async function supersedeQueuedAuto(
   targetId: string,
-  exceptId: string
+  exceptId: string,
+  executor: DbExecutor = db
 ): Promise<number> {
-  const rows = await db
+  const rows = await executor
     .update(deployments)
     .set({ status: "superseded", finishedAt: sql`now()` })
     .where(
       and(
         eq(deployments.targetId, targetId),
-        eq(deployments.status, "queued"),
+        inArray(deployments.status, ["queued", "held"]),
         eq(deployments.trigger, "auto"),
         ne(deployments.id, exceptId)
       )
     )
     .returning({ id: deployments.id });
   return rows.length;
+}
+
+export type DeployLockWithLocker = EnvironmentDeployLock & {
+  lockerName: string | null;
+};
+
+/** The environment's lock row, expired or not, with the locker's name. */
+export async function getDeployLock(
+  environmentId: string
+): Promise<DeployLockWithLocker | null> {
+  const [row] = await db
+    .select({ lock: environmentDeployLocks, lockerName: users.name })
+    .from(environmentDeployLocks)
+    .leftJoin(users, eq(users.id, environmentDeployLocks.lockedBy))
+    .where(eq(environmentDeployLocks.environmentId, environmentId));
+  return row ? { ...row.lock, lockerName: row.lockerName } : null;
+}
+
+/** What the lock rules need of an environment: its name and owner. */
+export async function getEnvironmentForLock(
+  environmentId: string
+): Promise<{ id: string; name: string; ownerId: string | null } | null> {
+  const [row] = await db
+    .select({
+      id: environments.id,
+      name: environments.name,
+      ownerId: environments.ownerId,
+    })
+    .from(environments)
+    .where(eq(environments.id, environmentId));
+  return row ?? null;
+}
+
+export async function countHeldDeployments(
+  environmentId: string
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(deployments)
+    .where(
+      and(
+        eq(deployments.environmentId, environmentId),
+        eq(deployments.status, "held")
+      )
+    );
+  return row?.count ?? 0;
+}
+
+/**
+ * Sets a lock on an unlocked environment. False when the environment already
+ * has a lock row (someone locked first). `createdAt` is set by the caller, in
+ * milliseconds, so it can identify this lock in a later conditional write.
+ */
+export async function insertDeployLock(lock: {
+  environmentId: string;
+  lockedBy: string;
+  reason: string;
+  expiresAt: Date;
+  createdAt: Date;
+}): Promise<boolean> {
+  const rows = await db
+    .insert(environmentDeployLocks)
+    .values(lock)
+    .onConflictDoNothing({ target: environmentDeployLocks.environmentId })
+    .returning({ id: environmentDeployLocks.environmentId });
+  return rows.length > 0;
+}
+
+/**
+ * Changes the reason and expiry of the lock created at `createdAt`. False when
+ * that lock is gone (released, or replaced by another).
+ */
+export async function updateDeployLock(
+  environmentId: string,
+  createdAt: Date,
+  changes: { reason: string; expiresAt: Date }
+): Promise<boolean> {
+  const rows = await db
+    .update(environmentDeployLocks)
+    .set(changes)
+    .where(
+      and(
+        eq(environmentDeployLocks.environmentId, environmentId),
+        eq(environmentDeployLocks.createdAt, createdAt)
+      )
+    )
+    .returning({ id: environmentDeployLocks.environmentId });
+  return rows.length > 0;
+}
+
+/** Environments whose lock expired at or before `now`. */
+export async function listExpiredDeployLocks(now: Date): Promise<string[]> {
+  const rows = await db
+    .select({ environmentId: environmentDeployLocks.environmentId })
+    .from(environmentDeployLocks)
+    .where(lte(environmentDeployLocks.expiresAt, now));
+  return rows.map((row) => row.environmentId);
+}
+
+function runLine(now: Date, line: string): string {
+  return `[${now.toISOString()}] ${line}\n`;
+}
+
+export type PlaceDeploymentResult =
+  | { kind: "queued" | "held"; deploymentId: string; runId: string }
+  | { kind: "locked"; lock: DeployLockWithLocker };
+
+/**
+ * Records a deployment and its run, deciding under the environment's lock in
+ * the same transaction:
+ * - no active lock: the deployment is `queued` and its run `started`; the
+ *   caller enqueues it.
+ * - locked, `auto`: the deployment is `held` and nothing runs. Its run is
+ *   recorded as already finished (with a line saying why), so a held build
+ *   never shows as a running or failed operation; releaseDeployLock reopens
+ *   it when the build is queued.
+ * - locked, `manual` or `rollback`: nothing is written; the caller refuses.
+ *
+ * The lock row is read FOR SHARE: a release deletes it, so a release and a
+ * request are serialized — either the request sees the lock and its held row
+ * is visible to the release, or it sees no lock and queues.
+ */
+export async function placeDeployment(input: {
+  targetId: string;
+  environmentId: string;
+  tag: string;
+  trigger: Deployment["trigger"];
+  userId: string | null;
+  buildId: string | null;
+  description: string;
+  now: Date;
+}): Promise<PlaceDeploymentResult> {
+  return db.transaction(async (tx) => {
+    const [found] = await tx
+      .select({ lock: environmentDeployLocks, lockerName: users.name })
+      .from(environmentDeployLocks)
+      .leftJoin(users, eq(users.id, environmentDeployLocks.lockedBy))
+      .where(eq(environmentDeployLocks.environmentId, input.environmentId))
+      .for("share", { of: environmentDeployLocks });
+    const lock = found ? { ...found.lock, lockerName: found.lockerName } : null;
+    const placement = placementFor(lock, input.trigger, input.now);
+    if (placement === "locked" && lock) {
+      return { kind: "locked", lock };
+    }
+    const held = placement === "held";
+    const run = one(
+      await tx
+        .insert(runs)
+        .values({
+          environmentId: input.environmentId,
+          userId: input.userId,
+          description: input.description,
+          kind: "deploy",
+          runAt: input.now,
+          status: held ? "success" : "started",
+          output:
+            held && lock
+              ? runLine(
+                  input.now,
+                  `Held: deploys to this environment are locked until ${lock.expiresAt.toISOString()} (${lock.reason}). The newest held build deploys when the lock is released.`
+                )
+              : "",
+          completedAt: held ? input.now : null,
+        })
+        .returning({ id: runs.id }),
+      "run"
+    );
+    const deployment = one(
+      await tx
+        .insert(deployments)
+        .values({
+          targetId: input.targetId,
+          environmentId: input.environmentId,
+          runId: run.id,
+          tag: input.tag,
+          trigger: input.trigger,
+          buildId: input.buildId,
+          status: held ? "held" : "queued",
+        })
+        .returning({ id: deployments.id }),
+      "deployment"
+    );
+    if (input.trigger === "auto") {
+      await supersedeQueuedAuto(input.targetId, deployment.id, tx);
+    }
+    return {
+      kind: held ? "held" : "queued",
+      deploymentId: deployment.id,
+      runId: run.id,
+    };
+  });
+}
+
+export type ReleasedLock = {
+  lock: EnvironmentDeployLock;
+  queued: { deploymentId: string; runId: string }[];
+  superseded: string[];
+};
+
+/**
+ * Deletes the environment's lock and, in the same transaction, turns per
+ * target the newest held deployment into `queued` (reopening its run) and the
+ * older held ones into `superseded`. The caller enqueues the queued ones.
+ *
+ * Null when there was no matching lock to delete — already released by a
+ * concurrent unlock or sweep — so each held deployment is queued at most once:
+ * the DELETE takes the lock row, a second release waits for the first and then
+ * finds nothing. `match.createdAt` limits the delete to the lock the caller
+ * checked (not one set since); `match.expiredAt` to a lock expired by then.
+ */
+export async function releaseDeployLock(
+  environmentId: string,
+  match: { createdAt?: Date; expiredAt?: Date } = {}
+): Promise<ReleasedLock | null> {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const conditions: SQL[] = [
+      eq(environmentDeployLocks.environmentId, environmentId),
+    ];
+    if (match.createdAt) {
+      conditions.push(eq(environmentDeployLocks.createdAt, match.createdAt));
+    }
+    if (match.expiredAt) {
+      conditions.push(lte(environmentDeployLocks.expiresAt, match.expiredAt));
+    }
+    const [lock] = await tx
+      .delete(environmentDeployLocks)
+      .where(and(...conditions))
+      .returning();
+    if (!lock) return null;
+
+    const heldRows = await tx
+      .select({
+        id: deployments.id,
+        targetId: deployments.targetId,
+        createdAt: deployments.createdAt,
+      })
+      .from(deployments)
+      .where(
+        and(
+          eq(deployments.environmentId, environmentId),
+          eq(deployments.status, "held")
+        )
+      )
+      .for("update");
+    const plan = planHeldRelease(heldRows);
+
+    const queued =
+      plan.queue.length === 0
+        ? []
+        : await tx
+            .update(deployments)
+            .set({ status: "queued" })
+            .where(
+              and(
+                inArray(deployments.id, plan.queue),
+                eq(deployments.status, "held")
+              )
+            )
+            .returning({
+              deploymentId: deployments.id,
+              runId: deployments.runId,
+            });
+    if (queued.length > 0) {
+      await tx
+        .update(runs)
+        .set({
+          status: "started",
+          completedAt: null,
+          output: sql`${runs.output} || ${runLine(now, "Lock released: queued to deploy")}`,
+        })
+        .where(
+          inArray(
+            runs.id,
+            queued.map((row) => row.runId)
+          )
+        );
+    }
+
+    const superseded =
+      plan.supersede.length === 0
+        ? []
+        : await tx
+            .update(deployments)
+            .set({ status: "superseded", finishedAt: sql`now()` })
+            .where(
+              and(
+                inArray(deployments.id, plan.supersede),
+                eq(deployments.status, "held")
+              )
+            )
+            .returning({ id: deployments.id, runId: deployments.runId });
+    if (superseded.length > 0) {
+      await tx
+        .update(runs)
+        .set({
+          output: sql`${runs.output} || ${runLine(now, "Superseded by a newer build")}`,
+        })
+        .where(
+          inArray(
+            runs.id,
+            superseded.map((row) => row.runId)
+          )
+        );
+    }
+
+    return { lock, queued, superseded: superseded.map((row) => row.id) };
+  });
 }
 
 /**

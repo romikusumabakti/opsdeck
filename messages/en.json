@@ -368,7 +368,8 @@
       "running": "Running",
       "success": "Success",
       "failed": "Failed",
-      "superseded": "Superseded"
+      "superseded": "Superseded",
+      "held": "Held"
     },
     "form": {
       "createTitle": "Add deploy target",
@@ -1262,7 +1263,13 @@
     "environmentOwnerIneligible": "The owner must be an active member of this environment's project, or an org admin or infra user.",
     "placementServiceInUse": "This service is already used by another environment on this server; ask an admin.",
     "placementServiceName": "On an open server, bind only service names that start with {prefix} (this project's key); ask an admin for other names.",
-    "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment."
+    "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment.",
+    "deployLocked": "Deploys to this environment are locked by {name} until {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
+    "deployLockHolderUnknown": "a former user",
+    "deployLockReasonInvalid": "Give a reason of 1 to 200 characters.",
+    "deployLockExpiryInvalid": "Pick an expiry in the future, at most 7 days ahead.",
+    "deployLockChanged": "The deploy lock changed in the meantime. Reload and try again.",
+    "deployForceUnlockReasonRequired": "Give a reason for the force unlock."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1845,7 +1852,11 @@
     "envFileManagedOff": "{actor} stopped the Panel writing the .env of {environment}",
     "variablesTemplateApplied": "{actor} added template variables to {environment} ({names})",
     "variableTemplateSaved": "{actor} saved variable template {name} of {app}",
-    "variableTemplateDeleted": "{actor} deleted variable template {name} of {app}"
+    "variableTemplateDeleted": "{actor} deleted variable template {name} of {app}",
+    "deployLockLocked": "{actor} locked deploys to {environment} ({reason})",
+    "deployLockUnlocked": "{actor} unlocked deploys to {environment}; {count, plural, =0 {no held builds} one {# held build queued} other {# held builds queued}}",
+    "deployLockForceUnlocked": "{actor} force-unlocked deploys to {environment} ({reason}); {count, plural, =0 {no held builds} one {# held build queued} other {# held builds queued}}",
+    "deployLockExpired": "The deploy lock on {environment} expired; {count, plural, =0 {no held builds} one {# held build queued} other {# held builds queued}}"
   },
   "jira": {
     "title": "Jira",

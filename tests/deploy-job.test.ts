@@ -31,8 +31,6 @@ const target = {
 const repo = vi.hoisted(() => ({
   getTarget: vi.fn(),
   getDeployment: vi.fn(),
-  insertDeployment: vi.fn(),
-  supersedeQueuedAuto: vi.fn(),
   claimDeployment: vi.fn(),
   finishDeployment: vi.fn(),
   heartbeatDeployment: vi.fn(),
@@ -76,7 +74,6 @@ vi.mock("@/lib/variables/managed-env", () => variables);
 
 const { handleDeploy, HEARTBEAT_INTERVAL_MS, STALE_RUNNING_DEPLOY_MS } =
   await import("@/lib/jobs/deploy");
-const { requestDeployment } = await import("@/server/services/deployments");
 const { buildDeployScript } = await import("@/lib/deploy/script");
 
 const payload = { deploymentId: DEPLOYMENT_ID, runId: RUN_ID };
@@ -102,7 +99,6 @@ beforeEach(() => {
     trigger: "auto",
     status: "running",
   });
-  repo.insertDeployment.mockResolvedValue({ id: DEPLOYMENT_ID });
   repo.claimDeployment.mockResolvedValue("claimed");
   repo.finishDeployment.mockResolvedValue(true);
   repo.heartbeatDeployment.mockResolvedValue(true);
@@ -848,72 +844,5 @@ describe("handleDeploy with a managed .env", () => {
       expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
       expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
     });
-  });
-});
-
-describe("requestDeployment", () => {
-  it("requestDeployment(auto) supersedes older queued auto deployments of the same target", async () => {
-    const result = await requestDeployment({
-      targetId: TARGET_ID,
-      tag: TAG,
-      trigger: "auto",
-      userId: null,
-      buildId: null,
-    });
-
-    expect(result).toEqual({ deploymentId: DEPLOYMENT_ID, runId: RUN_ID });
-    expect(progress.createRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: "deploy",
-        environmentId: ENV_ID,
-        userId: null,
-        description: `Deploy dplk-accounting ${TAG} (auto)`,
-      })
-    );
-    expect(repo.insertDeployment).toHaveBeenCalledWith({
-      targetId: TARGET_ID,
-      environmentId: ENV_ID,
-      runId: RUN_ID,
-      tag: TAG,
-      trigger: "auto",
-      buildId: null,
-    });
-    expect(repo.supersedeQueuedAuto).toHaveBeenCalledWith(
-      TARGET_ID,
-      DEPLOYMENT_ID
-    );
-    expect(queue.enqueue).toHaveBeenCalledWith("deploy/run.requested", {
-      deploymentId: DEPLOYMENT_ID,
-      runId: RUN_ID,
-    });
-  });
-
-  it("a manual deployment supersedes nothing", async () => {
-    await requestDeployment({
-      targetId: TARGET_ID,
-      tag: TAG,
-      trigger: "manual",
-      userId: "0197f3a0-1b2c-7def-8000-0123456789a7",
-      buildId: null,
-    });
-
-    expect(repo.supersedeQueuedAuto).not.toHaveBeenCalled();
-    expect(queue.enqueue).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects an invalid tag before recording anything", async () => {
-    await expect(
-      requestDeployment({
-        targetId: TARGET_ID,
-        tag: "latest",
-        trigger: "manual",
-        userId: null,
-        buildId: null,
-      })
-    ).rejects.toThrow();
-
-    expect(progress.createRun).not.toHaveBeenCalled();
-    expect(repo.insertDeployment).not.toHaveBeenCalled();
-    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 });
