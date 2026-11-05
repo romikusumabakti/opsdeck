@@ -406,6 +406,31 @@
       "duplicateComponent": "This component already has a target in this environment.",
       "tagVariableIsVariable": "This environment already has a variable with this name; the deploy writes the tag line itself. Pick another name or delete the variable.",
       "otherApp": "This component belongs to another app than this environment."
+    },
+    "lock": {
+      "badge": "Deploys locked",
+      "lockedTitle": "Deploys are locked",
+      "lockedBy": "{name} locked deploys: {reason}",
+      "until": "Until {expiresAt}.",
+      "unlockedHint": "Deploys are open.",
+      "lock": "Lock deploys",
+      "unlock": "Unlock",
+      "edit": "Change lock",
+      "forceUnlock": "Force unlock",
+      "dialogTitle": "Lock deploys",
+      "dialogDescription": "Manual deploys and rollbacks are refused while locked. Builds from auto-deploy are held and the newest one per target deploys when the lock ends.",
+      "reason": "Reason",
+      "expiry": "Lock ends",
+      "expiryHint": "Shown in your local time. At most 7 days ahead.",
+      "forceTitle": "Force unlock",
+      "forceDescription": "Releases a lock set by someone else. Held builds are queued and the reason is recorded in the activity log.",
+      "forceReason": "Reason for the override",
+      "locked": "Deploys locked.",
+      "unlocked": "Deploys unlocked.",
+      "failed": "Could not update the deploy lock.",
+      "holderUnknown": "Someone",
+      "disabledHint": "Deploys are locked: {reason}",
+      "heldBuilds": "{count, plural, =0 {No builds are held.} one {# build is held.} other {# builds are held.}}"
     }
   },
   "backupDb": {

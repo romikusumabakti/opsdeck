@@ -4,6 +4,7 @@ import {
   CircleAlert,
   ExternalLink,
   Loader2,
+  Lock,
   Pencil,
   Plus,
   Rocket,
@@ -37,6 +38,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ApiError } from "@/web/api/client";
 import {
   type DeployTargetState,
@@ -44,6 +50,7 @@ import {
   rollbackTarget,
 } from "@/web/api/deploys";
 import type { EnvironmentWithServers } from "@/web/api/environments";
+import { DeployLockPanel, useDeployLock } from "./deploy-lock";
 import { environmentServers, TargetFormDialog } from "./target-form-dialog";
 
 type Deployment = DeployTargetState["recentDeployments"][number];
@@ -63,6 +70,10 @@ export function DeploysClient({
   const canConfigure = useProjectCan({ deploy: ["configure"] });
   const [form, setForm] = React.useState<FormState>(null);
   const [run, setRun] = React.useState<ActiveRun | null>(null);
+  const lock = useDeployLock(environment.id).data?.lock ?? null;
+  const lockedReason = lock
+    ? t("lock.disabledHint", { reason: lock.reason })
+    : null;
   const serverNames = React.useMemo(
     () => new Map(environmentServers(environment).map((s) => [s.id, s.name])),
     [environment]
@@ -91,6 +102,11 @@ export function DeploysClient({
         }
       />
 
+      <DeployLockPanel
+        environmentId={environment.id}
+        ownerId={environment.ownerId ?? null}
+      />
+
       {targets.length === 0 ? (
         <div className="rounded-lg border bg-card">
           <EmptyState
@@ -106,6 +122,7 @@ export function DeploysClient({
               key={target.id}
               target={target}
               serverName={serverNames.get(target.serverId) ?? ""}
+              lockedReason={lockedReason}
               onEdit={() => setForm({ target })}
               onRun={setRun}
             />
@@ -141,11 +158,14 @@ export function DeploysClient({
 function TargetCard({
   target,
   serverName,
+  lockedReason,
   onEdit,
   onRun,
 }: {
   target: DeployTargetState;
   serverName: string;
+  // Set while the environment is locked: manual deploys and rollbacks are off.
+  lockedReason: string | null;
   onEdit: () => void;
   onRun: (run: ActiveRun) => void;
 }) {
@@ -267,19 +287,21 @@ function TargetCard({
             )}
           </div>
           {canRollback && target.previousTag && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending !== null}
-              onClick={() => onRollback(target.previousTag as string)}
-            >
-              {pending === target.previousTag ? (
-                <Loader2 data-icon="inline-start" className="animate-spin" />
-              ) : (
-                <Undo2 data-icon="inline-start" />
-              )}
-              {t("rollbackTo", { tag: target.previousTag })}
-            </Button>
+            <LockHint reason={lockedReason}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending !== null || lockedReason !== null}
+                onClick={() => onRollback(target.previousTag as string)}
+              >
+                {pending === target.previousTag ? (
+                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <Undo2 data-icon="inline-start" />
+                )}
+                {t("rollbackTo", { tag: target.previousTag })}
+              </Button>
+            </LockHint>
           )}
         </div>
 
@@ -298,6 +320,7 @@ function TargetCard({
                 target.currentStatus === "success" ? target.currentTag : null
               }
               pending={pending}
+              lockedReason={lockedReason}
               onDeploy={canRun ? onDeploy : null}
             />
           )}
@@ -331,11 +354,13 @@ function BuildsTable({
   builds,
   deployedTag,
   pending,
+  lockedReason,
   onDeploy,
 }: {
   builds: Build[];
   deployedTag: string | null;
   pending: string | null;
+  lockedReason: string | null;
   // Null when the caller may not deploy: the column is left out entirely.
   onDeploy: ((tag: string) => void) | null;
 }) {
@@ -385,22 +410,28 @@ function BuildsTable({
             </TableCell>
             {onDeploy && (
               <TableCell className="text-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pending !== null || build.tag === deployedTag}
-                  onClick={() => onDeploy(build.tag)}
-                >
-                  {pending === build.tag ? (
-                    <Loader2
-                      data-icon="inline-start"
-                      className="animate-spin"
-                    />
-                  ) : (
-                    <Rocket data-icon="inline-start" />
-                  )}
-                  {t("deploy")}
-                </Button>
+                <LockHint reason={lockedReason}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      pending !== null ||
+                      lockedReason !== null ||
+                      build.tag === deployedTag
+                    }
+                    onClick={() => onDeploy(build.tag)}
+                  >
+                    {pending === build.tag ? (
+                      <Loader2
+                        data-icon="inline-start"
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <Rocket data-icon="inline-start" />
+                    )}
+                    {t("deploy")}
+                  </Button>
+                </LockHint>
               </TableCell>
             )}
           </TableRow>
@@ -497,7 +528,34 @@ function DeploymentStatusBadge({ status }: { status: Deployment["status"] }) {
       );
     case "superseded":
       return <Badge variant="outline">{label}</Badge>;
+    case "held":
+      return (
+        <Badge variant="outline">
+          <Lock data-icon="inline-start" />
+          {label}
+        </Badge>
+      );
     default:
       return <Badge variant="secondary">{label}</Badge>;
   }
+}
+
+// A disabled button gets no pointer events of its own, so the tooltip hangs
+// off a wrapper. Without a lock the button renders as is.
+function LockHint({
+  reason,
+  children,
+}: {
+  reason: string | null;
+  children: React.ReactNode;
+}) {
+  if (reason === null) return <>{children}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex" />}>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{reason}</TooltipContent>
+    </Tooltip>
+  );
 }

@@ -406,6 +406,31 @@
       "duplicateComponent": "该应用在此环境中已有部署目标。",
       "tagVariableIsVariable": "此环境已有同名变量；部署会自行写入标签行。请换一个名称或删除该变量。",
       "otherApp": "This component belongs to another app than this environment."
+    },
+    "lock": {
+      "badge": "部署已锁定",
+      "lockedTitle": "部署已锁定",
+      "lockedBy": "{name} 锁定了部署：{reason}",
+      "until": "截至 {expiresAt}。",
+      "unlockedHint": "部署已开放。",
+      "lock": "锁定部署",
+      "unlock": "解锁",
+      "edit": "修改锁定",
+      "forceUnlock": "强制解锁",
+      "dialogTitle": "锁定部署",
+      "dialogDescription": "锁定期间，手动部署和回滚会被拒绝。自动部署的构建会被暂扣，锁定结束时每个目标最新的一个会被部署。",
+      "reason": "原因",
+      "expiry": "锁定结束时间",
+      "expiryHint": "按你的本地时间显示，最多 7 天。",
+      "forceTitle": "强制解锁",
+      "forceDescription": "释放他人设置的锁定。被暂扣的构建会进入队列，原因会记录在活动日志中。",
+      "forceReason": "强制解锁的原因",
+      "locked": "部署已锁定。",
+      "unlocked": "部署已解锁。",
+      "failed": "无法更新部署锁定。",
+      "holderUnknown": "某人",
+      "disabledHint": "部署已锁定：{reason}",
+      "heldBuilds": "{count, plural, =0 {没有被暂扣的构建。} other {已暂扣 # 个构建。}}"
     }
   },
   "backupDb": {

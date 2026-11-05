@@ -406,6 +406,31 @@
       "duplicateComponent": "Esta aplicación ya tiene un destino en este entorno.",
       "tagVariableIsVariable": "Este entorno ya tiene una variable con este nombre; el despliegue escribe la línea de la etiqueta por sí mismo. Elige otro nombre o elimina la variable.",
       "otherApp": "This component belongs to another app than this environment."
+    },
+    "lock": {
+      "badge": "Despliegues bloqueados",
+      "lockedTitle": "Los despliegues están bloqueados",
+      "lockedBy": "{name} bloqueó los despliegues: {reason}",
+      "until": "Hasta {expiresAt}.",
+      "unlockedHint": "Los despliegues están abiertos.",
+      "lock": "Bloquear despliegues",
+      "unlock": "Desbloquear",
+      "edit": "Cambiar bloqueo",
+      "forceUnlock": "Forzar desbloqueo",
+      "dialogTitle": "Bloquear despliegues",
+      "dialogDescription": "Los despliegues manuales y los rollbacks se rechazan mientras esté bloqueado. Las compilaciones de auto-deploy se retienen y la más reciente de cada destino se despliega al terminar el bloqueo.",
+      "reason": "Motivo",
+      "expiry": "Fin del bloqueo",
+      "expiryHint": "Se muestra en su hora local. Como máximo 7 días.",
+      "forceTitle": "Forzar desbloqueo",
+      "forceDescription": "Libera un bloqueo puesto por otra persona. Las compilaciones retenidas se encolan y el motivo queda en el registro de actividad.",
+      "forceReason": "Motivo de la anulación",
+      "locked": "Despliegues bloqueados.",
+      "unlocked": "Despliegues desbloqueados.",
+      "failed": "No se pudo actualizar el bloqueo de despliegues.",
+      "holderUnknown": "Alguien",
+      "disabledHint": "Los despliegues están bloqueados: {reason}",
+      "heldBuilds": "{count, plural, =0 {No hay compilaciones retenidas.} one {# compilación retenida.} other {# compilaciones retenidas.}}"
     }
   },
   "backupDb": {
