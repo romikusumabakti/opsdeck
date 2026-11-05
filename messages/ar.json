@@ -403,6 +403,7 @@
       "invalid": "هذه القيمة لا تطابق التنسيق الموضح أدناه.",
       "componentNotFound": "لا يوجد تطبيق نشر مسجّل بهذا المفتاح.",
       "duplicateComponent": "لهذا التطبيق هدف بالفعل في هذه البيئة.",
+      "tagVariableIsVariable": "تحتوي هذه البيئة بالفعل على متغير بهذا الاسم؛ النشر يكتب سطر الوسم بنفسه. اختر اسمًا آخر أو احذف المتغير.",
       "otherApp": "This component belongs to another app than this environment."
     }
   },

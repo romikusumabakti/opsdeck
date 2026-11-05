@@ -31,7 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
+import {
+  COMPONENT_OTHER_APP_MESSAGE,
+  TAG_VARIABLE_IS_VARIABLE_MESSAGE,
+} from "@/lib/deploy/errors";
 import {
   branchSchema,
   componentKeySchema,
@@ -212,7 +215,12 @@ export function TargetFormDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof ApiError && !target && error.status === 404) {
+      if (
+        error instanceof ApiError &&
+        error.message === TAG_VARIABLE_IS_VARIABLE_MESSAGE
+      ) {
+        form.setError("tagVariable", { message: t("tagVariableIsVariable") });
+      } else if (error instanceof ApiError && !target && error.status === 404) {
         form.setError("componentKey", { message: t("componentNotFound") });
       } else if (error instanceof ApiError && !target && error.status === 409) {
         form.setError("componentKey", {
