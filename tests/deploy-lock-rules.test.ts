@@ -4,6 +4,7 @@ import {
   canUnlock,
   defaultLockExpiry,
   isLockActive,
+  lockBannerActions,
   lockExpirySchema,
   placementFor,
   planHeldRelease,
@@ -132,5 +133,27 @@ describe("planHeldRelease", () => {
 
   it("does nothing without held deployments", () => {
     expect(planHeldRelease([])).toEqual({ queue: [], supersede: [] });
+  });
+});
+
+describe("lockBannerActions", () => {
+  it("offers Change lock only to someone who may both unlock and lock", () => {
+    // A former owner who set the lock may still unlock it (as locker) but can
+    // no longer lock, so the PUT behind "Change lock" would be refused.
+    expect(
+      lockBannerActions({ mayLock: false, mayUnlock: true, mayForce: false })
+    ).toEqual({ unlock: true, force: false, edit: false });
+    expect(
+      lockBannerActions({ mayLock: true, mayUnlock: true, mayForce: false })
+    ).toEqual({ unlock: true, force: false, edit: true });
+  });
+
+  it("offers force unlock to an admin who may not unlock, and nothing to a maintainer", () => {
+    expect(
+      lockBannerActions({ mayLock: true, mayUnlock: false, mayForce: true })
+    ).toEqual({ unlock: false, force: true, edit: false });
+    expect(
+      lockBannerActions({ mayLock: true, mayUnlock: false, mayForce: false })
+    ).toEqual({ unlock: false, force: false, edit: false });
   });
 });
