@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { commitFile } from "@/lib/ci/forges/bitbucket";
+import { branchExists, commitFile } from "@/lib/ci/forges/bitbucket";
 import { CiProviderError } from "@/lib/ci/types";
 
 const AUTH = { username: "dev@example.test", token: "super-secret-token" };
@@ -196,5 +196,39 @@ describe("bitbucket input validation", () => {
       .catch((e) => e);
     expect(err.message).toContain("x".repeat(300));
     expect(err.message).not.toContain("x".repeat(301));
+  });
+});
+
+describe("bitbucket branchExists", () => {
+  it("is true on 200 and encodes the branch name", async () => {
+    const m = mockFetch(new Response("{}", { status: 200 }));
+    expect(await branchExists(AUTH, REPO, "feature/x", m.impl)).toBe(true);
+    const call = m.calls[0] as (typeof m.calls)[number];
+    expect(call.url).toBe(
+      "https://api.bitbucket.org/2.0/repositories/acme/widgets/refs/branches/feature%2Fx"
+    );
+    expect(call.init.method).toBe("GET");
+  });
+
+  it("is false on 404", async () => {
+    const m = mockFetch(new Response("{}", { status: 404 }));
+    expect(await branchExists(AUTH, REPO, "gone", m.impl)).toBe(false);
+  });
+
+  it("throws CiProviderError on other statuses", async () => {
+    const m = mockFetch(new Response("{}", { status: 500 }));
+    const err = await branchExists(AUTH, REPO, "main", m.impl)
+      .then(() => null)
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect(err.status).toBe(500);
+  });
+
+  it("rejects invalid branch names before fetching", async () => {
+    const m = mockFetch(new Response("{}", { status: 200 }));
+    await expect(branchExists(AUTH, REPO, "a b", m.impl)).rejects.toThrow(
+      /Invalid branch name/
+    );
+    expect(m.calls).toHaveLength(0);
   });
 });
