@@ -66,14 +66,23 @@ const domainPlan: ProvisioningStepSpec[] = [
     params: { serverId: "s1", deployDir: "/deployments/hris" },
   },
   {
+    kind: "access_app",
+    params: {
+      zoneId: "z1",
+      remoteTunnelId: "rt-1",
+      hostname: HOST,
+      policyId: "pol-1",
+    },
+  },
+  {
     kind: "tunnel_route",
     params: {
+      zoneId: "z1",
       remoteTunnelId: "rt-1",
       hostname: HOST,
       service: "http://localhost:8091",
     },
   },
-  { kind: "access_app", params: { hostname: HOST, policyId: "pol-1" } },
   {
     kind: "dns_record",
     params: { zoneId: "z1", hostname: HOST, remoteTunnelId: "rt-1" },
@@ -210,8 +219,8 @@ describe("ProvisioningPanelView", () => {
     const text = html.replace(/<[^>]+>/g, "");
     const sentences = [
       "Prepare /deployments/hris",
-      `Add tunnel route ${HOST} → http://localhost:8091 on dss-srv-113`,
       `Create Access app for ${HOST} (DSS staff)`,
+      `Add tunnel route ${HOST} → http://localhost:8091 on dss-srv-113`,
       `Publish DNS record ${HOST}`,
       "Deploy the latest main build of hris",
     ];

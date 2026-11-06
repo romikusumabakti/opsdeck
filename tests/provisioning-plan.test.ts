@@ -163,33 +163,37 @@ describe("planProvisioning with a domain", () => {
     entryPort: 8091,
   };
 
-  it("adds route, Access app and DNS record before the deploys", () => {
+  it("adds Access app, route and DNS record before the deploys", () => {
     const plan = planProvisioning({
       targets: [target("t1")],
       db: null,
       domain: tunnel,
     });
+    // Access first: no route or record ever serves the hostname unprotected.
     expect(plan.map((s) => s.kind)).toEqual([
       "prepare_deploy_dir",
-      "tunnel_route",
       "access_app",
+      "tunnel_route",
       "dns_record",
       "deploy",
     ]);
     expect(plan.slice(1, 4)).toEqual([
       {
-        kind: "tunnel_route",
+        kind: "access_app",
         params: {
+          zoneId: "zone-row-1",
           remoteTunnelId: "rt-1",
           hostname: "hris-staging.dssconsulting.id",
-          service: "http://localhost:8091",
+          policyId: "pol-1",
         },
       },
       {
-        kind: "access_app",
+        kind: "tunnel_route",
         params: {
+          zoneId: "zone-row-1",
+          remoteTunnelId: "rt-1",
           hostname: "hris-staging.dssconsulting.id",
-          policyId: "pol-1",
+          service: "http://localhost:8091",
         },
       },
       {
@@ -212,8 +216,8 @@ describe("planProvisioning with a domain", () => {
     expect(plan.map((s) => s.kind)).toEqual([
       "prepare_deploy_dir",
       "create_database",
-      "tunnel_route",
       "access_app",
+      "tunnel_route",
       "dns_record",
       "deploy",
     ]);

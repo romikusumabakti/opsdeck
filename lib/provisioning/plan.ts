@@ -16,9 +16,22 @@ export type ProvisioningStepSpec =
     }
   | {
       kind: "tunnel_route";
-      params: { remoteTunnelId: string; hostname: string; service: string };
+      params: {
+        zoneId: string;
+        remoteTunnelId: string;
+        hostname: string;
+        service: string;
+      };
     }
-  | { kind: "access_app"; params: { hostname: string; policyId: string } }
+  | {
+      kind: "access_app";
+      params: {
+        zoneId: string;
+        remoteTunnelId: string;
+        hostname: string;
+        policyId: string;
+      };
+    }
   | {
       kind: "dns_record";
       params: { zoneId: string; hostname: string; remoteTunnelId: string };
@@ -52,6 +65,7 @@ export const provisioningStepSpecSchema: z.ZodType<ProvisioningStepSpec> =
     z.object({
       kind: z.literal("tunnel_route"),
       params: z.object({
+        zoneId: z.string().min(1),
         remoteTunnelId: z.string().min(1),
         hostname: z.string().min(1),
         service: z.string().min(1),
@@ -60,6 +74,8 @@ export const provisioningStepSpecSchema: z.ZodType<ProvisioningStepSpec> =
     z.object({
       kind: z.literal("access_app"),
       params: z.object({
+        zoneId: z.string().min(1),
+        remoteTunnelId: z.string().min(1),
         hostname: z.string().min(1),
         policyId: z.string().min(1),
       }),
@@ -126,10 +142,10 @@ export type ProvisioningEnvironment = {
 /**
  * The ordered steps that bring an environment up: one deploy directory per
  * distinct (server, directory), then the shared database when the binding is
- * `shared`, then for a tunnel domain the route, the Access app (when a policy
- * is set) and the DNS record, then one deploy per target. DNS comes after
- * Access so the hostname never resolves unprotected. Pure: reads nothing but
- * its argument.
+ * `shared`, then for a tunnel domain the Access app (when a policy is set),
+ * the route and the DNS record, then one deploy per target. Access comes
+ * first so no route or record ever serves the hostname unprotected; an Access
+ * app alone gates nothing. Pure: reads nothing but its argument.
  */
 export function planProvisioning(
   env: ProvisioningEnvironment
@@ -171,24 +187,30 @@ export function planProvisioning(
     if (domain.entryPort === null) {
       throw new ProvisioningPlanError("missing_entry_port");
     }
-    const { hostname, remoteTunnelId } = domain;
+    const { hostname, remoteTunnelId, zoneId } = domain;
+    if (domain.accessPolicyId) {
+      steps.push({
+        kind: "access_app",
+        params: {
+          zoneId,
+          remoteTunnelId,
+          hostname,
+          policyId: domain.accessPolicyId,
+        },
+      });
+    }
     steps.push({
       kind: "tunnel_route",
       params: {
+        zoneId,
         remoteTunnelId,
         hostname,
         service: `http://${domain.originHost ?? "localhost"}:${domain.entryPort}`,
       },
     });
-    if (domain.accessPolicyId) {
-      steps.push({
-        kind: "access_app",
-        params: { hostname, policyId: domain.accessPolicyId },
-      });
-    }
     steps.push({
       kind: "dns_record",
-      params: { zoneId: domain.zoneId, hostname, remoteTunnelId },
+      params: { zoneId, hostname, remoteTunnelId },
     });
   }
 
