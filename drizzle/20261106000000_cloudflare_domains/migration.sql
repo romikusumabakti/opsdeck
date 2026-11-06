@@ -4,7 +4,14 @@
 -- tables; the running build ignores all of it, so this can be applied before
 -- the build that uses it.
 --
--- ADD VALUE is first and outside the transaction block on purpose: the new
+-- Fail fast rather than wait behind a long transaction: ALTER TYPE and the
+-- statements below take locks on provisioning_step_kind, servers,
+-- environments and cloudflare_zones, so rerun the migration instead of
+-- blocking queued queries. A session setting, so it comes first and covers
+-- the ADD VALUE statements outside the transaction block too.
+SET lock_timeout = '5s';
+
+-- ADD VALUE comes before and outside the transaction block on purpose: the new
 -- values are used by later code, and Postgres only lets a value added in a
 -- transaction be used after COMMIT. IF NOT EXISTS makes a rerun safe.
 ALTER TYPE "provisioning_step_kind" ADD VALUE IF NOT EXISTS 'tunnel_route';
@@ -12,10 +19,6 @@ ALTER TYPE "provisioning_step_kind" ADD VALUE IF NOT EXISTS 'access_app';
 ALTER TYPE "provisioning_step_kind" ADD VALUE IF NOT EXISTS 'dns_record';
 
 BEGIN;
--- Fail fast rather than wait behind a long transaction; the statements below
--- only create new objects and reference servers, environments and
--- cloudflare_zones, so rerun the migration instead of blocking queued queries.
-SET lock_timeout = '5s';
 
 CREATE TYPE domain_kind AS ENUM ('tunnel', 'external');
 
