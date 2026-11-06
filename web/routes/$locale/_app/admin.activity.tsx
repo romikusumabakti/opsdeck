@@ -168,6 +168,11 @@ function message(
         count: Number(d.count),
         names: String(d.names) || "—",
       });
+    case "environment.provision":
+      return t("environmentProvisioned", {
+        actor,
+        environment: String(d.environment),
+      });
     case "deployLock.locked":
       return t("deployLockLocked", {
         actor,

@@ -43,6 +43,7 @@ import {
 } from "@/lib/jobs/commands";
 import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
+import { runProvisioning } from "@/lib/jobs/provision";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
 import {
@@ -1248,7 +1249,12 @@ function normalizeJobName(name: string): JobName {
  * jobs postdate the rename and carry no environment id at all.
  */
 function migrateLegacyPayload(name: JobName, data: unknown): unknown {
-  if (name.startsWith("jira/") || name.startsWith("deploy/")) return data;
+  if (
+    name.startsWith("jira/") ||
+    name.startsWith("deploy/") ||
+    name.startsWith("provision/")
+  )
+    return data;
   if (data && typeof data === "object" && !("environmentId" in data)) {
     const { projectId, sourceProjectId, ...rest } = data as Record<
       string,
@@ -1306,6 +1312,8 @@ export async function processJob(job: Job): Promise<unknown> {
       return pushComment(parseJobPayload(name, raw).commentId);
     case "deploy/run.requested":
       return handleDeploy(parseJobPayload(name, raw));
+    case "provision/run.requested":
+      return runProvisioning(parseJobPayload(name, raw));
     case "deploy/lock-sweep":
       parseJobPayload(name, raw);
       return sweepExpiredLocks();

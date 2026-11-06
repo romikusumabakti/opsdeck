@@ -1887,6 +1887,7 @@
     "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}",
     "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})",
+    "environmentProvisioned": "{actor} melakukan provisioning {environment}",
     "variableCreated": "{actor} menambahkan variabel {name} ke {environment}",
     "variableUpdated": "{actor} mengubah variabel {name} di {environment}",
     "variableDeleted": "{actor} menghapus variabel {name} dari {environment}",

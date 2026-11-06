@@ -1887,6 +1887,7 @@
     "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
     "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})",
+    "environmentProvisioned": "{actor} هيّأ {environment}",
     "variableCreated": "{actor} أضاف المتغير {name} إلى {environment}",
     "variableUpdated": "{actor} غيّر المتغير {name} في {environment}",
     "variableDeleted": "{actor} حذف المتغير {name} من {environment}",

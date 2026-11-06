@@ -1887,6 +1887,7 @@
     "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}",
     "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})",
+    "environmentProvisioned": "{actor} provisioned {environment}",
     "variableCreated": "{actor} added variable {name} to {environment}",
     "variableUpdated": "{actor} changed variable {name} in {environment}",
     "variableDeleted": "{actor} deleted variable {name} from {environment}",

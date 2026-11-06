@@ -1887,6 +1887,7 @@
     "runUnacknowledged": "{actor} reabrió {count, plural, one {# ejecución fallida} other {# ejecuciones fallidas}} en {environment}",
     "variablesRevealed": "{actor} mostró los valores secretos de {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} eliminó {environment} y {count, plural, one {su # variable} other {sus # variables}} ({names})",
+    "environmentProvisioned": "{actor} aprovisionó {environment}",
     "variableCreated": "{actor} añadió la variable {name} a {environment}",
     "variableUpdated": "{actor} cambió la variable {name} en {environment}",
     "variableDeleted": "{actor} eliminó la variable {name} de {environment}",
