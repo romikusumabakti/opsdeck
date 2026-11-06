@@ -137,6 +137,11 @@ export async function putTunnelConfig(
   });
 }
 
+// DNS names are case-insensitive; Cloudflare may echo them in any case.
+function sameHostname(a: string | undefined, b: string): boolean {
+  return a !== undefined && a.toLowerCase() === b.toLowerCase();
+}
+
 function isCatchAll(rule: IngressRule): boolean {
   return rule.hostname === undefined;
 }
@@ -154,7 +159,9 @@ export function withIngressRoute(
   hostname: string,
   service: string
 ): { config: TunnelConfig; changed: boolean } {
-  const existing = config.ingress.find((rule) => rule.hostname === hostname);
+  const existing = config.ingress.find((rule) =>
+    sameHostname(rule.hostname, hostname)
+  );
   if (existing) {
     if (existing.service === service) return { config, changed: false };
     throw new CloudflareConflictError(
@@ -193,7 +200,8 @@ export async function findDnsRecord(
     creds.apiToken,
     `/zones/${encodeURIComponent(zoneId)}/dns_records?name=${encodeURIComponent(name)}`
   );
-  return records[0] ?? null;
+  // The filter is exact on Cloudflare's side; the check keeps it so here.
+  return records.find((record) => sameHostname(record.name, name)) ?? null;
 }
 
 /**
@@ -266,16 +274,38 @@ export type AccessApp = {
   id: string;
   name: string;
   domain: string;
+  /** Every domain of a multi-domain self-hosted app (older API shape). */
+  self_hosted_domains?: string[];
+  /** The app's destinations; `public` ones carry a `uri` (newer API shape). */
+  destinations?: { type: string; uri?: string }[];
   policies?: { id: string }[];
 };
 
-/** The Access app whose domain is exactly `domain`, or null. */
+function appDomains(app: AccessApp): string[] {
+  return [
+    app.domain,
+    ...(app.self_hosted_domains ?? []),
+    ...(app.destinations ?? [])
+      .filter((d) => d.type === "public" && d.uri)
+      .map((d) => d.uri as string),
+  ];
+}
+
+/**
+ * The Access app that covers exactly `domain` (no path), through its
+ * `domain`, its `self_hosted_domains` or a public destination; or null.
+ * Compared case-insensitively.
+ */
 export async function findAccessAppByDomain(
   creds: CloudflareCreds,
   domain: string
 ): Promise<AccessApp | null> {
   const apps = await listAll<AccessApp>(creds, "/access/apps");
-  return apps.find((app) => app.domain === domain) ?? null;
+  return (
+    apps.find((app) =>
+      appDomains(app).some((candidate) => sameHostname(candidate, domain))
+    ) ?? null
+  );
 }
 
 export async function createAccessApp(

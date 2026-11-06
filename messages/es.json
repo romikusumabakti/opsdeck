@@ -439,7 +439,7 @@
   },
   "provisioning": {
     "title": "Aprovisionamiento",
-    "description": "Pone en marcha este entorno: directorios de despliegue, la base de datos compartida y los primeros despliegues. Los pasos terminados se conservan al volver a ejecutarlo.",
+    "description": "Pone en marcha este entorno: directorios de despliegue, la base de datos compartida, el dominio y los primeros despliegues. Los pasos terminados se conservan al volver a ejecutarlo.",
     "provision": "Aprovisionar",
     "retry": "Reintentar",
     "running": "Aprovisionando…",
@@ -459,12 +459,16 @@
     },
     "error": {
       "missing_db_fields": "La base de datos compartida está incompleta: define host, base de datos, rol y variable de contraseña en los ajustes del entorno.",
+      "missing_entry_port": "El dominio necesita el puerto local: defínelo en los ajustes de dominio del entorno.",
       "no_targets": "Añade primero un destino de despliegue; el aprovisionamiento despliega en los destinos."
     },
     "step": {
       "prepare_deploy_dir": "Preparar <code>{dir}</code> en {server}",
       "create_database": "Crear el rol y la base de datos <code>{database}</code> en <code>{host}</code> ({server})",
       "create_database_no_server": "Crear el rol y la base de datos <code>{database}</code> en <code>{host}</code>",
+      "tunnel_route": "Añadir la ruta del túnel <code>{hostname}</code> → <code>{service}</code> en {tunnel}",
+      "access_app": "Crear la aplicación de Access para <code>{hostname}</code> ({policy})",
+      "dns_record": "Publicar el registro DNS <code>{hostname}</code>",
       "deploy": "Desplegar la última compilación de <code>{branch}</code> de {component}"
     }
   },

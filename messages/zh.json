@@ -439,7 +439,7 @@
   },
   "provisioning": {
     "title": "环境配置",
-    "description": "启动此环境：部署目录、共享数据库，然后进行首次部署。再次运行时会保留已完成的步骤。",
+    "description": "启动此环境：部署目录、共享数据库、域名，然后进行首次部署。再次运行时会保留已完成的步骤。",
     "provision": "开始配置",
     "retry": "重试",
     "running": "配置中…",
@@ -459,12 +459,16 @@
     },
     "error": {
       "missing_db_fields": "共享数据库信息不完整：请在环境设置中填写主机、数据库、角色和密码变量。",
+      "missing_entry_port": "域名需要本地端口：请在环境的域名设置中填写。",
       "no_targets": "请先添加部署目标；配置会部署到这些目标。"
     },
     "step": {
       "prepare_deploy_dir": "在 {server} 上准备 <code>{dir}</code>",
       "create_database": "在 <code>{host}</code>（{server}）上创建角色和数据库 <code>{database}</code>",
       "create_database_no_server": "在 <code>{host}</code> 上创建角色和数据库 <code>{database}</code>",
+      "tunnel_route": "在 {tunnel} 上添加隧道路由 <code>{hostname}</code> → <code>{service}</code>",
+      "access_app": "为 <code>{hostname}</code> 创建 Access 应用（{policy}）",
+      "dns_record": "发布 DNS 记录 <code>{hostname}</code>",
       "deploy": "部署 {component} 最新的 <code>{branch}</code> 构建"
     }
   },

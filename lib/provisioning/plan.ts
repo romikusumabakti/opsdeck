@@ -14,6 +14,15 @@ export type ProvisioningStepSpec =
         passwordVariable: string;
       };
     }
+  | {
+      kind: "tunnel_route";
+      params: { remoteTunnelId: string; hostname: string; service: string };
+    }
+  | { kind: "access_app"; params: { hostname: string; policyId: string } }
+  | {
+      kind: "dns_record";
+      params: { zoneId: string; hostname: string; remoteTunnelId: string };
+    }
   | { kind: "deploy"; params: { targetId: string; branch: string } };
 
 export type ProvisioningStepKind = ProvisioningStepSpec["kind"];
@@ -41,6 +50,29 @@ export const provisioningStepSpecSchema: z.ZodType<ProvisioningStepSpec> =
       }),
     }),
     z.object({
+      kind: z.literal("tunnel_route"),
+      params: z.object({
+        remoteTunnelId: z.string().min(1),
+        hostname: z.string().min(1),
+        service: z.string().min(1),
+      }),
+    }),
+    z.object({
+      kind: z.literal("access_app"),
+      params: z.object({
+        hostname: z.string().min(1),
+        policyId: z.string().min(1),
+      }),
+    }),
+    z.object({
+      kind: z.literal("dns_record"),
+      params: z.object({
+        zoneId: z.string().min(1),
+        hostname: z.string().min(1),
+        remoteTunnelId: z.string().min(1),
+      }),
+    }),
+    z.object({
       kind: z.literal("deploy"),
       params: z.object({
         targetId: z.string().min(1),
@@ -49,7 +81,10 @@ export const provisioningStepSpecSchema: z.ZodType<ProvisioningStepSpec> =
     }),
   ]);
 
-export type ProvisioningPlanErrorCode = "missing_db_fields" | "no_targets";
+export type ProvisioningPlanErrorCode =
+  | "missing_db_fields"
+  | "missing_entry_port"
+  | "no_targets";
 
 export class ProvisioningPlanError extends Error {
   constructor(readonly code: ProvisioningPlanErrorCode) {
@@ -72,12 +107,29 @@ export type ProvisioningEnvironment = {
     dbRole: string | null;
     dbPasswordVariable: string | null;
   } | null;
+  /**
+   * The environment's domain binding. `zoneId` and `remoteTunnelId` are row
+   * ids (cloudflare_zones, remote_tunnels); `originHost` is the tunnel's and
+   * `entryPort` the environment's. Absent or external: no Cloudflare steps.
+   */
+  domain?: {
+    kind: "tunnel" | "external";
+    hostname: string;
+    zoneId: string | null;
+    remoteTunnelId: string | null;
+    originHost: string | null;
+    accessPolicyId: string | null;
+    entryPort: number | null;
+  } | null;
 };
 
 /**
  * The ordered steps that bring an environment up: one deploy directory per
  * distinct (server, directory), then the shared database when the binding is
- * `shared`, then one deploy per target. Pure: reads nothing but its argument.
+ * `shared`, then for a tunnel domain the route, the Access app (when a policy
+ * is set) and the DNS record, then one deploy per target. DNS comes after
+ * Access so the hostname never resolves unprotected. Pure: reads nothing but
+ * its argument.
  */
 export function planProvisioning(
   env: ProvisioningEnvironment
@@ -111,6 +163,32 @@ export function planProvisioning(
         role: db.dbRole,
         passwordVariable: db.dbPasswordVariable,
       },
+    });
+  }
+
+  const domain = env.domain;
+  if (domain?.kind === "tunnel" && domain.zoneId && domain.remoteTunnelId) {
+    if (domain.entryPort === null) {
+      throw new ProvisioningPlanError("missing_entry_port");
+    }
+    const { hostname, remoteTunnelId } = domain;
+    steps.push({
+      kind: "tunnel_route",
+      params: {
+        remoteTunnelId,
+        hostname,
+        service: `http://${domain.originHost ?? "localhost"}:${domain.entryPort}`,
+      },
+    });
+    if (domain.accessPolicyId) {
+      steps.push({
+        kind: "access_app",
+        params: { hostname, policyId: domain.accessPolicyId },
+      });
+    }
+    steps.push({
+      kind: "dns_record",
+      params: { zoneId: domain.zoneId, hostname, remoteTunnelId },
     });
   }
 
