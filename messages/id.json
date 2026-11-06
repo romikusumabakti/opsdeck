@@ -1310,7 +1310,8 @@
     "databaseHostExists": "Container itu sudah terdaftar sebagai host database.",
     "databaseHostInUse": "Masih ada environment yang memakai host database ini; pindahkan dulu ke database lain.",
     "sharedDatabaseConfined": "Host database environment ini dipakai bersama; kamu hanya bisa memakai database milik environment ini. Minta bantuan admin untuk yang lain.",
-    "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya."
+    "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya.",
+    "databaseHostVersion": "Container itu menjalankan Postgres lebih lama dari 15; daftarkan hanya Postgres 15 atau lebih baru."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",

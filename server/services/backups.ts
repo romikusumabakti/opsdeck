@@ -20,6 +20,7 @@ import {
   filterAllowedBackups,
   requireAllowedBackup,
   requireAllowedDatabaseNames,
+  requireUnconfined,
 } from "@/server/services/database-hosts";
 
 type BackupListResult =
@@ -190,6 +191,9 @@ export async function restoreDatabaseBackup(
     if (!uuidSchema.safeParse(options.sourceEnvironmentId).success) {
       throw new Error("Invalid source environment id");
     }
+    // A confined caller restores a shared database only from its own
+    // backups.
+    await requireUnconfined(environment, session.user.role);
     // Reading another environment's backup is a read of that project's data.
     await requireProjectPermission(
       { environmentId: options.sourceEnvironmentId },

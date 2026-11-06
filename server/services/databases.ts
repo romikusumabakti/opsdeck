@@ -15,7 +15,7 @@ import { executeRemoteCommand } from "@/lib/ssh";
 import { databaseNameSchema, uuidSchema } from "@/lib/validation";
 import {
   filterAllowedDatabaseNames,
-  requireAllowedDatabaseNames,
+  requireUnconfined,
 } from "@/server/services/database-hosts";
 
 export interface DatabaseEntry {
@@ -212,7 +212,7 @@ export async function createDatabase(
   const database = parsed.data;
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
-  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
+  await requireUnconfined(environment, session.user.role);
 
   const runId = await createRun({
     environmentId: environment.id,
@@ -245,7 +245,7 @@ export async function dropDatabase(
   const database = parsed.data;
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
-  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
+  await requireUnconfined(environment, session.user.role);
 
   // Guard the environment's configured database — dropping it would break the panel
   // and every other operation that targets it. The worker re-checks too.
@@ -292,7 +292,7 @@ export async function renameDatabase(
   }
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
-  await requireAllowedDatabaseNames(environment, session.user.role, [from, to]);
+  await requireUnconfined(environment, session.user.role);
 
   // Guard the environment's configured database — renaming it would orphan the
   // panel's configured dbName. The worker re-checks too.

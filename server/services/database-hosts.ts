@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
+import { requireSession } from "@/lib/auth-session";
 import { ForbiddenError, requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
@@ -47,22 +48,40 @@ export type DatabaseHostInput = z.infer<typeof databaseHostInputSchema>;
 
 const VERIFY_TIMEOUT_MS = 15_000;
 
+/** What any signed-in user may see of a host: enough to pick it in a form. */
+export type DatabaseHostSummary = Pick<
+  DatabaseHost,
+  "id" | "serverId" | "label" | "containerName"
+>;
+
+// Readable by any signed-in user (a maintainer binds a shared database on an
+// open server without server:manage). The backup path stays out.
 export async function listDatabaseHosts(
   serverId?: string
-): Promise<DatabaseHost[]> {
-  await requireOrgPermission({ server: ["manage"] });
+): Promise<DatabaseHostSummary[]> {
+  await requireSession();
   return db
-    .select()
+    .select({
+      id: databaseHosts.id,
+      serverId: databaseHosts.serverId,
+      label: databaseHosts.label,
+      containerName: databaseHosts.containerName,
+    })
     .from(databaseHosts)
     .where(serverId ? eq(databaseHosts.serverId, serverId) : undefined)
     .orderBy(asc(databaseHosts.label));
 }
 
+// Postgres 15 stopped granting PUBLIC CREATE on the public schema; on older
+// servers every role on the host could create objects in every database.
+const MIN_SERVER_VERSION_NUM = 150_000;
+
 /**
  * Registers a Postgres container as a database host after checking, over
  * SSH, that the superuser can run a query in it (trusted local auth, the
- * same access the database operations use). 404 for an unknown server, 502
- * when the check fails, 409 when the container is already registered.
+ * same access the database operations use) and that it runs Postgres 15 or
+ * newer. 404 for an unknown server, 502 when the check fails, 400 for an
+ * older Postgres, 409 when the container is already registered.
  */
 export async function createDatabaseHost(
   data: DatabaseHostInput
@@ -79,11 +98,16 @@ export async function createDatabaseHost(
     throw new HTTPException(404, { message: "Not Found" });
   }
   const t = await getServerTranslator("actionErrors");
+  let version: number;
   try {
-    await executeRemoteCommand(
-      creds,
-      `docker exec ${shq(input.containerName)} psql -U postgres -Atc 'select 1'`,
-      VERIFY_TIMEOUT_MS
+    version = Number(
+      (
+        await executeRemoteCommand(
+          creds,
+          `docker exec ${shq(input.containerName)} psql -U postgres -Atc 'show server_version_num'`,
+          VERIFY_TIMEOUT_MS
+        )
+      ).trim()
     );
   } catch (error) {
     console.error(
@@ -91,6 +115,9 @@ export async function createDatabaseHost(
       error
     );
     throw new HTTPException(502, { message: t("databaseHostUnreachable") });
+  }
+  if (!(Number.isInteger(version) && version >= MIN_SERVER_VERSION_NUM)) {
+    throw new HTTPException(400, { message: t("databaseHostVersion") });
   }
   const [host] = await db
     .insert(databaseHosts)
@@ -205,7 +232,19 @@ export function filterAllowedDatabaseNames<T extends { name: string }>(
   return entries.filter((e) => allowedDatabaseName(binding, e.name, manage));
 }
 
-/** 403 unless the caller may act on every database in `names`. */
+/**
+ * 403 for a caller without org server:manage on a shared binding: creating,
+ * dropping and renaming databases in a shared container are admin work.
+ */
+export async function requireUnconfined(
+  environment: WithDbService,
+  orgRole: string | null | undefined
+): Promise<void> {
+  if (bindingOf(environment)?.dbKind !== "shared") return;
+  if (!canManageServers(orgRole)) await confined();
+}
+
+/** 403 unless the caller may back up or restore every database in `names`. */
 export async function requireAllowedDatabaseNames(
   environment: WithDbService,
   orgRole: string | null | undefined,

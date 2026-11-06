@@ -43,6 +43,8 @@ import {
   pgRecreateDatabasePipeline,
   pgRenameDatabaseQuery,
   pgRestorePipeline,
+  pgSharedBackupPipeline,
+  pgSharedRestorePipeline,
   posixDirname,
   sqlBracketId,
   sqlQuoteString,
@@ -463,6 +465,70 @@ exit 0
     it("quotes a hostile source path into a single argument", () => {
       const cmd = pgRestorePipeline("car2", "/b/a'; rm -rf /.sql", false);
       expect(cmd).toContain(`cat '/b/a'\\''; rm -rf /.sql'`);
+    });
+  });
+
+  // A shared binding's role owns its database and its password reaches the
+  // environment, so replaying or dumping as postgres would run the role's
+  // functions as superuser. Nothing in these may connect as postgres.
+  describe("shared database pipelines", () => {
+    const backups = [
+      pgSharedBackupPipeline("pcan_sb", "pcan_sb", "/b/pcan_sb_1.sql", false),
+      pgSharedBackupPipeline("pcan_sb", "pcan_sb", "/b/pcan_sb_1.sql.gz", true),
+    ];
+    const restores = [
+      pgSharedRestorePipeline("pcan_sb", "pcan_sb", "/b/pcan_sb_1.sql", false),
+      pgSharedRestorePipeline(
+        "pcan_sb",
+        "pcan_sb",
+        "/b/pcan_sb_1.sql.gz",
+        true
+      ),
+    ];
+
+    it("never connect as postgres", () => {
+      for (const cmd of [...backups, ...restores]) {
+        expect(cmd).not.toMatch(/-U\s*'?postgres/);
+        expect(cmd).not.toMatch(/\bpostgres\b/);
+      }
+    });
+
+    it("dump as the role with --clean --if-exists", () => {
+      expect(backups[0]).toContain(
+        "pg_dump -U 'pcan_sb' --clean --if-exists 'pcan_sb'"
+      );
+      expect(backups[1]?.startsWith("set -o pipefail; ")).toBe(true);
+    });
+
+    it("restore without dropping or recreating the database", () => {
+      for (const cmd of restores) {
+        expect(cmd).not.toMatch(/(DROP|CREATE) DATABASE/);
+        expect(cmd).toContain(
+          "psql -X -q -v ON_ERROR_STOP=on -U 'pcan_sb' -d 'pcan_sb' -c 'DROP OWNED BY CURRENT_USER' || exit 1"
+        );
+        expect(cmd).toMatch(
+          /\| psql -X -q -v ON_ERROR_STOP=on -U 'pcan_sb' -d 'pcan_sb' > \/dev\/null$/
+        );
+        // The role filter knows only the role itself.
+        expect(cmd).toContain("awk -v roles='pcan_sb' ");
+      }
+    });
+
+    it("check the dump is readable before emptying the database", () => {
+      const cmd = restores[0] ?? "";
+      expect(cmd.indexOf("test -r '/b/pcan_sb_1.sql'")).toBeGreaterThan(-1);
+      expect(cmd.indexOf("test -r")).toBeLessThan(cmd.indexOf("DROP OWNED BY"));
+    });
+
+    it("quote a hostile role or path", () => {
+      const cmd = pgSharedRestorePipeline(
+        "d",
+        "r'; rm -rf /",
+        "/b/x'.sql",
+        false
+      );
+      expect(cmd).toContain(`-U 'r'\\''; rm -rf /'`);
+      expect(cmd).toContain(`cat '/b/x'\\''.sql'`);
     });
   });
 

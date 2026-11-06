@@ -1310,7 +1310,8 @@
     "databaseHostExists": "Ese contenedor ya está registrado como host de base de datos.",
     "databaseHostInUse": "Aún hay entornos que usan este host de base de datos; muévelos antes a otra base de datos.",
     "sharedDatabaseConfined": "El host de base de datos de este entorno es compartido; solo puedes usar las bases de datos propias de este entorno. Pide ayuda a un administrador para otras.",
-    "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros."
+    "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros.",
+    "databaseHostVersion": "Ese contenedor ejecuta un Postgres anterior a la 15; registra solo Postgres 15 o posterior."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",

@@ -1,9 +1,13 @@
 import { NodeSSH } from "node-ssh";
 import type { ClientChannel } from "ssh2";
 
-/** Replaces every occurrence of each non-empty secret with `[redacted]`. */
+/**
+ * Replaces every occurrence of each non-empty secret with `[redacted]`, and
+ * any SCRAM-SHA-256 verifier (whole or cut off), so a partial echo of one is
+ * caught too.
+ */
 export function redactSecrets(message: string, secrets: string[]): string {
-  let out = message;
+  let out = message.replace(/SCRAM-SHA-256\$[^'\s]*/g, "[redacted]");
   // Longest first, so a secret that contains another is removed whole.
   for (const secret of secrets
     .filter(Boolean)

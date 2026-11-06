@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Database hosts are fleet-level (org server:manage). Registering one checks
-// over SSH that the superuser can query the container; deleting one is
-// refused while an environment is bound to it.
+// Database hosts are fleet-level: creating and deleting need org
+// server:manage, listing (without the backup path) only a session.
+// Registering one checks over SSH that the superuser can query the container
+// and that it runs Postgres 15+; deleting one is refused while an environment
+// is bound to it.
 
 const SERVER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const HOST_ID = "0197f3a0-1b2c-7def-8000-0123456789b7";
@@ -141,14 +143,13 @@ beforeEach(() => {
   state.boundRows = [];
   state.insertConflict = false;
   state.calls = [];
-  ssh.executeRemoteCommand.mockResolvedValue("1\n");
+  ssh.executeRemoteCommand.mockResolvedValue("180006\n");
 });
 
 describe("database hosts API", () => {
-  it("is 403 without server:manage", async () => {
+  it("is 403 without server:manage for create and delete", async () => {
     for (const role of ["member", "observer"]) {
       state.orgRole = role;
-      expect((await send("GET", "/api/database-hosts")).status).toBe(403);
       expect((await send("POST", "/api/database-hosts", BODY)).status).toBe(
         403
       );
@@ -160,17 +161,51 @@ describe("database hosts API", () => {
     expect(writes()).toEqual([]);
   });
 
-  it("lists the hosts", async () => {
-    const res = await send("GET", `/api/database-hosts?serverId=${SERVER_ID}`);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toHaveLength(1);
+  it("lists the hosts to any signed-in user, without the backup path", async () => {
+    state.hostRows = [
+      {
+        id: HOST_ID,
+        serverId: SERVER_ID,
+        label: "DPLK Postgres",
+        containerName: "dplk-postgres",
+      },
+    ];
+    for (const role of ["member", "observer", "admin"]) {
+      state.orgRole = role;
+      const res = await send(
+        "GET",
+        `/api/database-hosts?serverId=${SERVER_ID}`
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(state.hostRows);
+    }
+    // The projection itself names no backup path.
+    const source = await import("node:fs").then((fs) =>
+      fs.readFileSync("server/services/database-hosts.ts", "utf8")
+    );
+    const list = source.slice(
+      source.indexOf("export async function listDatabaseHosts"),
+      source.indexOf("// Postgres 15 stopped")
+    );
+    expect(list).toContain("requireSession()");
+    expect(list).not.toContain("backupPath");
+  });
+
+  it("refuses a Postgres older than 15 and stores nothing", async () => {
+    for (const version of ["140011", "garbage", ""]) {
+      ssh.executeRemoteCommand.mockResolvedValue(`${version}\n`);
+      const res = await send("POST", "/api/database-hosts", BODY);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "databaseHostVersion" });
+    }
+    expect(writes()).toEqual([]);
   });
 
   it("verifies the container, registers it and logs it", async () => {
     const res = await send("POST", "/api/database-hosts", BODY);
     expect(res.status).toBe(200);
     expect(ssh.executeRemoteCommand.mock.calls[0]?.[1]).toBe(
-      "docker exec 'dplk-postgres' psql -U postgres -Atc 'select 1'"
+      "docker exec 'dplk-postgres' psql -U postgres -Atc 'show server_version_num'"
     );
     const insert = state.calls.find((c) => c.op === "insert");
     expect(insert?.table).toBe(schema.databaseHosts);

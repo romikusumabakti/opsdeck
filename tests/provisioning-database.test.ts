@@ -49,6 +49,9 @@ const {
   sharedDatabaseNameSchema,
 } = await import("@/lib/provisioning/database");
 const { executeRemoteCommand } = await import("@/lib/ssh");
+const { pgSharedBackupPipeline, pgSharedRestorePipeline } = await import(
+  "@/lib/jobs/commands"
+);
 
 const SALT = Uint8Array.from({ length: 16 }, (_, i) => i);
 const VERIFIER_FORMAT =
@@ -204,6 +207,48 @@ describe("provisionSharedDatabase", () => {
     expect(log).not.toContain(verifier);
     expect(log).not.toContain(input.password);
   });
+
+  it("then checks the role reaches its database over the local socket", async () => {
+    await provisionSharedDatabase(
+      { server, containerName: "dplk-postgres" },
+      input
+    );
+    expect(ssh.calls[1]?.command).toBe(
+      "docker exec 'dplk-postgres' psql -X -U 'pcan_sandbox1' -d 'pcan_sandbox1' -Atc 'select 1'"
+    );
+    expect(ssh.calls[1]?.stdin).toBeUndefined();
+  });
+
+  it("fails clearly when the role can't connect (pg_hba not trusting local)", async () => {
+    let n = 0;
+    ssh.onExec = () => {
+      n++;
+      ssh.result =
+        n === 2
+          ? {
+              code: 2,
+              stdout: "",
+              stderr:
+                'FATAL:  password authentication failed for user "pcan_sandbox1"',
+            }
+          : { code: 0, stdout: "", stderr: "" };
+    };
+    await expect(
+      provisionSharedDatabase({ server, containerName: "dplk-postgres" }, input)
+    ).rejects.toThrow(/pg_hba must trust local connections/);
+  });
+
+  it("refuses a non-ASCII password before touching the server", async () => {
+    for (const password of ["pässwort", "pw\n", "pw\u00a0x", ""]) {
+      await expect(
+        provisionSharedDatabase(
+          { server, containerName: "dplk-postgres" },
+          { ...input, password }
+        )
+      ).rejects.toThrow(/printable ASCII/);
+    }
+    expect(ssh.calls).toEqual([]);
+  });
 });
 
 describe("executeRemoteCommand options", () => {
@@ -222,6 +267,15 @@ describe("executeRemoteCommand options", () => {
 });
 
 describe("redactSecrets", () => {
+  it("also removes any SCRAM verifier, whole or cut off", () => {
+    expect(
+      redactSecrets(
+        "LINE 1: ALTER ROLE x PASSWORD 'SCRAM-SHA-256$4096:AAEC' and SCRAM-SHA-256$40",
+        []
+      )
+    ).toBe("LINE 1: ALTER ROLE x PASSWORD '[redacted]' and [redacted]");
+  });
+
   it("replaces every occurrence, longest secret first, ignoring empty ones", () => {
     expect(redactSecrets("a abc abc b", ["", "ab", "abc"])).toBe(
       "a [redacted] [redacted] b"
@@ -253,7 +307,10 @@ describe("allowedDatabaseName / allowedBackupFilename", () => {
 
   it("confines a shared binding for a caller without server:manage", () => {
     expect(allowedDatabaseName(shared, "pcan_sandbox1", false)).toBe(true);
-    expect(allowedDatabaseName(shared, "pcan_sandbox1_copy", false)).toBe(true);
+    // Only the binding's own database: no `<dbName>_…` copies.
+    expect(allowedDatabaseName(shared, "pcan_sandbox1_copy", false)).toBe(
+      false
+    );
     expect(allowedDatabaseName(shared, "pcan_sandbox10", false)).toBe(false);
     expect(allowedDatabaseName(shared, "hris_dss", false)).toBe(false);
     expect(
@@ -303,7 +360,13 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
     ]);
     return { code, stdout: stdout.trim(), stderr: stderr.trim() };
   }
-  const provision = (database: string, password: string) =>
+  const GRANTS_DB = "pcan_it_grants";
+  const NEW_DB = "pcan_it_new";
+  const GRANTED = "pcan_it_granted";
+  const MEMBER = "pcan_it_member";
+  const GROUP = "pcan_it_group";
+  const DUMP = "/tmp/pcan_it_dump.sql.gz";
+  const provision = (database: string, password: string, role = ROLE) =>
     run(
       [
         "exec",
@@ -321,7 +384,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
       ],
       pgProvisionDatabaseSql({
         database,
-        role: ROLE,
+        role,
         verifier: scramSha256Verifier(password),
       })
     );
@@ -356,13 +419,40 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
       "select current_user || ' ' || current_database()",
     ]);
   const cleanup = async () => {
-    for (const db of [DB, OWNED]) {
+    for (const db of [DB, OWNED, GRANTS_DB, NEW_DB, `${DB}_second`]) {
       await superuser(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);
     }
-    for (const role of [ROLE, OTHER_ROLE]) {
+    for (const role of [ROLE, OTHER_ROLE, GRANTED, MEMBER, GROUP]) {
       await superuser(`DROP ROLE IF EXISTS ${role}`);
     }
+    await run(["exec", CONTAINER, "rm", "-f", DUMP]);
   };
+  // As the binding's role over the container's local socket, as the shared
+  // backup and restore pipelines connect.
+  const asRole = (sql: string) =>
+    run([
+      "exec",
+      CONTAINER,
+      "psql",
+      "-X",
+      "-q",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      ROLE,
+      "-d",
+      DB,
+      "-Atc",
+      sql,
+    ]);
+  const shell = (script: string) =>
+    run(["exec", CONTAINER, "bash", "-c", script]);
+  const passwordOf = async (role: string) =>
+    (
+      await superuser(
+        `SELECT rolpassword FROM pg_authid WHERE rolname = '${role}'`
+      )
+    ).stdout;
 
   beforeAll(async () => {
     address = (await run(["exec", CONTAINER, "hostname", "-i"])).stdout
@@ -415,7 +505,9 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
   it("refuses a role that already owns another database", async () => {
     const refused = await provision(`${DB}_second`, "fourth-Pw-4");
     expect(refused.code).not.toBe(0);
-    expect(refused.stderr).toContain(`role ${ROLE} owns database ${DB}`);
+    expect(refused.stderr).toContain(
+      `role ${ROLE} is in use outside database ${DB}_second`
+    );
     expect(
       (
         await superuser(
@@ -423,5 +515,89 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
         )
       ).stdout
     ).toBe("");
+  });
+  it("refuses an existing role with a grant on another database, password unchanged", async () => {
+    await superuser(`CREATE DATABASE ${GRANTS_DB}`);
+    await superuser(`CREATE ROLE ${GRANTED} LOGIN PASSWORD 'orig-Pw-0'`);
+    await superuser(`GRANT CONNECT ON DATABASE ${GRANTS_DB} TO ${GRANTED}`);
+    const before = await passwordOf(GRANTED);
+    const refused = await provision(NEW_DB, "takeover-Pw-5", GRANTED);
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain(
+      `role ${GRANTED} is in use outside database ${NEW_DB}`
+    );
+    expect(await passwordOf(GRANTED)).toBe(before);
+    expect(
+      (await superuser(`SELECT 1 FROM pg_database WHERE datname = '${NEW_DB}'`))
+        .stdout
+    ).toBe("");
+  });
+
+  it("refuses an existing role that is a member of another role", async () => {
+    await superuser(`CREATE ROLE ${GROUP} NOLOGIN`);
+    await superuser(`CREATE ROLE ${MEMBER} NOLOGIN IN ROLE ${GROUP}`);
+    const refused = await provision(NEW_DB, "takeover-Pw-6", MEMBER);
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain(`role ${MEMBER} is in use outside`);
+    expect(
+      (
+        await superuser(
+          `SELECT rolcanlogin FROM pg_roles WHERE rolname = '${MEMBER}'`
+        )
+      ).stdout
+    ).toBe("f");
+  });
+
+  it("backs up and restores as the role, so a hostile CHECK can't escalate", async () => {
+    // What a maintainer holding the role's password could plant: a CHECK
+    // whose function tries to make the role a superuser, swallowing the
+    // error so the restore looks clean. Replayed as postgres, it would run
+    // as postgres during COPY.
+    const planted = await asRole(
+      [
+        `CREATE FUNCTION public.grab(x int) RETURNS boolean LANGUAGE plpgsql AS $f$ BEGIN BEGIN EXECUTE 'ALTER ROLE ${ROLE} SUPERUSER'; EXCEPTION WHEN others THEN NULL; END; RETURN true; END $f$`,
+        "CREATE TABLE public.t (x int CHECK (public.grab(x)))",
+        "INSERT INTO public.t SELECT generate_series(1, 5)",
+      ].join("; ")
+    );
+    expect(planted).toMatchObject({ code: 0, stderr: "" });
+
+    const backup = pgSharedBackupPipeline(DB, ROLE, DUMP, true);
+    expect(backup).not.toContain("-U postgres");
+    expect(await shell(backup)).toMatchObject({ code: 0 });
+
+    await asRole("DELETE FROM public.t WHERE x > 2");
+    const restore = pgSharedRestorePipeline(DB, ROLE, DUMP, true);
+    expect(restore).not.toContain("-U postgres");
+    const restored = await shell(restore);
+    expect(restored).toMatchObject({ code: 0 });
+
+    expect((await asRole("SELECT count(*) FROM public.t")).stdout).toBe("5");
+    expect(
+      (
+        await superuser(
+          `SELECT rolsuper FROM pg_roles WHERE rolname = '${ROLE}'`
+        )
+      ).stdout
+    ).toBe("f");
+    // The database itself was kept, not dropped and recreated.
+    expect(
+      (
+        await superuser(
+          `SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '${DB}'`
+        )
+      ).stdout
+    ).toBe(ROLE);
+  });
+
+  it("refuses a restore whose dump is missing, without emptying the database", async () => {
+    const restore = pgSharedRestorePipeline(
+      DB,
+      ROLE,
+      "/tmp/pcan_it_missing.sql",
+      false
+    );
+    expect((await shell(restore)).code).not.toBe(0);
+    expect((await asRole("SELECT count(*) FROM public.t")).stdout).toBe("5");
   });
 });
