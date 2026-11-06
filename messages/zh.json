@@ -1887,6 +1887,7 @@
     "runUnacknowledged": "{actor} 重新打开了 {environment} 中的 {count, plural, other {# 次失败运行}}",
     "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）",
     "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）",
+    "environmentProvisioned": "{actor} 配置了 {environment}",
     "variableCreated": "{actor} 向 {environment} 添加了变量 {name}",
     "variableUpdated": "{actor} 修改了 {environment} 中的变量 {name}",
     "variableDeleted": "{actor} 从 {environment} 删除了变量 {name}",
