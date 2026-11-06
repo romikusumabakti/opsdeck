@@ -19,6 +19,12 @@ export type CloudflareCreds = { accountId: string; apiToken: string };
 /** A hostname already routes to a different service than the one wanted. */
 export class CloudflareConflictError extends Error {}
 
+/**
+ * The fetched tunnel config is not one the Panel may edit: no ingress list, an
+ * empty one, or no catch-all last. Writing it back would drop live routes.
+ */
+export class UnsafeTunnelConfigError extends Error {}
+
 export type IngressRule = {
   hostname?: string;
   service: string;
@@ -28,6 +34,12 @@ export type IngressRule = {
 /** The remote tunnel config; unknown keys are carried through untouched. */
 export type TunnelConfig = {
   ingress: IngressRule[];
+  [key: string]: unknown;
+};
+
+/** The config as Cloudflare returned it, before withIngressRoute checks it. */
+export type FetchedTunnelConfig = {
+  ingress?: unknown;
   [key: string]: unknown;
 };
 
@@ -113,16 +125,20 @@ function configPath(creds: CloudflareCreds, tunnelId: string): string {
   return `${account(creds)}/cfd_tunnel/${encodeURIComponent(tunnelId)}/configurations`;
 }
 
+/**
+ * The tunnel's remote config exactly as Cloudflare holds it; `{}` when it has
+ * none. Never filled in: an invented empty ingress written back would wipe
+ * every live route, so withIngressRoute checks the shape instead.
+ */
 export async function getTunnelConfig(
   creds: CloudflareCreds,
   tunnelId: string
-): Promise<TunnelConfig> {
-  const result = await request<{ config?: Partial<TunnelConfig> | null }>(
+): Promise<FetchedTunnelConfig> {
+  const result = await request<{ config?: FetchedTunnelConfig | null }>(
     creds.apiToken,
     configPath(creds, tunnelId)
   );
-  const config = result.config ?? {};
-  return { ...config, ingress: config.ingress ?? [] };
+  return result.config ?? {};
 }
 
 /** Replace the whole config; callers pass what getTunnelConfig returned, edited. */
@@ -146,19 +162,47 @@ function isCatchAll(rule: IngressRule): boolean {
   return rule.hostname === undefined;
 }
 
+function isWildcard(rule: IngressRule): boolean {
+  return rule.hostname?.startsWith("*") === true;
+}
+
+/**
+ * The config as an editable TunnelConfig, or UnsafeTunnelConfigError when it
+ * has no ingress list, an empty one, or a last rule with a hostname (cloudflared
+ * requires a catch-all last, so a live config always has one).
+ */
+function editableConfig(config: FetchedTunnelConfig): TunnelConfig {
+  const { ingress } = config;
+  if (!Array.isArray(ingress) || ingress.length === 0) {
+    throw new UnsafeTunnelConfigError(
+      "Tunnel config has no ingress rules; refusing to overwrite it"
+    );
+  }
+  const rules = ingress as IngressRule[];
+  const last = rules.at(-1);
+  if (!last || typeof last !== "object" || !isCatchAll(last)) {
+    throw new UnsafeTunnelConfigError(
+      "Tunnel config has no catch-all ingress rule; refusing to overwrite it"
+    );
+  }
+  return { ...config, ingress: rules };
+}
+
 /**
  * The config with an ingress rule `hostname` -> `service`, without mutating
- * `config`. The rule goes just before the catch-all (the rule with no
- * hostname); a config without one gets the rule plus a `http_status:404`
- * catch-all, which cloudflared requires last. Everything else is preserved.
- * A hostname that already routes to another service is a conflict, never an
+ * `config`. Cloudflare matches rules top-down, so the rule goes before the
+ * first wildcard rule (`*.example.com`) if there is one, else just before the
+ * catch-all. Everything else is preserved. A config without a non-empty
+ * ingress ending in a catch-all is refused (UnsafeTunnelConfigError), and a
+ * hostname that already routes to another service is a conflict, never an
  * overwrite.
  */
 export function withIngressRoute(
-  config: TunnelConfig,
+  fetched: FetchedTunnelConfig,
   hostname: string,
   service: string
 ): { config: TunnelConfig; changed: boolean } {
+  const config = editableConfig(fetched);
   const existing = config.ingress.find((rule) =>
     sameHostname(rule.hostname, hostname)
   );
@@ -169,13 +213,9 @@ export function withIngressRoute(
     );
   }
   const next = structuredClone(config);
-  const catchAllAt = next.ingress.findLastIndex(isCatchAll);
-  const rule: IngressRule = { hostname, service };
-  if (catchAllAt === -1) {
-    next.ingress.push(rule, { service: "http_status:404" });
-  } else {
-    next.ingress.splice(catchAllAt, 0, rule);
-  }
+  const wildcardAt = next.ingress.findIndex(isWildcard);
+  const at = wildcardAt === -1 ? next.ingress.length - 1 : wildcardAt;
+  next.ingress.splice(at, 0, { hostname, service });
   return { config: next, changed: true };
 }
 
