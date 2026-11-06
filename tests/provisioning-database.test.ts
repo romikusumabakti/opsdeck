@@ -44,6 +44,7 @@ const {
   allowedBackupFilename,
   allowedDatabaseName,
   pgProvisionDatabaseSql,
+  provisionedRoleMarker,
   provisionSharedDatabase,
   redactSecrets,
   scramSha256Verifier,
@@ -54,6 +55,8 @@ const { pgSharedBackupPipeline, pgSharedRestorePipeline } = await import(
   "@/lib/jobs/commands"
 );
 
+const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789a2";
+const OTHER_ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789b3";
 const SALT = Uint8Array.from({ length: 16 }, (_, i) => i);
 const VERIFIER_FORMAT =
   /^SCRAM-SHA-256\$4096:AAECAwQFBgcICQoLDA0ODw==\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$/;
@@ -102,6 +105,7 @@ describe("pgProvisionDatabaseSql", () => {
     database: "pcan_sandbox1",
     role: 'x"y',
     verifier,
+    environmentId: ENV_ID,
   });
 
   it("starts with ON_ERROR_STOP and creates through \\gexec", () => {
@@ -116,7 +120,9 @@ describe("pgProvisionDatabaseSql", () => {
 
   it("quotes identifiers and literals", () => {
     expect(sql).toContain('ALTER ROLE "x""y" WITH LOGIN PASSWORD');
-    expect(sql).toContain("rolname = 'x\"y'");
+    // Inside the DO literal every quote is doubled once more.
+    expect(sql).toContain("rolname = ''x\"y''");
+    expect(sql).toContain("format(''CREATE ROLE %I LOGIN'', ''x\"y'')");
     // Inside the \gexec literal the identifier quoting survives intact.
     expect(sql).toContain(`'CREATE DATABASE "pcan_sandbox1" OWNER "x""y";'`);
   });
@@ -130,7 +136,7 @@ describe("pgProvisionDatabaseSql", () => {
       expect(line).toMatch(/;$/);
     }
     const gexec = lines.filter((l) => l.endsWith("\\gexec"));
-    expect(gexec).toHaveLength(2);
+    expect(gexec).toHaveLength(1);
     for (const line of gexec) expect(line).toMatch(/^SELECT '[^']+;'/);
     // The multi-line DO guard ends with "END';".
     expect(sql).toMatch(/\nEND';\n/);
@@ -142,6 +148,40 @@ describe("pgProvisionDatabaseSql", () => {
     expect(guard).toBeLessThan(sql.indexOf("ALTER ROLE"));
     expect(guard).toBeLessThan(sql.indexOf("CREATE ROLE"));
   });
+
+  it("creates and marks the role inside the guard, refusing unmarked roles and databases", () => {
+    const marker = `'opsdeck:${ENV_ID}'`;
+    expect(provisionedRoleMarker(ENV_ID)).toBe(`opsdeck:${ENV_ID}`);
+    // CREATE ROLE and COMMENT ON ROLE live in the one DO block (one
+    // transaction), before any ALTER ROLE.
+    const doEnd = sql.indexOf("\nEND';\n");
+    for (const needle of [
+      "CREATE ROLE %I LOGIN",
+      "COMMENT ON ROLE %I IS %L",
+      "role % was not created by the Panel for this environment",
+      "database % was not created by the Panel for this environment",
+    ]) {
+      const at = sql.indexOf(needle);
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(doEnd);
+    }
+    expect(doEnd).toBeLessThan(sql.indexOf("ALTER ROLE"));
+    // Inside the DO literal the marker literal's quotes are doubled.
+    expect(sql).toContain(marker.replaceAll("'", "''"));
+    expect(sql).toContain("shobj_description(role_oid, ''pg_authid'')");
+    expect(sql).toContain("shobj_description(owner_oid, ''pg_authid'')");
+  });
+
+  it("refuses an environmentId that isn't a uuid", () => {
+    expect(() =>
+      pgProvisionDatabaseSql({
+        database: "a",
+        role: "a",
+        verifier,
+        environmentId: "x'; DROP ROLE postgres; --",
+      })
+    ).toThrow(/uuid/);
+  });
 });
 
 describe("provisionSharedDatabase", () => {
@@ -150,6 +190,7 @@ describe("provisionSharedDatabase", () => {
     database: "pcan_sandbox1",
     role: "pcan_sandbox1",
     password: "Very$ecret-pw",
+    environmentId: ENV_ID,
   };
   let logged: unknown[][];
 
@@ -383,7 +424,14 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
   const MEMBER = "pcan_it_member";
   const GROUP = "pcan_it_group";
   const DUMP = "/tmp/pcan_it_dump.sql.gz";
-  const provision = (database: string, password: string, role = ROLE) =>
+  const HAND = "pcan_it_hand";
+  const ORPHAN = "pcan_it_orphan";
+  const provision = (
+    database: string,
+    password: string,
+    role = ROLE,
+    environmentId = ENV_ID
+  ) =>
     run(
       [
         "exec",
@@ -403,6 +451,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
         database,
         role,
         verifier: scramSha256Verifier(password),
+        environmentId,
       })
     );
   const superuser = (sql: string) =>
@@ -436,10 +485,26 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
       "select current_user || ' ' || current_database()",
     ]);
   const cleanup = async () => {
-    for (const db of [DB, OWNED, GRANTS_DB, NEW_DB, `${DB}_second`]) {
+    for (const db of [
+      DB,
+      OWNED,
+      GRANTS_DB,
+      NEW_DB,
+      `${DB}_second`,
+      HAND,
+      ORPHAN,
+    ]) {
       await superuser(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);
     }
-    for (const role of [ROLE, OTHER_ROLE, GRANTED, MEMBER, GROUP]) {
+    for (const role of [
+      ROLE,
+      OTHER_ROLE,
+      GRANTED,
+      MEMBER,
+      GROUP,
+      HAND,
+      ORPHAN,
+    ]) {
       await superuser(`DROP ROLE IF EXISTS ${role}`);
     }
     await run(["exec", CONTAINER, "sh", "-c", "rm -f /tmp/pcan_it_*"]);
@@ -497,13 +562,96 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
       stdout: `${ROLE} ${DB}`,
     });
     expect((await login("wrong-password")).code).not.toBe(0);
+    // Marked as the Panel's, for this environment.
+    expect(
+      (
+        await superuser(
+          `SELECT shobj_description(oid, 'pg_authid') FROM pg_roles WHERE rolname = '${ROLE}'`
+        )
+      ).stdout
+    ).toBe(`opsdeck:${ENV_ID}`);
   });
 
-  it("is idempotent and changes the password on a rerun", async () => {
+  it("is idempotent and changes the password on a rerun with the marker", async () => {
     const rerun = await provision(DB, "second-Pw-2");
     expect(rerun).toMatchObject({ code: 0, stderr: "" });
     expect((await login("second-Pw-2")).code).toBe(0);
     expect((await login("first-Pw-1")).code).not.toBe(0);
+  });
+
+  it("refuses the same role and database for another environment", async () => {
+    const before = await passwordOf(ROLE);
+    const refused = await provision(DB, "other-env-Pw", ROLE, OTHER_ENV_ID);
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain(
+      `database ${DB} was not created by the Panel for this environment`
+    );
+    expect(await passwordOf(ROLE)).toBe(before);
+  });
+
+  it("refuses a hand-made role owning its database with data; its password stays", async () => {
+    // What an operator's app role typically looks like (fr_prod owning
+    // fr_prod): it passes every dependency check, only the marker is missing.
+    await superuser(`CREATE ROLE ${HAND} LOGIN PASSWORD 'hand-Pw-0'`);
+    await superuser(`CREATE DATABASE ${HAND} OWNER ${HAND}`);
+    const seeded = await run([
+      "exec",
+      CONTAINER,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      HAND,
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-Atc",
+      `SET ROLE ${HAND}; CREATE TABLE app_data AS SELECT 42 AS answer;`,
+    ]);
+    expect(seeded.code).toBe(0);
+    const before = await passwordOf(HAND);
+    expect(before).not.toBe("");
+    const refused = await provision(HAND, "takeover-Pw-7", HAND);
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain(
+      `database ${HAND} was not created by the Panel for this environment`
+    );
+    expect(await passwordOf(HAND)).toBe(before);
+    expect(
+      (
+        await run([
+          "exec",
+          CONTAINER,
+          "psql",
+          "-U",
+          "postgres",
+          "-d",
+          HAND,
+          "-X",
+          "-Atc",
+          "SELECT answer FROM app_data",
+        ])
+      ).stdout
+    ).toBe("42");
+    // Nor is a role-only rerun (its database gone) a way in.
+    await superuser(`DROP DATABASE ${HAND} WITH (FORCE)`);
+    const roleOnly = await provision(NEW_DB, "takeover-Pw-8", HAND);
+    expect(roleOnly.code).not.toBe(0);
+    expect(roleOnly.stderr).toContain(
+      `role ${HAND} was not created by the Panel for this environment`
+    );
+    expect(await passwordOf(HAND)).toBe(before);
+  });
+
+  it("refuses a hand-made database with no role", async () => {
+    await superuser(`CREATE DATABASE ${ORPHAN}`);
+    const refused = await provision(ORPHAN, "orphan-Pw-9", ORPHAN);
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain(`database ${ORPHAN} exists with owner`);
+    expect(
+      (await superuser(`SELECT 1 FROM pg_roles WHERE rolname = '${ORPHAN}'`))
+        .stdout
+    ).toBe("");
   });
 
   it("refuses a database another role owns, before changing the password", async () => {
