@@ -237,6 +237,20 @@ function message(
       return t("mailCleared", { actor, environment: String(d.environment) });
     case "server.preflight":
       return t("serverPreflight", { actor, server: String(d.server) });
+    case "database_host.create":
+      return t("databaseHostCreated", {
+        actor,
+        label: String(d.label),
+        container: String(d.container),
+        server: String(d.server),
+      });
+    case "database_host.delete":
+      return t("databaseHostDeleted", {
+        actor,
+        label: String(d.label),
+        container: String(d.container),
+        server: String(d.server),
+      });
     case "terminal.open":
       return t("terminalOpened", { actor, server: String(d.server) });
     case "terminal.close":

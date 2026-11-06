@@ -12,6 +12,7 @@ import { appsRouter } from "@/server/routes/apps";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
 import { ciConnectionsRouter } from "@/server/routes/ci-connections";
+import { databaseHostsRouter } from "@/server/routes/database-hosts";
 import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
 import { deployLocksRouter } from "@/server/routes/deploy-locks";
@@ -105,6 +106,7 @@ export const app = createBaseApp()
   .route("/api/runs", runsRouter)
   .route("/api/backups", backupsRouter)
   .route("/api/databases", databasesRouter)
+  .route("/api/database-hosts", databaseHostsRouter)
   .route("/api/mail", mailRouter)
   .route("/api/mailpit-settings", mailpitSettingsRouter)
   .route("/api/mock-time", mockTimeRouter)

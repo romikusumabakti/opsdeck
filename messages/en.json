@@ -1301,7 +1301,16 @@
     "deployLockExpiryInvalid": "Pick an expiry in the future, at most 7 days ahead.",
     "deployLockChanged": "The deploy lock changed in the meantime. Reload and try again.",
     "deployForceUnlockReasonRequired": "Give a reason for the force unlock.",
-    "preflightFailed": "Could not reach the server over SSH to run the preflight"
+    "preflightFailed": "Could not reach the server over SSH to run the preflight",
+    "placementDatabaseName": "On an open server, name a shared database and its role starting with {prefix} (this project's key); ask an admin for other names.",
+    "placementDatabaseInUse": "Another environment on this database host already uses this database or role name; pick another name.",
+    "sharedDatabaseNamePrefix": "A shared database and its role must be named starting with {prefix} (this project's key).",
+    "databaseHostNotFound": "That database host is not registered.",
+    "databaseHostUnreachable": "Could not run a query as postgres in that container over SSH.",
+    "databaseHostExists": "That container is already registered as a database host.",
+    "databaseHostInUse": "Environments still use this database host; move them to another database first.",
+    "sharedDatabaseConfined": "This environment's database host is shared; you can only use this environment's own databases. Ask an admin for others.",
+    "sharedDatabaseServiceConfined": "This database container is shared with other environments; only an admin can control it or read its logs."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1895,7 +1904,9 @@
     "deployTargetCreated": "{actor} added a deploy target for {component} in {environment}",
     "deployTargetUpdated": "{actor} changed the deploy target for {component} in {environment} ({changes})",
     "deployTargetDeleted": "{actor} removed the deploy target for {component} from {environment}",
-    "serverPreflight": "{actor} ran a preflight on {server}"
+    "serverPreflight": "{actor} ran a preflight on {server}",
+    "databaseHostCreated": "{actor} registered database host {label} ({container}) on {server}",
+    "databaseHostDeleted": "{actor} removed database host {label} ({container}) from {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2579,6 +2590,24 @@
     "systemdInactive": "No systemd service",
     "containers": "Containers: {names}",
     "postgres": "Postgres containers",
-    "postgresNone": "No Postgres container found"
+    "postgresNone": "No Postgres container found",
+    "register": "Register",
+    "registering": "Registering…",
+    "registered": "Registered",
+    "registerTitle": "Register database host",
+    "registerDescription": "Environments can then get their own database and role in this Postgres container. The Panel checks that it can run a query as postgres in it.",
+    "registerFailed": "Could not register the database host",
+    "containerName": "Container",
+    "backupPath": "Backup path",
+    "backupPathHint": "A path inside the container.",
+    "label": "Label",
+    "hosts": "Database hosts",
+    "hostsNone": "No database host registered",
+    "hostRegistered": "Database host {label} registered",
+    "hostDeleted": "Database host {label} removed",
+    "deleteFailed": "Could not remove the database host",
+    "deleteHost": "Remove {label}",
+    "deleteHostTitle": "Remove database host {label}?",
+    "deleteHostBody": "Only the registration is removed; the container and its databases stay. A host that environments use can't be removed."
   }
 }

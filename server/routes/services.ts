@@ -16,6 +16,7 @@ import {
   uuidSchema,
 } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
+import { requireSharedDbServiceAccess } from "@/server/services/database-hosts";
 import {
   controlService,
   getAllServiceStatuses,
@@ -87,6 +88,12 @@ export const serviceLogsRouter = sessionRouter().get(
     if (!hasService(environment, role as ServiceRole)) {
       return new Response("Not found", { status: 404 });
     }
+    // A shared database container's logs show every environment on its host.
+    await requireSharedDbServiceAccess(
+      environment,
+      guard.session.user.role,
+      role as ServiceRole
+    );
 
     const lines = parseLines(c.req.query("lines"));
     const cfg = getServiceConfig(environment, role as ServiceRole);

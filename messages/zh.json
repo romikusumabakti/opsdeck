@@ -1301,7 +1301,16 @@
     "deployLockExpiryInvalid": "请选择未来的到期时间，最多 7 天后。",
     "deployLockChanged": "部署锁在此期间已更改。请重新加载后再试。",
     "deployForceUnlockReasonRequired": "请填写强制解锁的原因。",
-    "preflightFailed": "无法通过 SSH 连接服务器以运行预检"
+    "preflightFailed": "无法通过 SSH 连接服务器以运行预检",
+    "placementDatabaseName": "在开放的服务器上，共享数据库及其角色的名称必须以 {prefix}（本项目的键）开头；其他名称请联系管理员。",
+    "placementDatabaseInUse": "此数据库主机上的另一个环境已在使用此数据库或角色名称；请换一个名称。",
+    "sharedDatabaseNamePrefix": "共享数据库及其角色的名称必须以 {prefix}（本项目的键）开头。",
+    "databaseHostNotFound": "该数据库主机尚未注册。",
+    "databaseHostUnreachable": "无法通过 SSH 在该容器中以 postgres 身份运行查询。",
+    "databaseHostExists": "该容器已注册为数据库主机。",
+    "databaseHostInUse": "仍有环境在使用此数据库主机；请先将它们迁移到其他数据库。",
+    "sharedDatabaseConfined": "此环境的数据库主机是共享的；你只能使用此环境自己的数据库。其他数据库请联系管理员。",
+    "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1895,7 +1904,9 @@
     "deployTargetCreated": "{actor} 在 {environment} 中添加了 {component} 的部署目标",
     "deployTargetUpdated": "{actor} 更改了 {environment} 中 {component} 的部署目标（{changes}）",
     "deployTargetDeleted": "{actor} 从 {environment} 中删除了 {component} 的部署目标",
-    "serverPreflight": "{actor} 在 {server} 上运行了预检"
+    "serverPreflight": "{actor} 在 {server} 上运行了预检",
+    "databaseHostCreated": "{actor} 在 {server} 上注册了数据库主机 {label}（{container}）",
+    "databaseHostDeleted": "{actor} 从 {server} 移除了数据库主机 {label}（{container}）"
   },
   "jira": {
     "title": "Jira",
@@ -2579,6 +2590,24 @@
     "systemdInactive": "没有 systemd 服务",
     "containers": "容器：{names}",
     "postgres": "Postgres 容器",
-    "postgresNone": "未找到 Postgres 容器"
+    "postgresNone": "未找到 Postgres 容器",
+    "register": "注册",
+    "registering": "正在注册…",
+    "registered": "已注册",
+    "registerTitle": "注册数据库主机",
+    "registerDescription": "之后各环境可以在此 Postgres 容器中拥有自己的数据库和角色。Panel 会检查能否以 postgres 身份在其中运行查询。",
+    "registerFailed": "无法注册数据库主机",
+    "containerName": "容器",
+    "backupPath": "备份路径",
+    "backupPathHint": "容器内的路径。",
+    "label": "标签",
+    "hosts": "数据库主机",
+    "hostsNone": "尚未注册数据库主机",
+    "hostRegistered": "已注册数据库主机 {label}",
+    "hostDeleted": "已移除数据库主机 {label}",
+    "deleteFailed": "无法移除数据库主机",
+    "deleteHost": "移除 {label}",
+    "deleteHostTitle": "移除数据库主机 {label}？",
+    "deleteHostBody": "只会移除注册；容器及其数据库保留。正在被环境使用的主机无法移除。"
   }
 }

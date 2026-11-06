@@ -3,6 +3,7 @@ import {
   requireProjectPermission,
 } from "@/lib/authz";
 import { backupListCommand, parseBackupListing } from "@/lib/backup-listing";
+import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
 import { enqueue } from "@/lib/queue";
@@ -15,6 +16,11 @@ import {
   databaseNameSchema,
   uuidSchema,
 } from "@/lib/validation";
+import {
+  filterAllowedBackups,
+  requireAllowedBackup,
+  requireAllowedDatabaseNames,
+} from "@/server/services/database-hosts";
 
 type BackupListResult =
   | { success: true; data: Backup[] }
@@ -37,11 +43,9 @@ function resolveTargetDatabase(
 }
 
 // The SSH probe with no session/request state. Throws on failure.
-async function probeBackupList(environmentId: string): Promise<Backup[]> {
-  const environment = await loadEnvironmentWithServers(environmentId);
-  if (!environment) {
-    throw new Error("Environment not found");
-  }
+async function probeBackupList(
+  environment: EnvironmentWithServers
+): Promise<Backup[]> {
   const dbSvc = dbConfig(environment);
   // Match exactly what createDatabaseBackup writes — `.sql` / `.sql.gz` for
   // the SQL-script engines (postgres, mysql) and `.bak` for mssql. Anything
@@ -74,7 +78,7 @@ export async function getBackupList(
   environmentId: string
 ): Promise<BackupListResult> {
   // The Restore flow needs the list as much as the Backup tab does.
-  await requireAnyProjectPermission({ environmentId }, [
+  const { session } = await requireAnyProjectPermission({ environmentId }, [
     { database: ["backup"] },
     { database: ["restore"] },
   ]);
@@ -82,7 +86,15 @@ export async function getBackupList(
     return { success: false, error: "Invalid environment id" };
   }
   try {
-    const data = await probeBackupList(environmentId);
+    const environment = await loadEnvironmentWithServers(environmentId);
+    if (!environment) throw new Error("Environment not found");
+    // A shared host keeps every environment's backups in one directory; show
+    // only the caller's own.
+    const data = filterAllowedBackups(
+      environment,
+      session.user.role,
+      await probeBackupList(environment)
+    );
     return { success: true, data };
   } catch (error) {
     const message = (error as Error).message;
@@ -115,6 +127,7 @@ export async function createDatabaseBackup(
     dbConfig(environment),
     options.database
   );
+  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
 
   const compress = options.compress ?? true;
   const runId = await createRun({
@@ -161,6 +174,7 @@ export async function restoreDatabaseBackup(
   if (!environment) throw new Error("Environment not found");
   const dbSvc = dbConfig(environment);
   const database = resolveTargetDatabase(dbSvc, options.database);
+  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
 
   // Resolve an optional cross-environment source. A source equal to (or omitting)
   // the target reads the backup from the target's own dir as before. Any other
@@ -188,7 +202,11 @@ export async function restoreDatabaseBackup(
     if (dbConfig(source).dbType !== dbSvc.dbType) {
       throw new Error("Source environment must have the same database type");
     }
+    // The file comes from the source's backup directory.
+    await requireAllowedBackup(source, session.user.role, filename);
     sourceEnvironmentId = source.id;
+  } else {
+    await requireAllowedBackup(environment, session.user.role, filename);
   }
 
   const isDefault = database === dbSvc.dbName;
