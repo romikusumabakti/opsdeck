@@ -115,6 +115,62 @@ export async function savePlan(
   });
 }
 
+export const STALE_PROVISION_RUN_MS = 60 * 60_000;
+export const WORKER_RESTART_MESSAGE =
+  "Worker restarted during provisioning; retry";
+
+type Executor = Pick<typeof db, "update">;
+
+async function failSteps(
+  executor: Executor,
+  where: ReturnType<typeof eq>,
+  message: string
+): Promise<void> {
+  await executor
+    .update(provisioningSteps)
+    .set({ status: "failed", lastError: message, updatedAt: new Date() })
+    .where(and(where, eq(provisioningSteps.status, "running")));
+}
+
+/** Marks the environment's `running` steps failed (a run that ended abnormally). */
+export async function failRunningSteps(
+  environmentId: string,
+  message: string
+): Promise<void> {
+  await failSteps(
+    db,
+    eq(provisioningSteps.environmentId, environmentId),
+    message
+  );
+}
+
+/**
+ * Worker boot: there is a single worker, so a `provision` run still `started`
+ * has no live job behind it. Fails them and their `running` steps.
+ */
+export async function failStaleProvisionRuns(): Promise<number> {
+  return db.transaction(async (tx) => {
+    const failed = await tx
+      .update(runs)
+      .set({
+        status: "failed",
+        errorMessage: WORKER_RESTART_MESSAGE,
+        completedAt: new Date(),
+      })
+      .where(and(eq(runs.kind, "provision"), eq(runs.status, "started")))
+      .returning({ environmentId: runs.environmentId });
+    const envIds = [...new Set(failed.map((r) => r.environmentId))];
+    if (envIds.length > 0) {
+      await failSteps(
+        tx,
+        inArray(provisioningSteps.environmentId, envIds),
+        WORKER_RESTART_MESSAGE
+      );
+    }
+    return failed.length;
+  });
+}
+
 export async function getActiveProvisionRunId(
   environmentId: string
 ): Promise<string | null> {
@@ -146,7 +202,7 @@ export async function startProvisioningRun(
       sql`select pg_advisory_xact_lock(hashtextextended(${environmentId}::text, 0))`
     );
     const [active] = await tx
-      .select({ id: runs.id })
+      .select({ id: runs.id, runAt: runs.runAt })
       .from(runs)
       .where(
         and(
@@ -156,7 +212,26 @@ export async function startProvisioningRun(
         )
       )
       .limit(1);
-    if (active) return { conflict: true as const };
+    if (active) {
+      // A run older than any live one can be lost its job; fail it so the
+      // environment is not blocked for good.
+      if (Date.now() - active.runAt.getTime() < STALE_PROVISION_RUN_MS) {
+        return { conflict: true as const };
+      }
+      await tx
+        .update(runs)
+        .set({
+          status: "failed",
+          errorMessage: WORKER_RESTART_MESSAGE,
+          completedAt: new Date(),
+        })
+        .where(eq(runs.id, active.id));
+      await failSteps(
+        tx,
+        eq(provisioningSteps.environmentId, environmentId),
+        WORKER_RESTART_MESSAGE
+      );
+    }
     const run = one(
       await tx
         .insert(runs)

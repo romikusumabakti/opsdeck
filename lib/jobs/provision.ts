@@ -10,6 +10,7 @@ import {
   provisioningStepSpecSchema,
 } from "@/lib/provisioning/plan";
 import {
+  failRunningSteps,
   findNewestBuild,
   getProvisionRun,
   listSteps,
@@ -157,13 +158,26 @@ export async function runProvisioning(
   data: JobMap["provision/run.requested"]
 ): Promise<ProvisionJobResult> {
   const { environmentId, runId } = data;
+  const ctx: StepContext = { environmentId, runId, userId: null, secrets: [] };
+  try {
+    return await runSteps(ctx);
+  } catch (error) {
+    // Anything that escaped (a lost database connection, a missing run) would
+    // leave the run `started` and answer every retry with a 409. Close it,
+    // best-effort, then let BullMQ record the failure.
+    const raw = error instanceof Error ? error.message : String(error);
+    const message = redactSecrets(raw, ctx.secrets);
+    await failRunningSteps(environmentId, message).catch(() => {});
+    await failRun(runId, message).catch(() => {});
+    throw error;
+  }
+}
+
+async function runSteps(ctx: StepContext): Promise<ProvisionJobResult> {
+  const { environmentId, runId } = ctx;
   const run = await getProvisionRun(runId);
-  const ctx: StepContext = {
-    environmentId,
-    runId,
-    userId: run?.userId ?? null,
-    secrets: [],
-  };
+  if (!run) throw new Error(`Provision run ${runId} not found`);
+  ctx.userId = run.userId;
 
   for (const step of await listSteps(environmentId)) {
     if (step.status === "done") continue;
