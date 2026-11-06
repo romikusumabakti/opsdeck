@@ -436,6 +436,34 @@
       "saveLock": "保存锁定"
     }
   },
+  "provisioning": {
+    "title": "环境配置",
+    "description": "启动此环境：部署目录、共享数据库，然后进行首次部署。再次运行时会保留已完成的步骤。",
+    "provision": "开始配置",
+    "retry": "重试",
+    "running": "配置中…",
+    "viewLog": "查看日志",
+    "logTitle": "配置日志",
+    "emptyPlan": "暂无可配置内容。请先在环境设置中完成数据库绑定。",
+    "alreadyRunning": "此环境的配置已在运行",
+    "startFailed": "无法开始配置",
+    "status": {
+      "pending": "待处理",
+      "running": "进行中",
+      "done": "完成",
+      "failed": "失败"
+    },
+    "error": {
+      "missing_db_fields": "共享数据库信息不完整：请在环境设置中填写主机、数据库、角色和密码变量。",
+      "no_targets": "请先添加部署目标；配置会部署到这些目标。"
+    },
+    "step": {
+      "prepare_deploy_dir": "在 {server} 上准备 <code>{dir}</code>",
+      "create_database": "在 <code>{host}</code>（{server}）上创建角色和数据库 <code>{database}</code>",
+      "create_database_no_server": "在 <code>{host}</code> 上创建角色和数据库 <code>{database}</code>",
+      "deploy": "部署 {component} 最新的 <code>{branch}</code> 构建"
+    }
+  },
   "backupDb": {
     "title": "备份数据库",
     "subtitle": "为 {dbName} 创建新的备份快照。",
@@ -779,7 +807,27 @@
     "urlHint": "通过环境名称旁的链接图标打开。可选。",
     "urlInvalid": "请输入以 http:// 或 https:// 开头的完整 URL",
     "purpose": "用途",
-    "infraReadOnlyHint": "更改服务器、服务或数据库设置需要服务器管理权限。"
+    "infraReadOnlyHint": "更改服务器、服务或数据库设置需要服务器管理权限。",
+    "dbKind": "数据库位置",
+    "dbKindNone": "未设置",
+    "dbKinds": {
+      "shared": "共享数据库主机",
+      "container": "独立容器",
+      "external": "外部服务器"
+    },
+    "dbKindHint": "共享主机承载多个环境的数据库；配置时面板会在其上创建此环境的角色和数据库。其他类型请在下方手动配置。",
+    "databaseHost": "数据库主机",
+    "pickDatabaseHost": "选择数据库主机…",
+    "pickDatabaseHostRequired": "请选择数据库主机",
+    "databaseHostHint": "服务器、容器、引擎和备份路径均取自该主机。",
+    "dbRole": "数据库角色",
+    "dbPasswordVariable": "密码变量",
+    "pickPasswordVariable": "选择变量…",
+    "dbPasswordVariableHint": "此环境中保存角色密码的生成型或机密变量。请先在“变量”页面添加。",
+    "dbPasswordVariableCreateHint": "将保存角色密码的生成型或机密变量名称。保存后在“变量”页面创建。",
+    "sharedNameHint": "名称必须以小写项目键加下划线开头（仅限字母、数字和 _）。",
+    "useSuggestedNames": "使用建议名称",
+    "sharedNameInvalid": "请使用小写字母、数字或 _，以字母开头（最多 63 个字符）"
   },
   "environmentSettings": {
     "title": "环境设置",

@@ -52,6 +52,7 @@ import {
   rollbackTarget,
 } from "@/web/api/deploys";
 import type { EnvironmentWithServers } from "@/web/api/environments";
+import { ProvisioningPanel } from "../provisioning-panel";
 import { DeployLockPanel, useDeployLock } from "./deploy-lock";
 import { environmentServers, TargetFormDialog } from "./target-form-dialog";
 
@@ -108,6 +109,8 @@ export function DeploysClient({
         environmentId={environment.id}
         ownerId={environment.ownerId ?? null}
       />
+
+      <ProvisioningPanel environment={environment} targets={targets} />
 
       {targets.length === 0 ? (
         <div className="rounded-lg border bg-card">
