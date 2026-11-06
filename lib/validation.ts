@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { envVarNameSchema } from "@/lib/deploy/validation";
 import { isValidTimeZone } from "@/lib/iana-time-zone";
 import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
 import type { WorkingHours } from "@/lib/user-display";
@@ -45,6 +46,16 @@ export const databaseNameSchema = z
   .regex(
     /^[A-Za-z0-9_][A-Za-z0-9_$-]*$/,
     "Database name must start with a letter, digit, or underscore and contain only letters, digits, underscore, dollar, or hyphen"
+  );
+
+// Name of a shared database or its role (see lib/provisioning/database): a
+// Postgres identifier that never needs quoting — lowercase letters, digits
+// and underscore, starting with a letter, at most 63 bytes.
+export const sharedDatabaseNameSchema = z
+  .string()
+  .regex(
+    /^[a-z][a-z0-9_]{0,62}$/,
+    "Use lowercase letters, digits or '_', starting with a letter (at most 63)"
   );
 
 // ISO 8601 duration subset the mock-time UI emits: optional `-`, P[n]D, then
@@ -125,6 +136,15 @@ const environmentFields = z.object({
   dbUser: z.string().trim().max(255).nullish(),
   dbPassword: z.string().max(1024).nullish(),
   dbBackupPath: z.string().trim().min(1).max(1024).optional(),
+  // Where the database lives (null = a binding from before database kinds).
+  // A "shared" one sits in a registered database host: its server, container,
+  // engine and backup path come from the host (server/services/environments),
+  // and its database and role are named <project key>_<suffix>.
+  dbKind: z.enum(["shared", "container", "external"]).nullish(),
+  databaseHostId: z.uuid().nullish(),
+  dbRole: z.string().trim().min(1).max(63).nullish(),
+  // Name of the environment variable holding the role's password.
+  dbPasswordVariable: envVarNameSchema.nullish(),
 
   backendServerId: z.uuid(),
   backendServiceType: serviceTypeSchema,
@@ -181,14 +201,61 @@ const SERVICE_REQUIREMENTS = [
   },
 ] as const;
 
+// A shared database takes its server, container, engine and backup path from
+// the database host, so it needs the host (by id, or by server + container)
+// and its own names instead.
+const SHARED_DB_REQUIRED = ["dbName", "dbRole", "dbPasswordVariable"] as const;
+
+type SharedDbFields = Partial<
+  Pick<
+    z.infer<typeof environmentFields>,
+    | "dbKind"
+    | "dbName"
+    | "dbRole"
+    | "databaseHostId"
+    | "dbServerId"
+    | "dbServiceName"
+  >
+>;
+
+// The shared database and role names must be plain identifiers.
+function checkSharedDbNames(value: SharedDbFields, ctx: z.RefinementCtx) {
+  if (value.dbKind !== "shared") return;
+  for (const field of ["dbName", "dbRole"] as const) {
+    const name = value[field];
+    if (name != null && !sharedDatabaseNameSchema.safeParse(name).success) {
+      ctx.addIssue({
+        code: "custom",
+        path: [field],
+        message: "Invalid shared database name",
+      });
+    }
+  }
+}
+
 export const environmentInputSchema = environmentFields
   .extend({
     hasDatabase: z.boolean().default(true),
     hasFrontend: z.boolean().default(true),
   })
   .superRefine((value, ctx) => {
+    const required = (field: keyof typeof value) => {
+      if (value[field] == null) {
+        ctx.addIssue({ code: "custom", path: [field], message: "Required" });
+      }
+    };
     for (const { flag, fields } of SERVICE_REQUIREMENTS) {
       if (!value[flag]) continue;
+      if (flag === "hasDatabase" && value.dbKind === "shared") {
+        for (const field of SHARED_DB_REQUIRED) required(field);
+        if (!(value.databaseHostId || value.dbServerId)) {
+          required("databaseHostId");
+        }
+        if (!value.databaseHostId && value.dbServerId) {
+          required("dbServiceName");
+        }
+        continue;
+      }
       for (const field of fields) {
         if (value[field] === undefined) {
           ctx.addIssue({
@@ -199,14 +266,18 @@ export const environmentInputSchema = environmentFields
         }
       }
     }
+    checkSharedDbNames(value, ctx);
   });
 
 // A partial patch: the flags have no default here, so an absent flag leaves
 // the stored services alone (see server/services/environments#updateEnvironment).
-export const environmentUpdateSchema = environmentFields.partial().extend({
-  hasDatabase: z.boolean().optional(),
-  hasFrontend: z.boolean().optional(),
-});
+export const environmentUpdateSchema = environmentFields
+  .partial()
+  .extend({
+    hasDatabase: z.boolean().optional(),
+    hasFrontend: z.boolean().optional(),
+  })
+  .superRefine(checkSharedDbNames);
 export const serverUpdateSchema = serverInputSchema.partial();
 
 // =========================

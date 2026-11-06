@@ -1301,7 +1301,16 @@
     "deployLockExpiryInvalid": "Pilih waktu kedaluwarsa di masa depan, paling lama 7 hari lagi.",
     "deployLockChanged": "Kunci deploy berubah sementara itu. Muat ulang lalu coba lagi.",
     "deployForceUnlockReasonRequired": "Isi alasan untuk membuka kunci secara paksa.",
-    "preflightFailed": "Tidak bisa terhubung ke server lewat SSH untuk menjalankan preflight"
+    "preflightFailed": "Tidak bisa terhubung ke server lewat SSH untuk menjalankan preflight",
+    "placementDatabaseName": "Di server terbuka, beri nama database bersama dan role-nya yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
+    "placementDatabaseInUse": "Environment lain di host database ini sudah memakai nama database atau role ini; pilih nama lain.",
+    "sharedDatabaseNamePrefix": "Nama database bersama dan role-nya harus diawali {prefix} (kunci proyek ini).",
+    "databaseHostNotFound": "Host database itu belum terdaftar.",
+    "databaseHostUnreachable": "Tidak bisa menjalankan query sebagai postgres di container itu lewat SSH.",
+    "databaseHostExists": "Container itu sudah terdaftar sebagai host database.",
+    "databaseHostInUse": "Masih ada environment yang memakai host database ini; pindahkan dulu ke database lain.",
+    "sharedDatabaseConfined": "Host database environment ini dipakai bersama; kamu hanya bisa memakai database milik environment ini. Minta bantuan admin untuk yang lain.",
+    "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1895,7 +1904,9 @@
     "deployTargetCreated": "{actor} menambahkan target deploy {component} di {environment}",
     "deployTargetUpdated": "{actor} mengubah target deploy {component} di {environment} ({changes})",
     "deployTargetDeleted": "{actor} menghapus target deploy {component} dari {environment}",
-    "serverPreflight": "{actor} menjalankan preflight di {server}"
+    "serverPreflight": "{actor} menjalankan preflight di {server}",
+    "databaseHostCreated": "{actor} mendaftarkan host database {label} ({container}) di {server}",
+    "databaseHostDeleted": "{actor} menghapus host database {label} ({container}) dari {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2579,6 +2590,24 @@
     "systemdInactive": "Tidak ada service systemd",
     "containers": "Container: {names}",
     "postgres": "Container Postgres",
-    "postgresNone": "Tidak ada container Postgres"
+    "postgresNone": "Tidak ada container Postgres",
+    "register": "Daftarkan",
+    "registering": "Mendaftarkan…",
+    "registered": "Terdaftar",
+    "registerTitle": "Daftarkan host database",
+    "registerDescription": "Environment lalu bisa mendapat database dan role sendiri di container Postgres ini. Panel memeriksa bahwa ia bisa menjalankan query sebagai postgres di dalamnya.",
+    "registerFailed": "Gagal mendaftarkan host database",
+    "containerName": "Container",
+    "backupPath": "Path backup",
+    "backupPathHint": "Path di dalam container.",
+    "label": "Label",
+    "hosts": "Host database",
+    "hostsNone": "Belum ada host database terdaftar",
+    "hostRegistered": "Host database {label} terdaftar",
+    "hostDeleted": "Host database {label} dihapus",
+    "deleteFailed": "Gagal menghapus host database",
+    "deleteHost": "Hapus {label}",
+    "deleteHostTitle": "Hapus host database {label}?",
+    "deleteHostBody": "Hanya pendaftarannya yang dihapus; container dan database-nya tetap ada. Host yang dipakai environment tidak bisa dihapus."
   }
 }

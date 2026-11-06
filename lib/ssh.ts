@@ -1,6 +1,24 @@
 import { NodeSSH } from "node-ssh";
 import type { ClientChannel } from "ssh2";
 
+/** Replaces every occurrence of each non-empty secret with `[redacted]`. */
+export function redactSecrets(message: string, secrets: string[]): string {
+  let out = message;
+  // Longest first, so a secret that contains another is removed whole.
+  for (const secret of secrets
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)) {
+    out = out.split(secret).join("[redacted]");
+  }
+  return out;
+}
+
+export type RemoteCommandOptions = {
+  timeoutMs?: number;
+  stdin?: string;
+  secrets?: string[];
+};
+
 export async function executeRemoteCommand(
   {
     host,
@@ -8,12 +26,21 @@ export async function executeRemoteCommand(
     password,
   }: { host: string; username: string; password: string },
   command: string,
-  // Wall-clock bound on the remote command. Defaults to 10s to fail fast on
-  // page-render paths (db/backup listing). Callers running commands that
-  // legitimately take longer — e.g. `systemctl restart` waiting for a service
-  // to come back up — must pass a larger value to avoid a false timeout.
-  timeoutMs = 10000
+  // Wall-clock bound on the remote command (a number, or `timeoutMs` in the
+  // options form). Defaults to 10s to fail fast on page-render paths
+  // (db/backup listing). Callers running commands that legitimately take
+  // longer — e.g. `systemctl restart` waiting for a service to come back up —
+  // must pass a larger value to avoid a false timeout. `stdin` is written to
+  // the command's standard input, for input that must stay out of argv (SQL
+  // carrying a password verifier). `secrets` are redacted from the thrown
+  // error and the log, since a failing tool may echo its input.
+  options: number | RemoteCommandOptions = {}
 ) {
+  const {
+    timeoutMs = 10000,
+    stdin,
+    secrets = [],
+  } = typeof options === "number" ? { timeoutMs: options } : options;
   // Fresh client per call: a shared singleton races when concurrent callers
   // (e.g. parallel worker jobs, overlapping backup/restore requests) all
   // connect/dispose the same instance and tear down each other's session.
@@ -27,7 +54,9 @@ export async function executeRemoteCommand(
     // clock and tear the connection down if it overruns — otherwise a stuck
     // remote command (locked psql, slow disk) blocks the caller indefinitely.
     const result = await Promise.race([
-      ssh.execCommand(command),
+      stdin === undefined
+        ? ssh.execCommand(command)
+        : ssh.execCommand(command, { stdin }),
       new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error(`SSH command timed out after ${timeoutMs}ms`)),
@@ -51,6 +80,12 @@ export async function executeRemoteCommand(
 
     return result.stdout;
   } catch (error) {
+    if (secrets.length > 0) {
+      const message = error instanceof Error ? error.message : String(error);
+      const redacted = new Error(redactSecrets(message, secrets));
+      console.error("SSH Error:", redacted.message);
+      throw redacted;
+    }
     console.error("SSH Error:", error);
     throw error;
   } finally {
