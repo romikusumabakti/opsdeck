@@ -503,21 +503,82 @@ exit 0
     it("restore without dropping or recreating the database", () => {
       for (const cmd of restores) {
         expect(cmd).not.toMatch(/(DROP|CREATE) DATABASE/);
-        expect(cmd).toContain(
-          "psql -X -q -v ON_ERROR_STOP=on -U 'pcan_sb' -d 'pcan_sb' -c 'DROP OWNED BY CURRENT_USER' || exit 1"
-        );
-        expect(cmd).toMatch(
-          /\| psql -X -q -v ON_ERROR_STOP=on -U 'pcan_sb' -d 'pcan_sb' > \/dev\/null$/
-        );
         // The role filter knows only the role itself.
         expect(cmd).toContain("awk -v roles='pcan_sb' ");
       }
     });
 
-    it("check the dump is readable before emptying the database", () => {
-      const cmd = restores[0] ?? "";
-      expect(cmd.indexOf("test -r '/b/pcan_sb_1.sql'")).toBeGreaterThan(-1);
-      expect(cmd.indexOf("test -r")).toBeLessThan(cmd.indexOf("DROP OWNED BY"));
+    it("reset and replay in one psql -1 session, no separate DROP OWNED call", () => {
+      for (const cmd of restores) {
+        expect(cmd.match(/\bpsql\b/g)).toHaveLength(1);
+        expect(cmd).not.toContain("-c 'DROP OWNED");
+        expect(cmd.match(/DROP OWNED BY CURRENT_USER/g)).toHaveLength(1);
+        expect(cmd).toContain("{ echo 'DROP OWNED BY CURRENT_USER;'; ");
+        expect(cmd).toMatch(
+          /; \} \| awk -v roles='pcan_sb' '[\s\S]*' \| psql -X -q -1 -v ON_ERROR_STOP=on -U 'pcan_sb' -d 'pcan_sb' > \/dev\/null$/
+        );
+        expect(cmd.startsWith("set -o pipefail; ")).toBe(true);
+      }
+      expect(restores[0]).toContain(
+        "{ echo 'DROP OWNED BY CURRENT_USER;'; cat '/b/pcan_sb_1.sql'; }"
+      );
+      expect(restores[1]).toContain(
+        "{ echo 'DROP OWNED BY CURRENT_USER;'; gunzip -c '/b/pcan_sb_1.sql.gz'; }"
+      );
+    });
+
+    it("check the whole file before touching the database", () => {
+      const [plain = "", gz = ""] = restores;
+      const session = (cmd: string) => cmd.indexOf("{ echo 'DROP OWNED");
+      expect(plain.indexOf("test -r '/b/pcan_sb_1.sql'")).toBeGreaterThan(-1);
+      expect(plain.indexOf("test -r")).toBeLessThan(session(plain));
+      expect(plain).not.toContain("gunzip -t");
+      expect(
+        gz.indexOf("gunzip -t '/b/pcan_sb_1.sql.gz' || {")
+      ).toBeGreaterThan(-1);
+      expect(gz.indexOf("gunzip -t")).toBeLessThan(session(gz));
+    });
+
+    it("the role filter keeps the leading DROP OWNED line", () => {
+      // The real pipeline up to psql, run against a fixture file.
+      const dir = mkdtempSync(join(tmpdir(), "pg-shared-restore-"));
+      const source = join(dir, "pcan_sb_1.sql");
+      writeFileSync(
+        source,
+        "ALTER TABLE t OWNER TO postgres;\nALTER TABLE t OWNER TO pcan_sb;\n"
+      );
+      const cmd = pgSharedRestorePipeline(
+        "pcan_sb",
+        "pcan_sb",
+        source,
+        false
+      ).replace(/ \| psql .*$/, "");
+      const out = spawnSync("bash", ["-c", cmd], { encoding: "utf8" });
+      rmSync(dir, { recursive: true });
+      expect(out.stdout).toBe(
+        "DROP OWNED BY CURRENT_USER;\nALTER TABLE t OWNER TO pcan_sb;\n"
+      );
+    });
+
+    it("stops before the database on a truncated .gz", () => {
+      const dir = mkdtempSync(join(tmpdir(), "pg-shared-restore-"));
+      const source = join(dir, "pcan_sb_1.sql.gz");
+      const gz = spawnSync("gzip", ["-c"], {
+        input: "SELECT 1;\n".repeat(5000),
+      }).stdout as Buffer;
+      writeFileSync(source, gz.subarray(0, Math.floor(gz.length / 2)));
+      // psql swapped for a marker: reaching it would mean the DB was touched.
+      const cmd = pgSharedRestorePipeline(
+        "pcan_sb",
+        "pcan_sb",
+        source,
+        true
+      ).replace(/ \| psql .*$/, " | { cat > /dev/null; echo REACHED; }");
+      const out = spawnSync("bash", ["-c", cmd], { encoding: "utf8" });
+      rmSync(dir, { recursive: true });
+      expect(out.status).not.toBe(0);
+      expect(out.stdout).not.toContain("REACHED");
+      expect(out.stderr).toContain("is not a complete gzip file");
     });
 
     it("quote a hostile role or path", () => {
