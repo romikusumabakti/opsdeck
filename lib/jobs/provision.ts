@@ -168,7 +168,7 @@ export async function runProvisioning(
     const raw = error instanceof Error ? error.message : String(error);
     const message = redactSecrets(raw, ctx.secrets);
     await failRunningSteps(environmentId, message).catch(() => {});
-    await failRun(runId, message).catch(() => {});
+    await failRun(runId, message, { onlyIfStarted: true }).catch(() => {});
     throw error;
   }
 }
@@ -177,6 +177,15 @@ async function runSteps(ctx: StepContext): Promise<ProvisionJobResult> {
   const { environmentId, runId } = ctx;
   const run = await getProvisionRun(runId);
   if (!run) throw new Error(`Provision run ${runId} not found`);
+  if (run.status !== "started") {
+    // BullMQ stalled recovery can redeliver a job whose run was already
+    // closed (failed by the boot sweep or the stale check, or finished).
+    // Running its steps again would act outside any open run.
+    console.log(
+      `Provision run ${runId} is ${run.status}, not started; skipping redelivered job`
+    );
+    return { status: run.status === "success" ? "success" : "failed" };
+  }
   ctx.userId = run.userId;
 
   for (const step of await listSteps(environmentId)) {
@@ -200,11 +209,15 @@ async function runSteps(ctx: StepContext): Promise<ProvisionJobResult> {
       const message = redactSecrets(raw, ctx.secrets);
       await markStep(step.id, "failed", { error: message, runId });
       await appendRunOutput(runId, `✖ ${label}: ${message}`);
-      await failRun(runId, message);
+      await failRun(runId, message, { onlyIfStarted: true });
       return { status: "failed" };
     }
   }
   await appendRunOutput(runId, "Provisioning complete");
-  await completeRun(runId);
+  if (!(await completeRun(runId, { onlyIfStarted: true }))) {
+    // Closed under us (e.g. the stale check failed it): leave it failed.
+    console.log(`Provision run ${runId} was closed before it completed`);
+    return { status: "failed" };
+  }
   return { status: "success" };
 }

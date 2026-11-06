@@ -9,6 +9,7 @@ import {
   environments,
   type ProvisioningStep,
   provisioningSteps,
+  type Run,
   runs,
   servers,
 } from "@/lib/db/schema";
@@ -268,11 +269,17 @@ export async function markStep(
     .where(eq(provisioningSteps.id, id));
 }
 
-export async function getProvisionRun(
-  runId: string
-): Promise<{ environmentId: string; userId: string | null } | null> {
+export async function getProvisionRun(runId: string): Promise<{
+  environmentId: string;
+  userId: string | null;
+  status: Run["status"];
+} | null> {
   const [row] = await db
-    .select({ environmentId: runs.environmentId, userId: runs.userId })
+    .select({
+      environmentId: runs.environmentId,
+      userId: runs.userId,
+      status: runs.status,
+    })
     .from(runs)
     .where(eq(runs.id, runId));
   return row ?? null;
