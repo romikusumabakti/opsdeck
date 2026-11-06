@@ -29,7 +29,12 @@ const cf = vi.hoisted(() => ({
   >,
   gets: [] as string[][],
   puts: 0,
-  apps: [] as { id: string; name: string; domain: string }[],
+  apps: [] as {
+    id: string;
+    name: string;
+    domain: string;
+    policies?: { id: string }[];
+  }[],
   records: [] as Record_[],
   writes: [] as string[],
   accessIdpId: "idp-1" as string | null,
@@ -39,6 +44,8 @@ const cf = vi.hoisted(() => ({
 
 const db = vi.hoisted(() => ({
   lockKeys: [] as string[],
+  // The binding's Access policy as stored; null = public.
+  bindingPolicyId: "pol-1" as string | null,
   domains: {} as Record<
     string,
     { accessAppId: string | null; dnsRecordId: string | null }
@@ -47,7 +54,9 @@ const db = vi.hoisted(() => ({
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 const hostnames = (config: Record<string, unknown>) =>
-  (config.ingress as { hostname?: string }[]).map((r) => r.hostname ?? "*");
+  ((config.ingress ?? []) as { hostname?: string }[]).map(
+    (r) => r.hostname ?? "*"
+  );
 
 vi.mock("@/lib/cloudflare/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/cloudflare/api")>();
@@ -90,6 +99,7 @@ vi.mock("@/lib/cloudflare/api", async (importOriginal) => {
           id: `app-${++cf.seq}`,
           name: app.name,
           domain: app.domain,
+          policies: [{ id: app.policyId }],
         };
         cf.apps.push(created);
         cf.writes.push("create_app");
@@ -142,6 +152,10 @@ vi.mock("@/lib/domains/repository", () => ({
           originHost: "localhost",
         }
       : undefined,
+  getDomain: async (env: string) => ({
+    environmentId: env,
+    accessPolicyId: db.bindingPolicyId,
+  }),
   getZoneCloudflareId: async (id: string) =>
     id === "zone-row-1" ? "cf-zone-1" : undefined,
   setDomainAccessAppId: async (env: string, accessAppId: string) => {
@@ -248,6 +262,7 @@ const { runProvisioning } = await import("@/lib/jobs/provision");
 
 const ctx = (environmentId = ENV_A) => ({ environmentId, secrets: [] });
 const route = (hostname: string, service = "http://localhost:8091") => ({
+  zoneId: "zone-row-1",
   remoteTunnelId: "rt-1",
   hostname,
   service,
@@ -274,11 +289,29 @@ beforeEach(() => {
   cf.failWith = null;
   cf.seq = 0;
   db.lockKeys = [];
+  db.bindingPolicyId = "pol-1";
   db.domains = {};
   job.steps = [];
   job.log = [];
   job.run = null;
   locks.clear();
+});
+
+// Our record: what createProxiedCname makes for ENV_A.
+const ours = (): Record_ => ({
+  id: "rec-ours",
+  name: HOST_A,
+  type: "CNAME",
+  content: `${CF_TUNNEL}.cfargotunnel.com`,
+  proxied: true,
+  comment: `opsdeck:${ENV_A}`,
+});
+const foreign = (): Record_ => ({
+  id: "foreign",
+  name: HOST_A,
+  type: "A",
+  content: "1.2.3.4",
+  proxied: false,
 });
 
 describe("tunnel_route", () => {
@@ -307,12 +340,49 @@ describe("tunnel_route", () => {
     );
   });
 
-  it("writes nothing when the route is already there", async () => {
-    await tunnelRoute(
-      ctx(),
-      route("panel.example.net", "http://localhost:8000")
+  it("adopts a same-service route without a write when DNS is free", async () => {
+    cf.config.ingress = [
+      { hostname: HOST_A, service: "http://localhost:8091" },
+      ...live().ingress,
+    ];
+    await expect(tunnelRoute(ctx(), route(HOST_A))).resolves.toContain(
+      "already on dss-srv-113"
     );
     expect(cf.writes).toEqual([]);
+  });
+
+  it("adopts a same-service route when DNS is ours", async () => {
+    cf.config.ingress = [
+      { hostname: HOST_A, service: "http://localhost:8091" },
+      ...live().ingress,
+    ];
+    cf.records = [ours()];
+    await tunnelRoute(ctx(), route(HOST_A));
+    expect(cf.writes).toEqual([]);
+  });
+
+  it("refuses to adopt a same-service route when DNS is someone else's", async () => {
+    // E.g. production `panel` on the same tunnel, published by hand.
+    cf.records = [
+      {
+        ...foreign(),
+        name: "panel.example.net",
+        type: "CNAME",
+        content: `${CF_TUNNEL}.cfargotunnel.com`,
+        proxied: true,
+        comment: null,
+      },
+    ];
+    await expect(
+      tunnelRoute(
+        ctx(),
+        route("panel.example.net", "http://localhost:8000")
+      )
+    ).rejects.toThrow(
+      `DNS record CNAME ${CF_TUNNEL}.cfargotunnel.com already exists for panel.example.net`
+    );
+    expect(cf.writes).toEqual([]);
+    expect(cf.gets).toEqual([]);
   });
 
   it("fails without a write when the hostname routes elsewhere", async () => {
@@ -323,15 +393,47 @@ describe("tunnel_route", () => {
     );
     expect(cf.writes).toEqual([]);
   });
+
+  it.each([
+    ["no config", {}],
+    ["an empty ingress", { ingress: [] }],
+    [
+      "no catch-all",
+      {
+        ingress: [
+          {
+            hostname: "panel.example.net",
+            service: "http://localhost:8000",
+          },
+        ],
+      },
+    ],
+  ])("refuses to PUT a tunnel config with %s", async (_label, config) => {
+    cf.config = config;
+    await expect(tunnelRoute(ctx(), route(HOST_A))).rejects.toThrow(
+      /refusing to overwrite it/
+    );
+    expect(cf.writes).toEqual([]);
+  });
 });
 
 describe("access_app", () => {
-  const params = { hostname: HOST_A, policyId: "pol-1" };
+  const params = {
+    zoneId: "zone-row-1",
+    remoteTunnelId: "rt-1",
+    hostname: HOST_A,
+    policyId: "pol-1",
+  };
 
   it("creates a Panel-tagged app and stores its id", async () => {
     await accessApp(ctx(), params);
     expect(cf.apps).toEqual([
-      { id: "app-1", name: `opsdeck:${ENV_A}`, domain: HOST_A },
+      {
+        id: "app-1",
+        name: `opsdeck:${ENV_A}`,
+        domain: HOST_A,
+        policies: [{ id: "pol-1" }],
+      },
     ]);
     expect(db.domains[ENV_A]?.accessAppId).toBe("app-1");
   });
@@ -343,6 +445,22 @@ describe("access_app", () => {
     expect(cf.writes).toEqual(["create_app"]);
     expect(cf.apps).toHaveLength(1);
     expect(db.domains[ENV_A]?.accessAppId).toBe("app-1");
+  });
+
+  it("refuses to reuse a tagged app that lacks the planned policy", async () => {
+    cf.apps = [
+      {
+        id: "x",
+        name: `opsdeck:${ENV_A}`,
+        domain: HOST_A,
+        policies: [{ id: "pol-other" }],
+      },
+    ];
+    await expect(accessApp(ctx(), params)).rejects.toThrow(
+      `Access app opsdeck:${ENV_A} uses another policy`
+    );
+    expect(cf.writes).toEqual([]);
+    expect(db.domains[ENV_A]).toBeUndefined();
   });
 
   it("fails without a write when another app covers the hostname", async () => {
@@ -362,6 +480,15 @@ describe("access_app", () => {
     expect(cf.writes).toEqual([]);
   });
 
+  it("fails before creating anything when the hostname's DNS is foreign", async () => {
+    cf.records = [foreign()];
+    await expect(accessApp(ctx(), params)).rejects.toThrow(
+      `DNS record A 1.2.3.4 already exists for ${HOST_A}`
+    );
+    expect(cf.writes).toEqual([]);
+    expect(db.domains[ENV_A]).toBeUndefined();
+  });
+
   it("fails before any call when the account has no identity provider", async () => {
     cf.accessIdpId = null;
     await expect(accessApp(ctx(), params)).rejects.toThrow(
@@ -377,13 +504,14 @@ describe("dns_record", () => {
     hostname: HOST_A,
     remoteTunnelId: "rt-1",
   };
-  const ours = (): Record_ => ({
-    id: "rec-ours",
-    name: HOST_A,
-    type: "CNAME",
-    content: `${CF_TUNNEL}.cfargotunnel.com`,
-    proxied: true,
-    comment: `opsdeck:${ENV_A}`,
+  const ourApp = (policyId = "pol-1") => ({
+    id: "app-ours",
+    name: `opsdeck:${ENV_A}`,
+    domain: HOST_A,
+    policies: [{ id: policyId }],
+  });
+  beforeEach(() => {
+    cf.apps = [ourApp()];
   });
 
   it("creates a tagged proxied CNAME and stores its id", async () => {
@@ -414,13 +542,48 @@ describe("dns_record", () => {
     expect(cf.writes).toEqual([]);
     expect(db.domains[ENV_A]).toBeUndefined();
   });
+
+  it.each([
+    [
+      "no Access app protects it",
+      [],
+      `No Access app protects ${HOST_A}; retry the Access app step`,
+    ],
+    [
+      "someone else's app covers it",
+      [{ id: "x", name: "HRIS (manual)", domain: HOST_A }],
+      `Access app HRIS (manual) covers ${HOST_A} instead of the Panel's`,
+    ],
+    [
+      "our app lost the policy",
+      [ourApp("pol-other")],
+      `Access app opsdeck:${ENV_A} uses another policy`,
+    ],
+  ])("does not publish when %s", async (_label, apps, message) => {
+    cf.apps = apps;
+    await expect(dnsRecord(ctx(), params)).rejects.toThrow(message);
+    expect(cf.writes).toEqual([]);
+    expect(db.domains[ENV_A]).toBeUndefined();
+  });
+
+  it("needs no Access app for a public binding", async () => {
+    db.bindingPolicyId = null;
+    cf.apps = [];
+    await dnsRecord(ctx(), params);
+    expect(cf.writes).toEqual(["create_dns"]);
+  });
 });
 
 describe("in the provisioning run", () => {
   function seed(kinds: string[]) {
     const params: Record<string, Record<string, unknown>> = {
       tunnel_route: route(HOST_A),
-      access_app: { hostname: HOST_A, policyId: "pol-1" },
+      access_app: {
+        zoneId: "zone-row-1",
+        remoteTunnelId: "rt-1",
+        hostname: HOST_A,
+        policyId: "pol-1",
+      },
       dns_record: {
         zoneId: "zone-row-1",
         hostname: HOST_A,
@@ -438,11 +601,11 @@ describe("in the provisioning run", () => {
   }
   const run = () => runProvisioning({ environmentId: ENV_A, runId: RUN_ID });
 
-  it("runs route, Access app and DNS record and stores both ids", async () => {
-    seed(["tunnel_route", "access_app", "dns_record"]);
+  it("runs Access app, route and DNS record and stores both ids", async () => {
+    seed(["access_app", "tunnel_route", "dns_record"]);
     await expect(run()).resolves.toEqual({ status: "success" });
     expect(job.steps.map((s) => s.status)).toEqual(["done", "done", "done"]);
-    expect(cf.writes).toEqual(["put_tunnel", "create_app", "create_dns"]);
+    expect(cf.writes).toEqual(["create_app", "put_tunnel", "create_dns"]);
     expect(db.domains[ENV_A]).toEqual({
       accessAppId: "app-1",
       dnsRecordId: "rec-2",
@@ -452,28 +615,40 @@ describe("in the provisioning run", () => {
     );
   });
 
-  it("resumes after a failed DNS step with the same Access app", async () => {
-    seed(["tunnel_route", "access_app", "dns_record"]);
-    cf.records = [
-      {
-        id: "foreign",
-        name: HOST_A,
-        type: "A",
-        content: "1.2.3.4",
-        proxied: false,
-      },
-    ];
-    await expect(run()).resolves.toEqual({ status: "failed" });
-    expect(job.steps.map((s) => s.status)).toEqual(["done", "done", "failed"]);
-    expect(job.steps[2]?.lastError).toBe(
-      `DNS record A 1.2.3.4 already exists for ${HOST_A}`
-    );
+  it.each([
+    ["with a policy", ["access_app", "tunnel_route", "dns_record"], "pol-1"],
+    ["without a policy", ["tunnel_route", "dns_record"], null],
+  ])(
+    "makes zero Cloudflare writes when the hostname's DNS is foreign (%s)",
+    async (_label, kinds, policyId) => {
+      db.bindingPolicyId = policyId;
+      seed(kinds);
+      cf.records = [foreign()];
+      const before = structuredClone(cf.config);
+      await expect(run()).resolves.toEqual({ status: "failed" });
+      expect(cf.writes).toEqual([]);
+      expect(cf.config).toEqual(before);
+      expect(cf.apps).toEqual([]);
+      expect(job.steps.map((s) => s.status)).toEqual([
+        "failed",
+        ...kinds.slice(1).map(() => "pending"),
+      ]);
+      expect(job.steps[0]?.lastError).toBe(
+        `DNS record A 1.2.3.4 already exists for ${HOST_A}`
+      );
+    }
+  );
 
-    // The clash is removed by hand; the retry redoes only the DNS step.
+  it("resumes after the clash is removed, writing each object once", async () => {
+    seed(["access_app", "tunnel_route", "dns_record"]);
+    cf.records = [foreign()];
+    await expect(run()).resolves.toEqual({ status: "failed" });
+
+    // The clash is removed by hand; the retry runs every step.
     cf.records = [];
     job.run = null;
     await expect(run()).resolves.toEqual({ status: "success" });
-    expect(cf.writes).toEqual(["put_tunnel", "create_app", "create_dns"]);
+    expect(cf.writes).toEqual(["create_app", "put_tunnel", "create_dns"]);
     expect(cf.apps).toHaveLength(1);
   });
 
