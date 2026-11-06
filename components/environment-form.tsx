@@ -35,9 +35,9 @@ import type {
 } from "@/lib/db/schema";
 import {
   DB_KINDS,
-  databaseBindingPayload,
   suggestSharedDbName,
 } from "@/lib/environment-database-binding";
+import { buildEnvironmentPayload } from "@/lib/environment-submit-payload";
 import { backendService, dbAdminUser, findService } from "@/lib/services";
 import { sharedDatabaseNameSchema } from "@/lib/validation";
 import type { Serialized } from "@/web/api/client";
@@ -378,92 +378,7 @@ export function EnvironmentForm({
       form.reset({ ...form.getValues(), ...values });
       return;
     }
-    const {
-      dbPassword,
-      backendMockTimeApiKey,
-      dbServerId,
-      dbServiceType,
-      dbServiceName,
-      dbType,
-      dbName,
-      dbUser,
-      dbBackupPath,
-      dbKind,
-      databaseHostId,
-      dbRole,
-      dbPasswordVariable,
-      frontendServerId,
-      frontendServiceType,
-      frontendServiceName,
-      ...rest
-    } = values;
-    // A switched-off service sends only its flag (the server then deletes the
-    // row on edit, or never creates it); a switched-on one sends its fields.
-    // A shared database sends its host, names and password variable; the
-    // server derives server, container, engine and backup path from the host.
-    const binding = databaseBindingPayload({
-      dbKind,
-      databaseHostId,
-      dbRole,
-      dbPasswordVariable,
-    });
-    const database = sharedDb
-      ? { dbName, ...binding }
-      : values.hasDatabase
-        ? {
-            ...binding,
-            dbServerId,
-            dbServiceType,
-            dbServiceName,
-            dbType,
-            dbName,
-            dbUser: dbUser.trim() ? dbUser.trim() : null,
-            dbBackupPath,
-          }
-        : {};
-    const frontend = values.hasFrontend
-      ? { frontendServerId, frontendServiceType, frontendServiceName }
-      : {};
-    const base = {
-      ...rest,
-      ...database,
-      ...frontend,
-      backendMockTimeApiUrl: values.backendMockTimeApiUrl
-        ? values.backendMockTimeApiUrl
-        : null,
-      // "" from the picker/input means "unset".
-      kind: values.kind ? values.kind : null,
-      ownerId: values.ownerId || null,
-      host: values.host.trim() ? values.host.trim() : null,
-      url: values.url.trim() ? values.url.trim() : null,
-    };
-    // On create: persist password (null for postgres, which never uses one). On
-    // edit: only include it when the user typed something — empty means "keep
-    // stored value". A blank dbUser always stores null, i.e. "engine default".
-    const withPassword =
-      !values.hasDatabase || sharedDb
-        ? base
-        : mode.type === "create"
-          ? {
-              ...base,
-              dbPassword: TCP_AUTH_DB_TYPES.has(values.dbType)
-                ? dbPassword
-                : null,
-            }
-          : dbPassword
-            ? { ...base, dbPassword }
-            : base;
-    // Same edit semantics as dbPassword: blank = keep stored key. On create,
-    // blank means "no auth" → persist null.
-    const payload =
-      mode.type === "create"
-        ? {
-            ...withPassword,
-            backendMockTimeApiKey: backendMockTimeApiKey || null,
-          }
-        : backendMockTimeApiKey
-          ? { ...withPassword, backendMockTimeApiKey }
-          : withPassword;
+    const payload = buildEnvironmentPayload(values, mode.type);
     const result =
       mode.type === "create"
         ? await createEnvironment(payload)
