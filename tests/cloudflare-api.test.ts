@@ -12,6 +12,7 @@ import {
   listTunnels,
   putTunnelConfig,
   type TunnelConfig,
+  UnsafeTunnelConfigError,
   verifyAccount,
   withIngressRoute,
 } from "@/lib/cloudflare/api";
@@ -127,17 +128,27 @@ describe("tunnel configuration", () => {
     responses.push(ok({ tunnel_id: "t1", version: 3, config }), ok({}));
     const read = await getTunnelConfig(creds, "t1");
     expect(read).toEqual(config);
-    await putTunnelConfig(creds, "t1", read);
+    await putTunnelConfig(creds, "t1", withIngressRoute(read, "a", "b").config);
     expect(calls[1]).toEqual({
       url: `${base}/cfd_tunnel/t1/configurations`,
       method: "PUT",
-      body: { config },
+      body: {
+        config: {
+          ...config,
+          ingress: [{ hostname: "a", service: "b" }, ...config.ingress],
+        },
+      },
     });
   });
 
-  it("treats a missing config as an empty ingress", async () => {
+  it("returns a missing config as is, never as an empty ingress", async () => {
     responses.push(ok({ tunnel_id: "t1", config: null }));
-    expect(await getTunnelConfig(creds, "t1")).toEqual({ ingress: [] });
+    const read = await getTunnelConfig(creds, "t1");
+    expect(read).toEqual({});
+    // The config a PUT would carry can't be built from it.
+    expect(() => withIngressRoute(read, "a.example.com", "http://x:1")).toThrow(
+      UnsafeTunnelConfigError
+    );
   });
 });
 
@@ -206,17 +217,49 @@ describe("withIngressRoute", () => {
     ).toThrow("CI.DSSconsulting.id already routes to http://localhost:8000");
   });
 
-  it("appends the rule and a catch-all when there is none", () => {
-    const { config, changed } = withIngressRoute(
+  it.each([
+    ["no ingress key", { "warp-routing": { enabled: false } }],
+    ["a non-array ingress", { ingress: { service: "http_status:404" } }],
+    ["an empty ingress", { ingress: [] }],
+    [
+      "no catch-all last",
       { ingress: [{ hostname: "a.example.com", service: "http://x:1" }] },
-      "b.example.com",
-      "http://y:2"
+    ],
+    [
+      "a catch-all that is not last",
+      {
+        ingress: [
+          { service: "http_status:404" },
+          { hostname: "a.example.com", service: "http://x:1" },
+        ],
+      },
+    ],
+  ])("refuses a config with %s", (_label, config) => {
+    expect(() =>
+      withIngressRoute(config, "b.example.com", "http://y:2")
+    ).toThrow(UnsafeTunnelConfigError);
+  });
+
+  it("inserts before the first wildcard rule", () => {
+    const original: TunnelConfig = {
+      ingress: [
+        { hostname: "ci.dssconsulting.id", service: "http://localhost:8000" },
+        { hostname: "*.dssconsulting.id", service: "http://localhost:9" },
+        { hostname: "*.example.com", service: "http://localhost:10" },
+        { service: "http_status:404" },
+      ],
+    };
+    const { config } = withIngressRoute(
+      original,
+      "hris-staging.dssconsulting.id",
+      "http://localhost:8100"
     );
-    expect(changed).toBe(true);
-    expect(config.ingress).toEqual([
-      { hostname: "a.example.com", service: "http://x:1" },
-      { hostname: "b.example.com", service: "http://y:2" },
-      { service: "http_status:404" },
+    expect(config.ingress.map((r) => r.hostname ?? "*catch-all")).toEqual([
+      "ci.dssconsulting.id",
+      "hris-staging.dssconsulting.id",
+      "*.dssconsulting.id",
+      "*.example.com",
+      "*catch-all",
     ]);
   });
 });
