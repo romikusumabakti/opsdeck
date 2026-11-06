@@ -1310,7 +1310,8 @@
     "databaseHostExists": "That container is already registered as a database host.",
     "databaseHostInUse": "Environments still use this database host; move them to another database first.",
     "sharedDatabaseConfined": "This environment's database host is shared; you can only use this environment's own databases. Ask an admin for others.",
-    "sharedDatabaseServiceConfined": "This database container is shared with other environments; only an admin can control it or read its logs."
+    "sharedDatabaseServiceConfined": "This database container is shared with other environments; only an admin can control it or read its logs.",
+    "databaseHostVersion": "That container runs a Postgres older than 15; register only Postgres 15 or newer."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",

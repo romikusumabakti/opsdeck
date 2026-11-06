@@ -166,7 +166,7 @@ export function DatabaseHostList({ hosts }: { hosts: DatabaseHostRow[] }) {
         <li key={host.id} className="flex items-center gap-2">
           <span>{host.label}</span>
           <span className="font-mono text-muted-foreground">
-            {host.containerName} · {host.backupPath}
+            {host.containerName}
           </span>
           <AlertDialog>
             <AlertDialogTrigger

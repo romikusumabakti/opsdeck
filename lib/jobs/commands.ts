@@ -326,6 +326,53 @@ export function pgRestorePipeline(
   return `set -o pipefail; ${roles}; ${reader} | ${filter} | ${psqlCmd}`;
 }
 
+// --- Shared Postgres databases ----------------------------------------------
+//
+// A shared binding's database lives in a container other environments use
+// (lib/provisioning/database). Its role owns the database and its password is
+// handed to the environment, so anything that role defined (a function in a
+// CHECK constraint, a generated column, a trigger) would run with superuser
+// rights if a dump were replayed or taken as postgres. Backup and restore of a
+// shared binding therefore run entirely as the binding's role, never as
+// postgres, and the restore never drops or recreates the database. These
+// builders must never contain `-U postgres`.
+
+/** pg_dump as the binding's role (trusted local socket inside the container). */
+export function pgSharedBackupPipeline(
+  database: string,
+  role: string,
+  target: string,
+  compress: boolean
+): string {
+  const dumpCmd = `pg_dump -U ${shq(role)} --clean --if-exists ${shq(database)}`;
+  return compress
+    ? `set -o pipefail; ${writeAtomically(`${dumpCmd} | gzip`, target)}`
+    : writeAtomically(dumpCmd, target);
+}
+
+/**
+ * Restore into a shared database as its role: first `DROP OWNED BY
+ * CURRENT_USER` empties what the role owns in that database (after checking
+ * the dump is readable, so a missing file never wipes it), then the dump is
+ * replayed as the role. The role filter knows only the role itself (and
+ * PUBLIC), so `OWNER TO`/`GRANT` naming any other role is dropped instead of
+ * failing.
+ */
+export function pgSharedRestorePipeline(
+  database: string,
+  role: string,
+  source: string,
+  gzipped: boolean
+): string {
+  const conn = `-U ${shq(role)} -d ${shq(database)}`;
+  const readable = `test -r ${shq(source)} || { echo ${shq(`backup ${source} is not readable`)} >&2; exit 1; }`;
+  const reset = `psql -X -q -v ON_ERROR_STOP=on ${conn} -c ${shq("DROP OWNED BY CURRENT_USER")} || exit 1`;
+  const reader = gzipped ? `gunzip -c ${shq(source)}` : `cat ${shq(source)}`;
+  const filter = `awk -v roles=${shq(role)} ${shq(PG_ROLE_FILTER_AWK)}`;
+  const psqlCmd = `psql -X -q -v ON_ERROR_STOP=on ${conn} > /dev/null`;
+  return `set -o pipefail; ${readable}; ${reset}; ${reader} | ${filter} | ${psqlCmd}`;
+}
+
 // --- MySQL / MariaDB -------------------------------------------------------
 //
 // One code path for both engines. Every pipeline below resolves its client

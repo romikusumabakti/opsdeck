@@ -715,6 +715,7 @@ async function requireEnvironmentPlacement(
         databaseHostId: environmentServices.databaseHostId,
         dbName: environmentServices.dbName,
         dbRole: environmentServices.dbRole,
+        dbUser: environmentServices.dbUser,
       })
       .from(environmentServices)
       .where(inArray(environmentServices.serverId, openIds))
@@ -730,8 +731,8 @@ async function requireEnvironmentPlacement(
   }
   // Another environment in the same container (bound to the host, or bound
   // to its server and container name before the host was registered) whose
-  // database or role is this one's, or whose database falls inside this
-  // one's confinement (`<dbName>_…`) or the other way round.
+  // database is this one's or overlaps it (`X` vs `X_…`, the backup file
+  // prefix), or whose database, role or legacy login is this one's role.
   const overlaps = (a: string, b: string) =>
     a === b || a.startsWith(`${b}_`) || b.startsWith(`${a}_`);
   const dbClash = shared.some(({ serverId, serviceName, sharedDb }) =>
@@ -741,7 +742,8 @@ async function requireEnvironmentPlacement(
         (u.databaseHostId === sharedDb.hostId ||
           (u.serverId === serverId && u.serviceName === serviceName)) &&
         ((u.dbName != null && overlaps(u.dbName, sharedDb.dbName)) ||
-          (u.dbRole != null && u.dbRole === sharedDb.dbRole))
+          (sharedDb.dbRole !== null &&
+            [u.dbName, u.dbRole, u.dbUser].includes(sharedDb.dbRole)))
     )
   );
   if (dbClash) {
