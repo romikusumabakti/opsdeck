@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, type SQL, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import { environments, type NewRun, projects, runs } from "@/lib/db/schema";
@@ -48,25 +48,57 @@ export async function appendRunOutput(
     .where(eq(runs.id, runId));
 }
 
-export async function completeRun(runId: string): Promise<void> {
-  await db
+/**
+ * `onlyIfStarted` makes the transition conditional on the run still being
+ * `started`, so a job redelivered after the run was closed (provision runs)
+ * can't flip a failed run to success or vice versa.
+ */
+export type FinishRunOptions = { onlyIfStarted?: boolean };
+
+function finishWhere(runId: string, opts: FinishRunOptions): SQL | undefined {
+  return opts.onlyIfStarted
+    ? and(eq(runs.id, runId), eq(runs.status, "started"))
+    : eq(runs.id, runId);
+}
+
+/**
+ * Returns false only when a guarded (`onlyIfStarted`) call changed nothing.
+ * Unguarded calls keep the plain update every other run kind relies on.
+ */
+export async function completeRun(
+  runId: string,
+  opts: FinishRunOptions = {}
+): Promise<boolean> {
+  const update = db
     .update(runs)
     .set({ status: "success", completedAt: new Date() })
-    .where(eq(runs.id, runId));
+    .where(finishWhere(runId, opts));
+  if (!opts.onlyIfStarted) {
+    await update;
+    return true;
+  }
+  return (await update.returning({ id: runs.id })).length > 0;
 }
 
 export async function failRun(
   runId: string,
-  errorMessage: string
-): Promise<void> {
-  await db
+  errorMessage: string,
+  opts: FinishRunOptions = {}
+): Promise<boolean> {
+  const update = db
     .update(runs)
     .set({
       status: "failed",
       errorMessage,
       completedAt: new Date(),
     })
-    .where(eq(runs.id, runId));
+    .where(finishWhere(runId, opts));
+  if (!opts.onlyIfStarted) {
+    await update;
+  } else if ((await update.returning({ id: runs.id })).length === 0) {
+    // The run was already closed: nothing changed, so don't notify again.
+    return false;
+  }
 
   // Best-effort: notify the initiator that their job failed. Never let a
   // notification error mask the original failure.
@@ -107,4 +139,5 @@ export async function failRun(
   } catch (error) {
     console.error("Failed to emit run-failed notification:", error);
   }
+  return true;
 }
