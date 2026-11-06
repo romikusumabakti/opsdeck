@@ -18,6 +18,7 @@ import {
   serviceRoleSchema,
   uuidSchema,
 } from "@/lib/validation";
+import { requireSharedDbServiceAccess } from "@/server/services/database-hosts";
 
 export type ServiceStatusResult = {
   role: ServiceRole;
@@ -100,6 +101,11 @@ export async function controlService(
   if (!hasService(environment, parsedRole.data)) {
     throw new Error(`Environment has no ${parsedRole.data} service`);
   }
+  await requireSharedDbServiceAccess(
+    environment,
+    session.user.role,
+    parsedRole.data
+  );
   const cfg = getServiceConfig(environment, parsedRole.data);
   const runId = await createRun({
     environmentId: environment.id,

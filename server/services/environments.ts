@@ -25,6 +25,7 @@ import type {
   SafeEnvironmentWithServers,
 } from "@/lib/db/schema";
 import {
+  databaseHosts,
   deployTargets,
   type Environment,
   type EnvironmentListItem,
@@ -58,6 +59,7 @@ import type { EnvironmentInput } from "@/lib/validation";
 import {
   environmentInputSchema,
   environmentUpdateSchema,
+  sharedDatabaseNameSchema,
 } from "@/lib/validation";
 import { badRequest } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
@@ -99,6 +101,10 @@ function dbServiceValues(d: EnvironmentUpdate): ServiceValues | undefined {
     dbUser: d.dbUser,
     dbPassword: encryptNullable(d.dbPassword),
     dbBackupPath: d.dbBackupPath,
+    dbKind: d.dbKind ?? null,
+    databaseHostId: d.databaseHostId ?? null,
+    dbRole: d.dbRole ?? null,
+    dbPasswordVariable: d.dbPasswordVariable ?? null,
   };
 }
 
@@ -146,6 +152,10 @@ function dbServicePatch(d: EnvironmentUpdate) {
     dbUser: d.dbUser,
     dbPassword: "dbPassword" in d ? encryptNullable(d.dbPassword) : undefined,
     dbBackupPath: d.dbBackupPath,
+    dbKind: d.dbKind,
+    databaseHostId: d.databaseHostId,
+    dbRole: d.dbRole,
+    dbPasswordVariable: d.dbPasswordVariable,
   });
 }
 
@@ -375,15 +385,32 @@ async function requireEligibleOwner(
 }
 
 // A service an environment binds: the server and the service name that
-// service control, logs and database backup/restore then act on.
-type Binding = { serverId: string; serviceName: string };
+// service control, logs and database backup/restore then act on. A shared
+// database binding also names its database host, database and role.
+type SharedDb = { hostId: string; dbName: string; dbRole: string | null };
+type Binding = { serverId: string; serviceName: string; sharedDb?: SharedDb };
+
+function sharedDbOf(d: {
+  dbKind?: string | null;
+  databaseHostId?: string | null;
+  dbName?: string | null;
+  dbRole?: string | null;
+}): SharedDb | undefined {
+  return d.dbKind === "shared" && d.databaseHostId && d.dbName
+    ? { hostId: d.databaseHostId, dbName: d.dbName, dbRole: d.dbRole ?? null }
+    : undefined;
+}
 
 // The bindings of a new environment: backend always, db and frontend when the
 // payload enables them (the same rule the service rows follow).
 function createdBindings(input: EnvironmentInput): Binding[] {
   return [
     input.hasDatabase && input.dbServerId && input.dbServiceName
-      ? { serverId: input.dbServerId, serviceName: input.dbServiceName }
+      ? {
+          serverId: input.dbServerId,
+          serviceName: input.dbServiceName,
+          sharedDb: sharedDbOf(input),
+        }
       : undefined,
     { serverId: input.backendServerId, serviceName: input.backendServiceName },
     input.hasFrontend && input.frontendServerId && input.frontendServiceName
@@ -421,9 +448,168 @@ function updatedBindings(
     const [serverKey, nameKey] = BINDING_FIELDS[role];
     const serverId = input[serverKey] ?? service?.serverId;
     const serviceName = input[nameKey] ?? service?.serviceName;
-    if (serverId && serviceName) bindings.push({ serverId, serviceName });
+    if (!(serverId && serviceName)) continue;
+    const sharedDb =
+      role === "db" ? sharedDbOf(effectiveDbFields(input, service)) : undefined;
+    bindings.push({ serverId, serviceName, sharedDb });
   }
   return bindings;
+}
+
+type StoredDbFields = {
+  dbKind?: string | null;
+  databaseHostId?: string | null;
+  dbName?: string | null;
+  dbRole?: string | null;
+};
+
+// The db binding fields an update leaves: the payload's where present, else
+// the stored ones.
+function effectiveDbFields(
+  input: EnvironmentUpdate,
+  service: StoredDbFields | undefined
+): StoredDbFields {
+  const pick = <K extends keyof StoredDbFields>(key: K) =>
+    input[key] !== undefined ? input[key] : (service?.[key] ?? null);
+  return {
+    dbKind: pick("dbKind"),
+    databaseHostId: pick("databaseHostId"),
+    dbName: pick("dbName"),
+    dbRole: pick("dbRole"),
+  };
+}
+
+// True when the update sets a shared binding's kind, host, database or role
+// to something other than what is stored.
+function changesSharedDb(
+  input: EnvironmentUpdate,
+  stored: EnvironmentWithServers
+): boolean {
+  const service = findService(stored, "db");
+  return (["dbKind", "databaseHostId", "dbName", "dbRole"] as const).some(
+    (key) => input[key] !== undefined && input[key] !== (service?.[key] ?? null)
+  );
+}
+
+const DB_INPUT_KEYS = [
+  "dbServerId",
+  "dbServiceType",
+  "dbServiceName",
+  "dbType",
+  "dbName",
+  "dbBackupPath",
+  "dbKind",
+  "databaseHostId",
+  "dbRole",
+  "dbPasswordVariable",
+] as const;
+
+/**
+ * A shared database binding takes its server, container, engine and backup
+ * path from its database host; whatever the client sent for those is
+ * replaced. The host is named by `databaseHostId`, or by the server and
+ * container (`dbServerId` + `dbServiceName`) of a registered host. Any other
+ * kind keeps the client's values and drops a host reference. On an update the
+ * stored kind and host apply when the payload does not change them. Returns
+ * the payload to store; 400 when a shared binding names no registered host.
+ */
+async function withDerivedDbBinding<T extends EnvironmentUpdate>(
+  input: T,
+  stored?: EnvironmentWithServers
+): Promise<T> {
+  const service = stored ? findService(stored, "db") : undefined;
+  const touchesDb =
+    input.hasDatabase === true ||
+    DB_INPUT_KEYS.some((k) => input[k] !== undefined);
+  if (!touchesDb || input.hasDatabase === false) return input;
+  const kind =
+    input.dbKind !== undefined ? input.dbKind : (service?.dbKind ?? null);
+  if (kind !== "shared") {
+    return input.dbKind !== undefined
+      ? { ...input, databaseHostId: null }
+      : input;
+  }
+  const host = await findDatabaseHost(
+    input.databaseHostId
+      ? { id: input.databaseHostId }
+      : input.dbServerId && input.dbServiceName
+        ? { serverId: input.dbServerId, containerName: input.dbServiceName }
+        : service?.databaseHostId
+          ? { id: service.databaseHostId }
+          : null
+  );
+  if (!host) {
+    const t = await getServerTranslator("actionErrors");
+    badRequest(t("databaseHostNotFound"));
+  }
+  return {
+    ...input,
+    dbKind: "shared",
+    databaseHostId: host.id,
+    dbServerId: host.serverId,
+    dbServiceType: "docker",
+    dbServiceName: host.containerName,
+    dbType: "postgres",
+    dbBackupPath: host.backupPath,
+  };
+}
+
+async function findDatabaseHost(
+  ref: { id: string } | { serverId: string; containerName: string } | null
+) {
+  if (!ref) return undefined;
+  const [host] = await db
+    .select()
+    .from(databaseHosts)
+    .where(
+      "id" in ref
+        ? eq(databaseHosts.id, ref.id)
+        : and(
+            eq(databaseHosts.serverId, ref.serverId),
+            eq(databaseHosts.containerName, ref.containerName)
+          )
+    )
+    .limit(1);
+  return host;
+}
+
+/**
+ * The database and role of a shared binding are named
+ * `<project key lowercased>_<suffix>` (400 otherwise), whoever binds them.
+ */
+async function requireSharedDbNames(
+  projectId: string,
+  sharedDb: SharedDb | undefined
+): Promise<void> {
+  if (!sharedDb) return;
+  const prefix = await sharedDbPrefix(projectId);
+  const names = [sharedDb.dbName, sharedDb.dbRole];
+  if (names.every((n) => n !== null && hasSharedDbPrefix(n, prefix))) return;
+  const t = await getServerTranslator("actionErrors");
+  badRequest(t("sharedDatabaseNamePrefix", { prefix: prefix ?? "" }));
+}
+
+async function projectKeyOf(projectId: string): Promise<string | null> {
+  const [project] = await db
+    .select({ key: projects.key })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return project ? project.key.toLowerCase() : null;
+}
+
+async function sharedDbPrefix(projectId: string): Promise<string | null> {
+  const key = await projectKeyOf(projectId);
+  return key === null ? null : `${key}_`;
+}
+
+function hasSharedDbPrefix(name: string, prefix: string | null): boolean {
+  return (
+    prefix !== null &&
+    sharedDatabaseNameSchema.safeParse(name).success &&
+    name.startsWith(prefix) &&
+    name.length > prefix.length
+  );
 }
 
 // True when the update adds a service or points one at another server or
@@ -453,7 +639,13 @@ function changesBindings(
 //   (`hris-backend` in HRIS) and that no other environment on that server
 //   uses, so an open placement never reaches another environment's
 //   containers or databases, nor an unregistered container (the Panel's own
-//   database, ZITADEL, the CI server).
+//   database, ZITADEL, the CI server);
+// - the one exception is a shared database binding: its container is a
+//   registered database host (withDerivedDbBinding resolved it), so the
+//   caller may bind it unprefixed, provided its database and role are named
+//   `<key>_…` and no other environment on that host uses either. Database
+//   operations on it are then confined to those names
+//   (lib/provisioning/database#allowedDatabaseName).
 // Changing a server's placement re-checks nothing: only new placements.
 async function requireEnvironmentPlacement(
   orgRole: string | null | undefined,
@@ -481,18 +673,16 @@ async function requireEnvironmentPlacement(
   if (canOrg(orgRole, { server: ["manage"] })) return;
   const openIds = serverIds.filter((id) => placementOf.get(id) === "open");
   if (openIds.length === 0) return;
-  const [project] = await db
-    .select({ key: projects.key })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  const prefix = project ? `${project.key.toLowerCase()}-` : null;
-  const unprefixed = bindings.some(
+  const onOpen = bindings.filter((b) => openIds.includes(b.serverId));
+  const services = onOpen.filter((b) => !b.sharedDb);
+  const shared = onOpen.filter((b) => b.sharedDb);
+  const key = await projectKeyOf(projectId);
+  const prefix = key === null ? null : `${key}-`;
+  const unprefixed = services.some(
     (b) =>
-      openIds.includes(b.serverId) &&
-      (prefix === null ||
-        !b.serviceName.startsWith(prefix) ||
-        b.serviceName.length === prefix.length)
+      prefix === null ||
+      !b.serviceName.startsWith(prefix) ||
+      b.serviceName.length === prefix.length
   );
   if (unprefixed) {
     const t = await getServerTranslator("actionErrors");
@@ -500,25 +690,63 @@ async function requireEnvironmentPlacement(
       t("placementServiceName", { prefix: prefix ?? "" })
     );
   }
-  const used = await db
-    .select({
-      environmentId: environmentServices.environmentId,
-      serverId: environmentServices.serverId,
-      serviceName: environmentServices.serviceName,
-    })
-    .from(environmentServices)
-    .where(inArray(environmentServices.serverId, openIds));
-  const clash = bindings.some((b) =>
+  const dbPrefix = key === null ? null : `${key}_`;
+  const badDbName = shared.some(
+    ({ sharedDb }) =>
+      !(
+        sharedDb &&
+        hasSharedDbPrefix(sharedDb.dbName, dbPrefix) &&
+        sharedDb.dbRole !== null &&
+        hasSharedDbPrefix(sharedDb.dbRole, dbPrefix)
+      )
+  );
+  if (badDbName) {
+    const t = await getServerTranslator("actionErrors");
+    throw new ForbiddenError(
+      t("placementDatabaseName", { prefix: dbPrefix ?? "" })
+    );
+  }
+  const used = (
+    await db
+      .select({
+        environmentId: environmentServices.environmentId,
+        serverId: environmentServices.serverId,
+        serviceName: environmentServices.serviceName,
+        databaseHostId: environmentServices.databaseHostId,
+        dbName: environmentServices.dbName,
+        dbRole: environmentServices.dbRole,
+      })
+      .from(environmentServices)
+      .where(inArray(environmentServices.serverId, openIds))
+  ).filter((u) => u.environmentId !== exceptEnvironmentId);
+  const clash = services.some((b) =>
     used.some(
-      (u) =>
-        u.serverId === b.serverId &&
-        u.serviceName === b.serviceName &&
-        u.environmentId !== exceptEnvironmentId
+      (u) => u.serverId === b.serverId && u.serviceName === b.serviceName
     )
   );
   if (clash) {
     const t = await getServerTranslator("actionErrors");
     throw new ForbiddenError(t("placementServiceInUse"));
+  }
+  // Another environment in the same container (bound to the host, or bound
+  // to its server and container name before the host was registered) whose
+  // database or role is this one's, or whose database falls inside this
+  // one's confinement (`<dbName>_…`) or the other way round.
+  const overlaps = (a: string, b: string) =>
+    a === b || a.startsWith(`${b}_`) || b.startsWith(`${a}_`);
+  const dbClash = shared.some(({ serverId, serviceName, sharedDb }) =>
+    used.some(
+      (u) =>
+        sharedDb &&
+        (u.databaseHostId === sharedDb.hostId ||
+          (u.serverId === serverId && u.serviceName === serviceName)) &&
+        ((u.dbName != null && overlaps(u.dbName, sharedDb.dbName)) ||
+          (u.dbRole != null && u.dbRole === sharedDb.dbRole))
+    )
+  );
+  if (dbClash) {
+    const t = await getServerTranslator("actionErrors");
+    throw new ForbiddenError(t("placementDatabaseInUse"));
   }
 }
 
@@ -535,18 +763,18 @@ export async function createEnvironment(
     { projectId: parsed.data.projectId },
     { project: ["read"] }
   );
+  const input = await withDerivedDbBinding(parsed.data);
   await requireEnvironmentPlacement(
     session.user.role,
-    parsed.data.projectId,
+    input.projectId,
     role,
-    createdBindings(parsed.data)
+    createdBindings(input)
   );
-  await requireEligibleOwner(
-    ownerIdToVerify(parsed.data),
-    parsed.data.projectId
-  );
+  if (input.hasDatabase) {
+    await requireSharedDbNames(input.projectId, sharedDbOf(input));
+  }
+  await requireEligibleOwner(ownerIdToVerify(input), input.projectId);
   try {
-    const input = parsed.data;
     const slug = await uniqueEnvSlug(input.projectId, input.name);
     // One transaction: an environment without its services is unusable, so the
     // four inserts must land together.
@@ -606,15 +834,18 @@ export async function updateEnvironment(
   // changes count, so a maintainer re-saving the full form is still fine.
   const stored = await loadEnvironmentWithServers(id);
   if (!stored) return { success: false, message: "Environment not found" };
+  // A shared database binding's server, container, engine and backup path
+  // come from its host, before anything compares them with the stored ones.
+  const input = await withDerivedDbBinding(parsed.data, stored);
   const removesService =
-    (parsed.data.hasDatabase === false && hasService(stored, "db")) ||
-    (parsed.data.hasFrontend === false && hasService(stored, "frontend"));
-  if (removesService || changedInfraFields(parsed.data, stored).length > 0) {
+    (input.hasDatabase === false && hasService(stored, "db")) ||
+    (input.hasFrontend === false && hasService(stored, "frontend"));
+  if (removesService || changedInfraFields(input, stored).length > 0) {
     await requireOrgPermission({ server: ["manage"] });
   }
   // A deploy that backs up first needs the db service; dropping it would make
   // every later deploy of that target fail.
-  if (parsed.data.hasDatabase === false && hasService(stored, "db")) {
+  if (input.hasDatabase === false && hasService(stored, "db")) {
     const [backupTarget] = await db
       .select({ id: deployTargets.id })
       .from(deployTargets)
@@ -636,7 +867,7 @@ export async function updateEnvironment(
   // caller's role in the target project must pass the placement rule of the
   // servers the environment ends up bound to. A binding change within the
   // project is checked the same way against the current project role.
-  const targetProjectId = parsed.data.projectId;
+  const targetProjectId = input.projectId;
   if (targetProjectId !== undefined && targetProjectId !== stored.projectId) {
     const { role: targetRole } = await requireProjectPermission(
       { projectId: targetProjectId },
@@ -646,24 +877,29 @@ export async function updateEnvironment(
       session.user.role,
       targetProjectId,
       targetRole,
-      updatedBindings(parsed.data, stored),
+      updatedBindings(input, stored),
       id
     );
-  } else if (changesBindings(parsed.data, stored)) {
+  } else if (changesBindings(input, stored)) {
     await requireEnvironmentPlacement(
       session.user.role,
       stored.projectId,
       role,
-      updatedBindings(parsed.data, stored),
+      updatedBindings(input, stored),
       id
     );
   }
   await requireEligibleOwner(
-    ownerIdToVerify(parsed.data, stored),
-    parsed.data.projectId ?? stored.projectId
+    ownerIdToVerify(input, stored),
+    input.projectId ?? stored.projectId
   );
+  if (changesSharedDb(input, stored)) {
+    await requireSharedDbNames(
+      input.projectId ?? stored.projectId,
+      sharedDbOf(effectiveDbFields(input, findService(stored, "db")))
+    );
+  }
   try {
-    const input = parsed.data;
     const envPatch = pickPresent({
       projectId: input.projectId,
       name: input.name,

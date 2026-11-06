@@ -13,6 +13,10 @@ import {
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { databaseNameSchema, uuidSchema } from "@/lib/validation";
+import {
+  filterAllowedDatabaseNames,
+  requireAllowedDatabaseNames,
+} from "@/server/services/database-hosts";
 
 export interface DatabaseEntry {
   name: string;
@@ -29,13 +33,8 @@ type DatabaseListResult =
 
 // The actual SSH probe, with no session/request state. Throws on any failure.
 async function probeDatabaseList(
-  environmentId: string
+  environment: EnvironmentWithServers
 ): Promise<DatabaseEntry[]> {
-  const environment = await loadEnvironmentWithServers(environmentId);
-  if (!environment) {
-    throw new Error("Environment not found");
-  }
-
   const dbSvc = dbConfig(environment);
   const cmd = buildDatabaseListCommand(environment);
 
@@ -159,12 +158,23 @@ function parseDatabaseList(
 export async function getDatabaseList(
   environmentId: string
 ): Promise<DatabaseListResult> {
-  await requireProjectPermission({ environmentId }, { project: ["read"] });
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { project: ["read"] }
+  );
   if (!uuidSchema.safeParse(environmentId).success) {
     return { success: false, error: "Invalid environment id" };
   }
   try {
-    const data = await probeDatabaseList(environmentId);
+    const environment = await loadEnvironmentWithServers(environmentId);
+    if (!environment) throw new Error("Environment not found");
+    // A shared host lists every environment's databases; show only the ones
+    // the caller may act on.
+    const data = filterAllowedDatabaseNames(
+      environment,
+      session.user.role,
+      await probeDatabaseList(environment)
+    );
     return { success: true, data };
   } catch (error) {
     // Don't surface raw SSH stderr (paths, hostnames) to the client. "Environment
@@ -202,6 +212,7 @@ export async function createDatabase(
   const database = parsed.data;
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
+  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
 
   const runId = await createRun({
     environmentId: environment.id,
@@ -234,6 +245,7 @@ export async function dropDatabase(
   const database = parsed.data;
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
+  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
 
   // Guard the environment's configured database — dropping it would break the panel
   // and every other operation that targets it. The worker re-checks too.
@@ -280,6 +292,7 @@ export async function renameDatabase(
   }
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
+  await requireAllowedDatabaseNames(environment, session.user.role, [from, to]);
 
   // Guard the environment's configured database — renaming it would orphan the
   // panel's configured dbName. The worker re-checks too.

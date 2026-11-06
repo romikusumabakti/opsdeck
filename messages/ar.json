@@ -1301,7 +1301,16 @@
     "deployLockExpiryInvalid": "اختر وقت انتهاء في المستقبل، خلال 7 أيام على الأكثر.",
     "deployLockChanged": "تغيّر قفل النشر في الأثناء. أعد التحميل وحاول مرة أخرى.",
     "deployForceUnlockReasonRequired": "اكتب سببًا لفك القفل بالقوة.",
-    "preflightFailed": "تعذر الاتصال بالخادم عبر SSH لتشغيل الفحص المسبق"
+    "preflightFailed": "تعذر الاتصال بالخادم عبر SSH لتشغيل الفحص المسبق",
+    "placementDatabaseName": "على الخادم المفتوح، سمِّ قاعدة البيانات المشتركة ودورها بحيث يبدأ الاسم بـ {prefix} (مفتاح هذا المشروع)؛ اطلب المساعدة من مسؤول لأسماء أخرى.",
+    "placementDatabaseInUse": "بيئة أخرى على مضيف قاعدة البيانات هذا تستخدم بالفعل اسم قاعدة البيانات أو الدور هذا؛ اختر اسمًا آخر.",
+    "sharedDatabaseNamePrefix": "يجب أن يبدأ اسم قاعدة البيانات المشتركة ودورها بـ {prefix} (مفتاح هذا المشروع).",
+    "databaseHostNotFound": "مضيف قاعدة البيانات هذا غير مسجل.",
+    "databaseHostUnreachable": "تعذر تشغيل استعلام بصفة postgres في تلك الحاوية عبر SSH.",
+    "databaseHostExists": "تلك الحاوية مسجلة بالفعل كمضيف قاعدة بيانات.",
+    "databaseHostInUse": "لا تزال هناك بيئات تستخدم مضيف قاعدة البيانات هذا؛ انقلها إلى قاعدة بيانات أخرى أولًا.",
+    "sharedDatabaseConfined": "مضيف قاعدة بيانات هذه البيئة مشترك؛ يمكنك استخدام قواعد بيانات هذه البيئة فقط. اطلب المساعدة من مسؤول للقواعد الأخرى.",
+    "sharedDatabaseServiceConfined": "حاوية قاعدة البيانات هذه مشتركة مع بيئات أخرى؛ لا يمكن إلا للمسؤول التحكم فيها أو قراءة سجلاتها."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1895,7 +1904,9 @@
     "deployTargetCreated": "أضاف {actor} هدف نشر لـ {component} في {environment}",
     "deployTargetUpdated": "غيّر {actor} هدف نشر {component} في {environment} ({changes})",
     "deployTargetDeleted": "أزال {actor} هدف نشر {component} من {environment}",
-    "serverPreflight": "{actor} شغّل فحصًا مسبقًا على {server}"
+    "serverPreflight": "{actor} شغّل فحصًا مسبقًا على {server}",
+    "databaseHostCreated": "سجّل {actor} مضيف قاعدة البيانات {label} ({container}) على {server}",
+    "databaseHostDeleted": "أزال {actor} مضيف قاعدة البيانات {label} ({container}) من {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2579,6 +2590,24 @@
     "systemdInactive": "لا توجد خدمة systemd",
     "containers": "الحاويات: {names}",
     "postgres": "حاويات Postgres",
-    "postgresNone": "لم يتم العثور على حاوية Postgres"
+    "postgresNone": "لم يتم العثور على حاوية Postgres",
+    "register": "تسجيل",
+    "registering": "جارٍ التسجيل…",
+    "registered": "مسجل",
+    "registerTitle": "تسجيل مضيف قاعدة بيانات",
+    "registerDescription": "يمكن للبيئات بعد ذلك الحصول على قاعدة بيانات ودور خاصين بها في حاوية Postgres هذه. يتحقق Panel من قدرته على تشغيل استعلام بصفة postgres فيها.",
+    "registerFailed": "تعذر تسجيل مضيف قاعدة البيانات",
+    "containerName": "الحاوية",
+    "backupPath": "مسار النسخ الاحتياطية",
+    "backupPathHint": "مسار داخل الحاوية.",
+    "label": "التسمية",
+    "hosts": "مضيفو قواعد البيانات",
+    "hostsNone": "لا يوجد مضيف قاعدة بيانات مسجل",
+    "hostRegistered": "تم تسجيل مضيف قاعدة البيانات {label}",
+    "hostDeleted": "تمت إزالة مضيف قاعدة البيانات {label}",
+    "deleteFailed": "تعذرت إزالة مضيف قاعدة البيانات",
+    "deleteHost": "إزالة {label}",
+    "deleteHostTitle": "إزالة مضيف قاعدة البيانات {label}؟",
+    "deleteHostBody": "تُزال عملية التسجيل فقط؛ تبقى الحاوية وقواعد بياناتها. لا يمكن إزالة مضيف تستخدمه بيئات."
   }
 }

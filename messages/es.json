@@ -1301,7 +1301,16 @@
     "deployLockExpiryInvalid": "Elige una caducidad futura, como máximo dentro de 7 días.",
     "deployLockChanged": "El bloqueo de despliegue cambió mientras tanto. Recarga e inténtalo de nuevo.",
     "deployForceUnlockReasonRequired": "Indica un motivo para el desbloqueo forzado.",
-    "preflightFailed": "No se pudo conectar al servidor por SSH para ejecutar el preflight"
+    "preflightFailed": "No se pudo conectar al servidor por SSH para ejecutar el preflight",
+    "placementDatabaseName": "En un servidor abierto, nombra la base de datos compartida y su rol empezando por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",
+    "placementDatabaseInUse": "Otro entorno de este host de base de datos ya usa este nombre de base de datos o de rol; elige otro nombre.",
+    "sharedDatabaseNamePrefix": "La base de datos compartida y su rol deben llamarse empezando por {prefix} (la clave de este proyecto).",
+    "databaseHostNotFound": "Ese host de base de datos no está registrado.",
+    "databaseHostUnreachable": "No se pudo ejecutar una consulta como postgres en ese contenedor por SSH.",
+    "databaseHostExists": "Ese contenedor ya está registrado como host de base de datos.",
+    "databaseHostInUse": "Aún hay entornos que usan este host de base de datos; muévelos antes a otra base de datos.",
+    "sharedDatabaseConfined": "El host de base de datos de este entorno es compartido; solo puedes usar las bases de datos propias de este entorno. Pide ayuda a un administrador para otras.",
+    "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1895,7 +1904,9 @@
     "deployTargetCreated": "{actor} añadió un destino de despliegue para {component} en {environment}",
     "deployTargetUpdated": "{actor} cambió el destino de despliegue de {component} en {environment} ({changes})",
     "deployTargetDeleted": "{actor} eliminó el destino de despliegue de {component} de {environment}",
-    "serverPreflight": "{actor} ejecutó un preflight en {server}"
+    "serverPreflight": "{actor} ejecutó un preflight en {server}",
+    "databaseHostCreated": "{actor} registró el host de base de datos {label} ({container}) en {server}",
+    "databaseHostDeleted": "{actor} eliminó el host de base de datos {label} ({container}) de {server}"
   },
   "jira": {
     "title": "Jira",
@@ -2579,6 +2590,24 @@
     "systemdInactive": "Sin servicio systemd",
     "containers": "Contenedores: {names}",
     "postgres": "Contenedores Postgres",
-    "postgresNone": "No se encontró ningún contenedor Postgres"
+    "postgresNone": "No se encontró ningún contenedor Postgres",
+    "register": "Registrar",
+    "registering": "Registrando…",
+    "registered": "Registrado",
+    "registerTitle": "Registrar host de base de datos",
+    "registerDescription": "Los entornos podrán tener su propia base de datos y rol en este contenedor de Postgres. El Panel comprueba que puede ejecutar una consulta como postgres en él.",
+    "registerFailed": "No se pudo registrar el host de base de datos",
+    "containerName": "Contenedor",
+    "backupPath": "Ruta de copias de seguridad",
+    "backupPathHint": "Una ruta dentro del contenedor.",
+    "label": "Etiqueta",
+    "hosts": "Hosts de base de datos",
+    "hostsNone": "No hay hosts de base de datos registrados",
+    "hostRegistered": "Host de base de datos {label} registrado",
+    "hostDeleted": "Host de base de datos {label} eliminado",
+    "deleteFailed": "No se pudo eliminar el host de base de datos",
+    "deleteHost": "Eliminar {label}",
+    "deleteHostTitle": "¿Eliminar el host de base de datos {label}?",
+    "deleteHostBody": "Solo se elimina el registro; el contenedor y sus bases de datos se conservan. No se puede eliminar un host que usan entornos."
   }
 }

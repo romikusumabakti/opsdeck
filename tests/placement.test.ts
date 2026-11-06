@@ -50,7 +50,15 @@ describe("canPlaceEnvironment", () => {
 });
 
 type Call = { op: string; table?: unknown; values?: unknown };
-type Service = { role: string; serverId: string; serviceName: string };
+type Service = {
+  role: string;
+  serverId: string;
+  serviceName: string;
+  dbKind?: string | null;
+  databaseHostId?: string | null;
+  dbName?: string | null;
+  dbRole?: string | null;
+};
 
 const state = vi.hoisted(() => ({
   orgRole: "member" as string,
@@ -62,6 +70,14 @@ const state = vi.hoisted(() => ({
   targetProjectRole: "maintainer" as string | null,
   userId: "0197f3a0-1b2c-7def-8000-0123456789a9",
   placements: {} as Record<string, "restricted" | "open">,
+  // Registered database hosts (the lookup returns the first).
+  hosts: [] as {
+    id: string;
+    serverId: string;
+    containerName: string;
+    backupPath: string;
+    label: string;
+  }[],
   // environment_services rows of every environment (for the in-use check).
   used: [] as (Service & { environmentId: string })[],
   // The environment an update loads.
@@ -145,6 +161,7 @@ vi.mock("@/lib/db", async () => {
       }));
     }
     if (table === schema.users) return [{ id: OWNER_ID }];
+    if (table === schema.databaseHosts) return state.hosts;
     if (table === schema.projects) return [{ key: state.projectKey }];
     if (table === schema.environmentServices) return state.used;
     if (table === schema.environments) {
@@ -246,6 +263,7 @@ beforeEach(() => {
   };
   state.targetProjectRole = "maintainer";
   state.used = [];
+  state.hosts = [];
   state.stored = {
     id: ENV_ID,
     projectId: PROJECT_ID,
@@ -647,5 +665,274 @@ describe("server placement field", () => {
     const touched = state.calls.map((c) => c.table);
     expect(touched).not.toContain(schema.environments);
     expect(touched).not.toContain(schema.environmentServices);
+  });
+});
+
+describe("open placement: shared database hosts", () => {
+  const HOST_ID = "0197f3a0-1b2c-7def-8000-0123456789b7";
+  const host = {
+    id: HOST_ID,
+    serverId: SERVER_OPEN,
+    containerName: "dplk-postgres",
+    backupPath: "/var/lib/postgresql/backups",
+    label: "DPLK Postgres",
+  };
+  const sandbox = {
+    projectId: PROJECT_ID,
+    name: "Sandbox 1",
+    hasFrontend: false,
+    backendServerId: SERVER_OPEN,
+    backendServiceType: "docker",
+    backendServiceName: "pcan-sandbox1-api",
+    hasDatabase: true,
+    dbKind: "shared",
+    databaseHostId: HOST_ID,
+    dbName: "pcan_sandbox1",
+    dbRole: "pcan_sandbox1",
+    dbPasswordVariable: "DB_PASSWORD",
+  };
+  const insertedDbService = () =>
+    (
+      state.calls.find(
+        (c) => c.op === "insert" && c.table === schema.environmentServices
+      )?.values as Record<string, unknown>[] | undefined
+    )?.find((v) => v.role === "db");
+
+  beforeEach(() => {
+    state.projectKey = "PCAN";
+    state.hosts = [host];
+  });
+
+  it("lets a maintainer without server:manage bind a <key>_ database on a registered host", async () => {
+    const result = await createEnvironment({
+      ...sandbox,
+      // Client values for the host-derived fields are ignored.
+      dbServerId: SERVER_RESTRICTED,
+      dbServiceType: "systemd",
+      dbServiceName: "evil",
+      dbType: "mysql",
+      dbBackupPath: "/etc",
+    });
+    expect(result.success).toBe(true);
+    expect(insertedDbService()).toMatchObject({
+      serverId: SERVER_OPEN,
+      serviceType: "docker",
+      serviceName: "dplk-postgres",
+      dbType: "postgres",
+      dbBackupPath: "/var/lib/postgresql/backups",
+      dbKind: "shared",
+      databaseHostId: HOST_ID,
+      dbName: "pcan_sandbox1",
+      dbRole: "pcan_sandbox1",
+      dbPasswordVariable: "DB_PASSWORD",
+    });
+  });
+
+  it("finds the host by server and container name too", async () => {
+    const { databaseHostId: _, ...byName } = sandbox;
+    const result = await createEnvironment({
+      ...byName,
+      dbServerId: SERVER_OPEN,
+      dbServiceName: "dplk-postgres",
+    });
+    expect(result.success).toBe(true);
+    expect(insertedDbService()).toMatchObject({ databaseHostId: HOST_ID });
+  });
+
+  it("refuses a database or role without the <key>_ prefix", async () => {
+    for (const names of [
+      { dbName: "other_db" },
+      { dbRole: "hris_app" },
+      { dbName: "pcan_" },
+    ]) {
+      state.calls = [];
+      await expect(
+        createEnvironment({ ...sandbox, ...names })
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "placementDatabaseName",
+      });
+      expect(insertedEnvironment()).toBeUndefined();
+    }
+  });
+
+  it("refuses a database or role another environment on the host uses", async () => {
+    const others: (Service & { environmentId: string })[][] = [
+      // Bound to the host.
+      [
+        {
+          environmentId: OTHER_ENV_ID,
+          role: "db",
+          serverId: SERVER_OPEN,
+          serviceName: "dplk-postgres",
+          databaseHostId: HOST_ID,
+          dbName: "pcan_sandbox1",
+          dbRole: "pcan_other",
+        },
+      ],
+      // Bound to the same container before the host was registered.
+      [
+        {
+          environmentId: OTHER_ENV_ID,
+          role: "db",
+          serverId: SERVER_OPEN,
+          serviceName: "dplk-postgres",
+          databaseHostId: null,
+          dbName: "pcan_sandbox1",
+        },
+      ],
+      // Same role name.
+      [
+        {
+          environmentId: OTHER_ENV_ID,
+          role: "db",
+          serverId: SERVER_OPEN,
+          serviceName: "dplk-postgres",
+          databaseHostId: HOST_ID,
+          dbName: "pcan_other",
+          dbRole: "pcan_sandbox1",
+        },
+      ],
+      // A database inside this one's confinement, and the other way round.
+      ...["pcan_sandbox1_copy", "pcan"].map((dbName) => [
+        {
+          environmentId: OTHER_ENV_ID,
+          role: "db",
+          serverId: SERVER_OPEN,
+          serviceName: "dplk-postgres",
+          databaseHostId: HOST_ID,
+          dbName,
+        },
+      ]),
+    ];
+    for (const used of others) {
+      state.used = used;
+      state.calls = [];
+      await expect(createEnvironment(sandbox)).rejects.toMatchObject({
+        status: 403,
+        message: "placementDatabaseInUse",
+      });
+      expect(insertedEnvironment()).toBeUndefined();
+    }
+    // Its own row (an update) and another database on the host don't clash.
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "db",
+        serverId: SERVER_OPEN,
+        serviceName: "dplk-postgres",
+        databaseHostId: HOST_ID,
+        dbName: "pcan_sandbox2",
+        dbRole: "pcan_sandbox2",
+      },
+    ];
+    expect((await createEnvironment(sandbox)).success).toBe(true);
+  });
+
+  it("keeps refusing an unprefixed container that is not bound as shared", async () => {
+    // Registered, but a legacy binding gets no confinement, so no exception.
+    await expect(
+      createEnvironment({
+        ...sandbox,
+        dbKind: undefined,
+        databaseHostId: undefined,
+        dbServerId: SERVER_OPEN,
+        dbServiceType: "docker",
+        dbServiceName: "dplk-postgres",
+        dbType: "postgres",
+        dbBackupPath: "/backups",
+      })
+    ).rejects.toMatchObject({ status: 403, message: "placementServiceName" });
+    // Not registered at all.
+    state.hosts = [];
+    await expect(
+      createEnvironment({
+        ...sandbox,
+        dbKind: undefined,
+        databaseHostId: undefined,
+        dbServerId: SERVER_OPEN,
+        dbServiceType: "docker",
+        dbServiceName: "zitadel-db",
+        dbType: "postgres",
+        dbBackupPath: "/backups",
+      })
+    ).rejects.toMatchObject({ status: 403, message: "placementServiceName" });
+    expect(insertedEnvironment()).toBeUndefined();
+  });
+
+  it("is a 400 for a shared binding to an unregistered host", async () => {
+    state.hosts = [];
+    await expect(createEnvironment(sandbox)).rejects.toMatchObject({
+      status: 400,
+      message: "databaseHostNotFound",
+    });
+  });
+
+  it("still refuses a contributor, and a host on a restricted server", async () => {
+    state.projectRole = "contributor";
+    await expect(createEnvironment(sandbox)).rejects.toMatchObject({
+      status: 403,
+    });
+    state.projectRole = "maintainer";
+    state.hosts = [{ ...host, serverId: SERVER_RESTRICTED }];
+    await expect(createEnvironment(sandbox)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(insertedEnvironment()).toBeUndefined();
+  });
+
+  it("holds callers with server:manage to the naming rule (400)", async () => {
+    state.orgRole = "infra";
+    await expect(
+      createEnvironment({ ...sandbox, dbName: "other_db" })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "sharedDatabaseNamePrefix",
+    });
+    expect((await createEnvironment(sandbox)).success).toBe(true);
+  });
+
+  it("rejects a shared binding without its role or password variable", async () => {
+    for (const field of ["dbRole", "dbPasswordVariable", "dbName"] as const) {
+      const { [field]: _, ...partial } = sandbox;
+      expect(await createEnvironment(partial)).toMatchObject({
+        success: false,
+      });
+    }
+    expect(
+      await createEnvironment({ ...sandbox, dbPasswordVariable: "db pw" })
+    ).toMatchObject({ success: false });
+  });
+
+  it("needs server:manage to change a stored shared binding", async () => {
+    state.stored.services = [
+      ...state.stored.services,
+      {
+        role: "db",
+        serverId: SERVER_OPEN,
+        serviceName: "dplk-postgres",
+        serviceType: "docker",
+        dbType: "postgres",
+        dbBackupPath: "/var/lib/postgresql/backups",
+        dbKind: "shared",
+        databaseHostId: HOST_ID,
+        dbName: "pcan_sandbox1",
+        dbRole: "pcan_sandbox1",
+      } as Service,
+    ];
+    await expect(
+      updateEnvironment(ENV_ID, { dbName: "pcan_sandbox2" })
+    ).rejects.toMatchObject({ status: 403 });
+    // Re-saving the unchanged binding is fine.
+    expect(
+      (
+        await updateEnvironment(ENV_ID, {
+          dbKind: "shared",
+          databaseHostId: HOST_ID,
+          dbName: "pcan_sandbox1",
+          dbRole: "pcan_sandbox1",
+        })
+      ).success
+    ).toBe(true);
   });
 });
