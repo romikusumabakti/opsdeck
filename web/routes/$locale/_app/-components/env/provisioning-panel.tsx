@@ -158,14 +158,16 @@ export function ProvisioningPanel({
     }
   }
 
-  if (!canRun || targets.length === 0 || !provisioning) return null;
+  const noTargets = targets.length === 0;
+  if (!canRun || !(noTargets || provisioning)) return null;
 
   return (
     <>
       <ProvisioningPanelView
-        plan={provisioning.plan}
-        steps={provisioning.steps}
-        activeRunId={provisioning.activeRunId}
+        plan={provisioning?.plan ?? []}
+        steps={provisioning?.steps ?? []}
+        activeRunId={provisioning?.activeRunId ?? null}
+        noTargets={noTargets}
         canRun={canRun}
         starting={starting}
         errorCode={errorCode}
@@ -191,6 +193,7 @@ export function ProvisioningPanelView({
   steps,
   activeRunId,
   canRun,
+  noTargets = false,
   starting = false,
   errorCode = null,
   lookups,
@@ -201,6 +204,8 @@ export function ProvisioningPanelView({
   steps: ProvisioningStep[];
   activeRunId: string | null;
   canRun: boolean;
+  // No deploy targets: only the hint is shown, there is nothing to provision.
+  noTargets?: boolean;
   starting?: boolean;
   // A 422 code from the start request (missing_db_fields | no_targets).
   errorCode?: string | null;
@@ -210,6 +215,17 @@ export function ProvisioningPanelView({
 }) {
   const t = useTranslations("provisioning");
   if (!canRun) return null;
+
+  if (noTargets) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("title")}</CardTitle>
+          <CardDescription>{t("error.no_targets")}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   const rows = provisioningRows(plan, steps);
   const failed = rows.some((row) => row.status === "failed");
