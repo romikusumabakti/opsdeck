@@ -425,7 +425,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
     for (const role of [ROLE, OTHER_ROLE, GRANTED, MEMBER, GROUP]) {
       await superuser(`DROP ROLE IF EXISTS ${role}`);
     }
-    await run(["exec", CONTAINER, "rm", "-f", DUMP]);
+    await run(["exec", CONTAINER, "sh", "-c", "rm -f /tmp/pcan_it_*"]);
   };
   // As the binding's role over the container's local socket, as the shared
   // backup and restore pipelines connect.
@@ -599,5 +599,46 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
     );
     expect((await shell(restore)).code).not.toBe(0);
     expect((await asRole("SELECT count(*) FROM public.t")).stdout).toBe("5");
+  });
+  it("a failed restore rolls back the reset: truncated .gz, or a failing last statement", async () => {
+    const BIG = "/tmp/pcan_it_big.sql.gz";
+    const CUT = "/tmp/pcan_it_cut.sql.gz";
+    const BAD = "/tmp/pcan_it_bad.sql";
+    const count = async () =>
+      (await asRole("SELECT count(*) FROM public.pcan_it_rows")).stdout;
+    expect(
+      await asRole(
+        "CREATE TABLE public.pcan_it_rows AS SELECT g AS id, md5(g::text) AS v FROM generate_series(1, 200000) g"
+      )
+    ).toMatchObject({ code: 0 });
+    expect(
+      await shell(pgSharedBackupPipeline(DB, ROLE, BIG, true))
+    ).toMatchObject({ code: 0 });
+    expect(await count()).toBe("200000");
+
+    // A .gz cut short: refused before the database is touched.
+    expect((await shell(`head -c 20000 ${BIG} > ${CUT}`)).code).toBe(0);
+    const cut = await shell(pgSharedRestorePipeline(DB, ROLE, CUT, true));
+    expect(cut.code).not.toBe(0);
+    expect(await count()).toBe("200000");
+    expect((await asRole("SELECT count(*) FROM public.t")).stdout).toBe("5");
+
+    // A complete dump whose last statement fails: the whole session,
+    // DROP OWNED included, rolls back.
+    expect(
+      (await shell(`gunzip -c ${BIG} > ${BAD} && echo 'SELECT 1/0;' >> ${BAD}`))
+        .code
+    ).toBe(0);
+    const bad = await shell(pgSharedRestorePipeline(DB, ROLE, BAD, false));
+    expect(bad.code).not.toBe(0);
+    expect(bad.stderr).toContain("division by zero");
+    expect(await count()).toBe("200000");
+    expect((await asRole("SELECT count(*) FROM public.t")).stdout).toBe("5");
+
+    // And the intact dump still restores.
+    expect(
+      await shell(pgSharedRestorePipeline(DB, ROLE, BIG, true))
+    ).toMatchObject({ code: 0 });
+    expect(await count()).toBe("200000");
   });
 });
