@@ -20,8 +20,20 @@ describe("cloudflare domains migration", () => {
     expect(sql.trimEnd().endsWith("COMMIT;")).toBe(true);
   });
 
-  it("sets a lock timeout right after BEGIN", () => {
-    expect(sql).toMatch(/\nBEGIN;\n(?:--[^\n]*\n)*SET lock_timeout = '5s';\n/);
+  it("sets the session lock timeout before any statement", () => {
+    const set = sql.indexOf("SET lock_timeout = '5s';");
+    expect(set).toBeGreaterThan(-1);
+    expect(sql.match(/SET lock_timeout/g)).toHaveLength(1);
+    // Only comments come before it.
+    expect(
+      sql
+        .slice(0, set)
+        .split("\n")
+        .every((line) => line === "" || line.startsWith("--"))
+    ).toBe(true);
+    expect(set).toBeLessThan(
+      sql.indexOf('ALTER TYPE "provisioning_step_kind"')
+    );
   });
 
   it("creates the domain_kind enum and the three tables", () => {
