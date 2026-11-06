@@ -36,6 +36,7 @@ import { notificationsRouter } from "@/server/routes/notifications";
 import { avatarsRouter, profileRouter } from "@/server/routes/profile";
 import { projectCatalogRouter } from "@/server/routes/project-catalog";
 import { projectMembersRouter } from "@/server/routes/project-members";
+import { provisioningRouter } from "@/server/routes/provisioning";
 import { runsRouter } from "@/server/routes/runs";
 import { s3ConnectionsRouter } from "@/server/routes/s3-connections";
 import { savedViewsRouter } from "@/server/routes/saved-views";
@@ -102,6 +103,7 @@ export const app = createBaseApp()
   .route("/api/environments", serviceLogsRouter)
   .route("/api/environments", environmentVariablesRouter)
   .route("/api/environments", deployLocksRouter)
+  .route("/api/environments", provisioningRouter)
   .route("/api/services", servicesRouter)
   .route("/api/runs", runsRouter)
   .route("/api/backups", backupsRouter)

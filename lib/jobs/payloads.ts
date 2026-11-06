@@ -104,6 +104,10 @@ const JOB_PAYLOAD_SCHEMAS: { [N in JobName]: z.ZodType<JobMap[N]> } = {
     deploymentId: uuidSchema,
     runId: uuidSchema,
   }),
+  "provision/run.requested": z.object({
+    environmentId: uuidSchema,
+    runId: uuidSchema,
+  }),
   "deploy/lock-sweep": z.object({}).strict(),
 };
 

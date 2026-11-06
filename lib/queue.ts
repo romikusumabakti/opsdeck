@@ -92,6 +92,12 @@ export type JobMap = {
     deploymentId: string;
     runId: string;
   };
+  // Bring an environment up: deploy directories, shared database, first
+  // deploys. Carries only ids; the steps live in provisioning_steps.
+  "provision/run.requested": {
+    environmentId: string;
+    runId: string;
+  };
   // Release every expired deploy lock (repeatable; see scheduleDeployLockSweep).
   "deploy/lock-sweep": Record<string, never>;
 };
