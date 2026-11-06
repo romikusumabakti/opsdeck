@@ -447,6 +447,9 @@
     "emptyPlan": "Aún no hay nada que aprovisionar. Completa la base de datos en los ajustes del entorno.",
     "alreadyRunning": "Ya hay un aprovisionamiento en curso para este entorno",
     "startFailed": "No se pudo iniciar el aprovisionamiento",
+    "confirmTitle": "¿Ejecutar el aprovisionamiento?",
+    "confirmDescription": "Estos pasos se ejecutan en orden. Cada paso de despliegue despliega ahora la compilación más reciente de su rama en ese destino.",
+    "confirmDone": "terminado, se omite",
     "status": {
       "pending": "Pendiente",
       "running": "En curso",
