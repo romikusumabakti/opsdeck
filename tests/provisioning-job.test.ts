@@ -29,7 +29,13 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/provisioning/repository", () => ({
   getProvisionRun: async () =>
-    state.runMissing ? null : { environmentId: ENV_ID, userId: USER_ID },
+    state.runMissing
+      ? null
+      : {
+          environmentId: ENV_ID,
+          userId: USER_ID,
+          status: state.run?.status ?? "started",
+        },
   failRunningSteps: async (_env: string, message: string) => {
     for (const step of state.steps) {
       if (step.status === "running") {
@@ -66,11 +72,24 @@ vi.mock("@/lib/run-progress", () => ({
   appendRunOutput: async (_id: string, line: string) => {
     state.log.push(line);
   },
-  completeRun: async () => {
+  // Mirrors the real guard: with onlyIfStarted a closed run stays as it is.
+  completeRun: async (_id: string, opts?: { onlyIfStarted?: boolean }) => {
+    if (opts?.onlyIfStarted && state.run && state.run.status !== "started") {
+      return false;
+    }
     state.run = { status: "success" };
+    return true;
   },
-  failRun: async (_id: string, error: string) => {
+  failRun: async (
+    _id: string,
+    error: string,
+    opts?: { onlyIfStarted?: boolean }
+  ) => {
+    if (opts?.onlyIfStarted && state.run && state.run.status !== "started") {
+      return false;
+    }
     state.run = { status: "failed", error };
+    return true;
   },
 }));
 
@@ -185,8 +204,10 @@ describe("runProvisioning", () => {
     expect(statuses()).toEqual(["done", "failed", "pending"]);
     expect(state.run?.status).toBe("failed");
 
+    // A retry is a new run.
     state.failures = [];
     state.sshCommands = [];
+    state.run = null;
     await expect(run()).resolves.toEqual({ status: "success" });
     expect(statuses()).toEqual(["done", "done", "done"]);
     // The finished directory step did not run again.
@@ -210,6 +231,7 @@ describe("runProvisioning", () => {
     await run();
     expect(state.steps[1]?.lastError).toBe("variable DB_PASSWORD missing");
     seed();
+    state.run = null;
     state.variable = { kind: "plain", value: "x" };
     await run();
     expect(state.steps[1]?.status).toBe("failed");
@@ -272,5 +294,53 @@ describe("runProvisioning", () => {
     await expect(run()).rejects.toThrow("not found");
     expect(statuses()).toEqual(["pending", "pending", "pending"]);
     expect(state.sshCommands).toEqual([]);
+  });
+
+  it("a redelivered job for a failed run executes no step", async () => {
+    state.run = { status: "failed", error: "Worker restarted" };
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(run()).resolves.toEqual({ status: "failed" });
+    expect(statuses()).toEqual(["pending", "pending", "pending"]);
+    expect(state.sshCommands).toEqual([]);
+    expect(requestDeployment).not.toHaveBeenCalled();
+    expect(state.log).toEqual([]);
+    expect(state.run).toEqual({ status: "failed", error: "Worker restarted" });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("skipping"));
+    log.mockRestore();
+  });
+
+  it("asks for guarded completion and failure only", async () => {
+    const progress = await import("@/lib/run-progress");
+    const complete = vi.spyOn(progress, "completeRun");
+    const fail = vi.spyOn(progress, "failRun");
+    await run();
+    expect(complete).toHaveBeenCalledWith(RUN_ID, { onlyIfStarted: true });
+    seed();
+    state.run = null;
+    state.failures = ["create_database"];
+    await run();
+    expect(fail).toHaveBeenCalledWith(RUN_ID, expect.any(String), {
+      onlyIfStarted: true,
+    });
+    complete.mockRestore();
+    fail.mockRestore();
+  });
+
+  it("a run closed while its steps ran stays failed", async () => {
+    seed(["prepare_deploy_dir"]);
+    // The stale check fails the run while the step is running.
+    const progress = await import("@/lib/run-progress");
+    const append = vi
+      .spyOn(progress, "appendRunOutput")
+      .mockImplementation(async (_id, line) => {
+        state.log.push(line);
+        if (line.startsWith("✔"))
+          state.run = { status: "failed", error: "stale" };
+      });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(run()).resolves.toEqual({ status: "failed" });
+    expect(state.run).toEqual({ status: "failed", error: "stale" });
+    append.mockRestore();
+    log.mockRestore();
   });
 });
