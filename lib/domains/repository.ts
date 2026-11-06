@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, ne, type SQL, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   cloudflareAccounts,
@@ -7,6 +7,7 @@ import {
   type EnvironmentDomain,
   environmentDomains,
   environments,
+  provisioningSteps,
   remoteTunnels,
   servers,
 } from "@/lib/db/schema";
@@ -114,6 +115,25 @@ export async function getRemoteTunnelByServer(serverId: string) {
   return row;
 }
 
+// A provisioning step of these kinds that is done or running has (or is about
+// to have) changed Cloudflare, whether or not an id was written yet.
+const stepStarted = (environmentId: SQL | string) =>
+  sql`exists (select 1 from ${provisioningSteps} where ${provisioningSteps.environmentId} = ${environmentId} and ${provisioningSteps.kind} in ('tunnel_route', 'access_app', 'dns_record') and ${provisioningSteps.status} in ('done', 'running'))`;
+
+/** Whether a Cloudflare provisioning step of the environment has started. */
+export async function hasProvisioningProgress(
+  environmentId: string
+): Promise<boolean> {
+  const rows = await db.execute<{ started: boolean }>(
+    sql`select ${stepStarted(environmentId)} as started`
+  );
+  return rows[0]?.started === true;
+}
+
+// Still unprovisioned, judged by the row itself so the check and the write are
+// one statement.
+const unprovisioned = sql`${environmentDomains.accessAppId} is null and ${environmentDomains.dnsRecordId} is null and not ${stepStarted(sql`${environmentDomains.environmentId}`)}`;
+
 type DomainWrite = Pick<
   typeof environmentDomains.$inferInsert,
   "kind" | "hostname" | "zoneId" | "remoteTunnelId" | "accessPolicyId"
@@ -121,35 +141,45 @@ type DomainWrite = Pick<
 
 /**
  * Stores the binding, and the entry port when given, together. A changed
- * binding starts unprovisioned: the provisioning ids are cleared.
+ * binding starts unprovisioned: the provisioning ids are cleared. Returns false
+ * (and writes nothing) when the existing binding is provisioned.
  */
 export async function saveDomain(
   environmentId: string,
   write: DomainWrite,
   entryPort?: number
-): Promise<void> {
-  await db.transaction(async (tx) => {
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const values = { ...write, accessAppId: null, dnsRecordId: null };
+    const rows = await tx
+      .insert(environmentDomains)
+      .values({ environmentId, ...values })
+      .onConflictDoUpdate({
+        target: environmentDomains.environmentId,
+        set: { ...values, updatedAt: new Date() },
+        setWhere: unprovisioned,
+      })
+      .returning({ id: environmentDomains.environmentId });
+    if (rows.length === 0) return false;
     if (entryPort !== undefined) {
       await tx
         .update(environments)
         .set({ entryPort })
         .where(eq(environments.id, environmentId));
     }
-    const values = { ...write, accessAppId: null, dnsRecordId: null };
-    await tx
-      .insert(environmentDomains)
-      .values({ environmentId, ...values })
-      .onConflictDoUpdate({
-        target: environmentDomains.environmentId,
-        set: { ...values, updatedAt: new Date() },
-      });
+    return true;
   });
 }
 
-export async function deleteDomain(environmentId: string): Promise<void> {
-  await db
+/** Removes an unprovisioned binding. False when none was removed. */
+export async function deleteDomain(environmentId: string): Promise<boolean> {
+  const rows = await db
     .delete(environmentDomains)
-    .where(eq(environmentDomains.environmentId, environmentId));
+    .where(
+      and(eq(environmentDomains.environmentId, environmentId), unprovisioned)
+    )
+    .returning({ id: environmentDomains.environmentId });
+  return rows.length > 0;
 }
 
 // --- Remote tunnels ---

@@ -16,7 +16,7 @@ const HOSTNAME_MAX_LENGTH = 253;
 
 /** `<label>.<zone>`, for a zone row's `name` (the apex domain). */
 export function hostnameFor(label: string, zoneName: string): string {
-  return `${label}.${zoneName}`;
+  return `${label}.${zoneName.toLowerCase()}`;
 }
 
 /** An FQDN: at least two labels, each valid, 253 characters at most. */
@@ -70,3 +70,22 @@ export const domainInputSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type DomainInput = z.infer<typeof domainInputSchema>;
+
+/**
+ * Whether a reusable Access policy lets anyone in: a bypass decision or an
+ * `everyone` include rule. Such a policy is a public binding in effect.
+ */
+export function isPublicPolicy(policy: {
+  decision: string;
+  everyone: boolean;
+}): boolean {
+  return policy.decision === "bypass" || policy.everyone;
+}
+
+/** Whether the hostname is a registered zone or a name under one. */
+export function isUnderZone(hostname: string, zoneNames: string[]): boolean {
+  return zoneNames.some((zone) => {
+    const name = zone.toLowerCase();
+    return hostname === name || hostname.endsWith(`.${name}`);
+  });
+}

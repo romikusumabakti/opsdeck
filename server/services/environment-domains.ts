@@ -2,7 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { listAccessPolicies } from "@/lib/cloudflare/api";
-import { DOMAIN_ERRORS } from "@/lib/domains/errors";
+import { DOMAIN_ERRORS, pgErrorCode } from "@/lib/domains/errors";
 import {
   deleteDomain,
   getDomain,
@@ -10,12 +10,18 @@ import {
   getEnvironmentRow,
   getRemoteTunnelByServer,
   getZone,
+  hasProvisioningProgress,
   hostnameTakenByOther,
   listDeployServerIds,
   listZones,
   saveDomain,
 } from "@/lib/domains/repository";
-import { type DomainInput, hostnameFor } from "@/lib/domains/validation";
+import {
+  type DomainInput,
+  hostnameFor,
+  isPublicPolicy,
+  isUnderZone,
+} from "@/lib/domains/validation";
 import { canOrg } from "@/lib/permissions";
 import { notFound } from "@/server/errors";
 import { callCloudflare } from "@/server/services/cloudflare-account";
@@ -34,11 +40,41 @@ const fail = (status: 403 | 409 | 422, message: string): never => {
   throw new HTTPException(status, { message });
 };
 
-// The provisioning steps wrote to Cloudflare once either id is set.
-const isProvisioned = (domain: {
-  accessAppId: string | null;
-  dnsRecordId: string | null;
-}) => !!(domain.accessAppId || domain.dnsRecordId);
+// The provisioning steps wrote to Cloudflare once either id is set, or once a
+// Cloudflare step is done or running (tunnel_route writes no id). The writes
+// below repeat this check in SQL, so a step starting between this read and the
+// write still cannot be overwritten.
+async function isProvisioned(
+  environmentId: string,
+  domain?: { accessAppId: string | null; dnsRecordId: string | null }
+): Promise<boolean> {
+  if (domain?.accessAppId || domain?.dnsRecordId) return true;
+  return hasProvisioningProgress(environmentId);
+}
+
+// Writes the binding; maps the guarded no-row result and a hostname race.
+async function store(
+  environmentId: string,
+  ...args: Parameters<typeof saveDomain> extends [string, ...infer R]
+    ? R
+    : never
+) {
+  try {
+    if (!(await saveDomain(environmentId, ...args))) {
+      fail(409, DOMAIN_ERRORS.domainProvisioned);
+    }
+  } catch (error) {
+    if (pgErrorCode(error) === "23505") {
+      fail(409, DOMAIN_ERRORS.domainHostnameTaken);
+    }
+    throw error;
+  }
+}
+
+// Policies that let anyone in count as public: only an org server:manage
+// holder may bind them, and others are not offered them.
+const canPublish = (role: string | null | undefined) =>
+  canOrg(role, { server: ["manage"] });
 
 /** The one server the environment's deploy targets run on. */
 async function resolveDeployServerId(environmentId: string): Promise<string> {
@@ -57,6 +93,9 @@ export async function getEnvironmentDomain(environmentId: string) {
     listZones(),
   ]);
   const domain = view?.domain ?? null;
+  const provisioned = domain
+    ? await isProvisioned(environmentId, domain)
+    : false;
   return {
     entryPort: environment?.entryPort ?? null,
     zones,
@@ -71,15 +110,21 @@ export async function getEnvironmentDomain(environmentId: string) {
           : null,
       tunnelName: view?.tunnelName ?? null,
       accessPolicyId: domain.accessPolicyId,
-      provisioned: isProvisioned(domain),
+      provisioned,
     },
   };
 }
 
 /** Reusable Access policies for the select; needs the Cloudflare account. */
 export async function listDomainAccessPolicies(environmentId: string) {
-  await requireProjectPermission({ environmentId }, CONFIGURE);
-  return callCloudflare(listAccessPolicies);
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    CONFIGURE
+  );
+  const policies = await callCloudflare(listAccessPolicies);
+  return policies
+    .filter((p) => canPublish(session.user.role) || !isPublicPolicy(p))
+    .map(({ id, name }) => ({ id, name }));
 }
 
 export async function putEnvironmentDomain(
@@ -94,7 +139,7 @@ export async function putEnvironmentDomain(
   if (!environment) notFound();
 
   const current = await getDomain(environmentId);
-  if (current && isProvisioned(current)) {
+  if (await isProvisioned(environmentId, current)) {
     return fail(409, DOMAIN_ERRORS.domainProvisioned);
   }
 
@@ -102,7 +147,12 @@ export async function putEnvironmentDomain(
     if (await hostnameTakenByOther(input.hostname, environmentId)) {
       return fail(409, DOMAIN_ERRORS.domainHostnameTaken);
     }
-    await saveDomain(environmentId, {
+    // Under a registered zone the Panel can do better than a record.
+    const zoneNames = (await listZones()).map((z) => z.name);
+    if (isUnderZone(input.hostname, zoneNames)) {
+      return fail(422, DOMAIN_ERRORS.domainExternalInZone);
+    }
+    await store(environmentId, {
       kind: "external",
       hostname: input.hostname,
       zoneId: null,
@@ -120,10 +170,7 @@ export async function putEnvironmentDomain(
   }
 
   // Going public is an org-level call; refuse before any lookup.
-  if (
-    input.accessPolicyId === null &&
-    !canOrg(session.user.role, { server: ["manage"] })
-  ) {
+  if (input.accessPolicyId === null && !canPublish(session.user.role)) {
     return fail(403, DOMAIN_ERRORS.domainPublicForbidden);
   }
 
@@ -143,30 +190,25 @@ export async function putEnvironmentDomain(
   if (input.accessPolicyId !== null) {
     const policyId = input.accessPolicyId;
     const policies = await callCloudflare(listAccessPolicies);
-    if (!policies.some((p) => p.id === policyId)) {
-      return fail(422, DOMAIN_ERRORS.domainUnknownPolicy);
+    const policy = policies.find((p) => p.id === policyId);
+    if (!policy) return fail(422, DOMAIN_ERRORS.domainUnknownPolicy);
+    // A bypass or Everyone policy is a public binding by another name.
+    if (isPublicPolicy(policy) && !canPublish(session.user.role)) {
+      return fail(403, DOMAIN_ERRORS.domainPublicForbidden);
     }
   }
 
-  try {
-    await saveDomain(
-      environmentId,
-      {
-        kind: "tunnel",
-        hostname,
-        zoneId: zone.id,
-        remoteTunnelId: tunnel.id,
-        accessPolicyId: input.accessPolicyId,
-      },
-      input.entryPort
-    );
-  } catch (error) {
-    // Two requests raced for the same hostname.
-    if ((error as { code?: string }).code === "23505") {
-      return fail(409, DOMAIN_ERRORS.domainHostnameTaken);
-    }
-    throw error;
-  }
+  await store(
+    environmentId,
+    {
+      kind: "tunnel",
+      hostname,
+      zoneId: zone.id,
+      remoteTunnelId: tunnel.id,
+      accessPolicyId: input.accessPolicyId,
+    },
+    input.entryPort
+  );
   await record(
     session.user.id,
     environmentId,
@@ -186,8 +228,13 @@ export async function deleteEnvironmentDomain(environmentId: string) {
   if (!environment) notFound();
   const current = await getDomain(environmentId);
   if (!current) return;
-  if (isProvisioned(current)) return fail(409, DOMAIN_ERRORS.domainProvisioned);
-  await deleteDomain(environmentId);
+  if (await isProvisioned(environmentId, current)) {
+    return fail(409, DOMAIN_ERRORS.domainProvisioned);
+  }
+  // The delete repeats the check in SQL; no row means a step started meanwhile.
+  if (!(await deleteDomain(environmentId))) {
+    return fail(409, DOMAIN_ERRORS.domainProvisioned);
+  }
   await recordActivity({
     actorId: session.user.id,
     action: "environment.domain.delete",

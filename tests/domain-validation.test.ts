@@ -5,6 +5,8 @@ import {
   externalHostnameSchema,
   hostnameFor,
   isFqdn,
+  isPublicPolicy,
+  isUnderZone,
   originHostSchema,
 } from "@/lib/domains/validation";
 
@@ -29,6 +31,25 @@ describe("hostnameFor", () => {
     expect(hostnameFor("hris-staging", "example.net")).toBe(
       "hris-staging.example.net"
     );
+  });
+});
+
+describe("zone and policy helpers", () => {
+  it("lowercases the zone name in hostnameFor", () => {
+    expect(hostnameFor("a", "Example.NET")).toBe("a.example.net");
+  });
+
+  it("isUnderZone matches the zone and its subdomains only", () => {
+    const zones = ["example.net"];
+    expect(isUnderZone("example.net", zones)).toBe(true);
+    expect(isUnderZone("a.b.example.net", zones)).toBe(true);
+    expect(isUnderZone("xexample.net", zones)).toBe(false);
+  });
+
+  it("isPublicPolicy flags bypass and everyone", () => {
+    expect(isPublicPolicy({ decision: "bypass", everyone: false })).toBe(true);
+    expect(isPublicPolicy({ decision: "allow", everyone: true })).toBe(true);
+    expect(isPublicPolicy({ decision: "allow", everyone: false })).toBe(false);
   });
 });
 

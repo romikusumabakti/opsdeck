@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
     status: string;
     remoteConfig: boolean;
   }[],
+  insertError: null as unknown,
+  deleteError: null as unknown,
   inserted: null as Record<string, unknown> | null,
   deleted: [] as string[],
 }));
@@ -56,6 +58,7 @@ vi.mock("@/lib/domains/repository", () => ({
     state.alreadyRegistered ? { id: ROW_ID } : undefined
   ),
   insertRemoteTunnel: vi.fn(async (values: Record<string, unknown>) => {
+    if (state.insertError) throw state.insertError;
     state.inserted = values;
     return { id: ROW_ID, ...values };
   }),
@@ -65,6 +68,7 @@ vi.mock("@/lib/domains/repository", () => ({
   ),
   countBindings: vi.fn(async () => state.bindings),
   deleteRemoteTunnel: vi.fn(async (id: string) => {
+    if (state.deleteError) throw state.deleteError;
     state.deleted.push(id);
   }),
 }));
@@ -99,6 +103,8 @@ beforeEach(() => {
     { id: "t-local", name: "legacy", status: "healthy", remoteConfig: false },
   ];
   state.inserted = null;
+  state.insertError = null;
+  state.deleteError = null;
   state.deleted = [];
 });
 
@@ -192,5 +198,18 @@ describe("DELETE /api/remote-tunnels/:id", () => {
       "/api/remote-tunnels/0197f3a0-1b2c-7def-8000-0123456789ff"
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("database races", () => {
+  it("maps a unique violation on register to 409", async () => {
+    state.insertError = Object.assign(new Error("dup"), { code: "23505" });
+    expect((await register()).status).toBe(409);
+  });
+
+  it("maps a foreign key violation on delete to 409", async () => {
+    state.deleteError = { cause: { code: "23503" } };
+    const res = await send("DELETE", `/api/remote-tunnels/${ROW_ID}`);
+    expect(res.status).toBe(409);
   });
 });

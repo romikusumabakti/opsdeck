@@ -80,13 +80,34 @@ describe("pagination", () => {
 
   it("lists policies and identity providers across pages", async () => {
     responses.push(
-      ok([{ id: "p1", name: "Staff", extra: 1 }], { total_pages: 2 }),
-      ok([{ id: "p2", name: "Admins" }], { total_pages: 2 }),
+      ok(
+        [
+          {
+            id: "p1",
+            name: "Staff",
+            decision: "allow",
+            include: [{ email_domain: { domain: "x.id" } }],
+            extra: 1,
+          },
+        ],
+        { total_pages: 2 }
+      ),
+      ok(
+        [
+          {
+            id: "p2",
+            name: "Admins",
+            decision: "bypass",
+            include: [{ everyone: {} }],
+          },
+        ],
+        { total_pages: 2 }
+      ),
       ok([{ id: "i1", name: "Entra", type: "azureAD" }], { total_pages: 1 })
     );
     expect(await listAccessPolicies(creds)).toEqual([
-      { id: "p1", name: "Staff" },
-      { id: "p2", name: "Admins" },
+      { id: "p1", name: "Staff", decision: "allow", everyone: false },
+      { id: "p2", name: "Admins", decision: "bypass", everyone: true },
     ]);
     expect(await listIdentityProviders(creds)).toEqual([
       { id: "i1", name: "Entra", type: "azureAD" },
