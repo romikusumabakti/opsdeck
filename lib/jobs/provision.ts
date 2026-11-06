@@ -98,7 +98,12 @@ async function createDatabase(
       server: { ...host.server, password: decryptSecret(host.server.password) },
       containerName: host.containerName,
     },
-    { database: params.database, role: params.role, password }
+    {
+      database: params.database,
+      role: params.role,
+      password,
+      environmentId: ctx.environmentId,
+    }
   );
   return `Database ${params.database} and role ${params.role} ready`;
 }

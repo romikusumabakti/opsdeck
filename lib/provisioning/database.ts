@@ -38,22 +38,37 @@ export function scramSha256Verifier(
   return `SCRAM-SHA-256$${iterations}:${salt.toString("base64")}$${storedKey.toString("base64")}:${serverKey.toString("base64")}`;
 }
 
+/** The comment the Panel puts on every role it creates for an environment. */
+export function provisionedRoleMarker(environmentId: string): string {
+  return `opsdeck:${environmentId}`;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * The psql script that provisions `database` owned by `role` with the given
- * SCRAM verifier. Idempotent: a rerun only sets the new password. Before
- * changing anything it refuses
- * - a database that exists with another owner;
+ * SCRAM verifier, for environment `environmentId`. Idempotent: a rerun only
+ * sets the new password. A role it creates is marked with
+ * `COMMENT ON ROLE … IS 'opsdeck:<environmentId>'` in the same statement
+ * (one DO block, so one transaction) as CREATE ROLE. Before changing
+ * anything it refuses
+ * - a database that exists with another owner, or whose owner doesn't carry
+ *   this environment's marker (a hand-made database);
  * - an existing role that is privileged (superuser, createrole, createdb,
  *   replication, bypassrls);
  * - an existing role that is in use anywhere but this database: a member of
  *   or granted any role (pg_auth_members), owning or granted anything outside
- *   it (pg_shdepend), or carrying settings outside it (pg_db_role_setting).
+ *   it (pg_shdepend), or carrying settings outside it (pg_db_role_setting);
+ * - an existing role whose comment isn't exactly this environment's marker
+ *   (a hand-made role, even one that owns just this database: the typical
+ *   app role an operator made by hand).
  *
- * So the only existing role it reuses is one that owns this exact database
- * and nothing else (a rerun), or a bare role a half-finished run left
- * behind; it never takes over a role made for something else and resets
- * its password. CONNECT and TEMPORARY on the database are revoked from PUBLIC,
- * so the other roles on the host can't connect to it.
+ * So the only existing role it reuses is one the Panel created for this
+ * environment that owns this exact database and nothing else (a rerun), or
+ * the marked bare role a half-finished run left behind; it never takes over
+ * a role made for something else and resets its password. CONNECT and
+ * TEMPORARY on the database are revoked from PUBLIC, so the other roles on
+ * the host can't connect to it.
  *
  * Residual risk, by design: the Panel does not revoke PUBLIC's CONNECT on the
  * host's other databases, so the role can connect to any database that
@@ -67,11 +82,16 @@ export function pgProvisionDatabaseSql(input: {
   database: string;
   role: string;
   verifier: string;
+  environmentId: string;
 }): string {
+  if (!UUID.test(input.environmentId)) {
+    throw new Error("environmentId must be a uuid");
+  }
   const db = pgQuoteId(input.database);
   const role = pgQuoteId(input.role);
   const dbLit = pgQuoteLiteral(input.database);
   const roleLit = pgQuoteLiteral(input.role);
+  const markerLit = pgQuoteLiteral(provisionedRoleMarker(input.environmentId));
   // The guard is a DO body in an ordinary string literal (not dollar
   // quoting), so the quoted names inside it can never end it early. db_oid is
   // null while the database doesn't exist yet: then every dependency counts
@@ -79,15 +99,22 @@ export function pgProvisionDatabaseSql(input: {
   const guard = [
     "DECLARE",
     "  current_owner name;",
+    "  owner_oid oid;",
     "  db_oid oid;",
     "  role_oid oid;",
     "BEGIN",
-    `  SELECT oid, pg_get_userbyid(datdba) INTO db_oid, current_owner FROM pg_database WHERE datname = ${dbLit};`,
+    `  SELECT oid, datdba, pg_get_userbyid(datdba) INTO db_oid, owner_oid, current_owner FROM pg_database WHERE datname = ${dbLit};`,
     `  IF current_owner IS NOT NULL AND current_owner <> ${roleLit} THEN`,
     `    RAISE EXCEPTION 'database % exists with owner %', ${dbLit}, current_owner;`,
     "  END IF;",
+    `  IF db_oid IS NOT NULL AND shobj_description(owner_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
+    `    RAISE EXCEPTION 'database % was not created by the Panel for this environment', ${dbLit};`,
+    "  END IF;",
     `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
     "  IF role_oid IS NULL THEN",
+    // Created and marked together: the DO block is one transaction.
+    `    EXECUTE format('CREATE ROLE %I LOGIN', ${roleLit});`,
+    `    EXECUTE format('COMMENT ON ROLE %I IS %L', ${roleLit}, ${markerLit});`,
     "    RETURN;",
     "  END IF;",
     "  IF EXISTS (SELECT 1 FROM pg_roles WHERE oid = role_oid AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)) THEN",
@@ -100,15 +127,17 @@ export function pgProvisionDatabaseSql(input: {
     "    OR EXISTS (SELECT 1 FROM pg_db_role_setting WHERE setrole = role_oid AND setdatabase IS DISTINCT FROM db_oid) THEN",
     `    RAISE EXCEPTION 'role % is in use outside database %', ${roleLit}, ${dbLit};`,
     "  END IF;",
+    `  IF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
+    `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+    "  END IF;",
     "END",
   ].join("\n");
   return [
     "\\set ON_ERROR_STOP on",
     `DO ${pgQuoteLiteral(guard)};`,
-    // \gexec runs each returned row as a statement: none when the role or
-    // database already exists. CREATE DATABASE can't run inside DO.
-    `SELECT ${pgQuoteLiteral(`CREATE ROLE ${role} LOGIN;`)} WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${roleLit}) \\gexec`,
     `ALTER ROLE ${role} WITH LOGIN PASSWORD ${pgQuoteLiteral(input.verifier)};`,
+    // \gexec runs the returned row as a statement: none when the database
+    // already exists. CREATE DATABASE can't run inside DO.
     `SELECT ${pgQuoteLiteral(`CREATE DATABASE ${db} OWNER ${role};`)} WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = ${dbLit}) \\gexec`,
     `REVOKE CONNECT, TEMPORARY ON DATABASE ${db} FROM PUBLIC;`,
     "",
@@ -132,7 +161,12 @@ export async function provisionSharedDatabase(
     server: Pick<Server, "host" | "username" | "password">;
     containerName: string;
   },
-  input: { database: string; role: string; password: string }
+  input: {
+    database: string;
+    role: string;
+    password: string;
+    environmentId: string;
+  }
 ): Promise<void> {
   if (!/^[\x20-\x7e]+$/.test(input.password)) {
     throw new Error(
@@ -144,6 +178,7 @@ export async function provisionSharedDatabase(
     database: input.database,
     role: input.role,
     verifier,
+    environmentId: input.environmentId,
   });
   const creds = {
     host: host.server.host,
