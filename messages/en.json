@@ -447,6 +447,9 @@
     "emptyPlan": "Nothing to provision yet. Complete the database binding in the environment settings.",
     "alreadyRunning": "Provisioning is already running for this environment",
     "startFailed": "Could not start provisioning",
+    "confirmTitle": "Run provisioning?",
+    "confirmDescription": "These steps run in order. Each deploy step deploys the newest build of its branch to that target now.",
+    "confirmDone": "done, skipped",
     "status": {
       "pending": "Pending",
       "running": "Running",

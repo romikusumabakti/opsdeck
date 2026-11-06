@@ -447,6 +447,9 @@
     "emptyPlan": "暂无可配置内容。请先在环境设置中完成数据库绑定。",
     "alreadyRunning": "此环境的配置已在运行",
     "startFailed": "无法开始配置",
+    "confirmTitle": "运行配置？",
+    "confirmDescription": "这些步骤将按顺序运行。每个部署步骤会立即将其分支的最新构建部署到该目标。",
+    "confirmDone": "已完成，跳过",
     "status": {
       "pending": "待处理",
       "running": "进行中",

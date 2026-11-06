@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { IntlProvider } from "use-intl";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectRoleProvider } from "@/components/project-role";
 import {
   databaseBindingPayload,
@@ -15,6 +17,14 @@ import {
 import type { ProvisioningStepSpec } from "@/lib/provisioning/plan";
 import type { ProvisioningStep } from "@/web/api/provisioning";
 import messages from "../messages/en.json";
+
+// The POST is a spy: the tests check it waits for the confirm dialog.
+const api = vi.hoisted(() => ({ startProvisioning: vi.fn() }));
+vi.mock("@/web/api/provisioning", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/web/api/provisioning")>()),
+  startProvisioning: api.startProvisioning,
+}));
+
 import {
   type ProvisioningLookups,
   ProvisioningPanel,
@@ -183,15 +193,23 @@ describe("ProvisioningPanel", () => {
   } as never;
   const targets = [{ id: "t1", componentKey: "hris" }] as never;
 
-  function panel(role: "viewer" | "maintainer") {
-    const queryClient = new QueryClient();
+  function client(showPanel = true) {
+    // Seeded and never refetched: no network in these tests.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
     queryClient.setQueryData(["provisioning", "getProvisioning", "e1"], {
       steps: [],
       plan,
       activeRunId: null,
+      showPanel,
     });
+    queryClient.setQueryData(["databaseHosts", "listDatabaseHosts", []], []);
+    return queryClient;
+  }
+  function panel(role: "viewer" | "maintainer", showPanel = true) {
     return renderToString(
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={client(showPanel)}>
         {wrap(
           <ProvisioningPanel environment={environment} targets={targets} />,
           role
@@ -202,6 +220,70 @@ describe("ProvisioningPanel", () => {
 
   it("is shown to a maintainer", () => {
     expect(panel("maintainer")).toContain(">Provision<");
+  });
+
+  it("is hidden when the API says so (a legacy env that already deployed)", () => {
+    expect(panel("maintainer", false)).toBe("");
+  });
+
+  describe("Provision button", () => {
+    (
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    let container: HTMLDivElement;
+    let root: ReturnType<typeof createRoot>;
+
+    afterEach(() => {
+      act(() => root.unmount());
+      container.remove();
+      api.startProvisioning.mockReset();
+    });
+
+    async function mount() {
+      container = document.createElement("div");
+      document.body.append(container);
+      root = createRoot(container);
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={client()}>
+            {wrap(
+              <ProvisioningPanel environment={environment} targets={targets} />
+            )}
+          </QueryClientProvider>
+        );
+      });
+    }
+    const button = (name: string) =>
+      [...document.querySelectorAll("button")].find(
+        (b) => b.textContent?.trim() === name
+      );
+    const dialog = () => document.querySelector('[role="alertdialog"]');
+
+    it("opens a confirm dialog listing the plan before any POST", async () => {
+      api.startProvisioning.mockResolvedValue({ runId: "run-1" });
+      await mount();
+      expect(dialog()).toBeNull();
+      await act(async () => button("Provision")?.click());
+      expect(api.startProvisioning).not.toHaveBeenCalled();
+      const text = dialog()?.textContent ?? "";
+      expect(text).toContain("Run provisioning?");
+      expect(text).toContain("Prepare /deployments/hris");
+      expect(text).toContain("Create role and database hris_staging");
+      expect(text).toContain("Deploy the latest main build of hris");
+
+      const confirm = [...(dialog()?.querySelectorAll("button") ?? [])].find(
+        (b) => b.textContent?.trim() === "Provision"
+      );
+      await act(async () => confirm?.click());
+      expect(api.startProvisioning).toHaveBeenCalledExactlyOnceWith("e1");
+    });
+
+    it("sends nothing when the dialog is cancelled", async () => {
+      await mount();
+      await act(async () => button("Provision")?.click());
+      await act(async () => button("Cancel")?.click());
+      expect(api.startProvisioning).not.toHaveBeenCalled();
+    });
   });
 
   it("shows the no-targets hint to a maintainer with no targets", () => {

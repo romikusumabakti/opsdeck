@@ -13,6 +13,16 @@ import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,7 +111,10 @@ const STATUS_ICON = {
 
 /**
  * The provisioning panel for the deploys page. Hidden without deploy:run: the
- * API refuses the plan to anyone else.
+ * API refuses the plan to anyone else. Without targets it is only the hint;
+ * otherwise it shows when the API says so (`showPanel`: steps exist, the
+ * environment never deployed successfully, or its database is shared), so a
+ * running legacy environment gets none.
  */
 export function ProvisioningPanel({
   environment,
@@ -159,7 +172,7 @@ export function ProvisioningPanel({
   }
 
   const noTargets = targets.length === 0;
-  if (!canRun || !(noTargets || provisioning)) return null;
+  if (!canRun || !(noTargets || provisioning?.showPanel)) return null;
 
   return (
     <>
@@ -214,6 +227,9 @@ export function ProvisioningPanelView({
   onViewLog: (runId: string) => void;
 }) {
   const t = useTranslations("provisioning");
+  const tCommon = useTranslations("common");
+  // Provision/Retry first lists what will run, deploys included.
+  const [confirming, setConfirming] = React.useState(false);
   if (!canRun) return null;
 
   if (noTargets) {
@@ -252,7 +268,7 @@ export function ProvisioningPanelView({
               {t("viewLog")}
             </Button>
           )}
-          <Button size="sm" disabled={busy} onClick={onProvision}>
+          <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>
             {busy ? (
               <Loader2 data-icon="inline-start" className="animate-spin" />
             ) : failed ? (
@@ -296,6 +312,40 @@ export function ProvisioningPanelView({
           </ol>
         )}
       </CardContent>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("confirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("confirmDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ol className="flex list-decimal flex-col gap-1 ps-5 text-sm">
+            {rows.map((row, index) => (
+              <li key={index}>
+                <StepSentence spec={row.spec} lookups={lookups} />
+                {row.status === "done" && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    ({t("confirmDone")})
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirming(false);
+                onProvision();
+              }}
+            >
+              {failed ? t("retry") : t("provision")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

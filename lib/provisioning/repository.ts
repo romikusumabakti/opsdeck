@@ -4,6 +4,7 @@ import { one } from "@/lib/db/one";
 import {
   builds,
   databaseHosts,
+  deployments,
   deployTargets,
   environmentServices,
   environments,
@@ -170,6 +171,24 @@ export async function failStaleProvisionRuns(): Promise<number> {
     }
     return failed.length;
   });
+}
+
+/** Whether any deploy target of the environment has a successful deployment. */
+export async function hasSuccessfulDeployment(
+  environmentId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: deployments.id })
+    .from(deployments)
+    .innerJoin(deployTargets, eq(deployTargets.id, deployments.targetId))
+    .where(
+      and(
+        eq(deployTargets.environmentId, environmentId),
+        eq(deployments.status, "success")
+      )
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 export async function getActiveProvisionRunId(

@@ -447,6 +447,9 @@
     "emptyPlan": "Belum ada yang bisa di-provision. Lengkapi pengikatan database di pengaturan environment.",
     "alreadyRunning": "Provisioning sedang berjalan untuk environment ini",
     "startFailed": "Provisioning tidak bisa dimulai",
+    "confirmTitle": "Jalankan provisioning?",
+    "confirmDescription": "Langkah-langkah ini dijalankan berurutan. Setiap langkah deploy langsung men-deploy build terbaru dari branch-nya ke target tersebut.",
+    "confirmDone": "sudah selesai, dilewati",
     "status": {
       "pending": "Menunggu",
       "running": "Berjalan",

@@ -53,6 +53,7 @@ const repo = vi.hoisted(() => ({
   savePlan: vi.fn(async () => {}),
   getActiveProvisionRunId: vi.fn(),
   startProvisioningRun: vi.fn(),
+  hasSuccessfulDeployment: vi.fn(async () => false),
 }));
 vi.mock("@/lib/provisioning/repository", () => repo);
 
@@ -78,6 +79,7 @@ beforeEach(() => {
   state.activeRunId = null;
   state.seq = 0;
   repo.loadProvisioningConfig.mockResolvedValue(goodConfig);
+  repo.hasSuccessfulDeployment.mockResolvedValue(false);
   repo.getActiveProvisionRunId.mockImplementation(
     async () => state.activeRunId
   );
@@ -157,5 +159,41 @@ describe("provisioning API", () => {
       "prepare_deploy_dir",
       "deploy",
     ]);
+    // Never deployed: the panel shows.
+    expect(body.showPanel).toBe(true);
+  });
+
+  it("GET hides the panel for a legacy environment that already deployed", async () => {
+    const get = async () =>
+      (await app.request(`/api/environments/${ENV_ID}/provisioning`)).json();
+    repo.hasSuccessfulDeployment.mockResolvedValue(true);
+    expect((await get()).showPanel).toBe(false);
+    // Unless it has provisioning steps…
+    repo.listSteps.mockResolvedValueOnce([{ id: "s" }] as never);
+    expect((await get()).showPanel).toBe(true);
+    // …or a shared database binding.
+    repo.loadProvisioningConfig.mockResolvedValue({
+      ...goodConfig,
+      db: {
+        dbKind: "shared",
+        databaseHostId: "h1",
+        dbName: "hris_staging",
+        dbRole: "hris_staging",
+        dbPasswordVariable: "DB_PASSWORD",
+      },
+    });
+    expect((await get()).showPanel).toBe(true);
+    // A container binding is legacy-like.
+    repo.loadProvisioningConfig.mockResolvedValue({
+      ...goodConfig,
+      db: {
+        dbKind: "container",
+        databaseHostId: null,
+        dbName: "hris",
+        dbRole: null,
+        dbPasswordVariable: null,
+      },
+    });
+    expect((await get()).showPanel).toBe(false);
   });
 });

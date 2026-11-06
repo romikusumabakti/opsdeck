@@ -8,6 +8,7 @@ import {
 } from "@/lib/provisioning/plan";
 import {
   getActiveProvisionRunId,
+  hasSuccessfulDeployment,
   listSteps,
   loadProvisioningConfig,
   savePlan,
@@ -44,7 +45,28 @@ function planOrFail(
   }
 }
 
-/** The stored steps, a dry preview of the plan from today's config, the live run. */
+/**
+ * Whether the deploys page offers provisioning: once it has steps, while the
+ * environment has never deployed successfully (a new one), or for a shared
+ * database binding. A running legacy environment gets no panel, so one click
+ * can't redeploy every target's newest build.
+ */
+export function showProvisioningPanel(input: {
+  hasSteps: boolean;
+  hasSuccessfulDeployment: boolean;
+  dbKind: string | null | undefined;
+}): boolean {
+  return (
+    input.hasSteps ||
+    !input.hasSuccessfulDeployment ||
+    input.dbKind === "shared"
+  );
+}
+
+/**
+ * The stored steps, a dry preview of the plan from today's config, the live
+ * run, and whether the panel shows (showProvisioningPanel).
+ */
 export async function getProvisioning(environmentId: string) {
   const { config } = await provisioningContext(environmentId);
   let plan: ProvisioningStepSpec[] = [];
@@ -54,11 +76,17 @@ export async function getProvisioning(environmentId: string) {
     // A preview of an unplannable config is empty; POST reports the reason.
     if (!(error instanceof ProvisioningPlanError)) throw error;
   }
-  const [steps, activeRunId] = await Promise.all([
+  const [steps, activeRunId, deployed] = await Promise.all([
     listSteps(environmentId),
     getActiveProvisionRunId(environmentId),
+    hasSuccessfulDeployment(environmentId),
   ]);
-  return { steps, plan, activeRunId };
+  const showPanel = showProvisioningPanel({
+    hasSteps: steps.length > 0,
+    hasSuccessfulDeployment: deployed,
+    dbKind: config.db?.dbKind,
+  });
+  return { steps, plan, activeRunId, showPanel };
 }
 
 /** Saves the plan, opens the run (one at a time) and queues the worker job. */
@@ -81,7 +109,9 @@ export async function startProvisioning(
     });
   } catch (error) {
     // Without a job the run would stay `started` and block every retry.
-    await failRun(started.runId, "Provisioning could not be started");
+    await failRun(started.runId, "Provisioning could not be started", {
+      onlyIfStarted: true,
+    });
     throw error;
   }
   // No params: step parameters stay out of the feed.
