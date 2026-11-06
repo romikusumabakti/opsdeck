@@ -2768,7 +2768,8 @@
       "domainUnknownPolicy": "The Access policy no longer exists in the Cloudflare account",
       "domainHostnameTaken": "Another environment uses this hostname",
       "domainProvisioned": "The domain is already provisioned and cannot be changed yet",
-      "domainPublicForbidden": "Only an admin can publish without Access"
+      "domainPublicForbidden": "Only an admin can publish without Access",
+      "domainExternalInZone": "This hostname is under a registered zone: use the Cloudflare tunnel type"
     }
   }
 }

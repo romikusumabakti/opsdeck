@@ -16,6 +16,8 @@ export const DOMAIN_ERRORS = {
   domainNoTunnel: "The deploy server has no registered tunnel",
   domainUnknownZone: "The zone is not registered",
   domainUnknownPolicy: "The Access policy does not exist in the account",
+  domainExternalInZone:
+    "This hostname is under a registered zone: use the Cloudflare tunnel type",
   domainHostnameTaken: "Another environment uses this hostname",
   domainProvisioned:
     "The domain is already provisioned and cannot be changed yet",
@@ -30,4 +32,10 @@ export function domainErrorCode(message: string): DomainErrorCode | null {
     if (DOMAIN_ERRORS[code] === message) return code;
   }
   return null;
+}
+
+/** The Postgres error code of a failed query, also when wrapped by drizzle. */
+export function pgErrorCode(error: unknown): string | undefined {
+  const e = error as { code?: string; cause?: { code?: string } };
+  return e?.code ?? e?.cause?.code;
 }

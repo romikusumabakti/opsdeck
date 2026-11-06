@@ -225,15 +225,31 @@ export async function createProxiedCname(
 
 // --- Access ---
 
+export type AccessPolicy = {
+  id: string;
+  name: string;
+  /** allow, deny, non_identity or bypass. */
+  decision: string;
+  /** Whether an include rule is `everyone`. */
+  everyone: boolean;
+};
+
 /** Reusable Access policies of the account. */
 export async function listAccessPolicies(
   creds: CloudflareCreds
-): Promise<{ id: string; name: string }[]> {
-  const policies = await listAll<{ id: string; name: string }>(
-    creds,
-    "/access/policies"
-  );
-  return policies.map((p) => ({ id: p.id, name: p.name }));
+): Promise<AccessPolicy[]> {
+  const policies = await listAll<{
+    id: string;
+    name: string;
+    decision?: string;
+    include?: Record<string, unknown>[];
+  }>(creds, "/access/policies");
+  return policies.map((p) => ({
+    id: p.id,
+    name: p.name,
+    decision: p.decision ?? "",
+    everyone: (p.include ?? []).some((rule) => "everyone" in rule),
+  }));
 }
 
 export async function listIdentityProviders(
