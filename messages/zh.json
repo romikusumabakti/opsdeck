@@ -2773,6 +2773,8 @@
       "domainHostnameTaken": "其他环境已使用此主机名",
       "domainProvisioned": "域名已完成配置，暂时无法更改",
       "domainPublicForbidden": "只有管理员可以在不使用 Access 的情况下公开发布",
+      "domainPortInUse": "此服务器上的另一个环境已使用该入口端口",
+      "domainPortForbidden": "只有管理员可以选择 8100–8999 之外的入口端口",
       "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型"
     }
   }

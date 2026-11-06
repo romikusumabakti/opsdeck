@@ -23,14 +23,19 @@ import {
   isUnderZone,
 } from "@/lib/domains/validation";
 import { canOrg } from "@/lib/permissions";
+import { ENTRY_PORT_RANGE } from "@/lib/provisioning/ports";
 import { notFound } from "@/server/errors";
 import { callCloudflare } from "@/server/services/cloudflare-account";
+import { listEntryPortsOnServer } from "@/server/services/preflight-repository";
 
 /**
  * An environment's public domain: through a registered remote tunnel (the
  * Panel provisions it later) or an external hostname (recorded only). Reading
  * needs project `deploy:view`, changing it `deploy:configure`. Publishing
- * without an Access policy also needs org `server:manage`.
+ * without an Access policy, or an entry port outside the Panel's free-port
+ * range, also needs org `server:manage`. No caller may pick a port another
+ * environment on the same server already uses: the tunnel would route the
+ * hostname into that environment.
  */
 
 const VIEW = { deploy: ["view"] } as const;
@@ -75,6 +80,9 @@ async function store(
 // holder may bind them, and others are not offered them.
 const canPublish = (role: string | null | undefined) =>
   canOrg(role, { server: ["manage"] });
+
+const inFreePortRange = (port: number) =>
+  port >= ENTRY_PORT_RANGE.from && port <= ENTRY_PORT_RANGE.to;
 
 /** The one server the environment's deploy targets run on. */
 async function resolveDeployServerId(environmentId: string): Promise<string> {
@@ -173,8 +181,17 @@ export async function putEnvironmentDomain(
   if (input.accessPolicyId === null && !canPublish(session.user.role)) {
     return fail(403, DOMAIN_ERRORS.domainPublicForbidden);
   }
+  // Outside the free-port range sit the server's own services (the Panel,
+  // CI, production apps): pointing a hostname there is an org-level call.
+  if (!inFreePortRange(input.entryPort) && !canPublish(session.user.role)) {
+    return fail(403, DOMAIN_ERRORS.domainPortForbidden);
+  }
 
   const serverId = await resolveDeployServerId(environmentId);
+  const taken = await listEntryPortsOnServer(serverId, environmentId);
+  if (taken.includes(input.entryPort)) {
+    return fail(409, DOMAIN_ERRORS.domainPortInUse);
+  }
   const tunnel = await getRemoteTunnelByServer(serverId);
   if (!tunnel) return fail(422, DOMAIN_ERRORS.domainNoTunnel);
   const zone = await getZone(input.zoneId);

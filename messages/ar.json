@@ -2773,6 +2773,8 @@
       "domainHostnameTaken": "بيئة أخرى تستخدم اسم المضيف هذا",
       "domainProvisioned": "تم تجهيز النطاق ولا يمكن تغييره الآن",
       "domainPublicForbidden": "وحده المسؤول يمكنه النشر بدون Access",
+      "domainPortInUse": "بيئة أخرى على هذا الخادم تستخدم منفذ الدخول هذا",
+      "domainPortForbidden": "وحده المسؤول يمكنه اختيار منفذ دخول خارج النطاق 8100–8999",
       "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare"
     }
   }
