@@ -12,6 +12,7 @@ import { appsRouter } from "@/server/routes/apps";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
 import { ciConnectionsRouter } from "@/server/routes/ci-connections";
+import { cloudflareAccountRouter } from "@/server/routes/cloudflare-account";
 import { databaseHostsRouter } from "@/server/routes/database-hosts";
 import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
@@ -129,6 +130,7 @@ export const app = createBaseApp()
   .route("/api/apps", appsRouter)
   .route("/api/apps", variableTemplatesRouter)
   .route("/api/ci-connections", ciConnectionsRouter)
+  .route("/api/cloudflare-account", cloudflareAccountRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);
 

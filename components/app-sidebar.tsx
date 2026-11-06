@@ -6,6 +6,7 @@ import {
   CircleDot,
   Clock,
   Cloud,
+  CloudCog,
   DatabaseZap,
   FolderKanban,
   HardDrive,
@@ -137,6 +138,12 @@ const adminItems: {
     url: "/admin/tunnels",
     icon: Cloud,
     perm: { tunnel: ["read"] },
+  },
+  {
+    key: "cloudflare",
+    url: "/admin/cloudflare",
+    icon: CloudCog,
+    perm: { server: ["manage"] },
   },
   { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
 ];
