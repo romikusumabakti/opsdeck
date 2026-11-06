@@ -965,4 +965,85 @@ describe("open placement: shared database hosts", () => {
       ).success
     ).toBe(true);
   });
+
+  it("refuses binding a registered host's container other than as shared, even when prefixed", async () => {
+    // A host whose container happens to carry the project prefix.
+    state.hosts = [{ ...host, containerName: "pcan-db" }];
+    const legacy = {
+      ...sandbox,
+      dbKind: undefined,
+      databaseHostId: undefined,
+      dbRole: undefined,
+      dbPasswordVariable: undefined,
+      dbServerId: SERVER_OPEN,
+      dbServiceType: "docker",
+      dbServiceName: "pcan-db",
+      dbType: "postgres",
+      dbName: "pcan_sandbox1",
+      dbBackupPath: "/backups",
+    };
+    for (const dbKind of [undefined, "container", "external"]) {
+      state.calls = [];
+      await expect(
+        createEnvironment({ ...legacy, dbKind })
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "placementDatabaseHostContainer",
+      });
+      expect(insertedEnvironment()).toBeUndefined();
+    }
+    // Another prefixed container on the server is still fine.
+    expect(
+      (await createEnvironment({ ...legacy, dbServiceName: "pcan-pg" })).success
+    ).toBe(true);
+    // As are callers with server:manage.
+    state.orgRole = "infra";
+    expect((await createEnvironment(legacy)).success).toBe(true);
+  });
+
+  it("refuses an overlapping shared database name for admins too", async () => {
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "db",
+        serverId: SERVER_OPEN,
+        serviceName: "dplk-postgres",
+        databaseHostId: HOST_ID,
+        dbName: "pcan_sandbox1_copy",
+        dbRole: "pcan_copy",
+      },
+    ];
+    for (const orgRole of ["admin", "infra"]) {
+      state.orgRole = orgRole;
+      state.calls = [];
+      await expect(createEnvironment(sandbox)).rejects.toMatchObject({
+        status: 403,
+        message: "placementDatabaseInUse",
+      });
+      expect(insertedEnvironment()).toBeUndefined();
+    }
+    // An admin renaming a stored shared binding into the overlap is refused.
+    state.stored.services = [
+      ...state.stored.services,
+      {
+        role: "db",
+        serverId: SERVER_OPEN,
+        serviceName: "dplk-postgres",
+        serviceType: "docker",
+        dbType: "postgres",
+        dbBackupPath: "/var/lib/postgresql/backups",
+        dbKind: "shared",
+        databaseHostId: HOST_ID,
+        dbName: "pcan_sandbox2",
+        dbRole: "pcan_sandbox2",
+      } as Service,
+    ];
+    await expect(
+      updateEnvironment(ENV_ID, { dbName: "pcan_sandbox1" })
+    ).rejects.toMatchObject({ status: 403, message: "placementDatabaseInUse" });
+    // A non-overlapping rename passes.
+    expect(
+      (await updateEnvironment(ENV_ID, { dbName: "pcan_sandbox3" })).success
+    ).toBe(true);
+  });
 });

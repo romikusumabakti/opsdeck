@@ -1352,6 +1352,7 @@
     "preflightFailed": "No se pudo conectar al servidor por SSH para ejecutar el preflight",
     "placementDatabaseName": "En un servidor abierto, nombra la base de datos compartida y su rol empezando por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",
     "placementDatabaseInUse": "Otro entorno de este host de base de datos ya usa este nombre de base de datos o de rol; elige otro nombre.",
+    "placementDatabaseHostContainer": "Este contenedor es un host de base de datos registrado; vincúlalo como base de datos compartida o pide ayuda a un administrador.",
     "sharedDatabaseNamePrefix": "La base de datos compartida y su rol deben llamarse empezando por {prefix} (la clave de este proyecto).",
     "databaseHostNotFound": "Ese host de base de datos no está registrado.",
     "databaseHostUnreachable": "No se pudo ejecutar una consulta como postgres en ese contenedor por SSH.",

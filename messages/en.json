@@ -1352,6 +1352,7 @@
     "preflightFailed": "Could not reach the server over SSH to run the preflight",
     "placementDatabaseName": "On an open server, name a shared database and its role starting with {prefix} (this project's key); ask an admin for other names.",
     "placementDatabaseInUse": "Another environment on this database host already uses this database or role name; pick another name.",
+    "placementDatabaseHostContainer": "This container is a registered database host; bind it as a shared database, or ask an admin.",
     "sharedDatabaseNamePrefix": "A shared database and its role must be named starting with {prefix} (this project's key).",
     "databaseHostNotFound": "That database host is not registered.",
     "databaseHostUnreachable": "Could not run a query as postgres in that container over SSH.",

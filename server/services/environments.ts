@@ -5,6 +5,7 @@ import {
   getTableColumns,
   inArray,
   notExists,
+  or,
   sql,
 } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
@@ -643,9 +644,12 @@ function changesBindings(
 // - the one exception is a shared database binding: its container is a
 //   registered database host (withDerivedDbBinding resolved it), so the
 //   caller may bind it unprefixed, provided its database and role are named
-//   `<key>_…` and no other environment on that host uses either. Database
-//   operations on it are then confined to those names
-//   (lib/provisioning/database#allowedDatabaseName).
+//   `<key>_…`. Database operations on it are then confined to those names
+//   (lib/provisioning/database#allowedDatabaseName). No other environment on
+//   the host may use either; requireNoSharedDbOverlap checks that for every
+//   caller;
+// - conversely, a registered host's container may not be bound other than
+//   as shared, even when its name carries the prefix (`hris-db`).
 // Changing a server's placement re-checks nothing: only new placements.
 async function requireEnvironmentPlacement(
   orgRole: string | null | undefined,
@@ -690,6 +694,28 @@ async function requireEnvironmentPlacement(
       t("placementServiceName", { prefix: prefix ?? "" })
     );
   }
+  // A registered database host's container serves every environment on the
+  // host; bound other than as shared (even when its name happens to carry
+  // the prefix, `hris-db`), it would give the caller unconfined database
+  // operations on it.
+  if (services.length > 0) {
+    const hosts = await db
+      .select({
+        serverId: databaseHosts.serverId,
+        containerName: databaseHosts.containerName,
+      })
+      .from(databaseHosts)
+      .where(inArray(databaseHosts.serverId, openIds));
+    const onHost = services.some((b) =>
+      hosts.some(
+        (h) => h.serverId === b.serverId && h.containerName === b.serviceName
+      )
+    );
+    if (onHost) {
+      const t = await getServerTranslator("actionErrors");
+      throw new ForbiddenError(t("placementDatabaseHostContainer"));
+    }
+  }
   const dbPrefix = key === null ? null : `${key}_`;
   const badDbName = shared.some(
     ({ sharedDb }) =>
@@ -712,10 +738,6 @@ async function requireEnvironmentPlacement(
         environmentId: environmentServices.environmentId,
         serverId: environmentServices.serverId,
         serviceName: environmentServices.serviceName,
-        databaseHostId: environmentServices.databaseHostId,
-        dbName: environmentServices.dbName,
-        dbRole: environmentServices.dbRole,
-        dbUser: environmentServices.dbUser,
       })
       .from(environmentServices)
       .where(inArray(environmentServices.serverId, openIds))
@@ -729,16 +751,54 @@ async function requireEnvironmentPlacement(
     const t = await getServerTranslator("actionErrors");
     throw new ForbiddenError(t("placementServiceInUse"));
   }
-  // Another environment in the same container (bound to the host, or bound
-  // to its server and container name before the host was registered) whose
-  // database is this one's or overlaps it (`X` vs `X_…`, the backup file
-  // prefix), or whose database, role or legacy login is this one's role.
+}
+
+/**
+ * 403 when a shared binding's database or role overlaps another
+ * environment's in the same container, for every caller (admins too): a
+ * database `X` and another `X_…` share the backup file prefix, and a role
+ * that is another environment's database, role or legacy login reaches its
+ * data. The container counts as the same when bound to the host, or to its
+ * server and container name before the host was registered.
+ */
+async function requireNoSharedDbOverlap(
+  bindings: Binding[],
+  exceptEnvironmentId?: string
+): Promise<void> {
+  const shared = bindings.filter(
+    (b): b is Binding & { sharedDb: SharedDb } => b.sharedDb !== undefined
+  );
+  if (shared.length === 0) return;
+  const used = (
+    await db
+      .select({
+        environmentId: environmentServices.environmentId,
+        serverId: environmentServices.serverId,
+        serviceName: environmentServices.serviceName,
+        databaseHostId: environmentServices.databaseHostId,
+        dbName: environmentServices.dbName,
+        dbRole: environmentServices.dbRole,
+        dbUser: environmentServices.dbUser,
+      })
+      .from(environmentServices)
+      .where(
+        or(
+          inArray(
+            environmentServices.databaseHostId,
+            shared.map((b) => b.sharedDb.hostId)
+          ),
+          inArray(
+            environmentServices.serverId,
+            shared.map((b) => b.serverId)
+          )
+        )
+      )
+  ).filter((u) => u.environmentId !== exceptEnvironmentId);
   const overlaps = (a: string, b: string) =>
     a === b || a.startsWith(`${b}_`) || b.startsWith(`${a}_`);
   const dbClash = shared.some(({ serverId, serviceName, sharedDb }) =>
     used.some(
       (u) =>
-        sharedDb &&
         (u.databaseHostId === sharedDb.hostId ||
           (u.serverId === serverId && u.serviceName === serviceName)) &&
         ((u.dbName != null && overlaps(u.dbName, sharedDb.dbName)) ||
@@ -772,6 +832,7 @@ export async function createEnvironment(
     role,
     createdBindings(input)
   );
+  await requireNoSharedDbOverlap(createdBindings(input));
   if (input.hasDatabase) {
     await requireSharedDbNames(input.projectId, sharedDbOf(input));
   }
@@ -890,6 +951,13 @@ export async function updateEnvironment(
       updatedBindings(input, stored),
       id
     );
+  }
+  if (
+    (targetProjectId !== undefined && targetProjectId !== stored.projectId) ||
+    changesBindings(input, stored) ||
+    changesSharedDb(input, stored)
+  ) {
+    await requireNoSharedDbOverlap(updatedBindings(input, stored), id);
   }
   await requireEligibleOwner(
     ownerIdToVerify(input, stored),
