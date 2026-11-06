@@ -12,13 +12,15 @@
 // operator's runbook deliberately shreds after every use. A scoped API token
 // is the smaller thing to keep.
 
-const API_BASE = "https://api.cloudflare.com/client/v4";
+import {
+  CloudflareApiError,
+  describeCloudflareErrors,
+  request,
+} from "@/lib/cloudflare/request";
 
-// Cloudflare's API is fronted by its own edge; 10s is generous for a DNS write
-// and keeps a hung call from holding a server action open.
-const REQUEST_TIMEOUT_MS = 10_000;
-
-export class CloudflareApiError extends Error {}
+// Re-exported: callers and tests import the error type and its formatter from
+// here, and the helper itself now lives in lib/cloudflare/request.ts.
+export { CloudflareApiError, describeCloudflareErrors };
 
 export type DnsRecord = {
   id: string;
@@ -28,12 +30,6 @@ export type DnsRecord = {
   proxied: boolean;
 };
 
-type ApiEnvelope<T> = {
-  success: boolean;
-  errors: { code?: number; message?: string }[];
-  result: T;
-};
-
 /**
  * The CNAME target that routes a hostname into a tunnel. Cloudflare resolves
  * `<tunnel-id>.cfargotunnel.com` internally — it has no public A record, which
@@ -41,65 +37,6 @@ type ApiEnvelope<T> = {
  */
 export function cnameTarget(tunnelId: string): string {
   return `${tunnelId}.cfargotunnel.com`;
-}
-
-/**
- * Flatten Cloudflare's error array into one line.
- *
- * Exported for tests: the failures that matter operationally (10000 invalid
- * token, 81053 record exists) are distinguished only by this text, so it has
- * to stay readable rather than collapse to "request failed".
- */
-export function describeCloudflareErrors(
-  errors: { code?: number; message?: string }[]
-): string {
-  if (errors.length === 0)
-    return "Cloudflare returned an unsuccessful response";
-  return errors
-    .map((e) =>
-      e.code ? `${e.message ?? "error"} (code ${e.code})` : e.message
-    )
-    .filter(Boolean)
-    .join("; ");
-}
-
-async function request<T>(
-  apiToken: string,
-  path: string,
-  init?: RequestInit
-): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  } catch (error) {
-    // Network failure or timeout: there is no envelope to read, and the token
-    // must not end up in the message.
-    throw new CloudflareApiError(
-      `Could not reach the Cloudflare API: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-
-  let body: ApiEnvelope<T>;
-  try {
-    body = (await response.json()) as ApiEnvelope<T>;
-  } catch {
-    throw new CloudflareApiError(
-      `Cloudflare API returned ${response.status} with a non-JSON body`
-    );
-  }
-
-  if (!response.ok || !body.success) {
-    throw new CloudflareApiError(describeCloudflareErrors(body.errors ?? []));
-  }
-  return body.result;
 }
 
 /**
