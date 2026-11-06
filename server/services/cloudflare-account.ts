@@ -13,6 +13,7 @@ import {
 } from "@/lib/cloudflare/api";
 import { db } from "@/lib/db";
 import { type CloudflareAccount, cloudflareAccounts } from "@/lib/db/schema";
+import { DOMAIN_ERRORS } from "@/lib/domains/errors";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { badRequest } from "@/server/errors";
 
@@ -118,7 +119,7 @@ export async function getCloudflareCreds(): Promise<CloudflareCreds> {
   const row = await findAccount();
   if (!row) {
     throw new HTTPException(409, {
-      message: "The Cloudflare account is not set up",
+      message: DOMAIN_ERRORS.cloudflareNotConfigured,
     });
   }
   return { accountId: row.accountId, apiToken: decryptSecret(row.apiToken) };
@@ -126,10 +127,10 @@ export async function getCloudflareCreds(): Promise<CloudflareCreds> {
 
 // Cloudflare's own error text (already free of headers and the token) is the
 // useful part of a failed call, so it is passed on as a bad gateway.
-async function withCloudflare<T>(
+// The caller has checked its own permission.
+export async function callCloudflare<T>(
   call: (creds: CloudflareCreds) => Promise<T>
 ): Promise<T> {
-  await requireOrgPermission({ server: ["manage"] });
   const creds = await getCloudflareCreds();
   try {
     return await call(creds);
@@ -139,6 +140,13 @@ async function withCloudflare<T>(
     }
     throw error;
   }
+}
+
+async function withCloudflare<T>(
+  call: (creds: CloudflareCreds) => Promise<T>
+): Promise<T> {
+  await requireOrgPermission({ server: ["manage"] });
+  return callCloudflare(call);
 }
 
 export const verifyCloudflareAccount = () => withCloudflare(verifyAccount);
