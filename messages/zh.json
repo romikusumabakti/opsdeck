@@ -1352,6 +1352,7 @@
     "preflightFailed": "无法通过 SSH 连接服务器以运行预检",
     "placementDatabaseName": "在开放的服务器上，共享数据库及其角色的名称必须以 {prefix}（本项目的键）开头；其他名称请联系管理员。",
     "placementDatabaseInUse": "此数据库主机上的另一个环境已在使用此数据库或角色名称；请换一个名称。",
+    "placementDatabaseHostContainer": "此容器是已注册的数据库主机；请将其绑定为共享数据库，或联系管理员。",
     "sharedDatabaseNamePrefix": "共享数据库及其角色的名称必须以 {prefix}（本项目的键）开头。",
     "databaseHostNotFound": "该数据库主机尚未注册。",
     "databaseHostUnreachable": "无法通过 SSH 在该容器中以 postgres 身份运行查询。",
