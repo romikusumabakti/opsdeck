@@ -2,7 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireOrgPermission } from "@/lib/authz";
 import { listTunnels } from "@/lib/cloudflare/api";
-import { DOMAIN_ERRORS } from "@/lib/domains/errors";
+import { DOMAIN_ERRORS, pgErrorCode } from "@/lib/domains/errors";
 import {
   countBindings,
   deleteRemoteTunnel as deleteRow,
@@ -68,13 +68,21 @@ export async function registerRemoteTunnel(
     return fail(409, DOMAIN_ERRORS.tunnelAlreadyRegistered);
   }
 
-  return insertRemoteTunnel({
-    accountId: accountRowId,
-    serverId: input.serverId,
-    tunnelId: tunnel.id,
-    name: tunnel.name,
-    originHost: input.originHost,
-  });
+  try {
+    return await insertRemoteTunnel({
+      accountId: accountRowId,
+      serverId: input.serverId,
+      tunnelId: tunnel.id,
+      name: tunnel.name,
+      originHost: input.originHost,
+    });
+  } catch (error) {
+    // Two requests raced past the checks above.
+    if (pgErrorCode(error) === "23505") {
+      return fail(409, DOMAIN_ERRORS.tunnelAlreadyRegistered);
+    }
+    throw error;
+  }
 }
 
 export async function deleteRemoteTunnel(id: string) {
@@ -82,5 +90,13 @@ export async function deleteRemoteTunnel(id: string) {
   if (!(await getRemoteTunnel(id))) notFound();
   if ((await countBindings(id)) > 0)
     return fail(409, DOMAIN_ERRORS.tunnelBound);
-  await deleteRow(id);
+  try {
+    await deleteRow(id);
+  } catch (error) {
+    // A binding appeared after the count.
+    if (pgErrorCode(error) === "23503") {
+      return fail(409, DOMAIN_ERRORS.tunnelBound);
+    }
+    throw error;
+  }
 }

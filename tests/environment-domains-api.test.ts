@@ -24,7 +24,21 @@ const state = vi.hoisted(() => ({
   } | null,
   takenHostnames: [] as string[],
   existing: undefined as Existing | undefined,
-  policies: [{ id: "pol-1", name: "Staff" }] as { id: string; name: string }[],
+  policies: [
+    { id: "pol-1", name: "Staff", decision: "allow", everyone: false },
+    { id: "pol-bypass", name: "Bypass", decision: "bypass", everyone: false },
+    { id: "pol-all", name: "Everyone", decision: "allow", everyone: true },
+  ] as {
+    id: string;
+    name: string;
+    decision: string;
+    everyone: boolean;
+  }[],
+  stepsStarted: false,
+  saveResult: true,
+  deleteResult: true,
+  zoneNames: ["dssconsulting.id"] as string[],
+  saveError: null as unknown,
   accountMissing: false,
   saved: null as {
     write: Record<string, unknown>;
@@ -88,7 +102,10 @@ vi.mock("@/lib/domains/repository", () => ({
   listDeployServerIds: vi.fn(async () => state.serverIds),
   getRemoteTunnelByServer: vi.fn(async () => state.tunnel ?? undefined),
   getZone: vi.fn(async () => state.zone ?? undefined),
-  listZones: vi.fn(async () => (state.zone ? [state.zone] : [])),
+  listZones: vi.fn(async () =>
+    state.zoneNames.map((name) => ({ id: name, name }))
+  ),
+  hasProvisioningProgress: vi.fn(async () => state.stepsStarted),
   hostnameTakenByOther: vi.fn(async (hostname: string) =>
     state.takenHostnames.includes(hostname)
   ),
@@ -108,11 +125,16 @@ vi.mock("@/lib/domains/repository", () => ({
   ),
   saveDomain: vi.fn(
     async (_id: string, write: Record<string, unknown>, entryPort?: number) => {
+      if (state.saveError) throw state.saveError;
+      if (!state.saveResult) return false;
       state.saved = { write, entryPort };
+      return true;
     }
   ),
   deleteDomain: vi.fn(async () => {
+    if (!state.deleteResult) return false;
     state.deleted = true;
+    return true;
   }),
 }));
 
@@ -145,7 +167,11 @@ beforeEach(() => {
   state.zone = { id: "zone-row", name: "dssconsulting.id" };
   state.takenHostnames = [];
   state.existing = undefined;
-  state.policies = [{ id: "pol-1", name: "Staff" }];
+  state.stepsStarted = false;
+  state.saveResult = true;
+  state.deleteResult = true;
+  state.saveError = null;
+  state.zoneNames = ["dssconsulting.id"];
   state.accountMissing = false;
   state.saved = null;
   state.deleted = false;
@@ -263,7 +289,90 @@ describe("PUT tunnel binding", () => {
   });
 });
 
+describe("public-in-effect policies", () => {
+  it("refuses a maintainer picking a bypass or an Everyone policy with 403", async () => {
+    for (const accessPolicyId of ["pol-bypass", "pol-all"]) {
+      const res = await send("PUT", url, tunnelBody({ accessPolicyId }));
+      expect(res.status).toBe(403);
+    }
+    expect(state.saved).toBeNull();
+  });
+
+  it("lets an admin pick either", async () => {
+    state.orgRole = "admin";
+    for (const accessPolicyId of ["pol-bypass", "pol-all"]) {
+      const res = await send("PUT", url, tunnelBody({ accessPolicyId }));
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("filters them out of the list for a maintainer, not for an admin", async () => {
+    const list = await (await send("GET", `${url}/access-policies`)).json();
+    expect(list).toEqual([{ id: "pol-1", name: "Staff" }]);
+    state.orgRole = "admin";
+    const all = await (await send("GET", `${url}/access-policies`)).json();
+    expect(all.map((p: { id: string }) => p.id)).toEqual([
+      "pol-1",
+      "pol-bypass",
+      "pol-all",
+    ]);
+  });
+});
+
+describe("provisioning guard", () => {
+  it("a done or running Cloudflare step blocks PUT and DELETE with 409", async () => {
+    state.stepsStarted = true;
+    state.existing = {
+      kind: "tunnel",
+      hostname: "hris-staging.dssconsulting.id",
+      accessAppId: null,
+      dnsRecordId: null,
+    };
+    expect((await send("PUT", url, tunnelBody())).status).toBe(409);
+    expect((await send("DELETE", url)).status).toBe(409);
+    expect(state.saved).toBeNull();
+    expect(state.deleted).toBe(false);
+  });
+
+  it("answers 409 when the guarded write returns no row", async () => {
+    state.saveResult = false;
+    const put = await send("PUT", url, tunnelBody());
+    expect(put.status).toBe(409);
+    expect((await put.json()).error).toMatch(/already provisioned/);
+
+    state.existing = {
+      kind: "external",
+      hostname: "app.example.com",
+      accessAppId: null,
+      dnsRecordId: null,
+    };
+    state.deleteResult = false;
+    expect((await send("DELETE", url)).status).toBe(409);
+  });
+});
+
 describe("PUT external binding", () => {
+  it("refuses a hostname under a registered zone with 422", async () => {
+    for (const hostname of ["dssconsulting.id", "x.y.dssconsulting.id"]) {
+      const res = await send("PUT", url, { kind: "external", hostname });
+      expect(res.status).toBe(422);
+    }
+    const ok = await send("PUT", url, {
+      kind: "external",
+      hostname: "notdssconsulting.id",
+    });
+    expect(ok.status).toBe(200);
+  });
+
+  it("maps a unique violation to 409", async () => {
+    state.saveError = Object.assign(new Error("dup"), { code: "23505" });
+    const res = await send("PUT", url, {
+      kind: "external",
+      hostname: "app.example.com",
+    });
+    expect(res.status).toBe(409);
+  });
+
   it("records a lowercased FQDN without touching Cloudflare", async () => {
     state.accountMissing = true;
     state.tunnel = null;

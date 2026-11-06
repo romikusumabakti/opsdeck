@@ -2768,7 +2768,8 @@
       "domainUnknownPolicy": "لم تعد سياسة Access موجودة في حساب Cloudflare",
       "domainHostnameTaken": "بيئة أخرى تستخدم اسم المضيف هذا",
       "domainProvisioned": "تم تجهيز النطاق ولا يمكن تغييره الآن",
-      "domainPublicForbidden": "وحده المسؤول يمكنه النشر بدون Access"
+      "domainPublicForbidden": "وحده المسؤول يمكنه النشر بدون Access",
+      "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare"
     }
   }
 }

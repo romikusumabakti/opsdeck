@@ -5,6 +5,8 @@ import {
   externalHostnameSchema,
   hostnameFor,
   isFqdn,
+  isPublicPolicy,
+  isUnderZone,
   originHostSchema,
 } from "@/lib/domains/validation";
 
@@ -29,6 +31,25 @@ describe("hostnameFor", () => {
     expect(hostnameFor("hris-staging", "dssconsulting.id")).toBe(
       "hris-staging.dssconsulting.id"
     );
+  });
+});
+
+describe("zone and policy helpers", () => {
+  it("lowercases the zone name in hostnameFor", () => {
+    expect(hostnameFor("a", "DSSConsulting.ID")).toBe("a.dssconsulting.id");
+  });
+
+  it("isUnderZone matches the zone and its subdomains only", () => {
+    const zones = ["dssconsulting.id"];
+    expect(isUnderZone("dssconsulting.id", zones)).toBe(true);
+    expect(isUnderZone("a.b.dssconsulting.id", zones)).toBe(true);
+    expect(isUnderZone("xdssconsulting.id", zones)).toBe(false);
+  });
+
+  it("isPublicPolicy flags bypass and everyone", () => {
+    expect(isPublicPolicy({ decision: "bypass", everyone: false })).toBe(true);
+    expect(isPublicPolicy({ decision: "allow", everyone: true })).toBe(true);
+    expect(isPublicPolicy({ decision: "allow", everyone: false })).toBe(false);
   });
 });
 

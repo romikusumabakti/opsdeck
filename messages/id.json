@@ -2768,7 +2768,8 @@
       "domainUnknownPolicy": "Kebijakan Access tidak ada lagi di akun Cloudflare",
       "domainHostnameTaken": "Environment lain memakai hostname ini",
       "domainProvisioned": "Domain sudah diprovisioning dan belum dapat diubah",
-      "domainPublicForbidden": "Hanya admin yang dapat memublikasikan tanpa Access"
+      "domainPublicForbidden": "Hanya admin yang dapat memublikasikan tanpa Access",
+      "domainExternalInZone": "Hostname ini berada di bawah zona terdaftar: gunakan jenis tunnel Cloudflare"
     }
   }
 }

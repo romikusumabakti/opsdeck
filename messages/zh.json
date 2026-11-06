@@ -2768,7 +2768,8 @@
       "domainUnknownPolicy": "该 Access 策略已不在 Cloudflare 账户中",
       "domainHostnameTaken": "其他环境已使用此主机名",
       "domainProvisioned": "域名已完成配置，暂时无法更改",
-      "domainPublicForbidden": "只有管理员可以在不使用 Access 的情况下公开发布"
+      "domainPublicForbidden": "只有管理员可以在不使用 Access 的情况下公开发布",
+      "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型"
     }
   }
 }
