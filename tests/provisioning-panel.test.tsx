@@ -8,6 +8,10 @@ import {
   databaseBindingPayload,
   suggestSharedDbName,
 } from "@/lib/environment-database-binding";
+import {
+  buildEnvironmentPayload,
+  type EnvironmentSubmitValues,
+} from "@/lib/environment-submit-payload";
 import type { ProvisioningStepSpec } from "@/lib/provisioning/plan";
 import type { ProvisioningStep } from "@/web/api/provisioning";
 import messages from "../messages/en.json";
@@ -158,6 +162,13 @@ describe("ProvisioningPanelView", () => {
     );
   });
 
+  it("shows only the no-targets hint when there are no targets", () => {
+    const html = view({ plan: [], noTargets: true });
+    expect(html).toContain("Add a deploy target first");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("<ol");
+  });
+
   it("renders nothing without deploy permission", () => {
     expect(view({ canRun: false })).toBe("");
   });
@@ -193,6 +204,17 @@ describe("ProvisioningPanel", () => {
     expect(panel("maintainer")).toContain(">Provision<");
   });
 
+  it("shows the no-targets hint to a maintainer with no targets", () => {
+    const queryClient = new QueryClient();
+    const html = renderToString(
+      <QueryClientProvider client={queryClient}>
+        {wrap(<ProvisioningPanel environment={environment} targets={[]} />)}
+      </QueryClientProvider>
+    );
+    expect(html).toContain("Add a deploy target first");
+    expect(html).not.toContain(">Provision<");
+  });
+
   it("is hidden from a user who cannot run deploys", () => {
     expect(panel("viewer")).toBe("");
   });
@@ -222,6 +244,109 @@ describe("databaseBindingPayload", () => {
       dbKind: "external",
     });
     expect(databaseBindingPayload({ ...base, dbKind: "" })).toEqual({});
+  });
+});
+
+describe("buildEnvironmentPayload", () => {
+  const values: EnvironmentSubmitValues & { projectId: string; name: string } =
+    {
+      projectId: "p1",
+      name: "Staging",
+      kind: "",
+      ownerId: "",
+      host: "",
+      url: "",
+      hasDatabase: true,
+      hasFrontend: false,
+      dbServerId: "srv-db",
+      dbServiceType: "docker",
+      dbServiceName: "pg",
+      dbType: "postgres",
+      dbName: "hris_staging",
+      dbUser: "",
+      dbPassword: "typed-pass",
+      dbBackupPath: "/backups",
+      dbKind: "shared",
+      databaseHostId: "h1",
+      dbRole: "hris_staging",
+      dbPasswordVariable: "DB_PASSWORD",
+      frontendServerId: "",
+      frontendServiceType: "docker",
+      frontendServiceName: "",
+      backendMockTimeApiUrl: "",
+      backendMockTimeApiKey: "",
+    };
+
+  it("sends the binding for shared and drops the derived fields and password", () => {
+    for (const modeType of ["create", "edit"] as const) {
+      const payload = buildEnvironmentPayload(values, modeType) as Record<
+        string,
+        unknown
+      >;
+      expect(payload).toMatchObject({
+        dbKind: "shared",
+        databaseHostId: "h1",
+        dbRole: "hris_staging",
+        dbPasswordVariable: "DB_PASSWORD",
+        dbName: "hris_staging",
+      });
+      for (const key of [
+        "dbServerId",
+        "dbServiceType",
+        "dbServiceName",
+        "dbType",
+        "dbBackupPath",
+        "dbUser",
+        "dbPassword",
+      ]) {
+        expect(payload).not.toHaveProperty(key);
+      }
+    }
+  });
+
+  it("sends only the kind for container and external, with the legacy fields", () => {
+    for (const dbKind of ["container", "external"] as const) {
+      const payload = buildEnvironmentPayload(
+        { ...values, dbKind },
+        "create"
+      ) as Record<string, unknown>;
+      expect(payload.dbKind).toBe(dbKind);
+      for (const key of ["databaseHostId", "dbRole", "dbPasswordVariable"]) {
+        expect(payload).not.toHaveProperty(key);
+      }
+      expect(payload).toMatchObject({
+        dbServerId: "srv-db",
+        dbServiceName: "pg",
+        dbBackupPath: "/backups",
+        dbPassword: null,
+      });
+    }
+  });
+
+  it("sends no binding fields when the kind is unset", () => {
+    const payload = buildEnvironmentPayload(
+      { ...values, dbKind: "" },
+      "edit"
+    ) as Record<string, unknown>;
+    for (const key of [
+      "dbKind",
+      "databaseHostId",
+      "dbRole",
+      "dbPasswordVariable",
+    ]) {
+      expect(payload).not.toHaveProperty(key);
+    }
+    expect(payload.dbPassword).toBe("typed-pass");
+  });
+
+  it("sends nothing database-related when the database is off", () => {
+    const payload = buildEnvironmentPayload(
+      { ...values, hasDatabase: false },
+      "create"
+    ) as Record<string, unknown>;
+    expect(payload).not.toHaveProperty("dbKind");
+    expect(payload).not.toHaveProperty("dbName");
+    expect(payload).not.toHaveProperty("dbPassword");
   });
 });
 
