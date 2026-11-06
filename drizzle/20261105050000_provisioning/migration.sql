@@ -10,6 +10,10 @@
 ALTER TYPE "run_kind" ADD VALUE IF NOT EXISTS 'provision';
 
 BEGIN;
+-- Fail fast rather than wait behind a long transaction on servers,
+-- environments or environment_services, blocking every query queued behind
+-- this one meanwhile; rerun the migration instead.
+SET lock_timeout = '5s';
 
 CREATE TYPE database_kind AS ENUM ('shared', 'container', 'external');
 CREATE TYPE provisioning_step_kind AS ENUM (
