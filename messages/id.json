@@ -1352,6 +1352,7 @@
     "preflightFailed": "Tidak bisa terhubung ke server lewat SSH untuk menjalankan preflight",
     "placementDatabaseName": "Di server terbuka, beri nama database bersama dan role-nya yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
     "placementDatabaseInUse": "Environment lain di host database ini sudah memakai nama database atau role ini; pilih nama lain.",
+    "placementDatabaseHostContainer": "Container ini terdaftar sebagai host database; hubungkan sebagai database bersama, atau minta bantuan admin.",
     "sharedDatabaseNamePrefix": "Nama database bersama dan role-nya harus diawali {prefix} (kunci proyek ini).",
     "databaseHostNotFound": "Host database itu belum terdaftar.",
     "databaseHostUnreachable": "Tidak bisa menjalankan query sebagai postgres di container itu lewat SSH.",
