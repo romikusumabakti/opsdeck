@@ -1246,7 +1246,9 @@ function normalizeJobName(name: string): JobName {
  *
  * Jira jobs legitimately carry a `projectId` that means the LOGICAL project, so
  * they skip the shim — otherwise the sweep would lose its only argument. Deploy
- * jobs postdate the rename and carry no environment id at all.
+ * jobs postdate the rename and carry no environment id at all. Provision jobs
+ * postdate it too and carry `environmentId` from the start, so the shim has
+ * nothing to migrate in them.
  */
 function migrateLegacyPayload(name: JobName, data: unknown): unknown {
   if (

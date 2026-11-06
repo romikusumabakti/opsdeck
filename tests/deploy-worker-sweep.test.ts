@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 // failure must never stop the worker from starting.
 const deploy = vi.hoisted(() => ({ failStaleDeployments: vi.fn() }));
 vi.mock("@/lib/jobs/deploy", () => deploy);
+const provisioning = vi.hoisted(() => ({
+  failStaleProvisionRuns: vi.fn(async () => 0),
+}));
+vi.mock("@/lib/provisioning/repository", () => provisioning);
 vi.mock("@/lib/jobs/processor", () => ({ processJob: vi.fn() }));
 const queue = vi.hoisted(() => ({
   TASKS_QUEUE: "test",
@@ -93,6 +97,30 @@ describe("startWorker deploy lock sweep", () => {
         expect.any(Error)
       );
     });
+
+    errors.mockRestore();
+    once.mockRestore();
+    vi.unstubAllEnvs();
+  });
+});
+
+describe("startWorker provision sweep", () => {
+  it("fails provision runs left started, and survives a failure", async () => {
+    delete (globalThis as { __tasksWorker?: unknown }).__tasksWorker;
+    vi.stubEnv("REDIS_URL", "redis://test:6379");
+    const once = vi.spyOn(process, "once").mockImplementation(() => process);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    deploy.failStaleDeployments.mockResolvedValue(undefined);
+    provisioning.failStaleProvisionRuns.mockRejectedValue(new Error("db down"));
+
+    expect(startWorker()).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(errors).toHaveBeenCalledWith(
+        "Failed to sweep stale provision runs:",
+        expect.any(Error)
+      )
+    );
+    expect(provisioning.failStaleProvisionRuns).toHaveBeenCalledTimes(1);
 
     errors.mockRestore();
     once.mockRestore();
