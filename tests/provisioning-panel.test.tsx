@@ -55,6 +55,37 @@ const lookups: ProvisioningLookups = {
       ? { label: "Main", containerName: "dplk-postgres", serverId: "s1" }
       : undefined,
   componentKey: (id) => (id === "t1" ? "hris" : undefined),
+  tunnelName: (id) => (id === "rt-1" ? "dss-srv-113" : undefined),
+  policyName: (id) => (id === "pol-1" ? "DSS staff" : undefined),
+};
+
+const HOST = "hris-staging.example.net";
+const domainPlan: ProvisioningStepSpec[] = [
+  {
+    kind: "prepare_deploy_dir",
+    params: { serverId: "s1", deployDir: "/deployments/hris" },
+  },
+  {
+    kind: "tunnel_route",
+    params: {
+      remoteTunnelId: "rt-1",
+      hostname: HOST,
+      service: "http://localhost:8091",
+    },
+  },
+  { kind: "access_app", params: { hostname: HOST, policyId: "pol-1" } },
+  {
+    kind: "dns_record",
+    params: { zoneId: "z1", hostname: HOST, remoteTunnelId: "rt-1" },
+  },
+  { kind: "deploy", params: { targetId: "t1", branch: "main" } },
+];
+const domainBlock = {
+  hostname: HOST,
+  remoteTunnelId: "rt-1",
+  tunnelName: "dss-srv-113",
+  accessPolicyId: "pol-1",
+  policyName: "DSS staff",
 };
 
 function step(
@@ -132,6 +163,8 @@ describe("ProvisioningPanelView", () => {
         serverLabel: () => undefined,
         databaseHost: () => undefined,
         componentKey: () => undefined,
+        tunnelName: () => undefined,
+        policyName: () => undefined,
       },
     });
     expect(html).toContain("s1");
@@ -172,6 +205,43 @@ describe("ProvisioningPanelView", () => {
     );
   });
 
+  it("lists the domain steps with tunnel and policy names, in order", () => {
+    const html = view({ plan: domainPlan });
+    const text = html.replace(/<[^>]+>/g, "");
+    const sentences = [
+      "Prepare /deployments/hris",
+      `Add tunnel route ${HOST} → http://localhost:8091 on dss-srv-113`,
+      `Create Access app for ${HOST} (DSS staff)`,
+      `Publish DNS record ${HOST}`,
+      "Deploy the latest main build of hris",
+    ];
+    let at = -1;
+    for (const sentence of sentences) {
+      const next = text.indexOf(sentence);
+      expect(next, sentence).toBeGreaterThan(at);
+      at = next;
+    }
+  });
+
+  it("falls back to the tunnel and policy ids", () => {
+    const text = view({
+      plan: domainPlan,
+      lookups: {
+        ...lookups,
+        tunnelName: () => undefined,
+        policyName: () => undefined,
+      },
+    }).replace(/<[^>]+>/g, "");
+    expect(text).toContain("on rt-1");
+    expect(text).toContain(`Create Access app for ${HOST} (pol-1)`);
+  });
+
+  it("explains a missing entry port", () => {
+    expect(view({ errorCode: "missing_entry_port" })).toContain(
+      "The domain needs the local port"
+    );
+  });
+
   it("shows only the no-targets hint when there are no targets", () => {
     const html = view({ plan: [], noTargets: true });
     expect(html).toContain("Add a deploy target first");
@@ -193,16 +263,17 @@ describe("ProvisioningPanel", () => {
   } as never;
   const targets = [{ id: "t1", componentKey: "hris" }] as never;
 
-  function client(showPanel = true) {
+  function client(showPanel = true, withDomain = false) {
     // Seeded and never refetched: no network in these tests.
     const queryClient = new QueryClient({
       defaultOptions: { queries: { staleTime: Infinity, retry: false } },
     });
     queryClient.setQueryData(["provisioning", "getProvisioning", "e1"], {
       steps: [],
-      plan,
+      plan: withDomain ? domainPlan : plan,
       activeRunId: null,
       showPanel,
+      domain: withDomain ? domainBlock : null,
     });
     queryClient.setQueryData(["databaseHosts", "listDatabaseHosts", []], []);
     return queryClient;
@@ -220,6 +291,20 @@ describe("ProvisioningPanel", () => {
 
   it("is shown to a maintainer", () => {
     expect(panel("maintainer")).toContain(">Provision<");
+  });
+
+  it("names the tunnel and policy from the GET's domain block", () => {
+    const text = renderToString(
+      <QueryClientProvider client={client(true, true)}>
+        {wrap(
+          <ProvisioningPanel environment={environment} targets={targets} />
+        )}
+      </QueryClientProvider>
+    ).replace(/<[^>]+>/g, "");
+    expect(text).toContain(
+      `Add tunnel route ${HOST} → http://localhost:8091 on dss-srv-113`
+    );
+    expect(text).toContain(`Create Access app for ${HOST} (DSS staff)`);
   });
 
   it("is hidden when the API says so (a legacy env that already deployed)", () => {

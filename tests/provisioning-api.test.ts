@@ -57,6 +57,21 @@ const repo = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/provisioning/repository", () => repo);
 
+const cloudflare = vi.hoisted(() => ({
+  listAccessPolicies: vi.fn(),
+}));
+vi.mock("@/lib/cloudflare/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/cloudflare/api")>()),
+  listAccessPolicies: cloudflare.listAccessPolicies,
+}));
+vi.mock("@/server/services/cloudflare-account", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/server/services/cloudflare-account")
+  >()),
+  callCloudflare: async (call: (creds: unknown) => unknown) =>
+    call({ accountId: "a", apiToken: "t" }),
+}));
+
 const { app } = await import("@/server/app");
 
 const goodConfig = {
@@ -73,8 +88,24 @@ const post = () =>
     headers: { "Content-Type": "application/json" },
   });
 
+const tunnelDomain = {
+  kind: "tunnel",
+  hostname: "hris-staging.example.net",
+  zoneId: "zone-row-1",
+  remoteTunnelId: "rt-1",
+  originHost: "localhost",
+  tunnelName: "dss-srv-113",
+  accessPolicyId: "pol-1",
+  accessAppId: null,
+  dnsRecordId: null,
+  entryPort: 8091,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  cloudflare.listAccessPolicies.mockResolvedValue([
+    { id: "pol-1", name: "DSS staff", decision: "allow", everyone: false },
+  ]);
   state.role = "maintainer";
   state.activeRunId = null;
   state.seq = 0;
@@ -195,5 +226,95 @@ describe("provisioning API", () => {
       },
     });
     expect((await get()).showPanel).toBe(false);
+  });
+
+  describe("with a tunnel domain", () => {
+    const get = async () =>
+      (await app.request(`/api/environments/${ENV_ID}/provisioning`)).json();
+
+    it("GET plans the Cloudflare steps and names the tunnel and policy", async () => {
+      repo.loadProvisioningConfig.mockResolvedValue({
+        ...goodConfig,
+        domain: tunnelDomain,
+      });
+      const body = await get();
+      expect(body.plan.map((s: { kind: string }) => s.kind)).toEqual([
+        "prepare_deploy_dir",
+        "tunnel_route",
+        "access_app",
+        "dns_record",
+        "deploy",
+      ]);
+      expect(body.domain).toEqual({
+        hostname: "hris-staging.example.net",
+        remoteTunnelId: "rt-1",
+        tunnelName: "dss-srv-113",
+        accessPolicyId: "pol-1",
+        policyName: "DSS staff",
+      });
+    });
+
+    it("GET falls back to the policy id when Cloudflare fails", async () => {
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      cloudflare.listAccessPolicies.mockRejectedValue(new Error("outage"));
+      repo.loadProvisioningConfig.mockResolvedValue({
+        ...goodConfig,
+        domain: tunnelDomain,
+      });
+      const res = await app.request(`/api/environments/${ENV_ID}/provisioning`);
+      expect(res.status).toBe(200);
+      expect((await res.json()).domain.policyName).toBeNull();
+      errors.mockRestore();
+    });
+
+    it("GET has no domain block for an external binding", async () => {
+      repo.loadProvisioningConfig.mockResolvedValue({
+        ...goodConfig,
+        domain: {
+          ...tunnelDomain,
+          kind: "external",
+          zoneId: null,
+          remoteTunnelId: null,
+        },
+      });
+      const body = await get();
+      expect(body.domain).toBeNull();
+      expect(cloudflare.listAccessPolicies).not.toHaveBeenCalled();
+    });
+
+    it("GET shows the panel of a deployed environment until the domain is provisioned", async () => {
+      repo.hasSuccessfulDeployment.mockResolvedValue(true);
+      const withDomain = (domain: Record<string, unknown>) =>
+        repo.loadProvisioningConfig.mockResolvedValue({
+          ...goodConfig,
+          domain: { ...tunnelDomain, ...domain },
+        });
+      withDomain({});
+      expect((await get()).showPanel).toBe(true);
+      withDomain({ accessAppId: "app-1" });
+      expect((await get()).showPanel).toBe(true);
+      withDomain({ accessAppId: "app-1", dnsRecordId: "rec-1" });
+      expect((await get()).showPanel).toBe(false);
+      // A public binding needs only the DNS record.
+      withDomain({ accessPolicyId: null, dnsRecordId: "rec-1" });
+      expect((await get()).showPanel).toBe(false);
+      withDomain({
+        kind: "external",
+        zoneId: null,
+        remoteTunnelId: null,
+      });
+      expect((await get()).showPanel).toBe(false);
+    });
+
+    it("POST answers 422 missing_entry_port without an entry port", async () => {
+      repo.loadProvisioningConfig.mockResolvedValue({
+        ...goodConfig,
+        domain: { ...tunnelDomain, entryPort: null },
+      });
+      const res = await post();
+      expect(res.status).toBe(422);
+      expect(await res.json()).toEqual({ error: "missing_entry_port" });
+      expect(repo.startProvisioningRun).not.toHaveBeenCalled();
+    });
   });
 });

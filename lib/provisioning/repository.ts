@@ -6,11 +6,13 @@ import {
   databaseHosts,
   deployments,
   deployTargets,
+  environmentDomains,
   environmentServices,
   environments,
   type ProvisioningStep,
   provisioningSteps,
   type Run,
+  remoteTunnels,
   runs,
   servers,
 } from "@/lib/db/schema";
@@ -20,15 +22,47 @@ import {
   type ProvisioningStepSpec,
 } from "@/lib/provisioning/plan";
 
+/** The domain as planned, plus what the GET shows and showPanel reads. */
+export type ProvisioningDomain = NonNullable<
+  ProvisioningEnvironment["domain"]
+> & {
+  tunnelName: string | null;
+  accessAppId: string | null;
+  dnsRecordId: string | null;
+};
+
+export type ProvisioningConfig = { name: string } & ProvisioningEnvironment & {
+    domain: ProvisioningDomain | null;
+  };
+
 /** The environment's name plus what planProvisioning needs, or null. */
 export async function loadProvisioningConfig(
   environmentId: string
-): Promise<({ name: string } & ProvisioningEnvironment) | null> {
+): Promise<ProvisioningConfig | null> {
   const [env] = await db
-    .select({ name: environments.name })
+    .select({ name: environments.name, entryPort: environments.entryPort })
     .from(environments)
     .where(eq(environments.id, environmentId));
   if (!env) return null;
+  const [domain] = await db
+    .select({
+      kind: environmentDomains.kind,
+      hostname: environmentDomains.hostname,
+      zoneId: environmentDomains.zoneId,
+      remoteTunnelId: environmentDomains.remoteTunnelId,
+      originHost: remoteTunnels.originHost,
+      tunnelName: remoteTunnels.name,
+      accessPolicyId: environmentDomains.accessPolicyId,
+      accessAppId: environmentDomains.accessAppId,
+      dnsRecordId: environmentDomains.dnsRecordId,
+    })
+    .from(environmentDomains)
+    .leftJoin(
+      remoteTunnels,
+      eq(remoteTunnels.id, environmentDomains.remoteTunnelId)
+    )
+    .where(eq(environmentDomains.environmentId, environmentId))
+    .limit(1);
   const targets = await db
     .select({
       id: deployTargets.id,
@@ -55,7 +89,29 @@ export async function loadProvisioningConfig(
       )
     )
     .limit(1);
-  return { name: env.name, targets, db: dbService ?? null };
+  return {
+    name: env.name,
+    targets,
+    db: dbService ?? null,
+    domain: domain ? { ...domain, entryPort: env.entryPort } : null,
+  };
+}
+
+/**
+ * Runs `fn` while holding a transaction-scoped advisory lock on `key`, so
+ * callers with the same key run one at a time across workers. The lock goes
+ * with the transaction (commit or rollback); `fn` may do slow I/O meanwhile.
+ */
+export async function withAdvisoryXactLock<T>(
+  key: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${key}::text, 0))`
+    );
+    return fn();
+  });
 }
 
 export async function listSteps(

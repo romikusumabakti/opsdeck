@@ -439,7 +439,7 @@
   },
   "provisioning": {
     "title": "Provisioning",
-    "description": "Brings this environment up: deploy directories, the shared database, then the first deploys. Finished steps are kept when you run it again.",
+    "description": "Brings this environment up: deploy directories, the shared database, the domain, then the first deploys. Finished steps are kept when you run it again.",
     "provision": "Provision",
     "retry": "Retry",
     "running": "Provisioning…",
@@ -459,12 +459,16 @@
     },
     "error": {
       "missing_db_fields": "The shared database is incomplete: set its host, database, role and password variable in the environment settings.",
+      "missing_entry_port": "The domain needs the local port: set it in the environment's domain settings.",
       "no_targets": "Add a deploy target first; provisioning deploys to the targets."
     },
     "step": {
       "prepare_deploy_dir": "Prepare <code>{dir}</code> on {server}",
       "create_database": "Create role and database <code>{database}</code> on <code>{host}</code> ({server})",
       "create_database_no_server": "Create role and database <code>{database}</code> on <code>{host}</code>",
+      "tunnel_route": "Add tunnel route <code>{hostname}</code> → <code>{service}</code> on {tunnel}",
+      "access_app": "Create Access app for <code>{hostname}</code> ({policy})",
+      "dns_record": "Publish DNS record <code>{hostname}</code>",
       "deploy": "Deploy the latest <code>{branch}</code> build of {component}"
     }
   },

@@ -34,6 +34,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  type ProvisioningPlanErrorCode,
   type ProvisioningStepSpec,
   sameStepSpec,
 } from "@/lib/provisioning/plan";
@@ -59,6 +60,8 @@ export type ProvisioningLookups = {
     id: string
   ) => { label: string; containerName: string; serverId: string } | undefined;
   componentKey: (targetId: string) => string | undefined;
+  tunnelName: (remoteTunnelId: string) => string | undefined;
+  policyName: (policyId: string) => string | undefined;
 };
 
 export type ProvisioningRow = {
@@ -113,8 +116,9 @@ const STATUS_ICON = {
  * The provisioning panel for the deploys page. Hidden without deploy:run: the
  * API refuses the plan to anyone else. Without targets it is only the hint;
  * otherwise it shows when the API says so (`showPanel`: steps exist, the
- * environment never deployed successfully, or its database is shared), so a
- * running legacy environment gets none.
+ * environment never deployed successfully, its database is shared, or its
+ * tunnel domain is not provisioned yet), so a running legacy environment gets
+ * none.
  */
 export function ProvisioningPanel({
   environment,
@@ -138,6 +142,7 @@ export function ProvisioningPanel({
   }).data;
   const hosts = useQuery({ ...listDatabaseHostsQuery(), enabled: canRun }).data;
 
+  const domain = provisioning?.domain;
   const lookups = React.useMemo<ProvisioningLookups>(() => {
     const servers = new Map(
       environment.services.map((s) => [
@@ -149,8 +154,13 @@ export function ProvisioningPanel({
       serverLabel: (id) => servers.get(id),
       databaseHost: (id) => hosts?.find((h) => h.id === id),
       componentKey: (id) => targets.find((x) => x.id === id)?.componentKey,
+      // The GET names only the current binding's tunnel and policy.
+      tunnelName: (id) =>
+        (domain?.remoteTunnelId === id && domain.tunnelName) || undefined,
+      policyName: (id) =>
+        (domain?.accessPolicyId === id && domain.policyName) || undefined,
     };
-  }, [environment.services, hosts, targets]);
+  }, [environment.services, hosts, targets, domain]);
 
   async function onProvision() {
     setStarting(true);
@@ -220,7 +230,7 @@ export function ProvisioningPanelView({
   // No deploy targets: only the hint is shown, there is nothing to provision.
   noTargets?: boolean;
   starting?: boolean;
-  // A 422 code from the start request (missing_db_fields | no_targets).
+  // A 422 code from the start request (a ProvisioningPlanErrorCode).
   errorCode?: string | null;
   lookups: ProvisioningLookups;
   onProvision: () => void;
@@ -283,11 +293,9 @@ export function ProvisioningPanelView({
       <CardContent className="flex flex-col gap-3">
         {errorCode && (
           <p role="alert" className="text-sm text-destructive">
-            {errorCode === "no_targets"
-              ? t("error.no_targets")
-              : errorCode === "missing_db_fields"
-                ? t("error.missing_db_fields")
-                : t("startFailed")}
+            {isPlanErrorCode(errorCode)
+              ? t(`error.${errorCode}`)
+              : t("startFailed")}
           </p>
         )}
         {rows.length === 0 ? (
@@ -349,6 +357,14 @@ export function ProvisioningPanelView({
     </Card>
   );
 }
+
+const PLAN_ERROR_CODES: readonly ProvisioningPlanErrorCode[] = [
+  "missing_db_fields",
+  "missing_entry_port",
+  "no_targets",
+];
+const isPlanErrorCode = (code: string): code is ProvisioningPlanErrorCode =>
+  (PLAN_ERROR_CODES as readonly string[]).includes(code);
 
 function StatusBadge({ status }: { status: StepStatus }) {
   const t = useTranslations("provisioning");
@@ -426,6 +442,27 @@ function StepSentence({
         }
       );
     }
+    case "tunnel_route":
+      return t.rich("step.tunnel_route", {
+        code,
+        hostname: spec.params.hostname,
+        service: spec.params.service,
+        tunnel:
+          lookups.tunnelName(spec.params.remoteTunnelId) ??
+          spec.params.remoteTunnelId,
+      });
+    case "access_app":
+      return t.rich("step.access_app", {
+        code,
+        hostname: spec.params.hostname,
+        policy:
+          lookups.policyName(spec.params.policyId) ?? spec.params.policyId,
+      });
+    case "dns_record":
+      return t.rich("step.dns_record", {
+        code,
+        hostname: spec.params.hostname,
+      });
     case "deploy":
       return t.rich("step.deploy", {
         code,

@@ -193,6 +193,19 @@ describe("withIngressRoute", () => {
     ).toThrow(CloudflareConflictError);
   });
 
+  it("matches the hostname case-insensitively", () => {
+    expect(
+      withIngressRoute(
+        live113(),
+        "CI.example.net",
+        "http://localhost:8000"
+      ).changed
+    ).toBe(false);
+    expect(() =>
+      withIngressRoute(live113(), "CI.EXAMPLE.net", "http://localhost:1")
+    ).toThrow("CI.EXAMPLE.net already routes to http://localhost:8000");
+  });
+
   it("appends the rule and a catch-all when there is none", () => {
     const { config, changed } = withIngressRoute(
       { ingress: [{ hostname: "a.example.com", service: "http://x:1" }] },
@@ -224,6 +237,22 @@ describe("DNS", () => {
     expect(await findDnsRecord(creds, "zone1", "y.example.com")).toBeNull();
     expect(calls[0]?.url).toBe(
       "https://api.cloudflare.com/client/v4/zones/zone1/dns_records?name=x.example.com"
+    );
+  });
+
+  it("ignores a returned record of another name and compares case-insensitively", async () => {
+    const record = {
+      id: "r1",
+      name: "X.example.com",
+      type: "A",
+      content: "1.2.3.4",
+      proxied: false,
+    };
+    responses.push(
+      ok([{ ...record, id: "r0", name: "other.example.com" }, record])
+    );
+    expect((await findDnsRecord(creds, "zone1", "x.example.com"))?.id).toBe(
+      "r1"
     );
   });
 
@@ -265,6 +294,68 @@ describe("Access apps", () => {
       )
     );
     expect((await findAccessAppByDomain(creds, "x.example.com"))?.id).toBe("3");
+  });
+
+  it("finds an app that lists the hostname in self_hosted_domains", async () => {
+    responses.push(
+      ok(
+        [
+          { id: "1", name: "n", domain: "a.example.com" },
+          {
+            id: "2",
+            name: "multi",
+            domain: "a.example.com",
+            self_hosted_domains: ["a.example.com", "X.example.com"],
+          },
+        ],
+        { total_pages: 1 }
+      )
+    );
+    expect((await findAccessAppByDomain(creds, "x.example.com"))?.id).toBe("2");
+  });
+
+  it("finds an app with a public destination for the hostname", async () => {
+    responses.push(
+      ok(
+        [
+          {
+            id: "1",
+            name: "private",
+            domain: "",
+            destinations: [{ type: "private", hostname: "x.example.com" }],
+          },
+          {
+            id: "2",
+            name: "dest",
+            domain: "a.example.com",
+            destinations: [
+              { type: "public", uri: "a.example.com" },
+              { type: "public", uri: "x.example.com" },
+            ],
+          },
+        ],
+        { total_pages: 1 }
+      )
+    );
+    expect((await findAccessAppByDomain(creds, "x.example.com"))?.id).toBe("2");
+  });
+
+  it("does not match a path-scoped destination", async () => {
+    responses.push(
+      ok(
+        [
+          {
+            id: "1",
+            name: "n",
+            domain: "x.example.com/admin",
+            self_hosted_domains: ["x.example.com/admin"],
+            destinations: [{ type: "public", uri: "x.example.com/admin" }],
+          },
+        ],
+        { total_pages: 1 }
+      )
+    );
+    expect(await findAccessAppByDomain(creds, "x.example.com")).toBeNull();
   });
 
   it("returns null when no app matches", async () => {

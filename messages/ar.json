@@ -439,7 +439,7 @@
   },
   "provisioning": {
     "title": "التهيئة",
-    "description": "تجهّز هذه البيئة: مجلدات النشر وقاعدة البيانات المشتركة ثم أول عمليات النشر. تبقى الخطوات المنتهية عند التشغيل مجددًا.",
+    "description": "تجهّز هذه البيئة: مجلدات النشر وقاعدة البيانات المشتركة والنطاق ثم أول عمليات النشر. تبقى الخطوات المنتهية عند التشغيل مجددًا.",
     "provision": "تهيئة",
     "retry": "إعادة المحاولة",
     "running": "جارٍ التهيئة…",
@@ -459,12 +459,16 @@
     },
     "error": {
       "missing_db_fields": "قاعدة البيانات المشتركة غير مكتملة: حدّد المضيف والقاعدة والدور ومتغير كلمة المرور في إعدادات البيئة.",
+      "missing_entry_port": "يحتاج النطاق إلى المنفذ المحلي: حدّده في إعدادات نطاق البيئة.",
       "no_targets": "أضف هدف نشر أولًا؛ تنشر التهيئة على الأهداف."
     },
     "step": {
       "prepare_deploy_dir": "تجهيز <code>{dir}</code> على {server}",
       "create_database": "إنشاء الدور وقاعدة البيانات <code>{database}</code> على <code>{host}</code> ({server})",
       "create_database_no_server": "إنشاء الدور وقاعدة البيانات <code>{database}</code> على <code>{host}</code>",
+      "tunnel_route": "إضافة مسار النفق <code>{hostname}</code> → <code>{service}</code> على {tunnel}",
+      "access_app": "إنشاء تطبيق Access لـ <code>{hostname}</code> ({policy})",
+      "dns_record": "نشر سجل DNS <code>{hostname}</code>",
       "deploy": "نشر أحدث بناء لـ <code>{branch}</code> من {component}"
     }
   },
