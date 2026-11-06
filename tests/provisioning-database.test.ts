@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { createHash, createHmac, pbkdf2Sync } from "node:crypto";
 import {
   afterAll,
@@ -347,18 +348,34 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
   const OWNED = "pcan_it_owned";
   let address = "";
 
-  async function run(args: string[], stdin?: string) {
-    const proc = Bun.spawn(["podman", ...args], {
-      stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin),
-      stdout: "pipe",
-      stderr: "pipe",
+  // node:child_process rather than Bun.spawn, so this runs under both
+  // `bun --bun vitest` and plain `bunx vitest` (Node).
+  function run(
+    args: string[],
+    stdin?: string
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn("podman", args, {
+        stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      proc.stdout?.on("data", (d) => {
+        stdout += d;
+      });
+      proc.stderr?.on("data", (d) => {
+        stderr += d;
+      });
+      proc.on("error", reject);
+      proc.on("close", (code) =>
+        resolve({
+          code: code ?? 1,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+        })
+      );
+      if (stdin !== undefined) proc.stdin?.end(stdin);
     });
-    const [code, stdout, stderr] = await Promise.all([
-      proc.exited,
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-    return { code, stdout: stdout.trim(), stderr: stderr.trim() };
   }
   const GRANTS_DB = "pcan_it_grants";
   const NEW_DB = "pcan_it_new";
