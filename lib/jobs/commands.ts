@@ -351,12 +351,17 @@ export function pgSharedBackupPipeline(
 }
 
 /**
- * Restore into a shared database as its role: first `DROP OWNED BY
- * CURRENT_USER` empties what the role owns in that database (after checking
- * the dump is readable, so a missing file never wipes it), then the dump is
- * replayed as the role. The role filter knows only the role itself (and
- * PUBLIC), so `OWNER TO`/`GRANT` naming any other role is dropped instead of
- * failing.
+ * Restore into a shared database as its role, atomically: `DROP OWNED BY
+ * CURRENT_USER` (emptying what the role owns in that database) and the dump
+ * replay go through ONE `psql -1` session under ON_ERROR_STOP, so any failing
+ * statement rolls the reset back too and the database keeps its data.
+ *
+ * `-1` alone commits at EOF, so a gzip stream that dies exactly at a
+ * statement boundary would commit a partial restore; a `.gz` file is
+ * therefore fully checked with `gunzip -t` (and any file with `test -r`)
+ * before the database is touched. The role filter knows only the role itself
+ * (and PUBLIC), so `OWNER TO`/`GRANT` naming any other role is dropped
+ * instead of failing; it passes the leading DROP OWNED line through.
  */
 export function pgSharedRestorePipeline(
   database: string,
@@ -364,13 +369,19 @@ export function pgSharedRestorePipeline(
   source: string,
   gzipped: boolean
 ): string {
-  const conn = `-U ${shq(role)} -d ${shq(database)}`;
-  const readable = `test -r ${shq(source)} || { echo ${shq(`backup ${source} is not readable`)} >&2; exit 1; }`;
-  const reset = `psql -X -q -v ON_ERROR_STOP=on ${conn} -c ${shq("DROP OWNED BY CURRENT_USER")} || exit 1`;
-  const reader = gzipped ? `gunzip -c ${shq(source)}` : `cat ${shq(source)}`;
+  const file = shq(source);
+  const fail = (what: string) =>
+    `{ echo ${shq(`backup ${source} ${what}`)} >&2; exit 1; }`;
+  const checks = [
+    `test -r ${file} || ${fail("is not readable")}`,
+    ...(gzipped
+      ? [`gunzip -t ${file} || ${fail("is not a complete gzip file")}`]
+      : []),
+  ];
+  const reader = gzipped ? `gunzip -c ${file}` : `cat ${file}`;
   const filter = `awk -v roles=${shq(role)} ${shq(PG_ROLE_FILTER_AWK)}`;
-  const psqlCmd = `psql -X -q -v ON_ERROR_STOP=on ${conn} > /dev/null`;
-  return `set -o pipefail; ${readable}; ${reset}; ${reader} | ${filter} | ${psqlCmd}`;
+  const psqlCmd = `psql -X -q -1 -v ON_ERROR_STOP=on -U ${shq(role)} -d ${shq(database)} > /dev/null`;
+  return `set -o pipefail; ${checks.join("; ")}; { echo ${shq("DROP OWNED BY CURRENT_USER;")}; ${reader}; } | ${filter} | ${psqlCmd}`;
 }
 
 // --- MySQL / MariaDB -------------------------------------------------------
