@@ -2,6 +2,7 @@ import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Copy } from "lucide-react";
 import { useTranslations } from "use-intl";
+import { EnvironmentDomainForm } from "@/components/environment-domain-form";
 import { EnvironmentForm } from "@/components/environment-form";
 import { MailpitSettingsForm } from "@/components/mailpit-settings-form";
 import { PageHeader } from "@/components/page-header";
@@ -16,6 +17,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { canCreateEnvironment, canOrg } from "@/lib/permissions";
+import { environmentDomainQuery } from "@/web/api/environment-domains";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { getMailpitSettingsQuery } from "@/web/api/mailpit-settings";
 import { listProjectsQuery } from "@/web/api/project-catalog";
@@ -43,6 +45,7 @@ export const Route = createFileRoute(
         : null,
       loaderQuery(queryClient, listProjectsQuery()),
       loaderQuery(queryClient, getMailpitSettingsQuery(environmentId)),
+      loaderQuery(queryClient, environmentDomainQuery(environmentId)),
     ]);
   },
   pendingComponent: SettingsPending,
@@ -55,6 +58,7 @@ function EnvironmentSettingsPage() {
   const t = useTranslations("environmentSettings");
   const tCommon = useTranslations("common");
   const tMailpit = useTranslations("mailpitSettings");
+  const tDomains = useTranslations("domains");
   const me = useMe();
   const canManageServers = canOrg(me?.orgRole, { server: ["manage"] });
   // Duplicating opens the new-environment page, which needs both.
@@ -66,6 +70,7 @@ function EnvironmentSettingsPage() {
     useQuery({ ...getServersQuery(), enabled: canManageServers }).data ?? [];
   const projects = useSuspenseQuery(listProjectsQuery()).data;
   const mailpit = useSuspenseQuery(getMailpitSettingsQuery(environmentId)).data;
+  const domain = useSuspenseQuery(environmentDomainQuery(environmentId)).data;
 
   if (!environment) {
     return <p>{tCommon("environmentNotFound")}</p>;
@@ -93,6 +98,21 @@ function EnvironmentSettingsPage() {
                 servers={servers}
                 canManageServers={canManageServers}
                 projects={projects}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{tDomains("title")}</CardTitle>
+              <CardDescription>{tDomains("description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EnvironmentDomainForm
+                // A fresh form once the saved binding changes.
+                key={JSON.stringify(domain)}
+                environmentId={environment.id}
+                data={domain}
               />
             </CardContent>
           </Card>

@@ -1,10 +1,18 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Cloud } from "lucide-react";
+import * as React from "react";
+import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { CloudflareAccountForm } from "@/components/cloudflare-account-form";
+import { useDialog } from "@/components/dialog-provider";
 import { PageHeader } from "@/components/page-header";
+import {
+  RemoteTunnelRegisterDialog,
+  remoteTunnelErrorText,
+} from "@/components/remote-tunnel-register-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -20,10 +28,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ApiError } from "@/web/api/client";
 import {
   cloudflareTunnelsQuery,
   getCloudflareAccountQuery,
 } from "@/web/api/cloudflare-account";
+import {
+  deleteRemoteTunnel,
+  remoteTunnelsQuery,
+} from "@/web/api/remote-tunnels";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 
@@ -65,7 +78,39 @@ function CloudflarePage() {
 
 function TunnelsCard() {
   const t = useTranslations("cloudflareAccount");
+  const tDomains = useTranslations("domains");
+  const tCommon = useTranslations("common");
+  const dialog = useDialog();
   const tunnels = useQuery(cloudflareTunnelsQuery());
+  const registered = useQuery(remoteTunnelsQuery()).data ?? [];
+  const [registering, setRegistering] = React.useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  async function onRemove(row: (typeof registered)[number]) {
+    const ok = await dialog.confirm({
+      title: t("removeTitle"),
+      description: t("removeDescription", {
+        tunnel: row.name,
+        server: row.serverName,
+      }),
+      confirmText: t("remove"),
+      cancelText: tCommon("cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteRemoteTunnel(row.id);
+      toast.success(t("removed"));
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 401) {
+        toast.error(remoteTunnelErrorText(error, tDomains));
+        return;
+      }
+      throw error;
+    }
+  }
 
   return (
     <Card>
@@ -90,29 +135,78 @@ function TunnelsCard() {
                 <TableHead>{t("colName")}</TableHead>
                 <TableHead>{t("colStatus")}</TableHead>
                 <TableHead>{t("colManagement")}</TableHead>
+                <TableHead>{t("colServer")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tunnels.data.map((tunnel) => (
-                <TableRow key={tunnel.id}>
-                  <TableCell>
-                    <div className="font-medium">{tunnel.name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {tunnel.id}
-                    </div>
-                  </TableCell>
-                  <TableCell>{tunnel.status}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={tunnel.remoteConfig ? "secondary" : "outline"}
-                    >
-                      {tunnel.remoteConfig ? t("remote") : t("local")}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {tunnels.data.map((tunnel) => {
+                const row = registered.find((r) => r.tunnelId === tunnel.id);
+                return (
+                  <TableRow key={tunnel.id}>
+                    <TableCell>
+                      <div className="font-medium">{tunnel.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {tunnel.id}
+                      </div>
+                    </TableCell>
+                    <TableCell>{tunnel.status}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={tunnel.remoteConfig ? "secondary" : "outline"}
+                      >
+                        {tunnel.remoteConfig ? t("remote") : t("local")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {row ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <div>{row.serverName}</div>
+                            <div className="font-mono text-xs text-muted-foreground">
+                              {row.originHost}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={row.boundCount > 0}
+                            title={
+                              row.boundCount > 0 ? t("removeBound") : undefined
+                            }
+                            onClick={() => onRemove(row)}
+                          >
+                            {t("remove")}
+                          </Button>
+                        </div>
+                      ) : tunnel.remoteConfig ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setRegistering({ id: tunnel.id, name: tunnel.name })
+                          }
+                        >
+                          {t("register")}
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {t("notRegistrable")}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+        )}
+        {registering && (
+          <RemoteTunnelRegisterDialog
+            open
+            onOpenChange={(open) => !open && setRegistering(null)}
+            tunnel={registering}
+            takenServerIds={registered.map((r) => r.serverId)}
+          />
         )}
       </CardContent>
     </Card>

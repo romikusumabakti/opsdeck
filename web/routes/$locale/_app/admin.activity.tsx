@@ -117,6 +117,18 @@ function message(
         actor,
         fields: String(d.fields),
       });
+    case "environment.domain.update":
+      return t("environmentDomainUpdated", {
+        actor,
+        environment: String(d.environment),
+        hostname: String(d.hostname),
+      });
+    case "environment.domain.delete":
+      return t("environmentDomainDeleted", {
+        actor,
+        environment: String(d.environment),
+        hostname: String(d.hostname),
+      });
     case "mailpit.configured":
       return t("mailpitConfigured", {
         actor,
