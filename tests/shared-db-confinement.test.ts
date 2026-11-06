@@ -14,6 +14,8 @@ const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a9";
 const state = vi.hoisted(() => ({
   orgRole: "member" as string,
   dbKind: "shared" as string | null,
+  // The restore source's binding kind; undefined: same as dbKind.
+  sourceDbKind: undefined as string | null | undefined,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -68,7 +70,10 @@ function environment(id: string) {
         dbType: "postgres",
         dbName: id === ENV_ID ? "pcan_sandbox1" : "pcan_source",
         dbBackupPath: "/var/lib/postgresql/backups",
-        dbKind: state.dbKind,
+        dbKind:
+          id === SOURCE_ENV_ID && state.sourceDbKind !== undefined
+            ? state.sourceDbKind
+            : state.dbKind,
       },
       {
         role: "backend",
@@ -124,6 +129,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.orgRole = "member";
   state.dbKind = "shared";
+  state.sourceDbKind = undefined;
   jobs.createRun.mockResolvedValue("run-1");
   ssh.executeRemoteCommand.mockImplementation(
     async (_creds: unknown, cmd: string) =>
@@ -240,6 +246,40 @@ describe("database operations on a shared binding (maintainer)", () => {
       error: "sharedDatabaseServiceConfined",
     });
     expect(ssh.streamRemoteCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe("restoring from a shared source into a non-shared target", () => {
+  const restoreFromSharedSource = () =>
+    restoreDatabaseBackup(ENV_ID, {
+      filename: "pcan_source_2026-11-05T02-00-00-000Z.sql.gz",
+      sourceEnvironmentId: SOURCE_ENV_ID,
+    });
+
+  for (const target of [null, "container", "external"] as const) {
+    it(`is refused for a maintainer (target ${target ?? "legacy"})`, async () => {
+      state.dbKind = target;
+      state.sourceDbKind = "shared";
+      await expect(restoreFromSharedSource()).rejects.toMatchObject(forbidden);
+      expect(jobs.enqueue).not.toHaveBeenCalled();
+    });
+  }
+
+  it("is allowed for an admin", async () => {
+    state.orgRole = "admin";
+    state.dbKind = null;
+    state.sourceDbKind = "shared";
+    await expect(restoreFromSharedSource()).resolves.toEqual({
+      runId: "run-1",
+    });
+  });
+
+  it("a maintainer still restores from a non-shared source", async () => {
+    state.dbKind = null;
+    state.sourceDbKind = "container";
+    await expect(restoreFromSharedSource()).resolves.toEqual({
+      runId: "run-1",
+    });
   });
 });
 

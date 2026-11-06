@@ -206,6 +206,12 @@ export async function restoreDatabaseBackup(
     if (dbConfig(source).dbType !== dbSvc.dbType) {
       throw new Error("Source environment must have the same database type");
     }
+    // Nor may a confined caller replay a shared source's dump into another
+    // binding: a non-shared target restores as the superuser, so a dump the
+    // caller planted in their shared sandbox would run with superuser rights.
+    // (A shared target was already refused above, so this covers every
+    // source binding that differs from the target's.)
+    await requireUnconfined(source, session.user.role);
     // The file comes from the source's backup directory.
     await requireAllowedBackup(source, session.user.role, filename);
     sourceEnvironmentId = source.id;
