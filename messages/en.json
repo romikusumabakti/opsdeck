@@ -436,6 +436,34 @@
       "saveLock": "Save lock"
     }
   },
+  "provisioning": {
+    "title": "Provisioning",
+    "description": "Brings this environment up: deploy directories, the shared database, then the first deploys. Finished steps are kept when you run it again.",
+    "provision": "Provision",
+    "retry": "Retry",
+    "running": "Provisioning…",
+    "viewLog": "View log",
+    "logTitle": "Provisioning log",
+    "emptyPlan": "Nothing to provision yet. Complete the database binding in the environment settings.",
+    "alreadyRunning": "Provisioning is already running for this environment",
+    "startFailed": "Could not start provisioning",
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "error": {
+      "missing_db_fields": "The shared database is incomplete: set its host, database, role and password variable in the environment settings.",
+      "no_targets": "Add a deploy target first; provisioning deploys to the targets."
+    },
+    "step": {
+      "prepare_deploy_dir": "Prepare <code>{dir}</code> on {server}",
+      "create_database": "Create role and database <code>{database}</code> on <code>{host}</code> ({server})",
+      "create_database_no_server": "Create role and database <code>{database}</code> on <code>{host}</code>",
+      "deploy": "Deploy the latest <code>{branch}</code> build of {component}"
+    }
+  },
   "backupDb": {
     "title": "Backup database",
     "subtitle": "Create a new backup snapshot of {dbName}.",
@@ -779,7 +807,27 @@
     "urlHint": "Opens from the link icon beside the environment name. Optional.",
     "urlInvalid": "Enter an absolute http:// or https:// URL",
     "purpose": "Purpose",
-    "infraReadOnlyHint": "Changing servers, services or database settings requires server management access."
+    "infraReadOnlyHint": "Changing servers, services or database settings requires server management access.",
+    "dbKind": "Where the database lives",
+    "dbKindNone": "Not set",
+    "dbKinds": {
+      "shared": "Shared database host",
+      "container": "Own container",
+      "external": "External server"
+    },
+    "dbKindHint": "A shared host runs many environments' databases; the panel creates this one's role and database on provisioning. Other kinds are configured by hand below.",
+    "databaseHost": "Database host",
+    "pickDatabaseHost": "Select a database host…",
+    "pickDatabaseHostRequired": "Pick a database host",
+    "databaseHostHint": "Server, container, engine and backup path come from the host.",
+    "dbRole": "Database role",
+    "dbPasswordVariable": "Password variable",
+    "pickPasswordVariable": "Select a variable…",
+    "dbPasswordVariableHint": "A generated or secret variable of this environment that holds the role's password. Add one on the Variables page first.",
+    "dbPasswordVariableCreateHint": "Name of the generated or secret variable that will hold the role's password. Create it on the Variables page after saving.",
+    "sharedNameHint": "Names must start with the project key, lowercase, then an underscore (letters, digits and _ only).",
+    "useSuggestedNames": "Use suggested names",
+    "sharedNameInvalid": "Use lowercase letters, digits or _, starting with a letter (at most 63)"
   },
   "environmentSettings": {
     "title": "Environment settings",

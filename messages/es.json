@@ -436,6 +436,34 @@
       "saveLock": "Guardar bloqueo"
     }
   },
+  "provisioning": {
+    "title": "Aprovisionamiento",
+    "description": "Pone en marcha este entorno: directorios de despliegue, la base de datos compartida y los primeros despliegues. Los pasos terminados se conservan al volver a ejecutarlo.",
+    "provision": "Aprovisionar",
+    "retry": "Reintentar",
+    "running": "Aprovisionando…",
+    "viewLog": "Ver registro",
+    "logTitle": "Registro de aprovisionamiento",
+    "emptyPlan": "Aún no hay nada que aprovisionar. Completa la base de datos en los ajustes del entorno.",
+    "alreadyRunning": "Ya hay un aprovisionamiento en curso para este entorno",
+    "startFailed": "No se pudo iniciar el aprovisionamiento",
+    "status": {
+      "pending": "Pendiente",
+      "running": "En curso",
+      "done": "Hecho",
+      "failed": "Fallido"
+    },
+    "error": {
+      "missing_db_fields": "La base de datos compartida está incompleta: define host, base de datos, rol y variable de contraseña en los ajustes del entorno.",
+      "no_targets": "Añade primero un destino de despliegue; el aprovisionamiento despliega en los destinos."
+    },
+    "step": {
+      "prepare_deploy_dir": "Preparar <code>{dir}</code> en {server}",
+      "create_database": "Crear el rol y la base de datos <code>{database}</code> en <code>{host}</code> ({server})",
+      "create_database_no_server": "Crear el rol y la base de datos <code>{database}</code> en <code>{host}</code>",
+      "deploy": "Desplegar la última compilación de <code>{branch}</code> de {component}"
+    }
+  },
   "backupDb": {
     "title": "Copia de seguridad de la base de datos",
     "subtitle": "Crea una nueva instantánea de copia de seguridad de {dbName}.",
@@ -779,7 +807,27 @@
     "urlHint": "Se abre desde el icono de enlace junto al nombre del entorno. Opcional.",
     "urlInvalid": "Introduce una URL absoluta http:// o https://",
     "purpose": "Propósito",
-    "infraReadOnlyHint": "Cambiar servidores, servicios o la configuración de la base de datos requiere acceso de gestión de servidores."
+    "infraReadOnlyHint": "Cambiar servidores, servicios o la configuración de la base de datos requiere acceso de gestión de servidores.",
+    "dbKind": "Dónde está la base de datos",
+    "dbKindNone": "Sin definir",
+    "dbKinds": {
+      "shared": "Host de base de datos compartido",
+      "container": "Contenedor propio",
+      "external": "Servidor externo"
+    },
+    "dbKindHint": "Un host compartido aloja las bases de datos de varios entornos; el panel crea el rol y la base de este al aprovisionar. Los demás tipos se configuran a mano abajo.",
+    "databaseHost": "Host de base de datos",
+    "pickDatabaseHost": "Selecciona un host de base de datos…",
+    "pickDatabaseHostRequired": "Elige un host de base de datos",
+    "databaseHostHint": "El servidor, contenedor, motor y ruta de copias vienen del host.",
+    "dbRole": "Rol de base de datos",
+    "dbPasswordVariable": "Variable de contraseña",
+    "pickPasswordVariable": "Selecciona una variable…",
+    "dbPasswordVariableHint": "Una variable generada o secreta de este entorno que guarda la contraseña del rol. Añádela antes en la página Variables.",
+    "dbPasswordVariableCreateHint": "Nombre de la variable generada o secreta que guardará la contraseña del rol. Créala en la página Variables tras guardar.",
+    "sharedNameHint": "Los nombres empiezan con la clave del proyecto en minúsculas y un guion bajo (solo letras, dígitos y _).",
+    "useSuggestedNames": "Usar nombres sugeridos",
+    "sharedNameInvalid": "Usa minúsculas, dígitos o _, empezando por una letra (máximo 63)"
   },
   "environmentSettings": {
     "title": "Ajustes del entorno",

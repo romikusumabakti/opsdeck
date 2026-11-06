@@ -436,6 +436,34 @@
       "saveLock": "Simpan kunci"
     }
   },
+  "provisioning": {
+    "title": "Provisioning",
+    "description": "Menyiapkan environment ini: direktori deploy, database bersama, lalu deploy pertama. Langkah yang sudah selesai tetap dipertahankan saat dijalankan lagi.",
+    "provision": "Provision",
+    "retry": "Coba lagi",
+    "running": "Sedang provisioning…",
+    "viewLog": "Lihat log",
+    "logTitle": "Log provisioning",
+    "emptyPlan": "Belum ada yang bisa di-provision. Lengkapi pengikatan database di pengaturan environment.",
+    "alreadyRunning": "Provisioning sedang berjalan untuk environment ini",
+    "startFailed": "Provisioning tidak bisa dimulai",
+    "status": {
+      "pending": "Menunggu",
+      "running": "Berjalan",
+      "done": "Selesai",
+      "failed": "Gagal"
+    },
+    "error": {
+      "missing_db_fields": "Database bersama belum lengkap: atur host, database, role, dan variabel password di pengaturan environment.",
+      "no_targets": "Tambahkan target deploy dulu; provisioning men-deploy ke target."
+    },
+    "step": {
+      "prepare_deploy_dir": "Siapkan <code>{dir}</code> di {server}",
+      "create_database": "Buat role dan database <code>{database}</code> di <code>{host}</code> ({server})",
+      "create_database_no_server": "Buat role dan database <code>{database}</code> di <code>{host}</code>",
+      "deploy": "Deploy build <code>{branch}</code> terbaru untuk {component}"
+    }
+  },
   "backupDb": {
     "title": "Backup database",
     "subtitle": "Buat snapshot backup baru untuk {dbName}.",
@@ -779,7 +807,27 @@
     "urlHint": "Dibuka dari ikon tautan di samping nama environment. Opsional.",
     "urlInvalid": "Masukkan URL absolut http:// atau https://",
     "purpose": "Tujuan",
-    "infraReadOnlyHint": "Mengubah server, layanan, atau pengaturan database memerlukan akses pengelolaan server."
+    "infraReadOnlyHint": "Mengubah server, layanan, atau pengaturan database memerlukan akses pengelolaan server.",
+    "dbKind": "Lokasi database",
+    "dbKindNone": "Belum diatur",
+    "dbKinds": {
+      "shared": "Host database bersama",
+      "container": "Container sendiri",
+      "external": "Server eksternal"
+    },
+    "dbKindHint": "Host bersama menampung database banyak environment; panel membuat role dan database environment ini saat provisioning. Jenis lain diatur manual di bawah.",
+    "databaseHost": "Host database",
+    "pickDatabaseHost": "Pilih host database…",
+    "pickDatabaseHostRequired": "Pilih host database",
+    "databaseHostHint": "Server, container, engine, dan path backup diambil dari host.",
+    "dbRole": "Role database",
+    "dbPasswordVariable": "Variabel password",
+    "pickPasswordVariable": "Pilih variabel…",
+    "dbPasswordVariableHint": "Variabel generated atau secret milik environment ini yang menyimpan password role. Tambahkan dulu di halaman Variabel.",
+    "dbPasswordVariableCreateHint": "Nama variabel generated atau secret yang akan menyimpan password role. Buat di halaman Variabel setelah disimpan.",
+    "sharedNameHint": "Nama harus diawali kunci proyek huruf kecil lalu garis bawah (hanya huruf, angka, dan _).",
+    "useSuggestedNames": "Pakai nama yang disarankan",
+    "sharedNameInvalid": "Pakai huruf kecil, angka, atau _, diawali huruf (maksimal 63)"
   },
   "environmentSettings": {
     "title": "Pengaturan environment",
