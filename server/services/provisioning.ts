@@ -85,12 +85,17 @@ export async function startProvisioning(
     throw error;
   }
   // No params: step parameters stay out of the feed.
-  await recordActivity({
-    actorId: userId,
-    action: "environment.provision",
-    entityType: "environment",
-    entityId: environmentId,
-    data: { environment: config.name },
-  });
+  try {
+    await recordActivity({
+      actorId: userId,
+      action: "environment.provision",
+      entityType: "environment",
+      entityId: environmentId,
+      data: { environment: config.name },
+    });
+  } catch (error) {
+    // The run is queued; a feed entry is not worth failing the request.
+    console.error("Failed to record provisioning activity:", error);
+  }
   return { runId: started.runId };
 }

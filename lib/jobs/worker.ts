@@ -5,6 +5,7 @@ import { jiraProjectLinks } from "@/lib/db/schema";
 import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
 import { failStaleDeployments } from "@/lib/jobs/deploy";
 import { processJob } from "@/lib/jobs/processor";
+import { failStaleProvisionRuns } from "@/lib/provisioning/repository";
 import {
   createRedisConnection,
   scheduleDeployLockSweep,
@@ -68,6 +69,12 @@ export function startWorker(): Worker | null {
   // environment; fail the ones older than any live deploy can be.
   failStaleDeployments().catch((error) => {
     console.error("Failed to sweep stale deployments:", error);
+  });
+
+  // A provision run still `started` at boot lost its job with the old worker
+  // (single worker); fail it so the environment can be provisioned again.
+  failStaleProvisionRuns().catch((error) => {
+    console.error("Failed to sweep stale provision runs:", error);
   });
 
   // Expired deploy locks are released every 60 s by a repeatable job. Its

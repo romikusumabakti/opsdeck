@@ -114,6 +114,15 @@ describe("provisioning API", () => {
     );
   });
 
+  it("still answers 200 when recording the activity fails", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    activity.recordActivity.mockRejectedValueOnce(new Error("db down"));
+    const res = await post();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ runId: "run-1" });
+    errors.mockRestore();
+  });
+
   it("answers 409 to a second start while a run is active, with one job", async () => {
     expect((await post()).status).toBe(200);
     expect((await post()).status).toBe(409);

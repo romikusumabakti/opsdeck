@@ -23,14 +23,27 @@ const state = vi.hoisted(() => ({
   build: null as null | { id: string; tag: string },
   deployError: null as unknown,
   sshCommands: [] as string[],
+  listError: false,
+  runMissing: false,
 }));
 
 vi.mock("@/lib/provisioning/repository", () => ({
-  getProvisionRun: async () => ({ environmentId: ENV_ID, userId: USER_ID }),
-  listSteps: async () =>
-    [...state.steps]
+  getProvisionRun: async () =>
+    state.runMissing ? null : { environmentId: ENV_ID, userId: USER_ID },
+  failRunningSteps: async (_env: string, message: string) => {
+    for (const step of state.steps) {
+      if (step.status === "running") {
+        step.status = "failed";
+        step.lastError = message;
+      }
+    }
+  },
+  listSteps: async () => {
+    if (state.listError) throw new Error("db down");
+    return [...state.steps]
       .sort((a, b) => a.position - b.position)
-      .map((s) => ({ ...s })),
+      .map((s) => ({ ...s }));
+  },
   markStep: async (
     id: string,
     status: Step["status"],
@@ -136,6 +149,8 @@ beforeEach(() => {
   state.failures = [];
   state.run = null;
   state.sshCommands = [];
+  state.listError = false;
+  state.runMissing = false;
   state.variable = { kind: "generated", value: PASSWORD };
   state.build = { id: "b1", tag: "main-abc" };
   requestDeployment.mockReset();
@@ -229,5 +244,33 @@ describe("runProvisioning", () => {
     await expect(run()).resolves.toEqual({ status: "success" });
     expect(statuses()).toEqual(["done"]);
     expect(state.sshCommands).toHaveLength(1);
+  });
+
+  it("accepts a secret-kind password variable", async () => {
+    seed(["create_database"]);
+    state.variable = { kind: "secret", value: PASSWORD };
+    await expect(run()).resolves.toEqual({ status: "success" });
+    expect(statuses()).toEqual(["done"]);
+  });
+
+  it("fails the run and rethrows when the steps cannot be listed", async () => {
+    state.listError = true;
+    await expect(run()).rejects.toThrow("db down");
+    expect(state.run).toEqual({ status: "failed", error: "db down" });
+  });
+
+  it("fails a leftover running step when the job dies outside a step", async () => {
+    (state.steps[0] as Step).status = "running";
+    state.listError = true;
+    await expect(run()).rejects.toThrow();
+    // listSteps is what failed, so the sweep of running steps is what closes it.
+    expect(statuses()[0]).toBe("failed");
+  });
+
+  it("throws without running steps when the run does not exist", async () => {
+    state.runMissing = true;
+    await expect(run()).rejects.toThrow("not found");
+    expect(statuses()).toEqual(["pending", "pending", "pending"]);
+    expect(state.sshCommands).toEqual([]);
   });
 });
