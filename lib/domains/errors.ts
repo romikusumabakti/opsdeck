@@ -22,6 +22,8 @@ export const DOMAIN_ERRORS = {
   domainProvisioned:
     "The domain is already provisioned and cannot be changed yet",
   domainPublicForbidden: "Only an admin can publish without Access",
+  domainPortInUse: "Another environment on this server uses this entry port",
+  domainPortForbidden: "Only an admin can pick an entry port outside 8100–8999",
 } as const;
 
 export type DomainErrorCode = keyof typeof DOMAIN_ERRORS;

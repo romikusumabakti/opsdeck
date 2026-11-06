@@ -45,6 +45,16 @@ const state = vi.hoisted(() => ({
     entryPort?: number;
   } | null,
   deleted: false,
+  // entry_port of the other environments on the deploy server.
+  otherPorts: [] as number[],
+  portQuery: null as null | { serverId: string; exclude?: string },
+}));
+
+vi.mock("@/server/services/preflight-repository", () => ({
+  listEntryPortsOnServer: vi.fn(async (serverId: string, exclude?: string) => {
+    state.portQuery = { serverId, exclude };
+    return state.otherPorts;
+  }),
 }));
 
 vi.mock("@/lib/auth-session", () => ({
@@ -154,7 +164,7 @@ const tunnelBody = (extra: Record<string, unknown> = {}) => ({
   zoneId: ZONE_ID,
   label: "hris-staging",
   accessPolicyId: "pol-1",
-  entryPort: 8080,
+  entryPort: 8120,
   ...extra,
 });
 
@@ -175,11 +185,13 @@ beforeEach(() => {
   state.accountMissing = false;
   state.saved = null;
   state.deleted = false;
+  state.otherPorts = [];
+  state.portQuery = null;
 });
 
 describe("PUT tunnel binding", () => {
   it("lets a maintainer bind with an Access policy", async () => {
-    const res = await send("PUT", url, tunnelBody({ entryPort: 9000 }));
+    const res = await send("PUT", url, tunnelBody({ entryPort: 8999 }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       hostname: "hris-staging.dssconsulting.id",
@@ -192,7 +204,7 @@ describe("PUT tunnel binding", () => {
         remoteTunnelId: "rt-1",
         accessPolicyId: "pol-1",
       },
-      entryPort: 9000,
+      entryPort: 8999,
     });
     expect(activity.recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: "environment.domain.update" })
@@ -286,6 +298,47 @@ describe("PUT tunnel binding", () => {
     expect(
       (await send("PUT", url, tunnelBody({ entryPort: 70_000 }))).status
     ).toBe(400);
+  });
+});
+
+describe("entry port", () => {
+  it("refuses a maintainer picking a port outside 8100–8999 with 403", async () => {
+    for (const entryPort of [80, 8000, 8091, 8099, 9000]) {
+      const res = await send("PUT", url, tunnelBody({ entryPort }));
+      expect(res.status).toBe(403);
+      expect((await res.json()).error).toBe(
+        "Only an admin can pick an entry port outside 8100–8999"
+      );
+    }
+    expect(state.saved).toBeNull();
+  });
+
+  it("lets a maintainer pick a port in the range", async () => {
+    const res = await send("PUT", url, tunnelBody({ entryPort: 8100 }));
+    expect(res.status).toBe(200);
+    expect(state.saved?.entryPort).toBe(8100);
+    // The environment's own port does not count as taken.
+    expect(state.portQuery).toEqual({ serverId: "srv-1", exclude: ENV_ID });
+  });
+
+  it("lets an admin pick any free port", async () => {
+    state.orgRole = "admin";
+    const res = await send("PUT", url, tunnelBody({ entryPort: 8091 }));
+    expect(res.status).toBe(200);
+    expect(state.saved?.entryPort).toBe(8091);
+  });
+
+  it("answers 409 for another environment's port on the server, for anyone", async () => {
+    state.otherPorts = [8100, 8091];
+    const maintainer = await send("PUT", url, tunnelBody({ entryPort: 8100 }));
+    expect(maintainer.status).toBe(409);
+    expect((await maintainer.json()).error).toBe(
+      "Another environment on this server uses this entry port"
+    );
+    state.orgRole = "admin";
+    const admin = await send("PUT", url, tunnelBody({ entryPort: 8091 }));
+    expect(admin.status).toBe(409);
+    expect(state.saved).toBeNull();
   });
 });
 

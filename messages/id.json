@@ -2773,6 +2773,8 @@
       "domainHostnameTaken": "Environment lain memakai hostname ini",
       "domainProvisioned": "Domain sudah diprovisioning dan belum dapat diubah",
       "domainPublicForbidden": "Hanya admin yang dapat memublikasikan tanpa Access",
+      "domainPortInUse": "Environment lain di server ini sudah memakai entry port ini",
+      "domainPortForbidden": "Hanya admin yang dapat memilih entry port di luar 8100–8999",
       "domainExternalInZone": "Hostname ini berada di bawah zona terdaftar: gunakan jenis tunnel Cloudflare"
     }
   }

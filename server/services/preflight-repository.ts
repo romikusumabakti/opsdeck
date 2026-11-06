@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { deployTargets, environments, servers } from "@/lib/db/schema";
 import type { ServerPreflight } from "@/lib/provisioning/preflight";
@@ -34,9 +34,13 @@ export async function saveServerPreflight(
     .where(eq(servers.id, serverId));
 }
 
-/** entry_port of every environment that deploys to the server. */
+/**
+ * entry_port of every environment that deploys to the server, leaving out
+ * `excludeEnvironmentId` when given.
+ */
 export async function listEntryPortsOnServer(
-  serverId: string
+  serverId: string,
+  excludeEnvironmentId?: string
 ): Promise<number[]> {
   const rows = await db
     .selectDistinct({ entryPort: environments.entryPort })
@@ -45,7 +49,10 @@ export async function listEntryPortsOnServer(
     .where(
       and(
         eq(deployTargets.serverId, serverId),
-        isNotNull(environments.entryPort)
+        isNotNull(environments.entryPort),
+        excludeEnvironmentId
+          ? ne(environments.id, excludeEnvironmentId)
+          : undefined
       )
     );
   return rows.flatMap((r) => (r.entryPort === null ? [] : [r.entryPort]));
