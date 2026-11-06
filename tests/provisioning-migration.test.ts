@@ -16,6 +16,10 @@ describe("provisioning migration", () => {
     expect(sql.trimEnd().endsWith("COMMIT;")).toBe(true);
   });
 
+  it("sets a lock timeout right after BEGIN", () => {
+    expect(sql).toMatch(/\nBEGIN;\n(?:--[^\n]*\n)*SET lock_timeout = '5s';\n/);
+  });
+
   it("creates the three enums", () => {
     expect(sql).toMatch(
       /CREATE TYPE database_kind AS ENUM \('shared', 'container', 'external'\)/
