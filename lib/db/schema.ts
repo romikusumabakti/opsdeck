@@ -23,8 +23,8 @@ import {
 import type { AccentColor } from "@/lib/accents";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { PipelineFileCommits } from "@/lib/ci/types";
-import type { ServerPreflight } from "@/lib/provisioning/preflight";
 import type { MotifPreference } from "@/lib/motifs";
+import type { ServerPreflight } from "@/lib/provisioning/preflight";
 import type { WorkingHours } from "@/lib/user-display";
 
 export const serviceTypeEnum = pgEnum("service_type", [
@@ -122,7 +122,15 @@ export const provisioningStepKindEnum = pgEnum("provisioning_step_kind", [
   "prepare_deploy_dir",
   "create_database",
   "deploy",
+  "tunnel_route",
+  "access_app",
+  "dns_record",
 ]);
+
+// How an environment's public hostname reaches it: through a remotely-managed
+// tunnel the Panel edits, or outside the Panel's reach ("external"). No
+// environment_domains row means no domain.
+export const domainKindEnum = pgEnum("domain_kind", ["tunnel", "external"]);
 
 export const provisioningStepStatusEnum = pgEnum("provisioning_step_status", [
   "pending",
@@ -1446,6 +1454,84 @@ export const tunnels = pgTable(
   ]
 );
 
+// The Cloudflare account the Panel manages remotely-managed tunnels, Access
+// apps and DNS records in. One token covers all of it (Tunnel: Edit, Access
+// Apps and Policies: Edit, Access IdPs: Read, DNS: Edit on the zone), so it is
+// held once per account. Encrypted at rest and never sent to the client.
+export const cloudflareAccounts = pgTable("cloudflare_accounts", {
+  id: uuid("id").primaryKey().default(sql`uuidv7()`),
+  accountId: text("account_id").notNull().unique(),
+  name: text("name").notNull(),
+  apiToken: text("api_token").notNull(),
+  // The identity provider the Access apps the Panel creates allow.
+  accessIdpId: text("access_idp_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// A remotely-managed tunnel running on a server; its ingress is edited through
+// the Cloudflare API. One per server.
+export const remoteTunnels = pgTable(
+  "remote_tunnels",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => cloudflareAccounts.id, { onDelete: "restrict" }),
+    serverId: uuid("server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "restrict" }),
+    tunnelId: text("tunnel_id").notNull(),
+    name: text("name").notNull(),
+    // Where cloudflared reaches the environment's entry port from.
+    originHost: text("origin_host").notNull().default("localhost"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("remote_tunnels_account_tunnel_idx").on(
+      t.accountId,
+      t.tunnelId
+    ),
+    // One remote tunnel per server; also serves the server FK restrict check.
+    uniqueIndex("remote_tunnels_server_idx").on(t.serverId),
+  ]
+);
+
+// The public domain of an environment (at most one, hence the environment as
+// key). access_app_id and dns_record_id are written by the provisioning steps.
+export const environmentDomains = pgTable(
+  "environment_domains",
+  {
+    environmentId: uuid("environment_id")
+      .primaryKey()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    kind: domainKindEnum("kind").notNull(),
+    hostname: text("hostname").notNull().unique(),
+    // Tunnel domains only (see the check below).
+    zoneId: uuid("zone_id").references(() => cloudflareZones.id, {
+      onDelete: "restrict",
+    }),
+    remoteTunnelId: uuid("remote_tunnel_id").references(
+      () => remoteTunnels.id,
+      { onDelete: "restrict" }
+    ),
+    accessPolicyId: text("access_policy_id"),
+    accessAppId: text("access_app_id"),
+    dnsRecordId: text("dns_record_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "environment_domains_tunnel_refs",
+      sql`${t.kind} <> 'tunnel' OR (${t.zoneId} IS NOT NULL AND ${t.remoteTunnelId} IS NOT NULL)`
+    ),
+    index("environment_domains_zone_idx").on(t.zoneId),
+    index("environment_domains_remote_tunnel_idx").on(t.remoteTunnelId),
+  ]
+);
+
 // =========================
 // Team Knowledge Base
 // =========================
@@ -1846,6 +1932,7 @@ export type JiraLinkWithConnection = JiraProjectLink & {
   connection: Pick<JiraConnection, "id" | "name" | "baseUrl">;
 };
 
+export type CloudflareAccount = InferSelectModel<typeof cloudflareAccounts>;
 export type CloudflareZone = InferSelectModel<typeof cloudflareZones>;
 export type NewCloudflareZone = InferInsertModel<typeof cloudflareZones>;
 

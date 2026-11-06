@@ -112,6 +112,11 @@ function message(
         network: String(d.network),
         tunnel: String(d.tunnel),
       });
+    case "cloudflare_account.update":
+      return t("cloudflareAccountUpdated", {
+        actor,
+        fields: String(d.fields),
+      });
     case "mailpit.configured":
       return t("mailpitConfigured", {
         actor,
