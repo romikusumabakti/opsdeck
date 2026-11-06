@@ -268,6 +268,22 @@ describe("runProvisioning", () => {
     expect(state.sshCommands).toHaveLength(1);
   });
 
+  it("passes the environment id so the role gets its marker", async () => {
+    seed(["create_database"]);
+    const { provisionSharedDatabase } = await import(
+      "@/lib/provisioning/database"
+    );
+    await run();
+    expect(provisionSharedDatabase).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        database: "hris_staging",
+        role: "hris_staging",
+        environmentId: ENV_ID,
+      })
+    );
+  });
+
   it("accepts a secret-kind password variable", async () => {
     seed(["create_database"]);
     state.variable = { kind: "secret", value: PASSWORD };
