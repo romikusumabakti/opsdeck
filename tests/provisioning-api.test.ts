@@ -240,8 +240,8 @@ describe("provisioning API", () => {
       const body = await get();
       expect(body.plan.map((s: { kind: string }) => s.kind)).toEqual([
         "prepare_deploy_dir",
-        "tunnel_route",
         "access_app",
+        "tunnel_route",
         "dns_record",
         "deploy",
       ]);
