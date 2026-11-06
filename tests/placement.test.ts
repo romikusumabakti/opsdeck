@@ -58,6 +58,7 @@ type Service = {
   databaseHostId?: string | null;
   dbName?: string | null;
   dbRole?: string | null;
+  dbUser?: string | null;
 };
 
 const state = vi.hoisted(() => ({
@@ -793,6 +794,18 @@ describe("open placement: shared database hosts", () => {
           dbRole: "pcan_sandbox1",
         },
       ],
+      // This role is another environment's database, or its legacy login.
+      [
+        {
+          environmentId: OTHER_ENV_ID,
+          role: "db",
+          serverId: SERVER_OPEN,
+          serviceName: "dplk-postgres",
+          databaseHostId: null,
+          dbName: "pcan_legacy",
+          dbUser: "pcan_sandbox1",
+        },
+      ],
       // A database inside this one's confinement, and the other way round.
       ...["pcan_sandbox1_copy", "pcan"].map((dbName) => [
         {
@@ -827,6 +840,23 @@ describe("open placement: shared database hosts", () => {
       },
     ];
     expect((await createEnvironment(sandbox)).success).toBe(true);
+  });
+
+  it("refuses a role that is another environment's database name", async () => {
+    state.used = [
+      {
+        environmentId: OTHER_ENV_ID,
+        role: "db",
+        serverId: SERVER_OPEN,
+        serviceName: "dplk-postgres",
+        databaseHostId: HOST_ID,
+        dbName: "pcan_app",
+        dbRole: "pcan_other",
+      },
+    ];
+    await expect(
+      createEnvironment({ ...sandbox, dbRole: "pcan_app" })
+    ).rejects.toMatchObject({ status: 403, message: "placementDatabaseInUse" });
   });
 
   it("keeps refusing an unprefixed container that is not bound as shared", async () => {

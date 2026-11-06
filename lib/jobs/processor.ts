@@ -38,6 +38,8 @@ import {
   pgRecreateDatabasePipeline,
   pgRenameDatabaseQuery,
   pgRestorePipeline,
+  pgSharedBackupPipeline,
+  pgSharedRestorePipeline,
 } from "@/lib/jobs/commands";
 import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
@@ -252,7 +254,12 @@ async function runPostgresBackup(
   const db = dbConfig(environment);
   const fname = compress ? `${database}_${ts}.sql.gz` : `${database}_${ts}.sql`;
   const target = `${db.dbBackupPath}/${fname}`;
-  const inner = pgBackupPipeline(database, target, compress);
+  // A shared binding dumps as its own role, never as postgres (see
+  // pgSharedBackupPipeline); the stored service decides, not the payload.
+  const inner =
+    db.dbKind === "shared"
+      ? pgSharedBackupPipeline(database, sharedDbRole(db), target, compress)
+      : pgBackupPipeline(database, target, compress);
   // `runAsUser: "postgres"` satisfies systemd-postgres peer auth (and is a
   // no-op for docker/kubernetes, which already enter the container as the
   // appropriate user).
@@ -672,6 +679,18 @@ async function handleRestoreDatabaseBackup(
       await tracked(runId, `Restoring ${dbName} from ${filename}`, async () => {
         await runMssqlRestore(environment, dbName, source, credentials);
       });
+    } else if (db.dbType === "postgres" && db.dbKind === "shared") {
+      // A shared database is never dropped or recreated, and the dump is
+      // replayed as the binding's role (see pgSharedRestorePipeline).
+      await tracked(runId, `Restoring ${dbName} from ${filename}`, async () => {
+        await runPostgresSharedRestore(
+          environment,
+          dbName,
+          filename,
+          source,
+          credentials
+        );
+      });
     } else {
       // Postgres and MySQL both load a SQL script into an empty database, so
       // both drop and recreate the target first.
@@ -744,6 +763,31 @@ async function runPostgresRecreateDatabase(
     runAsUser: "postgres",
     sudoPassword: credentials.password,
   });
+  await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
+}
+
+function sharedDbRole(db: { dbRole: string | null }): string {
+  if (!db.dbRole) {
+    throw new Error("Shared database binding has no role configured");
+  }
+  return db.dbRole;
+}
+
+async function runPostgresSharedRestore(
+  data: EnvironmentWithServers,
+  database: string,
+  filename: string,
+  source: string,
+  credentials: { host: string; username: string; password: string }
+): Promise<void> {
+  const dbSvc = dbConfig(data);
+  const inner = pgSharedRestorePipeline(
+    database,
+    sharedDbRole(dbSvc),
+    source,
+    filename.endsWith(".gz")
+  );
+  const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner);
   await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 

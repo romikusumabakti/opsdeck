@@ -40,12 +40,28 @@ export function scramSha256Verifier(
 
 /**
  * The psql script that provisions `database` owned by `role` with the given
- * SCRAM verifier. Idempotent: a rerun only sets the new password. It refuses,
- * before changing anything, a database that exists with another owner and an
- * existing role that is privileged or owns another database, so a binding
- * can't take over a role or database it was not created for. CONNECT on the
- * database is revoked from PUBLIC, so the other roles on the host can't
- * connect to it. Run with `psql -X -q` as the superuser, on stdin.
+ * SCRAM verifier. Idempotent: a rerun only sets the new password. Before
+ * changing anything it refuses
+ * - a database that exists with another owner;
+ * - an existing role that is privileged (superuser, createrole, createdb,
+ *   replication, bypassrls);
+ * - an existing role that is in use anywhere but this database: a member of
+ *   or granted any role (pg_auth_members), owning or granted anything outside
+ *   it (pg_shdepend), or carrying settings outside it (pg_db_role_setting).
+ *
+ * So the only existing role it reuses is one that owns this exact database
+ * and nothing else (a rerun), or a bare role a half-finished run left
+ * behind; it never takes over a role made for something else and resets
+ * its password. CONNECT and TEMPORARY on the database are revoked from PUBLIC,
+ * so the other roles on the host can't connect to it.
+ *
+ * Residual risk, by design: the Panel does not revoke PUBLIC's CONNECT on the
+ * host's other databases, so the role can connect to any database that
+ * still grants it to PUBLIC (Postgres' default). It gets no rights on their
+ * objects beyond what PUBLIC has; Postgres 15+ (required by
+ * createDatabaseHost) no longer grants PUBLIC CREATE on the public schema.
+ *
+ * Run with `psql -X -q` as the superuser, on stdin.
  */
 export function pgProvisionDatabaseSql(input: {
   database: string;
@@ -57,22 +73,32 @@ export function pgProvisionDatabaseSql(input: {
   const dbLit = pgQuoteLiteral(input.database);
   const roleLit = pgQuoteLiteral(input.role);
   // The guard is a DO body in an ordinary string literal (not dollar
-  // quoting), so the quoted names inside it can never end it early.
+  // quoting), so the quoted names inside it can never end it early. db_oid is
+  // null while the database doesn't exist yet: then every dependency counts
+  // as "outside", hence IS [NOT] DISTINCT FROM rather than = / <>.
   const guard = [
     "DECLARE",
     "  current_owner name;",
-    "  other name;",
+    "  db_oid oid;",
+    "  role_oid oid;",
     "BEGIN",
-    `  SELECT pg_get_userbyid(datdba) INTO current_owner FROM pg_database WHERE datname = ${dbLit};`,
+    `  SELECT oid, pg_get_userbyid(datdba) INTO db_oid, current_owner FROM pg_database WHERE datname = ${dbLit};`,
     `  IF current_owner IS NOT NULL AND current_owner <> ${roleLit} THEN`,
     `    RAISE EXCEPTION 'database % exists with owner %', ${dbLit}, current_owner;`,
     "  END IF;",
-    `  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${roleLit} AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)) THEN`,
+    `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
+    "  IF role_oid IS NULL THEN",
+    "    RETURN;",
+    "  END IF;",
+    "  IF EXISTS (SELECT 1 FROM pg_roles WHERE oid = role_oid AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)) THEN",
     `    RAISE EXCEPTION 'role % is privileged', ${roleLit};`,
     "  END IF;",
-    `  SELECT d.datname INTO other FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE r.rolname = ${roleLit} AND d.datname <> ${dbLit} LIMIT 1;`,
-    "  IF other IS NOT NULL THEN",
-    `    RAISE EXCEPTION 'role % owns database %', ${roleLit}, other;`,
+    "  IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member = role_oid OR roleid = role_oid)",
+    "    OR EXISTS (SELECT 1 FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass AND refobjid = role_oid",
+    "      AND dbid IS DISTINCT FROM db_oid",
+    "      AND NOT (classid = 'pg_database'::regclass AND objid IS NOT DISTINCT FROM db_oid))",
+    "    OR EXISTS (SELECT 1 FROM pg_db_role_setting WHERE setrole = role_oid AND setdatabase IS DISTINCT FROM db_oid) THEN",
+    `    RAISE EXCEPTION 'role % is in use outside database %', ${roleLit}, ${dbLit};`,
     "  END IF;",
     "END",
   ].join("\n");
@@ -93,10 +119,13 @@ const PROVISION_TIMEOUT_MS = 60_000;
 
 /**
  * Creates (or updates the password of) the role and database inside the
- * host's container. `server` carries the decrypted SSH password, as on
- * EnvironmentWithServers. The SQL, verifier included, goes on stdin; argv
- * holds only the container name. Errors never carry the password or the
- * verifier.
+ * host's container, then checks the role can reach its database as the
+ * backups and restores will (`psql -U <role>` over the container's local
+ * socket, which the host's pg_hba must trust). `server` carries the decrypted
+ * SSH password, as on EnvironmentWithServers. The SQL, verifier included,
+ * goes on stdin; argv holds only names. Errors never carry the password or
+ * the verifier. A non-ASCII password is refused: the verifier skips SASLprep
+ * (see scramSha256Verifier), so Postgres could compute a different one.
  */
 export async function provisionSharedDatabase(
   host: {
@@ -105,30 +134,45 @@ export async function provisionSharedDatabase(
   },
   input: { database: string; role: string; password: string }
 ): Promise<void> {
+  if (!/^[\x20-\x7e]+$/.test(input.password)) {
+    throw new Error(
+      "The database password must be printable ASCII (no SASLprep); regenerate it"
+    );
+  }
   const verifier = scramSha256Verifier(input.password);
   const sql = pgProvisionDatabaseSql({
     database: input.database,
     role: input.role,
     verifier,
   });
-  const command = `docker exec -i ${shq(host.containerName)} psql -U postgres -X -q -v ON_ERROR_STOP=1`;
+  const creds = {
+    host: host.server.host,
+    username: host.server.username,
+    password: host.server.password,
+  };
+  const container = shq(host.containerName);
+  const secrets = [input.password, verifier];
   try {
     await executeRemoteCommand(
-      {
-        host: host.server.host,
-        username: host.server.username,
-        password: host.server.password,
-      },
-      command,
-      {
-        timeoutMs: PROVISION_TIMEOUT_MS,
-        stdin: sql,
-        secrets: [input.password, verifier],
-      }
+      creds,
+      `docker exec -i ${container} psql -U postgres -X -q -v ON_ERROR_STOP=1`,
+      { timeoutMs: PROVISION_TIMEOUT_MS, stdin: sql, secrets }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(redactSecrets(message, [input.password, verifier]));
+    throw new Error(redactSecrets(message, secrets));
+  }
+  try {
+    await executeRemoteCommand(
+      creds,
+      `docker exec ${container} psql -X -U ${shq(input.role)} -d ${shq(input.database)} -Atc 'select 1'`,
+      { timeoutMs: PROVISION_TIMEOUT_MS, secrets }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Role ${input.role} cannot connect to ${input.database} over the container's local socket; the host's pg_hba must trust local connections (backups and restores run as this role): ${redactSecrets(message, secrets)}`
+    );
   }
 }
 
@@ -139,10 +183,11 @@ export type DatabaseBinding = {
 };
 
 /**
- * Whether a caller may act on database `name` of an environment. A shared
- * binding lives in a container other environments use too, so a caller
- * without org server:manage is confined to the binding's own database and
- * the ones named `<dbName>_…` (copies made from it). Every other binding,
+ * Whether a caller may back up or restore database `name` of an environment.
+ * A shared binding lives in a container other environments use too, so a
+ * caller without org server:manage is confined to the binding's own database
+ * (creating, dropping and renaming are refused outright; see
+ * server/services/database-hosts#requireUnconfined). Every other binding,
  * and every caller with server:manage, is unrestricted.
  */
 export function allowedDatabaseName(
@@ -151,7 +196,7 @@ export function allowedDatabaseName(
   canManageServers: boolean
 ): boolean {
   if (binding.dbKind !== "shared" || canManageServers) return true;
-  return name === binding.dbName || name.startsWith(`${binding.dbName}_`);
+  return name === binding.dbName;
 }
 
 /**

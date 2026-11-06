@@ -1310,7 +1310,8 @@
     "databaseHostExists": "该容器已注册为数据库主机。",
     "databaseHostInUse": "仍有环境在使用此数据库主机；请先将它们迁移到其他数据库。",
     "sharedDatabaseConfined": "此环境的数据库主机是共享的；你只能使用此环境自己的数据库。其他数据库请联系管理员。",
-    "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。"
+    "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。",
+    "databaseHostVersion": "该容器运行的 Postgres 版本低于 15；只能注册 Postgres 15 或更高版本。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
