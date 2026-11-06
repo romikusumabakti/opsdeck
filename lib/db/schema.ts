@@ -1934,6 +1934,8 @@ export type JiraLinkWithConnection = JiraProjectLink & {
 
 export type CloudflareAccount = InferSelectModel<typeof cloudflareAccounts>;
 export type CloudflareZone = InferSelectModel<typeof cloudflareZones>;
+export type RemoteTunnel = InferSelectModel<typeof remoteTunnels>;
+export type EnvironmentDomain = InferSelectModel<typeof environmentDomains>;
 export type NewCloudflareZone = InferInsertModel<typeof cloudflareZones>;
 
 // Credential-free projection handed to the client, mirroring SafeJiraConnection.
