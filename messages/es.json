@@ -2773,6 +2773,8 @@
       "domainHostnameTaken": "Otro entorno usa este hostname",
       "domainProvisioned": "El dominio ya está aprovisionado y todavía no se puede cambiar",
       "domainPublicForbidden": "Solo un administrador puede publicar sin Access",
+      "domainPortInUse": "Otro entorno de este servidor ya usa este puerto de entrada",
+      "domainPortForbidden": "Solo un administrador puede elegir un puerto de entrada fuera de 8100–8999",
       "domainExternalInZone": "Este hostname está bajo una zona registrada: usa el tipo túnel de Cloudflare"
     }
   }
