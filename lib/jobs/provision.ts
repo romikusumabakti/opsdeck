@@ -2,6 +2,11 @@ import { HTTPException } from "hono/http-exception";
 import { getTarget } from "@/lib/deploy/repository";
 import { loadServerCredentials } from "@/lib/environments";
 import {
+  accessApp,
+  dnsRecord,
+  tunnelRoute,
+} from "@/lib/jobs/provision-cloudflare";
+import {
   provisionSharedDatabase,
   redactSecrets,
 } from "@/lib/provisioning/database";
@@ -48,6 +53,11 @@ function summarize(spec: ProvisioningStepSpec): string {
       return spec.params.deployDir;
     case "create_database":
       return `${spec.params.database} (role ${spec.params.role})`;
+    case "tunnel_route":
+      return `${spec.params.hostname} → ${spec.params.service}`;
+    case "access_app":
+    case "dns_record":
+      return spec.params.hostname;
     case "deploy":
       return `${spec.params.targetId} @ ${spec.params.branch}`;
   }
@@ -148,6 +158,12 @@ async function executeStep(
       return prepareDeployDir(spec.params);
     case "create_database":
       return createDatabase(ctx, spec.params);
+    case "tunnel_route":
+      return tunnelRoute(ctx, spec.params);
+    case "access_app":
+      return accessApp(ctx, spec.params);
+    case "dns_record":
+      return dnsRecord(ctx, spec.params);
     case "deploy":
       return deploy(ctx, spec.params);
   }

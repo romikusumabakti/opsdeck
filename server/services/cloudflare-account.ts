@@ -111,18 +111,35 @@ export async function saveCloudflareAccount(
 }
 
 /**
+ * The account's credentials (token decrypted) and the IdP the Panel's Access
+ * apps allow, or null when no account is set up. For the provisioning job; the
+ * same rules as getCloudflareCreds apply.
+ */
+export async function loadCloudflareAccount(): Promise<{
+  creds: CloudflareCreds;
+  accessIdpId: string | null;
+} | null> {
+  const row = await findAccount();
+  if (!row) return null;
+  return {
+    creds: { accountId: row.accountId, apiToken: decryptSecret(row.apiToken) },
+    accessIdpId: row.accessIdpId,
+  };
+}
+
+/**
  * The account's id and decrypted token for API calls. Does not check a
  * permission: callers must do that first, and the token must never leave the
  * server.
  */
 export async function getCloudflareCreds(): Promise<CloudflareCreds> {
-  const row = await findAccount();
-  if (!row) {
+  const account = await loadCloudflareAccount();
+  if (!account) {
     throw new HTTPException(409, {
       message: DOMAIN_ERRORS.cloudflareNotConfigured,
     });
   }
-  return { accountId: row.accountId, apiToken: decryptSecret(row.apiToken) };
+  return account.creds;
 }
 
 // Cloudflare's own error text (already free of headers and the token) is the

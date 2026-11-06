@@ -77,6 +77,40 @@ export async function getDomainView(environmentId: string) {
   return row;
 }
 
+/** Cloudflare's id of a registered zone (the row's `zoneId`). */
+export async function getZoneCloudflareId(
+  id: string
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ zoneId: cloudflareZones.zoneId })
+    .from(cloudflareZones)
+    .where(eq(cloudflareZones.id, id))
+    .limit(1);
+  return row?.zoneId;
+}
+
+/** Records the Access app the provisioning step created or reused. */
+export async function setDomainAccessAppId(
+  environmentId: string,
+  accessAppId: string
+): Promise<void> {
+  await db
+    .update(environmentDomains)
+    .set({ accessAppId, updatedAt: new Date() })
+    .where(eq(environmentDomains.environmentId, environmentId));
+}
+
+/** Records the DNS record the provisioning step created or reused. */
+export async function setDomainDnsRecordId(
+  environmentId: string,
+  dnsRecordId: string
+): Promise<void> {
+  await db
+    .update(environmentDomains)
+    .set({ dnsRecordId, updatedAt: new Date() })
+    .where(eq(environmentDomains.environmentId, environmentId));
+}
+
 export async function getDomain(
   environmentId: string
 ): Promise<EnvironmentDomain | undefined> {

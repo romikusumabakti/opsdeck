@@ -50,9 +50,8 @@ vi.mock("drizzle-orm", async () => {
   };
 });
 
-const { planProvisioning, ProvisioningPlanError } = await import(
-  "@/lib/provisioning/plan"
-);
+const { planProvisioning, ProvisioningPlanError, provisioningStepSpecSchema } =
+  await import("@/lib/provisioning/plan");
 const { savePlan } = await import("@/lib/provisioning/repository");
 
 const target = (id: string, dir = "/opt/app") => ({
@@ -150,6 +149,126 @@ describe("planProvisioning", () => {
     expect(() => planProvisioning({ targets: [], db: null })).toThrowError(
       expect.objectContaining({ code: "no_targets" })
     );
+  });
+});
+
+describe("planProvisioning with a domain", () => {
+  const tunnel = {
+    kind: "tunnel" as const,
+    hostname: "hris-staging.dssconsulting.id",
+    zoneId: "zone-row-1",
+    remoteTunnelId: "rt-1",
+    originHost: "localhost",
+    accessPolicyId: "pol-1",
+    entryPort: 8091,
+  };
+
+  it("adds route, Access app and DNS record before the deploys", () => {
+    const plan = planProvisioning({
+      targets: [target("t1")],
+      db: null,
+      domain: tunnel,
+    });
+    expect(plan.map((s) => s.kind)).toEqual([
+      "prepare_deploy_dir",
+      "tunnel_route",
+      "access_app",
+      "dns_record",
+      "deploy",
+    ]);
+    expect(plan.slice(1, 4)).toEqual([
+      {
+        kind: "tunnel_route",
+        params: {
+          remoteTunnelId: "rt-1",
+          hostname: "hris-staging.dssconsulting.id",
+          service: "http://localhost:8091",
+        },
+      },
+      {
+        kind: "access_app",
+        params: {
+          hostname: "hris-staging.dssconsulting.id",
+          policyId: "pol-1",
+        },
+      },
+      {
+        kind: "dns_record",
+        params: {
+          zoneId: "zone-row-1",
+          hostname: "hris-staging.dssconsulting.id",
+          remoteTunnelId: "rt-1",
+        },
+      },
+    ]);
+  });
+
+  it("puts the domain steps after the shared database", () => {
+    const plan = planProvisioning({
+      targets: [target("t1")],
+      db: shared,
+      domain: tunnel,
+    });
+    expect(plan.map((s) => s.kind)).toEqual([
+      "prepare_deploy_dir",
+      "create_database",
+      "tunnel_route",
+      "access_app",
+      "dns_record",
+      "deploy",
+    ]);
+  });
+
+  it("has no access_app for a public binding", () => {
+    const plan = planProvisioning({
+      targets: [target("t1")],
+      db: null,
+      domain: { ...tunnel, accessPolicyId: null },
+    });
+    expect(plan.map((s) => s.kind)).toEqual([
+      "prepare_deploy_dir",
+      "tunnel_route",
+      "dns_record",
+      "deploy",
+    ]);
+  });
+
+  it("adds no Cloudflare steps for an external binding", () => {
+    const plan = planProvisioning({
+      targets: [target("t1")],
+      db: null,
+      domain: {
+        kind: "external",
+        hostname: "hris.example.com",
+        zoneId: null,
+        remoteTunnelId: null,
+        originHost: null,
+        accessPolicyId: null,
+        entryPort: null,
+      },
+    });
+    expect(plan.map((s) => s.kind)).toEqual(["prepare_deploy_dir", "deploy"]);
+  });
+
+  it("rejects a tunnel binding without an entry port", () => {
+    expect(() =>
+      planProvisioning({
+        targets: [target("t1")],
+        db: null,
+        domain: { ...tunnel, entryPort: null },
+      })
+    ).toThrowError(expect.objectContaining({ code: "missing_entry_port" }));
+  });
+
+  it("parses the stored domain steps back", () => {
+    const plan = planProvisioning({
+      targets: [target("t1")],
+      db: null,
+      domain: tunnel,
+    });
+    for (const spec of plan) {
+      expect(provisioningStepSpecSchema.parse(spec)).toEqual(spec);
+    }
   });
 });
 

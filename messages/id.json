@@ -439,7 +439,7 @@
   },
   "provisioning": {
     "title": "Provisioning",
-    "description": "Menyiapkan environment ini: direktori deploy, database bersama, lalu deploy pertama. Langkah yang sudah selesai tetap dipertahankan saat dijalankan lagi.",
+    "description": "Menyiapkan environment ini: direktori deploy, database bersama, domain, lalu deploy pertama. Langkah yang sudah selesai tetap dipertahankan saat dijalankan lagi.",
     "provision": "Provision",
     "retry": "Coba lagi",
     "running": "Sedang provisioning…",
@@ -459,12 +459,16 @@
     },
     "error": {
       "missing_db_fields": "Database bersama belum lengkap: atur host, database, role, dan variabel password di pengaturan environment.",
+      "missing_entry_port": "Domain membutuhkan port lokal: atur di pengaturan domain environment.",
       "no_targets": "Tambahkan target deploy dulu; provisioning men-deploy ke target."
     },
     "step": {
       "prepare_deploy_dir": "Siapkan <code>{dir}</code> di {server}",
       "create_database": "Buat role dan database <code>{database}</code> di <code>{host}</code> ({server})",
       "create_database_no_server": "Buat role dan database <code>{database}</code> di <code>{host}</code>",
+      "tunnel_route": "Tambahkan rute tunnel <code>{hostname}</code> → <code>{service}</code> di {tunnel}",
+      "access_app": "Buat Access app untuk <code>{hostname}</code> ({policy})",
+      "dns_record": "Terbitkan DNS record <code>{hostname}</code>",
       "deploy": "Deploy build <code>{branch}</code> terbaru untuk {component}"
     }
   },
