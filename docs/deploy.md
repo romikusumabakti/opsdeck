@@ -292,7 +292,9 @@ and adds `COMPOSE_FILE=compose.yaml:compose.opsdeck.yaml` to the managed
 `.env`, so Compose merges both. The overlay gives every service of every deploy
 target in that deploy dir `networks: [default, <network>]` and declares
 `<network>` as `external: true`; a service keeps any network its own
-`compose.yaml` declares.
+`compose.yaml` declares. `COMPOSE_FILE` turns off Compose's automatic merge
+of `compose.override.yaml`, so when the server has one the deploy script lists
+it in the installed line: `COMPOSE_FILE=compose.yaml:compose.override.yaml:compose.opsdeck.yaml`.
 
 It is staged next to the `.env` (per deployment, mode 0600) and installed in
 the same step, after the bundle is extracted. The previous file is kept as
@@ -368,7 +370,8 @@ images and bundle.
   `DOCKER_REGISTRY` (used by `compose.yaml` to name the app images) and every
   app-specific variable. The Panel adds or updates only the tag variable.
 - `compose.override.yaml`, if needed, lives only on the server. Compose merges
-  it automatically.
+  it automatically (with the database-network overlay, the Panel's
+  `COMPOSE_FILE` line lists it; see above).
 - The deploy dir contains the compose project the target's `services` belong to.
 
 ## Release checklist

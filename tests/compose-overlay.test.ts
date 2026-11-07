@@ -151,5 +151,60 @@ describe.skipIf(!compose)(
         rmSync(dir, { recursive: true });
       }
     });
+
+    // The COMPOSE_FILE line the deploy script installs when the server has a
+    // compose.override.yaml (tests/deploy-script.test.ts): the override's
+    // values survive, which COMPOSE_FILE without it would drop.
+    it("keeps a server-side compose.override.yaml listed in COMPOSE_FILE", () => {
+      const dir = mkdtempSync(join(tmpdir(), "compose-override-"));
+      try {
+        writeFileSync(
+          join(dir, "compose.yaml"),
+          "services:\n  hris-backend:\n    image: busybox\n    environment:\n      FROM_BASE: base\n"
+        );
+        writeFileSync(
+          join(dir, "compose.override.yaml"),
+          "services:\n  hris-backend:\n    environment:\n      FROM_OVERRIDE: kept\n"
+        );
+        writeFileSync(
+          join(dir, COMPOSE_OVERLAY_FILE),
+          renderComposeOverlay(["hris-backend"], "shared-postgres")
+        );
+        const [bin, ...pre] = compose as string[];
+        const { COMPOSE_FILE: _ignored, ...env } = process.env;
+        const configWith = (line: string) => {
+          writeFileSync(join(dir, ".env"), `${line}\n`);
+          const result = spawnSync(
+            bin as string,
+            [...pre, "config", "--format", "json"],
+            {
+              cwd: dir,
+              encoding: "utf8",
+              env: { ...env, PODMAN_COMPOSE_WARNING_LOGS: "false" },
+            }
+          );
+          expect(result.status, result.stderr).toBe(0);
+          return JSON.parse(result.stdout.slice(result.stdout.indexOf("{")))
+            .services["hris-backend"];
+        };
+        const without = configWith(
+          `COMPOSE_FILE=compose.yaml:${COMPOSE_OVERLAY_FILE}`
+        );
+        expect(without.environment.FROM_OVERRIDE).toBeUndefined();
+        const withOverride = configWith(
+          `COMPOSE_FILE=compose.yaml:compose.override.yaml:${COMPOSE_OVERLAY_FILE}`
+        );
+        expect(withOverride.environment).toMatchObject({
+          FROM_BASE: "base",
+          FROM_OVERRIDE: "kept",
+        });
+        expect(Object.keys(withOverride.networks).sort()).toEqual([
+          "default",
+          "shared-postgres",
+        ]);
+      } finally {
+        rmSync(dir, { recursive: true });
+      }
+    });
   }
 );
