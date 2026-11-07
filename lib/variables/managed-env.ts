@@ -2,6 +2,7 @@ import type { EnvironmentVariable } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/secrets";
 import {
   getEnvironmentContext,
+  getSharedDatabaseNetwork,
   listVariables,
 } from "@/lib/variables/repository";
 
@@ -31,4 +32,16 @@ export async function loadManagedEnvFileVariables(
     name: row.name,
     value: decodeVariableValue(row),
   }));
+}
+
+/**
+ * The shared database host's Docker network a managed environment's services
+ * must join (see lib/variables/compose-overlay), or null when none applies.
+ * For the deploy job, like {@link loadManagedEnvFileVariables}.
+ */
+export async function loadSharedDatabaseNetwork(
+  environmentId: string,
+  serverId: string
+): Promise<string | null> {
+  return getSharedDatabaseNetwork(environmentId, serverId);
 }

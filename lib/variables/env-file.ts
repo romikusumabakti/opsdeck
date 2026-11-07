@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   deployRegistrySchema,
   deployTagSchema,
@@ -7,6 +8,11 @@ import {
   variableNameSchema,
   variableValueSchema,
 } from "@/lib/variables/validation";
+
+// A compose file name in the deploy dir: no path, no ':' (the separator).
+const composeFileNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/, "Invalid compose file name");
 
 export const ENV_FILE_HEADER =
   "# Managed by DSS Panel — edit variables in the Panel; local edits are overwritten on the next deploy.";
@@ -45,13 +51,16 @@ function quoteValue(value: string): string {
  * are reserved for user variables while every compose file pulls
  * `${DOCKER_REGISTRY}/…`. Registry and tag lines stay unquoted (the form the
  * deploy script greps and `sed`s); both are validated to characters that need
- * no quoting. Throws on an invalid name, value, tag or registry, a duplicate
+ * no quoting. With `opts.composeFiles`, `COMPOSE_FILE=<files joined by ':'>`
+ * comes right after the header (the Panel writes `COMPOSE_*` itself; user
+ * variables with that prefix stay refused). Throws on an invalid name, value, tag or registry, a duplicate
  * name, or a variable named like a tag variable.
  */
 export function renderEnvFile(
   vars: { name: string; value: string }[],
   tags: Record<string, string>,
-  registry: string
+  registry: string,
+  opts: { composeFiles?: string[] } = {}
 ): string {
   const tagNames = Object.keys(tags).sort();
   const nameSchema = variableNameSchema(tagNames);
@@ -64,6 +73,11 @@ export function renderEnvFile(
   }
 
   const lines = [ENV_FILE_HEADER];
+  if (opts.composeFiles) {
+    const files = opts.composeFiles.map((f) => composeFileNameSchema.parse(f));
+    if (files.length === 0) throw new Error("composeFiles must not be empty");
+    lines.push(`COMPOSE_FILE=${files.join(":")}`);
+  }
   const sorted = [...vars].sort((a, b) =>
     a.name < b.name ? -1 : a.name > b.name ? 1 : 0
   );

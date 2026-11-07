@@ -3,6 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parse } from "yaml";
 
 const TARGET_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789a2";
@@ -70,6 +71,7 @@ vi.mock("@/lib/jobs/processor", () => processor);
 
 const variables = vi.hoisted(() => ({
   loadManagedEnvFileVariables: vi.fn(),
+  loadSharedDatabaseNetwork: vi.fn(),
 }));
 vi.mock("@/lib/variables/managed-env", () => variables);
 
@@ -114,6 +116,7 @@ beforeEach(() => {
   ssh.executeRemoteCommand.mockResolvedValue("HEALTHY\n");
   ssh.uploadRemoteContent.mockResolvedValue(undefined);
   variables.loadManagedEnvFileVariables.mockResolvedValue(null);
+  variables.loadSharedDatabaseNetwork.mockResolvedValue(null);
   repo.listTagVariablesInDeployDir.mockResolvedValue(["IMAGE_TAG"]);
   repo.deployDirSharedWithOtherEnvironment.mockResolvedValue(false);
   repo.getRunActor.mockResolvedValue({ userId: null, triggeredBy: null });
@@ -905,5 +908,102 @@ describe("handleDeploy with a managed .env", () => {
       expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
       expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("handleDeploy with a shared database network", () => {
+  const OVERLAY_PATH = `/opt/dplk-accounting/compose.opsdeck.yaml.opsdeck-new.${DEPLOYMENT_ID}`;
+
+  it("stages the overlay with the .env and has the script install both", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+
+    expect(variables.loadSharedDatabaseNetwork).toHaveBeenCalledWith(
+      ENV_ID,
+      SERVER_ID
+    );
+    expect(ssh.uploadRemoteContent).toHaveBeenCalledTimes(2);
+    const [envCall, overlayCall] = ssh.uploadRemoteContent.mock.calls;
+    expect(envCall?.[2]).toBe(STAGED_PATH);
+    expect(envCall?.[1]).toContain(
+      "\nCOMPOSE_FILE=compose.yaml:compose.opsdeck.yaml\n"
+    );
+    expect(overlayCall?.[2]).toBe(OVERLAY_PATH);
+    expect(overlayCall?.[3]).toBe(0o600);
+    expect(parse(String(overlayCall?.[1]))).toEqual({
+      services: {
+        backend: { networks: ["default", "shared-postgres"] },
+        frontend: { networks: ["default", "shared-postgres"] },
+      },
+      networks: { "shared-postgres": { external: true } },
+    });
+    const script = String(ssh.executeRemoteCommand.mock.calls[0]?.[1]);
+    expect(script).toContain(
+      `mv -f 'compose.opsdeck.yaml.opsdeck-new.${DEPLOYMENT_ID}' 'compose.opsdeck.yaml'`
+    );
+    expect(script).toContain("echo 'Wrote compose.opsdeck.yaml'");
+    expectNoSecrets();
+  });
+
+  it("without a network it stages one file and the script removes a leftover overlay", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+
+    expect(ssh.uploadRemoteContent).toHaveBeenCalledTimes(1);
+    expect(uploadedContent()).not.toContain("COMPOSE_FILE");
+    const script = String(ssh.executeRemoteCommand.mock.calls[0]?.[1]);
+    expect(script).toContain("rm -f 'compose.opsdeck.yaml' ||");
+    expect(script).not.toContain("compose.opsdeck.yaml.opsdeck-new.");
+  });
+
+  it("an unmanaged environment never looks up the network", async () => {
+    await handleDeploy(payload);
+    expect(variables.loadSharedDatabaseNetwork).not.toHaveBeenCalled();
+  });
+
+  it("a failed overlay upload removes both staged files and never runs the script", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    ssh.uploadRemoteContent
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Permission denied"));
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+    expect(ssh.executeRemoteCommand.mock.calls[0]?.[1]).toBe(
+      `rm -f '${STAGED_PATH}' '${OVERLAY_PATH}'`
+    );
+    expect(repo.markScriptStarted).not.toHaveBeenCalled();
+  });
+
+  it("removes both staged files when the script fails to run", async () => {
+    silenceErrors();
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    ssh.executeRemoteCommand
+      .mockRejectedValueOnce(new Error("connect ECONNREFUSED"))
+      .mockResolvedValueOnce("");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand.mock.calls[1]?.[1]).toBe(
+      `rm -f '${STAGED_PATH}' '${OVERLAY_PATH}'`
+    );
+  });
+
+  it("a network the overlay cannot be written for fails before the backup", async () => {
+    repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    variables.loadSharedDatabaseNetwork.mockResolvedValue("default");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
+    expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
+    expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
   });
 });
