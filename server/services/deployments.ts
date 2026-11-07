@@ -1,10 +1,12 @@
 import { HTTPException } from "hono/http-exception";
-import type { Deployment } from "@/lib/db/schema";
+import type { Deployment, DeployTarget } from "@/lib/db/schema";
 import { announceRelease } from "@/lib/deploy/lock-release";
 import {
   deploymentRunDescription,
   getTarget,
+  type PlaceDeploymentResult,
   placeDeployment,
+  placeDeploymentIfFlagged,
 } from "@/lib/deploy/repository";
 import { deployTagSchema } from "@/lib/deploy/validation";
 import { enqueue } from "@/lib/queue";
@@ -40,11 +42,50 @@ export type RequestedDeployment =
 export async function requestDeployment(
   input: DeploymentRequest
 ): Promise<RequestedDeployment> {
+  const { target, tag } = await resolveRequest(input);
+  const placed = await placeDeployment(placementInput(input, target, tag));
+  return finishPlacement(target.environmentId, placed);
+}
+
+/**
+ * requestDeployment for a target flagged to deploy its next build: places the
+ * deployment only when this call cleared the flag (in the placing transaction),
+ * so concurrent build notifications deploy once. Null when it did not.
+ */
+export async function requestFlaggedDeployment(
+  input: DeploymentRequest
+): Promise<RequestedDeployment | null> {
+  const { target, tag } = await resolveRequest(input);
+  const placed = await placeDeploymentIfFlagged(
+    placementInput(input, target, tag)
+  );
+  if (placed.kind === "skipped") {
+    if (placed.released) {
+      await announceRelease(
+        target.environmentId,
+        "expired",
+        null,
+        placed.released
+      );
+    }
+    return null;
+  }
+  return finishPlacement(target.environmentId, placed);
+}
+
+async function resolveRequest(input: DeploymentRequest) {
   const tag = deployTagSchema.parse(input.tag);
   const target = await getTarget(input.targetId);
   if (!target) throw new Error(`Deploy target ${input.targetId} not found`);
+  return { target, tag };
+}
 
-  const placed = await placeDeployment({
+function placementInput(
+  input: DeploymentRequest,
+  target: DeployTarget,
+  tag: string
+) {
+  return {
     targetId: target.id,
     environmentId: target.environmentId,
     tag,
@@ -57,16 +98,17 @@ export async function requestDeployment(
       input.trigger
     ),
     now: new Date(),
-  });
+  };
+}
+
+async function finishPlacement(
+  environmentId: string,
+  placed: PlaceDeploymentResult
+): Promise<RequestedDeployment> {
   if (placed.released) {
     // An expired lock the sweep had not removed yet: its held builds were
     // queued ahead of this request, so they are enqueued first.
-    await announceRelease(
-      target.environmentId,
-      "expired",
-      null,
-      placed.released
-    );
+    await announceRelease(environmentId, "expired", null, placed.released);
   }
   if (placed.kind === "locked") {
     throw new HTTPException(409, {
