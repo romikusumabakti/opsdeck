@@ -8,6 +8,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyDraft } from "@/lib/setup/draft";
 import messages from "../messages/en.json";
 
 const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789f1";
@@ -183,7 +184,10 @@ async function settle() {
   }
 }
 
-async function mount(canPublish = false) {
+async function mount(
+  canPublish = false,
+  initialDraft?: React.ComponentProps<typeof AddEnvironmentForm>["initialDraft"]
+) {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -200,6 +204,7 @@ async function mount(canPublish = false) {
             projects={projects}
             canPublish={canPublish}
             sourceProjects={sourceProjects}
+            initialDraft={initialDraft}
           />
         </IntlProvider>
       </QueryClientProvider>
@@ -265,6 +270,19 @@ describe("Add environment", () => {
       "HRIS / Production",
       "Viewer project / Prod",
     ]);
+  });
+
+  it("starts from a draft handed over by another page", async () => {
+    const handed = {
+      ...emptyDraft(PROJECT, [{ componentKey: "hris" }]),
+      name: "Handed over",
+      serverId: SERVER,
+    };
+    await mount(false, handed);
+    expect(
+      (document.querySelector("#env-name") as HTMLInputElement).value
+    ).toBe("Handed over");
+    expect(container.textContent).toContain("app-server");
   });
 
   it("offers only projects the caller maintains for the new environment", async () => {

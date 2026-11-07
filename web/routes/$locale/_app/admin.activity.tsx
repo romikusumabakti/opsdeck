@@ -195,6 +195,12 @@ function message(
         actor,
         environment: String(d.environment),
       });
+    case "app.build.trigger":
+      return t("appBuildTriggered", {
+        actor,
+        component: String(d.component),
+        branch: String(d.branch),
+      });
     case "deployLock.locked":
       return t("deployLockLocked", {
         actor,

@@ -1947,6 +1947,7 @@
     "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})",
     "environmentProvisioned": "{actor} هيّأ {environment}",
     "environmentSetup": "{actor} أعدّ {environment}",
+    "appBuildTriggered": "{actor} بدأ بناء {component} على {branch}",
     "variableCreated": "{actor} أضاف المتغير {name} إلى {environment}",
     "variableUpdated": "{actor} غيّر المتغير {name} في {environment}",
     "variableDeleted": "{actor} حذف المتغير {name} من {environment}",
@@ -2481,8 +2482,6 @@
     "variableTemplates": "المتغيرات"
   },
   "appForm": {
-    "title": "Register app",
-    "description": "Activates each repository in Woodpecker and gives it a notify secret. Generated pipelines are committed as .woodpecker.yaml to every branch they build.",
     "appTitle": "App",
     "name": "Name",
     "appKey": "App key",
@@ -2511,7 +2510,6 @@
     "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
     "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
     "generatedAdminOnly": "Only admins can choose a generated pipeline.",
-    "generatedForbidden": "Only admins can register a component with a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2538,10 +2536,6 @@
     "previewIncomplete": "Complete the build spec to see the pipeline.",
     "previewLoading": "Generating…",
     "previewFailed": "Could not generate the pipeline",
-    "submit": "Register app",
-    "submitting": "Registering…",
-    "registered": "{name} registered",
-    "pipelineFileNotCommitted": "{component} ({branch}): pipeline file not committed: {reason}",
     "issues": {
       "bundleImageMismatch": "The bundle image must be {bundle}",
       "buildSpecRequired": "A generated pipeline needs a build spec",
@@ -2567,6 +2561,21 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    },
+    "branch": "الفرع",
+    "branchDescription": "الفرع الذي يُقرأ منه المستودع ويبدأ عليه أول بناء.",
+    "branchInvalid": "أدخل اسم فرع صالحًا.",
+    "detect": {
+      "title": "ما تم اكتشافه في المستودع",
+      "loading": "جارٍ قراءة المستودع…",
+      "failed": "تعذّرت قراءة المستودع",
+      "composeFile": "ملف compose:",
+      "ports": "منفذ الحاوية {ports}",
+      "entry": "الدخول",
+      "dockerfiles": "ملفات Dockerfile:",
+      "issue_no_compose": "لم يُعثر على ملف compose في جذر المستودع أو مجلداته الأولى.",
+      "issue_no_dockerfile": "لم يُعثر على Dockerfile.",
+      "issue_compose_parse_error": "تعذّر تحليل ملف compose."
     }
   },
   "variables": {
@@ -2938,6 +2947,77 @@
       "missing_db_fields": "قاعدة البيانات المشتركة غير مكتملة: حدّد المضيف وقاعدة البيانات والدور ومتغير كلمة المرور.",
       "missing_entry_port": "يحتاج النطاق إلى المنفذ المحلي.",
       "no_targets": "أضف هدف نشر أولًا."
+    },
+    "newApp": {
+      "title": "تطبيق جديد",
+      "subtitle": "سجّل التطبيق، وأعدّ بيئته الأولى، وابدأ أول عملية بناء.",
+      "cancel": "إلغاء",
+      "back": "رجوع",
+      "next": "التالي",
+      "registered": "تم تسجيل {name}",
+      "pipelineFileNotCommitted": "{component} ({branch}): لم يُودَع ملف خط المعالجة: {reason}",
+      "provisioningNotStarted": "تم إنشاء البيئة لكن التهيئة لم تبدأ. يمكنك بدؤها من صفحة النشر.",
+      "steps": {
+        "label": "الخطوات",
+        "repo": "المستودع",
+        "environment": "البيئة",
+        "database": "قاعدة البيانات",
+        "variables": "المتغيرات",
+        "domain": "النطاق",
+        "review": "المراجعة"
+      },
+      "environment": {
+        "project": "المشروع",
+        "projectPlaceholder": "اختر مشروعًا",
+        "name": "الاسم",
+        "namePlaceholder": "مثال: Production"
+      },
+      "variables": {
+        "hint": "ليس للتطبيق الجديد قالب متغيرات بعد. أضف المتغيرات التي يحتاجها التطبيق؛ وتُنشأ المتغيرات المولَّدة تلقائيًا."
+      },
+      "domain": {
+        "entryDetected": "نقطة الدخول المكتشفة: {service} يستمع على منفذ الحاوية {port}.",
+        "entryService": "نقطة الدخول المكتشفة: {service}."
+      },
+      "review": {
+        "register": "تسجيل التطبيق {appKey}",
+        "startBuild": "بدء أول بناء لـ {branch}",
+        "startBuildOf": "بدء أول بناء لـ {branch} ({component})",
+        "environment": "البيئة {name}",
+        "target": "هدف النشر {component} من {branch} على {server}",
+        "database": {
+          "shared": "قاعدة بيانات مشتركة",
+          "container": "حاوية قاعدة بيانات",
+          "external": "قاعدة بيانات خارجية",
+          "none": "بدون قاعدة بيانات"
+        },
+        "variables": "{count, plural, one {متغير واحد} two {متغيران} few {# متغيرات} many {# متغيرًا} other {# متغير}}، منها {generated} مولَّدة",
+        "domain": {
+          "tunnel": "نطاق النفق {host}",
+          "external": "نطاق خارجي {host}",
+          "none": "بدون نطاق"
+        }
+      },
+      "progress": {
+        "title": "التقدم"
+      },
+      "lines": {
+        "register": "تسجيل التطبيق",
+        "preview": "فحص الإعداد",
+        "setup": "إنشاء البيئة",
+        "build": "بدء أول بناء",
+        "hasIssues": "أصلح المشكلات أعلاه ثم اضغط إنشاء مرة أخرى"
+      },
+      "lineStatus": {
+        "idle": "لم يُشغَّل",
+        "running": "قيد التشغيل",
+        "done": "تم",
+        "failed": "فشل"
+      },
+      "setupFailed": "التطبيق {appKey} مسجّل لكن بيئته لم تُنشأ. صحّح المدخلات واضغط إنشاء مرة أخرى، أو تابع في صفحة إضافة بيئة بهذه المدخلات.",
+      "addEnvironmentLink": "إضافة بيئة",
+      "buildFailed": "تم إنشاء البيئة لكن أول بناء لم يبدأ. ابدأه من صفحة النشر الخاصة بالتطبيق.",
+      "openDeploys": "فتح صفحة النشر"
     }
   }
 }

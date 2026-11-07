@@ -65,3 +65,30 @@ export const setupAccessPoliciesQuery = (projectId: string) =>
       parseResponse(routes["access-policies"].$get({ query: { projectId } })),
     ...REMOTE_PROBE,
   });
+
+export async function detectRepo(
+  connectionId: string,
+  repo: string,
+  branch: string
+) {
+  return parseResponse(
+    routes.detect.$get({ query: { connectionId, repo, branch } })
+  );
+}
+
+export type RepoDetectionResult = Awaited<ReturnType<typeof detectRepo>>;
+
+/** What a repository's branch offers the wizard (compose services, Dockerfiles). */
+export const detectRepoQuery = (
+  connectionId: string | null,
+  repo: string | null,
+  branch: string | null
+) =>
+  queryOptions({
+    queryKey: ["setup", "detect", connectionId, repo, branch],
+    queryFn: () =>
+      detectRepo(connectionId as string, repo as string, branch as string),
+    enabled: connectionId !== null && repo !== null && branch !== null,
+    retry: false,
+    staleTime: 60_000,
+  });

@@ -49,6 +49,17 @@ export async function listApps(): Promise<
   return [...byId.values()];
 }
 
+/** The projects that hold an environment of the app. */
+export async function projectIdsWithAppEnvironment(
+  appId: string
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ projectId: environments.projectId })
+    .from(environments)
+    .where(eq(environments.appId, appId));
+  return rows.map((row) => row.projectId);
+}
+
 /** One app with its public components, or undefined when the key is unknown. */
 export async function getApp(
   appKey: string

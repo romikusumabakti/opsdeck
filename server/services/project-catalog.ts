@@ -23,11 +23,11 @@ import {
 import { OWNER_COLUMNS } from "@/lib/environments";
 import { canOrg } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
-import { getServerTranslator } from "@/server/i18n";
 import {
   projectMetaInputSchema,
   projectMetaUpdateSchema,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 
 /** All logical projects, name-ordered. Used by the environment-form picker. */
 export async function listProjects(): Promise<Project[]> {

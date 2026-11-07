@@ -1,8 +1,9 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, useLocation } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { canOrg } from "@/lib/permissions";
+import { draftFromRouterState } from "@/lib/setup/draft";
 import { listAppsQuery, projectsToAddEnvironmentTo } from "@/web/api/apps";
 import {
   getMyProjectAccessQuery,
@@ -54,6 +55,10 @@ function AddEnvironmentPage() {
   const { project } = Route.useSearch();
   const t = useTranslations("setupWizard.addEnvironment");
   const me = useMe();
+  // The New app stepper hands over its inputs when a later line failed.
+  const initialDraft = useLocation({
+    select: (l) => draftFromRouterState(l.state),
+  });
   const app = useSuspenseQuery(listAppsQuery()).data.find(
     (a) => a.appKey === appKey
   );
@@ -73,6 +78,7 @@ function AddEnvironmentPage() {
         sourceProjects={projects}
         canPublish={canOrg(me?.orgRole, { server: ["manage"] })}
         initialProjectKey={project}
+        initialDraft={initialDraft}
       />
     </>
   );

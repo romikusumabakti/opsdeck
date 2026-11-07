@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -18,34 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useRouter } from "@/i18n/navigation";
 import {
   applyCopySource,
-  buildSetupInput,
-  type DraftContext,
   type EnvironmentDraft,
   emptyDraft,
-  issuesByField,
-  parseSetupInput,
 } from "@/lib/setup/draft";
-import type { SetupIssue } from "@/lib/setup/schema";
-import { baseEnvSlug } from "@/lib/setup/slug";
 import { ApiError } from "@/web/api/client";
-import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
-import {
-  copySourceQuery,
-  createEnvironmentSetup,
-  setupAccessPoliciesQuery,
-  setupOptionsQuery,
-  setupPreviewQuery,
-} from "@/web/api/setup";
-import type { ProvisioningLookups } from "../env/provisioning-step-sentence";
+import { copySourceQuery, createEnvironmentSetup } from "@/web/api/setup";
 import { EnvironmentSections } from "./environment-sections";
 import { SetupReview } from "./review";
-import { useIssueMessage } from "./use-issue-message";
-
-const PREVIEW_DEBOUNCE_MS = 500;
+import { useSetupPreview } from "./use-setup-preview";
 
 export type AddEnvironmentProject = {
   id: string;
@@ -73,6 +56,7 @@ export function AddEnvironmentForm({
   sourceProjects,
   canPublish,
   initialProjectKey,
+  initialDraft,
 }: {
   app: AddEnvironmentApp;
   /** Projects the caller may create environments in, with their environments. */
@@ -81,6 +65,8 @@ export function AddEnvironmentForm({
   sourceProjects: AddEnvironmentProject[];
   canPublish: boolean;
   initialProjectKey?: string;
+  /** A draft handed over by another page (the New app stepper). */
+  initialDraft?: EnvironmentDraft;
 }) {
   const t = useTranslations("setupWizard");
   const router = useRouter();
@@ -94,14 +80,16 @@ export function AddEnvironmentForm({
       })),
     [app.components]
   );
-  const [draft, setDraft] = React.useState<EnvironmentDraft>(() =>
-    emptyDraft(
-      (
-        projects.find((p) => p.key === initialProjectKey) ??
-        (projects.length === 1 ? projects[0] : undefined)
-      )?.id ?? "",
-      components
-    )
+  const [draft, setDraft] = React.useState<EnvironmentDraft>(
+    () =>
+      initialDraft ??
+      emptyDraft(
+        (
+          projects.find((p) => p.key === initialProjectKey) ??
+          (projects.length === 1 ? projects[0] : undefined)
+        )?.id ?? "",
+        components
+      )
   );
   const [copying, setCopying] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -114,116 +102,21 @@ export function AddEnvironmentForm({
       .map((e) => ({ id: e.id, label: `${p.name} / ${e.name}` }))
   );
 
-  const options = useQuery({
-    ...setupOptionsQuery(draft.projectId),
-    enabled: draft.projectId !== "",
-  }).data;
-  const databaseHosts = useQuery(listDatabaseHostsQuery()).data ?? [];
-  const policiesQuery = useQuery({
-    ...setupAccessPoliciesQuery(draft.projectId),
-    enabled: draft.projectId !== "" && draft.domain.kind === "tunnel",
-    retry: false,
-  });
-
-  // The input follows the draft; the preview follows the input 500 ms after
-  // the last change. The suggestions it returns (container names, the entry
-  // port, the URL name) feed back into the draft's defaults.
-  const [suggestions, setSuggestions] = React.useState<
-    Pick<DraftContext, "suggestedServices" | "suggestedEntryPort">
-  >({ suggestedServices: [], suggestedEntryPort: null });
-  // The URL name is the server's (it avoids names taken) once its preview is
-  // for this very name; until then the plain slug of the typed one.
-  const [serverSlug, setServerSlug] = React.useState<{
-    name: string;
-    slug: string;
-  } | null>(null);
-
-  const draftCtx: DraftContext = {
-    appId: app.id,
-    projectKey,
-    slug:
-      serverSlug?.name === draft.name
-        ? serverSlug.slug
-        : baseEnvSlug(draft.name),
-    suggestedServices: suggestions.suggestedServices,
-    suggestedEntryPort: suggestions.suggestedEntryPort,
-    defaultZoneId: options?.zones[0]?.id ?? "",
-  };
-  const real = buildSetupInput(draft, draftCtx);
-  const realParsed = parseSetupInput(real.input);
-  const probe = buildSetupInput(draft, { ...draftCtx, probe: true });
-  const probeParsed = parseSetupInput(probe.input);
-
-  const inputKey = probeParsed.ok ? JSON.stringify(probeParsed.input) : null;
-  const debouncedKey = useDebouncedValue(inputKey, PREVIEW_DEBOUNCE_MS);
-  const previewInput = React.useMemo(
-    () => (debouncedKey ? JSON.parse(debouncedKey) : null),
-    [debouncedKey]
-  );
-  const previewQuery = useQuery(setupPreviewQuery(previewInput));
-  const preview = previewQuery.data;
-
-  React.useEffect(() => {
-    if (!preview) return;
-    setSuggestions({
-      suggestedServices: preview.suggestedServices,
-      suggestedEntryPort: preview.suggestedEntryPort,
-    });
-    if (previewInput && !previewQuery.isPlaceholderData) {
-      setServerSlug({ name: previewInput.name, slug: preview.slug });
-    }
-  }, [preview, previewInput, previewQuery.isPlaceholderData]);
-
-  // A create needs a successful preview of this very input: not a failed
-  // one (no data), nor the previous input's answer shown while loading.
-  const previewFailed = previewQuery.isError && inputKey !== null;
-  const checking =
-    !previewFailed &&
-    (inputKey === null ||
-      inputKey !== debouncedKey ||
-      previewQuery.isFetching ||
-      !previewQuery.isSuccess ||
-      previewQuery.isPlaceholderData);
-
-  const portUnresolved =
-    draft.domain.kind === "tunnel" &&
-    (draft.domain.entryPort ??
-      suggestions.suggestedEntryPort?.toString() ??
-      "") === "";
-  const issues: SetupIssue[] = [
-    ...real.issues,
-    ...(realParsed.ok ? [] : realParsed.issues),
-    ...(probeParsed.ok && preview
-      ? preview.issues.filter(
-          (i) => !(portUnresolved && i.field === "domain.entryPort")
-        )
-      : []),
-  ].filter(
-    (issue, i, all) =>
-      all.findIndex((x) => x.field === issue.field && x.code === issue.code) ===
-      i
-  );
-  const byField = issuesByField(issues);
-  const message = useIssueMessage(projectKey);
-
-  const lookups = React.useMemo<ProvisioningLookups>(() => {
-    const servers = new Map(
-      (options?.servers ?? []).map((s) => [s.id, `${s.name} (${s.host})`])
-    );
-    const tunnels = new Map(
-      (options?.tunnels ?? []).map((x) => [x.id, x.name])
-    );
-    const policies = new Map(
-      (policiesQuery.data ?? []).map((p) => [p.id, p.name])
-    );
-    return {
-      serverLabel: (id) => servers.get(id),
-      databaseHost: (id) => databaseHosts.find((h) => h.id === id),
-      componentKey: (id) => id,
-      tunnelName: (id) => tunnels.get(id),
-      policyName: (id) => policies.get(id),
-    };
-  }, [options, databaseHosts, policiesQuery.data]);
+  const {
+    options,
+    databaseHosts,
+    policiesQuery,
+    draftCtx,
+    realParsed,
+    previewQuery,
+    preview,
+    previewFailed,
+    checking,
+    issues,
+    byField,
+    message,
+    lookups,
+  } = useSetupPreview({ draft, appId: app.id, projectKey });
 
   async function onCopyFrom(id: string | null) {
     if (!id) {
