@@ -1032,8 +1032,9 @@ export type CopySourceView = {
 /**
  * What "copy from" prefills: the source's targets, database kind and host,
  * domain kind, zone and Access policy, and its variables by name. Never a
- * database or host name, a hostname, an entry port or a secret value; plain
- * values only for a caller who may read the source's variables. `copyable`
+ * database or host name, a hostname, an entry port or a secret value. The
+ * variables (names, kinds, plain values) only for a caller who may read the
+ * source's variables; `[]` otherwise, as listVariables refuses. `copyable`
  * says whether the create would copy the value for this caller: never for
  * generated or escrowed variables. Project read on the source, else 404.
  */
@@ -1084,7 +1085,8 @@ export async function getCopySource(
       .from(environmentDomains)
       .where(eq(environmentDomains.environmentId, environmentId))
       .limit(1),
-    listVariableRows(environmentId),
+    // Names, kinds and escrow flags are variable:read data, like listVariables.
+    canRead ? listVariableRows(environmentId) : Promise.resolve([]),
   ]);
 
   return {
@@ -1122,8 +1124,8 @@ export async function getCopySource(
       kind: v.kind,
       escrow: v.escrow,
       hasValue: v.value !== "",
-      copyable: canRead && !v.escrow && v.kind !== "generated",
-      ...(canRead && v.kind === "plain" && !v.escrow ? { value: v.value } : {}),
+      copyable: !v.escrow && v.kind !== "generated",
+      ...(v.kind === "plain" && !v.escrow ? { value: v.value } : {}),
     })),
   };
 }

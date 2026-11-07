@@ -855,19 +855,12 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
   });
 
   it("leaves a secret blank for a caller without secret access to the source", async () => {
-    // A viewer of project B: the source is visible, its variables are not.
+    // A viewer of project B: the source is visible, its variables are not —
+    // not even their names, kinds or escrow flags (listVariables refuses).
     const view = await (
       await app.request(`/api/setup/environments/copy-source/${ids.sourceB}`)
     ).json();
-    expect(
-      view.variables.find((x: { name: string }) => x.name === "APP_NAME")
-    ).toEqual({
-      name: "APP_NAME",
-      kind: "plain",
-      escrow: false,
-      hasValue: true,
-      copyable: false,
-    });
+    expect(view.variables).toEqual([]);
     expect(view.domain).toEqual({
       kind: "tunnel",
       zoneId: ids.zone,
