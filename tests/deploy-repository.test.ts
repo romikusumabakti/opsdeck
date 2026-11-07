@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const transaction = vi.fn();
 const update = vi.fn();
-vi.mock("@/lib/db", () => ({ db: { transaction, update } }));
+const select = vi.fn();
+vi.mock("@/lib/db", () => ({ db: { transaction, update, select } }));
 
 const {
   claimDeployment,
@@ -11,6 +12,7 @@ const {
   failStaleRunningDeployments,
   heartbeatDeployment,
   insertDeployLock,
+  listServicesInDeployDir,
   placeDeployment,
   releaseDeployLock,
   supersedeHeldDeployments,
@@ -828,5 +830,23 @@ describe("auto run actor (triggered_by)", () => {
     expect(
       ops.find((o) => o.op === "insert" && o.table === "runs")?.values
     ).toMatchObject({ triggeredBy: "romi@dss.test" });
+  });
+});
+
+describe("listServicesInDeployDir", () => {
+  it("returns the union of the targets' services, deduplicated and sorted", async () => {
+    select.mockReturnValueOnce({
+      from: () => ({
+        where: async () => [
+          { services: ["worker", "backend"] },
+          { services: ["frontend", "backend"] },
+        ],
+      }),
+    });
+    await expect(listServicesInDeployDir("s1", "/opt/app")).resolves.toEqual([
+      "backend",
+      "frontend",
+      "worker",
+    ]);
   });
 });
