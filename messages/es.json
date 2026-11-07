@@ -2926,6 +2926,7 @@
       "sharedDeployDir": "Otro entorno despliega en este directorio.",
       "passwordVariableMissing": "La variable de la contraseña de la base de datos debe ser un secreto o una variable generada de este entorno. Añádela en Variables.",
       "cloudflareUnavailable": "No se pudo leer la cuenta de Cloudflare. Inténtalo de nuevo en un momento.",
+      "forbidden": "No tiene permiso para usar esta configuración.",
       "componentNotFound": "No hay ningún componente registrado con esta clave.",
       "tagVariableIsVariable": "El entorno ya tiene una variable con este nombre; el despliegue escribe la línea de la etiqueta por sí mismo.",
       "targetDuplicate": "Este componente aparece dos veces.",

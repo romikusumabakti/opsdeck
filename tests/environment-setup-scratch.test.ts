@@ -86,6 +86,8 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
   const s = await import("@/lib/db/schema");
   const { decryptSecret, encryptSecret } = await import("@/lib/secrets");
   const { app } = await import("@/server/app");
+  const cf = await import("@/server/services/cloudflare-account");
+  const { HTTPException } = await import("hono/http-exception");
 
   const SECRET_PLAIN = "wiz-it-smtp-secret-value";
   const KEY_PLAIN = "wiz-it-escrowed-key-value";
@@ -934,6 +936,53 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     expect((await next.json()).error).toBe(
       "Missing required variables: DATA_ENCRYPTION_KEY"
     );
+  });
+
+  describe("a domain check that fails without a code", () => {
+    const cases: [string, () => unknown, { field: string; code: string }][] = [
+      [
+        "a network error out of callCloudflare",
+        () => new TypeError("fetch failed"),
+        { field: "domain.accessPolicyId", code: "cloudflareUnavailable" },
+      ],
+      [
+        "a Cloudflare API error (502)",
+        () => new HTTPException(502, { message: "Cloudflare said no" }),
+        { field: "domain.accessPolicyId", code: "cloudflareUnavailable" },
+      ],
+      [
+        "an uncoded 403",
+        () => new HTTPException(403, { message: "Forbidden" }),
+        { field: "domain.kind", code: "forbidden" },
+      ],
+      [
+        "an uncoded 400",
+        () => new HTTPException(400, { message: "Bad" }),
+        { field: "domain.kind", code: "invalidInput" },
+      ],
+    ];
+    for (const [label, error, issue] of cases) {
+      it(`previews ${label} as a ${issue.code} issue, not a 500`, async () => {
+        const errorLog = vi
+          .spyOn(console, "error")
+          .mockImplementation(() => {});
+        vi.mocked(cf.callCloudflare).mockRejectedValueOnce(error());
+        const res = await post("/api/setup/environments/preview", input());
+        errorLog.mockRestore();
+        expect(res.status).toBe(200);
+        expect((await res.json()).issues).toEqual([issue]);
+      });
+    }
+
+    it("the create still answers with the error itself", async () => {
+      vi.mocked(cf.callCloudflare).mockRejectedValueOnce(
+        new HTTPException(502, { message: "Cloudflare said no" })
+      );
+      const before = await counts();
+      const res = await post("/api/setup/environments", input());
+      expect(res.status).toBe(502);
+      expect(await counts()).toEqual(before);
+    });
   });
 
   it("flags an entry port another environment on the server uses", async () => {
