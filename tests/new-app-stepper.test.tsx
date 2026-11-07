@@ -432,6 +432,61 @@ describe("New app stepper", () => {
     expect(calls.build).toHaveBeenCalledWith("hris", "hris", "release");
   });
 
+  it("makes the target follow a changed Repo branch unless it was edited", async () => {
+    await mount();
+    await pickRepo();
+    await next();
+    const targetBranch = () =>
+      (document.querySelector("#target-0-branch") as HTMLInputElement).value;
+    expect(targetBranch()).toBe("main");
+    // Back to Repo, change the branch, forward again.
+    await click(byText("button", "Back"));
+    await act(async () =>
+      type(
+        byText("label", "Branch")
+          ?.closest("div")
+          ?.querySelector("input") as HTMLInputElement,
+        "dev"
+      )
+    );
+    await next();
+    expect(targetBranch()).toBe("dev");
+    // A hand-edited target branch is kept.
+    await act(async () =>
+      type(document.querySelector("#target-0-branch") as HTMLInputElement, "qa")
+    );
+    await click(byText("button", "Back"));
+    await act(async () =>
+      type(
+        byText("label", "Branch")
+          ?.closest("div")
+          ?.querySelector("input") as HTMLInputElement,
+        "dev2"
+      )
+    );
+    await next();
+    expect(targetBranch()).toBe("qa");
+  });
+
+  it("builds the target branch edited after a setup failure", async () => {
+    calls.create.mockRejectedValueOnce(new ApiError(409, "Server is full"));
+    await mount();
+    await toReview();
+    await click(byText("button", "Create & deploy"));
+    await click(byText("button", "Back"));
+    for (let i = 0; i < 3; i++) await click(byText("button", "Back"));
+    await act(async () =>
+      type(
+        document.querySelector("#target-0-branch") as HTMLInputElement,
+        "hotfix"
+      )
+    );
+    for (let i = 0; i < 5; i++) await next();
+    expect(container.textContent).toContain("first build of hotfix");
+    await click(byText("button", "Create & deploy"));
+    expect(calls.build).toHaveBeenCalledWith("hris", "hris", "hotfix");
+  });
+
   it("locks every step but Review once the environment exists", async () => {
     calls.build.mockRejectedValueOnce(new ApiError(502, "Woodpecker is down"));
     await mount();
