@@ -2926,6 +2926,7 @@
       "sharedDeployDir": "Environment lain sudah men-deploy ke direktori ini.",
       "passwordVariableMissing": "Variabel kata sandi database harus berupa variabel rahasia atau yang dibuat otomatis di environment ini. Tambahkan di bagian Variabel.",
       "cloudflareUnavailable": "Akun Cloudflare tidak dapat dibaca. Coba lagi sebentar lagi.",
+      "forbidden": "Anda tidak diizinkan memakai pengaturan ini.",
       "componentNotFound": "Tidak ada komponen terdaftar dengan kunci ini.",
       "tagVariableIsVariable": "Environment sudah punya variabel dengan nama ini; deploy menulis baris tag sendiri.",
       "targetDuplicate": "Komponen ini tercantum dua kali.",

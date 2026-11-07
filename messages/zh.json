@@ -2926,6 +2926,7 @@
       "sharedDeployDir": "另一个环境已部署到此目录。",
       "passwordVariableMissing": "数据库密码变量必须是此环境的机密变量或自动生成变量。请在“变量”中添加。",
       "cloudflareUnavailable": "无法读取 Cloudflare 账户。请稍后重试。",
+      "forbidden": "您无权使用此设置。",
       "componentNotFound": "没有注册此键的组件。",
       "tagVariableIsVariable": "该环境已有同名变量；部署会自行写入标签行。",
       "targetDuplicate": "该组件被重复列出。",
