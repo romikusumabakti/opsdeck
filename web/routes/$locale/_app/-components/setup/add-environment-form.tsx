@@ -24,10 +24,10 @@ import {
   type EnvironmentDraft,
   emptyDraft,
 } from "@/lib/setup/draft";
-import { ApiError } from "@/web/api/client";
 import { copySourceQuery, createEnvironmentSetup } from "@/web/api/setup";
 import { EnvironmentSections } from "./environment-sections";
 import { SetupReview } from "./review";
+import { useApiErrorMessage } from "./use-issue-message";
 import { useSetupPreview } from "./use-setup-preview";
 
 export type AddEnvironmentProject = {
@@ -99,6 +99,7 @@ export function AddEnvironmentForm({
 
   const project = projects.find((p) => p.id === draft.projectId);
   const projectKey = project?.key ?? "";
+  const errorMessage = useApiErrorMessage(projectKey);
   const sources = sourceProjects.flatMap((p) =>
     p.environments
       .filter((e) => e.appId === app.id)
@@ -165,8 +166,9 @@ export function AddEnvironmentForm({
       }
       router.push(`/${created.projectKey}/${created.envSlug}/deploys`);
     } catch (error) {
-      if (error instanceof ApiError && error.status !== 401) {
-        toast.error(error.message);
+      const message = errorMessage(error);
+      if (message !== null) {
+        toast.error(message);
         // The world moved on (a name taken meanwhile): look again.
         await previewQuery.refetch();
       } else {

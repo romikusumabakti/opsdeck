@@ -522,6 +522,7 @@ describe("target configuration", () => {
     expect(created.status).toBe(409);
     expect(await created.json()).toEqual({
       error: TAG_VARIABLE_IS_VARIABLE_MESSAGE,
+      code: "tagVariableIsVariable",
     });
     const updated = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
       tagVariable: "APP_TAG",
@@ -558,7 +559,10 @@ describe("target configuration", () => {
     apps.getComponent.mockResolvedValue(null);
     const res = await send("POST", "/api/deploys/targets", newTarget);
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: "Component not found" });
+    expect(await res.json()).toEqual({
+      error: "Component not found",
+      code: "componentNotFound",
+    });
   });
 
   it("answers 409 for a second target of the same app", async () => {

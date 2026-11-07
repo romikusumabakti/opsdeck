@@ -1021,6 +1021,7 @@ describe("POST build", () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: "This component has no Woodpecker repository",
+      code: "componentNotActivated",
     });
     expect(provider.triggerPipeline).not.toHaveBeenCalled();
   });

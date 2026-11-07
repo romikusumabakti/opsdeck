@@ -400,6 +400,32 @@ describe("New app stepper", () => {
     expect(byText("a", "Add environment")).toBeUndefined();
   });
 
+  it("localises a coded refusal by its code, else shows the server's message", async () => {
+    calls.create.mockRejectedValueOnce(
+      new ApiError(409, "Server text", "environmentSlugTaken")
+    );
+    await mount();
+    await toReview();
+    await click(byText("button", "Create & deploy"));
+    expect(container.textContent).toContain(
+      messages.setupWizard.issues.environmentSlugTaken
+    );
+    expect(container.textContent).not.toContain("Server text");
+
+    // A code the setup messages lack: the server's message.
+    calls.build.mockRejectedValueOnce(
+      new ApiError(
+        409,
+        "This component has no Woodpecker repository",
+        "componentNotActivated"
+      )
+    );
+    await click(byText("button", "Create & deploy"));
+    expect(container.textContent).toContain(
+      "This component has no Woodpecker repository"
+    );
+  });
+
   it("keeps the created environment when only the build fails", async () => {
     calls.build.mockRejectedValueOnce(new ApiError(502, "Woodpecker is down"));
     await mount();
