@@ -367,6 +367,7 @@ describe("New app stepper", () => {
       "/apps/hris/environments/new?project=HRIS"
     );
     const state = JSON.parse(link.dataset.state ?? "null");
+    expect(state.setupEntryService).toBe("web");
     expect(state.setupDraft).toMatchObject({
       projectId: PROJECT,
       name: "Production",
@@ -411,6 +412,40 @@ describe("New app stepper", () => {
     expect(calls.create).toHaveBeenCalledOnce();
     expect(calls.build).toHaveBeenCalledTimes(2);
     expect(calls.push).toHaveBeenCalledWith("/HRIS/production/deploys");
+  });
+
+  it("builds the branch of the deploy target, not the Repo-step branch", async () => {
+    await mount();
+    await pickRepo();
+    await next();
+    await act(async () =>
+      type(
+        document.querySelector("#target-0-branch") as HTMLInputElement,
+        "release"
+      )
+    );
+    await fillEnvironment();
+    for (let i = 0; i < 4; i++) await next();
+    expect(container.textContent).toContain("Start the first build of release");
+    expect(container.textContent).not.toContain("first build of main");
+    await click(byText("button", "Create & deploy"));
+    expect(calls.build).toHaveBeenCalledWith("hris", "hris", "release");
+  });
+
+  it("locks every step but Review once the environment exists", async () => {
+    calls.build.mockRejectedValueOnce(new ApiError(502, "Woodpecker is down"));
+    await mount();
+    await toReview();
+    await click(byText("button", "Create & deploy"));
+    expect(byText("button", "Back")).toBeUndefined();
+    const steps = [
+      ...document.querySelectorAll<HTMLButtonElement>("nav button"),
+    ];
+    expect(steps.length).toBe(6);
+    expect(steps.every((b) => b.disabled)).toBe(true);
+    // Review still works: Create reruns only the build.
+    await click(byText("button", "Create & deploy"));
+    expect(calls.create).toHaveBeenCalledOnce();
   });
 
   it("never offers the generated pipeline mode to a maintainer", async () => {
