@@ -2807,7 +2807,8 @@
       "variables": "变量",
       "domain": "域名",
       "deploy": "部署",
-      "issueCount": "{count} 个问题"
+      "issueCount": "{count} 个问题",
+      "general": "常规"
     },
     "addEnvironment": {
       "title": "添加环境",
@@ -2895,7 +2896,9 @@
       "nothingYet": "暂无内容：请先完成上面的部分。",
       "checking": "正在检查…",
       "submit": "创建并部署",
-      "creating": "正在创建…"
+      "creating": "正在创建…",
+      "previewFailed": "无法检查此设置。检查成功之前无法创建任何内容。",
+      "retry": "重试"
     },
     "issues": {
       "unknown": "此设置不被接受。",

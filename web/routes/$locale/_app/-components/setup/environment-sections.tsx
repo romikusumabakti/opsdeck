@@ -109,7 +109,7 @@ function SectionShell({
       onOpenChange={setOpen}
       className="rounded-lg border bg-card"
     >
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-4 py-3 text-start">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-lg px-4 py-3 text-start outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
         {open ? (
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
         ) : (
@@ -920,10 +920,7 @@ export function DeploySection(
                 id={id("dir")}
                 className="font-mono"
                 autoComplete="off"
-                value={
-                  target.deployDir ??
-                  defaultDeployDir(draftCtx, target.componentKey)
-                }
+                value={target.deployDir ?? defaultDeployDir(draftCtx)}
                 onChange={(e) =>
                   patchTarget(i, { deployDir: e.target.value.trim() })
                 }

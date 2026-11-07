@@ -2807,7 +2807,8 @@
       "variables": "المتغيرات",
       "domain": "النطاق",
       "deploy": "النشر",
-      "issueCount": "{count, plural, one {مشكلة واحدة} two {مشكلتان} few {# مشكلات} other {# مشكلة}}"
+      "issueCount": "{count, plural, one {مشكلة واحدة} two {مشكلتان} few {# مشكلات} other {# مشكلة}}",
+      "general": "عام"
     },
     "addEnvironment": {
       "title": "إضافة بيئة",
@@ -2895,7 +2896,9 @@
       "nothingYet": "لا شيء بعد: أكمل الأقسام أعلاه.",
       "checking": "جارٍ الفحص…",
       "submit": "إنشاء ونشر",
-      "creating": "جارٍ الإنشاء…"
+      "creating": "جارٍ الإنشاء…",
+      "previewFailed": "تعذّر فحص الإعداد. لا يمكن إنشاء أي شيء حتى ينجح الفحص.",
+      "retry": "إعادة المحاولة"
     },
     "issues": {
       "unknown": "هذا الإعداد غير مقبول.",

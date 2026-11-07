@@ -56,7 +56,7 @@ import {
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
 import { findService, hasService, type ServiceRole } from "@/lib/services";
-import { baseEnvSlug } from "@/lib/setup/draft";
+import { baseEnvSlug } from "@/lib/setup/slug";
 import type { ActionResponse } from "@/lib/types";
 import type { EnvironmentInput } from "@/lib/validation";
 import {

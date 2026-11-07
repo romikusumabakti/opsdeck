@@ -1164,6 +1164,36 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     });
     expect(preview.suggestedEntryPort).toBeNull();
   });
+  it("sends no value for an escrowed plain variable of the copy source", async () => {
+    await db.insert(s.environmentVariables).values({
+      environmentId: ids.source,
+      name: "WIZ_ESCROW_PLAIN",
+      kind: "plain",
+      value: "wiz-escrowed-plain-value",
+      escrow: true,
+    });
+    try {
+      const res = await app.request(
+        `/api/setup/environments/copy-source/${ids.source}`
+      );
+      const body = await res.json();
+      const row = body.variables.find(
+        (v: { name: string }) => v.name === "WIZ_ESCROW_PLAIN"
+      );
+      expect(row).toMatchObject({ escrow: true, copyable: false });
+      expect(row).not.toHaveProperty("value");
+      expect(JSON.stringify(body)).not.toContain("wiz-escrowed-plain-value");
+      // A plain, unescrowed one still comes with its value.
+      expect(
+        body.variables.find((v: { name: string }) => v.name === "APP_NAME")
+      ).toMatchObject({ value: "Wiz" });
+    } finally {
+      await db
+        .delete(s.environmentVariables)
+        .where(eq(s.environmentVariables.name, "WIZ_ESCROW_PLAIN"));
+    }
+  });
+
   describe("the lists the forms offer for a project", () => {
     const get = (path: string) => app.request(path);
 
