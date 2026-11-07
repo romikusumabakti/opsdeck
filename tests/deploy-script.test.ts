@@ -40,6 +40,10 @@ const base: DeployScriptInput = {
 const DEPLOYMENT_ID = "0197f3a0-1b2c-7def-8000-0123456789a4";
 const STAGED = `.env.opsdeck-new.${DEPLOYMENT_ID}`;
 const MANAGED = { deploymentId: DEPLOYMENT_ID, variableCount: 3 };
+const OVERLAY = "compose.opsdeck.yaml";
+const STAGED_OVERLAY = `${OVERLAY}.opsdeck-new.${DEPLOYMENT_ID}`;
+const WITH_OVERLAY = { ...MANAGED, overlay: true };
+const WITHOUT_OVERLAY = { ...MANAGED, overlay: false };
 
 // Lines that install the staged `.env` (the only lines the option adds).
 const INSTALL_LINES = [
@@ -260,6 +264,41 @@ describe("buildDeployScript output", () => {
     expect(script.replace(`${INSTALL_LINES.join("\n")}\n`, "")).toBe(without);
   });
 
+  it("with overlay: true the script installs the staged overlay in the same step as the .env, never running compose down", () => {
+    const script = buildDeployScript({
+      ...base,
+      installStagedEnvFile: WITH_OVERLAY,
+    });
+    const overlayMv = script.indexOf(
+      `mv -f '${STAGED_OVERLAY}' 'compose.opsdeck.yaml'`
+    );
+    const envMv = script.indexOf(`mv -f '${STAGED}' .env`);
+    expect(overlayMv).toBeGreaterThan(script.indexOf('docker rm "$cid"'));
+    expect(overlayMv).toBeLessThan(envMv);
+    expect(envMv).toBeLessThan(script.indexOf("sed -i"));
+    expect(envMv).toBeLessThan(script.indexOf("docker compose pull"));
+    expect(script).not.toMatch(/compose (down|stop|rm)\b/);
+  });
+
+  it("with overlay: false the script removes the overlay (kept as -prev) and stages none", () => {
+    const script = buildDeployScript({
+      ...base,
+      installStagedEnvFile: WITHOUT_OVERLAY,
+    });
+    expect(script).toContain("rm -f 'compose.opsdeck.yaml' ||");
+    expect(script).not.toContain(STAGED_OVERLAY);
+    expect(script).not.toMatch(/compose (down|stop|rm)\b/);
+  });
+
+  it("rejects a non-boolean overlay", () => {
+    expect(() =>
+      buildDeployScript({
+        ...base,
+        installStagedEnvFile: { ...MANAGED, overlay: "yes" as never },
+      })
+    ).toThrow();
+  });
+
   it("rejects a staged-file deployment id that is not a UUID, or a bad count", () => {
     for (const deploymentId of ["x", "../etc/passwd", `${DEPLOYMENT_ID}*`]) {
       expect(() =>
@@ -345,11 +384,21 @@ interface StubRun {
   unmanagedMode: number | null;
   /** Staged files still in the deploy dir. */
   stagedLeft: string[];
+  /** `compose.opsdeck.yaml` and its `-prev`, null when absent. */
+  overlay: string | null;
+  overlayMode: number | null;
+  overlayPrev: string | null;
+  overlayPrevMode: number | null;
+  /** Staged overlay files still in the deploy dir. */
+  overlayStagedLeft: string[];
   log: string;
   elapsedMs: number;
 }
 
 const modeOf = (path: string) => statSync(path).mode & 0o777;
+const readIfExists = (path: string) =>
+  existsSync(path) ? readFileSync(path, "utf8") : null;
+const modeIfExists = (path: string) => (existsSync(path) ? modeOf(path) : null);
 
 async function runStub(
   input: Partial<DeployScriptInput>,
@@ -358,7 +407,8 @@ async function runStub(
   stubEnv: Record<string, string> = {},
   extraStubs: Record<string, string> = {},
   staged: string | null = null,
-  leftovers: string[] = []
+  leftovers: string[] = [],
+  overlayFiles: { staged?: string; existing?: string; prev?: string } = {}
 ): Promise<StubRun> {
   const root = mkdtempSync(join(tmpdir(), "deploy-script-"));
   const bin = join(root, "bin");
@@ -382,6 +432,14 @@ async function runStub(
     chmodSync(join(deployDir, STAGED), 0o644);
   }
   for (const name of leftovers) writeFileSync(join(deployDir, name), "OLD=1\n");
+  const overlayWrites: [string, string | undefined][] = [
+    [STAGED_OVERLAY, overlayFiles.staged],
+    [OVERLAY, overlayFiles.existing],
+    [`${OVERLAY}.opsdeck-prev`, overlayFiles.prev],
+  ];
+  for (const [name, body] of overlayWrites) {
+    if (body !== undefined) writeFileSync(join(deployDir, name), body);
+  }
   const log = join(root, "argv.log");
   writeFileSync(log, "");
 
@@ -422,6 +480,13 @@ async function runStub(
     stagedLeft: readdirSync(deployDir).filter((f) =>
       f.startsWith(".env.opsdeck-new")
     ),
+    overlay: readIfExists(join(deployDir, OVERLAY)),
+    overlayMode: modeIfExists(join(deployDir, OVERLAY)),
+    overlayPrev: readIfExists(join(deployDir, `${OVERLAY}.opsdeck-prev`)),
+    overlayPrevMode: modeIfExists(join(deployDir, `${OVERLAY}.opsdeck-prev`)),
+    overlayStagedLeft: readdirSync(deployDir).filter((f) =>
+      f.startsWith(`${OVERLAY}.opsdeck-new`)
+    ),
     log: readFileSync(log, "utf8"),
     elapsedMs: Date.now() - started,
   };
@@ -430,6 +495,13 @@ async function runStub(
 }
 
 const SLOW = 20_000;
+
+// A `mv` that fails only when it replaces `.env`, passing everything else on.
+const MV_FAILS_FOR_ENV = `#!/bin/sh
+for last; do :; done
+if [ "$last" = .env ]; then exit 1; fi
+exec /bin/mv "$@"
+`;
 
 describe.concurrent("buildDeployScript stub runs", () => {
   it(
@@ -861,5 +933,217 @@ describe.concurrent("buildDeployScript stub runs", () => {
     expect(r.log).toContain("rm stubcid\n");
     expect(r.log).not.toContain("compose");
     expect(r.env).toBe("IMAGE_TAG=old\n");
+  });
+
+  // --- compose overlay, installed with the .env -----------------------------
+
+  it(
+    "stub run, overlay: true installs both files (0600), previous ones kept",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITH_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [],
+        { staged: "new: overlay\n", existing: "old: overlay\n" }
+      );
+      expect(r.status).toBe(0);
+      expect(r.env).toBe(`IMAGE_TAG=${base.tag}\n`);
+      expect(r.overlay).toBe("new: overlay\n");
+      expect(r.overlayMode).toBe(0o600);
+      expect(r.overlayPrev).toBe("old: overlay\n");
+      expect(r.overlayPrevMode).toBe(0o600);
+      expect(r.overlayStagedLeft).toEqual([]);
+      expect(r.stdout).toContain("Wrote compose.opsdeck.yaml\n");
+      expect(r.stdout).toContain("Wrote .env (3 variables)\n");
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, overlay: true on a server without an overlay yet",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITH_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [],
+        { staged: "new: overlay\n" }
+      );
+      expect(r.status).toBe(0);
+      expect(r.overlay).toBe("new: overlay\n");
+      expect(r.overlayPrev).toBeNull();
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, overlay: false moves an existing overlay to -prev",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITHOUT_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [],
+        { existing: "old: overlay\n" }
+      );
+      expect(r.status).toBe(0);
+      expect(r.overlay).toBeNull();
+      expect(r.overlayPrev).toBe("old: overlay\n");
+      expect(r.overlayPrevMode).toBe(0o600);
+      expect(r.env).toBe(`IMAGE_TAG=${base.tag}\n`);
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, overlay: false with no overlay leaves nothing behind",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITHOUT_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`
+      );
+      expect(r.status).toBe(0);
+      expect(r.overlay).toBeNull();
+      expect(r.overlayPrev).toBeNull();
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, overlay left out never touches an existing overlay",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: MANAGED },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [],
+        { existing: "old: overlay\n" }
+      );
+      expect(r.status).toBe(0);
+      expect(r.overlay).toBe("old: overlay\n");
+      expect(r.overlayPrev).toBeNull();
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, leftover staged overlays are removed after the install",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITHOUT_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        `IMAGE_TAG=${base.tag}\n`,
+        [`${OVERLAY}.opsdeck-new.0197f3a0-1b2c-7def-8000-000000000001`]
+      );
+      expect(r.status).toBe(0);
+      expect(r.overlayStagedLeft).toEqual([]);
+    },
+    SLOW
+  );
+
+  it("stub run, staged overlay missing: fails before any pull, both files untouched", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: WITH_OVERLAY },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      {},
+      "IMAGE_TAG=new\n",
+      [],
+      { existing: "old: overlay\n" }
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("ENV INSTALL FAILED");
+    expect(r.log).not.toContain("compose");
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.overlay).toBe("old: overlay\n");
+  });
+
+  // The overlay is installed first; when the .env rename then fails it is put
+  // back, so a failed install leaves both previous files in place.
+  it("stub run, .env rename fails after the overlay was replaced: both previous files in place", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: WITH_OVERLAY },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      { mv: MV_FAILS_FOR_ENV },
+      "IMAGE_TAG=new\n",
+      [],
+      { staged: "new: overlay\n", existing: "old: overlay\n" }
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("ENV INSTALL FAILED");
+    expect(r.log).not.toContain("compose");
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.overlay).toBe("old: overlay\n");
+  });
+
+  it("stub run, .env rename fails with overlay: true and no previous overlay: none left behind", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: WITH_OVERLAY },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      { mv: MV_FAILS_FOR_ENV },
+      "IMAGE_TAG=new\n",
+      [],
+      { staged: "new: overlay\n" }
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.overlay).toBeNull();
+  });
+
+  it("stub run, .env rename fails with overlay: false: the removed overlay is restored", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: WITHOUT_OVERLAY },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      { mv: MV_FAILS_FOR_ENV },
+      "IMAGE_TAG=new\n",
+      [],
+      { existing: "old: overlay\n" }
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.overlay).toBe("old: overlay\n");
+  });
+
+  it("stub run, overlay rename fails: both previous files in place", async () => {
+    const r = await runStub(
+      { installStagedEnvFile: WITH_OVERLAY },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      { mv: "#!/bin/sh\nexit 1\n" },
+      "IMAGE_TAG=new\n",
+      [],
+      { staged: "new: overlay\n", existing: "old: overlay\n" }
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+    expect(r.overlay).toBe("old: overlay\n");
   });
 });
