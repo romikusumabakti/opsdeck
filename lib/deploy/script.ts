@@ -58,7 +58,10 @@ export interface DeployScriptInput {
    * (keeping the current one as `compose.opsdeck.yaml.opsdeck-prev`), `false`
    * removes a leftover one (also keeping it as `-prev`). If the `.env` rename
    * then fails, the overlay is put back, so a failed install leaves both
-   * previous files in place. Left out, the overlay is not touched.
+   * previous files in place. With `overlay: true` and a server-side
+   * `compose.override.yaml`, the staged `COMPOSE_FILE` line gets it inserted
+   * after `compose.yaml` (COMPOSE_FILE disables Compose's own override merge).
+   * Left out, the overlay is not touched.
    * Absent: the script is exactly what it was before this option existed.
    */
   installStagedEnvFile?: {
@@ -123,6 +126,12 @@ export function stagedOverlayFileName(deploymentId: string): string {
   return `${STAGED_OVERLAY_FILE_PREFIX}.${z.uuid().parse(deploymentId)}`;
 }
 
+/** The server-only override file Compose would merge on its own without `COMPOSE_FILE`. */
+export const COMPOSE_OVERRIDE_FILE = "compose.override.yaml";
+
+// Inserts the override right after compose.yaml in the staged COMPOSE_FILE line.
+const OVERRIDE_SED_EXPR = `s|^COMPOSE_FILE=compose\\.yaml:|COMPOSE_FILE=compose.yaml:${COMPOSE_OVERRIDE_FILE}:|`;
+
 /** Throws a ZodError when any field of the input is invalid. */
 export function buildDeployScript(input: DeployScriptInput): string {
   const v = deployScriptInputSchema.parse(input);
@@ -183,6 +192,15 @@ export function buildDeployScript(input: DeployScriptInput): string {
                 `rm -f ${STAGED_ENV_FILE_PREFIX}* || true`,
               ]
             : [
+                // A server-side compose.override.yaml stays merged: COMPOSE_FILE
+                // turns off Compose's automatic override lookup, so the staged
+                // .env lists it explicitly when it exists (edited before the
+                // rename, so the install stays atomic).
+                ...(overlayMode
+                  ? [
+                      `if [ -f ${COMPOSE_OVERRIDE_FILE} ]; then sed -i ${shq(OVERRIDE_SED_EXPR)} ${staged} || ${fail}; fi`,
+                    ]
+                  : []),
                 // The overlay goes first and is put back if the .env rename
                 // fails, so both files change or neither does.
                 "had_overlay=0",
