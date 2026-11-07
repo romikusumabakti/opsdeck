@@ -439,6 +439,37 @@ describe("Add environment", () => {
     expect(api.push).toHaveBeenCalledWith("/HRIS/staging/deploys");
   });
 
+  it("toasts a failed create by its code when known, else by its message", async () => {
+    const { ApiError } = await import("@/web/api/client");
+    api.create
+      .mockRejectedValueOnce(
+        new ApiError(409, "Server text", "environmentNameTaken")
+      )
+      .mockRejectedValueOnce(new ApiError(500, "Internal Server Error"));
+    await mount();
+    await chooseCopySource();
+    await act(async () => byText("button", "Variables")?.click());
+    await act(async () =>
+      type(document.querySelector("#env-name") as HTMLInputElement, "Staging")
+    );
+    await act(async () =>
+      type(
+        byText("li", "DATA_KEY")?.querySelector("input") as HTMLInputElement,
+        "k"
+      )
+    );
+    await settle();
+    await act(async () => createButton().click());
+    await settle();
+    expect(api.toast.error).toHaveBeenLastCalledWith(
+      messages.setupWizard.issues.environmentNameTaken
+    );
+    await act(async () => createButton().click());
+    await settle();
+    expect(api.toast.error).toHaveBeenLastCalledWith("Internal Server Error");
+    expect(api.push).not.toHaveBeenCalled();
+  });
+
   it("keeps Create off and says so when the preview request fails", async () => {
     await mount();
     await chooseCopySource();

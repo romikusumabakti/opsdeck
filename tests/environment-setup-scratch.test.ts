@@ -777,6 +777,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: "Another environment uses this hostname",
+      code: "domainHostnameTaken",
     });
     expect(await counts()).toEqual(before);
     expect(state.enqueued).toEqual([]);

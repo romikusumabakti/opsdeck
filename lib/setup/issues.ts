@@ -84,6 +84,11 @@ export const SETUP_ISSUE_MESSAGE_CODES: readonly string[] = [
 
 const KNOWN = new Set(SETUP_ISSUE_MESSAGE_CODES);
 
+/** Whether the setup messages have a text of the code's own. */
+export function isSetupIssueCode(code: string): boolean {
+  return KNOWN.has(code);
+}
+
 /** The code's message key, or `unknown` for one this list lacks. */
 export function issueMessageKey(code: string): string {
   return KNOWN.has(code) ? code : "unknown";

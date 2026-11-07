@@ -142,6 +142,26 @@ describe("apiFetch", () => {
     });
   });
 
+  it("carries the code of a coded refusal, none otherwise", async () => {
+    const coded = setup(
+      Response.json(
+        {
+          error: "Another environment took this URL name",
+          code: "environmentSlugTaken",
+        },
+        { status: 409 }
+      )
+    );
+    await expect(coded.apiFetch("/api/x")).rejects.toMatchObject({
+      status: 409,
+      message: "Another environment took this URL name",
+      code: "environmentSlugTaken",
+    });
+    const plain = setup(Response.json({ error: "Forbidden" }, { status: 403 }));
+    const error = await plain.apiFetch("/api/x").catch((e: unknown) => e);
+    expect((error as ApiError).code).toBeUndefined();
+  });
+
   it("falls back to the status text for a non-JSON error body", async () => {
     const { apiFetch } = setup(
       new Response("nope", { status: 502, statusText: "Bad Gateway" })
