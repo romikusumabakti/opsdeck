@@ -13,6 +13,7 @@ const TAG = "origin-kestrel-development-abc1234";
 const repo = vi.hoisted(() => ({
   getTarget: vi.fn(),
   placeDeployment: vi.fn(),
+  placeDeploymentIfFlagged: vi.fn(),
   getEnvironmentForLock: vi.fn(async () => ({
     id: "0197f3a0-1b2c-7def-8000-0123456789e1",
     name: "Kestrel Dev",
@@ -29,7 +30,9 @@ vi.mock("@/lib/queue", () => queue);
 const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
 vi.mock("@/lib/activity", () => activity);
 
-const { requestDeployment } = await import("@/server/services/deployments");
+const { requestDeployment, requestFlaggedDeployment } = await import(
+  "@/server/services/deployments"
+);
 
 const lock = {
   environmentId: ENV_ID,
@@ -43,6 +46,7 @@ const lock = {
 beforeEach(() => {
   repo.getTarget.mockReset();
   repo.placeDeployment.mockReset();
+  repo.placeDeploymentIfFlagged.mockReset();
   queue.enqueue.mockReset();
   activity.recordActivity.mockReset();
   repo.getTarget.mockResolvedValue({
@@ -182,5 +186,40 @@ describe("requestDeployment", () => {
     await request("manual");
     expect(queue.enqueue).toHaveBeenCalledTimes(1);
     expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("requestFlaggedDeployment", () => {
+  const flagged = () =>
+    requestFlaggedDeployment({
+      targetId: TARGET_ID,
+      tag: TAG,
+      trigger: "auto",
+      userId: null,
+      buildId: BUILD_ID,
+    });
+
+  it("queues and enqueues when this call cleared the flag", async () => {
+    repo.placeDeploymentIfFlagged.mockResolvedValue({
+      kind: "queued",
+      deploymentId: "dep-1",
+      runId: "run-1",
+      released: null,
+    });
+    await expect(flagged()).resolves.toEqual({
+      deploymentId: "dep-1",
+      runId: "run-1",
+      status: "queued",
+    });
+    expect(queue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers null and enqueues nothing when the flag was already cleared", async () => {
+    repo.placeDeploymentIfFlagged.mockResolvedValue({
+      kind: "skipped",
+      released: null,
+    });
+    await expect(flagged()).resolves.toBeNull();
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 });

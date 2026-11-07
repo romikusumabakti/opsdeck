@@ -17,6 +17,7 @@ type Step = {
 const state = vi.hoisted(() => ({
   steps: [] as Step[],
   log: [] as string[],
+  flagged: [] as string[],
   failures: [] as string[],
   run: null as null | { status: string; error?: string },
   variable: undefined as undefined | { kind: string; value: string },
@@ -119,6 +120,9 @@ vi.mock("@/lib/deploy/repository", () => ({
     componentKey: "hris",
     sourceBranch: "main",
   }),
+  flagDeployNextBuild: async (targetId: string) => {
+    state.flagged.push(targetId);
+  },
 }));
 vi.mock("@/lib/provisioning/database", () => ({
   redactSecrets: (m: string, secrets: string[]) =>
@@ -165,6 +169,7 @@ const statuses = () => state.steps.map((s) => s.status);
 
 beforeEach(() => {
   state.log = [];
+  state.flagged = [];
   state.failures = [];
   state.run = null;
   state.sshCommands = [];
@@ -237,13 +242,14 @@ describe("runProvisioning", () => {
     expect(state.steps[1]?.status).toBe("failed");
   });
 
-  it("fails deploy naming the branch when there is no build", async () => {
+  it("flags the target and ends done when there is no build yet", async () => {
     seed(["deploy"]);
     state.build = null;
     await run();
-    expect(state.steps[0]?.status).toBe("failed");
-    expect(state.steps[0]?.lastError).toBe(
-      "No build of main yet; retry after the first build"
+    expect(state.steps[0]?.status).toBe("done");
+    expect(state.flagged).toEqual(["t1"]);
+    expect(state.log.join("\n")).toContain(
+      "Waiting for the first build of main; it deploys when it lands"
     );
     expect(requestDeployment).not.toHaveBeenCalled();
   });

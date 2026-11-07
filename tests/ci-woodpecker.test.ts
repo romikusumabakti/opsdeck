@@ -283,6 +283,37 @@ describe("woodpecker getPipeline", () => {
   });
 });
 
+describe("woodpecker triggerPipeline", () => {
+  it("POSTs the branch to the repo's pipelines and returns the number", async () => {
+    const { calls, provider } = mockFetch([json({ number: 12, id: 99 })]);
+    await expect(
+      provider.triggerPipeline("2", "kestrel/development")
+    ).resolves.toEqual({ number: 12 });
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toBe(`${BASE}/api/repos/2/pipelines`);
+    expect(calls[0]?.body).toEqual({
+      branch: "kestrel/development",
+      variables: {},
+    });
+    expect(calls[0]?.headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("turns a 404 into a CiProviderError without the token", async () => {
+    const { provider } = mockFetch([json({ message: "not found" }, 404)]);
+    const err = await provider.triggerPipeline("2", "main").catch((e) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect((err as CiProviderError).status).toBe(404);
+    expect((err as CiProviderError).message).not.toContain(TOKEN);
+  });
+
+  it("rejects an answer without a pipeline number", async () => {
+    const { provider } = mockFetch([json({})]);
+    await expect(provider.triggerPipeline("2", "main")).rejects.toBeInstanceOf(
+      CiProviderError
+    );
+  });
+});
+
 describe("parsePipelineNumber", () => {
   it("reads the number from a pipeline URL of the component's repo", () => {
     expect(
