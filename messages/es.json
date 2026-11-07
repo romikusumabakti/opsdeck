@@ -2807,7 +2807,8 @@
       "variables": "Variables",
       "domain": "Dominio",
       "deploy": "Despliegue",
-      "issueCount": "{count, plural, one {# problema} other {# problemas}}"
+      "issueCount": "{count, plural, one {# problema} other {# problemas}}",
+      "general": "General"
     },
     "addEnvironment": {
       "title": "Añadir entorno",
@@ -2895,7 +2896,9 @@
       "nothingYet": "Todavía nada: completa las secciones anteriores.",
       "checking": "Comprobando…",
       "submit": "Crear y desplegar",
-      "creating": "Creando…"
+      "creating": "Creando…",
+      "previewFailed": "No se pudo comprobar la configuración. No se puede crear nada hasta que la comprobación tenga éxito.",
+      "retry": "Reintentar"
     },
     "issues": {
       "unknown": "Esta configuración no se acepta.",

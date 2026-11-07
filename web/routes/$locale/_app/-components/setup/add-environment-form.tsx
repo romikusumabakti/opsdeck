@@ -22,7 +22,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useRouter } from "@/i18n/navigation";
 import {
   applyCopySource,
-  baseEnvSlug,
   buildSetupInput,
   type DraftContext,
   type EnvironmentDraft,
@@ -31,6 +30,7 @@ import {
   parseSetupInput,
 } from "@/lib/setup/draft";
 import type { SetupIssue } from "@/lib/setup/schema";
+import { baseEnvSlug } from "@/lib/setup/slug";
 import { ApiError } from "@/web/api/client";
 import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
 import {
@@ -70,12 +70,15 @@ export type AddEnvironmentApp = {
 export function AddEnvironmentForm({
   app,
   projects,
+  sourceProjects,
   canPublish,
   initialProjectKey,
 }: {
   app: AddEnvironmentApp;
   /** Projects the caller may create environments in, with their environments. */
   projects: AddEnvironmentProject[];
+  /** Every project the caller can read: copy sources need only read access. */
+  sourceProjects: AddEnvironmentProject[];
   canPublish: boolean;
   initialProjectKey?: string;
 }) {
@@ -105,7 +108,7 @@ export function AddEnvironmentForm({
 
   const project = projects.find((p) => p.id === draft.projectId);
   const projectKey = project?.key ?? "";
-  const sources = projects.flatMap((p) =>
+  const sources = sourceProjects.flatMap((p) =>
     p.environments
       .filter((e) => e.appId === app.id)
       .map((e) => ({ id: e.id, label: `${p.name} / ${e.name}` }))
@@ -138,7 +141,6 @@ export function AddEnvironmentForm({
   const draftCtx: DraftContext = {
     appId: app.id,
     projectKey,
-    componentCount: app.components.length,
     slug:
       serverSlug?.name === draft.name
         ? serverSlug.slug
@@ -172,8 +174,16 @@ export function AddEnvironmentForm({
     }
   }, [preview, previewInput, previewQuery.isPlaceholderData]);
 
+  // A create needs a successful preview of this very input: not a failed
+  // one (no data), nor the previous input's answer shown while loading.
+  const previewFailed = previewQuery.isError && inputKey !== null;
   const checking =
-    inputKey !== debouncedKey || previewQuery.isFetching || inputKey === null;
+    !previewFailed &&
+    (inputKey === null ||
+      inputKey !== debouncedKey ||
+      previewQuery.isFetching ||
+      !previewQuery.isSuccess ||
+      previewQuery.isPlaceholderData);
 
   const portUnresolved =
     draft.domain.kind === "tunnel" &&
@@ -242,7 +252,9 @@ export function AddEnvironmentForm({
 
   async function onSubmit() {
     // Never a create while an issue remains or the preview is out of date.
-    if (!realParsed.ok || issues.length > 0 || checking) return;
+    if (!realParsed.ok || issues.length > 0 || checking || previewFailed) {
+      return;
+    }
     setSubmitting(true);
     try {
       const created = await createEnvironmentSetup(realParsed.input);
@@ -268,7 +280,7 @@ export function AddEnvironmentForm({
     <div className="flex w-full max-w-3xl flex-col gap-6">
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Field data-invalid={byField.name ? true : undefined}>
+          <Field data-invalid={byField.projectId ? true : undefined}>
             <FieldLabel htmlFor="env-project">
               {t("addEnvironment.project")}
             </FieldLabel>
@@ -390,6 +402,8 @@ export function AddEnvironmentForm({
         issues={issues}
         projectKey={projectKey}
         checking={checking}
+        previewFailed={previewFailed}
+        onRetry={() => previewQuery.refetch()}
         submitting={submitting}
         onSubmit={onSubmit}
       />

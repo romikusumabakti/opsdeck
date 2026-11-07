@@ -1123,7 +1123,7 @@ export async function getCopySource(
       escrow: v.escrow,
       hasValue: v.value !== "",
       copyable: canRead && !v.escrow && v.kind !== "generated",
-      ...(canRead && v.kind === "plain" ? { value: v.value } : {}),
+      ...(canRead && v.kind === "plain" && !v.escrow ? { value: v.value } : {}),
     })),
   };
 }

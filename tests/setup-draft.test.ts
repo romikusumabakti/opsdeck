@@ -22,7 +22,6 @@ const SERVER = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const ctx: DraftContext = {
   appId: UUID,
   projectKey: "HRIS",
-  componentCount: 1,
   slug: "staging",
   suggestedServices: [
     { role: "backend", serviceName: "hris-staging-api-1" },
@@ -75,6 +74,15 @@ const source: CopySourceLike = {
       hasValue: true,
       copyable: false,
     },
+    // Escrowed plain: a server sends no value; if one did, it is not kept.
+    {
+      name: "ESCROW_PLAIN",
+      kind: "plain",
+      escrow: true,
+      hasValue: true,
+      copyable: false,
+      value: "escrow-leak",
+    } as CopySourceLike["variables"][number],
     {
       name: "SESSION",
       kind: "generated",
@@ -87,10 +95,17 @@ const source: CopySourceLike = {
 
 describe("defaults", () => {
   it("puts the deploy dir under /deployments/<project key>-<slug>", () => {
-    expect(defaultDeployDir(ctx, "hris")).toBe("/deployments/hris-staging");
-    expect(defaultDeployDir({ ...ctx, componentCount: 2 }, "web")).toBe(
-      "/deployments/hris-staging-web"
+    expect(defaultDeployDir(ctx)).toBe("/deployments/hris-staging");
+    // One stack per app: every component shares the directory.
+    const { input } = buildSetupInput(
+      emptyDraft(UUID, [{ componentKey: "api" }, { componentKey: "web" }]),
+      ctx
     );
+    expect(
+      (input as { targets: { deployDir: string }[] }).targets.map(
+        (t) => t.deployDir
+      )
+    ).toEqual(["/deployments/hris-staging", "/deployments/hris-staging"]);
   });
 
   it("builds the input from the draft with the defaults filled in", () => {
@@ -196,6 +211,7 @@ describe("copying from an environment", () => {
       "APP_NAME",
       "SMTP_PASSWORD",
       "DATA_KEY",
+      "ESCROW_PLAIN",
       "SESSION",
       // The shared database needs its password variable.
       "DB_PASSWORD",
@@ -209,6 +225,7 @@ describe("copying from an environment", () => {
   it("never keeps a secret value, and says how each value is handled", () => {
     const draft = applyCopySource(base, source, [SERVER]);
     expect(JSON.stringify(draft)).not.toContain("leaked-secret");
+    expect(JSON.stringify(draft)).not.toContain("escrow-leak");
     const by = Object.fromEntries(
       draft.variables.map((v) => [v.name, variableHandling(v)])
     );
@@ -216,6 +233,7 @@ describe("copying from an environment", () => {
       APP_NAME: "enter",
       SMTP_PASSWORD: "copy",
       DATA_KEY: "enter",
+      ESCROW_PLAIN: "enter",
       SESSION: "generate",
       DB_PASSWORD: "generate",
     });
@@ -243,6 +261,11 @@ describe("copying from an environment", () => {
     const { issues } = buildSetupInput(draft, ctx);
     expect(issues).toContainEqual({
       field: "variables.DATA_KEY",
+      code: "valueRequired",
+    });
+    // An escrowed plain value must be entered too, not re-sent as prefilled.
+    expect(issues).toContainEqual({
+      field: "variables.ESCROW_PLAIN",
       code: "valueRequired",
     });
   });
