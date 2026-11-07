@@ -820,7 +820,8 @@ export async function placeDeployment(
 /**
  * placeDeployment for a target flagged `deploy_next_build`: places the
  * deployment only when this call cleared the flag; `skipped` otherwise (another
- * notification took it). Always `auto` in practice.
+ * notification took it). `auto` from the build hook; `manual` from the
+ * provisioning deploy step, which sets the flag before looking for a build.
  */
 export async function placeDeploymentIfFlagged(
   input: PlaceDeploymentInput
