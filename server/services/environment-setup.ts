@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
@@ -28,6 +28,7 @@ import type {
   EnvironmentSetupInput,
   EnvironmentSetupTarget,
   SetupIssue,
+  SetupServiceRole,
 } from "@/lib/setup/schema";
 import {
   type EnvironmentInput,
@@ -95,6 +96,22 @@ const SETUP_ERRORS = {
     409,
     "The project already has an environment of this name",
   ],
+  // A concurrent setup took the slug between the check and the insert; a
+  // retry picks the next one.
+  environmentSlugTaken: [
+    409,
+    "Another environment took this URL name meanwhile; try again",
+  ],
+  backendServiceRequired: [400, "Name the backend service's container"],
+  serviceNameInUse: [
+    409,
+    "Another environment on this server already uses this container",
+  ],
+  backupNeedsSharedDb: [
+    400,
+    "Backing up before a deploy needs a shared database",
+  ],
+  invalidInput: [400, "Invalid request"],
   targetMissing: [400, "Every component of the app needs a deploy target"],
   sharedDeployDir: [409, SHARED_DEPLOY_DIR_MESSAGE],
   passwordVariableMissing: [
@@ -186,18 +203,22 @@ async function authorize(
   };
 }
 
-/** The environment row and service bindings the setup input stands for. */
+/**
+ * The environment row and its backend/frontend bindings the setup input
+ * stands for (the other roles are extra rows, see extraServiceRows), or the
+ * field of the first value the environment schema refuses.
+ */
 function environmentInputOf(
   input: EnvironmentSetupInput,
   url: string | null
-): EnvironmentInput {
+): { ok: true; data: EnvironmentInput } | { ok: false; field: string } {
   const serverId = input.server.serverId;
-  // The env's backend and frontend services are the targets' first two
-  // compose services: service control and logs act on them by name.
-  const names = [...new Set(input.targets.flatMap((t) => t.services))];
-  const [backend = "", frontend] = names;
+  const nameOf = (role: SetupServiceRole) =>
+    input.services.find((s) => s.role === role)?.serviceName;
+  const backend = nameOf("backend");
+  const frontend = nameOf("frontend");
   const shared = input.database.kind === "shared" ? input.database : null;
-  return environmentInputSchema.parse({
+  const parsed = environmentInputSchema.safeParse({
     projectId: input.projectId,
     name: input.name,
     kind: input.kind ?? null,
@@ -221,6 +242,101 @@ function environmentInputOf(
       frontendServiceType: "docker",
       frontendServiceName: frontend,
     }),
+  });
+  if (parsed.success) return { ok: true, data: parsed.data };
+  const key = String(parsed.error.issues[0]?.path[0] ?? "");
+  const field = key.startsWith("backend")
+    ? "services.backend"
+    : key.startsWith("frontend")
+      ? "services.frontend"
+      : key.startsWith("db") || key === "databaseHostId"
+        ? "database"
+        : key || "name";
+  return { ok: false, field };
+}
+
+/** Rows for the roles the environment form has no fields for. */
+function extraServiceRows(
+  input: EnvironmentSetupInput
+): EnvironmentServiceValues[] {
+  return input.services
+    .filter((s) => s.role !== "backend" && s.role !== "frontend")
+    .map((s) => ({
+      role: s.role,
+      serverId: input.server.serverId,
+      serviceType: "docker" as const,
+      serviceName: s.serviceName,
+    }));
+}
+
+/**
+ * The container name Docker Compose gives service `svc` of the project in
+ * `deployDir` without a `container_name`: `<project>-<svc>-1`, the project
+ * being the directory's base name, lowercased, without characters Compose
+ * drops.
+ */
+export function composeContainerName(deployDir: string, svc: string): string {
+  const project = (deployDir.split("/").filter(Boolean).at(-1) ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "");
+  return `${project}-${svc}-1`;
+}
+
+/**
+ * Suggested service bindings: the entry service (else the last one) as
+ * frontend, then the first other compose service as backend and the next as
+ * worker; further services get no row. A lone service is the backend (the
+ * environment model always has one). Each name is the Compose default
+ * container name; for a role whose source row names a fixed container
+ * (`container_name`, not the source's own Compose default), that name is
+ * suggested unchanged so the in-use check reports it.
+ */
+export function suggestServices(
+  targets: readonly Pick<EnvironmentSetupTarget, "deployDir" | "services">[],
+  entryService: string | null | undefined,
+  source?: {
+    rows: readonly { role: string; serviceName: string }[];
+    targets: readonly { deployDir: string; services: readonly string[] }[];
+  } | null
+): { role: SetupServiceRole; serviceName: string }[] {
+  const all = targets.flatMap((t) =>
+    t.services.map((svc) => ({ svc, deployDir: t.deployDir }))
+  );
+  const unique = all.filter(
+    (entry, i) => all.findIndex((e) => e.svc === entry.svc) === i
+  );
+  if (unique.length === 0) return [];
+  const roles: { role: SetupServiceRole; entry: (typeof unique)[number] }[] =
+    [];
+  if (unique.length === 1) {
+    roles.push({
+      role: "backend",
+      entry: unique[0] as (typeof unique)[number],
+    });
+  } else {
+    const entry =
+      unique.find((e) => e.svc === entryService) ??
+      (unique.at(-1) as (typeof unique)[number]);
+    roles.push({ role: "frontend", entry });
+    const others = unique.filter((e) => e !== entry);
+    const [backend, worker] = others;
+    if (backend) roles.push({ role: "backend", entry: backend });
+    if (worker) roles.push({ role: "worker", entry: worker });
+  }
+  const sourceDefaults = new Set(
+    (source?.targets ?? []).flatMap((t) =>
+      t.services.map((svc) => composeContainerName(t.deployDir, svc))
+    )
+  );
+  return roles.map(({ role, entry }) => {
+    const fixed = source?.rows.find(
+      (r) => r.role === role && !sourceDefaults.has(r.serviceName)
+    );
+    return {
+      role,
+      serviceName:
+        fixed?.serviceName ?? composeContainerName(entry.deployDir, entry.svc),
+    };
   });
 }
 
@@ -247,28 +363,30 @@ function domainUrl(domain: EnvironmentSetupInput["domain"], zone?: string) {
   return null;
 }
 
-// Where a refusal of validateNewEnvironment points in the setup input. The
-// service names come from the targets unless the database container is the
-// unprefixed or reserved one.
+// Where a refusal of validateNewEnvironment points in the setup input: the
+// first binding the rule is about, by role.
 function environmentField(
-  input: EnvironmentSetupInput,
-  projectKey: string,
+  bindings: readonly { field: string; serviceName: string }[],
+  facts: { prefix: string; inUse: Set<string>; hostContainers: Set<string> },
   code: string
 ): string {
-  const container =
-    input.database.kind === "container" ? input.database.serviceName : null;
-  const prefix = `${projectKey.toLowerCase()}-`;
+  const first = (pick: (b: { serviceName: string }) => boolean) =>
+    bindings.find(pick)?.field ?? "services";
   switch (code) {
     case "placementForbidden":
       return "server.serverId";
     case "placementServiceName":
-      return container !== null &&
-        !(container.startsWith(prefix) && container.length > prefix.length)
-        ? "database.serviceName"
-        : "targets.0.services";
+      return first(
+        (b) =>
+          !(
+            b.serviceName.startsWith(facts.prefix) &&
+            b.serviceName.length > facts.prefix.length
+          )
+      );
     case "placementServiceInUse":
+      return first((b) => facts.inUse.has(b.serviceName));
     case "placementDatabaseHostContainer":
-      return container !== null ? "database.serviceName" : "targets.0.services";
+      return first((b) => facts.hostContainers.has(b.serviceName));
     case "databaseHostNotFound":
       return "database.databaseHostId";
     case "placementDatabaseName":
@@ -393,6 +511,14 @@ async function checkSetup(
     if (server && (await deployDirInUse(serverId, target.deployDir))) {
       checks.refuse(`targets.${i}.deployDir`, setupError("sharedDeployDir"));
     }
+    // The deploy's backup needs a database it can dump (a shared binding);
+    // any other kind would abort every deploy.
+    if (target.backupBeforeDeploy && input.database.kind !== "shared") {
+      checks.refuse(
+        `targets.${i}.backupBeforeDeploy`,
+        setupError("backupNeedsSharedDb")
+      );
+    }
   }
   if (app && appComponentKeys.some((key) => !seen.has(key))) {
     checks.refuse("targets", setupError("targetMissing"));
@@ -404,20 +530,83 @@ async function checkSetup(
       ? (await getZone(input.domain.zoneId))?.name
       : undefined;
   const url = domainUrl(input.domain, zoneName);
-  const environment = environmentInputOf(input, url);
+  // The containers the environment binds by role, and where each sits in
+  // the input. A shared database's container is its host's, so not here.
   const container = containerService(input);
-  const extraBindings: EnvironmentBinding[] = container
-    ? [{ serverId: container.serverId, serviceName: container.serviceName }]
-    : [];
-  const validated = await checks.run(
-    (code) => environmentField(input, project.key, code),
-    () =>
-      validateNewEnvironment(
-        environment,
-        { orgRole: caller.orgRole, projectRole: caller.projectRole },
-        extraBindings
-      )
+  const extraRows = extraServiceRows(input);
+  const bound = [
+    ...input.services.map((s) => ({
+      field: `services.${s.role}`,
+      serviceName: s.serviceName,
+    })),
+    ...(container
+      ? [{ field: "database.serviceName", serviceName: container.serviceName }]
+      : []),
+  ];
+  if (!input.services.some((s) => s.role === "backend")) {
+    checks.refuse("services", setupError("backendServiceRequired"));
+  }
+  // For every caller: a container another environment binds on this server
+  // would put its service control, logs (and data) in this one's hands.
+  const inUse = new Set(
+    bound.length > 0 && server
+      ? (
+          await db
+            .select({ serviceName: environmentServices.serviceName })
+            .from(environmentServices)
+            .where(
+              and(
+                eq(environmentServices.serverId, serverId),
+                inArray(
+                  environmentServices.serviceName,
+                  bound.map((b) => b.serviceName)
+                )
+              )
+            )
+        ).map((r) => r.serviceName)
+      : []
   );
+  for (const b of bound) {
+    if (inUse.has(b.serviceName)) {
+      checks.refuse(b.field, setupError("serviceNameInUse"));
+    }
+  }
+
+  const environment = environmentInputOf(input, url);
+  if (!environment.ok)
+    checks.refuse(environment.field, setupError("invalidInput"));
+  const extraBindings: EnvironmentBinding[] = [
+    ...extraRows,
+    ...(container ? [container] : []),
+  ].map((row) => ({ serverId: row.serverId, serviceName: row.serviceName }));
+  const hostContainers = new Set(
+    (
+      await db
+        .select({ containerName: databaseHosts.containerName })
+        .from(databaseHosts)
+        .where(eq(databaseHosts.serverId, serverId))
+    ).map((h) => h.containerName)
+  );
+  const validated = environment.ok
+    ? await checks.run(
+        (code) =>
+          environmentField(
+            bound,
+            {
+              prefix: `${project.key.toLowerCase()}-`,
+              inUse,
+              hostContainers,
+            },
+            code
+          ),
+        () =>
+          validateNewEnvironment(
+            environment.data,
+            { orgRole: caller.orgRole, projectRole: caller.projectRole },
+            extraBindings
+          )
+      )
+    : undefined;
 
   const slug = await uniqueEnvSlug(input.projectId, input.name);
   const [templates, sourceVariables] = await Promise.all([
@@ -492,7 +681,7 @@ async function checkSetup(
             serverName: server.name,
             slug,
             environment: validated,
-            extraServices: container ? [container] : [],
+            extraServices: [...extraRows, ...(container ? [container] : [])],
             variables: plannedVariables.variables,
             domain: domain ?? null,
             databaseLabel,
@@ -597,6 +786,8 @@ export type SetupPreview = {
   plan: ProvisioningStepSpec[];
   creates: string[];
   suggestedEntryPort: number | null;
+  /** Container names by role for the services section (suggestServices). */
+  suggestedServices: { role: SetupServiceRole; serviceName: string }[];
   slug: string;
 };
 
@@ -623,14 +814,50 @@ export async function previewEnvironmentSetup(
       issues.push({ field: "plan", code: error.code });
     }
   }
-  const suggestedEntryPort = await freeEntryPort(input.server.serverId);
+  // No port for a server that is unknown or refuses the placement: the
+  // suggestion would only point at a server the setup cannot use.
+  const serverRefused = issues.some(
+    (i) => i.code === "serverNotFound" || i.code.startsWith("placement")
+  );
+  const suggestedEntryPort = serverRefused
+    ? null
+    : await freeEntryPort(input.server.serverId);
   return {
     issues,
     plan,
     creates: prepared ? await describeCreates(input, prepared) : [],
     suggestedEntryPort,
+    suggestedServices: suggestServices(
+      input.targets,
+      input.entryService,
+      input.copyFromEnvironmentId
+        ? await sourceBindings(input.copyFromEnvironmentId)
+        : null
+    ),
     slug,
   };
+}
+
+// The copy source's service rows and targets (checkSetup has checked that
+// the caller may read the source). Names only.
+async function sourceBindings(environmentId: string) {
+  const [rows, targets] = await Promise.all([
+    db
+      .select({
+        role: environmentServices.role,
+        serviceName: environmentServices.serviceName,
+      })
+      .from(environmentServices)
+      .where(eq(environmentServices.environmentId, environmentId)),
+    db
+      .select({
+        deployDir: deployTargets.deployDir,
+        services: deployTargets.services,
+      })
+      .from(deployTargets)
+      .where(eq(deployTargets.environmentId, environmentId)),
+  ]);
+  return { rows, targets };
 }
 
 export type SetupCreated = {
@@ -651,8 +878,11 @@ function uniqueRefusal(error: unknown): CodedHTTPException | null {
     cause?: { constraint_name?: string };
   };
   const constraint = e.constraint_name ?? e.cause?.constraint_name ?? "";
-  if (constraint.startsWith("environments_project_")) {
+  if (constraint === "environments_project_name_idx") {
     return setupError("environmentNameTaken");
+  }
+  if (constraint === "environments_project_slug_idx") {
+    return setupError("environmentSlugTaken");
   }
   if (constraint === "deploy_targets_environment_component_idx") {
     return targetError("targetDuplicate");
