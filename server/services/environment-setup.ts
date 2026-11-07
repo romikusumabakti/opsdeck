@@ -124,13 +124,43 @@ export const SETUP_ERRORS = {
     "The database password variable must be a secret or generated variable of the environment",
   ],
   cloudflareUnavailable: [502, "The Cloudflare account could not be read"],
-} as const satisfies Record<string, readonly [400 | 404 | 409 | 502, string]>;
+  // A refusal without a code of its own, in the domain check (preview only).
+  forbidden: [403, "Forbidden"],
+} as const satisfies Record<
+  string,
+  readonly [400 | 403 | 404 | 409 | 502, string]
+>;
 
 type SetupErrorCode = keyof typeof SETUP_ERRORS;
 
 function setupError(code: SetupErrorCode): CodedHTTPException {
   const [status, message] = SETUP_ERRORS[code];
   return new CodedHTTPException(status, code, message);
+}
+
+/**
+ * The preview's issue for a domain check that failed without a code: an
+ * uncoded HTTP refusal by its status (the Access policy lookup answers 502 for
+ * a Cloudflare error and 409 without an account: both cloudflareUnavailable),
+ * anything else — a network error out of callCloudflare — as
+ * cloudflareUnavailable rather than a 500.
+ */
+function uncodedDomainError(error: unknown): CodedHTTPException {
+  if (!(error instanceof HTTPException)) {
+    // Logged: the same path would hide a database error as an outage.
+    console.error(
+      "Setup preview domain check failed:",
+      error instanceof Error ? error.message : error
+    );
+    return setupError("cloudflareUnavailable");
+  }
+  if (error.status === 401 || error.status === 403) {
+    return setupError("forbidden");
+  }
+  if (error.status === 409 || error.status >= 500) {
+    return setupError("cloudflareUnavailable");
+  }
+  return setupError("invalidInput");
 }
 
 /**
@@ -652,12 +682,8 @@ async function checkSetup(
               deployServerId: async () => serverId,
             });
           } catch (error) {
-            // The Access policy lookup failed (no account, an outage).
-            if (error instanceof HTTPException && !errorCode(error)) {
-              if (mode === "throw") throw error;
-              throw setupError("cloudflareUnavailable");
-            }
-            throw error;
+            if (mode === "throw" || errorCode(error)) throw error;
+            throw uncodedDomainError(error);
           }
         }
       )

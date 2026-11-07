@@ -3,7 +3,7 @@ import { DOMAIN_ERRORS } from "@/lib/domains/errors";
 // Every code a setup preview can report as an issue, each with a message in
 // the `setup.issues` namespace. The server ones come from the rules the setup
 // reuses (environment-setup, validateNewEnvironment, the domain, target and
-// variable rules, the provisioning plan); tests/setup-issues.test.ts checks
+// variable rules, the provisioning plan); tests/setup-draft.test.ts checks
 // this list against those tables.
 
 /** Codes the browser raises by itself, before a preview can run. */
@@ -24,6 +24,7 @@ export const SETUP_ISSUE_CODES = [
   "sharedDeployDir",
   "passwordVariableMissing",
   "cloudflareUnavailable",
+  "forbidden",
 ] as const;
 
 /** Deploy target rules (TARGET_ERRORS) and the component-in-another-app one. */

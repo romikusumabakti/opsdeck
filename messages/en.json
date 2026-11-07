@@ -2926,6 +2926,7 @@
       "sharedDeployDir": "Another environment deploys into this directory.",
       "passwordVariableMissing": "The database password variable must be a secret or generated variable of this environment. Add it under Variables.",
       "cloudflareUnavailable": "The Cloudflare account could not be read. Try again in a moment.",
+      "forbidden": "You may not use this setting.",
       "componentNotFound": "No component with this key is registered.",
       "tagVariableIsVariable": "The environment already has a variable with this name; the deploy writes the tag line itself.",
       "targetDuplicate": "This component is listed twice.",
