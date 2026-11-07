@@ -76,10 +76,28 @@ export async function suggestEntryPort(
 ): Promise<{ port: number | null; preflightAt: Date | null }> {
   await requireOrgPermission({ server: ["manage"] });
   const { preflight, preflightAt } = await requireServer(serverId);
+  return { port: await freePortOn(serverId, preflight), preflightAt };
+}
+
+async function freePortOn(
+  serverId: string,
+  preflight: ServerPreflight | null
+): Promise<number | null> {
   const taken = [
     ...(preflight?.listeningPorts ?? []),
     ...(preflight?.publishedPorts ?? []),
     ...(await listEntryPortsOnServer(serverId)),
   ];
-  return { port: pickFreePort(taken), preflightAt };
+  return pickFreePort(taken);
+}
+
+/**
+ * suggestEntryPort's port for a caller that has checked its own permission
+ * (the setup preview), or null while the server has no stored scan: without
+ * one the port must be entered.
+ */
+export async function freeEntryPort(serverId: string): Promise<number | null> {
+  const stored = await getStoredPreflight(serverId);
+  if (!stored?.preflight) return null;
+  return freePortOn(serverId, stored.preflight);
 }

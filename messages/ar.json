@@ -1945,6 +1945,7 @@
     "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})",
     "environmentProvisioned": "{actor} هيّأ {environment}",
+    "environmentSetup": "{actor} أعدّ {environment}",
     "variableCreated": "{actor} أضاف المتغير {name} إلى {environment}",
     "variableUpdated": "{actor} غيّر المتغير {name} في {environment}",
     "variableDeleted": "{actor} حذف المتغير {name} من {environment}",
@@ -2786,6 +2787,16 @@
       "domainPortInUse": "بيئة أخرى على هذا الخادم تستخدم منفذ الدخول هذا",
       "domainPortForbidden": "وحده المسؤول يمكنه اختيار منفذ دخول خارج النطاق 8100–8999",
       "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare"
+    }
+  },
+  "environmentSetup": {
+    "creates": {
+      "environment": "البيئة {name} في {project}",
+      "target": "هدف النشر {component} → {server} {deployDir}",
+      "databaseShared": "قاعدة بيانات مشتركة {database} على {host}",
+      "databaseContainer": "حاوية قاعدة البيانات {container} على {server}",
+      "variables": "{count} متغيرات ({generated} مولّدة، {copied} أسرار منسوخة)",
+      "domain": "النطاق {hostname}"
     }
   }
 }

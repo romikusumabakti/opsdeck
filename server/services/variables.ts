@@ -2,6 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
+import type { DbTransaction } from "@/lib/db";
 import {
   type AppVariableTemplate,
   type EnvironmentVariable,
@@ -16,6 +17,7 @@ import {
   MISSING_REQUIRED_PREFIX,
   NO_APP_MESSAGE,
   NOT_GENERATED_MESSAGE,
+  RESERVED_PREFIX_MESSAGE,
   SECRET_TO_PLAIN_MESSAGE,
   SHARED_DEPLOY_DIR_MESSAGE,
 } from "@/lib/variables/errors";
@@ -41,11 +43,13 @@ import {
 } from "@/lib/variables/repository";
 import {
   generateValue,
+  hasReservedPrefix,
+  type PlaceholderContext,
   resolvePlaceholders,
   variableNameSchema,
   variableValueSchema,
 } from "@/lib/variables/validation";
-import { badRequest, notFound } from "@/server/errors";
+import { badRequest, CodedHTTPException, notFound } from "@/server/errors";
 
 /**
  * An environment's variables (the managed `.env`) and the app templates they
@@ -404,7 +408,11 @@ export async function applyTemplate(
     if (present.has(template.name) || tagNames.includes(template.name)) {
       continue;
     }
-    const value = templateValue(template, env);
+    const value = templateValue(template, {
+      host: env.host,
+      url: env.url,
+      envSlug: env.slug,
+    });
     if (value === null) continue;
     writes.push({
       environmentId: env.id,
@@ -432,18 +440,14 @@ export async function applyTemplate(
 /** The value a template gives a new variable, or null when it gives none. */
 function templateValue(
   template: AppVariableTemplate,
-  env: EnvironmentContext
+  placeholders: PlaceholderContext
 ): string | null {
   if (template.kind === "generated") {
     return generateValue(template.generatedLength ?? DEFAULT_GENERATED_LENGTH);
   }
   if (template.kind !== "plain" || template.defaultValue === null) return null;
   try {
-    const value = resolvePlaceholders(template.defaultValue, {
-      host: env.host,
-      url: env.url,
-      envSlug: env.slug,
-    });
+    const value = resolvePlaceholders(template.defaultValue, placeholders);
     return variableValueSchema.safeParse(value).success ? value : null;
   } catch {
     // A placeholder the environment has no value for.
@@ -588,5 +592,230 @@ export async function deleteVariableTemplate(
     "variableTemplate.deleted",
     { id: appId, key: appKey },
     name
+  );
+}
+
+// --- A new environment's variables (the setup wizard) ---
+
+/** One variable the setup wizard asks for. */
+export type VariableEntry = {
+  name: string;
+  kind: VariableKind;
+  /** Plain or secret value; a generated one without a value is generated. */
+  value?: string;
+  /** Take the copy source's value, server-side. */
+  copy?: boolean;
+};
+
+/** A variable of the environment the setup copies from, as stored. */
+export type CopySourceVariable = Pick<
+  EnvironmentVariable,
+  "name" | "kind" | "value" | "escrow"
+>;
+
+/** A variable to insert, its value already in stored form. */
+export type PlannedVariable = {
+  name: string;
+  kind: VariableKind;
+  /** Plain text for `plain`, else encrypted (lib/secrets). */
+  value: string;
+  escrow: boolean;
+  origin: "entered" | "generated" | "copied" | "template";
+};
+
+/**
+ * The refusals of a new environment's variables, by code: the putVariable
+ * rules (name, value, a value required), the template's required variables
+ * (setEnvFileManaged's 409), and the copy rules. Copied values never leave
+ * the server: generated and escrowed ones are never copied, and a secret or
+ * plain one only for a caller who may read the source's variables.
+ */
+export const VARIABLE_ERRORS = {
+  variableNameInvalid: [
+    400,
+    "Variable name must be uppercase letters, digits or '_', not starting with a digit",
+  ],
+  reservedPrefix: [400, RESERVED_PREFIX_MESSAGE],
+  tagVariableName: [400, "Variable name is reserved for the image tag"],
+  variableDuplicate: [400, "Variable is listed twice"],
+  valueInvalid: [
+    400,
+    "Value must be a single line, without line breaks or NUL",
+  ],
+  valueRequired: [400, "Value is required"],
+  variableRequired: [409, MISSING_REQUIRED_PREFIX],
+  copySourceRequired: [400, "Choose an environment to copy from"],
+  copySourceMissing: [400, "The source environment has no such variable"],
+  copyKindMismatch: [400, "The source variable is of another kind"],
+  escrowCopyForbidden: [
+    400,
+    "Escrowed variables are never copied: enter a value",
+  ],
+  secretCopyForbidden: [
+    400,
+    "You may not read the source's secrets: enter a value",
+  ],
+  copyForbidden: [
+    400,
+    "You may not read the source's variables: enter a value",
+  ],
+} as const satisfies Record<string, readonly [400 | 409, string]>;
+
+export type VariableErrorCode = keyof typeof VARIABLE_ERRORS;
+
+/** The refusal of one variable issue, as a coded HTTP error. */
+export function variableIssueError(issue: {
+  name: string;
+  code: VariableErrorCode;
+}): CodedHTTPException {
+  const [status, message] = VARIABLE_ERRORS[issue.code];
+  return new CodedHTTPException(
+    status,
+    issue.code,
+    issue.code === "variableRequired" ? `${message}${issue.name}` : message
+  );
+}
+
+function nameIssue(
+  name: string,
+  tagNames: readonly string[]
+): VariableErrorCode | null {
+  if (hasReservedPrefix(name)) return "reservedPrefix";
+  if (tagNames.includes(name)) return "tagVariableName";
+  return variableNameSchema(tagNames).safeParse(name).success
+    ? null
+    : "variableNameInvalid";
+}
+
+/**
+ * The variables a new environment starts with: the entries, then the app
+ * template's variables they leave out (applyTemplate's rule: plain defaults
+ * with placeholders resolved, generated values generated now). Generated
+ * values are always new (the template's length, else 32), also for an entry
+ * asking to copy one. An escrowed variable (by the template or in the source)
+ * stays escrowed and is never copied. Pure apart from encryption and
+ * randomness; `issues` holds one entry per refused name, in input order.
+ */
+export function planEnvironmentVariables({
+  entries,
+  templates,
+  source,
+  canReadSource,
+  tagNames,
+  placeholders,
+}: {
+  entries: readonly VariableEntry[];
+  templates: readonly AppVariableTemplate[];
+  /** The copy source's variables; null without a copy source. */
+  source: readonly CopySourceVariable[] | null;
+  /** Whether the caller may read the source's variables (variable:read). */
+  canReadSource: boolean;
+  tagNames: readonly string[];
+  placeholders: PlaceholderContext;
+}): {
+  variables: PlannedVariable[];
+  issues: { name: string; code: VariableErrorCode }[];
+} {
+  const variables: PlannedVariable[] = [];
+  const issues: { name: string; code: VariableErrorCode }[] = [];
+  const seen = new Set<string>();
+  const templateOf = (name: string) => templates.find((t) => t.name === name);
+  const generatedLength = (name: string) =>
+    templateOf(name)?.generatedLength ?? DEFAULT_GENERATED_LENGTH;
+
+  for (const entry of entries) {
+    const refuse = (code: VariableErrorCode) =>
+      issues.push({ name: entry.name, code });
+    const badName = nameIssue(entry.name, tagNames);
+    if (badName) {
+      refuse(badName);
+      continue;
+    }
+    if (seen.has(entry.name)) {
+      refuse("variableDuplicate");
+      continue;
+    }
+    seen.add(entry.name);
+    const sourceVariable = source?.find((v) => v.name === entry.name);
+    const escrow =
+      (templateOf(entry.name)?.escrow ?? false) ||
+      (sourceVariable?.escrow ?? false);
+    const planned = (value: string, origin: PlannedVariable["origin"]) =>
+      variables.push({
+        name: entry.name,
+        kind: entry.kind,
+        value,
+        escrow,
+        origin,
+      });
+
+    if (entry.value !== undefined) {
+      if (!variableValueSchema.safeParse(entry.value).success) {
+        refuse("valueInvalid");
+        continue;
+      }
+      planned(encode(entry.kind, entry.value), "entered");
+    } else if (entry.kind === "generated") {
+      planned(
+        encryptSecret(generateValue(generatedLength(entry.name))),
+        "generated"
+      );
+    } else if (!entry.copy) {
+      refuse("valueRequired");
+    } else if (source === null) {
+      refuse("copySourceRequired");
+    } else if (!sourceVariable) {
+      refuse("copySourceMissing");
+    } else if (sourceVariable.kind !== entry.kind) {
+      // A secret copied as plain would be stored and answered in clear.
+      refuse("copyKindMismatch");
+    } else if (escrow) {
+      refuse("escrowCopyForbidden");
+    } else if (!canReadSource) {
+      refuse(entry.kind === "secret" ? "secretCopyForbidden" : "copyForbidden");
+    } else {
+      // Stored form as is: a secret's ciphertext, a plain value's text.
+      planned(sourceVariable.value, "copied");
+    }
+  }
+
+  const named = new Set(entries.map((entry) => entry.name));
+  for (const template of templates) {
+    if (named.has(template.name) || tagNames.includes(template.name)) continue;
+    const value = templateValue(template, placeholders);
+    if (value === null) {
+      if (template.required) {
+        issues.push({ name: template.name, code: "variableRequired" });
+      }
+      continue;
+    }
+    variables.push({
+      name: template.name,
+      kind: template.kind,
+      value: encode(template.kind, value),
+      escrow: template.escrow,
+      origin: "template",
+    });
+  }
+  return { variables, issues };
+}
+
+/** Inserts a new environment's planned variables inside the transaction. */
+export async function insertVariablesIn(
+  tx: DbTransaction,
+  environmentId: string,
+  variables: readonly PlannedVariable[],
+  updatedBy: string
+): Promise<void> {
+  await insertVariablesIfMissing(
+    variables.map((v) => ({
+      environmentId,
+      name: v.name,
+      kind: v.kind,
+      value: v.value,
+      escrow: v.escrow,
+      updatedBy,
+    })),
+    tx
   );
 }

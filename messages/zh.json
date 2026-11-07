@@ -1945,6 +1945,7 @@
     "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）",
     "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）",
     "environmentProvisioned": "{actor} 配置了 {environment}",
+    "environmentSetup": "{actor} 设置了 {environment}",
     "variableCreated": "{actor} 向 {environment} 添加了变量 {name}",
     "variableUpdated": "{actor} 修改了 {environment} 中的变量 {name}",
     "variableDeleted": "{actor} 从 {environment} 删除了变量 {name}",
@@ -2786,6 +2787,16 @@
       "domainPortInUse": "此服务器上的另一个环境已使用该入口端口",
       "domainPortForbidden": "只有管理员可以选择 8100–8999 之外的入口端口",
       "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型"
+    }
+  },
+  "environmentSetup": {
+    "creates": {
+      "environment": "{project} 中的环境 {name}",
+      "target": "部署目标 {component} → {server} {deployDir}",
+      "databaseShared": "{host} 上的共享数据库 {database}",
+      "databaseContainer": "{server} 上的数据库容器 {container}",
+      "variables": "{count} 个变量（{generated} 个自动生成，{copied} 个复制的密钥）",
+      "domain": "域名 {hostname}"
     }
   }
 }

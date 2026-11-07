@@ -1,6 +1,7 @@
 import { STATUS_CODES } from "node:http";
 import type { ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 // Guards and services deny by throwing, so a check deep inside a helper aborts
 // the whole request without every caller threading a status back up. `onError`
@@ -8,8 +9,33 @@ import { HTTPException } from "hono/http-exception";
 
 // A well-formed request the server still refuses (e.g. a reference that fails
 // a business rule). `message` reaches the user as-is, so pass translated text.
-export function badRequest(message: string): never {
+export function badRequest(message: string, code?: string): never {
+  if (code) throw new CodedHTTPException(400, code, message);
   throw new HTTPException(400, { message });
+}
+
+/**
+ * A refusal that also names the rule it comes from by a stable code (an
+ * actionErrors key, a DOMAIN_ERRORS key, …). The message is what it always
+ * was; the code lets the setup preview report the same check as an issue and
+ * the client tell refusals apart without matching text.
+ */
+export class CodedHTTPException extends HTTPException {
+  constructor(
+    status: ContentfulStatusCode,
+    readonly code: string,
+    message: string
+  ) {
+    super(status, { message });
+    this.name = "CodedHTTPException";
+  }
+}
+
+/** The stable code of a coded refusal (also a coded ForbiddenError), else undefined. */
+export function errorCode(error: unknown): string | undefined {
+  if (!(error instanceof HTTPException)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
 }
 
 export function unauthorized(): never {
