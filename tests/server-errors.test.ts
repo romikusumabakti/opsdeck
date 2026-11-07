@@ -1,6 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
 import { createBaseApp } from "@/server/app";
+import { CodedHTTPException } from "@/server/errors";
 
 describe("onError", () => {
   it("answers a CSRF rejection with the status text, not HTTP 403", async () => {
@@ -29,6 +30,18 @@ describe("onError", () => {
     const res = await app.request("/api/x");
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "Already exists" });
+  });
+
+  it("adds the stable code of a coded refusal", async () => {
+    const app = createBaseApp().get("/api/x", () => {
+      throw new CodedHTTPException(409, "environmentSlugTaken", "Slug taken");
+    });
+    const res = await app.request("/api/x");
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "Slug taken",
+      code: "environmentSlugTaken",
+    });
   });
 
   it("falls back to the status text for any messageless status", async () => {

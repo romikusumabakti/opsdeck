@@ -50,8 +50,9 @@ export function notFound(): never {
   throw new HTTPException(404, { message: "Not Found" });
 }
 
-// Every API error is `{ error }` with the status, so the client has one shape to
-// parse. An HTTPException thrown without a message (hono/csrf's 403, for one)
+// Every API error is `{ error }` with the status, plus `code` for a coded
+// refusal (CodedHTTPException), so the client has one shape to parse and can
+// localise a refusal it knows by code. An HTTPException thrown without a message (hono/csrf's 403, for one)
 // gets its status's standard text ("Forbidden"), which is what the client then
 // shows. Anything that is not an HTTPException is a bug: log it, and answer
 // with a generic 500 so internals (SQL, stack traces, file paths) never reach
@@ -60,7 +61,11 @@ export const onError: ErrorHandler = (error, c) => {
   if (error instanceof HTTPException) {
     const message =
       error.message || STATUS_CODES[error.status] || `HTTP ${error.status}`;
-    return c.json({ error: message }, error.status);
+    const code = errorCode(error);
+    return c.json(
+      code === undefined ? { error: message } : { error: message, code },
+      error.status
+    );
   }
   console.error(error);
   return c.json({ error: "Internal Server Error" }, 500);

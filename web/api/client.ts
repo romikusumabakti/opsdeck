@@ -22,7 +22,8 @@ import {
 //    call resolves once that refetch is done, so — like an action — the UI
 //    already shows the new data when the caller's `await` returns. A request
 //    nothing on screen depends on opts out with `NO_REFETCH` (below).
-//  - Any other non-2xx response rejects with `ApiError { status, message }`.
+//  - Any other non-2xx response rejects with `ApiError { status, message }`,
+//    plus `code` when the server named the refusal by a stable code.
 //
 // ERROR CONTRACT of the web/api/<module>.ts wrappers. The wrappers keep the
 // old action names, parameters and return types, so components call them as
@@ -43,14 +44,19 @@ import {
 // A 401 rejects in both cases, after the navigation to sign-in has started:
 // the page is going away and must not render a failure state first.
 
-/** A non-2xx API response: its status and the body's `error` message. */
+/**
+ * A non-2xx API response: its status, the body's `error` message and, for a
+ * coded refusal, the body's `code`.
+ */
 export class ApiError extends Error {
   readonly status: number;
+  readonly code: string | undefined;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -89,7 +95,9 @@ export type ApiFetchDeps = {
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 };
 
-async function errorMessage(response: Response): Promise<string> {
+async function errorBody(
+  response: Response
+): Promise<{ message: string; code?: string }> {
   try {
     const body: unknown = await response.json();
     if (
@@ -99,12 +107,16 @@ async function errorMessage(response: Response): Promise<string> {
       typeof body.error === "string" &&
       body.error
     ) {
-      return body.error;
+      const code =
+        "code" in body && typeof body.code === "string" && body.code
+          ? body.code
+          : undefined;
+      return { message: body.error, ...(code ? { code } : {}) };
     }
   } catch {
     // Not JSON (a proxy's error page): fall through to the status text.
   }
-  return response.statusText || `HTTP ${response.status}`;
+  return { message: response.statusText || `HTTP ${response.status}` };
 }
 
 function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
@@ -158,7 +170,8 @@ export function createApiFetch(deps: ApiFetchDeps): typeof fetch {
         deps.navigate(`/${locale}/sign-in?redirect=${redirect}`);
       }
     }
-    throw new ApiError(response.status, await errorMessage(response));
+    const { message, code } = await errorBody(response);
+    throw new ApiError(response.status, message, code);
   };
   return apiFetch as typeof fetch;
 }

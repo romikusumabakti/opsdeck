@@ -40,7 +40,6 @@ import {
 } from "@/lib/setup/draft";
 import type { SetupIssue } from "@/lib/setup/schema";
 import { registerApp, triggerComponentBuild } from "@/web/api/apps";
-import { ApiError } from "@/web/api/client";
 import {
   createEnvironmentSetup,
   previewEnvironmentSetup,
@@ -54,6 +53,7 @@ import {
   VariablesSection,
 } from "./environment-sections";
 import { SetupReview } from "./review";
+import { useApiErrorMessage } from "./use-issue-message";
 import { useSetupPreview } from "./use-setup-preview";
 
 export const NEW_APP_STEPS = [
@@ -96,9 +96,6 @@ type Created = { projectKey: string; envSlug: string };
 
 export type NewAppProject = { id: string; key: string; name: string };
 
-const errorMessage = (error: unknown): string | null =>
-  error instanceof ApiError && error.status !== 401 ? error.message : null;
-
 /**
  * The New app page's body: Repo -> Environment -> Database -> Variables ->
  * Domain -> Review. Create runs four lines in order, each showing its own
@@ -140,6 +137,8 @@ export function NewAppStepper({
 
   const project = projects.find((p) => p.id === draft.projectId);
   const projectKey = project?.key ?? "";
+  // A failed line's text: localised by the refusal's code when known.
+  const errorMessage = useApiErrorMessage(projectKey);
   // The first build is of the branch the deploy target waits for.
   const targetBranch = (componentKey: string, fallback: string) =>
     draft.targets.find((t) => t.componentKey === componentKey)?.sourceBranch ||
