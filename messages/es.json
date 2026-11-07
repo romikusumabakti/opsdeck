@@ -1965,6 +1965,7 @@
     "deployTargetDeleted": "{actor} eliminó el destino de despliegue de {component} de {environment}",
     "serverPreflight": "{actor} ejecutó un preflight en {server}",
     "databaseHostCreated": "{actor} registró el host de base de datos {label} ({container}) en {server}",
+    "databaseHostUpdated": "{actor} definió la red del host de base de datos {label} ({container}) en {server} como {network}",
     "databaseHostDeleted": "{actor} eliminó el host de base de datos {label} ({container}) de {server}",
     "cloudflareAccountUpdated": "{actor} actualizó la cuenta de Cloudflare ({fields})",
     "environmentDomainUpdated": "{actor} estableció el dominio de {environment} en {hostname}",
@@ -2721,7 +2722,16 @@
     "deleteFailed": "No se pudo eliminar el host de base de datos",
     "deleteHost": "Eliminar {label}",
     "deleteHostTitle": "¿Eliminar el host de base de datos {label}?",
-    "deleteHostBody": "Solo se elimina el registro; el contenedor y sus bases de datos se conservan. No se puede eliminar un host que usan entornos."
+    "deleteHostBody": "Solo se elimina el registro; el contenedor y sus bases de datos se conservan. No se puede eliminar un host que usan entornos.",
+    "network": "Red",
+    "networkPlaceholder": "Se detecta al registrar",
+    "networkHint": "La red de Docker a la que se unen las apps para llegar a esta base de datos. Déjalo vacío para usar la primera red del contenedor.",
+    "networkNone": "sin red",
+    "editNetwork": "Definir la red de {label}",
+    "editNetworkTitle": "Red de {label}",
+    "editNetworkDescription": "Los overlays de compose conectan las apps con base de datos compartida a esta red de Docker. Déjalo vacío para quitarla.",
+    "networkSaved": "Red de {label} guardada",
+    "networkSaveFailed": "No se pudo guardar la red"
   },
   "domains": {
     "title": "Dominio",

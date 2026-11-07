@@ -60,7 +60,9 @@ const fail = (status: 403 | 404 | 409 | 500 | 502, message: string): never => {
  * Maintainers of any project and admins (see canRegisterApp). Returns whether
  * the caller also has org integration:manage, which generated pipelines need.
  */
-async function requireRegistrant(): Promise<{ canManagePipelines: boolean }> {
+export async function requireRegistrant(): Promise<{
+  canManagePipelines: boolean;
+}> {
   const session = await requireSession();
   const access = await getProjectAccess();
   if (!canRegisterApp(session.user.role, Object.values(access.roles))) {

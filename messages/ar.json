@@ -1965,6 +1965,7 @@
     "deployTargetDeleted": "أزال {actor} هدف نشر {component} من {environment}",
     "serverPreflight": "{actor} شغّل فحصًا مسبقًا على {server}",
     "databaseHostCreated": "سجّل {actor} مضيف قاعدة البيانات {label} ({container}) على {server}",
+    "databaseHostUpdated": "عيّن {actor} شبكة مضيف قاعدة البيانات {label} ({container}) على {server} إلى {network}",
     "databaseHostDeleted": "أزال {actor} مضيف قاعدة البيانات {label} ({container}) من {server}",
     "cloudflareAccountUpdated": "حدّث {actor} حساب Cloudflare ({fields})",
     "environmentDomainUpdated": "{actor} عيّن نطاق {environment} إلى {hostname}",
@@ -2721,7 +2722,16 @@
     "deleteFailed": "تعذرت إزالة مضيف قاعدة البيانات",
     "deleteHost": "إزالة {label}",
     "deleteHostTitle": "إزالة مضيف قاعدة البيانات {label}؟",
-    "deleteHostBody": "تُزال عملية التسجيل فقط؛ تبقى الحاوية وقواعد بياناتها. لا يمكن إزالة مضيف تستخدمه بيئات."
+    "deleteHostBody": "تُزال عملية التسجيل فقط؛ تبقى الحاوية وقواعد بياناتها. لا يمكن إزالة مضيف تستخدمه بيئات.",
+    "network": "الشبكة",
+    "networkPlaceholder": "يُكتشف عند التسجيل",
+    "networkHint": "شبكة Docker التي تنضم إليها التطبيقات للوصول إلى قاعدة البيانات هذه. اتركها فارغة لاستخدام أول شبكة للحاوية.",
+    "networkNone": "بلا شبكة",
+    "editNetwork": "تعيين شبكة {label}",
+    "editNetworkTitle": "شبكة {label}",
+    "editNetworkDescription": "تربط تراكبات compose التطبيقات ذات قاعدة البيانات المشتركة بشبكة Docker هذه. اتركها فارغة لإزالتها.",
+    "networkSaved": "تم حفظ شبكة {label}",
+    "networkSaveFailed": "تعذر حفظ الشبكة"
   },
   "domains": {
     "title": "النطاق",

@@ -266,6 +266,14 @@ function message(
         container: String(d.container),
         server: String(d.server),
       });
+    case "database_host.update":
+      return t("databaseHostUpdated", {
+        actor,
+        label: String(d.label),
+        container: String(d.container),
+        server: String(d.server),
+        network: d.network ? String(d.network) : "-",
+      });
     case "database_host.delete":
       return t("databaseHostDeleted", {
         actor,
