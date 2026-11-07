@@ -29,7 +29,7 @@ import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { decodeVariableValue } from "@/lib/variables/managed-env";
 import { getVariable } from "@/lib/variables/repository";
-import { requestDeployment } from "@/server/services/deployments";
+import { requestFlaggedDeployment } from "@/server/services/deployments";
 
 // Wall-clock bound on one remote command of a step.
 const STEP_COMMAND_TIMEOUT_MS = 10 * 60_000;
@@ -125,21 +125,24 @@ async function deploy(
   const target = await getTarget(params.targetId);
   if (!target)
     throw new StepFailed(`Deploy target ${params.targetId} not found`);
+  // Flag first, then look: a build landing in between is then deployed by the
+  // build hook (it sees the flag) or found here, never missed. Whichever
+  // clears the flag places the deployment, so it happens once.
+  await flagDeployNextBuild(target.id);
   const build = await findNewestBuild(target.componentKey, target.sourceBranch);
   if (!build) {
-    // Nothing to deploy yet: the next build of the branch deploys once.
-    await flagDeployNextBuild(target.id);
     return `Waiting for the first build of ${target.sourceBranch}; it deploys when it lands`;
   }
   try {
     // The provisioning run does not wait: the deploy has its own run.
-    const result = await requestDeployment({
+    const result = await requestFlaggedDeployment({
       targetId: target.id,
       tag: build.tag,
       trigger: "manual",
       userId: ctx.userId,
       buildId: build.id,
     });
+    if (!result) return `The build hook already deployed ${build.tag}`;
     return `Deployment ${result.deploymentId} of ${build.tag} ${result.status}`;
   } catch (error) {
     if (error instanceof HTTPException && error.status === 409) {

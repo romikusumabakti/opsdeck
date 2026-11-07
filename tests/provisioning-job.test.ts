@@ -22,6 +22,12 @@ const state = vi.hoisted(() => ({
   run: null as null | { status: string; error?: string },
   variable: undefined as undefined | { kind: string; value: string },
   build: null as null | { id: string; tag: string },
+  // deploy_target.deploy_next_build of t1, and the order the deploy step
+  // touched it in.
+  flag: false,
+  calls: [] as string[],
+  // Simulates the build hook placing the build between the flag and the lookup.
+  hookTakesBuild: false,
   deployError: null as unknown,
   sshCommands: [] as string[],
   listError: false,
@@ -66,7 +72,11 @@ vi.mock("@/lib/provisioning/repository", () => ({
     containerName: "pg",
     server: { host: "db.test", username: "ops", password: "ssh-pw" },
   }),
-  findNewestBuild: async () => state.build,
+  findNewestBuild: async () => {
+    state.calls.push("findNewestBuild");
+    if (state.hookTakesBuild) state.flag = false;
+    return state.build;
+  },
 }));
 
 vi.mock("@/lib/run-progress", () => ({
@@ -121,7 +131,9 @@ vi.mock("@/lib/deploy/repository", () => ({
     sourceBranch: "main",
   }),
   flagDeployNextBuild: async (targetId: string) => {
+    state.calls.push("flagDeployNextBuild");
     state.flagged.push(targetId);
+    state.flag = true;
   },
 }));
 vi.mock("@/lib/provisioning/database", () => ({
@@ -135,8 +147,9 @@ vi.mock("@/lib/provisioning/database", () => ({
     }
   ),
 }));
-const requestDeployment = vi.hoisted(() => vi.fn());
-vi.mock("@/server/services/deployments", () => ({ requestDeployment }));
+// The gated placement: places (and clears the flag) only while it is set.
+const requestFlaggedDeployment = vi.hoisted(() => vi.fn());
+vi.mock("@/server/services/deployments", () => ({ requestFlaggedDeployment }));
 
 const { runProvisioning } = await import("@/lib/jobs/provision");
 const { HTTPException } = await import("hono/http-exception");
@@ -177,11 +190,14 @@ beforeEach(() => {
   state.runMissing = false;
   state.variable = { kind: "generated", value: PASSWORD };
   state.build = { id: "b1", tag: "main-abc" };
-  requestDeployment.mockReset();
-  requestDeployment.mockResolvedValue({
-    deploymentId: "dep-1",
-    runId: "r1",
-    status: "queued",
+  state.flag = false;
+  state.calls = [];
+  state.hookTakesBuild = false;
+  requestFlaggedDeployment.mockReset();
+  requestFlaggedDeployment.mockImplementation(async () => {
+    if (!state.flag) return null;
+    state.flag = false;
+    return { deploymentId: "dep-1", runId: "r1", status: "queued" };
   });
   seed();
 });
@@ -194,7 +210,7 @@ describe("runProvisioning", () => {
     expect(state.sshCommands[0]).toBe(
       "[ -d '/opt/hris app' ] || install -d -m 0750 '/opt/hris app'"
     );
-    expect(requestDeployment).toHaveBeenCalledWith({
+    expect(requestFlaggedDeployment).toHaveBeenCalledWith({
       targetId: "t1",
       tag: "main-abc",
       trigger: "manual",
@@ -251,12 +267,49 @@ describe("runProvisioning", () => {
     expect(state.log.join("\n")).toContain(
       "Waiting for the first build of main; it deploys when it lands"
     );
-    expect(requestDeployment).not.toHaveBeenCalled();
+    expect(requestFlaggedDeployment).not.toHaveBeenCalled();
+  });
+
+  it("sets the flag before looking for a build", async () => {
+    seed(["deploy"]);
+    await run();
+    expect(state.calls).toEqual(["flagDeployNextBuild", "findNewestBuild"]);
+  });
+
+  it("a build exists: places it exactly once and the flag ends cleared", async () => {
+    seed(["deploy"]);
+    await run();
+    expect(state.steps[0]?.status).toBe("done");
+    expect(requestFlaggedDeployment).toHaveBeenCalledTimes(1);
+    expect(state.flag).toBe(false);
+    expect(state.log.join("\n")).toContain(
+      "Deployment dep-1 of main-abc queued"
+    );
+  });
+
+  it("no build: the flag stays set for the build hook", async () => {
+    seed(["deploy"]);
+    state.build = null;
+    await run();
+    expect(state.flag).toBe(true);
+    expect(requestFlaggedDeployment).not.toHaveBeenCalled();
+  });
+
+  it("the build hook got there first: no second placement, step done", async () => {
+    seed(["deploy"]);
+    state.hookTakesBuild = true;
+    await run();
+    expect(requestFlaggedDeployment).toHaveBeenCalledTimes(1);
+    expect(state.steps[0]?.status).toBe("done");
+    expect(state.log.join("\n")).toContain(
+      "The build hook already deployed main-abc"
+    );
+    expect(state.run?.status).toBe("success");
   });
 
   it("fails deploy with the lock message when the environment is locked", async () => {
     seed(["deploy"]);
-    requestDeployment.mockRejectedValue(
+    requestFlaggedDeployment.mockRejectedValue(
       new HTTPException(409, { message: "Locked by Romi until 10:00: freeze" })
     );
     await run();
@@ -324,7 +377,7 @@ describe("runProvisioning", () => {
     await expect(run()).resolves.toEqual({ status: "failed" });
     expect(statuses()).toEqual(["pending", "pending", "pending"]);
     expect(state.sshCommands).toEqual([]);
-    expect(requestDeployment).not.toHaveBeenCalled();
+    expect(requestFlaggedDeployment).not.toHaveBeenCalled();
     expect(state.log).toEqual([]);
     expect(state.run).toEqual({ status: "failed", error: "Worker restarted" });
     expect(log).toHaveBeenCalledWith(expect.stringContaining("skipping"));
