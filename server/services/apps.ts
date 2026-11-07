@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import {
   appKeyExists,
+  componentTargetBranches,
   getApp,
   getComponent,
   insertAppWithComponents,
@@ -437,8 +438,9 @@ export async function retryPipelineFileCommit(
 
 /**
  * Starts a build of the component's branch in Woodpecker (the New app
- * stepper's first build). Admins always may. Others need to run deploys in a
- * project that has an environment of this app; an app with no environment yet
+ * stepper's first build). Admins always may, any branch. Others may build
+ * only the source branch of a deploy target of this component in a project
+ * where they run deploys; an app with no environment yet
  * (the stepper has just registered it) is open to whoever may register apps,
  * for one hour after the app was created; later it is admins only.
  */
@@ -461,10 +463,17 @@ export async function triggerComponentBuild(
         forbidden();
       }
     } else {
-      const access = await getProjectAccess();
+      // Only a branch a deploy target of this component deploys from, in a
+      // project where the caller runs deploys.
+      const [access, targets] = await Promise.all([
+        getProjectAccess(),
+        componentTargetBranches(component.componentKey),
+      ]);
       if (
-        !projectIds.some((id) =>
-          canProject(access.roles[id] ?? null, { deploy: ["run"] })
+        !targets.some(
+          (t) =>
+            t.sourceBranch === branch &&
+            canProject(access.roles[t.projectId] ?? null, { deploy: ["run"] })
         )
       ) {
         forbidden();
