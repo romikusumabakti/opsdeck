@@ -67,6 +67,9 @@ const { planEnvironmentVariables } = await import(
   "@/server/services/variables"
 );
 const { decryptSecret, encryptSecret } = await import("@/lib/secrets");
+const { composeContainerName, suggestServices } = await import(
+  "@/server/services/environment-setup"
+);
 
 const input = {
   projectId: PROJECT_ID,
@@ -81,6 +84,7 @@ const input = {
       services: ["hris-backend"],
     },
   ],
+  services: [{ role: "backend", serviceName: "hris-staging-hris-backend-1" }],
   database: { kind: "none" },
   variables: [],
   domain: { kind: "none" },
@@ -137,6 +141,18 @@ describe("environment setup permissions", () => {
       `/api/setup/environments/copy-source/${SOURCE_ID}`
     );
     expect(res.status).toBe(404);
+    expect(dbCalls.count).toBe(0);
+  });
+
+  it("refuses a service role given twice", async () => {
+    const res = await post("/api/setup/environments/preview", {
+      ...input,
+      services: [
+        { role: "backend", serviceName: "a" },
+        { role: "backend", serviceName: "b" },
+      ],
+    });
+    expect(res.status).toBe(400);
     expect(dbCalls.count).toBe(0);
   });
 
@@ -372,6 +388,84 @@ describe("planEnvironmentVariables", () => {
     expect(decryptSecret(variables[1]?.value ?? "")).toHaveLength(32);
     expect(issues).toEqual([
       { name: "SMTP_PASSWORD", code: "variableRequired" },
+    ]);
+  });
+});
+
+describe("suggestServices", () => {
+  it("names containers as Compose does: <dir>-<svc>-1", () => {
+    expect(composeContainerName("/deployments/HRIS.Staging", "web")).toBe(
+      "hrisstaging-web-1"
+    );
+  });
+
+  it("gives two environments of an app in other dirs distinct names", () => {
+    const one = suggestServices(
+      [{ deployDir: "/deployments/hris-a", services: ["backend", "web"] }],
+      "web"
+    );
+    const two = suggestServices(
+      [{ deployDir: "/deployments/hris-b", services: ["backend", "web"] }],
+      "web"
+    );
+    expect(one).toEqual([
+      { role: "frontend", serviceName: "hris-a-web-1" },
+      { role: "backend", serviceName: "hris-a-backend-1" },
+    ]);
+    expect(two.map((x) => x.serviceName)).toEqual([
+      "hris-b-web-1",
+      "hris-b-backend-1",
+    ]);
+  });
+
+  it("without a known entry the last service is the frontend; a third is the worker, more get no row", () => {
+    expect(
+      suggestServices(
+        [
+          { deployDir: "/d/app", services: ["api", "jobs"] },
+          { deployDir: "/d/app", services: ["web", "extra"] },
+        ],
+        null
+      )
+    ).toEqual([
+      { role: "frontend", serviceName: "app-extra-1" },
+      { role: "backend", serviceName: "app-api-1" },
+      { role: "worker", serviceName: "app-jobs-1" },
+    ]);
+  });
+
+  it("a lone service is the backend; roles never repeat", () => {
+    const one = suggestServices(
+      [{ deployDir: "/d/app", services: ["app"] }],
+      "app"
+    );
+    expect(one).toEqual([{ role: "backend", serviceName: "app-app-1" }]);
+    const many = suggestServices(
+      [{ deployDir: "/d/x", services: ["a", "b", "c", "d", "e"] }],
+      "c"
+    );
+    expect(new Set(many.map((x) => x.role)).size).toBe(many.length);
+  });
+
+  it("keeps a source's fixed container name so the in-use check reports it", () => {
+    const source = {
+      rows: [
+        { role: "backend", serviceName: "hris-backend" },
+        { role: "frontend", serviceName: "prod-web-1" },
+      ],
+      targets: [
+        { deployDir: "/deployments/prod", services: ["backend", "web"] },
+      ],
+    };
+    expect(
+      suggestServices(
+        [{ deployDir: "/deployments/staging", services: ["backend", "web"] }],
+        "web",
+        source
+      )
+    ).toEqual([
+      { role: "frontend", serviceName: "staging-web-1" },
+      { role: "backend", serviceName: "hris-backend" },
     ]);
   });
 });

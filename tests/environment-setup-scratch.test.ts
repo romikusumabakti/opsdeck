@@ -108,6 +108,9 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     source: "",
     sourceB: "",
     sourceC: "",
+    admin: "",
+    restricted: "",
+    fixedSource: "",
   };
 
   async function cleanup() {
@@ -139,7 +142,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     const serverRows = await db
       .select({ id: s.servers.id })
       .from(s.servers)
-      .where(eq(s.servers.name, "wiz-it server"));
+      .where(inArray(s.servers.name, ["wiz-it server", "wiz-it restricted"]));
     if (serverRows.length > 0) {
       const serverIds = serverRows.map((r) => r.id);
       await db
@@ -386,6 +389,65 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     ids.source = await sourceEnvironment(ids.projectA, "Wiz Source", 8100);
     ids.sourceB = await sourceEnvironment(ids.projectB, "Wiz Source B", 8103);
     ids.sourceC = await sourceEnvironment(ids.projectC, "Wiz Source C", 8104);
+    // An admin, and a restricted server whose environment's container has a
+    // fixed name (compose `container_name`), not `<dir>-<svc>-1`.
+    ids.admin = (
+      await one(
+        db
+          .insert(s.users)
+          .values({
+            id: crypto.randomUUID(),
+            name: "wiz-it-admin",
+            email: "wiz-it-admin@example.test",
+            role: "admin",
+          })
+          .returning({ id: s.users.id })
+      )
+    ).id;
+    ids.restricted = (
+      await one(
+        db
+          .insert(s.servers)
+          .values({
+            name: "wiz-it restricted",
+            host: "192.0.2.11",
+            username: "deploy",
+            password: "unused",
+            placement: "restricted",
+          })
+          .returning({ id: s.servers.id })
+      )
+    ).id;
+    ids.fixedSource = (
+      await one(
+        db
+          .insert(s.environments)
+          .values({
+            projectId: ids.projectA,
+            name: "Wiz Fixed",
+            slug: "wiz-fixed",
+            appId: ids.app,
+            envFileManaged: true,
+          })
+          .returning({ id: s.environments.id })
+      )
+    ).id;
+    await db.insert(s.environmentServices).values({
+      environmentId: ids.fixedSource,
+      role: "backend",
+      serverId: ids.restricted,
+      serviceType: "docker",
+      serviceName: "wiz-fixed-api",
+    });
+    await db.insert(s.deployTargets).values({
+      environmentId: ids.fixedSource,
+      componentKey: "wiz-it",
+      serverId: ids.restricted,
+      sourceBranch: "main",
+      deployDir: "/deployments/wiz-fixed",
+      services: ["api"],
+      backupBeforeDeploy: true,
+    });
     await db.insert(s.environmentDomains).values({
       environmentId: ids.sourceB,
       kind: "tunnel",
@@ -426,6 +488,10 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         healthTimeoutSeconds: 240,
         backupBeforeDeploy: true,
       },
+    ],
+    services: [
+      { role: "backend", serviceName: "wiza-backend" },
+      { role: "frontend", serviceName: "wiza-frontend" },
     ],
     database: {
       kind: "shared",
@@ -837,6 +903,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
           services: ["backend"],
         },
       ],
+      services: [{ role: "backend", serviceName: "backend" }],
       variables: [{ name: "DB_PASSWORD", kind: "generated" }],
       domain: {
         kind: "tunnel",
@@ -850,7 +917,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
       await post("/api/setup/environments/preview", body)
     ).json();
     expect(preview.issues).toEqual([
-      { field: "targets.0.services", code: "placementServiceName" },
+      { field: "services.backend", code: "placementServiceName" },
       { field: "variables.DATA_ENCRYPTION_KEY", code: "variableRequired" },
       { field: "variables.SMTP_PASSWORD", code: "variableRequired" },
       { field: "domain.accessPolicyId", code: "domainPublicForbidden" },
@@ -867,7 +934,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     // Fix the first, and the create refuses with the next.
     const next = await post("/api/setup/environments", {
       ...body,
-      targets: [{ ...body.targets[0], services: ["wiza-backend"] }],
+      services: [{ role: "backend", serviceName: "wiza-backend" }],
     });
     expect(next.status).toBe(409);
     expect((await next.json()).error).toBe(
@@ -906,9 +973,10 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
             componentKey: "wiz-it",
             sourceBranch: "main",
             deployDir: "/deployments/wiz-container",
-            services: ["wiza-app"],
+            services: ["app"],
           },
         ],
+        services: [{ role: "backend", serviceName: "wiza-app" }],
         database: { kind: "container", serviceName: "wiza-db" },
         variables: [
           { name: "SMTP_PASSWORD", kind: "secret", value: "x" },
@@ -935,5 +1003,164 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     await db
       .delete(s.environments)
       .where(eq(s.environments.id, created.environmentId));
+  });
+
+  const minimal = (overrides: Record<string, unknown>) =>
+    input({
+      database: { kind: "none" },
+      variables: [
+        { name: "SMTP_PASSWORD", kind: "secret", value: "x" },
+        { name: "DATA_ENCRYPTION_KEY", kind: "secret", value: "y" },
+      ],
+      domain: { kind: "none" },
+      ...overrides,
+    });
+
+  it("sets up a second environment of the app in another dir with Compose's container names", async () => {
+    const created: string[] = [];
+    for (const dir of ["wiza-one", "wiza-two"]) {
+      const targets = [
+        {
+          componentKey: "wiz-it",
+          sourceBranch: "main",
+          deployDir: `/deployments/${dir}`,
+          services: ["backend", "web"],
+        },
+      ];
+      const preview = await (
+        await post(
+          "/api/setup/environments/preview",
+          minimal({
+            name: `Wiz ${dir}`,
+            copyFromEnvironmentId: null,
+            targets,
+            entryService: "web",
+            services: [],
+          })
+        )
+      ).json();
+      expect(preview.suggestedServices).toEqual([
+        { role: "frontend", serviceName: `${dir}-web-1` },
+        { role: "backend", serviceName: `${dir}-backend-1` },
+      ]);
+      const res = await post(
+        "/api/setup/environments",
+        minimal({
+          name: `Wiz ${dir}`,
+          copyFromEnvironmentId: null,
+          targets,
+          services: preview.suggestedServices,
+        })
+      );
+      const body = await res.json();
+      expect(res.status, JSON.stringify(body)).toBe(201);
+      created.push(body.environmentId);
+    }
+    const rows = await db
+      .select({
+        role: s.environmentServices.role,
+        serviceName: s.environmentServices.serviceName,
+      })
+      .from(s.environmentServices)
+      .where(inArray(s.environmentServices.environmentId, created));
+    expect(rows.map((r) => `${r.role}:${r.serviceName}`).sort()).toEqual([
+      "backend:wiza-one-backend-1",
+      "backend:wiza-two-backend-1",
+      "frontend:wiza-one-web-1",
+      "frontend:wiza-two-web-1",
+    ]);
+    await db.delete(s.environments).where(inArray(s.environments.id, created));
+  });
+
+  it("reports a fixed container name copied from the source as in use, also for an admin on a restricted server", async () => {
+    state.user = { id: ids.admin, role: "admin", name: "Admin" };
+    const targets = [
+      {
+        componentKey: "wiz-it",
+        sourceBranch: "main",
+        deployDir: "/deployments/wiz-fixed-2",
+        services: ["api"],
+      },
+    ];
+    const base = minimal({
+      name: "Wiz Fixed 2",
+      copyFromEnvironmentId: ids.fixedSource,
+      server: { serverId: ids.restricted },
+      targets,
+      services: [],
+    });
+    const first = await (
+      await post("/api/setup/environments/preview", base)
+    ).json();
+    expect(first.suggestedServices).toEqual([
+      { role: "backend", serviceName: "wiz-fixed-api" },
+    ]);
+    const body = { ...base, services: first.suggestedServices };
+    const preview = await (
+      await post("/api/setup/environments/preview", body)
+    ).json();
+    expect(preview.issues).toEqual([
+      { field: "services.backend", code: "serviceNameInUse" },
+    ]);
+    const before = await counts();
+    const res = await post("/api/setup/environments", body);
+    expect(res.status).toBe(409);
+    expect(await counts()).toEqual(before);
+  });
+
+  it("refuses backup-before-deploy without a shared database, as copied from the source", async () => {
+    const view = await (
+      await app.request(
+        `/api/setup/environments/copy-source/${ids.fixedSource}`
+      )
+    ).json();
+    expect(view.targets[0].backupBeforeDeploy).toBe(true);
+    const body = minimal({
+      name: "Wiz Backup",
+      targets: [
+        {
+          ...view.targets[0],
+          deployDir: "/deployments/wiza-backup",
+          preStartCommand: undefined,
+          healthUrl: undefined,
+        },
+      ],
+      services: [{ role: "backend", serviceName: "wiza-backup-api-1" }],
+    });
+    const preview = await (
+      await post("/api/setup/environments/preview", body)
+    ).json();
+    expect(preview.issues).toEqual([
+      { field: "targets.0.backupBeforeDeploy", code: "backupNeedsSharedDb" },
+    ]);
+    const before = await counts();
+    expect((await post("/api/setup/environments", body)).status).toBe(400);
+    expect(await counts()).toEqual(before);
+  });
+
+  it("suggests no entry port for a server that refuses the placement", async () => {
+    const preview = await (
+      await post(
+        "/api/setup/environments/preview",
+        minimal({
+          name: "Wiz Restricted",
+          server: { serverId: ids.restricted },
+          targets: [
+            {
+              componentKey: "wiz-it",
+              sourceBranch: "main",
+              deployDir: "/deployments/wiza-r",
+              services: ["api"],
+            },
+          ],
+          services: [{ role: "backend", serviceName: "wiza-r-api-1" }],
+        })
+      )
+    ).json();
+    expect(preview.issues).toContainEqual({
+      field: "server.serverId",
+      code: "placementForbidden",
+    });
+    expect(preview.suggestedEntryPort).toBeNull();
   });
 });
