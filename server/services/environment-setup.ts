@@ -201,6 +201,7 @@ type Caller = {
 
 type CopySource = {
   id: string;
+  name: string;
   appId: string | null;
   canReadVariables: boolean;
 };
@@ -223,7 +224,7 @@ async function authorize(
     { project: ["read"] }
   );
   const [row] = await db
-    .select({ appId: environments.appId })
+    .select({ appId: environments.appId, name: environments.name })
     .from(environments)
     .where(eq(environments.id, input.copyFromEnvironmentId))
     .limit(1);
@@ -232,6 +233,7 @@ async function authorize(
     caller,
     source: {
       id: input.copyFromEnvironmentId,
+      name: row.name,
       appId: row.appId,
       canReadVariables: canProject(sourceRole, { variable: ["read"] }),
     },
@@ -466,6 +468,7 @@ type Prepared = {
   variables: PlannedVariable[];
   domain: Awaited<ReturnType<typeof validateDomainBinding>> | null;
   databaseLabel: string | null;
+  copySource: { id: string; name: string } | null;
 };
 
 /**
@@ -716,6 +719,7 @@ async function checkSetup(
             variables: plannedVariables.variables,
             domain: domain ?? null,
             databaseLabel,
+            copySource: source ? { id: source.id, name: source.name } : null,
           }
         : null,
   };
@@ -987,6 +991,17 @@ export async function createEnvironmentSetup(
           .map((v) => v.name)
           .sort()
           .join(", "),
+        ...(prepared.copySource
+          ? {
+              copiedFrom: prepared.copySource.name,
+              copiedFromId: prepared.copySource.id,
+              copiedVariables: prepared.variables
+                .filter((v) => v.origin === "copied")
+                .map((v) => v.name)
+                .sort()
+                .join(", "),
+            }
+          : {}),
       },
     });
   } catch (error) {
