@@ -6,7 +6,12 @@ import {
 import { parseResponse } from "hono/client";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { RegisterAppInput } from "@/lib/ci/registration";
-import { canOrg, canRegisterApp } from "@/lib/permissions";
+import {
+  canOrg,
+  canProject,
+  canRegisterApp,
+  type ProjectRole,
+} from "@/lib/permissions";
 import { api } from "@/web/api/client";
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { useMe } from "@/web/api/session";
@@ -119,4 +124,29 @@ export function useCanRegisterApp(): boolean {
  */
 export function useCanManagePipelines(): boolean {
   return canOrg(useMe()?.orgRole, { integration: ["manage"] });
+}
+
+/** The projects the caller may create environments in (maintainers, admins). */
+export function projectsToAddEnvironmentTo<T extends { id: string }>(
+  projects: readonly T[],
+  roles: Record<string, ProjectRole>
+): T[] {
+  return projects.filter((p) =>
+    canProject(roles[p.id] ?? null, { environment: ["create"] })
+  );
+}
+
+/**
+ * Whether the caller may add an environment to an app: they can create
+ * environments in some project. The page loader must have loaded
+ * getMyProjectAccessQuery; the app shell always has.
+ */
+export function useCanAddEnvironment(): boolean {
+  const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
+  return (
+    projectsToAddEnvironmentTo(
+      Object.keys(access.roles).map((id) => ({ id })),
+      access.roles
+    ).length > 0
+  );
 }

@@ -435,7 +435,8 @@
       "disabledHint": "Deploy dikunci: {reason}",
       "heldBuilds": "{count, plural, =0 {Tidak ada build yang ditahan.} other {# build ditahan.}}",
       "saveLock": "Simpan kunci"
-    }
+    },
+    "waitingForFirstBuild": "Menunggu build pertama dari {branch}"
   },
   "provisioning": {
     "title": "Provisioning",
@@ -2797,6 +2798,143 @@
       "databaseContainer": "Container database {container} di {server}",
       "variables": "{count} variabel ({generated} dibuat otomatis, {copied} secret disalin)",
       "domain": "Domain {hostname}"
+    }
+  },
+  "setupWizard": {
+    "sections": {
+      "server": "Server",
+      "database": "Database",
+      "variables": "Variabel",
+      "domain": "Domain",
+      "deploy": "Deploy",
+      "issueCount": "{count} masalah"
+    },
+    "addEnvironment": {
+      "title": "Tambah environment",
+      "subtitle": "Tambahkan environment untuk {app}. Salin environment yang sudah ada untuk memulai dari pengaturannya.",
+      "button": "Tambah environment",
+      "project": "Proyek",
+      "projectPlaceholder": "Pilih proyek",
+      "noProjects": "Anda bukan maintainer proyek mana pun, sehingga tidak dapat menambah environment.",
+      "name": "Nama",
+      "namePlaceholder": "mis. Staging",
+      "copyFrom": "Salin dari",
+      "copyFromNone": "Mulai dari kosong",
+      "copyFromHint": "Mengisi setiap bagian dari environment tersebut. Nilai rahasia disalin di server dan tidak pernah ditampilkan.",
+      "copyFailed": "Tidak dapat membaca environment tersebut.",
+      "created": "Environment dibuat.",
+      "provisioningNotStarted": "Environment dibuat, tetapi provisioning belum berjalan. Anda dapat memulainya dari halaman Deploys."
+    },
+    "legacyNotice": {
+      "title": "Environment untuk aplikasi terdaftar?",
+      "description": "Tambahkan dari halaman aplikasinya: deploy target, database, variabel, dan domain diatur sekaligus. Formulir ini untuk environment yang tidak dikelola Panel."
+    },
+    "server": {
+      "label": "Server",
+      "placeholder": "Pilih server",
+      "none": "Tidak ada server yang menerima environment baru dari Anda. Minta admin membuka satu server.",
+      "containers": "Container",
+      "containersHint": "Container Docker yang dipakai kontrol layanan dan log, per peran. Nilai awal mengikuti nama proyek Compose.",
+      "noContainers": "Isi layanan compose pada deploy target; container disarankan dari situ.",
+      "role": {
+        "backend": "Backend",
+        "frontend": "Frontend",
+        "worker": "Worker",
+        "cache": "Cache",
+        "gateway": "Gateway"
+      },
+      "summary": "{server} · {count} container",
+      "summaryNone": "Belum memilih server"
+    },
+    "database": {
+      "kind": "Database",
+      "kind_shared": "Database bersama (dibuat Panel)",
+      "kind_container": "Container database",
+      "kind_external": "Database eksternal",
+      "kind_none": "Tanpa database",
+      "host": "Host database",
+      "hostPlaceholder": "Pilih host",
+      "noHosts": "Belum ada host database terdaftar di server ini.",
+      "dbName": "Nama database",
+      "dbRole": "Role",
+      "passwordVariable": "Variabel kata sandi",
+      "containerName": "Container database",
+      "summaryShared": "Database bersama {name}",
+      "summaryContainer": "Container {name}",
+      "summary_external": "Database eksternal",
+      "summary_none": "Tanpa database"
+    },
+    "variables": {
+      "empty": "Belum ada variabel. Variabel template aplikasi ditambahkan saat environment dibuat.",
+      "name": "Nama variabel",
+      "namePlaceholder": "NAMA_VARIABEL",
+      "kind": "Jenis",
+      "kind_plain": "Biasa",
+      "kind_secret": "Rahasia",
+      "kind_generated": "Dibuat otomatis",
+      "value": "Nilai {name}",
+      "remove": "Hapus variabel",
+      "escrowed": "Escrow",
+      "add": "Tambah variabel",
+      "summary": "{count} variabel, {generated} dibuat otomatis",
+      "summaryNone": "Tanpa variabel",
+      "handling_generate": "Nilai baru akan dibuat otomatis",
+      "handling_copy": "Akan disalin",
+      "handling_enter": "Masukkan nilai"
+    },
+    "domain": {
+      "entryPortSuggested": "Disarankan dari preflight terakhir server.",
+      "entryPortNoPreflight": "Server belum punya preflight: isi port yang bebas."
+    },
+    "review": {
+      "title": "Tinjau",
+      "description": "Apa yang dibuat setup ini, dan apa yang dikerjakan provisioning berikutnya.",
+      "issues": "Perbaiki dulu",
+      "creates": "Akan dibuat",
+      "plan": "Setelah itu provisioning menjalankan",
+      "nothingYet": "Belum ada: lengkapi bagian di atas.",
+      "checking": "Memeriksa…",
+      "submit": "Buat & deploy",
+      "creating": "Membuat…"
+    },
+    "issues": {
+      "unknown": "Pengaturan ini tidak diterima.",
+      "invalid": "Periksa nilai ini.",
+      "required": "Kolom ini wajib diisi.",
+      "appNotFound": "Aplikasi sudah tidak ada.",
+      "serverNotFound": "Server sudah tidak ada.",
+      "copySourceOtherApp": "Environment sumber salinan men-deploy aplikasi lain.",
+      "environmentNameTaken": "Proyek sudah punya environment dengan nama ini.",
+      "environmentSlugTaken": "Environment lain memakai nama URL ini barusan. Akan diperiksa ulang.",
+      "backendServiceRequired": "Isi nama container backend.",
+      "serviceNameInUse": "Environment lain di server ini sudah memakai container ini.",
+      "backupNeedsSharedDb": "Backup sebelum deploy memerlukan database bersama.",
+      "invalidInput": "Periksa nilai pada bagian ini.",
+      "targetMissing": "Setiap komponen aplikasi memerlukan deploy target.",
+      "sharedDeployDir": "Environment lain sudah men-deploy ke direktori ini.",
+      "passwordVariableMissing": "Variabel kata sandi database harus berupa variabel rahasia atau yang dibuat otomatis di environment ini. Tambahkan di bagian Variabel.",
+      "cloudflareUnavailable": "Akun Cloudflare tidak dapat dibaca. Coba lagi sebentar lagi.",
+      "componentNotFound": "Tidak ada komponen terdaftar dengan kunci ini.",
+      "tagVariableIsVariable": "Environment sudah punya variabel dengan nama ini; deploy menulis baris tag sendiri.",
+      "targetDuplicate": "Komponen ini tercantum dua kali.",
+      "componentOtherApp": "Komponen ini milik aplikasi lain.",
+      "placementForbidden": "Anda tidak boleh menaruh environment di server ini. Pilih server lain atau minta admin.",
+      "variableNameInvalid": "Gunakan huruf kapital, angka, dan garis bawah, tidak diawali angka.",
+      "reservedPrefix": "Nama tidak boleh diawali COMPOSE_, DOCKER_ atau BUILDKIT_.",
+      "tagVariableName": "Nama ini dicadangkan untuk tag image.",
+      "variableDuplicate": "Variabel ini tercantum dua kali.",
+      "valueInvalid": "Nilai harus satu baris, tanpa baris baru.",
+      "valueRequired": "Masukkan nilai.",
+      "variableRequired": "Aplikasi mewajibkan variabel ini, tetapi belum ada nilainya untuk environment ini.",
+      "copySourceRequired": "Pilih environment sumber salinan.",
+      "copySourceMissing": "Environment sumber salinan tidak punya variabel ini.",
+      "copyKindMismatch": "Variabel di environment sumber salinan berjenis lain.",
+      "escrowCopyForbidden": "Variabel escrow tidak pernah disalin: masukkan nilai.",
+      "secretCopyForbidden": "Anda tidak boleh membaca rahasia environment sumber salinan: masukkan nilai.",
+      "copyForbidden": "Anda tidak boleh membaca variabel environment sumber salinan: masukkan nilai.",
+      "missing_db_fields": "Database bersama belum lengkap: isi host, database, role, dan variabel kata sandi.",
+      "missing_entry_port": "Domain memerlukan port lokal.",
+      "no_targets": "Tambahkan deploy target terlebih dahulu."
     }
   }
 }

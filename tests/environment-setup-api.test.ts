@@ -119,6 +119,25 @@ describe("environment setup permissions", () => {
     });
   }
 
+  for (const path of ["options", "access-policies"]) {
+    it(`refuses a contributor with 403 on GET /api/setup/${path}`, async () => {
+      state.projectRole = "contributor";
+      const res = await app.request(
+        `/api/setup/${path}?projectId=${PROJECT_ID}`
+      );
+      expect(res.status).toBe(403);
+      expect(dbCalls.count).toBe(0);
+    });
+
+    it(`answers 404 on GET /api/setup/${path} for an invisible project`, async () => {
+      state.projectRole = null;
+      const res = await app.request(
+        `/api/setup/${path}?projectId=${PROJECT_ID}`
+      );
+      expect(res.status).toBe(404);
+    });
+  }
+
   it("answers 404 for a project the caller cannot see", async () => {
     state.projectRole = null;
     const res = await post("/api/setup/environments", input);

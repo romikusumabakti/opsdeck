@@ -6,6 +6,7 @@ import {
   ListTree,
   Loader2,
   Package,
+  Plus,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -37,9 +38,11 @@ import {
   commitPipelineFile,
   listAppsQuery,
   rotateNotifySecret,
+  useCanAddEnvironment,
   useCanManagePipelines,
 } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
+import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { meQuery } from "@/web/api/session";
 import { loaderQuery } from "@/web/query-client";
 import { PipelineFileStatus } from "./-components/apps/pipeline-file-status";
@@ -49,6 +52,7 @@ export const Route = createFileRoute("/$locale/_app/apps/$appKey/")({
     const [apps] = await Promise.all([
       loaderQuery(queryClient, listAppsQuery()),
       loaderQuery(queryClient, meQuery()),
+      loaderQuery(queryClient, getMyProjectAccessQuery()),
     ]);
     if (!apps?.some((app) => app.appKey === appKey)) throw notFound();
   },
@@ -58,11 +62,14 @@ export const Route = createFileRoute("/$locale/_app/apps/$appKey/")({
 function AppDetailPage() {
   const { appKey } = Route.useParams();
   const t = useTranslations("apps");
+  const tSetup = useTranslations("setupWizard");
   const app = useSuspenseQuery(listAppsQuery()).data.find(
     (a) => a.appKey === appKey
   );
   // Rotating secrets and committing pipeline files is for admins.
   const canManage = useCanManagePipelines();
+  // Anyone who can create environments in some project.
+  const canAddEnvironment = useCanAddEnvironment();
   if (!app) return null;
 
   return (
@@ -71,17 +78,32 @@ function AppDetailPage() {
         title={app.name}
         subtitle={app.appKey}
         action={
-          // The variable templates are for integration:manage, like the
-          // actions below.
-          canManage && (
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<Link href={`/apps/${app.appKey}/variables`} />}
-            >
-              <ListTree data-icon="inline-start" />
-              {t("variableTemplates")}
-            </Button>
+          (canAddEnvironment || canManage) && (
+            <div className="flex flex-wrap gap-2">
+              {canManage && (
+                // The variable templates are for integration:manage, like
+                // the actions below.
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/apps/${app.appKey}/variables`} />}
+                >
+                  <ListTree data-icon="inline-start" />
+                  {t("variableTemplates")}
+                </Button>
+              )}
+              {canAddEnvironment && (
+                <Button
+                  nativeButton={false}
+                  render={
+                    <Link href={`/apps/${app.appKey}/environments/new`} />
+                  }
+                >
+                  <Plus data-icon="inline-start" />
+                  {tSetup("addEnvironment.button")}
+                </Button>
+              )}
+            </div>
           )
         }
       />

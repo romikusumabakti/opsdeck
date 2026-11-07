@@ -1,10 +1,11 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { Copy, FolderPlus } from "lucide-react";
+import { Copy, FolderPlus, Rocket } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { EnvironmentForm } from "@/components/environment-form";
 import { PageHeader } from "@/components/page-header";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -13,6 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+import { listAppsQuery } from "@/web/api/apps";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import {
   getProjectByKeyWithEnvironmentsQuery,
@@ -51,6 +54,7 @@ export const Route = createFileRoute(
     await Promise.all([
       loaderQuery(queryClient, getServersQuery()),
       loaderQuery(queryClient, listProjectsQuery()),
+      loaderQuery(queryClient, listAppsQuery()),
       from ? loaderQuery(queryClient, getEnvironmentByIdQuery(from)) : null,
     ]);
   },
@@ -62,11 +66,13 @@ function NewEnvironmentPage() {
   const { projectKey } = Route.useParams();
   const { from } = Route.useSearch();
   const t = useTranslations("newEnvironment");
+  const tSetup = useTranslations("setupWizard");
   const project = useSuspenseQuery(
     getProjectByKeyWithEnvironmentsQuery(projectKey)
   ).data;
   const servers = useSuspenseQuery(getServersQuery()).data;
   const projects = useSuspenseQuery(listProjectsQuery()).data;
+  const apps = useSuspenseQuery(listAppsQuery()).data;
   // Only read when `?from` names a source: the loader fetched it then.
   const cloneFrom =
     useQuery({ ...getEnvironmentByIdQuery(from ?? ""), enabled: Boolean(from) })
@@ -85,6 +91,27 @@ function NewEnvironmentPage() {
             : t("description")
         }
       />
+      {apps.length > 0 && (
+        <Alert className="max-w-2xl w-full">
+          <Rocket />
+          <AlertTitle>{tSetup("legacyNotice.title")}</AlertTitle>
+          <AlertDescription>
+            <p>{tSetup("legacyNotice.description")}</p>
+            <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+              {apps.map((app) => (
+                <li key={app.appKey}>
+                  <Link
+                    className="underline underline-offset-4"
+                    href={`/apps/${app.appKey}/environments/new?project=${projectKey}`}
+                  >
+                    {app.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
       <Card className="max-w-2xl w-full">
         <CardHeader>
           <div className="flex items-center gap-2">

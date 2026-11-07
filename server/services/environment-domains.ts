@@ -127,16 +127,30 @@ export async function getEnvironmentDomain(environmentId: string) {
   };
 }
 
+/** The account's reusable Access policies, without public ones for non-admins. */
+async function visibleAccessPolicies(role: string | null | undefined) {
+  const policies = await callCloudflare(listAccessPolicies);
+  return policies
+    .filter((p) => canPublish(role) || !isPublicPolicy(p))
+    .map(({ id, name }) => ({ id, name }));
+}
+
 /** Reusable Access policies for the select; needs the Cloudflare account. */
 export async function listDomainAccessPolicies(environmentId: string) {
   const { session } = await requireProjectPermission(
     { environmentId },
     CONFIGURE
   );
-  const policies = await callCloudflare(listAccessPolicies);
-  return policies
-    .filter((p) => canPublish(session.user.role) || !isPublicPolicy(p))
-    .map(({ id, name }) => ({ id, name }));
+  return visibleAccessPolicies(session.user.role);
+}
+
+/**
+ * The same list for an environment that does not exist yet (the setup
+ * wizard's domain section), by the project it will be in.
+ */
+export async function listProjectAccessPolicies(projectId: string) {
+  const { session } = await requireProjectPermission({ projectId }, CONFIGURE);
+  return visibleAccessPolicies(session.user.role);
 }
 
 /**

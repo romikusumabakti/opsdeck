@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   CircleAlert,
   ExternalLink,
+  Hourglass,
   Loader2,
   Lock,
   Pencil,
@@ -312,6 +313,9 @@ function TargetCard({
 
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-medium">{t("buildsTitle")}</h3>
+          {target.deployNextBuild && (
+            <WaitingForFirstBuild branch={target.sourceBranch} />
+          )}
           {target.recentBuilds.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t("buildsEmpty", { branch: target.sourceBranch })}
@@ -352,6 +356,23 @@ function TargetCard({
         </section>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Shown while the target is flagged `deploy_next_build`: provisioning found no
+ * build of the branch, so the next one that arrives is deployed once.
+ */
+export function WaitingForFirstBuild({ branch }: { branch: string }) {
+  const t = useTranslations("deploys");
+  return (
+    <p
+      role="status"
+      className="flex items-center gap-1.5 text-sm text-muted-foreground"
+    >
+      <Hourglass className="size-4 shrink-0" />
+      {t("waitingForFirstBuild", { branch })}
+    </p>
   );
 }
 
