@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { HTTPException } from "hono/http-exception";
+import { recordActivity } from "@/lib/activity";
 import {
   appKeyExists,
   getApp,
@@ -9,6 +10,7 @@ import {
   listApps,
   type NewAppComponent,
   type PublicAppComponent,
+  projectIdsWithAppEnvironment,
   setNotifySecret,
   setPipelineFileCommit,
   takenComponentKeys,
@@ -21,9 +23,14 @@ import { generateWoodpeckerPipeline } from "@/lib/ci/pipeline";
 import type { RegisterAppInput } from "@/lib/ci/registration";
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { isUniqueViolation } from "@/lib/people/names";
-import { canOrg, canRegisterApp } from "@/lib/permissions";
+import { canOrg, canProject, canRegisterApp } from "@/lib/permissions";
 import { encryptSecret } from "@/lib/secrets";
-import { badRequest, forbidden, notFound } from "@/server/errors";
+import {
+  badRequest,
+  CodedHTTPException,
+  forbidden,
+  notFound,
+} from "@/server/errors";
 import {
   getForgeCredentials,
   getProviderForConnection,
@@ -424,4 +431,58 @@ export async function retryPipelineFileCommit(
     (c) => c.componentKey === componentKey
   );
   return updated ?? notFound();
+}
+
+/**
+ * Starts a build of the component's branch in Woodpecker (the New app
+ * stepper's first build). Admins always may. Others need to run deploys in a
+ * project that has an environment of this app; an app with no environment yet
+ * (the stepper has just registered it) is open to whoever may register apps.
+ */
+export async function triggerComponentBuild(
+  appKey: string,
+  componentKey: string,
+  branch: string
+): Promise<{ number: number }> {
+  const session = await requireSession();
+  const component = await requireAppComponent(appKey, componentKey);
+  if (!canOrg(session.user.role, { ...INTEGRATION_MANAGE })) {
+    const projectIds = await projectIdsWithAppEnvironment(component.appId);
+    if (projectIds.length === 0) {
+      await requireRegistrant();
+    } else {
+      const access = await getProjectAccess();
+      if (
+        !projectIds.some((id) =>
+          canProject(access.roles[id] ?? null, { deploy: ["run"] })
+        )
+      ) {
+        forbidden();
+      }
+    }
+  }
+  if (!component.ciRepoId) {
+    throw new CodedHTTPException(
+      409,
+      "componentNotActivated",
+      "This component has no Woodpecker repository"
+    );
+  }
+  const provider = await getProviderForConnection(component.ciConnectionId);
+  const pipeline = await step("Starting the build in Woodpecker", () =>
+    provider.triggerPipeline(component.ciRepoId as string, branch)
+  );
+  await recordActivity({
+    actorId: session.user.id,
+    action: "app.build.trigger",
+    entityType: "app",
+    entityId: component.appId,
+    data: {
+      app: component.app.appKey,
+      component: componentKey,
+      branch,
+      number: pipeline.number,
+    },
+  });
+  return pipeline;
 }

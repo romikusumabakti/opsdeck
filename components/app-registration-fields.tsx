@@ -1,7 +1,6 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Check, Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,35 +28,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { useRouter } from "@/i18n/navigation";
 import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
-import {
-  bundleImageFor,
-  type RegisterAppInput,
-  registerAppSchema,
-} from "@/lib/ci/registration";
+import { bundleImageFor, registerAppSchema } from "@/lib/ci/registration";
 import {
   type IssueKey,
   type IssueMessage,
   issueMessage,
 } from "@/lib/ci/registration-issues";
+import { branchSchema } from "@/lib/deploy/validation";
+import type { RepoDetection } from "@/lib/setup/detect";
 import { cn } from "@/lib/utils";
 import {
-  listCiConnectionOptionsQuery,
   listConnectionReposQuery,
   pipelinePreviewQuery,
   type RegistrableRepoRow,
-  registerApp,
-  useCanManagePipelines,
 } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
+import { detectRepoQuery } from "@/web/api/setup";
 
-// The "Register app" form: per component, a CI connection, a repository from
-// that connection, the component key (prefilled from the repo name) and the
-// pipeline mode; generated components (admins only) get a build spec editor
-// with the YAML the Panel will commit to every built branch. Validated with the
-// API's own schema before it submits.
+// The registration half of the New app stepper (its Repo step): per
+// component, a CI connection, a repository from that connection, a branch
+// (what repo detection reads), the component key (prefilled from the repo
+// name) and the pipeline mode; generated components (admins only) get a build
+// spec editor, prefilled from the detection, with the YAML the Panel will
+// commit to every built branch. Validated with the API's own schema; the
+// stepper submits it.
 
 type ImageDraft = { name: string; dockerfile: string; context: string };
 type FileDraft = { from: string; to: string };
@@ -79,9 +74,15 @@ type ComponentDraft = {
   id: number;
   ciConnectionId: string;
   repo: RegistrableRepoRow | null;
+  /** The branch repo detection reads and the first build starts on. */
+  branch: string;
   componentKey: string;
   pipelineMode: "custom" | "generated";
   spec: SpecDraft;
+  /** The user changed the spec: detection no longer prefills it. */
+  specEdited: boolean;
+  /** The detection (`connection|repo|branch`) the spec was prefilled from. */
+  prefilledFrom: string | null;
 };
 
 let nextId = 1;
@@ -115,9 +116,12 @@ function newComponent(ciConnectionId: string): ComponentDraft {
     id: nextId++,
     ciConnectionId,
     repo: null,
+    branch: "main",
     componentKey: "",
     pipelineMode: "custom",
     spec: defaultSpec(""),
+    specEdited: false,
+    prefilledFrom: null,
   };
 }
 
@@ -143,7 +147,7 @@ function toSpec(draft: SpecDraft) {
   };
 }
 
-function toInput(
+export function toRegisterInput(
   appKey: string,
   name: string,
   components: ComponentDraft[]
@@ -193,38 +197,132 @@ function issueAt(issues: Issues, prefix: string): string | undefined {
   return undefined;
 }
 
-export function AppRegisterForm() {
-  const t = useTranslations("appForm");
-  const tCommon = useTranslations("common");
-  const router = useRouter();
-  const connections = useSuspenseQuery(listCiConnectionOptionsQuery()).data;
-  const firstConnection = connections[0]?.id ?? "";
-  // Generated pipelines need org integration:manage; maintainers get custom.
-  const canGenerate = useCanManagePipelines();
+/** The detection of one component's repository, as the Repo step shows it. */
+export type ComponentDetection = {
+  isPending: boolean;
+  error: Error | null;
+  data: RepoDetection | undefined;
+};
 
+/** `./api/` -> `api`, `.` and `./` -> `.`. */
+function normalizeContext(context: string): string {
+  const trimmed = context.replace(/^(\.\/)+/, "").replace(/\/+$/, "");
+  return trimmed === "" ? "." : trimmed;
+}
+
+/**
+ * The build spec a detection suggests: one image per runtime service that
+ * builds from source, with the Dockerfile found in its context, and the
+ * compose file as the deploy bundle. Everything stays editable.
+ */
+export function specFromDetection(
+  component: Pick<ComponentDraft, "componentKey" | "branch">,
+  detection: RepoDetection
+): SpecDraft {
+  const base = defaultSpec(component.componentKey);
+  const images = detection.services.flatMap((service): ImageDraft[] => {
+    if (service.build === null) return [];
+    const context = normalizeContext(service.build);
+    const dockerfile =
+      detection.dockerfiles.find(
+        (path) =>
+          (context === "."
+            ? !path.includes("/")
+            : path.startsWith(`${context}/`)) &&
+          path.split("/").at(-1) === "Dockerfile"
+      ) ??
+      detection.dockerfiles[0] ??
+      "Dockerfile";
+    return [{ name: service.name, dockerfile, context }];
+  });
+  return {
+    ...base,
+    branches: component.branch,
+    images: images.length > 0 ? images : base.images,
+    bundleFiles: [
+      { from: detection.composeFile ?? "compose.yaml", to: "compose.yaml" },
+    ],
+  };
+}
+
+const branchIsValid = (branch: string) =>
+  branchSchema.safeParse(branch).success;
+
+/**
+ * The Repo step's state: the app, its components, the schema issues (after
+ * the first `validate()`), and one repo detection per component, which
+ * prefills an untouched build spec.
+ */
+export function useRegistrationDraft(firstConnection: string) {
+  const t = useTranslations("appForm");
+  const tIssues = useTranslations("appForm.issues");
   const [appKey, setAppKey] = useState("");
   const [name, setName] = useState("");
   const [components, setComponents] = useState<ComponentDraft[]>(() => [
     newComponent(firstConnection),
   ]);
   const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const input = useMemo(
-    () => toInput(appKey, name, components),
+    () => toRegisterInput(appKey, name, components),
     [appKey, name, components]
   );
-  const tIssues = useTranslations("appForm.issues");
-  const issues = useMemo(
-    () =>
-      submitted
-        ? issuesOf(input, (key, values) => tIssues(key, values))
-        : new Map<string, string>(),
-    [submitted, input, tIssues]
+  const issues = useMemo(() => {
+    if (!submitted) return new Map<string, string>();
+    const found = issuesOf(input, (key, values) => tIssues(key, values));
+    components.forEach((c, i) => {
+      if (!branchIsValid(c.branch)) {
+        found.set(`components.${i}.branch`, t("branchInvalid"));
+      }
+    });
+    return found;
+  }, [submitted, input, components, tIssues, t]);
+
+  const detections = useQueries({
+    queries: components.map((c) =>
+      detectRepoQuery(
+        c.repo && branchIsValid(c.branch) ? c.ciConnectionId : null,
+        c.repo?.fullName ?? null,
+        c.repo && branchIsValid(c.branch) ? c.branch : null
+      )
+    ),
+  });
+  const detectionById = new Map(
+    components.map((c, i) => [c.id, detections[i]] as const)
   );
-  const dirty =
-    appKey !== "" || name !== "" || components.some((c) => c.repo !== null);
-  useUnsavedChanges(dirty && !submitting);
+  const detectionOf = (id: number): ComponentDetection => {
+    const result = detectionById.get(id);
+    return {
+      isPending: result?.isFetching ?? false,
+      error: result?.error ?? null,
+      data: result?.data,
+    };
+  };
+
+  // A detection that arrives prefills the spec once per (repo, branch); a
+  // spec the user has edited is kept.
+  const arrived = components
+    .map((c) => `${c.id}:${detectionById.get(c.id)?.dataUpdatedAt ?? 0}`)
+    .join(",");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `arrived` stands for the detections' data
+  useEffect(() => {
+    setComponents((list) => {
+      let changed = false;
+      const next = list.map((c) => {
+        const data = detectionById.get(c.id)?.data;
+        if (!(data && c.repo)) return c;
+        const from = `${c.ciConnectionId}|${c.repo.fullName}|${c.branch}`;
+        if (c.prefilledFrom === from) return c;
+        changed = true;
+        return {
+          ...c,
+          prefilledFrom: from,
+          spec: c.specEdited ? c.spec : specFromDetection(c, data),
+        };
+      });
+      return changed ? next : list;
+    });
+  }, [arrived]);
 
   function update(id: number, change: (c: ComponentDraft) => ComponentDraft) {
     setComponents((list) => list.map((c) => (c.id === id ? change(c) : c)));
@@ -246,53 +344,50 @@ export function AppRegisterForm() {
     if (isFirst && !name) setName(repoName(repo.fullName));
   }
 
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
+  /** Shows the issues; true when the registration input is valid. */
+  function validate(): boolean {
     setSubmitted(true);
-    const parsed = registerAppSchema.safeParse(input);
-    if (!parsed.success) return;
-    setSubmitting(true);
-    try {
-      const created = await registerApp(parsed.data as RegisterAppInput);
-      toast.success(t("registered", { name: created.name }));
-      for (const c of created.components) {
-        for (const [branch, commit] of Object.entries(
-          c.pipelineFileCommits ?? {}
-        )) {
-          if (commit.error) {
-            toast.warning(
-              t("pipelineFileNotCommitted", {
-                component: c.componentKey,
-                branch,
-                reason: commit.error,
-              })
-            );
-          }
-        }
-      }
-      setAppKey("");
-      setName("");
-      setComponents([]);
-      router.push(`/apps/${created.appKey}`);
-    } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.status === 403 &&
-        parsed.data.components.some((c) => c.pipelineMode === "generated")
-      ) {
-        toast.error(t("generatedForbidden"));
-      } else if (error instanceof ApiError && error.status !== 401) {
-        toast.error(error.message);
-      } else {
-        throw error;
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    return (
+      registerAppSchema.safeParse(input).success &&
+      components.every((c) => branchIsValid(c.branch))
+    );
   }
 
+  return {
+    appKey,
+    setAppKey,
+    name,
+    setName,
+    components,
+    setComponents,
+    input,
+    issues,
+    firstConnection,
+    detectionOf,
+    update,
+    pickRepo,
+    validate,
+    dirty: appKey !== "" || name !== "" || components.some((c) => c.repo),
+  };
+}
+
+export type RegistrationDraft = ReturnType<typeof useRegistrationDraft>;
+
+export function RegistrationFields({
+  draft,
+  connections,
+  canGenerate,
+}: {
+  draft: RegistrationDraft;
+  connections: { id: string; name: string; hasForgeToken: boolean }[];
+  /** Generated pipelines need org integration:manage; maintainers get custom. */
+  canGenerate: boolean;
+}) {
+  const t = useTranslations("appForm");
+  const { components, issues } = draft;
+
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("appTitle")}</CardTitle>
@@ -300,15 +395,15 @@ export function AppRegisterForm() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <TextField
             label={t("name")}
-            value={name}
-            onChange={setName}
+            value={draft.name}
+            onChange={draft.setName}
             error={issues.get("name")}
           />
           <TextField
             label={t("appKey")}
             description={t("appKeyDescription")}
-            value={appKey}
-            onChange={setAppKey}
+            value={draft.appKey}
+            onChange={draft.setAppKey}
             error={issues.get("appKey")}
             mono
           />
@@ -324,11 +419,14 @@ export function AppRegisterForm() {
           canGenerate={canGenerate}
           issues={issues}
           canRemove={components.length > 1}
+          detection={draft.detectionOf(component.id)}
           onRemove={() =>
-            setComponents((list) => list.filter((c) => c.id !== component.id))
+            draft.setComponents((list) =>
+              list.filter((c) => c.id !== component.id)
+            )
           }
-          onChange={(change) => update(component.id, change)}
-          onPickRepo={(repo) => pickRepo(component.id, repo)}
+          onChange={(change) => draft.update(component.id, change)}
+          onPickRepo={(repo) => draft.pickRepo(component.id, repo)}
         />
       ))}
 
@@ -337,28 +435,16 @@ export function AppRegisterForm() {
         variant="outline"
         className="self-start"
         onClick={() =>
-          setComponents((list) => [...list, newComponent(firstConnection)])
+          draft.setComponents((list) => [
+            ...list,
+            newComponent(draft.firstConnection),
+          ])
         }
       >
         <Plus className="size-4" />
         {t("addComponent")}
       </Button>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => router.push("/apps")}
-          disabled={submitting}
-        >
-          {tCommon("cancel")}
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
-          {submitting ? t("submitting") : t("submit")}
-        </Button>
-      </div>
-    </form>
+    </div>
   );
 }
 
@@ -410,6 +496,7 @@ function ComponentEditor({
   issues,
   canGenerate,
   canRemove,
+  detection,
   onRemove,
   onChange,
   onPickRepo,
@@ -420,6 +507,7 @@ function ComponentEditor({
   canGenerate: boolean;
   issues: Issues;
   canRemove: boolean;
+  detection: ComponentDetection;
   onRemove: () => void;
   onChange: (change: (c: ComponentDraft) => ComponentDraft) => void;
   onPickRepo: (repo: RegistrableRepoRow) => void;
@@ -486,6 +574,22 @@ function ComponentEditor({
           error={issues.get(`${path}.forgeRemoteId`)}
         />
 
+        {component.repo && (
+          <>
+            <TextField
+              label={t("branch")}
+              description={t("branchDescription")}
+              value={component.branch}
+              onChange={(branch) =>
+                onChange((c) => ({ ...c, branch: branch.trim() }))
+              }
+              error={issues.get(`${path}.branch`)}
+              mono
+            />
+            <DetectionPanel detection={detection} />
+          </>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             label={t("componentKey")}
@@ -522,9 +626,9 @@ function ComponentEditor({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="custom">{t("modeCustom")}</SelectItem>
-              <SelectItem value="generated" disabled={!canGenerate}>
-                {t("modeGenerated")}
-              </SelectItem>
+              {canGenerate && (
+                <SelectItem value="generated">{t("modeGenerated")}</SelectItem>
+              )}
             </SelectContent>
           </Select>
           <FieldDescription>
@@ -544,7 +648,11 @@ function ComponentEditor({
             issues={issues}
             path={`${path}.buildSpec`}
             onChange={(change) =>
-              onChange((c) => ({ ...c, spec: change(c.spec) }))
+              onChange((c) => ({
+                ...c,
+                spec: change(c.spec),
+                specEdited: true,
+              }))
             }
           />
         )}
@@ -978,5 +1086,76 @@ function PipelinePreview({
         </pre>
       )}
     </Field>
+  );
+}
+
+/** What repo detection found: compose services, Dockerfiles, the entry point. */
+function DetectionPanel({ detection }: { detection: ComponentDetection }) {
+  const t = useTranslations("appForm.detect");
+  if (detection.isPending && !detection.data) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <Loader2 className="me-2 inline size-4 animate-spin" />
+        {t("loading")}
+      </p>
+    );
+  }
+  if (detection.error) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {detection.error instanceof ApiError
+          ? detection.error.message
+          : t("failed")}
+      </p>
+    );
+  }
+  const data = detection.data;
+  if (!data) return null;
+  return (
+    <section
+      className="flex flex-col gap-2 rounded-lg border p-3 text-sm"
+      aria-label={t("title")}
+    >
+      <h4 className="font-medium">{t("title")}</h4>
+      {data.issues.map((issue) => (
+        <p key={issue} className="text-destructive">
+          {t(`issue_${issue}`)}
+        </p>
+      ))}
+      {data.composeFile && (
+        <p>
+          {t("composeFile")}{" "}
+          <span className="font-mono">{data.composeFile}</span>
+        </p>
+      )}
+      {data.services.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {data.services.map((service) => (
+            <li
+              key={service.name}
+              className="flex flex-wrap items-center gap-2"
+            >
+              <span className="font-mono">{service.name}</span>
+              {service.ports.length > 0 && (
+                <span className="text-muted-foreground">
+                  {t("ports", {
+                    ports: service.ports.map((p) => p.container).join(", "),
+                  })}
+                </span>
+              )}
+              {service.name === data.entryService && (
+                <Badge variant="secondary">{t("entry")}</Badge>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {data.dockerfiles.length > 0 && (
+        <p>
+          {t("dockerfiles")}{" "}
+          <span className="font-mono">{data.dockerfiles.join(", ")}</span>
+        </p>
+      )}
+    </section>
   );
 }

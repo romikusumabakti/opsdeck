@@ -11,11 +11,11 @@ import {
 } from "@/components/ui/card";
 import type { ProvisioningStepSpec } from "@/lib/provisioning/plan";
 import type { SetupIssue } from "@/lib/setup/schema";
+import { sectionOfField } from "@/lib/setup/sections";
 import {
   type ProvisioningLookups,
   StepSentence,
 } from "../env/provisioning-step-sentence";
-import { sectionOfField } from "./environment-sections";
 import { useIssueMessage } from "./use-issue-message";
 
 /**
@@ -34,6 +34,7 @@ export function SetupReview({
   onRetry,
   submitting,
   onSubmit,
+  children,
 }: {
   creates: string[];
   plan: ProvisioningStepSpec[];
@@ -47,6 +48,8 @@ export function SetupReview({
   onRetry?: () => void;
   submitting: boolean;
   onSubmit: () => void;
+  /** Extra content after the plan (the New app stepper's progress). */
+  children?: React.ReactNode;
 }) {
   const t = useTranslations("setupWizard.review");
   const message = useIssueMessage(projectKey);
@@ -132,6 +135,8 @@ export function SetupReview({
             </ol>
           )}
         </section>
+
+        {children}
       </CardContent>
       <CardFooter className="justify-end gap-3">
         {checking && issues.length === 0 && (

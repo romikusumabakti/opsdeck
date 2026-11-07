@@ -1947,6 +1947,7 @@
     "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})",
     "environmentProvisioned": "{actor} melakukan provisioning {environment}",
     "environmentSetup": "{actor} menyiapkan {environment}",
+    "appBuildTriggered": "{actor} memulai build {component} pada {branch}",
     "variableCreated": "{actor} menambahkan variabel {name} ke {environment}",
     "variableUpdated": "{actor} mengubah variabel {name} di {environment}",
     "variableDeleted": "{actor} menghapus variabel {name} dari {environment}",
@@ -2481,8 +2482,6 @@
     "variableTemplates": "Variabel"
   },
   "appForm": {
-    "title": "Daftarkan aplikasi",
-    "description": "Mengaktifkan tiap repositori di Woodpecker dan memberinya secret notifikasi. Pipeline yang dibuat Panel di-commit sebagai .woodpecker.yaml ke setiap branch yang dibangunnya.",
     "appTitle": "Aplikasi",
     "name": "Nama",
     "appKey": "Kunci aplikasi",
@@ -2511,7 +2510,6 @@
     "modeCustomDescription": "Woodpecker tetap memakai berkas pipeline milik repositori.",
     "modeGeneratedDescription": "Panel membuat pipeline dari build spec di bawah dan meng-commit-nya sebagai .woodpecker.yaml ke setiap branch yang dibangunnya.",
     "generatedAdminOnly": "Hanya admin yang bisa memilih pipeline yang dibuat Panel.",
-    "generatedForbidden": "Hanya admin yang bisa mendaftarkan komponen dengan pipeline yang dibuat Panel.",
     "branches": "Branch",
     "branchesDescription": "Pisahkan dengan koma.",
     "tagShaLength": "Panjang commit di tag",
@@ -2538,10 +2536,6 @@
     "previewIncomplete": "Lengkapi build spec untuk melihat pipeline.",
     "previewLoading": "Membuat…",
     "previewFailed": "Pipeline tidak bisa dibuat",
-    "submit": "Daftarkan aplikasi",
-    "submitting": "Mendaftarkan…",
-    "registered": "{name} terdaftar",
-    "pipelineFileNotCommitted": "{component} ({branch}): berkas pipeline tidak di-commit: {reason}",
     "issues": {
       "bundleImageMismatch": "Image bundle harus {bundle}",
       "buildSpecRequired": "Pipeline yang dibuat Panel memerlukan build spec",
@@ -2567,6 +2561,21 @@
       "duplicateBundleTarget": "Dua berkas bundle memiliki tujuan yang sama",
       "duplicateCheck": "Dua pemeriksaan memiliki nama yang sama",
       "invalid": "Nilai ini tidak valid"
+    },
+    "branch": "Branch",
+    "branchDescription": "Branch tempat repositori dibaca dan build pertama dijalankan.",
+    "branchInvalid": "Masukkan nama branch yang valid.",
+    "detect": {
+      "title": "Terdeteksi di repositori",
+      "loading": "Membaca repositori…",
+      "failed": "Repositori tidak dapat dibaca",
+      "composeFile": "Berkas compose:",
+      "ports": "port kontainer {ports}",
+      "entry": "Titik masuk",
+      "dockerfiles": "Dockerfile:",
+      "issue_no_compose": "Berkas compose tidak ditemukan di akar repositori maupun folder pertamanya.",
+      "issue_no_dockerfile": "Dockerfile tidak ditemukan.",
+      "issue_compose_parse_error": "Berkas compose tidak dapat diurai."
     }
   },
   "variables": {
@@ -2938,6 +2947,77 @@
       "missing_db_fields": "Database bersama belum lengkap: isi host, database, role, dan variabel kata sandi.",
       "missing_entry_port": "Domain memerlukan port lokal.",
       "no_targets": "Tambahkan deploy target terlebih dahulu."
+    },
+    "newApp": {
+      "title": "Aplikasi baru",
+      "subtitle": "Daftarkan aplikasi, siapkan environment pertamanya, lalu jalankan build pertama.",
+      "cancel": "Batal",
+      "back": "Kembali",
+      "next": "Lanjut",
+      "registered": "{name} terdaftar",
+      "pipelineFileNotCommitted": "{component} ({branch}): berkas pipeline tidak di-commit: {reason}",
+      "provisioningNotStarted": "Environment dibuat, tetapi provisioning belum berjalan. Anda dapat memulainya dari halaman Deploys.",
+      "steps": {
+        "label": "Langkah",
+        "repo": "Repositori",
+        "environment": "Environment",
+        "database": "Database",
+        "variables": "Variabel",
+        "domain": "Domain",
+        "review": "Tinjau"
+      },
+      "environment": {
+        "project": "Proyek",
+        "projectPlaceholder": "Pilih proyek",
+        "name": "Nama",
+        "namePlaceholder": "mis. Production"
+      },
+      "variables": {
+        "hint": "Aplikasi baru belum punya templat variabel. Tambahkan variabel yang dibutuhkan aplikasi; variabel yang dibuat otomatis akan dibuatkan untuk Anda."
+      },
+      "domain": {
+        "entryDetected": "Titik masuk terdeteksi: {service} mendengarkan di port kontainer {port}.",
+        "entryService": "Titik masuk terdeteksi: {service}."
+      },
+      "review": {
+        "register": "Daftarkan aplikasi {appKey}",
+        "startBuild": "Jalankan build pertama dari {branch}",
+        "startBuildOf": "Jalankan build pertama dari {branch} ({component})",
+        "environment": "Environment {name}",
+        "target": "Target deploy {component} dari {branch} di {server}",
+        "database": {
+          "shared": "Database bersama",
+          "container": "Kontainer database",
+          "external": "Database eksternal",
+          "none": "Tanpa database"
+        },
+        "variables": "{count, plural, other {# variabel}}, {generated} dibuat otomatis",
+        "domain": {
+          "tunnel": "Domain tunnel {host}",
+          "external": "Domain eksternal {host}",
+          "none": "Tanpa domain"
+        }
+      },
+      "progress": {
+        "title": "Progres"
+      },
+      "lines": {
+        "register": "Daftarkan aplikasi",
+        "preview": "Periksa penyiapan",
+        "setup": "Buat environment",
+        "build": "Jalankan build pertama",
+        "hasIssues": "Perbaiki masalah di atas lalu tekan Buat lagi"
+      },
+      "lineStatus": {
+        "idle": "Belum dijalankan",
+        "running": "Berjalan",
+        "done": "Selesai",
+        "failed": "Gagal"
+      },
+      "setupFailed": "Aplikasi {appKey} sudah terdaftar, tetapi environment-nya belum dibuat. Perbaiki isian lalu tekan Buat lagi, atau lanjutkan di halaman Tambah environment dengan isian ini.",
+      "addEnvironmentLink": "Tambah environment",
+      "buildFailed": "Environment dibuat, tetapi build pertama belum berjalan. Jalankan dari halaman Deploys aplikasi.",
+      "openDeploys": "Buka Deploys"
     }
   }
 }
