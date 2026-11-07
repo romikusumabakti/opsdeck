@@ -84,6 +84,17 @@ const projects: AddEnvironmentProject[] = [
     ],
   },
 ];
+// A project where the caller is only a viewer: not for a new environment,
+// but its environments of the app can still be copied.
+const sourceProjects: AddEnvironmentProject[] = [
+  ...projects,
+  {
+    id: "viewer-project",
+    key: "VIEW",
+    name: "Viewer project",
+    environments: [{ id: "viewer-env", name: "Prod", appId: APP }],
+  },
+];
 const app = {
   id: APP,
   components: [{ componentKey: "hris", buildSpec: { branches: ["main"] } }],
@@ -188,6 +199,7 @@ async function mount(canPublish = false) {
             app={app}
             projects={projects}
             canPublish={canPublish}
+            sourceProjects={sourceProjects}
           />
         </IntlProvider>
       </QueryClientProvider>
@@ -248,7 +260,23 @@ describe("Add environment", () => {
     const options = [...document.querySelectorAll('[role="option"]')].map(
       (o) => o.textContent
     );
-    expect(options).toEqual(["Start empty", "HRIS / Production"]);
+    expect(options).toEqual([
+      "Start empty",
+      "HRIS / Production",
+      "Viewer project / Prod",
+    ]);
+  });
+
+  it("offers only projects the caller maintains for the new environment", async () => {
+    await mount();
+    await act(async () =>
+      document.querySelector<HTMLElement>("#env-project")?.click()
+    );
+    expect(
+      [...document.querySelectorAll('[role="option"]')].map(
+        (o) => o.textContent
+      )
+    ).toEqual(["HRIS"]);
   });
 
   it("fills the sections from the copy source", async () => {
@@ -391,6 +419,29 @@ describe("Add environment", () => {
       messages.setupWizard.addEnvironment.provisioningNotStarted
     );
     expect(api.push).toHaveBeenCalledWith("/HRIS/staging/deploys");
+  });
+
+  it("keeps Create off and says so when the preview request fails", async () => {
+    await mount();
+    await chooseCopySource();
+    await act(async () =>
+      type(document.querySelector("#env-name") as HTMLInputElement, "Staging")
+    );
+    api.preview.mockRejectedValue(new Error("boom"));
+    await act(async () =>
+      type(document.querySelector("#env-name") as HTMLInputElement, "Staging 2")
+    );
+    await settle();
+    expect(container.textContent).toContain("Could not check the setup");
+    const button = createButton();
+    expect(button.disabled).toBe(true);
+    await act(async () => button.click());
+    expect(api.create).not.toHaveBeenCalled();
+    // Retry runs the preview again; a good answer enables Create.
+    api.preview.mockResolvedValue(cleanPreview);
+    await act(async () => byText("button", "Try again")?.click());
+    await settle();
+    expect(container.textContent).not.toContain("Could not check the setup");
   });
 
   it("never posts a create while the preview reports an issue", async () => {

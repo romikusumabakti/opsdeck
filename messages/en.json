@@ -2807,7 +2807,8 @@
       "variables": "Variables",
       "domain": "Domain",
       "deploy": "Deploy",
-      "issueCount": "{count, plural, one {# issue} other {# issues}}"
+      "issueCount": "{count, plural, one {# issue} other {# issues}}",
+      "general": "General"
     },
     "addEnvironment": {
       "title": "Add environment",
@@ -2895,7 +2896,9 @@
       "nothingYet": "Nothing yet: complete the sections above.",
       "checking": "Checking…",
       "submit": "Create & deploy",
-      "creating": "Creating…"
+      "creating": "Creating…",
+      "previewFailed": "Could not check the setup. Nothing can be created until the check succeeds.",
+      "retry": "Try again"
     },
     "issues": {
       "unknown": "This setting is not accepted.",

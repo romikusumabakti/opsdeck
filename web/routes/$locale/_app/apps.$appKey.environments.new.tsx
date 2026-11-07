@@ -70,6 +70,7 @@ function AddEnvironmentPage() {
       <AddEnvironmentForm
         app={app}
         projects={projectsToAddEnvironmentTo(projects, access.roles)}
+        sourceProjects={projects}
         canPublish={canOrg(me?.orgRole, { server: ["manage"] })}
         initialProjectKey={project}
       />

@@ -2807,7 +2807,8 @@
       "variables": "Variabel",
       "domain": "Domain",
       "deploy": "Deploy",
-      "issueCount": "{count} masalah"
+      "issueCount": "{count} masalah",
+      "general": "Umum"
     },
     "addEnvironment": {
       "title": "Tambah environment",
@@ -2895,7 +2896,9 @@
       "nothingYet": "Belum ada: lengkapi bagian di atas.",
       "checking": "Memeriksa…",
       "submit": "Buat & deploy",
-      "creating": "Membuat…"
+      "creating": "Membuat…",
+      "previewFailed": "Pengecekan setup gagal. Belum ada yang bisa dibuat sampai pengecekan berhasil.",
+      "retry": "Coba lagi"
     },
     "issues": {
       "unknown": "Pengaturan ini tidak diterima.",

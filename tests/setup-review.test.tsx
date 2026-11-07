@@ -78,7 +78,11 @@ describe("SetupReview", () => {
     expect(out).toContain(
       "The project already has an environment with this name."
     );
-    expect(out).toContain("variables.SMTP_PASSWORD");
+    // The section it belongs to, never the raw field path.
+    expect(out).toContain("Variables: Enter a value.");
+    expect(out).toContain("General: The project already has");
+    expect(out).toContain("Server: On an open server");
+    expect(out).not.toContain("variables.SMTP_PASSWORD");
     expect(out).toContain("Enter a value.");
     // The placement rule names the project's prefix.
     expect(out).toContain("start with hris-");

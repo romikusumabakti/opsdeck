@@ -99,8 +99,6 @@ export type EnvironmentDraft = {
 export type DraftContext = {
   appId: string;
   projectKey: string;
-  /** Components of the app, to tell a single-target app from a multi one. */
-  componentCount: number;
   /** The slug the server gave the name, else the local approximation. */
   slug: string;
   suggestedServices: { role: SetupServiceRole; serviceName: string }[];
@@ -111,24 +109,14 @@ export type DraftContext = {
   probe?: boolean;
 };
 
-/** The URL-name base the server gives an environment name (`uniqueEnvSlug`). */
-export function baseEnvSlug(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "env"
-  );
-}
-
-/** `/deployments/<project key>-<slug>`; a multi-component app adds the component. */
+/**
+ * `/deployments/<project key>-<slug>`. An app is one stack (one compose file,
+ * one `.env`), so every component deploys into the same directory.
+ */
 export function defaultDeployDir(
-  ctx: Pick<DraftContext, "projectKey" | "slug" | "componentCount">,
-  componentKey: string
+  ctx: Pick<DraftContext, "projectKey" | "slug">
 ): string {
-  const base = `/deployments/${ctx.projectKey.toLowerCase()}-${ctx.slug}`;
-  return ctx.componentCount > 1 ? `${base}-${componentKey}` : base;
+  return `/deployments/${ctx.projectKey.toLowerCase()}-${ctx.slug}`;
 }
 
 /** `<project key>_<slug>` with underscores, the shared database name rule. */
@@ -144,9 +132,7 @@ export function defaultDbContainer(
   ctx: DraftContext
 ): string {
   const first = draft.targets[0];
-  const dir = first
-    ? (first.deployDir ?? defaultDeployDir(ctx, first.componentKey))
-    : "";
+  const dir = first ? (first.deployDir ?? defaultDeployDir(ctx)) : "";
   const project = (dir.split("/").filter(Boolean).at(-1) ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, "");
@@ -293,11 +279,14 @@ export function applyCopySource(
       fromSource: true,
       copyable: v.copyable,
       // Only a plain value is ever shown or sent back.
-      value: v.kind === "plain" ? (v.value ?? "") : "",
+      value: v.kind === "plain" && !v.escrow ? (v.value ?? "") : "",
       required:
-        v.kind === "secret"
-          ? !v.copyable
-          : v.kind === "plain" && v.hasValue && v.value === undefined,
+        v.kind === "generated"
+          ? false
+          : v.escrow ||
+            (v.kind === "secret"
+              ? !v.copyable
+              : v.hasValue && v.value === undefined),
     })),
   };
   return withPasswordVariable(next);
@@ -427,7 +416,7 @@ export function buildSetupInput(
       componentKey: t.componentKey,
       sourceBranch: t.sourceBranch,
       autoDeploy: t.autoDeploy,
-      deployDir: t.deployDir ?? defaultDeployDir(ctx, t.componentKey),
+      deployDir: t.deployDir ?? defaultDeployDir(ctx),
       services: splitList(t.services),
       tagVariable: t.tagVariable,
       preStartCommand: t.preStartCommand.trim() || null,

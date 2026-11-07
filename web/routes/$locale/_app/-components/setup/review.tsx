@@ -15,6 +15,7 @@ import {
   type ProvisioningLookups,
   StepSentence,
 } from "../env/provisioning-step-sentence";
+import { sectionOfField } from "./environment-sections";
 import { useIssueMessage } from "./use-issue-message";
 
 /**
@@ -29,6 +30,8 @@ export function SetupReview({
   issues,
   projectKey,
   checking,
+  previewFailed = false,
+  onRetry,
   submitting,
   onSubmit,
 }: {
@@ -39,12 +42,16 @@ export function SetupReview({
   projectKey: string;
   /** The input changed and its preview has not come back yet. */
   checking: boolean;
+  /** The preview request failed: the answer is unknown, so no create. */
+  previewFailed?: boolean;
+  onRetry?: () => void;
   submitting: boolean;
   onSubmit: () => void;
 }) {
   const t = useTranslations("setupWizard.review");
   const message = useIssueMessage(projectKey);
-  const blocked = issues.length > 0 || checking || submitting;
+  const tSections = useTranslations("setupWizard.sections");
+  const blocked = issues.length > 0 || checking || previewFailed || submitting;
 
   return (
     <Card>
@@ -66,7 +73,9 @@ export function SetupReview({
                 >
                   <CircleAlert className="mt-0.5 size-4 shrink-0" />
                   <span>
-                    <code className="font-mono text-xs">{issue.field}</code>
+                    <strong className="font-medium">
+                      {tSections(sectionOfField(issue.field) ?? "general")}
+                    </strong>
                     {": "}
                     {message(issue.code)}
                   </span>
@@ -74,6 +83,26 @@ export function SetupReview({
               ))}
             </ul>
           </section>
+        )}
+
+        {previewFailed && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-3 text-sm text-destructive"
+          >
+            <CircleAlert className="size-4 shrink-0" />
+            <span>{t("previewFailed")}</span>
+            {onRetry && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRetry}
+              >
+                {t("retry")}
+              </Button>
+            )}
+          </div>
         )}
 
         <section className="flex flex-col gap-2">
