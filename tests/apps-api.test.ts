@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   components: [] as Row[],
   calls: [] as string[],
   envProjects: [] as string[],
+  // The component's deploy targets (componentTargetBranches).
+  targetBranches: [] as { projectId: string; sourceBranch: string }[],
   insertError: null as Error | null,
   secretWriteError: null as Error | null,
   selectedFields: [] as unknown[],
@@ -147,6 +149,7 @@ vi.mock("@/lib/apps", async (importOriginal) => {
       if (c) c.notifySecret = value;
     }),
     projectIdsWithAppEnvironment: vi.fn(async () => [...state.envProjects]),
+    componentTargetBranches: vi.fn(async () => [...state.targetBranches]),
     getComponent: vi.fn(async (componentKey: string) => {
       const c = state.components.find((x) => x.componentKey === componentKey);
       const app = c && state.apps.find((a) => a.id === c.appId);
@@ -268,6 +271,7 @@ beforeEach(() => {
   state.components = [];
   state.calls = [];
   state.envProjects = [];
+  state.targetBranches = [];
   state.insertError = null;
   state.secretWriteError = null;
   state.selectedFields = [];
@@ -922,17 +926,58 @@ describe("POST build", () => {
     );
   });
 
-  it("lets a maintainer of a project with an environment of the app", async () => {
+  it("lets a maintainer build the branch a target of the component deploys in their project", async () => {
     state.orgRole = "member";
     state.projectRoles = { "project-1": "maintainer" };
     state.envProjects = ["project-1"];
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
+    expect(provider.triggerPipeline).toHaveBeenCalledWith("1", "main");
+  });
+
+  it("refuses a maintainer a branch no target of the component deploys", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer" };
+    state.envProjects = ["project-1"];
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
+    expect((await send("POST", PATH, { branch: "feature/x" })).status).toBe(
+      403
+    );
+    expect(provider.triggerPipeline).not.toHaveBeenCalled();
+  });
+
+  it("refuses a maintainer a branch deployed only in another project", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer", "project-2": "viewer" };
+    state.envProjects = ["project-1", "project-2"];
+    state.targetBranches = [
+      { projectId: "project-1", sourceBranch: "main" },
+      { projectId: "project-2", sourceBranch: "release" },
+    ];
+    expect((await send("POST", PATH, { branch: "release" })).status).toBe(403);
+    expect(provider.triggerPipeline).not.toHaveBeenCalled();
+  });
+
+  it("refuses a maintainer when the app's environments have no target of this component", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer" };
+    state.envProjects = ["project-1"];
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
+  });
+
+  it("lets an admin build any branch once the app has environments", async () => {
+    state.envProjects = ["project-1"];
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
+    expect((await send("POST", PATH, { branch: "feature/x" })).status).toBe(
+      200
+    );
   });
 
   it("refuses a maintainer of another project once the app has environments", async () => {
     state.orgRole = "member";
     state.projectRoles = { "project-2": "maintainer" };
     state.envProjects = ["project-1"];
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
     expect(provider.triggerPipeline).not.toHaveBeenCalled();
   });
@@ -941,6 +986,7 @@ describe("POST build", () => {
     state.orgRole = "member";
     state.projectRoles = { "project-1": "contributor" };
     state.envProjects = ["project-1"];
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
   });
 
