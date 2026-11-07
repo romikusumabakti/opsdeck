@@ -48,6 +48,11 @@ export interface CiProvider {
   ): Promise<void>;
   /** All null when the pipeline does not exist (404). */
   getPipeline(ciRepoId: string, number: number): Promise<PipelineActors>;
+  /** Starts a pipeline of the branch; resolves with its number. */
+  triggerPipeline(
+    ciRepoId: string,
+    branch: string
+  ): Promise<{ number: number }>;
 }
 
 /** A failed CI provider call. The message never contains credentials. */

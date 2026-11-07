@@ -201,6 +201,36 @@ export async function findAutoTargets(
     );
 }
 
+/**
+ * Targets that are not auto but wait for the next build of their branch
+ * (`deploy_next_build`). Auto targets that are flagged too are not listed:
+ * their auto deployment clears the flag in placeDeployment.
+ */
+export async function findNextBuildTargets(
+  componentKey: string,
+  branch: string
+): Promise<DeployTarget[]> {
+  return db
+    .select()
+    .from(deployTargets)
+    .where(
+      and(
+        eq(deployTargets.componentKey, componentKey),
+        eq(deployTargets.sourceBranch, branch),
+        eq(deployTargets.deployNextBuild, true),
+        eq(deployTargets.autoDeploy, false)
+      )
+    );
+}
+
+/** Flags a target to deploy the next build of its branch (once). */
+export async function flagDeployNextBuild(targetId: string): Promise<void> {
+  await db
+    .update(deployTargets)
+    .set({ deployNextBuild: true })
+    .where(eq(deployTargets.id, targetId));
+}
+
 export async function getTarget(id: string): Promise<DeployTarget | null> {
   const [row] = await db
     .select()
@@ -679,7 +709,7 @@ export type PlaceDeploymentResult = (
  * request are serialized — either the request sees the lock and its held row
  * is visible to the release, or it sees no lock and queues.
  */
-export async function placeDeployment(input: {
+export type PlaceDeploymentInput = {
   targetId: string;
   environmentId: string;
   tag: string;
@@ -688,68 +718,116 @@ export async function placeDeployment(input: {
   buildId: string | null;
   description: string;
   now: Date;
-}): Promise<PlaceDeploymentResult> {
-  return db.transaction(async (tx) => {
-    // An expired lock still in place (the sweep has not run yet) is released
-    // first, so its held builds are queued before this request. A
-    // conditional DELETE rather than a check of the FOR SHARE read below: see
-    // the lock order note. It matches nothing while the lock is active.
-    const released = await releaseLockIn(
-      tx,
-      input.environmentId,
-      { expiredAt: input.now },
-      null,
-      input.now
-    );
-    const lock = await readLockForShare(tx, input.environmentId);
-    const placement = placementFor(lock, input.trigger, input.now);
-    if (placement === "locked" && lock) {
-      return { kind: "locked", lock, released };
-    }
-    const held = placement === "held";
-    const runId = held
-      ? null
-      : one(
-          await tx
-            .insert(runs)
-            .values({
-              environmentId: input.environmentId,
-              userId: input.userId,
-              triggeredBy:
-                input.trigger === "auto"
-                  ? await buildActor(tx, input.buildId)
-                  : null,
-              description: input.description,
-              kind: "deploy",
-              runAt: input.now,
-              status: "started",
-              output: "",
-            })
-            .returning({ id: runs.id }),
-          "run"
-        ).id;
-    const deployment = one(
-      await tx
-        .insert(deployments)
-        .values({
-          targetId: input.targetId,
-          environmentId: input.environmentId,
-          runId,
-          tag: input.tag,
-          trigger: input.trigger,
-          buildId: input.buildId,
-          status: held ? "held" : "queued",
-        })
-        .returning({ id: deployments.id }),
-      "deployment"
-    );
-    if (input.trigger === "auto") {
-      await supersedeQueuedAuto(input.targetId, deployment.id, tx);
-    }
-    return runId === null
-      ? { kind: "held", deploymentId: deployment.id, runId: null, released }
-      : { kind: "queued", deploymentId: deployment.id, runId, released };
-  });
+};
+
+/**
+ * Every placement clears the target's `deploy_next_build` flag in the same
+ * transaction: a deployment of any trigger satisfies "deploy the next build".
+ * `requireFlag` makes the clear the gate: the deployment is placed only when
+ * this transaction cleared a set flag (the build hook's flagged targets), so
+ * concurrent notifications deploy once. The flag UPDATE comes after the lock
+ * read, so the lock order (lock row, then the rest) is the same on every path.
+ */
+async function placeIn(
+  tx: Tx,
+  input: PlaceDeploymentInput,
+  requireFlag: boolean
+): Promise<
+  PlaceDeploymentResult | { kind: "skipped"; released: ReleasedLock | null }
+> {
+  // An expired lock still in place (the sweep has not run yet) is released
+  // first, so its held builds are queued before this request. A
+  // conditional DELETE rather than a check of the FOR SHARE read below: see
+  // the lock order note. It matches nothing while the lock is active.
+  const released = await releaseLockIn(
+    tx,
+    input.environmentId,
+    { expiredAt: input.now },
+    null,
+    input.now
+  );
+  const lock = await readLockForShare(tx, input.environmentId);
+  const placement = placementFor(lock, input.trigger, input.now);
+  if (placement === "locked" && lock) {
+    return { kind: "locked", lock, released };
+  }
+  const cleared = await tx
+    .update(deployTargets)
+    .set({ deployNextBuild: false })
+    .where(
+      and(
+        eq(deployTargets.id, input.targetId),
+        eq(deployTargets.deployNextBuild, true)
+      )
+    )
+    .returning({ id: deployTargets.id });
+  if (requireFlag && cleared.length === 0) {
+    return { kind: "skipped", released };
+  }
+  const held = placement === "held";
+  const runId = held
+    ? null
+    : one(
+        await tx
+          .insert(runs)
+          .values({
+            environmentId: input.environmentId,
+            userId: input.userId,
+            triggeredBy:
+              input.trigger === "auto"
+                ? await buildActor(tx, input.buildId)
+                : null,
+            description: input.description,
+            kind: "deploy",
+            runAt: input.now,
+            status: "started",
+            output: "",
+          })
+          .returning({ id: runs.id }),
+        "run"
+      ).id;
+  const deployment = one(
+    await tx
+      .insert(deployments)
+      .values({
+        targetId: input.targetId,
+        environmentId: input.environmentId,
+        runId,
+        tag: input.tag,
+        trigger: input.trigger,
+        buildId: input.buildId,
+        status: held ? "held" : "queued",
+      })
+      .returning({ id: deployments.id }),
+    "deployment"
+  );
+  if (input.trigger === "auto") {
+    await supersedeQueuedAuto(input.targetId, deployment.id, tx);
+  }
+  return runId === null
+    ? { kind: "held", deploymentId: deployment.id, runId: null, released }
+    : { kind: "queued", deploymentId: deployment.id, runId, released };
+}
+
+export async function placeDeployment(
+  input: PlaceDeploymentInput
+): Promise<PlaceDeploymentResult> {
+  const result = await db.transaction((tx) => placeIn(tx, input, false));
+  if (result.kind === "skipped") throw new Error("unreachable: not gated");
+  return result;
+}
+
+/**
+ * placeDeployment for a target flagged `deploy_next_build`: places the
+ * deployment only when this call cleared the flag; `skipped` otherwise (another
+ * notification took it). Always `auto` in practice.
+ */
+export async function placeDeploymentIfFlagged(
+  input: PlaceDeploymentInput
+): Promise<
+  PlaceDeploymentResult | { kind: "skipped"; released: ReleasedLock | null }
+> {
+  return db.transaction((tx) => placeIn(tx, input, true));
 }
 
 /**

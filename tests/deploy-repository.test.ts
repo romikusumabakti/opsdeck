@@ -14,6 +14,7 @@ const {
   insertDeployLock,
   listServicesInDeployDir,
   placeDeployment,
+  placeDeploymentIfFlagged,
   releaseDeployLock,
   supersedeHeldDeployments,
 } = await import("@/lib/deploy/repository");
@@ -292,6 +293,73 @@ describe("placeDeployment", () => {
     expect(ops.filter((o) => o.op !== "select")).toEqual([
       { op: "delete", table: "environment_deploy_locks" },
     ]);
+  });
+});
+
+describe("deploy_next_build flag", () => {
+  const answerQueued = (flagRows: unknown[]) => (r: Recorded) => {
+    if (r.op === "select") return [];
+    if (r.op === "update" && r.table === "deploy_targets") return flagRows;
+    if (r.op === "insert") {
+      return [{ id: r.table === "runs" ? "run-1" : "dep-1" }];
+    }
+    return [];
+  };
+
+  it("places the deployment when this call cleared the flag", async () => {
+    const ops = recordingTx(answerQueued([{ id: "t1" }]));
+    await expect(placeDeploymentIfFlagged(placeInput)).resolves.toMatchObject({
+      kind: "queued",
+      deploymentId: "dep-1",
+    });
+    const clear = ops.find(
+      (o) => o.op === "update" && o.table === "deploy_targets"
+    );
+    expect(clear?.values).toEqual({ deployNextBuild: false });
+  });
+
+  it("places nothing when another call already cleared the flag", async () => {
+    const ops = recordingTx(answerQueued([]));
+    await expect(placeDeploymentIfFlagged(placeInput)).resolves.toMatchObject({
+      kind: "skipped",
+    });
+    expect(ops.some((o) => o.op === "insert")).toBe(false);
+  });
+
+  it("holds the flagged deployment while locked and clears the flag", async () => {
+    const ops = recordingTx((r) => {
+      if (r.op === "select") return [{ lock: activeLock, lockerName: "Budi" }];
+      return answerQueued([{ id: "t1" }])(r);
+    });
+    await expect(placeDeploymentIfFlagged(placeInput)).resolves.toMatchObject({
+      kind: "held",
+      runId: null,
+    });
+    expect(
+      ops.some((o) => o.op === "update" && o.table === "deploy_targets")
+    ).toBe(true);
+  });
+
+  it("a manual deploy clears the flag, after the lock is read", async () => {
+    const ops = recordingTx(answerQueued([{ id: "t1" }]));
+    await placeDeployment({ ...placeInput, trigger: "manual" });
+    const names = ops.map((o) => `${o.op}:${o.table}`);
+    expect(names.indexOf("select:environment_deploy_locks")).toBeLessThan(
+      names.indexOf("update:deploy_targets")
+    );
+    expect(names.indexOf("update:deploy_targets")).toBeLessThan(
+      names.indexOf("insert:deployments")
+    );
+  });
+
+  it("a refused manual deploy leaves the flag alone", async () => {
+    const ops = recordingTx((r) =>
+      r.op === "select" ? [{ lock: activeLock, lockerName: "Budi" }] : []
+    );
+    await placeDeployment({ ...placeInput, trigger: "manual" });
+    expect(
+      ops.some((o) => o.op === "update" && o.table === "deploy_targets")
+    ).toBe(false);
   });
 });
 

@@ -4,13 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const repo = vi.hoisted(() => ({
   insertBuildIfNew: vi.fn(),
   findAutoTargets: vi.fn(),
+  findNextBuildTargets: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
 
 const apps = vi.hoisted(() => ({ getComponent: vi.fn() }));
 vi.mock("@/lib/apps", () => apps);
 
-const deployments = vi.hoisted(() => ({ requestDeployment: vi.fn() }));
+const deployments = vi.hoisted(() => ({
+  requestDeployment: vi.fn(),
+  requestFlaggedDeployment: vi.fn(),
+}));
 vi.mock("@/server/services/deployments", () => deployments);
 
 const ci = vi.hoisted(() => ({
@@ -81,6 +85,7 @@ beforeEach(() => {
     created: true,
   });
   repo.findAutoTargets.mockResolvedValue([{ id: TARGET_A }, { id: TARGET_B }]);
+  repo.findNextBuildTargets.mockResolvedValue([]);
   deployments.requestDeployment.mockImplementation(
     async (input: { targetId: string }) => ({
       deploymentId: `dep-${input.targetId}`,
@@ -223,6 +228,80 @@ describe("POST /api/deploy-hooks/builds", () => {
         buildId: BUILD_ID,
       });
     }
+  });
+
+  describe("targets flagged to deploy the next build", () => {
+    const FLAGGED = "0197f3a0-1b2c-7def-8000-0123456789a9";
+    const flagged = () => {
+      repo.findAutoTargets.mockResolvedValue([]);
+      repo.findNextBuildTargets.mockResolvedValue([{ id: FLAGGED }]);
+    };
+
+    it("requests one auto deployment for a flagged target", async () => {
+      flagged();
+      deployments.requestFlaggedDeployment.mockResolvedValue({
+        deploymentId: "dep-flagged",
+        runId: "run-flagged",
+        status: "queued",
+      });
+      const body = JSON.stringify(notification);
+      const res = await deliver(body, sign(body));
+      expect(await res.json()).toMatchObject({
+        deploymentIds: ["dep-flagged"],
+      });
+      expect(repo.findNextBuildTargets).toHaveBeenCalledWith(
+        "dplk-accounting",
+        "sucor/development"
+      );
+      expect(deployments.requestFlaggedDeployment).toHaveBeenCalledWith({
+        targetId: FLAGGED,
+        tag: TAG,
+        trigger: "auto",
+        userId: null,
+        buildId: BUILD_ID,
+      });
+      expect(deployments.requestDeployment).not.toHaveBeenCalled();
+    });
+
+    it("deploys once when two builds of the branch arrive together", async () => {
+      flagged();
+      // The flag is cleared in the placing transaction: only one call gets it.
+      deployments.requestFlaggedDeployment
+        .mockResolvedValueOnce({
+          deploymentId: "dep-flagged",
+          runId: "run-flagged",
+          status: "queued",
+        })
+        .mockResolvedValueOnce(null);
+      repo.insertBuildIfNew.mockImplementation(async (b: { tag: string }) => ({
+        build: { id: `build-${b.tag}` },
+        created: true,
+      }));
+      const first = JSON.stringify(notification);
+      const second = JSON.stringify({ ...notification, tag: `${TAG}-2` });
+      const [a, b] = await Promise.all([
+        deliver(first, sign(first)),
+        deliver(second, sign(second)),
+      ]);
+      const ids = [
+        ...((await a.json()) as { deploymentIds: string[] }).deploymentIds,
+        ...((await b.json()) as { deploymentIds: string[] }).deploymentIds,
+      ];
+      expect(ids).toEqual(["dep-flagged"]);
+    });
+
+    it("keeps the build and the auto targets when the flagged request fails", async () => {
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      repo.findNextBuildTargets.mockResolvedValue([{ id: FLAGGED }]);
+      deployments.requestFlaggedDeployment.mockRejectedValue(new Error("boom"));
+      const body = JSON.stringify(notification);
+      const res = await deliver(body, sign(body));
+      expect(res.status).toBe(202);
+      expect(await res.json()).toMatchObject({
+        deploymentIds: [`dep-${TARGET_A}`, `dep-${TARGET_B}`],
+      });
+      errors.mockRestore();
+    });
   });
 
   it("maps the hook's app field to the component key", async () => {

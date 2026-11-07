@@ -185,11 +185,31 @@ export function createWoodpeckerProvider(
     };
   }
 
+  async function triggerPipeline(
+    ciRepoId: string,
+    branch: string
+  ): Promise<{ number: number }> {
+    const res = await request(
+      "POST",
+      `/api/repos/${encodeURIComponent(ciRepoId)}/pipelines`,
+      { branch, variables: {} }
+    );
+    const pipeline = (await res.json()) as { number?: unknown } | null;
+    if (!Number.isSafeInteger(pipeline?.number)) {
+      throw new CiProviderError(
+        "Woodpecker POST /pipelines answered without a pipeline number",
+        502
+      );
+    }
+    return { number: pipeline?.number as number };
+  }
+
   return {
     listRepos,
     activateRepo,
     updateRepoSettings,
     upsertRepoSecret,
     getPipeline,
+    triggerPipeline,
   };
 }

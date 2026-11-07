@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { getComponent } from "@/lib/apps";
 import { parsePipelineNumber } from "@/lib/ci/woodpecker";
-import { findAutoTargets, insertBuildIfNew } from "@/lib/deploy/repository";
+import {
+  findAutoTargets,
+  findNextBuildTargets,
+  insertBuildIfNew,
+} from "@/lib/deploy/repository";
 import {
   branchSchema,
   commitShaSchema,
@@ -9,7 +13,10 @@ import {
   deployTagSchema,
 } from "@/lib/deploy/validation";
 import { getProviderForConnection } from "@/server/services/ci-connections";
-import { requestDeployment } from "@/server/services/deployments";
+import {
+  requestDeployment,
+  requestFlaggedDeployment,
+} from "@/server/services/deployments";
 
 /** The body CI posts to /api/deploy-hooks/builds after pushing an image. */
 export const buildNotificationSchema = z.object({
@@ -141,6 +148,28 @@ export async function recordBuild(n: BuildNotification): Promise<{
     } catch (error) {
       console.error(
         `Failed to request auto deployment of ${n.app} ${n.tag} to target ${target.id}:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+  // Targets flagged to deploy their next build (the setup wizard, a first
+  // build that did not exist yet) deploy this one, once: the flag is cleared
+  // in the placing transaction, and only the call that cleared it places.
+  // Flagged auto targets are not listed here: their auto deployment above
+  // already cleared the flag.
+  for (const target of await findNextBuildTargets(n.app, n.branch)) {
+    try {
+      const requested = await requestFlaggedDeployment({
+        targetId: target.id,
+        tag: n.tag,
+        trigger: "auto",
+        userId: null,
+        buildId: build.id,
+      });
+      if (requested) deploymentIds.push(requested.deploymentId);
+    } catch (error) {
+      console.error(
+        `Failed to request first deployment of ${n.app} ${n.tag} to target ${target.id}:`,
         error instanceof Error ? error.message : error
       );
     }

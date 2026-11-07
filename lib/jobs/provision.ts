@@ -1,5 +1,5 @@
 import { HTTPException } from "hono/http-exception";
-import { getTarget } from "@/lib/deploy/repository";
+import { flagDeployNextBuild, getTarget } from "@/lib/deploy/repository";
 import { loadServerCredentials } from "@/lib/environments";
 import {
   accessApp,
@@ -127,9 +127,9 @@ async function deploy(
     throw new StepFailed(`Deploy target ${params.targetId} not found`);
   const build = await findNewestBuild(target.componentKey, target.sourceBranch);
   if (!build) {
-    throw new StepFailed(
-      `No build of ${target.sourceBranch} yet; retry after the first build`
-    );
+    // Nothing to deploy yet: the next build of the branch deploys once.
+    await flagDeployNextBuild(target.id);
+    return `Waiting for the first build of ${target.sourceBranch}; it deploys when it lands`;
   }
   try {
     // The provisioning run does not wait: the deploy has its own run.
