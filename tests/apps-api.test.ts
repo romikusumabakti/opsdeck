@@ -893,7 +893,11 @@ describe("POST commit-pipeline-file", () => {
 
 describe("POST build", () => {
   const PATH = "/api/apps/a/components/accounting/build";
-  const APP_ROW = { id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" };
+  const APP_ROW = {
+    id: "0197f3a0-1b2c-7def-8000-0123456789a9",
+    appKey: "a",
+    createdAt: new Date(),
+  };
 
   beforeEach(() => {
     state.apps = [APP_ROW];
@@ -940,9 +944,22 @@ describe("POST build", () => {
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
   });
 
-  it("lets a registrant start the first build of an app with no environment", async () => {
+  it("lets a registrant start the first build of a fresh app with no environment", async () => {
     state.orgRole = "member";
     state.projectRoles = { "project-2": "maintainer" };
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
+  });
+
+  it("refuses a maintainer for an old app with no environment, but not an admin", async () => {
+    state.apps = [
+      { ...APP_ROW, createdAt: new Date(Date.now() - 2 * 3600_000) },
+    ];
+    state.orgRole = "member";
+    state.projectRoles = { "project-2": "maintainer" };
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
+    expect(provider.triggerPipeline).not.toHaveBeenCalled();
+    state.orgRole = "admin";
+    state.projectRoles = {};
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
   });
 

@@ -57,6 +57,7 @@ export function AddEnvironmentForm({
   canPublish,
   initialProjectKey,
   initialDraft,
+  entryService,
 }: {
   app: AddEnvironmentApp;
   /** Projects the caller may create environments in, with their environments. */
@@ -67,6 +68,8 @@ export function AddEnvironmentForm({
   initialProjectKey?: string;
   /** A draft handed over by another page (the New app stepper). */
   initialDraft?: EnvironmentDraft;
+  /** The compose service the domain routes to, from repo detection. */
+  entryService?: string;
 }) {
   const t = useTranslations("setupWizard");
   const router = useRouter();
@@ -116,7 +119,12 @@ export function AddEnvironmentForm({
     byField,
     message,
     lookups,
-  } = useSetupPreview({ draft, appId: app.id, projectKey });
+  } = useSetupPreview({
+    draft,
+    appId: app.id,
+    projectKey,
+    entryService: entryService ?? null,
+  });
 
   async function onCopyFrom(id: string | null) {
     if (!id) {
