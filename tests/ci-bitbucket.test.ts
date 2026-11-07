@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { branchExists, commitFile } from "@/lib/ci/forges/bitbucket";
+import {
+  branchExists,
+  commitFile,
+  listRepoDir,
+  readRepoFile,
+} from "@/lib/ci/forges/bitbucket";
 import { CiProviderError } from "@/lib/ci/types";
 
 const AUTH = { username: "dev@example.test", token: "super-secret-token" };
@@ -251,5 +256,106 @@ describe("bitbucket branchExists", () => {
     const m = mockFetch(new Response("{}", { status: 200 }));
     expect(await branchExists(AUTH, REPO, "release/1.2.x", m.impl)).toBe(true);
     expect(await branchExists(AUTH, REPO, "v1..2", m.impl)).toBe(true);
+  });
+});
+
+describe("bitbucket readRepoFile", () => {
+  it("encodes each path segment and keeps the slash between them", async () => {
+    const m = mockFetch(new Response("services: {}\n", { status: 200 }));
+    const out = await readRepoFile(
+      AUTH,
+      REPO,
+      "feature/x",
+      "docker dir/compose file.yaml",
+      m.impl
+    );
+    expect(out).toBe("services: {}\n");
+    expect((m.calls[0] as (typeof m.calls)[number]).url).toBe(
+      "https://api.bitbucket.org/2.0/repositories/acme/widgets/src/feature/x/docker%20dir/compose%20file.yaml"
+    );
+  });
+
+  it("returns null on 404", async () => {
+    const m = mockFetch(new Response("{}", { status: 404 }));
+    expect(await readRepoFile(AUTH, REPO, "main", "nope.yaml", m.impl)).toBe(
+      null
+    );
+  });
+
+  it("returns null for a file over 256 KiB", async () => {
+    const m = mockFetch(new Response("a".repeat(256 * 1024 + 1)));
+    expect(await readRepoFile(AUTH, REPO, "main", "big.yaml", m.impl)).toBe(
+      null
+    );
+  });
+
+  it("still throws on other failures", async () => {
+    const m = mockFetch(new Response("{}", { status: 500 }));
+    await expect(
+      readRepoFile(AUTH, REPO, "main", "a.yaml", m.impl)
+    ).rejects.toBeInstanceOf(CiProviderError);
+  });
+
+  it("refuses a path that climbs out", async () => {
+    const m = mockFetch(new Response(""));
+    await expect(
+      readRepoFile(AUTH, REPO, "main", "../x", m.impl)
+    ).rejects.toThrow();
+  });
+});
+
+describe("bitbucket listRepoDir", () => {
+  it("lists the root and maps entry types", async () => {
+    const m = mockFetch(
+      Response.json({
+        values: [
+          { path: "compose.yaml", type: "commit_file" },
+          { path: "backend", type: "commit_directory" },
+        ],
+      })
+    );
+    expect(await listRepoDir(AUTH, REPO, "main", "", m.impl)).toEqual([
+      { path: "compose.yaml", type: "file" },
+      { path: "backend", type: "dir" },
+    ]);
+    expect((m.calls[0] as (typeof m.calls)[number]).url).toBe(
+      "https://api.bitbucket.org/2.0/repositories/acme/widgets/src/main/?pagelen=100"
+    );
+  });
+
+  it("follows next links", async () => {
+    const next =
+      "https://api.bitbucket.org/2.0/repositories/acme/widgets/src/main/backend/?pagelen=100&page=2";
+    const pages = [
+      Response.json({
+        values: [{ path: "backend/Dockerfile", type: "commit_file" }],
+        next,
+      }),
+      Response.json({ values: [{ path: "backend/a", type: "commit_file" }] }),
+    ];
+    const calls: string[] = [];
+    const impl = vi.fn(async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return pages.shift() as Response;
+    }) as unknown as typeof fetch;
+    const out = await listRepoDir(AUTH, REPO, "main", "backend", impl);
+    expect(out.map((e) => e.path)).toEqual(["backend/Dockerfile", "backend/a"]);
+    expect(calls[1]).toBe(next);
+  });
+
+  it("does not follow a next link to another host", async () => {
+    const m = mockFetch(
+      Response.json({
+        values: [{ path: "a", type: "commit_file" }],
+        next: "https://evil.example.test/steal",
+      })
+    );
+    await listRepoDir(AUTH, REPO, "main", "", m.impl);
+    expect(m.calls).toHaveLength(1);
+  });
+
+  it("is empty on 404", async () => {
+    const m = mockFetch(new Response("{}", { status: 404 }));
+    expect(await listRepoDir(AUTH, REPO, "main", "x", m.impl)).toEqual([]);
   });
 });

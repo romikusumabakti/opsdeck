@@ -19,6 +19,7 @@ import {
   type DatabaseBinding,
 } from "@/lib/provisioning/database";
 import { findService, type ServiceRole } from "@/lib/services";
+import { dockerNetworkSchema, firstUserNetwork } from "@/lib/setup/network";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { uuidSchema } from "@/lib/validation";
@@ -43,6 +44,12 @@ export const databaseHostInputSchema = z.object({
     .max(1024)
     .regex(/^\/[^\0\n]*$/, "Backup path must be absolute"),
   label: z.string().trim().min(1).max(200),
+  // The Docker network other containers reach it on. Left out, it defaults to
+  // the container's first user-defined network, read when it is verified.
+  network: dockerNetworkSchema.optional(),
+});
+export const databaseHostNetworkSchema = z.object({
+  network: dockerNetworkSchema.nullable(),
 });
 export type DatabaseHostInput = z.infer<typeof databaseHostInputSchema>;
 
@@ -51,7 +58,7 @@ const VERIFY_TIMEOUT_MS = 15_000;
 /** What any signed-in user may see of a host: enough to pick it in a form. */
 export type DatabaseHostSummary = Pick<
   DatabaseHost,
-  "id" | "serverId" | "label" | "containerName"
+  "id" | "serverId" | "label" | "containerName" | "network"
 >;
 
 // Readable by any signed-in user (a maintainer binds a shared database on an
@@ -66,6 +73,7 @@ export async function listDatabaseHosts(
       serverId: databaseHosts.serverId,
       label: databaseHosts.label,
       containerName: databaseHosts.containerName,
+      network: databaseHosts.network,
     })
     .from(databaseHosts)
     .where(serverId ? eq(databaseHosts.serverId, serverId) : undefined)
@@ -75,6 +83,29 @@ export async function listDatabaseHosts(
 // Postgres 15 stopped granting PUBLIC CREATE on the public schema; on older
 // servers every role on the host could create objects in every database.
 const MIN_SERVER_VERSION_NUM = 150_000;
+
+/**
+ * The container's first network that is not bridge, host or none, read over
+ * SSH. Best effort: null when it can't be read, so a registration is never
+ * refused over it (admins can set the network afterwards).
+ */
+async function detectNetwork(
+  creds: Parameters<typeof executeRemoteCommand>[0],
+  containerName: string
+): Promise<string | null> {
+  try {
+    return firstUserNetwork(
+      await executeRemoteCommand(
+        creds,
+        `docker inspect -f '{{json .NetworkSettings.Networks}}' ${shq(containerName)}`,
+        VERIFY_TIMEOUT_MS
+      )
+    );
+  } catch (error) {
+    console.error(`Reading the networks of ${containerName} failed:`, error);
+    return null;
+  }
+}
 
 /**
  * Registers a Postgres container as a database host after checking, over
@@ -119,9 +150,11 @@ export async function createDatabaseHost(
   if (!(Number.isInteger(version) && version >= MIN_SERVER_VERSION_NUM)) {
     throw new HTTPException(400, { message: t("databaseHostVersion") });
   }
+  const network =
+    input.network ?? (await detectNetwork(creds, input.containerName));
   const [host] = await db
     .insert(databaseHosts)
-    .values(input)
+    .values({ ...input, network })
     .onConflictDoNothing()
     .returning();
   if (!host) {
@@ -136,6 +169,39 @@ export async function createDatabaseHost(
       server: server.name,
       container: host.containerName,
       label: host.label,
+    },
+  });
+  return host;
+}
+
+/** Sets or clears the Docker network of a host; 404 for an unknown host. */
+export async function updateDatabaseHostNetwork(
+  id: string,
+  data: z.infer<typeof databaseHostNetworkSchema>
+): Promise<DatabaseHost> {
+  const session = await requireOrgPermission({ server: ["manage"] });
+  const { network } = databaseHostNetworkSchema.parse(data);
+  const [host] = await db
+    .update(databaseHosts)
+    .set({ network, updatedAt: new Date() })
+    .where(eq(databaseHosts.id, id))
+    .returning();
+  if (!host) throw new HTTPException(404, { message: "Not Found" });
+  const [server] = await db
+    .select({ name: servers.name })
+    .from(servers)
+    .where(eq(servers.id, host.serverId))
+    .limit(1);
+  await recordActivity({
+    actorId: session.user.id,
+    action: "database_host.update",
+    entityType: "server",
+    entityId: host.serverId,
+    data: {
+      server: server?.name ?? "",
+      container: host.containerName,
+      label: host.label,
+      network: network ?? "",
     },
   });
   return host;

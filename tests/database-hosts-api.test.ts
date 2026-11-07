@@ -65,6 +65,7 @@ vi.mock("@/lib/db", async () => {
         ? []
         : [{ id: HOST_ID, ...(call.values as object) }];
     }
+    if (call.op === "update") return state.hostRows;
     if (call.op !== "select") return [];
     if (call.table === schema.servers) {
       return [{ id: SERVER_ID, name: "node-1" }];
@@ -81,6 +82,10 @@ vi.mock("@/lib/db", async () => {
         return chain;
       },
       values: (values: unknown) => {
+        call.values = values;
+        return chain;
+      },
+      set: (values: unknown) => {
         call.values = values;
         return chain;
       },
@@ -106,6 +111,7 @@ vi.mock("@/lib/db", async () => {
       select: () => record("select")(),
       insert: record("insert"),
       delete: record("delete"),
+      update: record("update"),
     },
   };
 });
@@ -126,7 +132,9 @@ const send = (method: string, path: string, body?: unknown) =>
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 const writes = () =>
-  state.calls.filter((c) => c.op === "insert" || c.op === "delete");
+  state.calls.filter(
+    (c) => c.op === "insert" || c.op === "delete" || c.op === "update"
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -143,7 +151,11 @@ beforeEach(() => {
   state.boundRows = [];
   state.insertConflict = false;
   state.calls = [];
-  ssh.executeRemoteCommand.mockResolvedValue("180006\n");
+  ssh.executeRemoteCommand.mockImplementation(async (_creds, command) =>
+    String(command).includes("docker inspect")
+      ? '{"bridge":{},"dplk_net":{}}\n'
+      : "180006\n"
+  );
 });
 
 describe("database hosts API", () => {
@@ -209,11 +221,41 @@ describe("database hosts API", () => {
     );
     const insert = state.calls.find((c) => c.op === "insert");
     expect(insert?.table).toBe(schema.databaseHosts);
-    expect(insert?.values).toEqual(BODY);
+    expect(ssh.executeRemoteCommand.mock.calls[1]?.[1]).toBe(
+      "docker inspect -f '{{json .NetworkSettings.Networks}}' 'dplk-postgres'"
+    );
+    expect(insert?.values).toEqual({ ...BODY, network: "dplk_net" });
     const entry = activity.recordActivity.mock.calls[0]?.[0];
     expect(entry).toMatchObject({
       action: "database_host.create",
       data: { server: "node-1", container: "dplk-postgres" },
+    });
+  });
+
+  it("keeps an explicit network without reading the container's", async () => {
+    const res = await send("POST", "/api/database-hosts", {
+      ...BODY,
+      network: "custom-net",
+    });
+    expect(res.status).toBe(200);
+    expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
+    expect(state.calls.find((c) => c.op === "insert")?.values).toEqual({
+      ...BODY,
+      network: "custom-net",
+    });
+  });
+
+  it("registers with no network when the networks can't be read", async () => {
+    ssh.executeRemoteCommand.mockImplementation(async (_creds, command) => {
+      if (String(command).includes("docker inspect")) throw new Error("boom");
+      return "180006\n";
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await send("POST", "/api/database-hosts", BODY);
+    expect(res.status).toBe(200);
+    expect(state.calls.find((c) => c.op === "insert")?.values).toEqual({
+      ...BODY,
+      network: null,
     });
   });
 
@@ -271,6 +313,65 @@ describe("database hosts API", () => {
   it("is 404 for an unknown host", async () => {
     state.hostRows = [];
     const res = await send("DELETE", `/api/database-hosts/${HOST_ID}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("sets the network of a host and logs it (PATCH)", async () => {
+    state.hostRows = [
+      {
+        id: HOST_ID,
+        serverId: SERVER_ID,
+        containerName: "dplk-postgres",
+        label: "DPLK Postgres",
+      },
+    ];
+    const res = await send("PATCH", `/api/database-hosts/${HOST_ID}`, {
+      network: "dplk_net",
+    });
+    expect(res.status).toBe(200);
+    const update = state.calls.find((c) => c.op === "update");
+    expect(update?.table).toBe(schema.databaseHosts);
+    expect(update?.values).toMatchObject({ network: "dplk_net" });
+    expect(activity.recordActivity.mock.calls[0]?.[0]).toMatchObject({
+      action: "database_host.update",
+      data: { network: "dplk_net", server: "node-1" },
+    });
+  });
+
+  it("clears the network with null", async () => {
+    const res = await send("PATCH", `/api/database-hosts/${HOST_ID}`, {
+      network: null,
+    });
+    expect(res.status).toBe(200);
+    expect(state.calls.find((c) => c.op === "update")?.values).toMatchObject({
+      network: null,
+    });
+  });
+
+  it("is 403 for PATCH without server:manage", async () => {
+    state.orgRole = "member";
+    const res = await send("PATCH", `/api/database-hosts/${HOST_ID}`, {
+      network: "x",
+    });
+    expect(res.status).toBe(403);
+    expect(writes()).toEqual([]);
+  });
+
+  it("is 400 for an invalid network name", async () => {
+    for (const bad of ["-lead", "a b", "x;rm", "", "a".repeat(129)]) {
+      const res = await send("PATCH", `/api/database-hosts/${HOST_ID}`, {
+        network: bad,
+      });
+      expect(res.status, bad).toBe(400);
+    }
+    expect(writes()).toEqual([]);
+  });
+
+  it("is 404 for PATCH on an unknown host", async () => {
+    state.hostRows = [];
+    const res = await send("PATCH", `/api/database-hosts/${HOST_ID}`, {
+      network: "x",
+    });
     expect(res.status).toBe(404);
   });
 });

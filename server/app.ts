@@ -46,6 +46,7 @@ import { savedViewsRouter } from "@/server/routes/saved-views";
 import { serversRouter } from "@/server/routes/servers";
 import { serviceLogsRouter, servicesRouter } from "@/server/routes/services";
 import { sessionInfoRouter } from "@/server/routes/session";
+import { setupRouter } from "@/server/routes/setup";
 import { terminalRouter } from "@/server/routes/terminal";
 import { testRunsRouter } from "@/server/routes/test-runs";
 import { tunnelsRouter } from "@/server/routes/tunnels";
@@ -132,6 +133,7 @@ export const app = createBaseApp()
   .route("/api/deploy-hooks", deployHooksRouter)
   .route("/api/deploys", deploysRouter)
   .route("/api/apps", appsRouter)
+  .route("/api/setup", setupRouter)
   .route("/api/apps", variableTemplatesRouter)
   .route("/api/ci-connections", ciConnectionsRouter)
   .route("/api/cloudflare-account", cloudflareAccountRouter)

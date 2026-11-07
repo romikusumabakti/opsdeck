@@ -4,8 +4,10 @@ import { sessionRouter } from "@/server/router";
 import {
   createDatabaseHost,
   databaseHostInputSchema,
+  databaseHostNetworkSchema,
   deleteDatabaseHost,
   listDatabaseHosts,
+  updateDatabaseHostNetwork,
 } from "@/server/services/database-hosts";
 import { json, param, query } from "@/server/validation";
 
@@ -16,6 +18,18 @@ export const databaseHostsRouter = sessionRouter()
   )
   .post("/", json(databaseHostInputSchema), async (c) =>
     c.json(await createDatabaseHost(c.req.valid("json")))
+  )
+  .patch(
+    "/:id",
+    param(z.object({ id: uuidSchema })),
+    json(databaseHostNetworkSchema),
+    async (c) =>
+      c.json(
+        await updateDatabaseHostNetwork(
+          c.req.valid("param").id,
+          c.req.valid("json")
+        )
+      )
   )
   .delete("/:id", param(z.object({ id: uuidSchema })), async (c) => {
     await deleteDatabaseHost(c.req.valid("param").id);

@@ -140,3 +140,130 @@ export async function branchExists(
     throw error;
   }
 }
+
+const MAX_FILE_BYTES = 256 * 1024;
+const DIR_PAGE_LENGTH = 100;
+// A directory listing is paged; a repository this wide is no compose project.
+const MAX_DIR_PAGES = 20;
+
+// Each segment is encoded, the "/" between segments stays.
+function encodePath(path: string): string {
+  return path
+    .split("/")
+    .filter((segment) => segment !== "")
+    .map(encodeURIComponent)
+    .join("/");
+}
+
+function assertReadPath(path: string): void {
+  if (path.startsWith("/") || path.split("/").includes("..")) {
+    throw new Error("Invalid file path for a Bitbucket read");
+  }
+}
+
+function srcSuffix(ref: string, path: string): string {
+  assertBranch(ref);
+  assertReadPath(path);
+  const encoded = encodePath(path);
+  return `/src/${encodePath(ref)}${encoded ? `/${encoded}` : ""}`;
+}
+
+/**
+ * Reads one file at a ref (branch, tag or commit) as text. Null on 404, and
+ * null when the file is larger than 256 KiB (never a truncated file).
+ */
+export async function readRepoFile(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  ref: string,
+  path: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string | null> {
+  assertRepo(repoFullName);
+  let res: Response;
+  try {
+    res = await request(
+      auth,
+      "GET",
+      repoFullName,
+      srcSuffix(ref, path),
+      undefined,
+      fetchImpl
+    );
+  } catch (error) {
+    if (error instanceof CiProviderError && error.status === 404) return null;
+    throw error;
+  }
+  const declared = Number(res.headers.get("content-length"));
+  if (declared > MAX_FILE_BYTES) {
+    await res.body?.cancel();
+    return null;
+  }
+  const reader = res.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_FILE_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+type SrcListing = {
+  values?: { path: string; type: string }[];
+  next?: string;
+};
+
+/**
+ * Lists one directory at a ref (the root for an empty path), following the
+ * listing's `next` links. Empty on 404. Entries carry their full repo path.
+ */
+export async function listRepoDir(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  ref: string,
+  path: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<{ path: string; type: "file" | "dir" }[]> {
+  assertRepo(repoFullName);
+  const prefix = `${API}/${repoFullName}`;
+  let suffix = `${srcSuffix(ref, path)}/?pagelen=${DIR_PAGE_LENGTH}`;
+  const entries: { path: string; type: "file" | "dir" }[] = [];
+  for (let page = 0; page < MAX_DIR_PAGES; page++) {
+    let listing: SrcListing;
+    try {
+      const res = await request(
+        auth,
+        "GET",
+        repoFullName,
+        suffix,
+        undefined,
+        fetchImpl
+      );
+      listing = (await res.json()) as SrcListing;
+    } catch (error) {
+      if (error instanceof CiProviderError && error.status === 404) {
+        return entries;
+      }
+      throw error;
+    }
+    for (const value of listing.values ?? []) {
+      if (value.type === "commit_file") {
+        entries.push({ path: value.path, type: "file" });
+      } else if (value.type === "commit_directory") {
+        entries.push({ path: value.path, type: "dir" });
+      }
+    }
+    // The credentials only go to the Bitbucket API, whatever `next` says.
+    if (!listing.next?.startsWith(`${prefix}/`)) break;
+    suffix = listing.next.slice(prefix.length);
+  }
+  return entries;
+}

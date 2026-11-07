@@ -1965,6 +1965,7 @@
     "deployTargetDeleted": "{actor} removed the deploy target for {component} from {environment}",
     "serverPreflight": "{actor} ran a preflight on {server}",
     "databaseHostCreated": "{actor} registered database host {label} ({container}) on {server}",
+    "databaseHostUpdated": "{actor} set the network of database host {label} ({container}) on {server} to {network}",
     "databaseHostDeleted": "{actor} removed database host {label} ({container}) from {server}",
     "cloudflareAccountUpdated": "{actor} updated the Cloudflare account ({fields})",
     "environmentDomainUpdated": "{actor} set the domain of {environment} to {hostname}",
@@ -2721,7 +2722,16 @@
     "deleteFailed": "Could not remove the database host",
     "deleteHost": "Remove {label}",
     "deleteHostTitle": "Remove database host {label}?",
-    "deleteHostBody": "Only the registration is removed; the container and its databases stay. A host that environments use can't be removed."
+    "deleteHostBody": "Only the registration is removed; the container and its databases stay. A host that environments use can't be removed.",
+    "network": "Network",
+    "networkPlaceholder": "Detected when registered",
+    "networkHint": "The Docker network apps join to reach this database. Leave blank to use the container's first network.",
+    "networkNone": "no network",
+    "editNetwork": "Set network of {label}",
+    "editNetworkTitle": "Network of {label}",
+    "editNetworkDescription": "Compose overlays attach apps with a shared database to this Docker network. Leave blank to clear it.",
+    "networkSaved": "Network of {label} saved",
+    "networkSaveFailed": "Could not save the network"
   },
   "domains": {
     "title": "Domain",

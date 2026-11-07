@@ -172,6 +172,10 @@ export const databaseHosts = pgTable(
     // Where backups are written, as a path inside the container.
     backupPath: text("backup_path").notNull(),
     label: text("label").notNull(),
+    // The Docker network the container is reachable on from other containers
+    // on the server; null when unknown. Format enforced by a check constraint
+    // (see the setup_wizard migration).
+    network: text("network"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -182,6 +186,10 @@ export const databaseHosts = pgTable(
     ),
     // FK index: the onDelete:restrict check scans by server.
     index("database_hosts_server_idx").on(t.serverId),
+    check(
+      "database_hosts_network_format",
+      sql`${t.network} is null or ${t.network} ~ '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$'`
+    ),
   ]
 );
 
@@ -685,6 +693,9 @@ export const deployTargets = pgTable(
     backupBeforeDeploy: boolean("backup_before_deploy")
       .notNull()
       .default(false),
+    // Set when the target's branch had no build at provisioning time: the
+    // next build of that branch is deployed once, then the flag is cleared.
+    deployNextBuild: boolean("deploy_next_build").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
