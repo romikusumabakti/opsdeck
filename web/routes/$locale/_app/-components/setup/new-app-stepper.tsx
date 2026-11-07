@@ -198,7 +198,7 @@ export function NewAppStepper({
           d,
           componentRows.map((c) => ({
             componentKey: c.componentKey,
-            branch: c.branch,
+            branch: c.repoBranch,
             services: c.detection?.services.map((s) => s.name) ?? [],
           })),
           syncedBranches.current
@@ -304,7 +304,12 @@ export function NewAppStepper({
       const failures: string[] = [];
       for (const c of app.components) {
         try {
-          await triggerComponentBuild(app.appKey, c.componentKey, c.branch);
+          // The branch the Review shows now, not the one at registration.
+          await triggerComponentBuild(
+            app.appKey,
+            c.componentKey,
+            targetBranch(c.componentKey, c.branch)
+          );
         } catch (error) {
           const message = errorMessage(error);
           if (message === null) throw error;
