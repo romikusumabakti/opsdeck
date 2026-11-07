@@ -731,6 +731,10 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
       components: "wiz-it",
       variables:
         "APP_NAME, CORS_ORIGINS, DATA_ENCRYPTION_KEY, DB_PASSWORD, SESSION_SECRET, SMTP_PASSWORD",
+      // The copy source and the names (never the values) copied from it.
+      copiedFrom: "Wiz Source",
+      copiedFromId: ids.source,
+      copiedVariables: "APP_NAME, SMTP_PASSWORD",
     });
     expectNoSecret(JSON.stringify(state.activity));
 
@@ -1113,6 +1117,16 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
       "frontend:wiza-one-web-1",
       "frontend:wiza-two-web-1",
     ]);
+    // Without a copy source the activity names none.
+    for (const entry of state.activity.filter(
+      (a) => a.action === "environment.setup"
+    )) {
+      expect(entry.data).not.toHaveProperty("copiedFrom");
+      expect(entry.data).not.toHaveProperty("copiedVariables");
+    }
+    expect(
+      state.activity.filter((a) => a.action === "environment.setup")
+    ).toHaveLength(2);
     await db.delete(s.environments).where(inArray(s.environments.id, created));
   });
 
