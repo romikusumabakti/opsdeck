@@ -1965,6 +1965,7 @@
     "deployTargetDeleted": "{actor} menghapus target deploy {component} dari {environment}",
     "serverPreflight": "{actor} menjalankan preflight di {server}",
     "databaseHostCreated": "{actor} mendaftarkan host database {label} ({container}) di {server}",
+    "databaseHostUpdated": "{actor} mengatur jaringan host database {label} ({container}) di {server} menjadi {network}",
     "databaseHostDeleted": "{actor} menghapus host database {label} ({container}) dari {server}",
     "cloudflareAccountUpdated": "{actor} memperbarui akun Cloudflare ({fields})",
     "environmentDomainUpdated": "{actor} mengatur domain {environment} menjadi {hostname}",
@@ -2721,7 +2722,16 @@
     "deleteFailed": "Gagal menghapus host database",
     "deleteHost": "Hapus {label}",
     "deleteHostTitle": "Hapus host database {label}?",
-    "deleteHostBody": "Hanya pendaftarannya yang dihapus; container dan database-nya tetap ada. Host yang dipakai environment tidak bisa dihapus."
+    "deleteHostBody": "Hanya pendaftarannya yang dihapus; container dan database-nya tetap ada. Host yang dipakai environment tidak bisa dihapus.",
+    "network": "Jaringan",
+    "networkPlaceholder": "Terdeteksi saat didaftarkan",
+    "networkHint": "Jaringan Docker yang diikuti aplikasi untuk menjangkau database ini. Kosongkan untuk memakai jaringan pertama kontainer.",
+    "networkNone": "tanpa jaringan",
+    "editNetwork": "Atur jaringan {label}",
+    "editNetworkTitle": "Jaringan {label}",
+    "editNetworkDescription": "Overlay compose menyambungkan aplikasi dengan database bersama ke jaringan Docker ini. Kosongkan untuk menghapusnya.",
+    "networkSaved": "Jaringan {label} disimpan",
+    "networkSaveFailed": "Tidak dapat menyimpan jaringan"
   },
   "domains": {
     "title": "Domain",

@@ -1965,6 +1965,7 @@
     "deployTargetDeleted": "{actor} 从 {environment} 中删除了 {component} 的部署目标",
     "serverPreflight": "{actor} 在 {server} 上运行了预检",
     "databaseHostCreated": "{actor} 在 {server} 上注册了数据库主机 {label}（{container}）",
+    "databaseHostUpdated": "{actor} 将 {server} 上数据库主机 {label}（{container}）的网络设置为 {network}",
     "databaseHostDeleted": "{actor} 从 {server} 移除了数据库主机 {label}（{container}）",
     "cloudflareAccountUpdated": "{actor} 更新了 Cloudflare 账户（{fields}）",
     "environmentDomainUpdated": "{actor} 将 {environment} 的域名设置为 {hostname}",
@@ -2721,7 +2722,16 @@
     "deleteFailed": "无法移除数据库主机",
     "deleteHost": "移除 {label}",
     "deleteHostTitle": "移除数据库主机 {label}？",
-    "deleteHostBody": "只会移除注册；容器及其数据库保留。正在被环境使用的主机无法移除。"
+    "deleteHostBody": "只会移除注册；容器及其数据库保留。正在被环境使用的主机无法移除。",
+    "network": "网络",
+    "networkPlaceholder": "注册时自动检测",
+    "networkHint": "应用加入此 Docker 网络以访问该数据库。留空则使用容器的第一个网络。",
+    "networkNone": "无网络",
+    "editNetwork": "设置 {label} 的网络",
+    "editNetworkTitle": "{label} 的网络",
+    "editNetworkDescription": "Compose overlay 会把使用共享数据库的应用接入此 Docker 网络。留空则清除。",
+    "networkSaved": "已保存 {label} 的网络",
+    "networkSaveFailed": "无法保存网络"
   },
   "domains": {
     "title": "域名",

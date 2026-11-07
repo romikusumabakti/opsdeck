@@ -22,6 +22,15 @@ export async function createDatabaseHost(
   return parseResponse(routes.$post({ json: input }));
 }
 
+export async function updateDatabaseHostNetwork(
+  id: string,
+  network: string | null
+) {
+  return parseResponse(
+    routes[":id"].$patch({ param: { id }, json: { network } })
+  );
+}
+
 export async function deleteDatabaseHost(id: string) {
   return parseResponse(routes[":id"].$delete({ param: { id } }));
 }

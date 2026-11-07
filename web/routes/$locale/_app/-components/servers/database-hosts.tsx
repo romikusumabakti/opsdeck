@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -34,9 +34,94 @@ import {
   createDatabaseHost,
   type DatabaseHostRow,
   deleteDatabaseHost,
+  updateDatabaseHostNetwork,
 } from "@/web/api/database-hosts";
 
 const DEFAULT_BACKUP_PATH = "/var/lib/postgresql/backups";
+// Same rule as the server (lib/setup/network).
+const NETWORK_PATTERN = "[a-zA-Z0-9][a-zA-Z0-9_.\\-]{0,127}";
+
+/** Sets or clears the Docker network of an existing database host. */
+function EditNetworkButton({ host }: { host: DatabaseHostRow }) {
+  const t = useTranslations("serverPreflight");
+  const tCommon = useTranslations("common");
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [network, setNetwork] = useState(host.network ?? "");
+
+  const save = useMutation({
+    mutationFn: () =>
+      updateDatabaseHostNetwork(host.id, network.trim() || null),
+    onSuccess: async () => {
+      toast.success(t("networkSaved", { label: host.label }));
+      setOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["databaseHosts"] });
+    },
+    onError: (error) => toast.error(error.message || t("networkSaveFailed")),
+  });
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={t("editNetwork", { label: host.label })}
+        onClick={() => {
+          setNetwork(host.network ?? "");
+          setOpen(true);
+        }}
+      >
+        <Pencil />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t("editNetworkTitle", { label: host.label })}
+            </DialogTitle>
+            <DialogDescription>{t("editNetworkDescription")}</DialogDescription>
+          </DialogHeader>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate();
+            }}
+          >
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={`db-host-network-${host.id}`}>
+                  {t("network")}
+                </FieldLabel>
+                <Input
+                  id={`db-host-network-${host.id}`}
+                  className="font-mono"
+                  value={network}
+                  pattern={NETWORK_PATTERN}
+                  maxLength={128}
+                  onChange={(e) => setNetwork(e.target.value)}
+                />
+              </Field>
+            </FieldGroup>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                {tCommon("cancel")}
+              </Button>
+              <Button type="submit" disabled={save.isPending}>
+                {tCommon("save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 /** Registers a Postgres container found by the preflight as a database host. */
 export function RegisterDatabaseHostButton({
@@ -53,10 +138,18 @@ export function RegisterDatabaseHostButton({
   const [containerName, setContainerName] = useState(container);
   const [backupPath, setBackupPath] = useState(DEFAULT_BACKUP_PATH);
   const [label, setLabel] = useState(container);
+  const [network, setNetwork] = useState("");
 
   const register = useMutation({
     mutationFn: () =>
-      createDatabaseHost({ serverId, containerName, backupPath, label }),
+      createDatabaseHost({
+        serverId,
+        containerName,
+        backupPath,
+        label,
+        // Blank: the server reads the container's first user-defined network.
+        ...(network.trim() ? { network: network.trim() } : {}),
+      }),
     onSuccess: async (host) => {
       toast.success(t("hostRegistered", { label: host.label }));
       setOpen(false);
@@ -124,6 +217,21 @@ export function RegisterDatabaseHostButton({
                   required
                 />
               </Field>
+              <Field>
+                <FieldLabel htmlFor="db-host-network">
+                  {t("network")}
+                </FieldLabel>
+                <Input
+                  id="db-host-network"
+                  className="font-mono"
+                  value={network}
+                  placeholder={t("networkPlaceholder")}
+                  pattern={NETWORK_PATTERN}
+                  maxLength={128}
+                  onChange={(e) => setNetwork(e.target.value)}
+                />
+                <FieldDescription>{t("networkHint")}</FieldDescription>
+              </Field>
             </FieldGroup>
             <DialogFooter>
               <Button
@@ -168,6 +276,10 @@ export function DatabaseHostList({ hosts }: { hosts: DatabaseHostRow[] }) {
           <span className="font-mono text-muted-foreground">
             {host.containerName}
           </span>
+          <span className="font-mono text-muted-foreground">
+            {host.network ?? t("networkNone")}
+          </span>
+          <EditNetworkButton host={host} />
           <AlertDialog>
             <AlertDialogTrigger
               render={
