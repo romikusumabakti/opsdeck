@@ -275,7 +275,9 @@ describe("buildDeployScript output", () => {
     const envMv = script.indexOf(`mv -f '${STAGED}' .env`);
     expect(overlayMv).toBeGreaterThan(script.indexOf('docker rm "$cid"'));
     expect(overlayMv).toBeLessThan(envMv);
-    expect(envMv).toBeLessThan(script.indexOf("sed -i"));
+    expect(envMv).toBeLessThan(
+      script.indexOf(`sed -i 's|^${base.tagVariable}=`)
+    );
     expect(envMv).toBeLessThan(script.indexOf("docker compose pull"));
     expect(script).not.toMatch(/compose (down|stop|rm)\b/);
   });
@@ -1060,6 +1062,91 @@ describe.concurrent("buildDeployScript stub runs", () => {
     },
     SLOW
   );
+
+  // --- server-side compose.override.yaml with a COMPOSE_FILE line ----------
+
+  const OVERLAY_ENV = `COMPOSE_FILE=compose.yaml:${OVERLAY}\nIMAGE_TAG=${base.tag}\n`;
+
+  it(
+    "stub run, overlay: true with a compose.override.yaml lists it in COMPOSE_FILE (0600)",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITH_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        OVERLAY_ENV,
+        ["compose.override.yaml"],
+        { staged: "new: overlay\n" }
+      );
+      expect(r.status).toBe(0);
+      expect(r.env).toBe(
+        `COMPOSE_FILE=compose.yaml:compose.override.yaml:${OVERLAY}\nIMAGE_TAG=${base.tag}\n`
+      );
+      expect(r.envMode).toBe(0o600);
+      expect(r.prev).toBe("IMAGE_TAG=old\n");
+      expect(r.stagedLeft).toEqual([]);
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, overlay: true without a compose.override.yaml keeps COMPOSE_FILE as rendered",
+    async () => {
+      const r = await runStub(
+        { installStagedEnvFile: WITH_OVERLAY },
+        "IMAGE_TAG=old\n",
+        "backend running healthy",
+        {},
+        {},
+        OVERLAY_ENV,
+        [],
+        { staged: "new: overlay\n" }
+      );
+      expect(r.status).toBe(0);
+      expect(r.env).toBe(OVERLAY_ENV);
+      expect(r.envMode).toBe(0o600);
+    },
+    SLOW
+  );
+
+  it(
+    "stub run, no overlay: a compose.override.yaml leaves the staged .env unchanged",
+    async () => {
+      for (const install of [WITHOUT_OVERLAY, MANAGED]) {
+        const r = await runStub(
+          { installStagedEnvFile: install },
+          "IMAGE_TAG=old\n",
+          "backend running healthy",
+          {},
+          {},
+          `IMAGE_TAG=${base.tag}\nOTHER=compose.yaml:x\n`,
+          ["compose.override.yaml"]
+        );
+        expect(r.status).toBe(0);
+        expect(r.env).toBe(`IMAGE_TAG=${base.tag}\nOTHER=compose.yaml:x\n`);
+      }
+    },
+    SLOW
+  );
+
+  it("the override edit runs only with overlay: true, on the staged file, before any rename", () => {
+    const withOverlay = buildDeployScript({
+      ...base,
+      installStagedEnvFile: WITH_OVERLAY,
+    });
+    const edit = withOverlay.indexOf("if [ -f compose.override.yaml ]");
+    expect(edit).toBeGreaterThan(-1);
+    expect(edit).toBeLessThan(withOverlay.indexOf(`mv -f '${STAGED_OVERLAY}'`));
+    expect(edit).toBeLessThan(withOverlay.indexOf(`mv -f '${STAGED}' .env`));
+    for (const install of [WITHOUT_OVERLAY, MANAGED]) {
+      expect(
+        buildDeployScript({ ...base, installStagedEnvFile: install })
+      ).not.toContain("compose.override.yaml");
+    }
+    expect(buildDeployScript(base)).not.toContain("compose.override.yaml");
+  });
 
   it("stub run, staged overlay missing: fails before any pull, both files untouched", async () => {
     const r = await runStub(
