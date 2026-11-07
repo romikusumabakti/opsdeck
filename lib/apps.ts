@@ -6,6 +6,7 @@ import {
   type AppComponent,
   appComponents,
   apps,
+  deployTargets,
   environments,
 } from "@/lib/db/schema";
 import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
@@ -58,6 +59,20 @@ export async function projectIdsWithAppEnvironment(
     .from(environments)
     .where(eq(environments.appId, appId));
   return rows.map((row) => row.projectId);
+}
+
+/** The component's deploy targets: each one's project and source branch. */
+export async function componentTargetBranches(
+  componentKey: string
+): Promise<{ projectId: string; sourceBranch: string }[]> {
+  return db
+    .selectDistinct({
+      projectId: environments.projectId,
+      sourceBranch: deployTargets.sourceBranch,
+    })
+    .from(deployTargets)
+    .innerJoin(environments, eq(environments.id, deployTargets.environmentId))
+    .where(eq(deployTargets.componentKey, componentKey));
 }
 
 /** One app with its public components, or undefined when the key is unknown. */
