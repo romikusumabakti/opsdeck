@@ -9,6 +9,7 @@ import {
   HEALTH_TIMEOUT_MAX_SECONDS,
 } from "@/lib/deploy/validation";
 import { shq } from "@/lib/sh";
+import { COMPOSE_OVERLAY_FILE } from "@/lib/variables/compose-overlay";
 
 /**
  * Builds the one POSIX `sh` script a deploy runs on a Docker Compose host over
@@ -52,9 +53,19 @@ export interface DeployScriptInput {
    * or exits non-zero before the tag step and any compose pull with the
    * previous `.env` untouched. Then it
    * removes leftover staged files and prints `Wrote .env (N variables)`.
+   * `overlay` also handles `compose.opsdeck.yaml`, in the same step:
+   * `true` installs the file staged as {@link stagedOverlayFileName}
+   * (keeping the current one as `compose.opsdeck.yaml.opsdeck-prev`), `false`
+   * removes a leftover one (also keeping it as `-prev`). If the `.env` rename
+   * then fails, the overlay is put back, so a failed install leaves both
+   * previous files in place. Left out, the overlay is not touched.
    * Absent: the script is exactly what it was before this option existed.
    */
-  installStagedEnvFile?: { deploymentId: string; variableCount: number };
+  installStagedEnvFile?: {
+    deploymentId: string;
+    variableCount: number;
+    overlay?: boolean;
+  };
 }
 
 export const DEFAULT_STABLE_SECONDS = 30;
@@ -89,6 +100,7 @@ const deployScriptInputSchema = z.object({
     .object({
       deploymentId: z.uuid(),
       variableCount: z.number().int().min(0),
+      overlay: z.boolean().optional(),
     })
     .optional(),
 });
@@ -104,6 +116,13 @@ export function stagedEnvFileName(deploymentId: string): string {
   return `${STAGED_ENV_FILE_PREFIX}.${z.uuid().parse(deploymentId)}`;
 }
 
+const STAGED_OVERLAY_FILE_PREFIX = `${COMPOSE_OVERLAY_FILE}.opsdeck-new`;
+
+/** The file a deployment's compose overlay is staged in; per deployment, like the `.env`. */
+export function stagedOverlayFileName(deploymentId: string): string {
+  return `${STAGED_OVERLAY_FILE_PREFIX}.${z.uuid().parse(deploymentId)}`;
+}
+
 /** Throws a ZodError when any field of the input is invalid. */
 export function buildDeployScript(input: DeployScriptInput): string {
   const v = deployScriptInputSchema.parse(input);
@@ -117,6 +136,14 @@ export function buildDeployScript(input: DeployScriptInput): string {
   const staged = v.installStagedEnvFile
     ? shq(stagedEnvFileName(v.installStagedEnvFile.deploymentId))
     : "";
+  const overlayFile = shq(COMPOSE_OVERLAY_FILE);
+  const overlayPrev = shq(`${COMPOSE_OVERLAY_FILE}.opsdeck-prev`);
+  const overlayMode = v.installStagedEnvFile?.overlay;
+  const stagedOverlay =
+    v.installStagedEnvFile && overlayMode
+      ? shq(stagedOverlayFileName(v.installStagedEnvFile.deploymentId))
+      : "";
+  const fail = "{ echo 'ENV INSTALL FAILED'; exit 1; }";
 
   const lines = [
     "set -eu",
@@ -150,9 +177,28 @@ export function buildDeployScript(input: DeployScriptInput): string {
       ? [
           "if [ ! -e .env.opsdeck-unmanaged ] && [ -e .env ]; then cp -p .env .env.opsdeck-unmanaged && chmod 600 .env.opsdeck-unmanaged || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
           "if [ -f .env ]; then cp -p .env .env.opsdeck-prev && chmod 600 .env.opsdeck-prev || { echo 'ENV INSTALL FAILED'; exit 1; }; fi",
-          `chmod 600 ${staged} && mv -f ${staged} .env || { echo 'ENV INSTALL FAILED'; exit 1; }`,
-          `rm -f ${STAGED_ENV_FILE_PREFIX}* || true`,
+          ...(overlayMode === undefined
+            ? [
+                `chmod 600 ${staged} && mv -f ${staged} .env || ${fail}`,
+                `rm -f ${STAGED_ENV_FILE_PREFIX}* || true`,
+              ]
+            : [
+                // The overlay goes first and is put back if the .env rename
+                // fails, so both files change or neither does.
+                "had_overlay=0",
+                `if [ -f ${overlayFile} ]; then had_overlay=1; cp -p ${overlayFile} ${overlayPrev} && chmod 600 ${overlayPrev} || ${fail}; fi`,
+                overlayMode
+                  ? `chmod 600 ${stagedOverlay} && mv -f ${stagedOverlay} ${overlayFile} || ${fail}`
+                  : `rm -f ${overlayFile} || ${fail}`,
+                `chmod 600 ${staged} && mv -f ${staged} .env || { if [ "$had_overlay" = 1 ]; then cp -p ${overlayPrev} ${overlayFile}; else rm -f ${overlayFile}; fi; echo 'ENV INSTALL FAILED'; exit 1; }`,
+                `rm -f ${STAGED_ENV_FILE_PREFIX}* ${STAGED_OVERLAY_FILE_PREFIX}* || true`,
+              ]),
           `echo ${shq(`Wrote .env (${v.installStagedEnvFile.variableCount} variables)`)}`,
+          ...(overlayMode === undefined
+            ? []
+            : [
+                `echo ${shq(overlayMode ? `Wrote ${COMPOSE_OVERLAY_FILE}` : `No ${COMPOSE_OVERLAY_FILE}`)}`,
+              ]),
         ]
       : []),
 

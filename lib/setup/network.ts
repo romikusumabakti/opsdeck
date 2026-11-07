@@ -1,12 +1,20 @@
 import { z } from "zod";
 
+const BUILT_IN_NETWORKS = new Set(["bridge", "host", "none"]);
+
+/**
+ * Names a shared database network can never have: Docker's built-in networks,
+ * and `default`, which Compose reserves for a stack's own network (the overlay
+ * lists it next to the shared one).
+ */
+const RESERVED_NETWORKS = new Set([...BUILT_IN_NETWORKS, "default"]);
+
 /** A Docker network name as `docker network create` accepts it. */
 export const dockerNetworkSchema = z
   .string()
   .trim()
-  .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/, "Invalid network name");
-
-const BUILT_IN_NETWORKS = new Set(["bridge", "host", "none"]);
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/, "Invalid network name")
+  .refine((name) => !RESERVED_NETWORKS.has(name), "Reserved network name");
 
 /**
  * The first user-defined network in the output of

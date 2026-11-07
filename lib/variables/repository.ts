@@ -5,8 +5,10 @@ import {
   type AppVariableTemplate,
   apps,
   appVariableTemplates,
+  databaseHosts,
   deployTargets,
   type EnvironmentVariable,
+  environmentServices,
   environments,
   environmentVariables,
   users,
@@ -46,6 +48,35 @@ export async function getEnvironmentContext(
     .where(eq(environments.id, environmentId))
     .limit(1);
   return row;
+}
+
+/**
+ * The Docker network of the shared database host the environment's db service
+ * is bound to, when that host runs on `serverId` (a network exists only on its
+ * own server); null when the binding is not shared, the host has no network
+ * recorded, or it is on another server.
+ */
+export async function getSharedDatabaseNetwork(
+  environmentId: string,
+  serverId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ network: databaseHosts.network })
+    .from(environmentServices)
+    .innerJoin(
+      databaseHosts,
+      eq(databaseHosts.id, environmentServices.databaseHostId)
+    )
+    .where(
+      and(
+        eq(environmentServices.environmentId, environmentId),
+        eq(environmentServices.role, "db"),
+        eq(environmentServices.dbKind, "shared"),
+        eq(databaseHosts.serverId, serverId)
+      )
+    )
+    .limit(1);
+  return row?.network ?? null;
 }
 
 /** The tag variable names of the environment's deploy targets, once each. */

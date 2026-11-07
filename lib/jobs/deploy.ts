@@ -12,7 +12,11 @@ import {
   markScriptStarted,
 } from "@/lib/deploy/repository";
 import { preDeployBackupDescription } from "@/lib/deploy/run-actor";
-import { buildDeployScript, stagedEnvFileName } from "@/lib/deploy/script";
+import {
+  buildDeployScript,
+  stagedEnvFileName,
+  stagedOverlayFileName,
+} from "@/lib/deploy/script";
 import { deployTagSchema, envVarNameSchema } from "@/lib/deploy/validation";
 import { loadServerCredentials } from "@/lib/environments";
 import { handleCreateDatabaseBackup } from "@/lib/jobs/processor";
@@ -25,8 +29,15 @@ import {
 } from "@/lib/run-progress";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand, uploadRemoteContent } from "@/lib/ssh";
+import {
+  COMPOSE_OVERLAY_FILE,
+  renderComposeOverlay,
+} from "@/lib/variables/compose-overlay";
 import { renderEnvFile } from "@/lib/variables/env-file";
-import { loadManagedEnvFileVariables } from "@/lib/variables/managed-env";
+import {
+  loadManagedEnvFileVariables,
+  loadSharedDatabaseNetwork,
+} from "@/lib/variables/managed-env";
 
 // How long a deploy waits before re-trying the claim while another deploy runs
 // in the same environment.
@@ -247,6 +258,14 @@ async function runClaimedDeployment(
   const tagVariables = managedVars
     ? await listTagVariablesInDeployDir(target.serverId, target.deployDir)
     : [];
+  // A shared database host with a Docker network: the services join it through
+  // a compose overlay installed with the .env (null: none, a leftover is removed).
+  const databaseNetwork = managedVars
+    ? await loadSharedDatabaseNetwork(target.environmentId, target.serverId)
+    : null;
+  const composeOptions = databaseNetwork
+    ? { composeFiles: ["compose.yaml", COMPOSE_OVERLAY_FILE] }
+    : {};
   if (managedVars) {
     // The rendered .env replaces the whole file, so it must not be shared with
     // another environment's deploys (their variables would be overwritten).
@@ -268,8 +287,10 @@ async function runClaimedDeployment(
       Object.fromEntries(
         [...tagVariables, target.tagVariable].map((n) => [n, deployment.tag])
       ),
-      registry
+      registry,
+      composeOptions
     );
+    if (databaseNetwork) renderManagedOverlay(target.services, databaseNetwork);
   }
 
   // Built (and validated) before the backup, so a bad target fails the deploy
@@ -289,6 +310,7 @@ async function runClaimedDeployment(
           installStagedEnvFile: {
             deploymentId,
             variableCount: managedVars.length,
+            overlay: databaseNetwork !== null,
           },
         }
       : {}),
@@ -338,7 +360,7 @@ async function runClaimedDeployment(
   }
   // Set once the rendered .env is staged on the server; a failure before the
   // script ran removes it again (best-effort).
-  let stagedPath: string | null = null;
+  let stagedPaths: string[] = [];
   if (managedVars) {
     // Staging the file changes nothing the server runs: a failure here fails
     // the deploy with the server's .env and containers untouched.
@@ -349,23 +371,38 @@ async function runClaimedDeployment(
         : {}),
       [target.tagVariable]: deployment.tag,
     };
-    const content = renderManagedEnvFile(managedVars, tags, registry);
+    const content = renderManagedEnvFile(
+      managedVars,
+      tags,
+      registry,
+      composeOptions
+    );
     const path = `${target.deployDir}/${stagedEnvFileName(deploymentId)}`;
+    const uploads: [string, string][] = [[path, content]];
+    if (databaseNetwork) {
+      uploads.push([
+        `${target.deployDir}/${stagedOverlayFileName(deploymentId)}`,
+        renderManagedOverlay(target.services, databaseNetwork),
+      ]);
+    }
+    const uploadPaths = uploads.map(([p]) => p);
     try {
-      await uploadRemoteContent(credentials, content, path, 0o600);
+      for (const [uploadPath, body] of uploads) {
+        await uploadRemoteContent(credentials, body, uploadPath, 0o600);
+      }
     } catch (err) {
-      // A partial or timed-out upload may have left the file behind.
+      // A partial or timed-out upload may have left a file behind.
       await bestEffort("remove the staged .env", () =>
         executeRemoteCommand(
           credentials,
-          `rm -f ${shq(path)}`,
+          `rm -f ${uploadPaths.map(shq).join(" ")}`,
           REMOVE_STAGED_TIMEOUT_MS
         )
       );
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`Uploading .env failed: ${message}`);
     }
-    stagedPath = path;
+    stagedPaths = uploadPaths;
     // The count only: variable names and values never reach the run output.
     // The script prints `Wrote .env (N variables)` once it is installed.
     await appendRunOutput(
@@ -394,8 +431,8 @@ async function runClaimedDeployment(
     // wanted: after an install it is gone already (rm -f is a no-op), and a
     // script still waiting on the lock then fails its install instead of
     // installing a file from a deploy that was given up on.
-    if (stagedPath) {
-      const remove = `rm -f ${shq(stagedPath)}`;
+    if (stagedPaths.length > 0) {
+      const remove = `rm -f ${stagedPaths.map(shq).join(" ")}`;
       await bestEffort("remove the staged .env", () =>
         executeRemoteCommand(credentials, remove, REMOVE_STAGED_TIMEOUT_MS)
       );
@@ -406,6 +443,17 @@ async function runClaimedDeployment(
   if (trimmed) await appendRunOutput(runId, trimmed);
 }
 
+/** Renders the compose overlay; its inputs were validated when saved. */
+function renderManagedOverlay(services: string[], network: string): string {
+  try {
+    return renderComposeOverlay(services, network);
+  } catch {
+    throw new DeployAborted(
+      "The shared database network cannot be written to the compose overlay — check the database host in the Panel"
+    );
+  }
+}
+
 /**
  * Renders a managed .env. Stored variables were validated when saved, so a
  * failure here is unexpected; its detail could quote a variable, so the run
@@ -414,10 +462,11 @@ async function runClaimedDeployment(
 function renderManagedEnvFile(
   vars: { name: string; value: string }[],
   tags: Record<string, string>,
-  registry: string
+  registry: string,
+  opts: { composeFiles?: string[] } = {}
 ): string {
   try {
-    return renderEnvFile(vars, tags, registry);
+    return renderEnvFile(vars, tags, registry, opts);
   } catch {
     throw new DeployAborted(
       "The environment's variables cannot be written to .env — check them in the Panel"

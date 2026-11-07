@@ -314,4 +314,38 @@ describe("renderEnvFile", () => {
       ).toThrow();
     }
   });
+
+  it("writes COMPOSE_FILE after the header only when composeFiles is given", () => {
+    const withOverlay = renderEnvFile(
+      [{ name: "A", value: "1" }],
+      {},
+      REGISTRY,
+      {
+        composeFiles: ["compose.yaml", "compose.opsdeck.yaml"],
+      }
+    );
+    expect(withOverlay.split("\n")[1]).toBe(
+      "COMPOSE_FILE=compose.yaml:compose.opsdeck.yaml"
+    );
+    for (const out of [
+      renderEnvFile([{ name: "A", value: "1" }], {}, REGISTRY),
+      renderEnvFile([{ name: "A", value: "1" }], {}, REGISTRY, {}),
+    ]) {
+      expect(out).not.toContain("COMPOSE_FILE");
+    }
+  });
+
+  it("refuses composeFiles that are empty or not plain file names", () => {
+    for (const composeFiles of [[], ["a:b"], ["../x.yaml"], ["a b"], [""]]) {
+      expect(() => renderEnvFile([], {}, REGISTRY, { composeFiles })).toThrow();
+    }
+  });
+
+  it("still refuses a user variable named COMPOSE_FILE with the option given", () => {
+    expect(() =>
+      renderEnvFile([{ name: "COMPOSE_FILE", value: "x.yaml" }], {}, REGISTRY, {
+        composeFiles: ["compose.yaml"],
+      })
+    ).toThrow();
+  });
 });
