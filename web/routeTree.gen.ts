@@ -83,6 +83,7 @@ import { Route as LocaleAppAdminTunnelsIdEditRouteImport } from './routes/$local
 import { Route as LocaleAppAdminTunnelsZonesIndexRouteImport } from './routes/$locale/_app/admin.tunnels.zones.index'
 import { Route as LocaleAppAdminTunnelsZonesIdRouteImport } from './routes/$locale/_app/admin.tunnels.zones.$id'
 import { Route as LocaleAppAdminTunnelsZonesNewRouteImport } from './routes/$locale/_app/admin.tunnels.zones.new'
+import { Route as LocaleAppAppsAppKeyEnvironmentsNewRouteImport } from './routes/$locale/_app/apps.$appKey.environments.new'
 import { Route as LocaleAppProjectKeyEnvSlugServicesRoleLogsRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.services.$role.logs'
 
 const IndexRoute = IndexRouteImport.update({
@@ -490,6 +491,12 @@ const LocaleAppAdminTunnelsZonesNewRoute =
     path: '/tunnels/zones/new',
     getParentRoute: () => LocaleAppAdminRouteRoute,
   } as any)
+const LocaleAppAppsAppKeyEnvironmentsNewRoute =
+  LocaleAppAppsAppKeyEnvironmentsNewRouteImport.update({
+    id: '/apps/$appKey/environments/new',
+    path: '/apps/$appKey/environments/new',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
 const LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute =
   LocaleAppProjectKeyEnvSlugServicesRoleLogsRouteImport.update({
     id: '/services/$role/logs',
@@ -568,6 +575,7 @@ export interface FileRoutesByFullPath {
   '/$locale/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
   '/$locale/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
   '/$locale/admin/tunnels/zones/new': typeof LocaleAppAdminTunnelsZonesNewRoute
+  '/$locale/apps/$appKey/environments/new': typeof LocaleAppAppsAppKeyEnvironmentsNewRoute
   '/$locale/$projectKey/$envSlug/services/': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
   '/$locale/admin/tunnels/$id/': typeof LocaleAppAdminTunnelsIdIndexRoute
   '/$locale/admin/tunnels/zones/': typeof LocaleAppAdminTunnelsZonesIndexRoute
@@ -640,6 +648,7 @@ export interface FileRoutesByTo {
   '/$locale/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
   '/$locale/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
   '/$locale/admin/tunnels/zones/new': typeof LocaleAppAdminTunnelsZonesNewRoute
+  '/$locale/apps/$appKey/environments/new': typeof LocaleAppAppsAppKeyEnvironmentsNewRoute
   '/$locale/$projectKey/$envSlug/services': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
   '/$locale/admin/tunnels/$id': typeof LocaleAppAdminTunnelsIdIndexRoute
   '/$locale/admin/tunnels/zones': typeof LocaleAppAdminTunnelsZonesIndexRoute
@@ -718,6 +727,7 @@ export interface FileRoutesById {
   '/$locale/_app/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
   '/$locale/_app/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
   '/$locale/_app/admin/tunnels/zones/new': typeof LocaleAppAdminTunnelsZonesNewRoute
+  '/$locale/_app/apps/$appKey/environments/new': typeof LocaleAppAppsAppKeyEnvironmentsNewRoute
   '/$locale/_app/$projectKey/$envSlug/services/': typeof LocaleAppProjectKeyEnvSlugServicesIndexRoute
   '/$locale/_app/admin/tunnels/$id/': typeof LocaleAppAdminTunnelsIdIndexRoute
   '/$locale/_app/admin/tunnels/zones/': typeof LocaleAppAdminTunnelsZonesIndexRoute
@@ -796,6 +806,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/tunnels/$id/edit'
     | '/$locale/admin/tunnels/zones/$id'
     | '/$locale/admin/tunnels/zones/new'
+    | '/$locale/apps/$appKey/environments/new'
     | '/$locale/$projectKey/$envSlug/services/'
     | '/$locale/admin/tunnels/$id/'
     | '/$locale/admin/tunnels/zones/'
@@ -868,6 +879,7 @@ export interface FileRouteTypes {
     | '/$locale/admin/tunnels/$id/edit'
     | '/$locale/admin/tunnels/zones/$id'
     | '/$locale/admin/tunnels/zones/new'
+    | '/$locale/apps/$appKey/environments/new'
     | '/$locale/$projectKey/$envSlug/services'
     | '/$locale/admin/tunnels/$id'
     | '/$locale/admin/tunnels/zones'
@@ -945,6 +957,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/admin/tunnels/$id/edit'
     | '/$locale/_app/admin/tunnels/zones/$id'
     | '/$locale/_app/admin/tunnels/zones/new'
+    | '/$locale/_app/apps/$appKey/environments/new'
     | '/$locale/_app/$projectKey/$envSlug/services/'
     | '/$locale/_app/admin/tunnels/$id/'
     | '/$locale/_app/admin/tunnels/zones/'
@@ -1476,6 +1489,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppAdminTunnelsZonesNewRouteImport
       parentRoute: typeof LocaleAppAdminRouteRoute
     }
+    '/$locale/_app/apps/$appKey/environments/new': {
+      id: '/$locale/_app/apps/$appKey/environments/new'
+      path: '/apps/$appKey/environments/new'
+      fullPath: '/$locale/apps/$appKey/environments/new'
+      preLoaderRoute: typeof LocaleAppAppsAppKeyEnvironmentsNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
     '/$locale/_app/$projectKey/$envSlug/services/$role/logs': {
       id: '/$locale/_app/$projectKey/$envSlug/services/$role/logs'
       path: '/services/$role/logs'
@@ -1635,6 +1655,7 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppProjectsKeyIndexRoute: typeof LocaleAppProjectsKeyIndexRoute
   LocaleAppServersIdIndexRoute: typeof LocaleAppServersIdIndexRoute
   LocaleAppStorageIdIndexRoute: typeof LocaleAppStorageIdIndexRoute
+  LocaleAppAppsAppKeyEnvironmentsNewRoute: typeof LocaleAppAppsAppKeyEnvironmentsNewRoute
 }
 
 const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
@@ -1671,6 +1692,8 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppProjectsKeyIndexRoute: LocaleAppProjectsKeyIndexRoute,
   LocaleAppServersIdIndexRoute: LocaleAppServersIdIndexRoute,
   LocaleAppStorageIdIndexRoute: LocaleAppStorageIdIndexRoute,
+  LocaleAppAppsAppKeyEnvironmentsNewRoute:
+    LocaleAppAppsAppKeyEnvironmentsNewRoute,
 }
 
 const LocaleAppRouteRouteWithChildren = LocaleAppRouteRoute._addFileChildren(

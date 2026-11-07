@@ -66,6 +66,7 @@ vi.mock("@/server/services/cloudflare-account", async (importOriginal) => ({
   >()),
   callCloudflare: vi.fn(async () => [
     { id: "pol-staff", name: "Staff", decision: "allow", everyone: false },
+    { id: "pol-open", name: "Open", decision: "bypass", everyone: true },
   ]),
 }));
 vi.mock("@/lib/domains/repository", async (importOriginal) => {
@@ -1162,5 +1163,65 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
       code: "placementForbidden",
     });
     expect(preview.suggestedEntryPort).toBeNull();
+  });
+  describe("the lists the forms offer for a project", () => {
+    const get = (path: string) => app.request(path);
+
+    it("offers a maintainer only the servers that accept them, with the zones and tunnels", async () => {
+      const res = await get(`/api/setup/options?projectId=${ids.projectA}`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.servers.map((x: { name: string }) => x.name)).toContain(
+        "wiz-it server"
+      );
+      expect(body.servers.map((x: { name: string }) => x.name)).not.toContain(
+        "wiz-it restricted"
+      );
+      expect(body.zones.map((z: { name: string }) => z.name)).toContain(ZONE);
+      expect(body.tunnels).toContainEqual({ id: ids.tunnel, name: "wiz-it" });
+    });
+
+    it("offers an admin the restricted servers too", async () => {
+      state.user = { id: ids.admin, role: "admin", name: "Admin" };
+      const body = await (
+        await get(`/api/setup/options?projectId=${ids.projectA}`)
+      ).json();
+      expect(body.servers.map((x: { name: string }) => x.name)).toEqual(
+        expect.arrayContaining(["wiz-it server", "wiz-it restricted"])
+      );
+    });
+
+    it("refuses a contributor and a project the caller cannot see", async () => {
+      state.user = { id: ids.contributor, role: "member", name: "QA" };
+      expect(
+        (await get(`/api/setup/options?projectId=${ids.projectA}`)).status
+      ).toBe(403);
+      expect(
+        (await get(`/api/setup/access-policies?projectId=${ids.projectA}`))
+          .status
+      ).toBe(403);
+      state.user = { id: ids.maintainer, role: "member", name: "Wiz IT" };
+      expect(
+        (await get(`/api/setup/options?projectId=${ids.projectC}`)).status
+      ).toBe(404);
+    });
+
+    it("lists the Access policies without the public ones for a maintainer", async () => {
+      const res = await get(
+        `/api/setup/access-policies?projectId=${ids.projectA}`
+      );
+      expect(await res.json()).toEqual([{ id: "pol-staff", name: "Staff" }]);
+    });
+
+    it("lists every Access policy for an admin", async () => {
+      state.user = { id: ids.admin, role: "admin", name: "Admin" };
+      const res = await get(
+        `/api/setup/access-policies?projectId=${ids.projectA}`
+      );
+      expect(await res.json()).toEqual([
+        { id: "pol-staff", name: "Staff" },
+        { id: "pol-open", name: "Open" },
+      ]);
+    });
   });
 });

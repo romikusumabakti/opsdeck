@@ -435,7 +435,8 @@
       "disabledHint": "عمليات النشر مقفلة: {reason}",
       "heldBuilds": "{count, plural, =0 {لا توجد بنايات محتجزة.} one {بناء واحد محتجز.} two {بناءان محتجزان.} few {# بنايات محتجزة.} many {# بناءً محتجزًا.} other {# بناء محتجز.}}",
       "saveLock": "حفظ القفل"
-    }
+    },
+    "waitingForFirstBuild": "في انتظار أول بناء للفرع {branch}"
   },
   "provisioning": {
     "title": "التهيئة",
@@ -2797,6 +2798,143 @@
       "databaseContainer": "حاوية قاعدة البيانات {container} على {server}",
       "variables": "{count} متغيرات ({generated} مولّدة، {copied} أسرار منسوخة)",
       "domain": "النطاق {hostname}"
+    }
+  },
+  "setupWizard": {
+    "sections": {
+      "server": "الخادم",
+      "database": "قاعدة البيانات",
+      "variables": "المتغيرات",
+      "domain": "النطاق",
+      "deploy": "النشر",
+      "issueCount": "{count, plural, one {مشكلة واحدة} two {مشكلتان} few {# مشكلات} other {# مشكلة}}"
+    },
+    "addEnvironment": {
+      "title": "إضافة بيئة",
+      "subtitle": "أضف بيئة إلى {app}. انسخ بيئة موجودة لتبدأ من إعداداتها.",
+      "button": "إضافة بيئة",
+      "project": "المشروع",
+      "projectPlaceholder": "اختر مشروعًا",
+      "noProjects": "أنت لا تدير أي مشروع، لذلك لا يمكنك إضافة بيئات.",
+      "name": "الاسم",
+      "namePlaceholder": "مثل Staging",
+      "copyFrom": "نسخ من",
+      "copyFromNone": "ابدأ فارغًا",
+      "copyFromHint": "يملأ كل قسم من تلك البيئة. تُنسخ القيم السرية على الخادم ولا تُعرض أبدًا.",
+      "copyFailed": "تعذّرت قراءة تلك البيئة.",
+      "created": "تم إنشاء البيئة.",
+      "provisioningNotStarted": "تم إنشاء البيئة لكن التهيئة لم تبدأ. يمكنك بدؤها من صفحة النشر."
+    },
+    "legacyNotice": {
+      "title": "بيئة لتطبيق مسجّل؟",
+      "description": "أضِفها من صفحة التطبيق بدلًا من ذلك: فهي تُعدّ أهداف النشر وقاعدة البيانات والمتغيرات والنطاق معًا. هذا النموذج للبيئات التي لا تديرها اللوحة."
+    },
+    "server": {
+      "label": "الخادم",
+      "placeholder": "اختر خادمًا",
+      "none": "لا يقبل أي خادم بيئات جديدة منك. اطلب من مسؤول فتح أحدها.",
+      "containers": "الحاويات",
+      "containersHint": "حاويات Docker التي يعمل عليها التحكم بالخدمات والسجلات، حسب الدور. القيم الافتراضية تتبع اسم مشروع Compose.",
+      "noContainers": "أدخل خدمات compose لأهداف النشر؛ ستُقترح الحاويات منها.",
+      "role": {
+        "backend": "الواجهة الخلفية",
+        "frontend": "الواجهة الأمامية",
+        "worker": "العامل",
+        "cache": "الذاكرة المؤقتة",
+        "gateway": "البوابة"
+      },
+      "summary": "{server} · {count, plural, one {حاوية واحدة} two {حاويتان} few {# حاويات} other {# حاوية}}",
+      "summaryNone": "لم يتم اختيار خادم"
+    },
+    "database": {
+      "kind": "قاعدة البيانات",
+      "kind_shared": "قاعدة بيانات مشتركة (تنشئها اللوحة)",
+      "kind_container": "حاوية قاعدة بيانات",
+      "kind_external": "قاعدة بيانات خارجية",
+      "kind_none": "بدون قاعدة بيانات",
+      "host": "مضيف قاعدة البيانات",
+      "hostPlaceholder": "اختر مضيفًا",
+      "noHosts": "لا يوجد مضيف قاعدة بيانات مسجّل على هذا الخادم.",
+      "dbName": "اسم قاعدة البيانات",
+      "dbRole": "الدور",
+      "passwordVariable": "متغير كلمة المرور",
+      "containerName": "حاوية قاعدة البيانات",
+      "summaryShared": "قاعدة البيانات المشتركة {name}",
+      "summaryContainer": "الحاوية {name}",
+      "summary_external": "قاعدة بيانات خارجية",
+      "summary_none": "بدون قاعدة بيانات"
+    },
+    "variables": {
+      "empty": "لا توجد متغيرات بعد. تُضاف متغيرات قالب التطبيق عند إنشاء البيئة.",
+      "name": "اسم المتغير",
+      "namePlaceholder": "اسم_المتغير",
+      "kind": "النوع",
+      "kind_plain": "عادي",
+      "kind_secret": "سري",
+      "kind_generated": "مولَّد",
+      "value": "قيمة {name}",
+      "remove": "إزالة المتغير",
+      "escrowed": "محفوظ بالضمان",
+      "add": "إضافة متغير",
+      "summary": "{count, plural, one {متغير واحد} two {متغيران} few {# متغيرات} other {# متغيرًا}}، منها {generated} مولَّدة",
+      "summaryNone": "لا متغيرات",
+      "handling_generate": "سيتم توليد قيمة جديدة",
+      "handling_copy": "سيتم نسخه",
+      "handling_enter": "أدخل قيمة"
+    },
+    "domain": {
+      "entryPortSuggested": "مقترح من آخر فحص مسبق للخادم.",
+      "entryPortNoPreflight": "لا يوجد فحص مسبق للخادم بعد: أدخل منفذًا حرًا."
+    },
+    "review": {
+      "title": "المراجعة",
+      "description": "ما ينشئه هذا الإعداد، وما ستفعله التهيئة بعد ذلك.",
+      "issues": "أصلح هذه أولًا",
+      "creates": "سيتم إنشاء",
+      "plan": "ثم تنفّذ التهيئة",
+      "nothingYet": "لا شيء بعد: أكمل الأقسام أعلاه.",
+      "checking": "جارٍ الفحص…",
+      "submit": "إنشاء ونشر",
+      "creating": "جارٍ الإنشاء…"
+    },
+    "issues": {
+      "unknown": "هذا الإعداد غير مقبول.",
+      "invalid": "تحقق من هذه القيمة.",
+      "required": "هذا الحقل مطلوب.",
+      "appNotFound": "لم يعد التطبيق موجودًا.",
+      "serverNotFound": "لم يعد الخادم موجودًا.",
+      "copySourceOtherApp": "البيئة المراد النسخ منها تنشر تطبيقًا آخر.",
+      "environmentNameTaken": "يوجد في المشروع بيئة بهذا الاسم بالفعل.",
+      "environmentSlugTaken": "استخدمت بيئة أخرى اسم عنوان URL هذا في الأثناء. ستُفحص من جديد.",
+      "backendServiceRequired": "حدّد اسم حاوية الواجهة الخلفية.",
+      "serviceNameInUse": "بيئة أخرى على هذا الخادم تستخدم هذه الحاوية بالفعل.",
+      "backupNeedsSharedDb": "النسخ الاحتياطي قبل النشر يتطلب قاعدة بيانات مشتركة.",
+      "invalidInput": "تحقق من قيم هذا الجزء.",
+      "targetMissing": "كل مكوّن في التطبيق يحتاج إلى هدف نشر.",
+      "sharedDeployDir": "بيئة أخرى تنشر في هذا المجلد.",
+      "passwordVariableMissing": "يجب أن يكون متغير كلمة مرور قاعدة البيانات سريًا أو مولَّدًا في هذه البيئة. أضِفه ضمن المتغيرات.",
+      "cloudflareUnavailable": "تعذّرت قراءة حساب Cloudflare. حاول مرة أخرى بعد قليل.",
+      "componentNotFound": "لا يوجد مكوّن مسجّل بهذا المفتاح.",
+      "tagVariableIsVariable": "تحتوي البيئة بالفعل على متغير بهذا الاسم؛ فالنشر يكتب سطر الوسم بنفسه.",
+      "targetDuplicate": "هذا المكوّن مذكور مرتين.",
+      "componentOtherApp": "هذا المكوّن يتبع تطبيقًا آخر.",
+      "placementForbidden": "لا يحق لك وضع بيئة على هذا الخادم. اختر خادمًا آخر أو اطلب من مسؤول.",
+      "variableNameInvalid": "استخدم أحرفًا كبيرة وأرقامًا وشرطات سفلية، دون البدء برقم.",
+      "reservedPrefix": "يجب ألا تبدأ الأسماء بـ COMPOSE_ أو DOCKER_ أو BUILDKIT_.",
+      "tagVariableName": "هذا الاسم محجوز لوسم الصورة.",
+      "variableDuplicate": "هذا المتغير مذكور مرتين.",
+      "valueInvalid": "يجب أن تكون القيمة سطرًا واحدًا دون فواصل أسطر.",
+      "valueRequired": "أدخل قيمة.",
+      "variableRequired": "يتطلب التطبيق هذا المتغير لكن لا قيمة له في هذه البيئة.",
+      "copySourceRequired": "اختر بيئة للنسخ منها.",
+      "copySourceMissing": "لا تحتوي البيئة المصدر على هذا المتغير.",
+      "copyKindMismatch": "المتغير في البيئة المصدر من نوع آخر.",
+      "escrowCopyForbidden": "لا تُنسخ المتغيرات المحفوظة بالضمان أبدًا: أدخل قيمة.",
+      "secretCopyForbidden": "لا يحق لك قراءة أسرار البيئة المصدر: أدخل قيمة.",
+      "copyForbidden": "لا يحق لك قراءة متغيرات البيئة المصدر: أدخل قيمة.",
+      "missing_db_fields": "قاعدة البيانات المشتركة غير مكتملة: حدّد المضيف وقاعدة البيانات والدور ومتغير كلمة المرور.",
+      "missing_entry_port": "يحتاج النطاق إلى المنفذ المحلي.",
+      "no_targets": "أضف هدف نشر أولًا."
     }
   }
 }

@@ -56,6 +56,7 @@ import {
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
 import { findService, hasService, type ServiceRole } from "@/lib/services";
+import { baseEnvSlug } from "@/lib/setup/draft";
 import type { ActionResponse } from "@/lib/types";
 import type { EnvironmentInput } from "@/lib/validation";
 import {
@@ -326,17 +327,6 @@ export async function getEnvironmentById(
  * CREATE: Add a new environment. Server FKs (dbServerId, backendServerId,
  * frontendServerId) must already exist — create them via createServer first.
  */
-// URL-friendly base slug from an environment name.
-function baseSlug(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "env"
-  );
-}
-
 // A slug unique within the project — append -2, -3, … on collision. Slugs that
 // would shadow one of the project's own sub-routes are treated as taken, so an
 // environment named "Issues" becomes `issues-2` instead of an unreachable page.
@@ -344,7 +334,7 @@ export async function uniqueEnvSlug(
   projectId: string,
   name: string
 ): Promise<string> {
-  const base = baseSlug(name);
+  const base = baseEnvSlug(name);
   const existing = await db
     .select({ slug: environments.slug })
     .from(environments)

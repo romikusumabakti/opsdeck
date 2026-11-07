@@ -435,7 +435,8 @@
       "disabledHint": "Deploys are locked: {reason}",
       "heldBuilds": "{count, plural, =0 {No builds are held.} one {# build is held.} other {# builds are held.}}",
       "saveLock": "Save lock"
-    }
+    },
+    "waitingForFirstBuild": "Waiting for the first build of {branch}"
   },
   "provisioning": {
     "title": "Provisioning",
@@ -2797,6 +2798,143 @@
       "databaseContainer": "Database container {container} on {server}",
       "variables": "{count, plural, one {# variable} other {# variables}} ({generated} generated, {copied, plural, one {# copied secret} other {# copied secrets}})",
       "domain": "Domain {hostname}"
+    }
+  },
+  "setupWizard": {
+    "sections": {
+      "server": "Server",
+      "database": "Database",
+      "variables": "Variables",
+      "domain": "Domain",
+      "deploy": "Deploy",
+      "issueCount": "{count, plural, one {# issue} other {# issues}}"
+    },
+    "addEnvironment": {
+      "title": "Add environment",
+      "subtitle": "Add an environment to {app}. Copy an existing one to start from its settings.",
+      "button": "Add environment",
+      "project": "Project",
+      "projectPlaceholder": "Choose a project",
+      "noProjects": "You maintain no project, so you cannot add environments.",
+      "name": "Name",
+      "namePlaceholder": "e.g. Staging",
+      "copyFrom": "Copy from",
+      "copyFromNone": "Start empty",
+      "copyFromHint": "Fills every section from that environment. Secret values are copied on the server and never shown.",
+      "copyFailed": "Could not read that environment.",
+      "created": "Environment created.",
+      "provisioningNotStarted": "The environment was created, but provisioning did not start. You can start it from the Deploys page."
+    },
+    "legacyNotice": {
+      "title": "Environment of a registered app?",
+      "description": "Add it from the app instead: it sets up the deploy targets, database, variables and domain together. This form is for environments the Panel does not manage."
+    },
+    "server": {
+      "label": "Server",
+      "placeholder": "Choose a server",
+      "none": "No server accepts new environments from you. Ask an admin to open one.",
+      "containers": "Containers",
+      "containersHint": "The Docker containers that service control and logs act on, by role. Defaults follow the Compose project name.",
+      "noContainers": "Enter the compose services of the deploy targets; the containers are suggested from them.",
+      "role": {
+        "backend": "Backend",
+        "frontend": "Frontend",
+        "worker": "Worker",
+        "cache": "Cache",
+        "gateway": "Gateway"
+      },
+      "summary": "{server} · {count, plural, one {# container} other {# containers}}",
+      "summaryNone": "No server chosen"
+    },
+    "database": {
+      "kind": "Database",
+      "kind_shared": "Shared database (the Panel creates it)",
+      "kind_container": "Database container",
+      "kind_external": "External database",
+      "kind_none": "No database",
+      "host": "Database host",
+      "hostPlaceholder": "Choose a host",
+      "noHosts": "No database host is registered on this server.",
+      "dbName": "Database name",
+      "dbRole": "Role",
+      "passwordVariable": "Password variable",
+      "containerName": "Database container",
+      "summaryShared": "Shared database {name}",
+      "summaryContainer": "Container {name}",
+      "summary_external": "External database",
+      "summary_none": "No database"
+    },
+    "variables": {
+      "empty": "No variables yet. The app's template variables are added when the environment is created.",
+      "name": "Variable name",
+      "namePlaceholder": "VARIABLE_NAME",
+      "kind": "Kind",
+      "kind_plain": "Plain",
+      "kind_secret": "Secret",
+      "kind_generated": "Generated",
+      "value": "Value of {name}",
+      "remove": "Remove variable",
+      "escrowed": "Escrowed",
+      "add": "Add variable",
+      "summary": "{count, plural, one {# variable} other {# variables}}, {generated} generated",
+      "summaryNone": "No variables",
+      "handling_generate": "A new value will be generated",
+      "handling_copy": "Will be copied",
+      "handling_enter": "Enter a value"
+    },
+    "domain": {
+      "entryPortSuggested": "Suggested from the server's last preflight.",
+      "entryPortNoPreflight": "The server has no preflight yet: enter a free port."
+    },
+    "review": {
+      "title": "Review",
+      "description": "What this setup creates, and what provisioning does next.",
+      "issues": "Fix these first",
+      "creates": "Will be created",
+      "plan": "Provisioning then runs",
+      "nothingYet": "Nothing yet: complete the sections above.",
+      "checking": "Checking…",
+      "submit": "Create & deploy",
+      "creating": "Creating…"
+    },
+    "issues": {
+      "unknown": "This setting is not accepted.",
+      "invalid": "Check this value.",
+      "required": "This field is required.",
+      "appNotFound": "The app no longer exists.",
+      "serverNotFound": "The server no longer exists.",
+      "copySourceOtherApp": "The environment to copy from deploys another app.",
+      "environmentNameTaken": "The project already has an environment with this name.",
+      "environmentSlugTaken": "Another environment took this URL name meanwhile. It will be checked again.",
+      "backendServiceRequired": "Name the backend's container.",
+      "serviceNameInUse": "Another environment on this server already uses this container.",
+      "backupNeedsSharedDb": "Backing up before a deploy needs a shared database.",
+      "invalidInput": "Check the values of this part.",
+      "targetMissing": "Every component of the app needs a deploy target.",
+      "sharedDeployDir": "Another environment deploys into this directory.",
+      "passwordVariableMissing": "The database password variable must be a secret or generated variable of this environment. Add it under Variables.",
+      "cloudflareUnavailable": "The Cloudflare account could not be read. Try again in a moment.",
+      "componentNotFound": "No component with this key is registered.",
+      "tagVariableIsVariable": "The environment already has a variable with this name; the deploy writes the tag line itself.",
+      "targetDuplicate": "This component is listed twice.",
+      "componentOtherApp": "This component belongs to another app.",
+      "placementForbidden": "You may not put an environment on this server. Pick another one or ask an admin.",
+      "variableNameInvalid": "Use uppercase letters, digits and underscores, not starting with a digit.",
+      "reservedPrefix": "Names must not start with COMPOSE_, DOCKER_ or BUILDKIT_.",
+      "tagVariableName": "This name is reserved for the image tag.",
+      "variableDuplicate": "This variable is listed twice.",
+      "valueInvalid": "A value must be one line, without line breaks.",
+      "valueRequired": "Enter a value.",
+      "variableRequired": "The app requires this variable, but it has no value for this environment.",
+      "copySourceRequired": "Choose an environment to copy from.",
+      "copySourceMissing": "The environment to copy from has no such variable.",
+      "copyKindMismatch": "The variable in the environment to copy from is of another kind.",
+      "escrowCopyForbidden": "Escrowed variables are never copied: enter a value.",
+      "secretCopyForbidden": "You may not read the secrets of the environment to copy from: enter a value.",
+      "copyForbidden": "You may not read the variables of the environment to copy from: enter a value.",
+      "missing_db_fields": "The shared database is incomplete: set the host, database, role and password variable.",
+      "missing_entry_port": "The domain needs the local port.",
+      "no_targets": "Add a deploy target first."
     }
   }
 }

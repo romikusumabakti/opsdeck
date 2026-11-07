@@ -3,9 +3,11 @@ import { branchSchema } from "@/lib/deploy/validation";
 import { environmentSetupInputSchema } from "@/lib/setup/schema";
 import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
+import { listProjectAccessPolicies } from "@/server/services/environment-domains";
 import {
   createEnvironmentSetup,
   getCopySource,
+  getSetupOptions,
   previewEnvironmentSetup,
 } from "@/server/services/environment-setup";
 import { detectComponentRepo } from "@/server/services/setup-detect";
@@ -38,6 +40,18 @@ export const setupRouter = sessionRouter()
   )
   .post("/environments", json(environmentSetupInputSchema), async (c) =>
     c.json(await createEnvironmentSetup(c.req.valid("json")), 201)
+  )
+  // The lists the forms offer for a project, without org server or tunnel
+  // read (a maintainer has neither).
+  .get("/options", query(z.object({ projectId: uuidSchema })), async (c) =>
+    c.json(await getSetupOptions(c.req.valid("query").projectId))
+  )
+  // The Access policies for a domain that has no environment yet.
+  .get(
+    "/access-policies",
+    query(z.object({ projectId: uuidSchema })),
+    async (c) =>
+      c.json(await listProjectAccessPolicies(c.req.valid("query").projectId))
   )
   .get(
     "/environments/copy-source/:id",
