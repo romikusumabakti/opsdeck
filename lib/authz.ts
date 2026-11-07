@@ -36,8 +36,12 @@ type Session = NonNullable<Awaited<ReturnType<typeof getServerSession>>>;
 
 // An HTTPException, so the app's onError answers it with a 403. Kept as its own
 // class so callers can still tell a denial apart from any other failure.
+// `code`, when set, names the rule that refused (see server/errors#errorCode).
 export class ForbiddenError extends HTTPException {
-  constructor(message = "Forbidden") {
+  constructor(
+    message = "Forbidden",
+    readonly code?: string
+  ) {
     super(403, { message });
     this.name = "ForbiddenError";
   }

@@ -1945,6 +1945,7 @@
     "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})",
     "environmentProvisioned": "{actor} provisioned {environment}",
+    "environmentSetup": "{actor} set up {environment}",
     "variableCreated": "{actor} added variable {name} to {environment}",
     "variableUpdated": "{actor} changed variable {name} in {environment}",
     "variableDeleted": "{actor} deleted variable {name} from {environment}",
@@ -2786,6 +2787,16 @@
       "domainPortInUse": "Another environment on this server uses this entry port",
       "domainPortForbidden": "Only an admin can pick an entry port outside 8100–8999",
       "domainExternalInZone": "This hostname is under a registered zone: use the Cloudflare tunnel type"
+    }
+  },
+  "environmentSetup": {
+    "creates": {
+      "environment": "Environment {name} in {project}",
+      "target": "Deploy target {component} → {server} {deployDir}",
+      "databaseShared": "Shared database {database} on {host}",
+      "databaseContainer": "Database container {container} on {server}",
+      "variables": "{count, plural, one {# variable} other {# variables}} ({generated} generated, {copied, plural, one {# copied secret} other {# copied secrets}})",
+      "domain": "Domain {hostname}"
     }
   }
 }

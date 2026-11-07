@@ -1945,6 +1945,7 @@
     "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})",
     "environmentProvisioned": "{actor} melakukan provisioning {environment}",
+    "environmentSetup": "{actor} menyiapkan {environment}",
     "variableCreated": "{actor} menambahkan variabel {name} ke {environment}",
     "variableUpdated": "{actor} mengubah variabel {name} di {environment}",
     "variableDeleted": "{actor} menghapus variabel {name} dari {environment}",
@@ -2786,6 +2787,16 @@
       "domainPortInUse": "Environment lain di server ini sudah memakai entry port ini",
       "domainPortForbidden": "Hanya admin yang dapat memilih entry port di luar 8100–8999",
       "domainExternalInZone": "Hostname ini berada di bawah zona terdaftar: gunakan jenis tunnel Cloudflare"
+    }
+  },
+  "environmentSetup": {
+    "creates": {
+      "environment": "Environment {name} di {project}",
+      "target": "Target deploy {component} → {server} {deployDir}",
+      "databaseShared": "Database bersama {database} di {host}",
+      "databaseContainer": "Container database {container} di {server}",
+      "variables": "{count} variabel ({generated} dibuat otomatis, {copied} secret disalin)",
+      "domain": "Domain {hostname}"
     }
   }
 }

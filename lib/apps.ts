@@ -9,6 +9,7 @@ import {
   environments,
 } from "@/lib/db/schema";
 import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
+import { CodedHTTPException } from "@/server/errors";
 
 /** A component as listed to clients: everything but the notify secret. */
 export type PublicAppComponent = Omit<AppComponent, "notifySecret">;
@@ -189,6 +190,10 @@ export async function assertTargetMatchesEnvironmentApp(
     throw new HTTPException(404, { message: "Environment not found" });
   }
   if (environment.appId !== component.appId) {
-    throw new HTTPException(409, { message: COMPONENT_OTHER_APP_MESSAGE });
+    throw new CodedHTTPException(
+      409,
+      "componentOtherApp",
+      COMPONENT_OTHER_APP_MESSAGE
+    );
   }
 }

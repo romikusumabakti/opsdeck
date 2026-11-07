@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
+import { hasReservedPrefix } from "@/lib/variables/validation";
 
 // Input validation for the deploy feature. Every value here ends up in a shell
 // script that runs on a client's Compose host or in an image reference, so the
@@ -55,6 +57,13 @@ export const envVarNameSchema = z
     /^[A-Z_][A-Z0-9_]{0,63}$/,
     "Variable name must be uppercase letters, digits or '_'"
   );
+
+// The deploy writes the tag line into the project's `.env`, so the name
+// follows the same reserved-prefix rule as the variables there.
+export const tagVariableSchema = envVarNameSchema.refine(
+  (name) => !hasReservedPrefix(name),
+  RESERVED_PREFIX_MESSAGE
+);
 
 /**
  * The bundle image's repository path, as Docker accepts it (registry and tag

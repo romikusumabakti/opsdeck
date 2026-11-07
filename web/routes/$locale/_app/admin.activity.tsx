@@ -190,6 +190,11 @@ function message(
         actor,
         environment: String(d.environment),
       });
+    case "environment.setup":
+      return t("environmentSetup", {
+        actor,
+        environment: String(d.environment),
+      });
     case "deployLock.locked":
       return t("deployLockLocked", {
         actor,

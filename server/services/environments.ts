@@ -19,7 +19,7 @@ import {
   requireOrgPermission,
   requireProjectPermission,
 } from "@/lib/authz";
-import { db } from "@/lib/db";
+import { type DbTransaction, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import type {
   EnvironmentWithServers,
@@ -35,6 +35,7 @@ import {
   environmentServices,
   environments,
   environmentVariables,
+  type NewEnvironment,
   type NewEnvironmentService,
   projectMembers,
   projects,
@@ -339,7 +340,10 @@ function baseSlug(name: string): string {
 // A slug unique within the project — append -2, -3, … on collision. Slugs that
 // would shadow one of the project's own sub-routes are treated as taken, so an
 // environment named "Issues" becomes `issues-2` instead of an unreachable page.
-async function uniqueEnvSlug(projectId: string, name: string): Promise<string> {
+export async function uniqueEnvSlug(
+  projectId: string,
+  name: string
+): Promise<string> {
   const base = baseSlug(name);
   const existing = await db
     .select({ slug: environments.slug })
@@ -382,7 +386,7 @@ async function requireEligibleOwner(
 ): Promise<void> {
   if (!ownerId || (await canOwnEnvironment(ownerId, projectId))) return;
   const t = await getServerTranslator("actionErrors");
-  badRequest(t("environmentOwnerIneligible"));
+  badRequest(t("environmentOwnerIneligible"), "environmentOwnerIneligible");
 }
 
 // A service an environment binds: the server and the service name that
@@ -390,6 +394,7 @@ async function requireEligibleOwner(
 // database binding also names its database host, database and role.
 type SharedDb = { hostId: string; dbName: string; dbRole: string | null };
 type Binding = { serverId: string; serviceName: string; sharedDb?: SharedDb };
+export type EnvironmentBinding = Binding;
 
 function sharedDbOf(d: {
   dbKind?: string | null;
@@ -541,7 +546,7 @@ async function withDerivedDbBinding<T extends EnvironmentUpdate>(
   );
   if (!host) {
     const t = await getServerTranslator("actionErrors");
-    badRequest(t("databaseHostNotFound"));
+    badRequest(t("databaseHostNotFound"), "databaseHostNotFound");
   }
   return {
     ...input,
@@ -587,7 +592,10 @@ async function requireSharedDbNames(
   const names = [sharedDb.dbName, sharedDb.dbRole];
   if (names.every((n) => n !== null && hasSharedDbPrefix(n, prefix))) return;
   const t = await getServerTranslator("actionErrors");
-  badRequest(t("sharedDatabaseNamePrefix", { prefix: prefix ?? "" }));
+  badRequest(
+    t("sharedDatabaseNamePrefix", { prefix: prefix ?? "" }),
+    "sharedDatabaseNamePrefix"
+  );
 }
 
 async function projectKeyOf(projectId: string): Promise<string | null> {
@@ -673,7 +681,7 @@ async function requireEnvironmentPlacement(
       placementOf.get(id) ?? "restricted"
     )
   );
-  if (!allowed) throw new ForbiddenError();
+  if (!allowed) throw new ForbiddenError("Forbidden", "placementForbidden");
   if (canOrg(orgRole, { server: ["manage"] })) return;
   const openIds = serverIds.filter((id) => placementOf.get(id) === "open");
   if (openIds.length === 0) return;
@@ -691,7 +699,8 @@ async function requireEnvironmentPlacement(
   if (unprefixed) {
     const t = await getServerTranslator("actionErrors");
     throw new ForbiddenError(
-      t("placementServiceName", { prefix: prefix ?? "" })
+      t("placementServiceName", { prefix: prefix ?? "" }),
+      "placementServiceName"
     );
   }
   // A registered database host's container serves every environment on the
@@ -713,7 +722,10 @@ async function requireEnvironmentPlacement(
     );
     if (onHost) {
       const t = await getServerTranslator("actionErrors");
-      throw new ForbiddenError(t("placementDatabaseHostContainer"));
+      throw new ForbiddenError(
+        t("placementDatabaseHostContainer"),
+        "placementDatabaseHostContainer"
+      );
     }
   }
   const dbPrefix = key === null ? null : `${key}_`;
@@ -729,7 +741,8 @@ async function requireEnvironmentPlacement(
   if (badDbName) {
     const t = await getServerTranslator("actionErrors");
     throw new ForbiddenError(
-      t("placementDatabaseName", { prefix: dbPrefix ?? "" })
+      t("placementDatabaseName", { prefix: dbPrefix ?? "" }),
+      "placementDatabaseName"
     );
   }
   const used = (
@@ -749,7 +762,10 @@ async function requireEnvironmentPlacement(
   );
   if (clash) {
     const t = await getServerTranslator("actionErrors");
-    throw new ForbiddenError(t("placementServiceInUse"));
+    throw new ForbiddenError(
+      t("placementServiceInUse"),
+      "placementServiceInUse"
+    );
   }
 }
 
@@ -808,9 +824,107 @@ async function requireNoSharedDbOverlap(
   );
   if (dbClash) {
     const t = await getServerTranslator("actionErrors");
-    throw new ForbiddenError(t("placementDatabaseInUse"));
+    throw new ForbiddenError(
+      t("placementDatabaseInUse"),
+      "placementDatabaseInUse"
+    );
   }
 }
+
+/**
+ * Every rule a new environment must pass, in the order createEnvironment has
+ * always checked them: the shared database binding resolved from its host,
+ * placement on the bound servers, no shared database overlap, the shared
+ * database names, and an eligible owner. `extraBindings` are services the
+ * caller binds besides the payload's (the setup wizard's database container).
+ * Throws the refusal of the first rule that fails; returns the payload to
+ * store.
+ */
+export async function validateNewEnvironment(
+  data: EnvironmentInput,
+  caller: { orgRole: string | null | undefined; projectRole: ProjectRole },
+  extraBindings: Binding[] = []
+): Promise<EnvironmentInput> {
+  const input = await withDerivedDbBinding(data);
+  const bindings = [...createdBindings(input), ...extraBindings];
+  await requireEnvironmentPlacement(
+    caller.orgRole,
+    input.projectId,
+    caller.projectRole,
+    bindings
+  );
+  await requireNoSharedDbOverlap(bindings);
+  if (input.hasDatabase) {
+    await requireSharedDbNames(input.projectId, sharedDbOf(input));
+  }
+  await requireEligibleOwner(ownerIdToVerify(input), input.projectId);
+  return input;
+}
+
+/** Whether the project already has an environment of this name. */
+export async function environmentNameTaken(
+  projectId: string,
+  name: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: environments.id })
+    .from(environments)
+    .where(
+      and(eq(environments.projectId, projectId), eq(environments.name, name))
+    )
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * Inserts a validated environment (validateNewEnvironment) and its service
+ * rows inside the caller's transaction. `extra` carries the columns only the
+ * setup wizard sets; `extraServices` are rows besides the payload's.
+ */
+export async function insertEnvironmentIn(
+  tx: DbTransaction,
+  input: EnvironmentInput,
+  {
+    slug,
+    ownerId,
+    extra = {},
+    extraServices = [],
+  }: {
+    slug: string;
+    ownerId: string;
+    extra?: Pick<NewEnvironment, "appId" | "envFileManaged" | "entryPort">;
+    extraServices?: ServiceValues[];
+  }
+): Promise<Environment> {
+  const env = one(
+    await tx
+      .insert(environments)
+      .values({
+        projectId: input.projectId,
+        name: input.name,
+        slug,
+        kind: input.kind,
+        ownerId,
+        host: input.host,
+        url: input.url,
+        ...extra,
+      })
+      .returning(),
+    "environment"
+  );
+  const services = [
+    input.hasDatabase ? dbServiceValues(input) : undefined,
+    backendServiceValues(input),
+    input.hasFrontend ? frontendServiceValues(input) : undefined,
+    ...extraServices,
+  ].filter((s): s is ServiceValues => s !== undefined);
+  await tx
+    .insert(environmentServices)
+    .values(services.map((s) => ({ ...s, environmentId: env.id })));
+  return env;
+}
+
+export type EnvironmentServiceValues = ServiceValues;
 
 export async function createEnvironment(
   data: unknown
@@ -825,49 +939,21 @@ export async function createEnvironment(
     { projectId: parsed.data.projectId },
     { project: ["read"] }
   );
-  const input = await withDerivedDbBinding(parsed.data);
-  await requireEnvironmentPlacement(
-    session.user.role,
-    input.projectId,
-    role,
-    createdBindings(input)
-  );
-  await requireNoSharedDbOverlap(createdBindings(input));
-  if (input.hasDatabase) {
-    await requireSharedDbNames(input.projectId, sharedDbOf(input));
-  }
-  await requireEligibleOwner(ownerIdToVerify(input), input.projectId);
+  const input = await validateNewEnvironment(parsed.data, {
+    orgRole: session.user.role,
+    projectRole: role,
+  });
   try {
     const slug = await uniqueEnvSlug(input.projectId, input.name);
     // One transaction: an environment without its services is unusable, so the
     // four inserts must land together.
-    const insertedEnvironment = await db.transaction(async (tx) => {
-      const env = one(
-        await tx
-          .insert(environments)
-          .values({
-            projectId: input.projectId,
-            name: input.name,
-            slug,
-            kind: input.kind,
-            // The creator owns the environment unless the form names someone.
-            ownerId: input.ownerId ?? session.user.id,
-            host: input.host,
-            url: input.url,
-          })
-          .returning(),
-        "environment"
-      );
-      const services = [
-        input.hasDatabase ? dbServiceValues(input) : undefined,
-        backendServiceValues(input),
-        input.hasFrontend ? frontendServiceValues(input) : undefined,
-      ].filter((s): s is ServiceValues => s !== undefined);
-      await tx
-        .insert(environmentServices)
-        .values(services.map((s) => ({ ...s, environmentId: env.id })));
-      return env;
-    });
+    const insertedEnvironment = await db.transaction((tx) =>
+      // The creator owns the environment unless the form names someone.
+      insertEnvironmentIn(tx, input, {
+        slug,
+        ownerId: input.ownerId ?? session.user.id,
+      })
+    );
 
     return {
       success: true,

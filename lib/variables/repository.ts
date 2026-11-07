@@ -1,6 +1,6 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { db } from "@/lib/db";
+import { type DbExecutor, db } from "@/lib/db";
 import {
   type AppVariableTemplate,
   apps,
@@ -88,6 +88,27 @@ export async function listTagVariableNames(
     .from(deployTargets)
     .where(eq(deployTargets.environmentId, environmentId));
   return rows.map((row) => row.name);
+}
+
+/**
+ * Whether a deploy target of any environment deploys into the dir on the
+ * server (a new environment's dir must be its own: its `.env` is managed).
+ */
+export async function deployDirInUse(
+  serverId: string,
+  deployDir: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: deployTargets.id })
+    .from(deployTargets)
+    .where(
+      and(
+        eq(deployTargets.serverId, serverId),
+        eq(deployTargets.deployDir, deployDir)
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**
@@ -250,10 +271,11 @@ export async function deleteVariable(
  * (also against a concurrent writer). Returns the names inserted.
  */
 export async function insertVariablesIfMissing(
-  rows: VariableWrite[]
+  rows: VariableWrite[],
+  executor: DbExecutor = db
 ): Promise<string[]> {
   if (rows.length === 0) return [];
-  const inserted = await db
+  const inserted = await executor
     .insert(environmentVariables)
     .values(rows)
     .onConflictDoNothing({

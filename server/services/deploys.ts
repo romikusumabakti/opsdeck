@@ -3,7 +3,7 @@ import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
-import { db } from "@/lib/db";
+import { type DbTransaction, db } from "@/lib/db";
 import type { DeployTarget } from "@/lib/db/schema";
 import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import {
@@ -22,17 +22,16 @@ import {
   branchSchema,
   componentKeySchema,
   deployDirSchema,
-  envVarNameSchema,
   healthTimeoutSchema,
   healthUrlSchema,
   preStartCommandSchema,
   servicesSchema,
+  tagVariableSchema,
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { uuidSchema } from "@/lib/validation";
-import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import { getVariable } from "@/lib/variables/repository";
-import { hasReservedPrefix } from "@/lib/variables/validation";
+import { CodedHTTPException } from "@/server/errors";
 import { assertNotDeployLocked } from "@/server/services/deploy-locks";
 import {
   type RequestedDeployment,
@@ -43,12 +42,26 @@ const fail = (status: 404 | 409 | 503, message: string): never => {
   throw new HTTPException(status, { message });
 };
 
-// The deploy writes the tag line into the project's `.env`, so the name
-// follows the same reserved-prefix rule as the variables there.
-const tagVariableSchema = envVarNameSchema.refine(
-  (name) => !hasReservedPrefix(name),
-  RESERVED_PREFIX_MESSAGE
-);
+// The refusals the setup wizard also reports, by code (server/errors).
+export const TARGET_ERRORS = {
+  componentNotFound: [404, "Component not found"],
+  tagVariableIsVariable: [409, TAG_VARIABLE_IS_VARIABLE_MESSAGE],
+  targetDuplicate: [
+    409,
+    "This component already has a target in the environment",
+  ],
+} as const satisfies Record<string, readonly [404 | 409, string]>;
+
+export function targetError(
+  code: keyof typeof TARGET_ERRORS
+): CodedHTTPException {
+  const [status, message] = TARGET_ERRORS[code];
+  return new CodedHTTPException(status, code, message);
+}
+
+function failTarget(code: keyof typeof TARGET_ERRORS): never {
+  throw targetError(code);
+}
 
 export const createTargetSchema = z.object({
   environmentId: uuidSchema,
@@ -105,7 +118,7 @@ async function requireTagVariableFree(
   tagVariable: string
 ) {
   if (await getVariable(environmentId, tagVariable)) {
-    fail(409, TAG_VARIABLE_IS_VARIABLE_MESSAGE);
+    failTarget("tagVariableIsVariable");
   }
 }
 
@@ -219,38 +232,43 @@ export async function createDeployTarget(
     { deploy: ["configure"] }
   );
   if (!(await getComponent(input.componentKey))) {
-    fail(404, "Component not found");
+    failTarget("componentNotFound");
   }
   await requireServerInEnvironment(input.environmentId, input.serverId);
   await requireTagVariableFree(input.environmentId, input.tagVariable);
   let created: DeployTarget;
   try {
-    created = await db.transaction(async (tx) => {
-      await assertTargetMatchesEnvironmentApp(
-        input.environmentId,
-        input.componentKey,
-        tx
-      );
-      return upsertTarget(
-        {
-          ...input,
-          preStartCommand: input.preStartCommand ?? null,
-          healthUrl: input.healthUrl ?? null,
-        },
-        tx
-      );
-    });
+    created = await db.transaction((tx) => insertDeployTargetIn(tx, input));
   } catch (error) {
-    if (isUniqueViolation(error)) {
-      return fail(
-        409,
-        "This component already has a target in the environment"
-      );
-    }
+    if (isUniqueViolation(error)) return failTarget("targetDuplicate");
     throw error;
   }
   await auditTarget(session.user.id, created, "deployTarget.created");
   return created;
+}
+
+/**
+ * Inserts a target inside the caller's transaction, after the environment
+ * adopts the component's app (409 when it deploys another app). A second
+ * target for the component surfaces as a unique violation.
+ */
+export async function insertDeployTargetIn(
+  tx: DbTransaction,
+  input: z.infer<typeof createTargetSchema>
+): Promise<DeployTarget> {
+  await assertTargetMatchesEnvironmentApp(
+    input.environmentId,
+    input.componentKey,
+    tx
+  );
+  return upsertTarget(
+    {
+      ...input,
+      preStartCommand: input.preStartCommand ?? null,
+      healthUrl: input.healthUrl ?? null,
+    },
+    tx
+  );
 }
 
 export async function updateDeployTarget(
