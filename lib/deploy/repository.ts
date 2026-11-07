@@ -232,6 +232,28 @@ export async function listTagVariablesInDeployDir(
 }
 
 /**
+ * The services of every deploy target that deploys into this deploy dir on
+ * this server (a multi-component app has one target per component), sorted and
+ * once each. The compose overlay lists all of them, so deploying one component
+ * never drops another's services from the shared database network.
+ */
+export async function listServicesInDeployDir(
+  serverId: string,
+  deployDir: string
+): Promise<string[]> {
+  const rows = await db
+    .select({ services: deployTargets.services })
+    .from(deployTargets)
+    .where(
+      and(
+        eq(deployTargets.serverId, serverId),
+        eq(deployTargets.deployDir, deployDir)
+      )
+    );
+  return [...new Set(rows.flatMap((row) => row.services))].sort();
+}
+
+/**
  * Whether a deploy target of another environment also deploys into this
  * deploy dir on this server — then the dir's `.env` cannot be managed.
  */

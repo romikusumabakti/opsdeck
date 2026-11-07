@@ -91,7 +91,9 @@ Convention:
 - The deploy extracts it with `docker create <img> noop`, `docker cp
   <cid>:/bundle/. <deployDir>/`, `docker rm <cid>`. Files in the bundle
   overwrite files of the same name in the deploy dir.
-- The compose file is always named `compose.yaml`.
+- The base compose file is always named `compose.yaml`. The Panel may write a
+  second one next to it, `compose.opsdeck.yaml` (see below); a bundle must not
+  contain that name either.
 - The bundle must **never** contain `compose.override.yaml` or `.env`. Those are
   server-only, and `docker cp` would overwrite the server's copy.
 - The compose file must take its image tags from the target's tag variable
@@ -280,6 +282,25 @@ target's list, and never touch Postgres.
 maintainer and inserted verbatim. It runs in a **subshell**: an `export`, `cd`
 or variable assignment inside it does not affect later steps, and an `exit`
 only ends the subshell. A non-zero status aborts the deploy.
+
+### Compose overlay for a shared database network
+
+When an environment's `.env` is managed by the Panel and its database is
+**shared** with a database host that has a Docker `network` recorded (on the
+same server), the Panel writes `compose.opsdeck.yaml` next to `compose.yaml`
+and adds `COMPOSE_FILE=compose.yaml:compose.opsdeck.yaml` to the managed
+`.env`, so Compose merges both. The overlay gives every service of every deploy
+target in that deploy dir `networks: [default, <network>]` and declares
+`<network>` as `external: true`; a service keeps any network its own
+`compose.yaml` declares.
+
+It is staged next to the `.env` (per deployment, mode 0600) and installed in
+the same step, after the bundle is extracted. The previous file is kept as
+`compose.opsdeck.yaml.opsdeck-prev`; if the `.env` install fails, the previous
+overlay is put back. When the managed environment no longer needs it (
+another database kind, no network), the next deploy removes
+`compose.opsdeck.yaml` (kept as `-prev`) and writes no `COMPOSE_FILE` line.
+Do not edit it by hand; the next deploy overwrites it.
 
 ### Health
 

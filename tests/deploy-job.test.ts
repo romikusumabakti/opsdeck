@@ -38,6 +38,7 @@ const repo = vi.hoisted(() => ({
   markScriptStarted: vi.fn(),
   failStaleRunningDeployments: vi.fn(),
   listTagVariablesInDeployDir: vi.fn(),
+  listServicesInDeployDir: vi.fn(),
   deployDirSharedWithOtherEnvironment: vi.fn(),
   getRunActor: vi.fn(),
 }));
@@ -118,6 +119,7 @@ beforeEach(() => {
   variables.loadManagedEnvFileVariables.mockResolvedValue(null);
   variables.loadSharedDatabaseNetwork.mockResolvedValue(null);
   repo.listTagVariablesInDeployDir.mockResolvedValue(["IMAGE_TAG"]);
+  repo.listServicesInDeployDir.mockResolvedValue(target.services);
   repo.deployDirSharedWithOtherEnvironment.mockResolvedValue(false);
   repo.getRunActor.mockResolvedValue({ userId: null, triggeredBy: null });
 });
@@ -945,6 +947,35 @@ describe("handleDeploy with a shared database network", () => {
     );
     expect(script).toContain("echo 'Wrote compose.opsdeck.yaml'");
     expectNoSecrets();
+  });
+
+  it("renders the overlay for every service in the deploy dir, sorted", async () => {
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    // Target B (backend, frontend) shares the dir with target A (api, worker).
+    repo.listServicesInDeployDir.mockResolvedValue([
+      "api",
+      "backend",
+      "frontend",
+      "worker",
+    ]);
+
+    await handleDeploy(payload);
+
+    expect(repo.listServicesInDeployDir).toHaveBeenCalledWith(
+      SERVER_ID,
+      "/opt/dplk-accounting"
+    );
+    const overlay = parse(String(ssh.uploadRemoteContent.mock.calls[1]?.[1]));
+    expect(Object.keys(overlay.services)).toEqual([
+      "api",
+      "backend",
+      "frontend",
+      "worker",
+    ]);
+    expect(outputLines()).toContain(
+      "Staged .env (3 variables) and compose.opsdeck.yaml (shared-postgres)"
+    );
   });
 
   it("without a network it stages one file and the script removes a leftover overlay", async () => {
