@@ -503,6 +503,17 @@ export function issuesByField(
 
 /** The router state key under which a draft travels between pages. */
 export const SETUP_DRAFT_STATE_KEY = "setupDraft";
+/** The compose service the domain routes to, handed over with the draft. */
+export const SETUP_ENTRY_SERVICE_STATE_KEY = "setupEntryService";
+
+export function entryServiceFromRouterState(
+  state: unknown
+): string | undefined {
+  const value = (state as Record<string, unknown> | null | undefined)?.[
+    SETUP_ENTRY_SERVICE_STATE_KEY
+  ];
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
 
 /**
  * A draft safe to put in the browser's history state: typed secret values are

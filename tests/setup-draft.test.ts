@@ -10,8 +10,10 @@ import {
   draftForHandoff,
   draftFromRouterState,
   emptyDraft,
+  entryServiceFromRouterState,
   parseSetupInput,
   SETUP_DRAFT_STATE_KEY,
+  SETUP_ENTRY_SERVICE_STATE_KEY,
   syncTargets,
   variableHandling,
 } from "@/lib/setup/draft";
@@ -413,5 +415,9 @@ describe("draft hand-over", () => {
     );
     expect(draftFromRouterState(undefined)).toBe(undefined);
     expect(draftFromRouterState({})).toBe(undefined);
+    expect(
+      entryServiceFromRouterState({ [SETUP_ENTRY_SERVICE_STATE_KEY]: "web" })
+    ).toBe("web");
+    expect(entryServiceFromRouterState({})).toBe(undefined);
   });
 });

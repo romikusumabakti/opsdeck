@@ -34,6 +34,7 @@ import {
   emptyDraft,
   parseSetupInput,
   SETUP_DRAFT_STATE_KEY,
+  SETUP_ENTRY_SERVICE_STATE_KEY,
   syncTargets,
   variableHandling,
 } from "@/lib/setup/draft";
@@ -134,14 +135,20 @@ export function NewAppStepper({
   const [lines, setLines] = React.useState(IDLE_LINES);
   const [stopIssues, setStopIssues] = React.useState<SetupIssue[]>([]);
   const [running, setRunning] = React.useState(false);
+  const runningRef = React.useRef(false);
   const syncedBranches = React.useRef<Record<string, string>>({});
 
   const project = projects.find((p) => p.id === draft.projectId);
   const projectKey = project?.key ?? "";
+  // The first build is of the branch the deploy target waits for.
+  const targetBranch = (componentKey: string, fallback: string) =>
+    draft.targets.find((t) => t.componentKey === componentKey)?.sourceBranch ||
+    fallback;
   const componentRows = registration.components.map((c) => ({
     id: c.id,
     componentKey: c.componentKey.trim(),
-    branch: c.branch,
+    repoBranch: c.branch,
+    branch: targetBranch(c.componentKey.trim(), c.branch),
     detection: registration.detectionOf(c.id).data,
   }));
   const entryDetection = componentRows
@@ -173,6 +180,8 @@ export function NewAppStepper({
       .reverse()
   );
 
+  // Once the environment exists the inputs are final: only Review remains.
+  const locked = created !== null;
   const finished = created !== null && lines.build.status === "done";
   useUnsavedChanges(
     (registration.dirty || draft.name !== "") && !running && !finished
@@ -196,7 +205,7 @@ export function NewAppStepper({
         )
       );
       syncedBranches.current = Object.fromEntries(
-        componentRows.map((c) => [c.componentKey, c.branch])
+        componentRows.map((c) => [c.componentKey, c.repoBranch])
       );
     }
     setStep(next);
@@ -218,6 +227,7 @@ export function NewAppStepper({
 
   function onBack() {
     const prev = NEW_APP_STEPS[NEW_APP_STEPS.indexOf(step) - 1];
+    if (locked) return;
     if (prev && !(prev === "repo" && registered)) setStep(prev);
   }
 
@@ -227,7 +237,8 @@ export function NewAppStepper({
 
   /** The first line that is not done runs; the rest follow while they pass. */
   async function onCreate() {
-    if (running) return;
+    if (runningRef.current) return;
+    runningRef.current = true;
     setRunning(true);
     setLines((current) => ({
       register: registered ? current.register : IDLE_LINES.register,
@@ -252,7 +263,7 @@ export function NewAppStepper({
             appKey: result.appKey,
             components: registration.components.map((c) => ({
               componentKey: c.componentKey.trim(),
-              branch: c.branch,
+              branch: targetBranch(c.componentKey.trim(), c.branch),
             })),
           };
           setRegistered(app);
@@ -307,6 +318,7 @@ export function NewAppStepper({
       setLine("build", { status: "done" });
       await router.push(`/${env.projectKey}/${env.envSlug}/deploys`);
     } finally {
+      runningRef.current = false;
       setRunning(false);
     }
   }
@@ -391,7 +403,9 @@ export function NewAppStepper({
       <StepIndicator
         step={step}
         locked={registered ? "repo" : null}
+        allLocked={locked}
         onSelect={(target) => {
+          if (locked) return;
           if (NEW_APP_STEPS.indexOf(target) < NEW_APP_STEPS.indexOf(step)) {
             setStep(target);
           }
@@ -520,6 +534,7 @@ export function NewAppStepper({
           lines={lines}
           setupFailed={setupFailed}
           created={created}
+          entryService={entryDetection?.entryService ?? null}
           onCreate={onCreate}
         />
       )}
@@ -538,7 +553,7 @@ export function NewAppStepper({
           </Button>
         </div>
       )}
-      {step === "review" && !running && (
+      {step === "review" && !running && !locked && (
         <div className="flex justify-start">
           <Button type="button" variant="ghost" onClick={onBack}>
             {t("back")}
@@ -552,11 +567,14 @@ export function NewAppStepper({
 function StepIndicator({
   step,
   locked,
+  allLocked,
   onSelect,
 }: {
   step: NewAppStep;
   /** A step that can no longer be visited (the app is registered). */
   locked: NewAppStep | null;
+  /** The environment exists: no step can be revisited. */
+  allLocked: boolean;
   onSelect: (step: NewAppStep) => void;
 }) {
   const t = useTranslations("setupWizard.newApp");
@@ -568,7 +586,7 @@ function StepIndicator({
           <li key={name} className="flex items-center gap-2">
             <button
               type="button"
-              disabled={index >= current || name === locked}
+              disabled={allLocked || index >= current || name === locked}
               aria-current={index === current ? "step" : undefined}
               onClick={() => onSelect(name)}
               className={
@@ -603,6 +621,7 @@ function ReviewStep({
   lines,
   setupFailed,
   created,
+  entryService,
   onCreate,
 }: {
   draft: EnvironmentDraft;
@@ -616,6 +635,7 @@ function ReviewStep({
   lines: Record<LineId, LineState>;
   setupFailed: boolean;
   created: Created | null;
+  entryService: string | null;
   onCreate: () => void;
 }) {
   const t = useTranslations("setupWizard.newApp");
@@ -668,6 +688,9 @@ function ReviewStep({
               }`}
               state={{
                 [SETUP_DRAFT_STATE_KEY]: draftForHandoff(draft),
+                ...(entryService
+                  ? { [SETUP_ENTRY_SERVICE_STATE_KEY]: entryService }
+                  : {}),
               }}
             >
               {t("addEnvironmentLink")}
