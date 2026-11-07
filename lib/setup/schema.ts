@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   branchSchema,
   componentKeySchema,
+  composeServiceSchema,
   deployDirSchema,
   envVarNameSchema,
   healthTimeoutSchema,
@@ -36,6 +37,24 @@ const targetSchema = z
     healthUrl: healthUrlSchema.nullish(),
     healthTimeoutSeconds: healthTimeoutSchema.default(180),
     backupBeforeDeploy: z.boolean().default(false),
+  })
+  .strict();
+
+/** The roles a setup binds besides `db` (which comes from `database`). */
+export const SETUP_SERVICE_ROLES = [
+  "backend",
+  "frontend",
+  "worker",
+  "cache",
+  "gateway",
+] as const;
+export type SetupServiceRole = (typeof SETUP_SERVICE_ROLES)[number];
+
+const serviceBindingSchema = z
+  .object({
+    role: z.enum(SETUP_SERVICE_ROLES),
+    // The environment form's service-name rule.
+    serviceName: z.string().trim().min(1).max(255),
   })
   .strict();
 
@@ -101,6 +120,19 @@ export const environmentSetupInputSchema = z
     server: z.object({ serverId: z.uuid() }).strict(),
     // One per component of the app, all on `server`.
     targets: z.array(targetSchema).min(1).max(20),
+    // The containers service control and logs act on, by role (Docker
+    // container names, e.g. `hris-staging-backend-1`); the db one comes from
+    // `database`. Each role at most once.
+    services: z
+      .array(serviceBindingSchema)
+      .max(SETUP_SERVICE_ROLES.length)
+      .refine(
+        (list) => new Set(list.map((s) => s.role)).size === list.length,
+        "Duplicate service role"
+      ),
+    // The compose service the domain routes to, when known (repo detection);
+    // only steers the suggested roles.
+    entryService: composeServiceSchema.nullish(),
     database: databaseSchema,
     variables: z.array(variableSchema).max(200).default([]),
     domain: domainSchema,
