@@ -1146,4 +1146,27 @@ describe.concurrent("buildDeployScript stub runs", () => {
     expect(r.env).toBe("IMAGE_TAG=old\n");
     expect(r.overlay).toBe("old: overlay\n");
   });
+
+  it("stub run, the overlay cannot be put back: prints OVERLAY RESTORE FAILED and still fails", async () => {
+    // mv fails for .env; cp fails when restoring (the second cp onto the overlay).
+    const cpFailsOnRestore = `#!/bin/sh
+for last; do :; done
+if [ "$last" = compose.opsdeck.yaml ]; then exit 1; fi
+exec /bin/cp "$@"
+`;
+    const r = await runStub(
+      { installStagedEnvFile: WITH_OVERLAY },
+      "IMAGE_TAG=old\n",
+      "backend running healthy",
+      {},
+      { mv: MV_FAILS_FOR_ENV, cp: cpFailsOnRestore },
+      "IMAGE_TAG=new\n",
+      [],
+      { staged: "new: overlay\n", existing: "old: overlay\n" }
+    );
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain("OVERLAY RESTORE FAILED");
+    expect(r.stdout).toContain("ENV INSTALL FAILED");
+    expect(r.env).toBe("IMAGE_TAG=old\n");
+  });
 });

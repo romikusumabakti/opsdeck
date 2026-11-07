@@ -8,6 +8,7 @@ import {
   getRunActor,
   getTarget,
   heartbeatDeployment,
+  listServicesInDeployDir,
   listTagVariablesInDeployDir,
   markScriptStarted,
 } from "@/lib/deploy/repository";
@@ -263,6 +264,11 @@ async function runClaimedDeployment(
   const databaseNetwork = managedVars
     ? await loadSharedDatabaseNetwork(target.environmentId, target.serverId)
     : null;
+  // Every service of every target in this dir, so one component's deploy never
+  // drops another's from the network.
+  const overlayServices = databaseNetwork
+    ? await listServicesInDeployDir(target.serverId, target.deployDir)
+    : [];
   const composeOptions = databaseNetwork
     ? { composeFiles: ["compose.yaml", COMPOSE_OVERLAY_FILE] }
     : {};
@@ -290,7 +296,7 @@ async function runClaimedDeployment(
       registry,
       composeOptions
     );
-    if (databaseNetwork) renderManagedOverlay(target.services, databaseNetwork);
+    if (databaseNetwork) renderManagedOverlay(overlayServices, databaseNetwork);
   }
 
   // Built (and validated) before the backup, so a bad target fails the deploy
@@ -382,17 +388,20 @@ async function runClaimedDeployment(
     if (databaseNetwork) {
       uploads.push([
         `${target.deployDir}/${stagedOverlayFileName(deploymentId)}`,
-        renderManagedOverlay(target.services, databaseNetwork),
+        renderManagedOverlay(overlayServices, databaseNetwork),
       ]);
     }
     const uploadPaths = uploads.map(([p]) => p);
+    const removeLabel = databaseNetwork
+      ? "remove the staged .env and overlay"
+      : "remove the staged .env";
     try {
       for (const [uploadPath, body] of uploads) {
         await uploadRemoteContent(credentials, body, uploadPath, 0o600);
       }
     } catch (err) {
       // A partial or timed-out upload may have left a file behind.
-      await bestEffort("remove the staged .env", () =>
+      await bestEffort(removeLabel, () =>
         executeRemoteCommand(
           credentials,
           `rm -f ${uploadPaths.map(shq).join(" ")}`,
@@ -407,7 +416,9 @@ async function runClaimedDeployment(
     // The script prints `Wrote .env (N variables)` once it is installed.
     await appendRunOutput(
       runId,
-      `Staged .env (${managedVars.length} variables)`
+      databaseNetwork
+        ? `Staged .env (${managedVars.length} variables) and ${COMPOSE_OVERLAY_FILE} (${databaseNetwork})`
+        : `Staged .env (${managedVars.length} variables)`
     );
   }
 
@@ -433,7 +444,7 @@ async function runClaimedDeployment(
     // installing a file from a deploy that was given up on.
     if (stagedPaths.length > 0) {
       const remove = `rm -f ${stagedPaths.map(shq).join(" ")}`;
-      await bestEffort("remove the staged .env", () =>
+      await bestEffort("remove the staged files", () =>
         executeRemoteCommand(credentials, remove, REMOVE_STAGED_TIMEOUT_MS)
       );
     }

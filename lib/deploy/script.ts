@@ -190,7 +190,7 @@ export function buildDeployScript(input: DeployScriptInput): string {
                 overlayMode
                   ? `chmod 600 ${stagedOverlay} && mv -f ${stagedOverlay} ${overlayFile} || ${fail}`
                   : `rm -f ${overlayFile} || ${fail}`,
-                `chmod 600 ${staged} && mv -f ${staged} .env || { if [ "$had_overlay" = 1 ]; then cp -p ${overlayPrev} ${overlayFile}; else rm -f ${overlayFile}; fi; echo 'ENV INSTALL FAILED'; exit 1; }`,
+                `chmod 600 ${staged} && mv -f ${staged} .env || { if [ "$had_overlay" = 1 ]; then cp -p ${overlayPrev} ${overlayFile} || echo 'OVERLAY RESTORE FAILED'; else rm -f ${overlayFile} || echo 'OVERLAY RESTORE FAILED'; fi; echo 'ENV INSTALL FAILED'; exit 1; }`,
                 `rm -f ${STAGED_ENV_FILE_PREFIX}* ${STAGED_OVERLAY_FILE_PREFIX}* || true`,
               ]),
           `echo ${shq(`Wrote .env (${v.installStagedEnvFile.variableCount} variables)`)}`,
