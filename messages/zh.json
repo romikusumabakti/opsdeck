@@ -435,7 +435,8 @@
       "disabledHint": "部署已锁定：{reason}",
       "heldBuilds": "{count, plural, =0 {没有被暂扣的构建。} other {已暂扣 # 个构建。}}",
       "saveLock": "保存锁定"
-    }
+    },
+    "waitingForFirstBuild": "正在等待 {branch} 的首次构建"
   },
   "provisioning": {
     "title": "环境配置",
@@ -2797,6 +2798,143 @@
       "databaseContainer": "{server} 上的数据库容器 {container}",
       "variables": "{count} 个变量（{generated} 个自动生成，{copied} 个复制的密钥）",
       "domain": "域名 {hostname}"
+    }
+  },
+  "setupWizard": {
+    "sections": {
+      "server": "服务器",
+      "database": "数据库",
+      "variables": "变量",
+      "domain": "域名",
+      "deploy": "部署",
+      "issueCount": "{count} 个问题"
+    },
+    "addEnvironment": {
+      "title": "添加环境",
+      "subtitle": "为 {app} 添加环境。可复制现有环境，以其设置为起点。",
+      "button": "添加环境",
+      "project": "项目",
+      "projectPlaceholder": "选择项目",
+      "noProjects": "你不是任何项目的维护者，因此无法添加环境。",
+      "name": "名称",
+      "namePlaceholder": "例如 Staging",
+      "copyFrom": "复制自",
+      "copyFromNone": "从空白开始",
+      "copyFromHint": "用该环境填充每个部分。机密值在服务器上复制，绝不会显示。",
+      "copyFailed": "无法读取该环境。",
+      "created": "环境已创建。",
+      "provisioningNotStarted": "环境已创建，但预配未启动。你可以在“部署”页面启动它。"
+    },
+    "legacyNotice": {
+      "title": "属于已注册应用的环境？",
+      "description": "请改从应用页面添加：它会一并设置部署目标、数据库、变量和域名。此表单用于面板不管理的环境。"
+    },
+    "server": {
+      "label": "服务器",
+      "placeholder": "选择服务器",
+      "none": "没有服务器接受你创建的新环境。请联系管理员开放一台。",
+      "containers": "容器",
+      "containersHint": "服务控制和日志所作用的 Docker 容器，按角色划分。默认值遵循 Compose 项目名。",
+      "noContainers": "请填写部署目标的 compose 服务；容器将据此给出建议。",
+      "role": {
+        "backend": "后端",
+        "frontend": "前端",
+        "worker": "工作进程",
+        "cache": "缓存",
+        "gateway": "网关"
+      },
+      "summary": "{server} · {count} 个容器",
+      "summaryNone": "未选择服务器"
+    },
+    "database": {
+      "kind": "数据库",
+      "kind_shared": "共享数据库（由面板创建）",
+      "kind_container": "数据库容器",
+      "kind_external": "外部数据库",
+      "kind_none": "无数据库",
+      "host": "数据库主机",
+      "hostPlaceholder": "选择主机",
+      "noHosts": "此服务器上未注册数据库主机。",
+      "dbName": "数据库名称",
+      "dbRole": "角色",
+      "passwordVariable": "密码变量",
+      "containerName": "数据库容器",
+      "summaryShared": "共享数据库 {name}",
+      "summaryContainer": "容器 {name}",
+      "summary_external": "外部数据库",
+      "summary_none": "无数据库"
+    },
+    "variables": {
+      "empty": "暂无变量。应用模板中的变量会在创建环境时添加。",
+      "name": "变量名",
+      "namePlaceholder": "变量名",
+      "kind": "类型",
+      "kind_plain": "明文",
+      "kind_secret": "机密",
+      "kind_generated": "自动生成",
+      "value": "{name} 的值",
+      "remove": "移除变量",
+      "escrowed": "托管",
+      "add": "添加变量",
+      "summary": "{count} 个变量，其中 {generated} 个自动生成",
+      "summaryNone": "无变量",
+      "handling_generate": "将生成新值",
+      "handling_copy": "将被复制",
+      "handling_enter": "请输入值"
+    },
+    "domain": {
+      "entryPortSuggested": "根据服务器最近一次预检给出的建议。",
+      "entryPortNoPreflight": "服务器尚无预检结果：请填写一个空闲端口。"
+    },
+    "review": {
+      "title": "审阅",
+      "description": "此设置将创建的内容，以及随后预配要做的事。",
+      "issues": "请先修复这些问题",
+      "creates": "将创建",
+      "plan": "随后预配将执行",
+      "nothingYet": "暂无内容：请先完成上面的部分。",
+      "checking": "正在检查…",
+      "submit": "创建并部署",
+      "creating": "正在创建…"
+    },
+    "issues": {
+      "unknown": "此设置不被接受。",
+      "invalid": "请检查此值。",
+      "required": "此字段为必填项。",
+      "appNotFound": "该应用已不存在。",
+      "serverNotFound": "该服务器已不存在。",
+      "copySourceOtherApp": "要复制的环境部署的是另一个应用。",
+      "environmentNameTaken": "该项目已有同名环境。",
+      "environmentSlugTaken": "另一个环境刚刚占用了此 URL 名称。将重新检查。",
+      "backendServiceRequired": "请填写后端容器的名称。",
+      "serviceNameInUse": "此服务器上的另一个环境已使用该容器。",
+      "backupNeedsSharedDb": "部署前备份需要共享数据库。",
+      "invalidInput": "请检查这一部分的值。",
+      "targetMissing": "应用的每个组件都需要一个部署目标。",
+      "sharedDeployDir": "另一个环境已部署到此目录。",
+      "passwordVariableMissing": "数据库密码变量必须是此环境的机密变量或自动生成变量。请在“变量”中添加。",
+      "cloudflareUnavailable": "无法读取 Cloudflare 账户。请稍后重试。",
+      "componentNotFound": "没有注册此键的组件。",
+      "tagVariableIsVariable": "该环境已有同名变量；部署会自行写入标签行。",
+      "targetDuplicate": "该组件被重复列出。",
+      "componentOtherApp": "该组件属于另一个应用。",
+      "placementForbidden": "你无权将环境放在此服务器上。请选择其他服务器或联系管理员。",
+      "variableNameInvalid": "请使用大写字母、数字和下划线，且不能以数字开头。",
+      "reservedPrefix": "名称不能以 COMPOSE_、DOCKER_ 或 BUILDKIT_ 开头。",
+      "tagVariableName": "此名称已保留给镜像标签。",
+      "variableDuplicate": "该变量被重复列出。",
+      "valueInvalid": "值必须为单行，不能包含换行。",
+      "valueRequired": "请输入值。",
+      "variableRequired": "应用要求此变量，但它在此环境中没有值。",
+      "copySourceRequired": "请选择要复制的环境。",
+      "copySourceMissing": "要复制的环境没有此变量。",
+      "copyKindMismatch": "要复制的环境中该变量的类型不同。",
+      "escrowCopyForbidden": "托管变量绝不会被复制：请输入值。",
+      "secretCopyForbidden": "你无权读取要复制环境的机密：请输入值。",
+      "copyForbidden": "你无权读取要复制环境的变量：请输入值。",
+      "missing_db_fields": "共享数据库信息不完整：请填写主机、数据库、角色和密码变量。",
+      "missing_entry_port": "域名需要本地端口。",
+      "no_targets": "请先添加部署目标。"
     }
   }
 }

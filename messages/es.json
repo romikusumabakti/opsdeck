@@ -435,7 +435,8 @@
       "disabledHint": "Los despliegues están bloqueados: {reason}",
       "heldBuilds": "{count, plural, =0 {No hay compilaciones retenidas.} one {# compilación retenida.} other {# compilaciones retenidas.}}",
       "saveLock": "Guardar bloqueo"
-    }
+    },
+    "waitingForFirstBuild": "Esperando la primera build de {branch}"
   },
   "provisioning": {
     "title": "Aprovisionamiento",
@@ -2797,6 +2798,143 @@
       "databaseContainer": "Contenedor de base de datos {container} en {server}",
       "variables": "{count, plural, one {# variable} other {# variables}} ({generated} generadas, {copied, plural, one {# secreto copiado} other {# secretos copiados}})",
       "domain": "Dominio {hostname}"
+    }
+  },
+  "setupWizard": {
+    "sections": {
+      "server": "Servidor",
+      "database": "Base de datos",
+      "variables": "Variables",
+      "domain": "Dominio",
+      "deploy": "Despliegue",
+      "issueCount": "{count, plural, one {# problema} other {# problemas}}"
+    },
+    "addEnvironment": {
+      "title": "Añadir entorno",
+      "subtitle": "Añade un entorno a {app}. Copia uno existente para partir de su configuración.",
+      "button": "Añadir entorno",
+      "project": "Proyecto",
+      "projectPlaceholder": "Elige un proyecto",
+      "noProjects": "No mantienes ningún proyecto, así que no puedes añadir entornos.",
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Staging",
+      "copyFrom": "Copiar de",
+      "copyFromNone": "Empezar vacío",
+      "copyFromHint": "Rellena cada sección con ese entorno. Los valores secretos se copian en el servidor y nunca se muestran.",
+      "copyFailed": "No se pudo leer ese entorno.",
+      "created": "Entorno creado.",
+      "provisioningNotStarted": "El entorno se creó, pero la preparación no se inició. Puedes iniciarla desde la página de Despliegues."
+    },
+    "legacyNotice": {
+      "title": "¿Entorno de una aplicación registrada?",
+      "description": "Añádelo desde la aplicación: configura a la vez los destinos de despliegue, la base de datos, las variables y el dominio. Este formulario es para entornos que el Panel no gestiona."
+    },
+    "server": {
+      "label": "Servidor",
+      "placeholder": "Elige un servidor",
+      "none": "Ningún servidor acepta entornos nuevos tuyos. Pide a un administrador que abra uno.",
+      "containers": "Contenedores",
+      "containersHint": "Los contenedores Docker sobre los que actúan el control de servicios y los registros, por rol. Los valores por defecto siguen el nombre del proyecto Compose.",
+      "noContainers": "Indica los servicios compose de los destinos de despliegue; los contenedores se sugieren a partir de ellos.",
+      "role": {
+        "backend": "Backend",
+        "frontend": "Frontend",
+        "worker": "Worker",
+        "cache": "Caché",
+        "gateway": "Gateway"
+      },
+      "summary": "{server} · {count, plural, one {# contenedor} other {# contenedores}}",
+      "summaryNone": "Ningún servidor elegido"
+    },
+    "database": {
+      "kind": "Base de datos",
+      "kind_shared": "Base de datos compartida (la crea el Panel)",
+      "kind_container": "Contenedor de base de datos",
+      "kind_external": "Base de datos externa",
+      "kind_none": "Sin base de datos",
+      "host": "Host de base de datos",
+      "hostPlaceholder": "Elige un host",
+      "noHosts": "No hay ningún host de base de datos registrado en este servidor.",
+      "dbName": "Nombre de la base de datos",
+      "dbRole": "Rol",
+      "passwordVariable": "Variable de la contraseña",
+      "containerName": "Contenedor de la base de datos",
+      "summaryShared": "Base de datos compartida {name}",
+      "summaryContainer": "Contenedor {name}",
+      "summary_external": "Base de datos externa",
+      "summary_none": "Sin base de datos"
+    },
+    "variables": {
+      "empty": "Aún no hay variables. Las variables de la plantilla de la aplicación se añaden al crear el entorno.",
+      "name": "Nombre de la variable",
+      "namePlaceholder": "NOMBRE_VARIABLE",
+      "kind": "Tipo",
+      "kind_plain": "Normal",
+      "kind_secret": "Secreto",
+      "kind_generated": "Generado",
+      "value": "Valor de {name}",
+      "remove": "Quitar variable",
+      "escrowed": "En custodia",
+      "add": "Añadir variable",
+      "summary": "{count, plural, one {# variable} other {# variables}}, {generated} generadas",
+      "summaryNone": "Sin variables",
+      "handling_generate": "Se generará un valor nuevo",
+      "handling_copy": "Se copiará",
+      "handling_enter": "Introduce un valor"
+    },
+    "domain": {
+      "entryPortSuggested": "Sugerido por el último preflight del servidor.",
+      "entryPortNoPreflight": "El servidor aún no tiene preflight: introduce un puerto libre."
+    },
+    "review": {
+      "title": "Revisar",
+      "description": "Qué crea esta configuración y qué hace después la preparación.",
+      "issues": "Corrige esto primero",
+      "creates": "Se creará",
+      "plan": "Después la preparación ejecuta",
+      "nothingYet": "Todavía nada: completa las secciones anteriores.",
+      "checking": "Comprobando…",
+      "submit": "Crear y desplegar",
+      "creating": "Creando…"
+    },
+    "issues": {
+      "unknown": "Esta configuración no se acepta.",
+      "invalid": "Revisa este valor.",
+      "required": "Este campo es obligatorio.",
+      "appNotFound": "La aplicación ya no existe.",
+      "serverNotFound": "El servidor ya no existe.",
+      "copySourceOtherApp": "El entorno que se copia despliega otra aplicación.",
+      "environmentNameTaken": "El proyecto ya tiene un entorno con este nombre.",
+      "environmentSlugTaken": "Otro entorno tomó este nombre de URL mientras tanto. Se comprobará de nuevo.",
+      "backendServiceRequired": "Indica el contenedor del backend.",
+      "serviceNameInUse": "Otro entorno de este servidor ya usa este contenedor.",
+      "backupNeedsSharedDb": "Hacer copia antes de un despliegue requiere una base de datos compartida.",
+      "invalidInput": "Revisa los valores de esta parte.",
+      "targetMissing": "Cada componente de la aplicación necesita un destino de despliegue.",
+      "sharedDeployDir": "Otro entorno despliega en este directorio.",
+      "passwordVariableMissing": "La variable de la contraseña de la base de datos debe ser un secreto o una variable generada de este entorno. Añádela en Variables.",
+      "cloudflareUnavailable": "No se pudo leer la cuenta de Cloudflare. Inténtalo de nuevo en un momento.",
+      "componentNotFound": "No hay ningún componente registrado con esta clave.",
+      "tagVariableIsVariable": "El entorno ya tiene una variable con este nombre; el despliegue escribe la línea de la etiqueta por sí mismo.",
+      "targetDuplicate": "Este componente aparece dos veces.",
+      "componentOtherApp": "Este componente pertenece a otra aplicación.",
+      "placementForbidden": "No puedes poner un entorno en este servidor. Elige otro o pide ayuda a un administrador.",
+      "variableNameInvalid": "Usa letras mayúsculas, dígitos y guiones bajos, sin empezar por un dígito.",
+      "reservedPrefix": "Los nombres no deben empezar por COMPOSE_, DOCKER_ ni BUILDKIT_.",
+      "tagVariableName": "Este nombre está reservado para la etiqueta de la imagen.",
+      "variableDuplicate": "Esta variable aparece dos veces.",
+      "valueInvalid": "Un valor debe ser una sola línea, sin saltos de línea.",
+      "valueRequired": "Introduce un valor.",
+      "variableRequired": "La aplicación exige esta variable, pero no tiene valor en este entorno.",
+      "copySourceRequired": "Elige un entorno del que copiar.",
+      "copySourceMissing": "El entorno de origen no tiene esta variable.",
+      "copyKindMismatch": "La variable del entorno de origen es de otro tipo.",
+      "escrowCopyForbidden": "Las variables en custodia nunca se copian: introduce un valor.",
+      "secretCopyForbidden": "No puedes leer los secretos del entorno de origen: introduce un valor.",
+      "copyForbidden": "No puedes leer las variables del entorno de origen: introduce un valor.",
+      "missing_db_fields": "La base de datos compartida está incompleta: indica el host, la base de datos, el rol y la variable de la contraseña.",
+      "missing_entry_port": "El dominio necesita el puerto local.",
+      "no_targets": "Añade primero un destino de despliegue."
     }
   }
 }

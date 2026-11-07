@@ -12,13 +12,18 @@ import {
   environmentServices,
   environments,
   projects,
+  remoteTunnels,
   servers,
 } from "@/lib/db/schema";
 import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
 import { DOMAIN_ERRORS, pgErrorCode } from "@/lib/domains/errors";
-import { getZone, saveDomainIn } from "@/lib/domains/repository";
+import { getZone, listZones, saveDomainIn } from "@/lib/domains/repository";
 import type { DomainInput } from "@/lib/domains/validation";
-import { canProject, type ProjectRole } from "@/lib/permissions";
+import {
+  canPlaceEnvironment,
+  canProject,
+  type ProjectRole,
+} from "@/lib/permissions";
 import {
   ProvisioningPlanError,
   type ProvisioningStepSpec,
@@ -88,7 +93,7 @@ const SETUP_PERMISSIONS = {
 } as const;
 
 // Refusals only the setup has, by code (the others are the reused rules').
-const SETUP_ERRORS = {
+export const SETUP_ERRORS = {
   appNotFound: [404, "App not found"],
   serverNotFound: [404, "Server not found"],
   copySourceOtherApp: [400, "The copy source deploys another app"],
@@ -1120,5 +1125,51 @@ export async function getCopySource(
       copyable: canRead && !v.escrow && v.kind !== "generated",
       ...(canRead && v.kind === "plain" ? { value: v.value } : {}),
     })),
+  };
+}
+
+export type SetupOptions = {
+  /** The servers the caller may put an environment on (placement policy). */
+  servers: { id: string; name: string; host: string }[];
+  zones: { id: string; name: string }[];
+  /** Remote tunnels by id, to name them in the plan sentences. */
+  tunnels: { id: string; name: string }[];
+};
+
+/**
+ * What the setup forms offer for a project: the servers the caller may place
+ * an environment on, the registered zones and the remote tunnels. Maintainers
+ * have no org server or tunnel read, so the lists the forms need come from
+ * here (names only). Needs environment:create in the project.
+ */
+export async function getSetupOptions(
+  projectId: string
+): Promise<SetupOptions> {
+  const { session, role } = await requireProjectPermission(
+    { projectId },
+    { environment: ["create"] }
+  );
+  const [serverRows, zones, tunnels] = await Promise.all([
+    db
+      .select({
+        id: servers.id,
+        name: servers.name,
+        host: servers.host,
+        placement: servers.placement,
+      })
+      .from(servers)
+      .orderBy(asc(servers.name)),
+    listZones(),
+    db
+      .select({ id: remoteTunnels.id, name: remoteTunnels.name })
+      .from(remoteTunnels)
+      .orderBy(asc(remoteTunnels.name)),
+  ]);
+  return {
+    servers: serverRows
+      .filter((s) => canPlaceEnvironment(session.user.role, role, s.placement))
+      .map(({ id, name, host }) => ({ id, name, host })),
+    zones,
+    tunnels,
   };
 }
