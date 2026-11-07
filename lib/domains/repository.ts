@@ -1,5 +1,5 @@
 import { and, asc, eq, ne, type SQL, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { type DbTransaction, db } from "@/lib/db";
 import {
   cloudflareAccounts,
   cloudflareZones,
@@ -122,10 +122,13 @@ export async function getDomain(
   return row;
 }
 
-/** Whether another environment already uses the hostname. */
+/**
+ * Whether another environment already uses the hostname (any environment,
+ * without `environmentId`).
+ */
 export async function hostnameTakenByOther(
   hostname: string,
-  environmentId: string
+  environmentId?: string
 ): Promise<boolean> {
   const [row] = await db
     .select({ id: environmentDomains.environmentId })
@@ -133,7 +136,9 @@ export async function hostnameTakenByOther(
     .where(
       and(
         eq(environmentDomains.hostname, hostname),
-        ne(environmentDomains.environmentId, environmentId)
+        environmentId
+          ? ne(environmentDomains.environmentId, environmentId)
+          : undefined
       )
     )
     .limit(1);
@@ -183,26 +188,36 @@ export async function saveDomain(
   write: DomainWrite,
   entryPort?: number
 ): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const values = { ...write, accessAppId: null, dnsRecordId: null };
-    const rows = await tx
-      .insert(environmentDomains)
-      .values({ environmentId, ...values })
-      .onConflictDoUpdate({
-        target: environmentDomains.environmentId,
-        set: { ...values, updatedAt: new Date() },
-        setWhere: unprovisioned,
-      })
-      .returning({ id: environmentDomains.environmentId });
-    if (rows.length === 0) return false;
-    if (entryPort !== undefined) {
-      await tx
-        .update(environments)
-        .set({ entryPort })
-        .where(eq(environments.id, environmentId));
-    }
-    return true;
-  });
+  return db.transaction((tx) =>
+    saveDomainIn(tx, environmentId, write, entryPort)
+  );
+}
+
+/** saveDomain inside the caller's transaction. */
+export async function saveDomainIn(
+  tx: DbTransaction,
+  environmentId: string,
+  write: DomainWrite,
+  entryPort?: number
+): Promise<boolean> {
+  const values = { ...write, accessAppId: null, dnsRecordId: null };
+  const rows = await tx
+    .insert(environmentDomains)
+    .values({ environmentId, ...values })
+    .onConflictDoUpdate({
+      target: environmentDomains.environmentId,
+      set: { ...values, updatedAt: new Date() },
+      setWhere: unprovisioned,
+    })
+    .returning({ id: environmentDomains.environmentId });
+  if (rows.length === 0) return false;
+  if (entryPort !== undefined) {
+    await tx
+      .update(environments)
+      .set({ entryPort })
+      .where(eq(environments.id, environmentId));
+  }
+  return true;
 }
 
 /** Removes an unprovisioned binding. False when none was removed. */

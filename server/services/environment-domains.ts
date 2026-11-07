@@ -2,7 +2,11 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { listAccessPolicies } from "@/lib/cloudflare/api";
-import { DOMAIN_ERRORS, pgErrorCode } from "@/lib/domains/errors";
+import {
+  DOMAIN_ERRORS,
+  type DomainErrorCode,
+  pgErrorCode,
+} from "@/lib/domains/errors";
 import {
   deleteDomain,
   getDomain,
@@ -24,7 +28,7 @@ import {
 } from "@/lib/domains/validation";
 import { canOrg } from "@/lib/permissions";
 import { ENTRY_PORT_RANGE } from "@/lib/provisioning/ports";
-import { notFound } from "@/server/errors";
+import { CodedHTTPException, notFound } from "@/server/errors";
 import { callCloudflare } from "@/server/services/cloudflare-account";
 import { listEntryPortsOnServer } from "@/server/services/preflight-repository";
 
@@ -87,8 +91,8 @@ const inFreePortRange = (port: number) =>
 /** The one server the environment's deploy targets run on. */
 async function resolveDeployServerId(environmentId: string): Promise<string> {
   const serverIds = await listDeployServerIds(environmentId);
-  if (serverIds.length === 0) return fail(422, DOMAIN_ERRORS.domainNoTargets);
-  if (serverIds.length > 1) return fail(422, DOMAIN_ERRORS.domainMultiServer);
+  if (serverIds.length === 0) return failDomain(422, "domainNoTargets");
+  if (serverIds.length > 1) return failDomain(422, "domainMultiServer");
   return serverIds[0] as string;
 }
 
@@ -135,6 +139,112 @@ export async function listDomainAccessPolicies(environmentId: string) {
     .map(({ id, name }) => ({ id, name }));
 }
 
+/**
+ * Fails with the domain refusal `code`: its DOMAIN_ERRORS message, and the
+ * code for the setup preview (server/errors#errorCode).
+ */
+function failDomain(status: 403 | 409 | 422, code: DomainErrorCode): never {
+  throw new CodedHTTPException(status, code, DOMAIN_ERRORS[code]);
+}
+
+type DomainWrite = {
+  kind: "tunnel" | "external";
+  hostname: string;
+  zoneId: string | null;
+  remoteTunnelId: string | null;
+  accessPolicyId: string | null;
+};
+
+/**
+ * Every rule a domain binding must pass, in this order: for an external
+ * hostname, unused by other environments and not under a registered zone;
+ * for a tunnel, Access unless the caller may publish, an entry port in the
+ * free range unless the caller may publish, the port unused on the deploy
+ * server, the server's tunnel, the zone, the hostname unused, and the Access
+ * policy in the account (a public one only for publishers). `deployServerId`
+ * is asked for only after the checks that need no lookup. `environmentId` is
+ * the environment the binding is for, when it exists already. Returns the row
+ * to store and, for a tunnel, the entry port and the tunnel's origin host.
+ */
+export async function validateDomainBinding(
+  orgRole: string | null | undefined,
+  input: DomainInput,
+  {
+    environmentId,
+    deployServerId,
+  }: { environmentId?: string; deployServerId: () => Promise<string> }
+): Promise<{ write: DomainWrite; entryPort?: number; originHost?: string }> {
+  if (input.kind === "external") {
+    if (await hostnameTakenByOther(input.hostname, environmentId)) {
+      return failDomain(409, "domainHostnameTaken");
+    }
+    // Under a registered zone the Panel can do better than a record.
+    const zoneNames = (await listZones()).map((z) => z.name);
+    if (isUnderZone(input.hostname, zoneNames)) {
+      return failDomain(422, "domainExternalInZone");
+    }
+    return {
+      write: {
+        kind: "external",
+        hostname: input.hostname,
+        zoneId: null,
+        remoteTunnelId: null,
+        accessPolicyId: null,
+      },
+    };
+  }
+
+  // Going public is an org-level call; refuse before any lookup.
+  if (input.accessPolicyId === null && !canPublish(orgRole)) {
+    return failDomain(403, "domainPublicForbidden");
+  }
+  // Outside the free-port range sit the server's own services (the Panel,
+  // CI, production apps): pointing a hostname there is an org-level call.
+  if (!inFreePortRange(input.entryPort) && !canPublish(orgRole)) {
+    return failDomain(403, "domainPortForbidden");
+  }
+
+  const serverId = await deployServerId();
+  const taken = await listEntryPortsOnServer(serverId, environmentId);
+  if (taken.includes(input.entryPort)) {
+    return failDomain(409, "domainPortInUse");
+  }
+  const tunnel = await getRemoteTunnelByServer(serverId);
+  if (!tunnel) return failDomain(422, "domainNoTunnel");
+  const zone = await getZone(input.zoneId);
+  if (!zone) return failDomain(422, "domainUnknownZone");
+
+  const hostname = hostnameFor(input.label, zone.name);
+  if (await hostnameTakenByOther(hostname, environmentId)) {
+    return failDomain(409, "domainHostnameTaken");
+  }
+
+  // Checked against the account now, not cached: a deleted policy must not be
+  // bound.
+  if (input.accessPolicyId !== null) {
+    const policyId = input.accessPolicyId;
+    const policies = await callCloudflare(listAccessPolicies);
+    const policy = policies.find((p) => p.id === policyId);
+    if (!policy) return failDomain(422, "domainUnknownPolicy");
+    // A bypass or Everyone policy is a public binding by another name.
+    if (isPublicPolicy(policy) && !canPublish(orgRole)) {
+      return failDomain(403, "domainPublicForbidden");
+    }
+  }
+
+  return {
+    write: {
+      kind: "tunnel",
+      hostname,
+      zoneId: zone.id,
+      remoteTunnelId: tunnel.id,
+      accessPolicyId: input.accessPolicyId,
+    },
+    entryPort: input.entryPort,
+    originHost: tunnel.originHost,
+  };
+}
+
 export async function putEnvironmentDomain(
   environmentId: string,
   input: DomainInput
@@ -151,89 +261,23 @@ export async function putEnvironmentDomain(
     return fail(409, DOMAIN_ERRORS.domainProvisioned);
   }
 
-  if (input.kind === "external") {
-    if (await hostnameTakenByOther(input.hostname, environmentId)) {
-      return fail(409, DOMAIN_ERRORS.domainHostnameTaken);
-    }
-    // Under a registered zone the Panel can do better than a record.
-    const zoneNames = (await listZones()).map((z) => z.name);
-    if (isUnderZone(input.hostname, zoneNames)) {
-      return fail(422, DOMAIN_ERRORS.domainExternalInZone);
-    }
-    await store(environmentId, {
-      kind: "external",
-      hostname: input.hostname,
-      zoneId: null,
-      remoteTunnelId: null,
-      accessPolicyId: null,
-    });
-    await record(
-      session.user.id,
-      environmentId,
-      environment.name,
-      input.hostname,
-      "external"
-    );
-    return { hostname: input.hostname };
-  }
-
-  // Going public is an org-level call; refuse before any lookup.
-  if (input.accessPolicyId === null && !canPublish(session.user.role)) {
-    return fail(403, DOMAIN_ERRORS.domainPublicForbidden);
-  }
-  // Outside the free-port range sit the server's own services (the Panel,
-  // CI, production apps): pointing a hostname there is an org-level call.
-  if (!inFreePortRange(input.entryPort) && !canPublish(session.user.role)) {
-    return fail(403, DOMAIN_ERRORS.domainPortForbidden);
-  }
-
-  const serverId = await resolveDeployServerId(environmentId);
-  const taken = await listEntryPortsOnServer(serverId, environmentId);
-  if (taken.includes(input.entryPort)) {
-    return fail(409, DOMAIN_ERRORS.domainPortInUse);
-  }
-  const tunnel = await getRemoteTunnelByServer(serverId);
-  if (!tunnel) return fail(422, DOMAIN_ERRORS.domainNoTunnel);
-  const zone = await getZone(input.zoneId);
-  if (!zone) return fail(422, DOMAIN_ERRORS.domainUnknownZone);
-
-  const hostname = hostnameFor(input.label, zone.name);
-  if (await hostnameTakenByOther(hostname, environmentId)) {
-    return fail(409, DOMAIN_ERRORS.domainHostnameTaken);
-  }
-
-  // Checked against the account now, not cached: a deleted policy must not be
-  // bound.
-  if (input.accessPolicyId !== null) {
-    const policyId = input.accessPolicyId;
-    const policies = await callCloudflare(listAccessPolicies);
-    const policy = policies.find((p) => p.id === policyId);
-    if (!policy) return fail(422, DOMAIN_ERRORS.domainUnknownPolicy);
-    // A bypass or Everyone policy is a public binding by another name.
-    if (isPublicPolicy(policy) && !canPublish(session.user.role)) {
-      return fail(403, DOMAIN_ERRORS.domainPublicForbidden);
-    }
-  }
-
-  await store(
-    environmentId,
+  const { write, entryPort } = await validateDomainBinding(
+    session.user.role,
+    input,
     {
-      kind: "tunnel",
-      hostname,
-      zoneId: zone.id,
-      remoteTunnelId: tunnel.id,
-      accessPolicyId: input.accessPolicyId,
-    },
-    input.entryPort
+      environmentId,
+      deployServerId: () => resolveDeployServerId(environmentId),
+    }
   );
+  await store(environmentId, write, entryPort);
   await record(
     session.user.id,
     environmentId,
     environment.name,
-    hostname,
-    "tunnel"
+    write.hostname,
+    write.kind
   );
-  return { hostname };
+  return { hostname: write.hostname };
 }
 
 export async function deleteEnvironmentDomain(environmentId: string) {

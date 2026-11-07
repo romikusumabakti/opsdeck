@@ -140,8 +140,9 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     testMailpitConnection: /environment: \["update"\]/,
   },
   "server/services/environments.ts": {
-    // The placement policy of the bound servers decides (canPlaceEnvironment).
-    createEnvironment: /requireEnvironmentPlacement\(/,
+    // The placement policy of the bound servers decides (canPlaceEnvironment),
+    // checked by validateNewEnvironment (below).
+    createEnvironment: /validateNewEnvironment\(/,
     updateEnvironment: /environment: \["update"\]/,
     deleteEnvironment: /environment: \["delete"\]/,
   },
@@ -151,6 +152,12 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     addProjectMember: /member: \["manage"\]/,
     updateProjectMemberRole: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,
+  },
+  "server/services/environment-setup.ts": {
+    // authorize() asks SETUP_PERMISSIONS (below) of the target project.
+    previewEnvironmentSetup: /checkSetup\(input, "collect"\)/,
+    createEnvironmentSetup: /checkSetup\(input, "throw"\)/,
+    getCopySource: /project: \["read"\]/,
   },
   "server/services/variables.ts": {
     listVariables: /variable: \["read"\]/,
@@ -195,7 +202,7 @@ describe("issue writes validate their references", () => {
 
 describe("environment writes validate their owner", () => {
   const source = readFileSync("server/services/environments.ts", "utf8");
-  for (const fn of ["createEnvironment", "updateEnvironment"]) {
+  for (const fn of ["validateNewEnvironment", "updateEnvironment"]) {
     it(`${fn} checks owner eligibility`, () => {
       expect(body(source, fn)).toMatch(/ownerIdToVerify\(/);
       expect(body(source, fn)).toMatch(/requireEligibleOwner\(/);
@@ -355,15 +362,45 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
 // Binding an environment to infrastructure is fleet-level power (service
 // control, database drop/restore and logs run against whatever it points at),
 // so it needs org server:manage, not just a project role.
+// The setup wizard creates environments, targets, variables and domains in
+// one request: it must ask the target project for every right the single-row
+// APIs ask for, and run their checks rather than its own.
+describe("environment setup reuses the existing rules", () => {
+  const source = readFileSync("server/services/environment-setup.ts", "utf8");
+  it("asks environment:create, deploy configure/run and variable:write", () => {
+    expect(source).toMatch(
+      /SETUP_PERMISSIONS = \{\s*environment: \["create"\],\s*deploy: \["configure", "run"\],\s*variable: \["write"\],\s*\}/
+    );
+    expect(source).toMatch(
+      /requireProjectPermission\(\s*\{ projectId: input\.projectId \},\s*SETUP_PERMISSIONS\s*\)/
+    );
+  });
+  it("runs the environment, variable and domain checks of the other APIs", () => {
+    for (const check of [
+      "validateNewEnvironment(",
+      "planEnvironmentVariables(",
+      "validateDomainBinding(",
+      "deployDirInUse(",
+    ]) {
+      expect(source).toContain(check);
+    }
+  });
+});
+
 describe("environment infrastructure bindings need server:manage", () => {
   const source = readFileSync("server/services/environments.ts", "utf8");
   // Restricted servers keep the server:manage rule; open ones admit project
   // maintainers (tests/placement.test.ts). The check must run before the try
   // block, so ForbiddenError propagates.
   it("createEnvironment checks the placement of every bound server", () => {
+    const check = body(source, "validateNewEnvironment");
+    expect(check).toMatch(
+      /createdBindings\([\s\S]*requireEnvironmentPlacement\(/
+    );
+    expect(check).toMatch(/requireNoSharedDbOverlap\(/);
     const fn = body(source, "createEnvironment");
-    expect(fn).toMatch(/requireEnvironmentPlacement\([\s\S]*createdBindings\(/);
-    expect(fn.indexOf("requireEnvironmentPlacement(")).toBeLessThan(
+    expect(fn.indexOf("validateNewEnvironment(")).toBeGreaterThan(-1);
+    expect(fn.indexOf("validateNewEnvironment(")).toBeLessThan(
       fn.indexOf("try {")
     );
     expect(source).toMatch(/canPlaceEnvironment\(/);
