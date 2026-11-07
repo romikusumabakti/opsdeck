@@ -13,6 +13,7 @@ import {
   registerApp,
   retryPipelineFileCommit,
   rotateNotifySecret,
+  triggerComponentBuild,
 } from "@/server/services/apps";
 import { json, jsonQuery, param, query } from "@/server/validation";
 
@@ -23,8 +24,10 @@ const componentParam = param(
 /**
  * Apps and their components. Listing is for every signed-in user; registering
  * is for app registrants (admins and project maintainers; generated pipelines
- * for admins only); rotating a notify secret and committing the pipeline file
- * are for admins. Each service function checks its own permission.
+ * for admins only); starting a build is for admins and project maintainers
+ * (see triggerComponentBuild); rotating a notify secret and committing the
+ * pipeline file are for admins. Each service function checks its own
+ * permission.
  */
 export const appsRouter = sessionRouter()
   .get("/", async (c) => c.json(await listAllApps()))
@@ -40,6 +43,17 @@ export const appsRouter = sessionRouter()
     async (c) => {
       const { componentKey, buildSpec } = c.req.valid("query");
       return c.json(await previewPipeline(componentKey, buildSpec));
+    }
+  )
+  // Starts a build; the New app stepper's first one. Who may is the service's.
+  .post(
+    "/:appKey/components/:componentKey/build",
+    componentParam,
+    json(z.object({ branch: branchSchema })),
+    async (c) => {
+      const { appKey, componentKey } = c.req.valid("param");
+      const { branch } = c.req.valid("json");
+      return c.json(await triggerComponentBuild(appKey, componentKey, branch));
     }
   )
   .post(

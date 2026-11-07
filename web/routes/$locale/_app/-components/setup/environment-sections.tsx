@@ -44,6 +44,7 @@ import {
   withPasswordVariable,
 } from "@/lib/setup/draft";
 import type { SetupServiceRole } from "@/lib/setup/schema";
+import { type SectionName, sectionOfField } from "@/lib/setup/sections";
 import type { DatabaseHostRow } from "@/web/api/database-hosts";
 import type { SetupOptions } from "@/web/api/setup";
 import { useIssueMessage } from "./use-issue-message";
@@ -68,20 +69,6 @@ export type SectionsProps = {
   /** Issue code by field path. */
   issues: Record<string, string>;
 };
-
-type SectionName = "server" | "database" | "variables" | "domain" | "deploy";
-
-/** The section whose fields a preview issue's path belongs to, if any. */
-export function sectionOfField(field: string): SectionName | null {
-  if (field === "server.serverId" || field.startsWith("services")) {
-    return "server";
-  }
-  if (field.startsWith("database")) return "database";
-  if (field.startsWith("variables")) return "variables";
-  if (field.startsWith("domain")) return "domain";
-  if (field.startsWith("targets")) return "deploy";
-  return null;
-}
 
 function issueCount(issues: Record<string, string>, section: SectionName) {
   return Object.keys(issues).filter((f) => sectionOfField(f) === section)

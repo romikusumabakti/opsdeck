@@ -1947,6 +1947,7 @@
     "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）",
     "environmentProvisioned": "{actor} 配置了 {environment}",
     "environmentSetup": "{actor} 设置了 {environment}",
+    "appBuildTriggered": "{actor} 在 {branch} 上启动了 {component} 的构建",
     "variableCreated": "{actor} 向 {environment} 添加了变量 {name}",
     "variableUpdated": "{actor} 修改了 {environment} 中的变量 {name}",
     "variableDeleted": "{actor} 从 {environment} 删除了变量 {name}",
@@ -2481,8 +2482,6 @@
     "variableTemplates": "变量"
   },
   "appForm": {
-    "title": "Register app",
-    "description": "Activates each repository in Woodpecker and gives it a notify secret. Generated pipelines are committed as .woodpecker.yaml to every branch they build.",
     "appTitle": "App",
     "name": "Name",
     "appKey": "App key",
@@ -2511,7 +2510,6 @@
     "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
     "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
     "generatedAdminOnly": "Only admins can choose a generated pipeline.",
-    "generatedForbidden": "Only admins can register a component with a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2538,10 +2536,6 @@
     "previewIncomplete": "Complete the build spec to see the pipeline.",
     "previewLoading": "Generating…",
     "previewFailed": "Could not generate the pipeline",
-    "submit": "Register app",
-    "submitting": "Registering…",
-    "registered": "{name} registered",
-    "pipelineFileNotCommitted": "{component} ({branch}): pipeline file not committed: {reason}",
     "issues": {
       "bundleImageMismatch": "The bundle image must be {bundle}",
       "buildSpecRequired": "A generated pipeline needs a build spec",
@@ -2567,6 +2561,21 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    },
+    "branch": "分支",
+    "branchDescription": "读取仓库并启动第一次构建所用的分支。",
+    "branchInvalid": "请输入有效的分支名称。",
+    "detect": {
+      "title": "仓库中检测到的内容",
+      "loading": "正在读取仓库…",
+      "failed": "无法读取仓库",
+      "composeFile": "Compose 文件：",
+      "ports": "容器端口 {ports}",
+      "entry": "入口",
+      "dockerfiles": "Dockerfile：",
+      "issue_no_compose": "在仓库根目录及其一级文件夹中未找到 compose 文件。",
+      "issue_no_dockerfile": "未找到 Dockerfile。",
+      "issue_compose_parse_error": "无法解析 compose 文件。"
     }
   },
   "variables": {
@@ -2938,6 +2947,77 @@
       "missing_db_fields": "共享数据库信息不完整：请填写主机、数据库、角色和密码变量。",
       "missing_entry_port": "域名需要本地端口。",
       "no_targets": "请先添加部署目标。"
+    },
+    "newApp": {
+      "title": "新建应用",
+      "subtitle": "注册应用，设置它的第一个环境，并启动第一次构建。",
+      "cancel": "取消",
+      "back": "上一步",
+      "next": "下一步",
+      "registered": "{name} 已注册",
+      "pipelineFileNotCommitted": "{component}（{branch}）：流水线文件未提交：{reason}",
+      "provisioningNotStarted": "环境已创建，但预配未启动。你可以在“部署”页面启动它。",
+      "steps": {
+        "label": "步骤",
+        "repo": "仓库",
+        "environment": "环境",
+        "database": "数据库",
+        "variables": "变量",
+        "domain": "域名",
+        "review": "复核"
+      },
+      "environment": {
+        "project": "项目",
+        "projectPlaceholder": "选择项目",
+        "name": "名称",
+        "namePlaceholder": "例如 Production"
+      },
+      "variables": {
+        "hint": "新应用还没有变量模板。请添加应用所需的变量；自动生成的变量会为你创建。"
+      },
+      "domain": {
+        "entryDetected": "检测到入口：{service} 监听容器端口 {port}。",
+        "entryService": "检测到入口：{service}。"
+      },
+      "review": {
+        "register": "注册应用 {appKey}",
+        "startBuild": "启动 {branch} 的第一次构建",
+        "startBuildOf": "启动 {branch} 的第一次构建（{component}）",
+        "environment": "环境 {name}",
+        "target": "部署目标 {component}，来自 {branch}，位于 {server}",
+        "database": {
+          "shared": "共享数据库",
+          "container": "数据库容器",
+          "external": "外部数据库",
+          "none": "无数据库"
+        },
+        "variables": "{count, plural, other {# 个变量}}，其中 {generated} 个自动生成",
+        "domain": {
+          "tunnel": "隧道域名 {host}",
+          "external": "外部域名 {host}",
+          "none": "无域名"
+        }
+      },
+      "progress": {
+        "title": "进度"
+      },
+      "lines": {
+        "register": "注册应用",
+        "preview": "检查设置",
+        "setup": "创建环境",
+        "build": "启动第一次构建",
+        "hasIssues": "请修复上面的问题，然后再次点击创建"
+      },
+      "lineStatus": {
+        "idle": "未运行",
+        "running": "运行中",
+        "done": "完成",
+        "failed": "失败"
+      },
+      "setupFailed": "应用 {appKey} 已注册，但其环境未创建。请修正输入后再次点击创建，或带着这些输入前往“添加环境”页面继续。",
+      "addEnvironmentLink": "添加环境",
+      "buildFailed": "环境已创建，但第一次构建未启动。请在应用的“部署”页面启动。",
+      "openDeploys": "打开部署"
     }
   }
 }

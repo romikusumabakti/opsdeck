@@ -75,6 +75,8 @@ type LinkProps = Omit<React.ComponentPropsWithRef<"a">, "href"> & {
   replace?: boolean;
   /** `false` keeps the scroll position (next/link's `scroll={false}`). */
   scroll?: boolean;
+  /** Router history state for the target page (serializable data). */
+  state?: Record<string, unknown>;
 };
 
 /**
@@ -88,6 +90,7 @@ export function Link({
   prefetch: _prefetch,
   replace,
   scroll,
+  state,
   ...anchor
 }: LinkProps) {
   const current = useCurrentLocale();
@@ -106,6 +109,7 @@ export function Link({
     hash,
     replace,
     resetScroll: scroll,
+    state: state as never,
   });
 }
 

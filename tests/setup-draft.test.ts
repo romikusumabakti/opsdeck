@@ -7,8 +7,12 @@ import {
   type CopySourceLike,
   type DraftContext,
   defaultDeployDir,
+  draftForHandoff,
+  draftFromRouterState,
   emptyDraft,
   parseSetupInput,
+  SETUP_DRAFT_STATE_KEY,
+  syncTargets,
   variableHandling,
 } from "@/lib/setup/draft";
 import {
@@ -312,4 +316,102 @@ describe("issue messages", () => {
       expect(typeof at(tree, issueMessagePath("not-a-code"))).toBe("string");
     });
   }
+});
+
+describe("syncTargets", () => {
+  it("adds a target per new component with its branch and detected services", () => {
+    const draft = emptyDraft(UUID, []);
+    const next = syncTargets(draft, [
+      { componentKey: "hris", branch: "develop", services: ["api", "web"] },
+    ]);
+    expect(next.targets).toHaveLength(1);
+    expect(next.targets[0]).toMatchObject({
+      componentKey: "hris",
+      sourceBranch: "develop",
+      services: "api, web",
+    });
+  });
+
+  it("keeps what the user set, follows an untouched branch and drops removed components", () => {
+    const first = syncTargets(emptyDraft(UUID, []), [
+      { componentKey: "hris", branch: "main", services: [] },
+      { componentKey: "old", branch: "main", services: [] },
+    ]);
+    const edited = {
+      ...first,
+      targets: first.targets.map((t) =>
+        t.componentKey === "hris"
+          ? { ...t, autoDeploy: true, services: "api" }
+          : t
+      ),
+    };
+    const next = syncTargets(
+      edited,
+      [{ componentKey: "hris", branch: "release", services: ["web"] }],
+      { hris: "main", old: "main" }
+    );
+    expect(next.targets).toHaveLength(1);
+    expect(next.targets[0]).toMatchObject({
+      sourceBranch: "release",
+      autoDeploy: true,
+      services: "api",
+    });
+    // A branch the user changed is theirs.
+    const custom = {
+      ...next,
+      targets: next.targets.map((t) => ({ ...t, sourceBranch: "qa" })),
+    };
+    expect(
+      syncTargets(
+        custom,
+        [{ componentKey: "hris", branch: "other", services: [] }],
+        { hris: "release" }
+      ).targets[0]?.sourceBranch
+    ).toBe("qa");
+  });
+});
+
+describe("draft hand-over", () => {
+  const draft = {
+    ...emptyDraft(UUID, [{ componentKey: "hris" }]),
+    variables: [
+      {
+        key: "k",
+        name: "TOKEN",
+        kind: "secret" as const,
+        escrow: false,
+        fromSource: false,
+        copyable: false,
+        value: "super-secret",
+        required: false,
+      },
+      {
+        key: "p",
+        name: "APP_NAME",
+        kind: "plain" as const,
+        escrow: false,
+        fromSource: false,
+        copyable: false,
+        value: "Hris",
+        required: false,
+      },
+    ],
+  };
+
+  it("drops typed secret values and makes them required again", () => {
+    const out = draftForHandoff(draft);
+    expect(JSON.stringify(out)).not.toContain("super-secret");
+    expect(out.variables[0]).toMatchObject({ value: "", required: true });
+    expect(out.variables[1]).toMatchObject({ value: "Hris" });
+  });
+
+  it("reads a draft back from router state, and nothing else", () => {
+    const state = { [SETUP_DRAFT_STATE_KEY]: draftForHandoff(draft) };
+    expect(draftFromRouterState(state)?.name).toBe(draft.name);
+    expect(draftFromRouterState({ [SETUP_DRAFT_STATE_KEY]: { x: 1 } })).toBe(
+      undefined
+    );
+    expect(draftFromRouterState(undefined)).toBe(undefined);
+    expect(draftFromRouterState({})).toBe(undefined);
+  });
 });

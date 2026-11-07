@@ -1947,6 +1947,7 @@
     "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})",
     "environmentProvisioned": "{actor} provisioned {environment}",
     "environmentSetup": "{actor} set up {environment}",
+    "appBuildTriggered": "{actor} started a build of {component} on {branch}",
     "variableCreated": "{actor} added variable {name} to {environment}",
     "variableUpdated": "{actor} changed variable {name} in {environment}",
     "variableDeleted": "{actor} deleted variable {name} from {environment}",
@@ -2481,8 +2482,6 @@
     "variableTemplates": "Variables"
   },
   "appForm": {
-    "title": "Register app",
-    "description": "Activates each repository in Woodpecker and gives it a notify secret. Generated pipelines are committed as .woodpecker.yaml to every branch they build.",
     "appTitle": "App",
     "name": "Name",
     "appKey": "App key",
@@ -2511,7 +2510,6 @@
     "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
     "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
     "generatedAdminOnly": "Only admins can choose a generated pipeline.",
-    "generatedForbidden": "Only admins can register a component with a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2538,10 +2536,6 @@
     "previewIncomplete": "Complete the build spec to see the pipeline.",
     "previewLoading": "Generating…",
     "previewFailed": "Could not generate the pipeline",
-    "submit": "Register app",
-    "submitting": "Registering…",
-    "registered": "{name} registered",
-    "pipelineFileNotCommitted": "{component} ({branch}): pipeline file not committed: {reason}",
     "issues": {
       "bundleImageMismatch": "The bundle image must be {bundle}",
       "buildSpecRequired": "A generated pipeline needs a build spec",
@@ -2567,6 +2561,21 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    },
+    "branch": "Branch",
+    "branchDescription": "The branch the repository is read from and the first build starts on.",
+    "branchInvalid": "Enter a valid branch name.",
+    "detect": {
+      "title": "Detected in the repository",
+      "loading": "Reading the repository…",
+      "failed": "Could not read the repository",
+      "composeFile": "Compose file:",
+      "ports": "container port {ports}",
+      "entry": "Entry",
+      "dockerfiles": "Dockerfiles:",
+      "issue_no_compose": "No compose file found in the repository root or its first folders.",
+      "issue_no_dockerfile": "No Dockerfile found.",
+      "issue_compose_parse_error": "The compose file could not be parsed."
     }
   },
   "variables": {
@@ -2938,6 +2947,77 @@
       "missing_db_fields": "The shared database is incomplete: set the host, database, role and password variable.",
       "missing_entry_port": "The domain needs the local port.",
       "no_targets": "Add a deploy target first."
+    },
+    "newApp": {
+      "title": "New app",
+      "subtitle": "Register the app, set up its first environment and start the first build.",
+      "cancel": "Cancel",
+      "back": "Back",
+      "next": "Next",
+      "registered": "{name} registered",
+      "pipelineFileNotCommitted": "{component} ({branch}): pipeline file not committed: {reason}",
+      "provisioningNotStarted": "The environment was created, but provisioning did not start. You can start it from the Deploys page.",
+      "steps": {
+        "label": "Steps",
+        "repo": "Repository",
+        "environment": "Environment",
+        "database": "Database",
+        "variables": "Variables",
+        "domain": "Domain",
+        "review": "Review"
+      },
+      "environment": {
+        "project": "Project",
+        "projectPlaceholder": "Choose a project",
+        "name": "Name",
+        "namePlaceholder": "e.g. Production"
+      },
+      "variables": {
+        "hint": "A new app has no variable template yet. Add the variables the app needs; generated ones are created for you."
+      },
+      "domain": {
+        "entryDetected": "Detected entry: {service} listens on container port {port}.",
+        "entryService": "Detected entry: {service}."
+      },
+      "review": {
+        "register": "Register app {appKey}",
+        "startBuild": "Start the first build of {branch}",
+        "startBuildOf": "Start the first build of {branch} ({component})",
+        "environment": "Environment {name}",
+        "target": "Deploy target {component} from {branch} on {server}",
+        "database": {
+          "shared": "A shared database",
+          "container": "A database container",
+          "external": "An external database",
+          "none": "No database"
+        },
+        "variables": "{count, plural, one {# variable} other {# variables}}, {generated} generated",
+        "domain": {
+          "tunnel": "Tunnel domain {host}",
+          "external": "External domain {host}",
+          "none": "No domain"
+        }
+      },
+      "progress": {
+        "title": "Progress"
+      },
+      "lines": {
+        "register": "Register the app",
+        "preview": "Check the setup",
+        "setup": "Create the environment",
+        "build": "Start the first build",
+        "hasIssues": "Fix the issues above and press Create again"
+      },
+      "lineStatus": {
+        "idle": "Not run",
+        "running": "Running",
+        "done": "Done",
+        "failed": "Failed"
+      },
+      "setupFailed": "App {appKey} is registered, but its environment was not created. Fix the inputs and press Create again, or continue on the Add environment page with these inputs.",
+      "addEnvironmentLink": "Add environment",
+      "buildFailed": "The environment was created, but the first build did not start. Start it from the app's Deploys page.",
+      "openDeploys": "Open Deploys"
     }
   }
 }

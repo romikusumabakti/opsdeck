@@ -105,6 +105,8 @@ export type DraftContext = {
   suggestedEntryPort: number | null;
   /** The first zone, when the draft has none. */
   defaultZoneId: string;
+  /** The compose service the domain routes to (repo detection), if known. */
+  entryService?: string | null;
   /** Fills a placeholder so the preview can run and suggest a port. */
   probe?: boolean;
 };
@@ -186,6 +188,38 @@ export function emptyDraft(
       hostname: "",
     },
   };
+}
+
+/**
+ * Makes the draft's deploy targets follow the app's components (the New app
+ * stepper registers them first): a new component gets a target on its branch
+ * and the compose services repo detection found; a known one keeps what the
+ * user set, except a branch still equal to the one it was last synced to
+ * (`previousBranches`) and services still empty. Targets of components that
+ * are gone are dropped.
+ */
+export function syncTargets(
+  draft: EnvironmentDraft,
+  components: { componentKey: string; branch: string; services: string[] }[],
+  previousBranches: Readonly<Record<string, string>> = {}
+): EnvironmentDraft {
+  const targets = components.map((c) => {
+    const services = c.services.join(", ");
+    const existing = draft.targets.find(
+      (t) => t.componentKey === c.componentKey
+    );
+    if (!existing)
+      return { ...emptyTarget(c.componentKey, c.branch), services };
+    return {
+      ...existing,
+      sourceBranch:
+        existing.sourceBranch === previousBranches[c.componentKey]
+          ? c.branch
+          : existing.sourceBranch,
+      services: existing.services === "" ? services : existing.services,
+    };
+  });
+  return { ...draft, targets };
 }
 
 /** The part of the copy-source response the draft uses. */
@@ -425,6 +459,7 @@ export function buildSetupInput(
       backupBeforeDeploy: t.backupBeforeDeploy,
     })),
     services: effectiveServices(draft, ctx),
+    entryService: ctx.entryService ?? undefined,
     database,
     variables,
     domain,
@@ -464,4 +499,44 @@ export function issuesByField(
   const out: Record<string, string> = {};
   for (const issue of issues) out[issue.field] ??= issue.code;
   return out;
+}
+
+/** The router state key under which a draft travels between pages. */
+export const SETUP_DRAFT_STATE_KEY = "setupDraft";
+
+/**
+ * A draft safe to put in the browser's history state: typed secret values are
+ * dropped (the entries stay, marked required), so a secret never outlives the
+ * page in history storage.
+ */
+export function draftForHandoff(draft: EnvironmentDraft): EnvironmentDraft {
+  return {
+    ...draft,
+    variables: draft.variables.map((v) =>
+      v.kind === "secret"
+        ? { ...v, value: "", required: variableHandling(v) === "enter" }
+        : v
+    ),
+  };
+}
+
+/** The draft in a page's router state, when it is shaped like one. */
+export function draftFromRouterState(
+  state: unknown
+): EnvironmentDraft | undefined {
+  const draft = (state as Record<string, unknown> | null | undefined)?.[
+    SETUP_DRAFT_STATE_KEY
+  ] as Partial<EnvironmentDraft> | undefined;
+  if (
+    !draft ||
+    typeof draft.projectId !== "string" ||
+    typeof draft.name !== "string" ||
+    !Array.isArray(draft.targets) ||
+    !Array.isArray(draft.variables) ||
+    typeof draft.database !== "object" ||
+    typeof draft.domain !== "object"
+  ) {
+    return undefined;
+  }
+  return draft as EnvironmentDraft;
 }

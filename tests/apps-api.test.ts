@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   apps: [] as Row[],
   components: [] as Row[],
   calls: [] as string[],
+  envProjects: [] as string[],
   insertError: null as Error | null,
   secretWriteError: null as Error | null,
   selectedFields: [] as unknown[],
@@ -24,6 +25,9 @@ vi.mock("@/lib/auth-session", () => ({
     user: { id: "user-1", role: state.orgRole },
   })),
 }));
+
+const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
+vi.mock("@/lib/activity", () => activity);
 
 vi.mock("@/lib/authz", async () => {
   const { canOrg } = await import("@/lib/permissions");
@@ -142,6 +146,7 @@ vi.mock("@/lib/apps", async (importOriginal) => {
       const c = state.components.find((x) => x.componentKey === componentKey);
       if (c) c.notifySecret = value;
     }),
+    projectIdsWithAppEnvironment: vi.fn(async () => [...state.envProjects]),
     getComponent: vi.fn(async (componentKey: string) => {
       const c = state.components.find((x) => x.componentKey === componentKey);
       const app = c && state.apps.find((a) => a.id === c.appId);
@@ -165,6 +170,7 @@ const provider = vi.hoisted(() => ({
   activateRepo: vi.fn(),
   updateRepoSettings: vi.fn(),
   upsertRepoSecret: vi.fn(),
+  triggerPipeline: vi.fn(),
 }));
 
 const connections = vi.hoisted(() => ({
@@ -261,6 +267,7 @@ beforeEach(() => {
   state.apps = [];
   state.components = [];
   state.calls = [];
+  state.envProjects = [];
   state.insertError = null;
   state.secretWriteError = null;
   state.selectedFields = [];
@@ -881,5 +888,96 @@ describe("POST commit-pipeline-file", () => {
     ];
     expect((await send("POST", PATH)).status).toBe(409);
     expect(forge.commitFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST build", () => {
+  const PATH = "/api/apps/a/components/accounting/build";
+  const APP_ROW = { id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" };
+
+  beforeEach(() => {
+    state.apps = [APP_ROW];
+    state.components = [existingComponent()];
+    provider.triggerPipeline.mockResolvedValue({ number: 12 });
+  });
+
+  it("lets an admin start a build and records it", async () => {
+    const res = await send("POST", PATH, { branch: "main" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ number: 12 });
+    expect(provider.triggerPipeline).toHaveBeenCalledWith("1", "main");
+    expect(activity.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "app.build.trigger",
+        data: expect.objectContaining({
+          component: "accounting",
+          branch: "main",
+          number: 12,
+        }),
+      })
+    );
+  });
+
+  it("lets a maintainer of a project with an environment of the app", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "maintainer" };
+    state.envProjects = ["project-1"];
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
+  });
+
+  it("refuses a maintainer of another project once the app has environments", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-2": "maintainer" };
+    state.envProjects = ["project-1"];
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
+    expect(provider.triggerPipeline).not.toHaveBeenCalled();
+  });
+
+  it("refuses a contributor of the app's project", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "contributor" };
+    state.envProjects = ["project-1"];
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
+  });
+
+  it("lets a registrant start the first build of an app with no environment", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-2": "maintainer" };
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
+  });
+
+  it("refuses a non-registrant for an app with no environment", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-2": "contributor" };
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
+  });
+
+  it("answers 409 (componentNotActivated) when the component has no repository", async () => {
+    state.components = [existingComponent({ ciRepoId: null })];
+    const res = await send("POST", PATH, { branch: "main" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "This component has no Woodpecker repository",
+    });
+    expect(provider.triggerPipeline).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for a component of another app", async () => {
+    const res = await send(
+      "POST",
+      "/api/apps/zzz/components/accounting/build",
+      {
+        branch: "main",
+      }
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("names the step when Woodpecker refuses", async () => {
+    provider.triggerPipeline.mockRejectedValue(
+      new CiProviderError("no such branch", 404)
+    );
+    const res = await send("POST", PATH, { branch: "nope" });
+    expect(res.status).toBe(502);
   });
 });

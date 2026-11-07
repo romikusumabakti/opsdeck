@@ -1947,6 +1947,7 @@
     "environmentDeletedWithVariables": "{actor} eliminó {environment} y {count, plural, one {su # variable} other {sus # variables}} ({names})",
     "environmentProvisioned": "{actor} aprovisionó {environment}",
     "environmentSetup": "{actor} configuró {environment}",
+    "appBuildTriggered": "{actor} inició una compilación de {component} en {branch}",
     "variableCreated": "{actor} añadió la variable {name} a {environment}",
     "variableUpdated": "{actor} cambió la variable {name} en {environment}",
     "variableDeleted": "{actor} eliminó la variable {name} de {environment}",
@@ -2481,8 +2482,6 @@
     "variableTemplates": "Variables"
   },
   "appForm": {
-    "title": "Register app",
-    "description": "Activates each repository in Woodpecker and gives it a notify secret. Generated pipelines are committed as .woodpecker.yaml to every branch they build.",
     "appTitle": "App",
     "name": "Name",
     "appKey": "App key",
@@ -2511,7 +2510,6 @@
     "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
     "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
     "generatedAdminOnly": "Only admins can choose a generated pipeline.",
-    "generatedForbidden": "Only admins can register a component with a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2538,10 +2536,6 @@
     "previewIncomplete": "Complete the build spec to see the pipeline.",
     "previewLoading": "Generating…",
     "previewFailed": "Could not generate the pipeline",
-    "submit": "Register app",
-    "submitting": "Registering…",
-    "registered": "{name} registered",
-    "pipelineFileNotCommitted": "{component} ({branch}): pipeline file not committed: {reason}",
     "issues": {
       "bundleImageMismatch": "The bundle image must be {bundle}",
       "buildSpecRequired": "A generated pipeline needs a build spec",
@@ -2567,6 +2561,21 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
+    },
+    "branch": "Rama",
+    "branchDescription": "La rama de la que se lee el repositorio y en la que empieza la primera compilación.",
+    "branchInvalid": "Introduce un nombre de rama válido.",
+    "detect": {
+      "title": "Detectado en el repositorio",
+      "loading": "Leyendo el repositorio…",
+      "failed": "No se pudo leer el repositorio",
+      "composeFile": "Archivo compose:",
+      "ports": "puerto de contenedor {ports}",
+      "entry": "Entrada",
+      "dockerfiles": "Dockerfiles:",
+      "issue_no_compose": "No se encontró un archivo compose en la raíz del repositorio ni en sus primeras carpetas.",
+      "issue_no_dockerfile": "No se encontró ningún Dockerfile.",
+      "issue_compose_parse_error": "No se pudo analizar el archivo compose."
     }
   },
   "variables": {
@@ -2938,6 +2947,77 @@
       "missing_db_fields": "La base de datos compartida está incompleta: indica el host, la base de datos, el rol y la variable de la contraseña.",
       "missing_entry_port": "El dominio necesita el puerto local.",
       "no_targets": "Añade primero un destino de despliegue."
+    },
+    "newApp": {
+      "title": "Nueva aplicación",
+      "subtitle": "Registra la aplicación, configura su primer entorno e inicia la primera compilación.",
+      "cancel": "Cancelar",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "registered": "{name} registrada",
+      "pipelineFileNotCommitted": "{component} ({branch}): archivo de pipeline no confirmado: {reason}",
+      "provisioningNotStarted": "El entorno se creó, pero la preparación no se inició. Puedes iniciarla desde la página de Despliegues.",
+      "steps": {
+        "label": "Pasos",
+        "repo": "Repositorio",
+        "environment": "Entorno",
+        "database": "Base de datos",
+        "variables": "Variables",
+        "domain": "Dominio",
+        "review": "Revisión"
+      },
+      "environment": {
+        "project": "Proyecto",
+        "projectPlaceholder": "Elige un proyecto",
+        "name": "Nombre",
+        "namePlaceholder": "p. ej. Production"
+      },
+      "variables": {
+        "hint": "Una aplicación nueva aún no tiene plantilla de variables. Añade las variables que necesita; las generadas se crean por ti."
+      },
+      "domain": {
+        "entryDetected": "Entrada detectada: {service} escucha en el puerto de contenedor {port}.",
+        "entryService": "Entrada detectada: {service}."
+      },
+      "review": {
+        "register": "Registrar la aplicación {appKey}",
+        "startBuild": "Iniciar la primera compilación de {branch}",
+        "startBuildOf": "Iniciar la primera compilación de {branch} ({component})",
+        "environment": "Entorno {name}",
+        "target": "Destino de despliegue {component} desde {branch} en {server}",
+        "database": {
+          "shared": "Una base de datos compartida",
+          "container": "Un contenedor de base de datos",
+          "external": "Una base de datos externa",
+          "none": "Sin base de datos"
+        },
+        "variables": "{count, plural, one {# variable} other {# variables}}, {generated} generadas",
+        "domain": {
+          "tunnel": "Dominio de túnel {host}",
+          "external": "Dominio externo {host}",
+          "none": "Sin dominio"
+        }
+      },
+      "progress": {
+        "title": "Progreso"
+      },
+      "lines": {
+        "register": "Registrar la aplicación",
+        "preview": "Comprobar la configuración",
+        "setup": "Crear el entorno",
+        "build": "Iniciar la primera compilación",
+        "hasIssues": "Corrige los problemas de arriba y pulsa Crear de nuevo"
+      },
+      "lineStatus": {
+        "idle": "Sin ejecutar",
+        "running": "En curso",
+        "done": "Hecho",
+        "failed": "Falló"
+      },
+      "setupFailed": "La aplicación {appKey} está registrada, pero su entorno no se creó. Corrige los datos y pulsa Crear de nuevo, o continúa en la página Añadir entorno con estos datos.",
+      "addEnvironmentLink": "Añadir entorno",
+      "buildFailed": "El entorno se creó, pero la primera compilación no se inició. Inícialo desde la página de Despliegues de la aplicación.",
+      "openDeploys": "Abrir Despliegues"
     }
   }
 }
