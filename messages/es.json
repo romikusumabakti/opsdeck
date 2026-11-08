@@ -134,6 +134,7 @@
     "activity": "Actividad",
     "jira": "Jira",
     "admin": "Administración",
+    "integrations": "Integraciones",
     "badgeAssignedOpen": "{count, plural, one {# incidencia abierta asignada a ti} other {# incidencias abiertas asignadas a ti}}",
     "badgeProjectOpen": "{count, plural, one {# incidencia abierta en este proyecto} other {# incidencias abiertas en este proyecto}}",
     "badgeActiveRuns": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
@@ -1421,7 +1422,7 @@
     "sharedDatabaseConfined": "El host de base de datos de este entorno es compartido; solo puedes usar las bases de datos propias de este entorno. Pide ayuda a un administrador para otras.",
     "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros.",
     "databaseHostVersion": "Ese contenedor ejecuta un Postgres anterior a la 15; registra solo Postgres 15 o posterior.",
-    "defaultServerForbidden": "Solo un administrador puede cambiar el servidor predeterminado del proyecto."
+    "defaultServerForbidden": "Solo los administradores e infra pueden cambiar el servidor predeterminado del proyecto."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1672,8 +1673,8 @@
     "defaultServer": "Servidor predeterminado",
     "defaultServerDescription": "Los entornos nuevos de este proyecto van aquí salvo que se elija otro servidor.",
     "defaultServerNone": "Ninguno",
-    "defaultServerSet": "Lo fija un administrador",
-    "defaultServerAdminOnly": "Solo un administrador puede cambiar el servidor predeterminado."
+    "defaultServerSet": "Lo fija un administrador o infra",
+    "defaultServerAdminOnly": "Solo los administradores e infra pueden cambiar el servidor predeterminado."
   },
   "issues": {
     "title": "Incidencias",
@@ -2029,7 +2030,9 @@
     "databaseHostDeleted": "{actor} eliminó el host de base de datos {label} ({container}) de {server}",
     "cloudflareAccountUpdated": "{actor} actualizó la cuenta de Cloudflare ({fields})",
     "environmentDomainUpdated": "{actor} estableció el dominio de {environment} en {hostname}",
-    "environmentDomainDeleted": "{actor} quitó el dominio {hostname} de {environment}"
+    "environmentDomainDeleted": "{actor} quitó el dominio {hostname} de {environment}",
+    "projectDefaultServerSet": "{actor} fijó el servidor predeterminado de {project} en {server}",
+    "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}"
   },
   "jira": {
     "title": "Jira",
@@ -2453,7 +2456,24 @@
     "keepStored": "Keep stored token",
     "saveChanges": "Save changes",
     "submitting": "Saving…",
-    "saved": "CI server saved"
+    "saved": "CI server saved",
+    "verify": "Verificar",
+    "verifyDescription": "Comprueba el token y las credenciales del forge guardados.",
+    "verifyCi": "Token de API de la CI",
+    "verifyForge": "Credenciales del forge",
+    "verifyOk": "funciona",
+    "verifyFailed": "falló",
+    "verifyNotConfigured": "sin configurar",
+    "verifyCodes": {
+      "ciTokenMissing": "No hay ningún token de API guardado.",
+      "ciTokenRejected": "El servidor de CI rechazó el token.",
+      "ciUnreachable": "No se pudo contactar con el servidor de CI (revisa la URL y Access).",
+      "ciFailed": "El servidor de CI respondió con un error.",
+      "forgeCredentialsRejected": "El forge rechazó el usuario o el token.",
+      "forgeUnreachable": "No se pudo contactar con el forge.",
+      "forgeUnsupported": "Aún no se puede comprobar este forge.",
+      "forgeFailed": "El forge respondió con un error."
+    }
   },
   "cloudflareAccount": {
     "title": "Cuenta de Cloudflare",
@@ -2538,34 +2558,6 @@
     "variableTemplates": "Variables"
   },
   "appForm": {
-    "appTitle": "App",
-    "name": "Name",
-    "appKey": "App key",
-    "appKeyDescription": "Lowercase letters, digits and '-'. Cannot be changed later.",
-    "componentTitle": "Component {number}",
-    "removeComponent": "Remove component",
-    "addComponent": "Add component",
-    "connection": "CI connection",
-    "connectionPlaceholder": "Choose a CI connection",
-    "noForgeToken": "This connection has no forge token, so the generated pipeline file cannot be committed to the repository.",
-    "repo": "Repository",
-    "repoSearch": "Search repositories",
-    "reposLoading": "Loading repositories…",
-    "reposFailed": "Could not load the repositories",
-    "noRepos": "No matching repositories",
-    "linkedTo": "Linked to {component}",
-    "alreadyActive": "Active in Woodpecker",
-    "changeRepo": "Change",
-    "repoRequired": "Choose a repository",
-    "componentKey": "Component key",
-    "bundleImage": "Bundle image",
-    "bundleImageDescription": "The image the pipeline pushes the deploy bundle to.",
-    "mode": "Pipeline",
-    "modeCustom": "Custom",
-    "modeGenerated": "Generated",
-    "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
-    "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
-    "generatedAdminOnly": "Only admins can choose a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2617,21 +2609,6 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
-    },
-    "branch": "Rama",
-    "branchDescription": "La rama de la que se lee el repositorio y en la que empieza la primera compilación.",
-    "branchInvalid": "Introduce un nombre de rama válido.",
-    "detect": {
-      "title": "Detectado en el repositorio",
-      "loading": "Leyendo el repositorio…",
-      "failed": "No se pudo leer el repositorio",
-      "composeFile": "Archivo compose:",
-      "ports": "puerto de contenedor {ports}",
-      "entry": "Entrada",
-      "dockerfiles": "Dockerfiles:",
-      "issue_no_compose": "No se encontró un archivo compose en la raíz del repositorio ni en sus primeras carpetas.",
-      "issue_no_dockerfile": "No se encontró ningún Dockerfile.",
-      "issue_compose_parse_error": "No se pudo analizar el archivo compose."
     }
   },
   "variables": {

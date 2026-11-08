@@ -134,6 +134,7 @@
     "activity": "Aktivitas",
     "jira": "Jira",
     "admin": "Admin",
+    "integrations": "Integrasi",
     "badgeAssignedOpen": "{count, plural, other {# isu terbuka ditugaskan ke Anda}}",
     "badgeProjectOpen": "{count, plural, other {# isu terbuka di proyek ini}}",
     "badgeActiveRuns": "{count, plural, other {# tugas sedang berjalan}}",
@@ -1421,7 +1422,7 @@
     "sharedDatabaseConfined": "Host database environment ini dipakai bersama; kamu hanya bisa memakai database milik environment ini. Minta bantuan admin untuk yang lain.",
     "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya.",
     "databaseHostVersion": "Container itu menjalankan Postgres lebih lama dari 15; daftarkan hanya Postgres 15 atau lebih baru.",
-    "defaultServerForbidden": "Hanya admin yang bisa mengubah server default proyek."
+    "defaultServerForbidden": "Hanya admin dan infra yang bisa mengubah server default proyek."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1672,8 +1673,8 @@
     "defaultServer": "Server default",
     "defaultServerDescription": "Environment baru proyek ini ditempatkan di sini kecuali dipilih server lain.",
     "defaultServerNone": "Tidak ada",
-    "defaultServerSet": "Diatur oleh admin",
-    "defaultServerAdminOnly": "Hanya admin yang bisa mengubah server default."
+    "defaultServerSet": "Diatur oleh admin atau infra",
+    "defaultServerAdminOnly": "Hanya admin dan infra yang bisa mengubah server default."
   },
   "issues": {
     "title": "Isu",
@@ -2029,7 +2030,9 @@
     "databaseHostDeleted": "{actor} menghapus host database {label} ({container}) dari {server}",
     "cloudflareAccountUpdated": "{actor} memperbarui akun Cloudflare ({fields})",
     "environmentDomainUpdated": "{actor} mengatur domain {environment} menjadi {hostname}",
-    "environmentDomainDeleted": "{actor} menghapus domain {hostname} dari {environment}"
+    "environmentDomainDeleted": "{actor} menghapus domain {hostname} dari {environment}",
+    "projectDefaultServerSet": "{actor} mengatur server default {project} ke {server}",
+    "projectDefaultServerCleared": "{actor} menghapus server default {project}"
   },
   "jira": {
     "title": "Jira",
@@ -2453,7 +2456,24 @@
     "keepStored": "Pertahankan token tersimpan",
     "saveChanges": "Simpan perubahan",
     "submitting": "Menyimpan…",
-    "saved": "Server CI disimpan"
+    "saved": "Server CI disimpan",
+    "verify": "Verifikasi",
+    "verifyDescription": "Memeriksa token dan kredensial forge yang tersimpan.",
+    "verifyCi": "Token API CI",
+    "verifyForge": "Kredensial forge",
+    "verifyOk": "berfungsi",
+    "verifyFailed": "gagal",
+    "verifyNotConfigured": "belum diatur",
+    "verifyCodes": {
+      "ciTokenMissing": "Belum ada token API tersimpan.",
+      "ciTokenRejected": "Server CI menolak token.",
+      "ciUnreachable": "Server CI tidak bisa dihubungi (periksa URL dan Access).",
+      "ciFailed": "Server CI membalas dengan galat.",
+      "forgeCredentialsRejected": "Forge menolak username atau token.",
+      "forgeUnreachable": "Forge tidak bisa dihubungi.",
+      "forgeUnsupported": "Pemeriksaan forge ini belum didukung.",
+      "forgeFailed": "Forge membalas dengan galat."
+    }
   },
   "cloudflareAccount": {
     "title": "Akun Cloudflare",
@@ -2538,34 +2558,6 @@
     "variableTemplates": "Variabel"
   },
   "appForm": {
-    "appTitle": "Aplikasi",
-    "name": "Nama",
-    "appKey": "Kunci aplikasi",
-    "appKeyDescription": "Huruf kecil, angka, dan '-'. Tidak bisa diubah nanti.",
-    "componentTitle": "Komponen {number}",
-    "removeComponent": "Hapus komponen",
-    "addComponent": "Tambah komponen",
-    "connection": "Koneksi CI",
-    "connectionPlaceholder": "Pilih koneksi CI",
-    "noForgeToken": "Koneksi ini tidak punya token forge, jadi berkas pipeline yang dibuat Panel tidak bisa di-commit ke repositori.",
-    "repo": "Repositori",
-    "repoSearch": "Cari repositori",
-    "reposLoading": "Memuat repositori…",
-    "reposFailed": "Repositori tidak bisa dimuat",
-    "noRepos": "Tidak ada repositori yang cocok",
-    "linkedTo": "Terhubung ke {component}",
-    "alreadyActive": "Aktif di Woodpecker",
-    "changeRepo": "Ganti",
-    "repoRequired": "Pilih repositori",
-    "componentKey": "Kunci komponen",
-    "bundleImage": "Image bundle",
-    "bundleImageDescription": "Image tempat pipeline mengunggah bundle deploy.",
-    "mode": "Pipeline",
-    "modeCustom": "Kustom",
-    "modeGenerated": "Dibuat Panel",
-    "modeCustomDescription": "Woodpecker tetap memakai berkas pipeline milik repositori.",
-    "modeGeneratedDescription": "Panel membuat pipeline dari build spec di bawah dan meng-commit-nya sebagai .woodpecker.yaml ke setiap branch yang dibangunnya.",
-    "generatedAdminOnly": "Hanya admin yang bisa memilih pipeline yang dibuat Panel.",
     "branches": "Branch",
     "branchesDescription": "Pisahkan dengan koma.",
     "tagShaLength": "Panjang commit di tag",
@@ -2617,21 +2609,6 @@
       "duplicateBundleTarget": "Dua berkas bundle memiliki tujuan yang sama",
       "duplicateCheck": "Dua pemeriksaan memiliki nama yang sama",
       "invalid": "Nilai ini tidak valid"
-    },
-    "branch": "Branch",
-    "branchDescription": "Branch tempat repositori dibaca dan build pertama dijalankan.",
-    "branchInvalid": "Masukkan nama branch yang valid.",
-    "detect": {
-      "title": "Terdeteksi di repositori",
-      "loading": "Membaca repositori…",
-      "failed": "Repositori tidak dapat dibaca",
-      "composeFile": "Berkas compose:",
-      "ports": "port kontainer {ports}",
-      "entry": "Titik masuk",
-      "dockerfiles": "Dockerfile:",
-      "issue_no_compose": "Berkas compose tidak ditemukan di akar repositori maupun folder pertamanya.",
-      "issue_no_dockerfile": "Dockerfile tidak ditemukan.",
-      "issue_compose_parse_error": "Berkas compose tidak dapat diurai."
     }
   },
   "variables": {

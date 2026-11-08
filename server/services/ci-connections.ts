@@ -2,11 +2,21 @@ import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { requireOrgPermission } from "@/lib/authz";
-import type { BitbucketAuth } from "@/lib/ci/forges/bitbucket";
-import type { CiProvider } from "@/lib/ci/types";
-import { createWoodpeckerProvider } from "@/lib/ci/woodpecker";
+import {
+  type BitbucketAuth,
+  verifyBitbucketAuth,
+} from "@/lib/ci/forges/bitbucket";
+import { type CiProvider, CiProviderError } from "@/lib/ci/types";
+import {
+  createWoodpeckerProvider,
+  verifyWoodpeckerToken,
+} from "@/lib/ci/woodpecker";
 import { db } from "@/lib/db";
-import { type CiConnection, ciConnections } from "@/lib/db/schema";
+import {
+  appComponents,
+  type CiConnection,
+  ciConnections,
+} from "@/lib/db/schema";
 import { isUniqueViolation } from "@/lib/people/names";
 import { decryptSecret, encryptNullable } from "@/lib/secrets";
 import { badRequest, notFound } from "@/server/errors";
@@ -121,6 +131,97 @@ export async function updateCiConnection(
     if (isUniqueViolation(error)) badRequest("That name is already in use");
     throw error;
   }
+}
+
+/**
+ * The outcome of checking a connection's stored credentials. A failure names
+ * its reason by a stable code (`ciForm.verifyCodes.*`); nothing carries a
+ * credential or the provider's own error text.
+ */
+export type CiConnectionCheck = {
+  ci: "ok" | "failed";
+  ciCode: CiCheckCode | null;
+  forge: "ok" | "failed" | "notConfigured";
+  forgeCode: ForgeCheckCode | null;
+};
+type CiCheckCode =
+  | "ciTokenMissing"
+  | "ciTokenRejected"
+  | "ciUnreachable"
+  | "ciFailed";
+type ForgeCheckCode =
+  | "forgeCredentialsRejected"
+  | "forgeUnreachable"
+  | "forgeUnsupported"
+  | "forgeFailed";
+
+function failureKind(error: unknown): "rejected" | "unreachable" | "failed" {
+  if (!(error instanceof CiProviderError)) return "failed";
+  if (error.status === 401 || error.status === 403) return "rejected";
+  // 0: no answer or a timeout; 3xx: a login page (e.g. Access) in the way.
+  if (error.status === 0 || (error.status >= 300 && error.status < 400)) {
+    return "unreachable";
+  }
+  return "failed";
+}
+
+const CI_CODES = {
+  rejected: "ciTokenRejected",
+  unreachable: "ciUnreachable",
+  failed: "ciFailed",
+} as const satisfies Record<string, CiCheckCode>;
+const FORGE_CODES = {
+  rejected: "forgeCredentialsRejected",
+  unreachable: "forgeUnreachable",
+  failed: "forgeFailed",
+} as const satisfies Record<string, ForgeCheckCode>;
+
+/**
+ * Checks the stored credentials: the CI API token with the provider's
+ * current-user call, and the forge credentials by reading a repository of
+ * this connection (or the forge account when none is registered).
+ */
+export async function verifyCiConnection(
+  id: string
+): Promise<CiConnectionCheck> {
+  await requireOrgPermission({ integration: ["manage"] });
+  const row = await findConnection(id);
+
+  let ci: Pick<CiConnectionCheck, "ci" | "ciCode">;
+  if (!row.apiToken) {
+    ci = { ci: "failed", ciCode: "ciTokenMissing" };
+  } else {
+    try {
+      await verifyWoodpeckerToken(row.baseUrl, decryptSecret(row.apiToken));
+      ci = { ci: "ok", ciCode: null };
+    } catch (error) {
+      ci = { ci: "failed", ciCode: CI_CODES[failureKind(error)] };
+    }
+  }
+
+  let forge: Pick<CiConnectionCheck, "forge" | "forgeCode">;
+  if (!(row.forgeUsername && row.forgeToken)) {
+    forge = { forge: "notConfigured", forgeCode: null };
+  } else if (row.forge !== "bitbucket") {
+    forge = { forge: "failed", forgeCode: "forgeUnsupported" };
+  } else {
+    const [component] = await db
+      .select({ repoFullName: appComponents.repoFullName })
+      .from(appComponents)
+      .where(eq(appComponents.ciConnectionId, id))
+      .limit(1);
+    try {
+      await verifyBitbucketAuth(
+        { username: row.forgeUsername, token: decryptSecret(row.forgeToken) },
+        component?.repoFullName ?? null
+      );
+      forge = { forge: "ok", forgeCode: null };
+    } catch (error) {
+      forge = { forge: "failed", forgeCode: FORGE_CODES[failureKind(error)] };
+    }
+  }
+
+  return { ...ci, ...forge };
 }
 
 function providerFor(row: CiConnection): CiProvider {

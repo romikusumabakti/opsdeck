@@ -35,15 +35,13 @@ import {
 import { Link } from "@/i18n/navigation";
 import {
   type AppComponentRow,
+  addEnvironmentHref,
   commitPipelineFile,
   listAppsQuery,
   rotateNotifySecret,
-  useCanAddEnvironment,
-  useCanManagePipelines,
 } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
-import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
-import { meQuery } from "@/web/api/session";
+import { listProjectsWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import { PipelineFileStatus } from "./-components/apps/pipeline-file-status";
@@ -59,8 +57,7 @@ export const Route = createFileRoute(
   loader: async ({ params: { appKey }, context: { queryClient } }) => {
     const [apps] = await Promise.all([
       loaderQuery(queryClient, listAppsQuery()),
-      loaderQuery(queryClient, meQuery()),
-      loaderQuery(queryClient, getMyProjectAccessQuery()),
+      loaderQuery(queryClient, listProjectsWithEnvironmentsQuery()),
     ]);
     if (!apps?.some((app) => app.appKey === appKey)) throw notFound();
   },
@@ -74,10 +71,7 @@ function AppDetailPage() {
   const app = useSuspenseQuery(listAppsQuery()).data.find(
     (a) => a.appKey === appKey
   );
-  // Rotating secrets and committing pipeline files is for admins.
-  const canManage = useCanManagePipelines();
-  // Anyone who can create environments in some project.
-  const canAddEnvironment = useCanAddEnvironment();
+  const projects = useSuspenseQuery(listProjectsWithEnvironmentsQuery()).data;
   if (!app) return null;
 
   return (
@@ -86,37 +80,25 @@ function AppDetailPage() {
         title={app.name}
         subtitle={app.appKey}
         action={
-          (canAddEnvironment || canManage) && (
-            <div className="flex flex-wrap gap-2">
-              {canManage && (
-                // The variable templates are for integration:manage, like
-                // the actions below.
-                <Button
-                  variant="outline"
-                  nativeButton={false}
-                  render={
-                    <Link
-                      href={`/admin/repositories/${app.appKey}/variables`}
-                    />
-                  }
-                >
-                  <ListTree data-icon="inline-start" />
-                  {t("variableTemplates")}
-                </Button>
-              )}
-              {canAddEnvironment && (
-                <Button
-                  nativeButton={false}
-                  render={
-                    <Link href={`/apps/${app.appKey}/environments/new`} />
-                  }
-                >
-                  <Plus data-icon="inline-start" />
-                  {tSetup("addEnvironment.button")}
-                </Button>
-              )}
-            </div>
-          )
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={
+                <Link href={`/admin/repositories/${app.appKey}/variables`} />
+              }
+            >
+              <ListTree data-icon="inline-start" />
+              {t("variableTemplates")}
+            </Button>
+            <Button
+              nativeButton={false}
+              render={<Link href={addEnvironmentHref(app, projects)} />}
+            >
+              <Plus data-icon="inline-start" />
+              {tSetup("addEnvironment.button")}
+            </Button>
+          </div>
         }
       />
       <div className="flex flex-col gap-4 max-w-3xl w-full">
@@ -128,7 +110,6 @@ function AppDetailPage() {
             key={component.componentKey}
             appKey={app.appKey}
             component={component}
-            canManage={canManage}
           />
         ))}
       </div>
@@ -148,11 +129,9 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 function ComponentCard({
   appKey,
   component,
-  canManage,
 }: {
   appKey: string;
   component: AppComponentRow;
-  canManage: boolean;
 }) {
   const t = useTranslations("apps");
   const tCommon = useTranslations("common");
@@ -244,11 +223,7 @@ function ComponentCard({
               <PipelineFileStatus
                 component={component}
                 showReason
-                onRetry={
-                  canManage
-                    ? (branch) => run({ kind: "commit", branch })
-                    : undefined
-                }
+                onRetry={(branch) => run({ kind: "commit", branch })}
                 retrying={
                   busy?.kind === "commit" ? (busy.branch ?? null) : null
                 }
@@ -257,57 +232,55 @@ function ComponentCard({
             }
           />
         </dl>
-        {canManage && (
-          <div className="flex flex-wrap gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy !== null || !component.ciRepoId}
-                  />
-                }
-              >
-                {busy?.kind === "rotate" ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <KeyRound className="size-4" />
-                )}
-                {t("rotateSecret")}
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("rotateConfirmTitle")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("rotateConfirmBody")}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => run({ kind: "rotate" })}>
-                    {t("rotateSecret")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            {generated && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy !== null}
-                onClick={() => run({ kind: "commit" })}
-              >
-                {busy?.kind === "commit" && busy.branch === undefined ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <GitCommitHorizontal className="size-4" />
-                )}
-                {t("commitPipelineFile")}
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy !== null || !component.ciRepoId}
+                />
+              }
+            >
+              {busy?.kind === "rotate" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <KeyRound className="size-4" />
+              )}
+              {t("rotateSecret")}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("rotateConfirmTitle")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("rotateConfirmBody")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => run({ kind: "rotate" })}>
+                  {t("rotateSecret")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          {generated && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy !== null}
+              onClick={() => run({ kind: "commit" })}
+            >
+              {busy?.kind === "commit" && busy.branch === undefined ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <GitCommitHorizontal className="size-4" />
+              )}
+              {t("commitPipelineFile")}
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

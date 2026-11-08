@@ -134,6 +134,7 @@
     "activity": "动态",
     "jira": "Jira",
     "admin": "管理员",
+    "integrations": "集成",
     "badgeAssignedOpen": "{count, plural, other {分配给你的 # 个未解决问题}}",
     "badgeProjectOpen": "{count, plural, other {此项目中有 # 个未解决问题}}",
     "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}",
@@ -1421,7 +1422,7 @@
     "sharedDatabaseConfined": "此环境的数据库主机是共享的；你只能使用此环境自己的数据库。其他数据库请联系管理员。",
     "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。",
     "databaseHostVersion": "该容器运行的 Postgres 版本低于 15；只能注册 Postgres 15 或更高版本。",
-    "defaultServerForbidden": "只有管理员可以更改项目的默认服务器。"
+    "defaultServerForbidden": "只有管理员和基础设施人员可以更改项目的默认服务器。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1672,8 +1673,8 @@
     "defaultServer": "默认服务器",
     "defaultServerDescription": "此项目的新环境默认放在这里，除非另选服务器。",
     "defaultServerNone": "无",
-    "defaultServerSet": "由管理员设置",
-    "defaultServerAdminOnly": "只有管理员可以更改默认服务器。"
+    "defaultServerSet": "由管理员或基础设施人员设置",
+    "defaultServerAdminOnly": "只有管理员和基础设施人员可以更改默认服务器。"
   },
   "issues": {
     "title": "问题",
@@ -2029,7 +2030,9 @@
     "databaseHostDeleted": "{actor} 从 {server} 移除了数据库主机 {label}（{container}）",
     "cloudflareAccountUpdated": "{actor} 更新了 Cloudflare 账户（{fields}）",
     "environmentDomainUpdated": "{actor} 将 {environment} 的域名设置为 {hostname}",
-    "environmentDomainDeleted": "{actor} 从 {environment} 移除了域名 {hostname}"
+    "environmentDomainDeleted": "{actor} 从 {environment} 移除了域名 {hostname}",
+    "projectDefaultServerSet": "{actor} 将 {project} 的默认服务器设为 {server}",
+    "projectDefaultServerCleared": "{actor} 清除了 {project} 的默认服务器"
   },
   "jira": {
     "title": "Jira",
@@ -2453,7 +2456,24 @@
     "keepStored": "Keep stored token",
     "saveChanges": "Save changes",
     "submitting": "Saving…",
-    "saved": "CI server saved"
+    "saved": "CI server saved",
+    "verify": "验证",
+    "verifyDescription": "检查已保存的令牌和代码托管凭据。",
+    "verifyCi": "CI API 令牌",
+    "verifyForge": "代码托管凭据",
+    "verifyOk": "可用",
+    "verifyFailed": "失败",
+    "verifyNotConfigured": "未配置",
+    "verifyCodes": {
+      "ciTokenMissing": "未保存 API 令牌。",
+      "ciTokenRejected": "CI 服务器拒绝了该令牌。",
+      "ciUnreachable": "无法连接 CI 服务器（请检查 URL 和 Access）。",
+      "ciFailed": "CI 服务器返回了错误。",
+      "forgeCredentialsRejected": "代码托管平台拒绝了用户名或令牌。",
+      "forgeUnreachable": "无法连接代码托管平台。",
+      "forgeUnsupported": "暂不支持检查此代码托管平台。",
+      "forgeFailed": "代码托管平台返回了错误。"
+    }
   },
   "cloudflareAccount": {
     "title": "Cloudflare 账户",
@@ -2538,34 +2558,6 @@
     "variableTemplates": "变量"
   },
   "appForm": {
-    "appTitle": "App",
-    "name": "Name",
-    "appKey": "App key",
-    "appKeyDescription": "Lowercase letters, digits and '-'. Cannot be changed later.",
-    "componentTitle": "Component {number}",
-    "removeComponent": "Remove component",
-    "addComponent": "Add component",
-    "connection": "CI connection",
-    "connectionPlaceholder": "Choose a CI connection",
-    "noForgeToken": "This connection has no forge token, so the generated pipeline file cannot be committed to the repository.",
-    "repo": "Repository",
-    "repoSearch": "Search repositories",
-    "reposLoading": "Loading repositories…",
-    "reposFailed": "Could not load the repositories",
-    "noRepos": "No matching repositories",
-    "linkedTo": "Linked to {component}",
-    "alreadyActive": "Active in Woodpecker",
-    "changeRepo": "Change",
-    "repoRequired": "Choose a repository",
-    "componentKey": "Component key",
-    "bundleImage": "Bundle image",
-    "bundleImageDescription": "The image the pipeline pushes the deploy bundle to.",
-    "mode": "Pipeline",
-    "modeCustom": "Custom",
-    "modeGenerated": "Generated",
-    "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
-    "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
-    "generatedAdminOnly": "Only admins can choose a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2617,21 +2609,6 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
-    },
-    "branch": "分支",
-    "branchDescription": "读取仓库并启动第一次构建所用的分支。",
-    "branchInvalid": "请输入有效的分支名称。",
-    "detect": {
-      "title": "仓库中检测到的内容",
-      "loading": "正在读取仓库…",
-      "failed": "无法读取仓库",
-      "composeFile": "Compose 文件：",
-      "ports": "容器端口 {ports}",
-      "entry": "入口",
-      "dockerfiles": "Dockerfile：",
-      "issue_no_compose": "在仓库根目录及其一级文件夹中未找到 compose 文件。",
-      "issue_no_dockerfile": "未找到 Dockerfile。",
-      "issue_compose_parse_error": "无法解析 compose 文件。"
     }
   },
   "variables": {
