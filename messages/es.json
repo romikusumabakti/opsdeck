@@ -2943,7 +2943,12 @@
       "copyForbidden": "No puedes leer las variables del entorno de origen: introduce un valor.",
       "missing_db_fields": "La base de datos compartida está incompleta: indica el host, la base de datos, el rol y la variable de la contraseña.",
       "missing_entry_port": "El dominio necesita el puerto local.",
-      "no_targets": "Añade primero un destino de despliegue."
+      "no_targets": "Añade primero un destino de despliegue.",
+      "noServerAvailable": "No hay ningún servidor disponible para este proyecto. Pida a un administrador que defina un servidor predeterminado o abra uno.",
+      "repoOtherApp": "Este repositorio ya pertenece a otra aplicación. Elija uno de los repositorios de esta aplicación.",
+      "repoNotBuildable": "El Panel no puede compilar este repositorio: necesita un Dockerfile y un archivo compose.",
+      "nameTaken": "Otro entorno acaba de tomar este nombre. Elija otro.",
+      "domainTaken": "Otro entorno acaba de tomar esta dirección. Elija otra."
     },
     "newApp": {
       "title": "Nueva aplicación",

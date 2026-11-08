@@ -2943,7 +2943,12 @@
       "copyForbidden": "Anda tidak boleh membaca variabel environment sumber salinan: masukkan nilai.",
       "missing_db_fields": "Database bersama belum lengkap: isi host, database, role, dan variabel kata sandi.",
       "missing_entry_port": "Domain memerlukan port lokal.",
-      "no_targets": "Tambahkan deploy target terlebih dahulu."
+      "no_targets": "Tambahkan deploy target terlebih dahulu.",
+      "noServerAvailable": "Tidak ada server yang tersedia untuk proyek ini. Minta admin menetapkan server default atau membuka satu server.",
+      "repoOtherApp": "Repositori ini sudah milik aplikasi lain. Pilih salah satu repositori aplikasi ini.",
+      "repoNotBuildable": "Panel tidak dapat membangun repositori ini: dibutuhkan Dockerfile dan file compose.",
+      "nameTaken": "Lingkungan lain baru saja memakai nama ini. Pilih nama lain.",
+      "domainTaken": "Lingkungan lain baru saja memakai alamat ini. Pilih alamat lain."
     },
     "newApp": {
       "title": "Aplikasi baru",
