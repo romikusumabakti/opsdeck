@@ -23,6 +23,7 @@ import {
   canPlaceEnvironment,
   canProject,
   type ProjectRole,
+  SETUP_PERMISSIONS,
 } from "@/lib/permissions";
 import {
   ProvisioningPlanError,
@@ -87,11 +88,7 @@ import {
  * appear in a response. Generated and escrowed values are never copied.
  */
 
-export const SETUP_PERMISSIONS = {
-  environment: ["create"],
-  deploy: ["configure", "run"],
-  variable: ["write"],
-} as const;
+export { SETUP_PERMISSIONS };
 
 // Refusals only the setup has, by code (the others are the reused rules').
 export const SETUP_ERRORS = {

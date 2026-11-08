@@ -62,15 +62,6 @@ export async function recordEnvironmentAccess(
   );
 }
 
-export async function createEnvironment(
-  data: Body<"create-environment">["data"]
-) {
-  return orFailure(
-    () => parseResponse(routes["create-environment"].$post({ json: { data } })),
-    (message) => ({ success: false, message }) as const
-  );
-}
-
 export async function updateEnvironment(
   id: Body<"update-environment">["id"],
   data: Body<"update-environment">["data"]

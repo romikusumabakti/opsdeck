@@ -7,8 +7,8 @@ import {
   type SetupServiceRole,
 } from "@/lib/setup/schema";
 
-// The setup forms' state and its translation to the API input, shared by the
-// Add environment page and the New app stepper. The draft holds what the user
+// The setup forms' state and its translation to the API input (the New
+// environment page's Advanced options). The draft holds what the user
 // chose; anything they have not touched is `null` or empty and resolves to a
 // default when the input is built (the deploy dir from the environment's
 // URL name, container names from the preview's suggestions, the entry port
@@ -191,38 +191,6 @@ export function emptyDraft(
       hostname: "",
     },
   };
-}
-
-/**
- * Makes the draft's deploy targets follow the app's components (the New app
- * stepper registers them first): a new component gets a target on its branch
- * and the compose services repo detection found; a known one keeps what the
- * user set, except a branch still equal to the one it was last synced to
- * (`previousBranches`) and services still empty. Targets of components that
- * are gone are dropped.
- */
-export function syncTargets(
-  draft: EnvironmentDraft,
-  components: { componentKey: string; branch: string; services: string[] }[],
-  previousBranches: Readonly<Record<string, string>> = {}
-): EnvironmentDraft {
-  const targets = components.map((c) => {
-    const services = c.services.join(", ");
-    const existing = draft.targets.find(
-      (t) => t.componentKey === c.componentKey
-    );
-    if (!existing)
-      return { ...emptyTarget(c.componentKey, c.branch), services };
-    return {
-      ...existing,
-      sourceBranch:
-        existing.sourceBranch === previousBranches[c.componentKey]
-          ? c.branch
-          : existing.sourceBranch,
-      services: existing.services === "" ? services : existing.services,
-    };
-  });
-  return { ...draft, targets };
 }
 
 /** The part of the copy-source response the draft uses. */
@@ -414,6 +382,72 @@ export function variableInput(v: VariableDraft): {
   };
 }
 
+/**
+ * A resolved setup (the New environment page's plan) as a draft, for the
+ * page's Advanced options: every value explicit, so none falls back to a
+ * default, except a role equal to the database name, which stays null and
+ * follows the name. `required` marks the variables the plan asks a value for.
+ */
+export function draftFromSetup(
+  setup: Omit<EnvironmentSetupInput, "appId">,
+  issues: readonly SetupIssue[]
+): EnvironmentDraft {
+  const db = setup.database;
+  const d = setup.domain;
+  return {
+    projectId: setup.projectId,
+    name: setup.name,
+    copyFromEnvironmentId: setup.copyFromEnvironmentId ?? null,
+    serverId: setup.server.serverId,
+    targets: setup.targets.map((t) => ({
+      componentKey: t.componentKey,
+      sourceBranch: t.sourceBranch,
+      autoDeploy: t.autoDeploy,
+      deployDir: t.deployDir,
+      services: t.services.join(", "),
+      tagVariable: t.tagVariable,
+      preStartCommand: t.preStartCommand ?? "",
+      healthUrl: t.healthUrl ?? "",
+      healthTimeoutSeconds: String(t.healthTimeoutSeconds),
+      backupBeforeDeploy: t.backupBeforeDeploy,
+    })),
+    serviceNames: Object.fromEntries(
+      setup.services.map((s) => [s.role, s.serviceName])
+    ),
+    database: {
+      kind: db.kind,
+      databaseHostId: db.kind === "shared" ? db.databaseHostId : "",
+      dbName: db.kind === "shared" ? db.dbName : null,
+      dbRole:
+        db.kind === "shared" && db.dbRole !== db.dbName ? db.dbRole : null,
+      passwordVariable:
+        db.kind === "shared" ? db.passwordVariable : "DB_PASSWORD",
+      serviceName: db.kind === "container" ? db.serviceName : null,
+    },
+    variables: setup.variables.map((v) => ({
+      key: v.name,
+      name: v.name,
+      kind: v.kind,
+      escrow: false,
+      fromSource: v.copy === true,
+      copyable: v.copy === true,
+      value: v.value ?? "",
+      required: issues.some(
+        (i) => i.field === `variables.${v.name}` && i.code === "valueRequired"
+      ),
+    })),
+    domain: {
+      kind: d.kind,
+      zoneId: d.kind === "tunnel" ? d.zoneId : "",
+      label: d.kind === "tunnel" ? d.label : null,
+      accessPolicyId:
+        d.kind === "tunnel" ? (d.accessPolicyId ?? PUBLIC_POLICY) : "",
+      entryPort: d.kind === "tunnel" ? String(d.entryPort) : null,
+      hostname: d.kind === "external" ? d.hostname : "",
+    },
+  };
+}
+
 /** Placeholder for a port the preview has not suggested yet. */
 const PROBE_ENTRY_PORT = 8100;
 
@@ -433,7 +467,8 @@ export function buildSetupInput(
           kind: "shared" as const,
           databaseHostId: db.databaseHostId,
           dbName: db.dbName ?? defaultDatabaseName(ctx),
-          dbRole: db.dbRole ?? defaultDatabaseName(ctx),
+          // The role follows the database name until it is edited itself.
+          dbRole: db.dbRole ?? db.dbName ?? defaultDatabaseName(ctx),
           passwordVariable: db.passwordVariable,
         }
       : db.kind === "container"
@@ -532,55 +567,4 @@ export function issuesByField(
   const out: Record<string, string> = {};
   for (const issue of issues) out[issue.field] ??= issue.code;
   return out;
-}
-
-/** The router state key under which a draft travels between pages. */
-export const SETUP_DRAFT_STATE_KEY = "setupDraft";
-/** The compose service the domain routes to, handed over with the draft. */
-export const SETUP_ENTRY_SERVICE_STATE_KEY = "setupEntryService";
-
-export function entryServiceFromRouterState(
-  state: unknown
-): string | undefined {
-  const value = (state as Record<string, unknown> | null | undefined)?.[
-    SETUP_ENTRY_SERVICE_STATE_KEY
-  ];
-  return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-/**
- * A draft safe to put in the browser's history state: typed secret values are
- * dropped (the entries stay, marked required), so a secret never outlives the
- * page in history storage.
- */
-export function draftForHandoff(draft: EnvironmentDraft): EnvironmentDraft {
-  return {
-    ...draft,
-    variables: draft.variables.map((v) =>
-      v.kind === "secret"
-        ? { ...v, value: "", required: variableHandling(v) === "enter" }
-        : v
-    ),
-  };
-}
-
-/** The draft in a page's router state, when it is shaped like one. */
-export function draftFromRouterState(
-  state: unknown
-): EnvironmentDraft | undefined {
-  const draft = (state as Record<string, unknown> | null | undefined)?.[
-    SETUP_DRAFT_STATE_KEY
-  ] as Partial<EnvironmentDraft> | undefined;
-  if (
-    !draft ||
-    typeof draft.projectId !== "string" ||
-    typeof draft.name !== "string" ||
-    !Array.isArray(draft.targets) ||
-    !Array.isArray(draft.variables) ||
-    typeof draft.database !== "object" ||
-    typeof draft.domain !== "object"
-  ) {
-    return undefined;
-  }
-  return draft as EnvironmentDraft;
 }

@@ -215,6 +215,15 @@ export function canCreateEnvironment(
   );
 }
 
+// What setting up a new environment asks of the caller's project role: the
+// environment, its deploy targets and its variables (the setup service and
+// the New environment page's guard).
+export const SETUP_PERMISSIONS = {
+  environment: ["create"],
+  deploy: ["configure", "run"],
+  variable: ["write"],
+} as const satisfies ProjectPermissions;
+
 // Who may put a new environment on a server, by the server's placement policy.
 // `restricted` is the rule above, plus one exception: the project's own default
 // server admits its engineers without org server:manage. `open` admits project

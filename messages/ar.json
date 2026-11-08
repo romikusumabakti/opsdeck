@@ -751,14 +751,46 @@
     "closeDialog": "إغلاق أي مربع حوار مفتوح"
   },
   "newEnvironment": {
-    "title": "إنشاء بيئة جديدة",
-    "description": "تسجيل بيئة جديدة مع تكوين قاعدة البيانات والخادم الخلفي والأمامي.",
-    "formTitle": "تكوين البيئة",
-    "formDescription": "اختر خادماً لكل دور (قاعدة البيانات، الخلفية، الواجهة الأمامية) وقدم تفاصيل الخدمة.",
-    "cloneTitle": "نسخ البيئة",
-    "cloneDescription": "إنشاء بيئة جديدة مُعبأة مسبقاً بتكوين {name}.",
-    "cloneFormTitle": "تكوين البيئة",
-    "cloneFormDescription": "راجع القيم المنسوخة وعدّلها. كلمات المرور ومفاتيح API لا تُنسخ — أعد إدخالها إذا لزم الأمر."
+    "title": "بيئة جديدة",
+    "subtitle": "اختر مستودعًا واسمًا. تُعدّ اللوحة الخادم وقاعدة البيانات والعنوان، ثم تنشر أول بناء.",
+    "startFrom": "البدء من",
+    "startFromNew": "جديدة",
+    "startFromCopy": "نسخة من {name}",
+    "startFromHint": "تأخذ النسخة المستودعات والفروع واختيار قاعدة البيانات والمتغيرات. تُنسخ القيم السرية على الخادم ولا تُعرض أبدًا.",
+    "copyFailed": "تعذرت قراءة تلك البيئة.",
+    "name": "الاسم",
+    "namePlaceholder": "مثلًا Dev 3",
+    "repository": "المستودع",
+    "chooseRepo": "اختر مستودعًا",
+    "addRepo": "إضافة مستودع آخر",
+    "addMissingRepo": "إضافة {repo}",
+    "removeRepo": "إزالة {repo}",
+    "searchRepos": "ابحث في المستودعات…",
+    "noRepos": "لا يطابق أي مستودع.",
+    "reposFailed": "تعذر عرض المستودعات.",
+    "branch": "الفرع",
+    "detected": "الخدمات: {services}",
+    "detectedNone": "لم يُعثر على خدمات compose",
+    "pipelineGenerated": "تولّد اللوحة خط البناء الخاص به",
+    "pipelineCustom": "يُبنى بملف .woodpecker.yaml الخاص به",
+    "pipelineNotNotifying": "ملف .woodpecker.yaml الخاص به لا يُبلغ اللوحة، لذا لن تُنشر عمليات البناء. أضف خطوة notify-panel موقّعة بسر المستودع <code>opsdeck_notify</code> (انظر docs/deploy.md).",
+    "needsDatabase": "يحتاج إلى قاعدة بيانات",
+    "needsDatabaseHint": "قاعدة بيانات مشتركة على مضيف قواعد البيانات في الخادم، وإلا فحاوية قاعدة بيانات.",
+    "setInAdvanced": "يُضبط ضمن الخيارات المتقدمة.",
+    "address": "العنوان",
+    "addressHint": "خلف سياسة الوصول DSS Internal. اتركه فارغًا للاسم المقترح.",
+    "noAddress": "بلا عنوان",
+    "server": "الخادم",
+    "serverPlaceholder": "اختر خادمًا",
+    "serverHint": "ليس للمشروع خادم افتراضي بعد: يصبح هذا الخادم افتراضيه.",
+    "kind": "نوع البيئة",
+    "kindNone": "غير محدد",
+    "owner": "المالك",
+    "ownerNone": "بلا مالك",
+    "created": "أُنشئت البيئة.",
+    "provisioningNotStarted": "أُنشئت البيئة، لكن التهيئة لم تبدأ. يمكنك بدؤها من صفحة النشر.",
+    "buildNotStarted": "أُنشئت البيئة، لكن أحد البناءات الأولى لم يبدأ. ابدأه من صفحة النشر.",
+    "pickProject": "اختر المشروع الذي تنتمي إليه البيئة الجديدة واضغط بيئة جديدة في صفحته."
   },
   "environmentForm": {
     "info": "معلومات البيئة",
@@ -796,9 +828,7 @@
     "saveChanges": "حفظ التغييرات",
     "submitting": "جارٍ الحفظ…",
     "submitFailed": "فشل حفظ البيئة",
-    "createdSuccess": "تم إنشاء البيئة",
     "savedSuccess": "تم حفظ البيئة",
-    "nameCopySuffix": "{name} (نسخة)",
     "project": "المشروع",
     "pickProject": "اختر مشروعًا…",
     "projectRequired": "اختر مشروعًا",
@@ -1232,7 +1262,12 @@
     "confirmPassword": "تأكيد كلمة المرور",
     "passwordMismatch": "تأكيد كلمة المرور غير متطابق",
     "submit": "إنشاء حساب وتسجيل الدخول",
-    "submitting": "جارٍ المعالجة…"
+    "submitting": "جارٍ المعالجة…",
+    "advancedOptions": "خيارات متقدمة",
+    "summary": "الخادم {server} · المنفذ {port} · قاعدة البيانات {db} · {url}",
+    "summaryNone": "لا يوجد",
+    "summaryNoAddress": "بلا عنوان",
+    "noServerAvailable": "لا يتوفر خادم لهذا المشروع. اطلب من المسؤول تعيين خادم افتراضي أو فتح خادم."
   },
   "actionErrors": {
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
@@ -2816,24 +2851,7 @@
       "general": "عام"
     },
     "addEnvironment": {
-      "title": "إضافة بيئة",
-      "subtitle": "أضف بيئة إلى {app}. انسخ بيئة موجودة لتبدأ من إعداداتها.",
-      "button": "إضافة بيئة",
-      "project": "المشروع",
-      "projectPlaceholder": "اختر مشروعًا",
-      "noProjects": "لست Engineer في أي مشروع، لذلك لا يمكنك إضافة بيئات.",
-      "name": "الاسم",
-      "namePlaceholder": "مثل Staging",
-      "copyFrom": "نسخ من",
-      "copyFromNone": "ابدأ فارغًا",
-      "copyFromHint": "يملأ كل قسم من تلك البيئة. تُنسخ القيم السرية على الخادم ولا تُعرض أبدًا.",
-      "copyFailed": "تعذّرت قراءة تلك البيئة.",
-      "created": "تم إنشاء البيئة.",
-      "provisioningNotStarted": "تم إنشاء البيئة لكن التهيئة لم تبدأ. يمكنك بدؤها من صفحة النشر."
-    },
-    "legacyNotice": {
-      "title": "بيئة لتطبيق مسجّل؟",
-      "description": "أضِفها من صفحة التطبيق بدلًا من ذلك: فهي تُعدّ أهداف النشر وقاعدة البيانات والمتغيرات والنطاق معًا. هذا النموذج للبيئات التي لا تديرها اللوحة."
+      "button": "إضافة بيئة"
     },
     "server": {
       "label": "الخادم",
@@ -2958,77 +2976,6 @@
       "repoLinked": "سُجِّل هذا المستودع للتو. حاول مرة أخرى.",
       "registrationRace": "جرى تسجيل آخر لهذا المستودع في الوقت نفسه. اطلب من المسؤول تدوير سر الإشعار ثم حاول مرة أخرى.",
       "pipelineFileExists": "يحتوي الفرع بالفعل على ‎.woodpecker.yaml لم ينشئه Panel. اجعله يُبلغ Panel أو احذفه."
-    },
-    "newApp": {
-      "title": "تطبيق جديد",
-      "subtitle": "سجّل التطبيق، وأعدّ بيئته الأولى، وابدأ أول عملية بناء.",
-      "cancel": "إلغاء",
-      "back": "رجوع",
-      "next": "التالي",
-      "registered": "تم تسجيل {name}",
-      "pipelineFileNotCommitted": "{component} ({branch}): لم يُودَع ملف خط المعالجة: {reason}",
-      "provisioningNotStarted": "تم إنشاء البيئة لكن التهيئة لم تبدأ. يمكنك بدؤها من صفحة النشر.",
-      "steps": {
-        "label": "الخطوات",
-        "repo": "المستودع",
-        "environment": "البيئة",
-        "database": "قاعدة البيانات",
-        "variables": "المتغيرات",
-        "domain": "النطاق",
-        "review": "المراجعة"
-      },
-      "environment": {
-        "project": "المشروع",
-        "projectPlaceholder": "اختر مشروعًا",
-        "name": "الاسم",
-        "namePlaceholder": "مثال: Production"
-      },
-      "variables": {
-        "hint": "ليس للتطبيق الجديد قالب متغيرات بعد. أضف المتغيرات التي يحتاجها التطبيق؛ وتُنشأ المتغيرات المولَّدة تلقائيًا."
-      },
-      "domain": {
-        "entryDetected": "نقطة الدخول المكتشفة: {service} يستمع على منفذ الحاوية {port}.",
-        "entryService": "نقطة الدخول المكتشفة: {service}."
-      },
-      "review": {
-        "register": "تسجيل التطبيق {appKey}",
-        "startBuild": "بدء أول بناء لـ {branch}",
-        "startBuildOf": "بدء أول بناء لـ {branch} ({component})",
-        "environment": "البيئة {name}",
-        "target": "هدف النشر {component} من {branch} على {server}",
-        "database": {
-          "shared": "قاعدة بيانات مشتركة",
-          "container": "حاوية قاعدة بيانات",
-          "external": "قاعدة بيانات خارجية",
-          "none": "بدون قاعدة بيانات"
-        },
-        "variables": "{count, plural, one {متغير واحد} two {متغيران} few {# متغيرات} many {# متغيرًا} other {# متغير}}، منها {generated} مولَّدة",
-        "domain": {
-          "tunnel": "نطاق النفق {host}",
-          "external": "نطاق خارجي {host}",
-          "none": "بدون نطاق"
-        }
-      },
-      "progress": {
-        "title": "التقدم"
-      },
-      "lines": {
-        "register": "تسجيل التطبيق",
-        "preview": "فحص الإعداد",
-        "setup": "إنشاء البيئة",
-        "build": "بدء أول بناء",
-        "hasIssues": "أصلح المشكلات أعلاه ثم اضغط إنشاء مرة أخرى"
-      },
-      "lineStatus": {
-        "idle": "لم يُشغَّل",
-        "running": "قيد التشغيل",
-        "done": "تم",
-        "failed": "فشل"
-      },
-      "setupFailed": "التطبيق {appKey} مسجّل لكن بيئته لم تُنشأ. صحّح المدخلات واضغط إنشاء مرة أخرى، أو تابع في صفحة إضافة بيئة بهذه المدخلات.",
-      "addEnvironmentLink": "إضافة بيئة",
-      "buildFailed": "تم إنشاء البيئة لكن أول بناء لم يبدأ. ابدأه من صفحة النشر الخاصة بالتطبيق.",
-      "openDeploys": "فتح صفحة النشر"
     }
   }
 }

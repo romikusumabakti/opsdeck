@@ -1,5 +1,6 @@
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
+import type { NewEnvironmentInput } from "@/lib/setup/new-environment";
 import type { EnvironmentSetupInput } from "@/lib/setup/schema";
 import { api, NO_REFETCH } from "@/web/api/client";
 import { REMOTE_PROBE } from "@/web/query-client";
@@ -92,3 +93,35 @@ export const detectRepoQuery = (
     retry: false,
     staleTime: 60_000,
   });
+
+/**
+ * The New environment page's check: the short input resolved into a setup
+ * (`plan`) and that setup's preview (null while the plan has issues). Writes
+ * nothing; a POST for the same reason as the setup preview.
+ */
+export async function previewNewEnvironment(input: NewEnvironmentInput) {
+  return parseResponse(
+    routes["new-environment"].preview.$post({ json: input }, NO_REFETCH)
+  );
+}
+
+export type NewEnvironmentPreview = Awaited<
+  ReturnType<typeof previewNewEnvironment>
+>;
+
+export async function createNewEnvironment(input: NewEnvironmentInput) {
+  return parseResponse(routes["new-environment"].$post({ json: input }));
+}
+
+/** The CI server's repositories whose name contains `q`, with their app. */
+export const setupReposQuery = (q: string) =>
+  queryOptions({
+    queryKey: ["setup", "repos", q],
+    queryFn: () => parseResponse(routes.repos.$get({ query: { q } })),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+export type SetupRepoRow = Awaited<
+  ReturnType<NonNullable<ReturnType<typeof setupReposQuery>["queryFn"]>>
+>[number];
