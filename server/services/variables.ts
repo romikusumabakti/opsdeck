@@ -521,7 +521,7 @@ function checkTemplateKind(input: z.infer<typeof templateInputSchema>) {
     parseOr400(variableValueSchema, defaultValue);
     // {host} was retired with the environment host column; the URL carries it.
     if (defaultValue.includes("{host}")) {
-      badRequest("Unknown placeholder {host}");
+      badRequest("Unknown placeholder {host}", "unknownPlaceholder");
     }
   }
   if (generatedLength !== null) {

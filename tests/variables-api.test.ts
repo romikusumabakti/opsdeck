@@ -843,7 +843,10 @@ describe("templates", () => {
     ).toBe(400);
     const retired = await put("H", { kind: "plain", defaultValue: "{host}" });
     expect(retired.status).toBe(400);
-    expect(await retired.text()).toContain("Unknown placeholder {host}");
+    expect(await retired.json()).toMatchObject({
+      code: "unknownPlaceholder",
+      error: "Unknown placeholder {host}",
+    });
     expect((await put("lower", { kind: "plain" })).status).toBe(400);
     const reserved = await put("COMPOSE_FILE", { kind: "plain" });
     expect(reserved.status).toBe(400);
