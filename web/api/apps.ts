@@ -49,6 +49,20 @@ export async function rotateNotifySecret(appKey: string, componentKey: string) {
   );
 }
 
+/** Starts a build of the component's branch (who may: the service's). */
+export async function startComponentBuild(
+  appKey: string,
+  componentKey: string,
+  branch: string
+) {
+  return parseResponse(
+    routes[":appKey"].components[":componentKey"].build.$post({
+      param: { appKey, componentKey },
+      json: { branch },
+    })
+  );
+}
+
 /** Commits the generated pipeline file to every built branch, or to one. */
 export async function commitPipelineFile(
   appKey: string,

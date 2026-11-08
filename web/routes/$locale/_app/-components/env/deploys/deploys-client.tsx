@@ -6,6 +6,7 @@ import {
   Hourglass,
   Loader2,
   Lock,
+  Play,
   Rocket,
   ScrollText,
   Settings,
@@ -45,6 +46,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
 import { firstLine, runActorLabel } from "@/lib/deploy/run-actor";
+import { startComponentBuild } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 import {
   type DeployTargetState,
@@ -304,9 +306,18 @@ function TargetCard({
             <WaitingForFirstBuild branch={target.sourceBranch} />
           )}
           {target.recentBuilds.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t("buildsEmpty", { branch: target.sourceBranch })}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                {t("buildsEmpty", { branch: target.sourceBranch })}
+              </p>
+              {canRun && target.appKey && (
+                <StartBuildButton
+                  appKey={target.appKey}
+                  componentKey={target.componentKey}
+                  branch={target.sourceBranch}
+                />
+              )}
+            </div>
           ) : (
             <BuildsTable
               builds={target.recentBuilds}
@@ -360,6 +371,62 @@ export function WaitingForFirstBuild({ branch }: { branch: string }) {
       <Hourglass className="size-4 shrink-0" />
       {t("waitingForFirstBuild", { branch })}
     </p>
+  );
+}
+
+/**
+ * Starts a build of the target's branch when none has arrived yet (a first
+ * build that did not start). The server decides who may: admins, and callers
+ * who run deploys where a target deploys this branch.
+ */
+export function StartBuildButton({
+  appKey,
+  componentKey,
+  branch,
+}: {
+  appKey: string;
+  componentKey: string;
+  branch: string;
+}) {
+  const t = useTranslations("deploys");
+  const tCommon = useTranslations("common");
+  const queryClient = useQueryClient();
+  const [starting, setStarting] = React.useState(false);
+
+  async function onStart() {
+    setStarting(true);
+    try {
+      const { number } = await startComponentBuild(
+        appKey,
+        componentKey,
+        branch
+      );
+      toast.success(t("buildStarted", { number }));
+      queryClient.invalidateQueries({ queryKey: ["deploys"] });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : tCommon("errorGeneric")
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={starting}
+      title={t("startBuildHint", { branch })}
+      onClick={onStart}
+    >
+      {starting ? (
+        <Loader2 data-icon="inline-start" className="animate-spin" />
+      ) : (
+        <Play data-icon="inline-start" />
+      )}
+      {t("startBuild")}
+    </Button>
   );
 }
 
