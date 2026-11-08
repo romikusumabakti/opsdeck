@@ -19,7 +19,7 @@ import {
 import { useIssueMessage } from "./use-issue-message";
 
 /**
- * The last step of both setup flows: what the setup will create, the
+ * The end of the New environment page: what the setup will create, the
  * provisioning steps it will start, and every issue the preview reports. The
  * button stays off while an issue remains or the preview is out of date.
  */
@@ -48,7 +48,7 @@ export function SetupReview({
   onRetry?: () => void;
   submitting: boolean;
   onSubmit: () => void;
-  /** Extra content after the plan (the New app stepper's progress). */
+  /** Extra content after the plan (the New environment page's summary). */
   children?: React.ReactNode;
 }) {
   const t = useTranslations("setupWizard.review");

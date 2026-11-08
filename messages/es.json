@@ -751,14 +751,46 @@
     "closeDialog": "Cerrar cualquier diálogo abierto"
   },
   "newEnvironment": {
-    "title": "Crear nuevo entorno",
-    "description": "Registra un nuevo entorno junto con la configuración de sus servidores de base de datos, backend y frontend.",
-    "formTitle": "Configuración del entorno",
-    "formDescription": "Elige un servidor para cada rol (base de datos, backend, frontend) e indica los detalles del servicio.",
-    "cloneTitle": "Duplicar entorno",
-    "cloneDescription": "Crea un nuevo entorno precargado con la configuración de {name}.",
-    "cloneFormTitle": "Configuración del entorno",
-    "cloneFormDescription": "Revisa y ajusta los valores copiados. Las contraseñas y las claves de API no se copian: vuelve a introducirlas si hace falta."
+    "title": "Nuevo entorno",
+    "subtitle": "Elija un repositorio y un nombre. El Panel prepara el servidor, la base de datos y la dirección, y despliega la primera compilación.",
+    "startFrom": "Empezar desde",
+    "startFromNew": "Nuevo",
+    "startFromCopy": "Copia de {name}",
+    "startFromHint": "Una copia toma los repositorios, ramas, la elección de base de datos y las variables. Los valores secretos se copian en el servidor y nunca se muestran.",
+    "copyFailed": "No se pudo leer ese entorno.",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej. Dev 3",
+    "repository": "Repositorio",
+    "chooseRepo": "Elegir un repositorio",
+    "addRepo": "Añadir otro repositorio",
+    "addMissingRepo": "Añadir {repo}",
+    "removeRepo": "Quitar {repo}",
+    "searchRepos": "Buscar repositorios…",
+    "noRepos": "Ningún repositorio coincide.",
+    "reposFailed": "No se pudieron listar los repositorios.",
+    "branch": "Rama",
+    "detected": "Servicios: {services}",
+    "detectedNone": "No se encontraron servicios de compose",
+    "pipelineGenerated": "el Panel genera su pipeline",
+    "pipelineCustom": "compila con su propio .woodpecker.yaml",
+    "pipelineNotNotifying": "Su .woodpecker.yaml no avisa al Panel, así que sus compilaciones no se desplegarán. Añada un paso notify-panel firmado con el secreto del repositorio <code>opsdeck_notify</code> (vea docs/deploy.md).",
+    "needsDatabase": "Necesita una base de datos",
+    "needsDatabaseHint": "Una base de datos compartida en el host de bases de datos del servidor; si no hay, un contenedor de base de datos.",
+    "setInAdvanced": "Se configura en Opciones avanzadas.",
+    "address": "Dirección",
+    "addressHint": "Tras la política de acceso DSS Internal. Déjela vacía para el nombre sugerido.",
+    "noAddress": "Sin dirección",
+    "server": "Servidor",
+    "serverPlaceholder": "Elegir un servidor",
+    "serverHint": "El proyecto aún no tiene servidor predeterminado: este pasa a serlo.",
+    "kind": "Tipo de entorno",
+    "kindNone": "Sin definir",
+    "owner": "Responsable",
+    "ownerNone": "Sin responsable",
+    "created": "Entorno creado.",
+    "provisioningNotStarted": "El entorno se creó, pero el aprovisionamiento no comenzó. Puede iniciarlo desde la página Despliegues.",
+    "buildNotStarted": "El entorno se creó, pero una primera compilación no comenzó. Iníciela desde la página Despliegues.",
+    "pickProject": "Elija el proyecto del nuevo entorno y pulse Nuevo entorno en su página."
   },
   "environmentForm": {
     "info": "Datos del entorno",
@@ -796,9 +828,7 @@
     "saveChanges": "Guardar cambios",
     "submitting": "Guardando…",
     "submitFailed": "No se pudo guardar el entorno",
-    "createdSuccess": "Entorno creado",
     "savedSuccess": "Entorno guardado",
-    "nameCopySuffix": "{name} (copia)",
     "project": "Proyecto",
     "pickProject": "Selecciona un proyecto…",
     "projectRequired": "Selecciona un proyecto",
@@ -1232,7 +1262,12 @@
     "confirmPassword": "Confirmar contraseña",
     "passwordMismatch": "La confirmación de la contraseña no coincide",
     "submit": "Crear cuenta e iniciar sesión",
-    "submitting": "Procesando…"
+    "submitting": "Procesando…",
+    "advancedOptions": "Opciones avanzadas",
+    "summary": "Servidor {server} · puerto {port} · base de datos {db} · {url}",
+    "summaryNone": "ninguno",
+    "summaryNoAddress": "sin dirección",
+    "noServerAvailable": "No hay ningún servidor disponible para este proyecto. Pida a un administrador que defina un servidor predeterminado o abra uno."
   },
   "actionErrors": {
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
@@ -2816,24 +2851,7 @@
       "general": "General"
     },
     "addEnvironment": {
-      "title": "Añadir entorno",
-      "subtitle": "Añade un entorno a {app}. Copia uno existente para partir de su configuración.",
-      "button": "Añadir entorno",
-      "project": "Proyecto",
-      "projectPlaceholder": "Elige un proyecto",
-      "noProjects": "No eres engineer de ningún proyecto, así que no puedes añadir entornos.",
-      "name": "Nombre",
-      "namePlaceholder": "p. ej. Staging",
-      "copyFrom": "Copiar de",
-      "copyFromNone": "Empezar vacío",
-      "copyFromHint": "Rellena cada sección con ese entorno. Los valores secretos se copian en el servidor y nunca se muestran.",
-      "copyFailed": "No se pudo leer ese entorno.",
-      "created": "Entorno creado.",
-      "provisioningNotStarted": "El entorno se creó, pero la preparación no se inició. Puedes iniciarla desde la página de Despliegues."
-    },
-    "legacyNotice": {
-      "title": "¿Entorno de una aplicación registrada?",
-      "description": "Añádelo desde la aplicación: configura a la vez los destinos de despliegue, la base de datos, las variables y el dominio. Este formulario es para entornos que el Panel no gestiona."
+      "button": "Añadir entorno"
     },
     "server": {
       "label": "Servidor",
@@ -2958,77 +2976,6 @@
       "repoLinked": "Este repositorio se acaba de registrar. Inténtelo de nuevo.",
       "registrationRace": "Otro registro de este repositorio se ejecutó a la vez. Pida a un administrador que rote su secreto de notificación y vuelva a intentarlo.",
       "pipelineFileExists": "La rama ya tiene un .woodpecker.yaml que el Panel no generó. Haga que notifique al Panel o elimínelo."
-    },
-    "newApp": {
-      "title": "Nueva aplicación",
-      "subtitle": "Registra la aplicación, configura su primer entorno e inicia la primera compilación.",
-      "cancel": "Cancelar",
-      "back": "Atrás",
-      "next": "Siguiente",
-      "registered": "{name} registrada",
-      "pipelineFileNotCommitted": "{component} ({branch}): archivo de pipeline no confirmado: {reason}",
-      "provisioningNotStarted": "El entorno se creó, pero la preparación no se inició. Puedes iniciarla desde la página de Despliegues.",
-      "steps": {
-        "label": "Pasos",
-        "repo": "Repositorio",
-        "environment": "Entorno",
-        "database": "Base de datos",
-        "variables": "Variables",
-        "domain": "Dominio",
-        "review": "Revisión"
-      },
-      "environment": {
-        "project": "Proyecto",
-        "projectPlaceholder": "Elige un proyecto",
-        "name": "Nombre",
-        "namePlaceholder": "p. ej. Production"
-      },
-      "variables": {
-        "hint": "Una aplicación nueva aún no tiene plantilla de variables. Añade las variables que necesita; las generadas se crean por ti."
-      },
-      "domain": {
-        "entryDetected": "Entrada detectada: {service} escucha en el puerto de contenedor {port}.",
-        "entryService": "Entrada detectada: {service}."
-      },
-      "review": {
-        "register": "Registrar la aplicación {appKey}",
-        "startBuild": "Iniciar la primera compilación de {branch}",
-        "startBuildOf": "Iniciar la primera compilación de {branch} ({component})",
-        "environment": "Entorno {name}",
-        "target": "Destino de despliegue {component} desde {branch} en {server}",
-        "database": {
-          "shared": "Una base de datos compartida",
-          "container": "Un contenedor de base de datos",
-          "external": "Una base de datos externa",
-          "none": "Sin base de datos"
-        },
-        "variables": "{count, plural, one {# variable} other {# variables}}, {generated} generadas",
-        "domain": {
-          "tunnel": "Dominio de túnel {host}",
-          "external": "Dominio externo {host}",
-          "none": "Sin dominio"
-        }
-      },
-      "progress": {
-        "title": "Progreso"
-      },
-      "lines": {
-        "register": "Registrar la aplicación",
-        "preview": "Comprobar la configuración",
-        "setup": "Crear el entorno",
-        "build": "Iniciar la primera compilación",
-        "hasIssues": "Corrige los problemas de arriba y pulsa Crear de nuevo"
-      },
-      "lineStatus": {
-        "idle": "Sin ejecutar",
-        "running": "En curso",
-        "done": "Hecho",
-        "failed": "Falló"
-      },
-      "setupFailed": "La aplicación {appKey} está registrada, pero su entorno no se creó. Corrige los datos y pulsa Crear de nuevo, o continúa en la página Añadir entorno con estos datos.",
-      "addEnvironmentLink": "Añadir entorno",
-      "buildFailed": "El entorno se creó, pero la primera compilación no se inició. Inícialo desde la página de Despliegues de la aplicación.",
-      "openDeploys": "Abrir Despliegues"
     }
   }
 }

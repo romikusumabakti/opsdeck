@@ -42,7 +42,7 @@ import { backendService, dbAdminUser, findService } from "@/lib/services";
 import { sharedDatabaseNameSchema } from "@/lib/validation";
 import type { Serialized } from "@/web/api/client";
 import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
-import { createEnvironment, updateEnvironment } from "@/web/api/environments";
+import { updateEnvironment } from "@/web/api/environments";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { listVariablesQuery } from "@/web/api/variables";
 
@@ -69,15 +69,14 @@ type ServerOption = { id: string; name: string; host?: string };
 type Project = Serialized<ProjectRow>;
 type Environment = Serialized<SafeEnvironmentWithServers>;
 
-type Mode =
-  | { type: "create"; cloneFrom?: Environment }
-  | { type: "edit"; environment: Environment };
+// Edit only: new environments are set up on the project's New environment
+// page (web/routes/$locale/_app/$projectKey.environments.new.tsx).
+type Mode = { type: "edit"; environment: Environment };
 
 export function EnvironmentForm({
   mode,
   servers: initialServers,
   projects: initialProjects,
-  defaultProjectId,
   canManageServers,
 }: {
   mode: Mode;
@@ -87,9 +86,6 @@ export function EnvironmentForm({
   // shows those bindings read-only and submits only the info fields.
   canManageServers: boolean;
   projects: Project[];
-  // Preselected parent project for a fresh create (e.g. "New environment" from
-  // a project overview). Ignored on edit/clone, which take the source's project.
-  defaultProjectId?: string;
 }) {
   const t = useTranslations("environmentForm");
   const tEnums = useTranslations("dashboard");
@@ -102,7 +98,7 @@ export function EnvironmentForm({
   const projects = initialProjects;
   const [dialogRole, setDialogRole] = useState<ServerRole | null>(null);
 
-  const infraReadOnly = mode.type === "edit" && !canManageServers;
+  const infraReadOnly = !canManageServers;
 
   const infoSchema = z.object({
     projectId: z.string().min(1, t("projectRequired")),
@@ -206,9 +202,7 @@ export function EnvironmentForm({
       // too, but surface the error inline where possible).
       if (!data.hasDatabase || shared || !TCP_AUTH_DB_TYPES.has(data.dbType))
         return;
-      const hasStored =
-        mode.type === "edit" &&
-        !!findService(mode.environment, "db")?.hasDbPassword;
+      const hasStored = !!findService(mode.environment, "db")?.hasDbPassword;
       if (!data.dbPassword && !hasStored) {
         ctx.addIssue({
           code: "custom",
@@ -220,16 +214,10 @@ export function EnvironmentForm({
 
   type FormValues = z.infer<typeof schema>;
 
-  const source =
-    mode.type === "edit"
-      ? mode.environment
-      : mode.type === "create" && mode.cloneFrom
-        ? mode.cloneFrom
-        : null;
-
-  const dbSvc = source ? findService(source, "db") : undefined;
-  const backendSvc = source ? backendService(source) : undefined;
-  const frontendSvc = source ? findService(source, "frontend") : undefined;
+  const source = mode.environment;
+  const dbSvc = findService(source, "db");
+  const backendSvc = backendService(source);
+  const frontendSvc = findService(source, "frontend");
 
   const form = useForm<FormValues>({
     // Read-only infrastructure is never submitted, so only the info fields are
@@ -237,72 +225,36 @@ export function EnvironmentForm({
     resolver: (infraReadOnly
       ? zodResolver(infoSchema)
       : zodResolver(schema)) as unknown as Resolver<FormValues>,
-    defaultValues: source
-      ? {
-          projectId: source.projectId,
-          // On clone, suffix the source name to make it obvious the new environment
-          // is a copy and to avoid duplicate-name confusion in the picker.
-          name:
-            mode.type === "create"
-              ? t("nameCopySuffix", { name: source.name })
-              : source.name,
-          kind: source.kind ?? "",
-          ownerId: source.ownerId ?? "",
-          url: source.url ?? "",
-          // Edit and clone mirror the stored services: a missing row is a
-          // switched-off service.
-          hasDatabase: !!dbSvc,
-          hasFrontend: !!frontendSvc,
-          dbServerId: dbSvc?.serverId ?? "",
-          dbServiceType: dbSvc?.serviceType ?? "docker",
-          dbServiceName: dbSvc?.serviceName ?? "",
-          dbType: dbSvc?.dbType ?? "postgres",
-          dbName: dbSvc?.dbName ?? "",
-          dbUser: dbSvc?.dbUser ?? "",
-          dbPassword: "",
-          dbBackupPath: dbSvc?.dbBackupPath ?? "",
-          dbKind: dbSvc?.dbKind ?? "",
-          databaseHostId: dbSvc?.databaseHostId ?? "",
-          dbRole: dbSvc?.dbRole ?? "",
-          dbPasswordVariable: dbSvc?.dbPasswordVariable ?? "",
-          backendServerId: backendSvc?.serverId ?? "",
-          backendServiceType: backendSvc?.serviceType ?? "docker",
-          backendServiceName: backendSvc?.serviceName ?? "",
-          backendMockTimeApiUrl: backendSvc?.mockTimeApiUrl ?? "",
-          backendMockTimeApiKey: "",
-          frontendServerId: frontendSvc?.serverId ?? "",
-          frontendServiceType: frontendSvc?.serviceType ?? "docker",
-          frontendServiceName: frontendSvc?.serviceName ?? "",
-        }
-      : {
-          projectId: defaultProjectId ?? initialProjects[0]?.id ?? "",
-          name: "",
-          kind: "",
-          ownerId: "",
-          url: "",
-          hasDatabase: true,
-          hasFrontend: true,
-          dbServerId: initialServers[0]?.id ?? "",
-          dbServiceType: "docker",
-          dbServiceName: "",
-          dbType: "postgres",
-          dbName: "",
-          dbUser: "",
-          dbPassword: "",
-          dbBackupPath: "",
-          dbKind: "",
-          databaseHostId: "",
-          dbRole: "",
-          dbPasswordVariable: "",
-          backendServerId: initialServers[0]?.id ?? "",
-          backendServiceType: "docker",
-          backendServiceName: "",
-          backendMockTimeApiUrl: "",
-          backendMockTimeApiKey: "",
-          frontendServerId: initialServers[0]?.id ?? "",
-          frontendServiceType: "docker",
-          frontendServiceName: "",
-        },
+    defaultValues: {
+      projectId: source.projectId,
+      name: source.name,
+      kind: source.kind ?? "",
+      ownerId: source.ownerId ?? "",
+      url: source.url ?? "",
+      // The stored services: a missing row is a switched-off service.
+      hasDatabase: !!dbSvc,
+      hasFrontend: !!frontendSvc,
+      dbServerId: dbSvc?.serverId ?? "",
+      dbServiceType: dbSvc?.serviceType ?? "docker",
+      dbServiceName: dbSvc?.serviceName ?? "",
+      dbType: dbSvc?.dbType ?? "postgres",
+      dbName: dbSvc?.dbName ?? "",
+      dbUser: dbSvc?.dbUser ?? "",
+      dbPassword: "",
+      dbBackupPath: dbSvc?.dbBackupPath ?? "",
+      dbKind: dbSvc?.dbKind ?? "",
+      databaseHostId: dbSvc?.databaseHostId ?? "",
+      dbRole: dbSvc?.dbRole ?? "",
+      dbPasswordVariable: dbSvc?.dbPasswordVariable ?? "",
+      backendServerId: backendSvc?.serverId ?? "",
+      backendServiceType: backendSvc?.serviceType ?? "docker",
+      backendServiceName: backendSvc?.serviceName ?? "",
+      backendMockTimeApiUrl: backendSvc?.mockTimeApiUrl ?? "",
+      backendMockTimeApiKey: "",
+      frontendServerId: frontendSvc?.serverId ?? "",
+      frontendServiceType: frontendSvc?.serviceType ?? "docker",
+      frontendServiceName: frontendSvc?.serviceName ?? "",
+    },
   });
 
   // Owner candidates: whoever can be assigned issues in the selected project.
@@ -318,18 +270,8 @@ export function EnvironmentForm({
     ...listAssignableUsersQuery(projectId),
     enabled: !!projectId,
   }).data;
-  const keptOwner =
-    mode.type === "edit" && projectId === mode.environment.projectId
-      ? mode.environment.owner
-      : null;
-  // A clone's source owner is listed only while the list loads, so the picker
-  // shows a name rather than an id; once loaded, an ineligible one is cleared
-  // by the effect below.
   const extraOwner =
-    keptOwner ??
-    (!eligibleOwners && source && projectId === source.projectId
-      ? source.owner
-      : null);
+    projectId === mode.environment.projectId ? mode.environment.owner : null;
   const ownerOptions = [
     ...(eligibleOwners ?? []).map((u) => ({ ...u, banned: false })),
     ...(extraOwner && !eligibleOwners?.some((u) => u.id === extraOwner.id)
@@ -341,11 +283,11 @@ export function EnvironmentForm({
   // for that project's list (`data` is undefined while it loads), so a stale
   // list never clears a valid owner.
   useEffect(() => {
-    if (!eligibleOwners || !ownerId || ownerId === keptOwner?.id) return;
+    if (!eligibleOwners || !ownerId || ownerId === extraOwner?.id) return;
     if (!eligibleOwners.some((u) => u.id === ownerId)) {
       form.setValue("ownerId", "", { shouldDirty: true });
     }
-  }, [eligibleOwners, ownerId, keptOwner?.id, form]);
+  }, [eligibleOwners, ownerId, extraOwner?.id, form]);
 
   function onServerCreated(server: ServerOption) {
     setServers((prev) => [...prev, server]);
@@ -355,7 +297,7 @@ export function EnvironmentForm({
   }
 
   async function onSubmit(values: FormValues) {
-    if (infraReadOnly && mode.type === "edit") {
+    if (infraReadOnly) {
       const result = await updateEnvironment(mode.environment.id, {
         projectId: values.projectId,
         name: values.name,
@@ -371,43 +313,24 @@ export function EnvironmentForm({
       form.reset({ ...form.getValues(), ...values });
       return;
     }
-    const payload = buildEnvironmentPayload(values, mode.type);
-    const result =
-      mode.type === "create"
-        ? await createEnvironment(payload)
-        : await updateEnvironment(mode.environment.id, payload);
+    const payload = buildEnvironmentPayload(values, "edit");
+    const result = await updateEnvironment(mode.environment.id, payload);
 
     if (!result.success || !result.data) {
       toast.error(result.message ?? t("submitFailed"));
       return;
     }
 
-    toast.success(
-      mode.type === "create" ? t("createdSuccess") : t("savedSuccess")
-    );
-
-    if (mode.type === "create") {
-      // Land on the new environment's readable URL. The parent project's key
-      // comes from the picker's own list — the created row only carries ids.
-      const parentKey = projects.find(
-        (p) => p.id === result.data?.projectId
-      )?.key;
-      if (parentKey) {
-        router.push(`/${parentKey}/${result.data.slug}`);
-      } else {
-        router.push("/projects");
-      }
-    } else {
-      // Edit stays on this page, so re-baseline the form: without a reset
-      // `isDirty` never clears and the unsaved-changes guard keeps prompting
-      // after a successful save. Secrets go back to blank — same
-      // "blank = keep stored value" contract the payload above uses.
-      form.reset({
-        ...values,
-        dbPassword: "",
-        backendMockTimeApiKey: "",
-      });
-    }
+    toast.success(t("savedSuccess"));
+    // Edit stays on this page, so re-baseline the form: without a reset
+    // `isDirty` never clears and the unsaved-changes guard keeps prompting
+    // after a successful save. Secrets go back to blank — same
+    // "blank = keep stored value" contract the payload above uses.
+    form.reset({
+      ...values,
+      dbPassword: "",
+      backendMockTimeApiKey: "",
+    });
   }
 
   const loading = form.formState.isSubmitting;
@@ -567,7 +490,7 @@ export function EnvironmentForm({
             />
           </Section>
 
-          {infraReadOnly && mode.type === "edit" ? (
+          {infraReadOnly ? (
             <InfraSummary environment={mode.environment} />
           ) : (
             <>
@@ -603,9 +526,7 @@ export function EnvironmentForm({
                       <SharedDatabaseFields
                         form={form}
                         t={t}
-                        environment={
-                          mode.type === "edit" ? mode.environment : null
-                        }
+                        environment={mode.environment}
                         projectKey={
                           projects.find((p) => p.id === projectId)?.key ?? ""
                         }
@@ -714,11 +635,7 @@ export function EnvironmentForm({
                               <FormControl>
                                 <PasswordInput
                                   autoComplete="new-password"
-                                  placeholder={
-                                    mode.type === "edit"
-                                      ? t("dbPasswordEditPlaceholder")
-                                      : ""
-                                  }
+                                  placeholder={t("dbPasswordEditPlaceholder")}
                                   {...field}
                                 />
                               </FormControl>
@@ -825,7 +742,6 @@ export function EnvironmentForm({
                         <PasswordInput
                           autoComplete="new-password"
                           placeholder={
-                            mode.type === "edit" &&
                             backendService(mode.environment).hasMockTimeApiKey
                               ? t("mockTimeApiKeyEditPlaceholder")
                               : ""
@@ -906,11 +822,7 @@ export function EnvironmentForm({
               {tCommon("cancel")}
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading
-                ? t("submitting")
-                : mode.type === "edit"
-                  ? t("saveChanges")
-                  : t("submit")}
+              {loading ? t("submitting") : t("saveChanges")}
             </Button>
           </div>
         </form>

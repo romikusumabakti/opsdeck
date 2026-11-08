@@ -50,9 +50,8 @@ import type { SetupOptions } from "@/web/api/setup";
 import { useIssueMessage } from "./use-issue-message";
 
 /**
- * The sections both setup flows share (Add environment, and the New app
- * stepper's steps): server, database, variables, domain and deploy. They are
- * controlled by an `EnvironmentDraft` and show the preview's issues inline,
+ * The New environment page's Advanced options: server, database, variables,
+ * domain and deploy. They are controlled by an `EnvironmentDraft` and show the preview's issues inline,
  * next to the field each one is about (`issues` maps a field path to a code).
  */
 export type SectionsProps = {
@@ -428,7 +427,7 @@ export function DatabaseSection(
                 id="db-role"
                 className="font-mono"
                 autoComplete="off"
-                value={db.dbRole ?? defaultDatabaseName(draftCtx)}
+                value={db.dbRole ?? db.dbName ?? defaultDatabaseName(draftCtx)}
                 onChange={(e) => patchDatabase({ dbRole: e.target.value })}
               />
             </FieldRow>
