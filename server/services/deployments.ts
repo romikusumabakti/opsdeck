@@ -23,7 +23,7 @@ export type DeploymentRequest = {
 /**
  * Records a deployment of `tag` to a target and queues it. No permission check
  * here: the callers own it (the signed build hook for `auto`, the
- * maintainer-only deploy API for `manual` and `rollback`).
+ * engineer-only deploy API for `manual` and `rollback`).
  *
  * A new `auto` deployment supersedes the target's older queued or held `auto`
  * ones, so two quick pushes deploy only the newest build.

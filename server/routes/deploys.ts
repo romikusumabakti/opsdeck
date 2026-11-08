@@ -16,7 +16,7 @@ import { json, param, query } from "@/server/validation";
 
 /**
  * Panel deploys: targets, manual deploys and rollbacks. Viewing needs any
- * project role; deploy, rollback and configuring need the maintainer role
+ * project role; deploy, rollback and configuring need the engineer role
  * (the service functions check it against the target's environment).
  */
 export const deploysRouter = sessionRouter()

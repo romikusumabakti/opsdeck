@@ -970,8 +970,8 @@
     "sftpRootDescription": "Ruta absoluta a la que se limita el explorador de archivos. Usa / para todo el host.",
     "placement": "Ubicación de entornos",
     "placementRestricted": "Restringida: solo administradores e infra",
-    "placementOpen": "Abierta: mantenedores del proyecto",
-    "placementDescription": "Quién puede crear entornos nuevos en este servidor. En un servidor abierto, los mantenedores del proyecto pueden crear entornos en este servidor sin permisos de servidor; marca como abiertos solo servidores de desarrollo o sandbox desechables. Los entornos existentes no se ven afectados.",
+    "placementOpen": "Abierta: engineers del proyecto",
+    "placementDescription": "Quién puede crear entornos nuevos en este servidor. En un servidor abierto, los engineers del proyecto pueden crear entornos en este servidor sin permisos de servidor; marca como abiertos solo servidores de desarrollo o sandbox desechables. Los entornos existentes no se ven afectados.",
     "sftpRootInvalid": "Debe ser una ruta absoluta (empezar por /)"
   },
   "newServer": {
@@ -1852,7 +1852,7 @@
     "selectUser": "Selecciona un usuario…",
     "add": "Añadir",
     "role": {
-      "viewer": "Observador",
+      "viewer": "Viewer",
       "qa": "QA",
       "engineer": "Engineer"
     },
@@ -1869,14 +1869,14 @@
     "errorAddFailed": "No se pudo añadir el miembro",
     "roleDescription": {
       "viewer": "Ver el proyecto y leer los registros de servicios",
-      "qa": "Trabajar en incidencias, respaldar y restaurar bases de datos, controlar el reloj",
+      "qa": "Trabajar en incidencias, reiniciar servicios, respaldar y restaurar bases de datos, controlar el reloj",
       "engineer": "Todo lo anterior, más gestionar servicios, bases de datos, entornos y miembros"
     },
     "removeConfirmTitle": "¿Quitar a {name} de {project}?",
     "removeConfirmDescription": "Perderá el acceso a este proyecto, salvo que su rol en la organización todavía se lo conceda.",
     "removeMember": "Quitar a {name}",
     "orgAccessTitle": "También tienen acceso por su rol en la organización",
-    "orgAccessDescription": "Los administradores e infra son mantenedores en todos los proyectos; los observadores pueden ver todos los proyectos. Cambia los roles en Admin → Acceso."
+    "orgAccessDescription": "Los administradores e infra son engineers en todos los proyectos; los observadores pueden ver todos los proyectos. Cambia los roles en Admin → Acceso."
   },
   "milestones": {
     "add": "Añadir",
@@ -2821,7 +2821,7 @@
       "button": "Añadir entorno",
       "project": "Proyecto",
       "projectPlaceholder": "Elige un proyecto",
-      "noProjects": "No mantienes ningún proyecto, así que no puedes añadir entornos.",
+      "noProjects": "No eres engineer de ningún proyecto, así que no puedes añadir entornos.",
       "name": "Nombre",
       "namePlaceholder": "p. ej. Staging",
       "copyFrom": "Copiar de",

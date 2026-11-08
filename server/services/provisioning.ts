@@ -24,7 +24,7 @@ const notFound = (): never => {
   throw new HTTPException(404, { message: "Not Found" });
 };
 
-// Running a deploy and provisioning share one permission (project maintainer).
+// Running a deploy and provisioning share one permission (project engineer).
 async function provisioningContext(environmentId: string) {
   const { session } = await requireProjectPermission(
     { environmentId },

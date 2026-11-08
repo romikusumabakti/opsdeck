@@ -6,7 +6,7 @@ import { loaderQuery } from "@/web/query-client";
 import { HistoryPending } from "./-components/env/skeletons";
 import { VariablesClient } from "./-components/env/variables/variables-client";
 
-// The environment's variables: maintainers and admins (project
+// The environment's variables: engineers and admins (project
 // variable:read, like the API).
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/variables"

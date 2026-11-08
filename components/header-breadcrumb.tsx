@@ -15,7 +15,7 @@ import {
 } from "@/lib/nav-path";
 import {
   canCreateEnvironment,
-  canOrg,
+  canCreateProject,
   type OrgRole,
   type ProjectRole,
 } from "@/lib/permissions";
@@ -290,7 +290,10 @@ export function HeaderBreadcrumb({
       <ProjectSwitcher
         projects={projects}
         activeProject={activeProject}
-        canCreateProject={canOrg(orgRole, { project: ["create"] })}
+        canCreateProject={canCreateProject(
+          orgRole,
+          Object.values(projectRoles)
+        )}
         onSelect={(project) =>
           go(
             projectSwitchHref({

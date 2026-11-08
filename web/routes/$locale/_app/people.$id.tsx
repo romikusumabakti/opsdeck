@@ -89,7 +89,7 @@ function PersonPage() {
   const canManage = canOrg(me?.orgRole, { user: ["update"] });
 
   // A role badge on every project says nothing when the org role already
-  // implies it (an admin is maintainer everywhere), so show only exceptions.
+  // implies it (an admin is engineer everywhere), so show only exceptions.
   const impliedRole = effectiveProjectRole(card.role, null);
   const shownProjects = projects.slice(0, LIST_ROWS);
   const moreProjects = projects.slice(LIST_ROWS);

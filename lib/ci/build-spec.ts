@@ -4,7 +4,7 @@ import { branchSchema, bundleImageSchema } from "@/lib/deploy/validation";
 // Inputs of a generated pipeline (lib/ci/pipeline.ts), stored as
 // `app_components.build_spec`. Every value except check commands ends up
 // unquoted in a shell line, so paths and names are restricted to characters
-// that need no quoting; check commands are shell by design (only maintainers
+// that need no quoting; check commands are shell by design (only engineers
 // edit them) and are escaped for Woodpecker, not for the shell.
 
 // Names the generator gives its own steps; a check must not take one.

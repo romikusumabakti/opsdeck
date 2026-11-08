@@ -58,7 +58,7 @@ import { badRequest, CodedHTTPException, notFound } from "@/server/errors";
  * Secret and generated values are encrypted at rest (lib/secrets) and leave
  * the server only through `listVariables(…, { reveal: true })`, which records
  * who revealed which names (never the values). Reading and writing need
- * project `variable:read` / `variable:write` — maintainers and admins (the
+ * project `variable:read` / `variable:write` — engineers and admins (the
  * environment's owner is a label and gets no rights). Escrowed variables are never regenerated, deleted or
  * changed; only an admin with org `integration:manage` may clear the flag,
  * explicitly. Templates are for `integration:manage`.

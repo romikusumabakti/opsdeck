@@ -27,6 +27,7 @@ import type {
 } from "@/lib/db/schema";
 import {
   databaseHosts,
+  deployments,
   deployTargets,
   type Environment,
   type EnvironmentListItem,
@@ -632,7 +633,8 @@ function changesBindings(
 // Binding servers and service names gives service control, logs and database
 // backup/restore over them, so a placement is checked like this:
 // - every bound server must admit the caller under its placement policy
-//   (lib/permissions#canPlaceEnvironment); a server not found is restricted;
+//   (lib/permissions#canPlaceEnvironment); a server not found is restricted,
+//   and the project's default server admits its engineers;
 // - on an open server, a caller without org server:manage may only bind
 //   service names that start with the project's key lowercased plus "-"
 //   (`hris-backend` in HRIS) and that no other environment on that server
@@ -664,11 +666,17 @@ async function requireEnvironmentPlacement(
         .where(inArray(servers.id, serverIds))
     : [];
   const placementOf = new Map(rows.map((r) => [r.id, r.placement]));
+  const [project] = await db
+    .select({ defaultServerId: projects.defaultServerId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
   const allowed = serverIds.every((id) =>
     canPlaceEnvironment(
       orgRole,
       projectRole,
-      placementOf.get(id) ?? "restricted"
+      placementOf.get(id) ?? "restricted",
+      project?.defaultServerId === id
     )
   );
   if (!allowed) throw new ForbiddenError("Forbidden", "placementForbidden");
@@ -955,6 +963,22 @@ export async function createEnvironment(
   }
 }
 
+const SERVER_ID_FIELDS: ReadonlySet<string> = new Set([
+  "dbServerId",
+  "backendServerId",
+  "frontendServerId",
+]);
+
+// Any deploy at all, of any target of the environment, whatever its status.
+async function hasDeployment(environmentId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: deployments.id })
+    .from(deployments)
+    .where(eq(deployments.environmentId, environmentId))
+    .limit(1);
+  return row !== undefined;
+}
+
 export async function updateEnvironment(
   id: string,
   data: unknown
@@ -969,7 +993,10 @@ export async function updateEnvironment(
   }
   // Rebinding infrastructure (servers, service names, database credentials,
   // the mock-time URL) needs org server:manage. Only fields whose value really
-  // changes count, so a maintainer re-saving the full form is still fine.
+  // changes count, so an engineer re-saving the full form is still fine.
+  // Exception: rebinding only server ids is open to an engineer while the
+  // environment has never been deployed, provided every new server admits
+  // them (canPlaceEnvironment, checked below by requireEnvironmentPlacement).
   const stored = await loadEnvironmentWithServers(id);
   if (!stored) return { success: false, message: "Environment not found" };
   // A shared database binding's server, container, engine and backup path
@@ -978,8 +1005,13 @@ export async function updateEnvironment(
   const removesService =
     (input.hasDatabase === false && hasService(stored, "db")) ||
     (input.hasFrontend === false && hasService(stored, "frontend"));
-  if (removesService || changedInfraFields(input, stored).length > 0) {
-    await requireOrgPermission({ server: ["manage"] });
+  const changedInfra = changedInfraFields(input, stored);
+  if (removesService || changedInfra.length > 0) {
+    const mayRebind =
+      !removesService &&
+      changedInfra.every((field) => SERVER_ID_FIELDS.has(field)) &&
+      !(await hasDeployment(id));
+    if (!mayRebind) await requireOrgPermission({ server: ["manage"] });
   }
   // A deploy that backs up first needs the db service; dropping it would make
   // every later deploy of that target fail.

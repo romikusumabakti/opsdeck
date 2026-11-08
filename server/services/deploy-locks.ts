@@ -22,9 +22,9 @@ import { badRequest, forbidden, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 // The environment's deploy lock. Who may do what (lib/deploy/lock):
-// - lock: the environment's owner (any project role) and project maintainers;
+// - lock: the environment's owner (any project role) and project engineers;
 // - unlock: whoever set the lock and the environment's owner — not other
-//   maintainers;
+//   engineers;
 // - force-unlock, with a reason: org admins (integration:manage).
 // Ownership is read on every request, so a former owner loses lock rights at
 // once; a lock they set stays until it is unlocked or expires.

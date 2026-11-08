@@ -27,7 +27,7 @@ function isValidRole(role: string): role is ProjectRole {
   return isProjectRole(role);
 }
 
-// Managing membership needs member:manage on the project (maintainer, or an
+// Managing membership needs member:manage on the project (engineer, or an
 // admin/infra org role).
 export async function listProjectMembers(
   projectId: string
@@ -57,7 +57,7 @@ export type OrgWideAccessRow = {
 };
 
 // People who reach this project through their org role (admin/infra are
-// maintainers everywhere, observers viewers) whether or not they hold a
+// engineers everywhere, observers viewers) whether or not they hold a
 // membership. The members tab lists them so "who can see this project?" has a
 // complete answer; the page drops anyone already in the members table.
 export async function listOrgWideAccess(

@@ -17,7 +17,7 @@ const idParam = param(z.object({ id: uuidSchema }));
 /**
  * CI server connections. Each service function states its own permission:
  * org integration:manage for the admin routes, app registrants (admins and
- * project maintainers) for `/options` and `/:id/repos`.
+ * project engineers) for `/options` and `/:id/repos`.
  */
 export const ciConnectionsRouter = sessionRouter()
   .get("/", async (c) => c.json(await listCiConnections()))
