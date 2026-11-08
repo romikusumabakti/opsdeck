@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canOrg } from "@/lib/permissions";
 import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
 import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import { getServersQuery } from "@/web/api/servers";
 import { meQuery, useMe } from "@/web/api/session";
 import { requireProjectRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
@@ -47,6 +48,11 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
       canOrg(me?.orgRole, { integration: ["manage"] })
         ? loaderQuery(queryClient, getJiraConnectionsQuery())
         : null,
+      // The Default server field names the servers; listing them needs
+      // server:read, changing the default server:manage.
+      canOrg(me?.orgRole, { server: ["read"] })
+        ? loaderQuery(queryClient, getServersQuery())
+        : null,
       loaderQuery(queryClient, getJiraLinkQuery(project.id)),
     ]);
   },
@@ -70,6 +76,13 @@ function ProjectSettingsPage() {
       ...getJiraConnectionsQuery(),
       enabled: canOrg(me?.orgRole, { integration: ["manage"] }),
     }).data ?? [];
+  const servers =
+    useQuery({
+      ...getServersQuery(),
+      enabled: canOrg(me?.orgRole, { server: ["read"] }),
+      select: (rows) => rows.map(({ id, name }) => ({ id, name })),
+    }).data ?? [];
+  const canChangeDefaultServer = canOrg(me?.orgRole, { server: ["manage"] });
 
   return (
     <>
@@ -94,7 +107,10 @@ function ProjectSettingsPage() {
               <CardDescription>{t("editDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ProjectForm mode={{ type: "edit", project }} />
+              <ProjectForm
+                mode={{ type: "edit", project }}
+                defaultServer={{ servers, canChange: canChangeDefaultServer }}
+              />
             </CardContent>
           </Card>
         </TabsContent>

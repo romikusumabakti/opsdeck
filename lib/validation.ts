@@ -125,7 +125,11 @@ export const projectMetaInputSchema = z.object({
   client: z.string().trim().max(120).nullish(),
   description: z.string().trim().max(2000).nullish(),
 });
-export const projectMetaUpdateSchema = projectMetaInputSchema.partial();
+// Editing may also set the project's default server (null clears it); only
+// org server:manage may send it (editProject checks).
+export const projectMetaUpdateSchema = projectMetaInputSchema.partial().extend({
+  defaultServerId: z.uuid().nullable().optional(),
+});
 export type ProjectMetaInput = z.infer<typeof projectMetaInputSchema>;
 
 // An environment (deployment) belongs to one logical project.

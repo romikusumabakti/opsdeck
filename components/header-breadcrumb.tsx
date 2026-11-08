@@ -65,31 +65,37 @@ function getStaticSegments(pathname: string): StaticSegment[] {
       { kind: "static", labelKey: "breadcrumbs.edit" },
     ];
   }
-  // /apps/new
-  if (pathname === "/apps/new") {
-    return [
-      { kind: "static", href: "/apps", labelKey: "breadcrumbs.apps" },
-      { kind: "static", labelKey: "breadcrumbs.new" },
-    ];
-  }
-  // /apps/[appKey]/variables — the app's variable templates.
-  const appVariables = /^\/apps\/([^/]+)\/variables$/.exec(pathname);
+  // /admin/repositories/[appKey]/variables — the app's variable templates.
+  const appVariables = /^\/admin\/repositories\/([^/]+)\/variables$/.exec(
+    pathname
+  );
   if (appVariables?.[1]) {
     return [
-      { kind: "static", href: "/apps", labelKey: "breadcrumbs.apps" },
       {
         kind: "static",
-        href: `/apps/${appVariables[1]}`,
+        href: "/admin/repositories",
+        labelKey: "breadcrumbs.repositories",
+      },
+      {
+        kind: "static",
+        href: `/admin/repositories/${appVariables[1]}`,
         label: appVariables[1],
       },
       { kind: "static", labelKey: "breadcrumbs.variables" },
     ];
   }
-  // /apps/[appKey] — the app's page; the key is the crumb.
-  if (pathname.startsWith("/apps/")) {
+  // /admin/repositories/[appKey] — the app's page; the key is the crumb.
+  if (pathname.startsWith("/admin/repositories/")) {
     return [
-      { kind: "static", href: "/apps", labelKey: "breadcrumbs.apps" },
-      { kind: "static", label: pathname.slice("/apps/".length) },
+      {
+        kind: "static",
+        href: "/admin/repositories",
+        labelKey: "breadcrumbs.repositories",
+      },
+      {
+        kind: "static",
+        label: pathname.slice("/admin/repositories/".length),
+      },
     ];
   }
   // /account/change-password

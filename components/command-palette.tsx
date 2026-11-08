@@ -2,11 +2,14 @@ import {
   Activity,
   Ban,
   BookOpen,
+  Boxes,
   Cable,
   CalendarDays,
   CircleDot,
+  CloudCog,
   Folder,
   FolderKanban,
+  HardDrive,
   KeyRound,
   Languages,
   LogOut,
@@ -20,6 +23,7 @@ import {
   UserRound,
   Users,
   UsersRound,
+  Workflow,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -208,6 +212,17 @@ export function CommandPalette({
                 {tUserMenu("servers")}
               </CommandItem>
             )}
+            {canOrg(orgRole, { storage: ["read"] }) && (
+              <CommandItem
+                value="storage buckets s3"
+                onSelect={() => run(() => router.push("/storage"))}
+              >
+                <HardDrive />
+                {tNav("storage")}
+              </CommandItem>
+            )}
+            {/* The admin pages, in the sidebar's order and behind the same
+                permissions. */}
             {canOrg(orgRole, { audit: ["read"] }) && (
               <CommandItem
                 value="activity audit feed events"
@@ -217,15 +232,6 @@ export function CommandPalette({
                 {tNav("activity")}
               </CommandItem>
             )}
-            {canOrg(orgRole, { integration: ["manage"] }) && (
-              <CommandItem
-                value="jira integration connections"
-                onSelect={() => run(() => router.push("/admin/jira"))}
-              >
-                <Cable />
-                {tNav("jira")}
-              </CommandItem>
-            )}
             {canOrg(orgRole, { user: ["list"] }) && (
               <CommandItem
                 value="users"
@@ -233,6 +239,40 @@ export function CommandPalette({
               >
                 <Users />
                 {tUserMenu("users")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { integration: ["manage"] }) && (
+              <>
+                <CommandItem
+                  value="repositories repos apps pipelines"
+                  onSelect={() => run(() => router.push("/admin/repositories"))}
+                >
+                  <Boxes />
+                  {tNav("repositories")}
+                </CommandItem>
+                <CommandItem
+                  value="jira integration connections"
+                  onSelect={() => run(() => router.push("/admin/jira"))}
+                >
+                  <Cable />
+                  {tNav("jira")}
+                </CommandItem>
+                <CommandItem
+                  value="ci woodpecker bitbucket builds"
+                  onSelect={() => run(() => router.push("/admin/ci"))}
+                >
+                  <Workflow />
+                  {tNav("ci")}
+                </CommandItem>
+              </>
+            )}
+            {canOrg(orgRole, { server: ["manage"] }) && (
+              <CommandItem
+                value="cloudflare dns zones tunnels"
+                onSelect={() => run(() => router.push("/admin/cloudflare"))}
+              >
+                <CloudCog />
+                {tNav("cloudflare")}
               </CommandItem>
             )}
           </CommandGroup>
