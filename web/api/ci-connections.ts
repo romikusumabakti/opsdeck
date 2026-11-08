@@ -21,6 +21,13 @@ export async function updateCiConnection(
   return parseResponse(routes[":id"].$patch({ param: { id }, json: changes }));
 }
 
+/** Checks the stored CI token and forge credentials (no values returned). */
+export async function verifyCiConnection(id: string) {
+  return parseResponse(routes[":id"].verify.$post({ param: { id } }));
+}
+
+export type CiConnectionCheck = Awaited<ReturnType<typeof verifyCiConnection>>;
+
 export type CiConnectionRow = Awaited<
   ReturnType<typeof listCiConnections>
 >[number];

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { redirect } from "@/i18n/navigation";
-import { listAppsQuery } from "@/web/api/apps";
+import { addEnvironmentHref, listAppsQuery } from "@/web/api/apps";
 import { listProjectsWithEnvironmentsQuery } from "@/web/api/project-catalog";
 
 // Add environment to an app is now the project's New environment page with
@@ -26,15 +26,11 @@ export const Route = createFileRoute(
       queryClient.query(listProjectsWithEnvironmentsQuery()),
     ]);
     const app = apps.find((a) => a.appKey === appKey);
-    const repo = app?.components[0]?.repoFullName;
-    const holding = projects.filter((p) =>
-      p.environments.some((e) => e.appId === app?.id)
+    redirect(
+      app
+        ? addEnvironmentHref(app, projects, project)
+        : "/projects?newEnvironment=1",
+      locale
     );
-    const target =
-      projects.find((p) => p.key === project?.toUpperCase()) ??
-      (holding.length === 1 ? holding[0] : undefined);
-    if (!(app && target)) redirect("/projects?newEnvironment=1", locale);
-    const query = repo ? `?repo=${encodeURIComponent(repo)}` : "";
-    redirect(`/${target.key}/environments/new${query}`, locale);
   },
 });

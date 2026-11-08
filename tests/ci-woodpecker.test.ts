@@ -3,6 +3,7 @@ import { CiProviderError } from "@/lib/ci/types";
 import {
   createWoodpeckerProvider,
   parsePipelineNumber,
+  verifyWoodpeckerToken,
 } from "@/lib/ci/woodpecker";
 
 const BASE = "https://ci.example.test";
@@ -383,5 +384,31 @@ describe("parsePipelineNumber", () => {
     ]) {
       expect(parsePipelineNumber(url, "2"), url).toBeNull();
     }
+  });
+});
+
+describe("verifyWoodpeckerToken", () => {
+  it("calls the current-user endpoint with the bearer token", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const impl = (async (url: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    await verifyWoodpeckerToken(`${BASE}/`, TOKEN, impl);
+    expect(calls[0]?.url).toBe(`${BASE}/api/user`);
+    expect(new Headers(calls[0]?.init?.headers).get("Authorization")).toBe(
+      `Bearer ${TOKEN}`
+    );
+  });
+
+  it("throws a CiProviderError with the status, never the token", async () => {
+    const impl = (async () =>
+      new Response("{}", { status: 403 })) as unknown as typeof fetch;
+    const error = await verifyWoodpeckerToken(BASE, TOKEN, impl).catch(
+      (e) => e
+    );
+    expect(error).toBeInstanceOf(CiProviderError);
+    expect(error.status).toBe(403);
+    expect(error.message).not.toContain(TOKEN);
   });
 });

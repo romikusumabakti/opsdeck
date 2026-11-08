@@ -116,6 +116,40 @@ export async function commitFile(
   return { sha };
 }
 
+/**
+ * Checks that the credentials work: reads a repository the Panel commits to
+ * (the access commits need) or, with none registered yet, the account itself.
+ * Throws CiProviderError (status 0 when unreachable).
+ */
+export async function verifyBitbucketAuth(
+  auth: BitbucketAuth,
+  repoFullName: string | null,
+  fetchImpl: typeof fetch = fetch
+): Promise<void> {
+  if (repoFullName !== null) {
+    assertRepo(repoFullName);
+    await request(auth, "GET", repoFullName, "", undefined, fetchImpl);
+    return;
+  }
+  const res = await ciFetch(
+    "Bitbucket GET /user",
+    "https://api.bitbucket.org/2.0/user",
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${auth.username}:${auth.token}`).toString("base64")}`,
+      },
+    },
+    fetchImpl
+  );
+  if (!res.ok) {
+    throw new CiProviderError(
+      `Bitbucket GET /user failed with ${res.status}`,
+      res.status
+    );
+  }
+}
+
 /** True when the branch exists, false on 404; any other failure throws. */
 export async function branchExists(
   auth: BitbucketAuth,

@@ -6,6 +6,7 @@ import {
   listRepoDir,
   readRepoFile,
   readRepoFileOrLarge,
+  verifyBitbucketAuth,
 } from "@/lib/ci/forges/bitbucket";
 import { CiProviderError } from "@/lib/ci/types";
 
@@ -370,5 +371,32 @@ describe("bitbucket listRepoDir", () => {
   it("is empty on 404", async () => {
     const m = mockFetch(new Response("{}", { status: 404 }));
     expect(await listRepoDir(AUTH, REPO, "main", "x", m.impl)).toEqual([]);
+  });
+});
+
+describe("bitbucket verifyBitbucketAuth", () => {
+  it("reads a registered repository with Basic auth", async () => {
+    const m = mockFetch(new Response("{}", { status: 200 }));
+    await verifyBitbucketAuth(AUTH, REPO, m.impl);
+    expect(m.calls[0]?.url).toBe(
+      "https://api.bitbucket.org/2.0/repositories/acme/widgets"
+    );
+    expect(new Headers(m.calls[0]?.init.headers).get("Authorization")).toBe(
+      basic(AUTH.username, AUTH.token)
+    );
+  });
+
+  it("reads the account when no repository is registered", async () => {
+    const m = mockFetch(new Response("{}", { status: 200 }));
+    await verifyBitbucketAuth(AUTH, null, m.impl);
+    expect(m.calls[0]?.url).toBe("https://api.bitbucket.org/2.0/user");
+  });
+
+  it("throws a CiProviderError with the status, never the token", async () => {
+    const m = mockFetch(new Response("{}", { status: 401 }));
+    const error = await verifyBitbucketAuth(AUTH, null, m.impl).catch((e) => e);
+    expect(error).toBeInstanceOf(CiProviderError);
+    expect(error.status).toBe(401);
+    expect(error.message).not.toContain(AUTH.token);
   });
 });

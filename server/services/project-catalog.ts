@@ -22,6 +22,7 @@ import {
   type Project,
   projectMembers,
   projects,
+  servers,
 } from "@/lib/db/schema";
 import { OWNER_COLUMNS } from "@/lib/environments";
 import {
@@ -228,7 +229,15 @@ export async function editProject(
       "defaultServerForbidden"
     );
   }
+  const changesDefaultServer = parsed.data.defaultServerId !== undefined;
   try {
+    const [before] = changesDefaultServer
+      ? await db
+          .select({ defaultServerId: projects.defaultServerId })
+          .from(projects)
+          .where(eq(projects.id, id))
+          .limit(1)
+      : [];
     const [updated] = await db
       .update(projects)
       .set({ ...parsed.data, updatedAt: new Date() })
@@ -236,6 +245,12 @@ export async function editProject(
       .returning();
     if (!updated) {
       return { success: false, message: "Project not found" };
+    }
+    if (
+      changesDefaultServer &&
+      before?.defaultServerId !== updated.defaultServerId
+    ) {
+      await recordDefaultServerChange(session.user.id, updated);
     }
     return { success: true, data: updated };
   } catch (error) {
@@ -249,6 +264,27 @@ export async function editProject(
     console.error(`Failed to update project ${id}:`, error);
     return { success: false, message: "Failed to update project" };
   }
+}
+
+/** The activity entry for a new (or cleared, `server: ""`) default server. */
+async function recordDefaultServerChange(
+  actorId: string,
+  project: Project
+): Promise<void> {
+  const [server] = project.defaultServerId
+    ? await db
+        .select({ name: servers.name })
+        .from(servers)
+        .where(eq(servers.id, project.defaultServerId))
+        .limit(1)
+    : [];
+  await recordActivity({
+    actorId,
+    action: "project.defaultServerChanged",
+    entityType: "project",
+    entityId: project.id,
+    data: { project: project.name, server: server?.name ?? "" },
+  });
 }
 
 /**

@@ -106,15 +106,17 @@ const projectItems: ProjectItem[] = [
   },
 ];
 
-// Sections of the /admin area, shown as their own sidebar group while the
-// user is inside it: the people side first, then the integrations. Each page
-// enforces the same permission server-side.
-const adminItems: {
+// Sections of the /admin area, shown as their own sidebar groups while the
+// user is inside it: the admin pages, then the integrations under their own
+// label. Each page enforces the same permission server-side.
+type AdminItem = {
   key: string;
   url: string;
   icon: LucideIcon;
   perm: OrgPermissions;
-}[] = [
+};
+
+const adminItems: AdminItem[] = [
   {
     key: "activity",
     url: "/admin/activity",
@@ -128,6 +130,9 @@ const adminItems: {
     icon: Boxes,
     perm: { integration: ["manage"] },
   },
+];
+
+const integrationItems: AdminItem[] = [
   {
     key: "jira",
     url: "/admin/jira",
@@ -374,29 +379,39 @@ export function AppSidebar({
         <SidebarContent>
           {/* The admin sections only appear once you're inside /admin, the same
             way the environment sections appear inside an environment. */}
-          {inAdmin && (
-            <SidebarGroup>
-              <SidebarGroupLabel>{tNav("admin")}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {adminItems
-                    .filter((item) => canOrg(orgRole, item.perm))
-                    .map((item) => (
-                      <SidebarMenuItem key={item.key}>
-                        <SidebarMenuButton
-                          render={<Link href={item.url} />}
-                          isActive={pathname.startsWith(item.url)}
-                          tooltip={tNav(item.key)}
-                        >
-                          <item.icon />
-                          <span>{tNav(item.key)}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
+          {inAdmin &&
+            (
+              [
+                { label: "admin", items: adminItems },
+                { label: "integrations", items: integrationItems },
+              ] as const
+            ).map(({ label, items }) => {
+              const visible = items.filter((item) =>
+                canOrg(orgRole, item.perm)
+              );
+              if (visible.length === 0) return null;
+              return (
+                <SidebarGroup key={label}>
+                  <SidebarGroupLabel>{tNav(label)}</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {visible.map((item) => (
+                        <SidebarMenuItem key={item.key}>
+                          <SidebarMenuButton
+                            render={<Link href={item.url} />}
+                            isActive={pathname.startsWith(item.url)}
+                            tooltip={tNav(item.key)}
+                          >
+                            <item.icon />
+                            <span>{tNav(item.key)}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              );
+            })}
 
           {activeEnv && (
             <SidebarGroup>

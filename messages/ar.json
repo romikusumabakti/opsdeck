@@ -134,6 +134,7 @@
     "activity": "النشاط",
     "jira": "Jira",
     "admin": "المشرف",
+    "integrations": "التكاملات",
     "badgeAssignedOpen": "{count, plural, zero {لا مشكلات مفتوحة مسندة إليك} one {مشكلة مفتوحة واحدة مسندة إليك} two {مشكلتان مفتوحتان مسندتان إليك} few {# مشكلات مفتوحة مسندة إليك} many {# مشكلة مفتوحة مسندة إليك} other {# مشكلة مفتوحة مسندة إليك}}",
     "badgeProjectOpen": "{count, plural, zero {لا مشكلات مفتوحة في هذا المشروع} one {مشكلة مفتوحة واحدة في هذا المشروع} two {مشكلتان مفتوحتان في هذا المشروع} few {# مشكلات مفتوحة في هذا المشروع} many {# مشكلة مفتوحة في هذا المشروع} other {# مشكلة مفتوحة في هذا المشروع}}",
     "badgeActiveRuns": "{count, plural, zero {لا مهام قيد التشغيل} one {مهمة واحدة قيد التشغيل} two {مهمتان قيد التشغيل} few {# مهام قيد التشغيل} many {# مهمة قيد التشغيل} other {# مهمة قيد التشغيل}}",
@@ -1421,7 +1422,7 @@
     "sharedDatabaseConfined": "مضيف قاعدة بيانات هذه البيئة مشترك؛ يمكنك استخدام قواعد بيانات هذه البيئة فقط. اطلب المساعدة من مسؤول للقواعد الأخرى.",
     "sharedDatabaseServiceConfined": "حاوية قاعدة البيانات هذه مشتركة مع بيئات أخرى؛ لا يمكن إلا للمسؤول التحكم فيها أو قراءة سجلاتها.",
     "databaseHostVersion": "تشغّل تلك الحاوية إصدار Postgres أقدم من 15؛ سجّل فقط Postgres 15 أو أحدث.",
-    "defaultServerForbidden": "يمكن للمسؤول فقط تغيير الخادم الافتراضي للمشروع."
+    "defaultServerForbidden": "يمكن للمسؤولين وفريق البنية التحتية فقط تغيير الخادم الافتراضي للمشروع."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1672,8 +1673,8 @@
     "defaultServer": "الخادم الافتراضي",
     "defaultServerDescription": "تُنشأ البيئات الجديدة لهذا المشروع هنا ما لم يُختر خادم آخر.",
     "defaultServerNone": "لا شيء",
-    "defaultServerSet": "يحدده المسؤول",
-    "defaultServerAdminOnly": "يمكن للمسؤول فقط تغيير الخادم الافتراضي."
+    "defaultServerSet": "يحدده المسؤول أو فريق البنية التحتية",
+    "defaultServerAdminOnly": "يمكن للمسؤولين وفريق البنية التحتية فقط تغيير الخادم الافتراضي."
   },
   "issues": {
     "title": "المشكلات",
@@ -2029,7 +2030,9 @@
     "databaseHostDeleted": "أزال {actor} مضيف قاعدة البيانات {label} ({container}) من {server}",
     "cloudflareAccountUpdated": "حدّث {actor} حساب Cloudflare ({fields})",
     "environmentDomainUpdated": "{actor} عيّن نطاق {environment} إلى {hostname}",
-    "environmentDomainDeleted": "{actor} أزال النطاق {hostname} من {environment}"
+    "environmentDomainDeleted": "{actor} أزال النطاق {hostname} من {environment}",
+    "projectDefaultServerSet": "عيّن {actor} الخادم الافتراضي لـ {project} إلى {server}",
+    "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}"
   },
   "jira": {
     "title": "Jira",
@@ -2453,7 +2456,24 @@
     "keepStored": "Keep stored token",
     "saveChanges": "Save changes",
     "submitting": "Saving…",
-    "saved": "CI server saved"
+    "saved": "CI server saved",
+    "verify": "تحقّق",
+    "verifyDescription": "يتحقق من الرمز وبيانات اعتماد المستودع المحفوظة.",
+    "verifyCi": "رمز API لـ CI",
+    "verifyForge": "بيانات اعتماد المستودع",
+    "verifyOk": "يعمل",
+    "verifyFailed": "فشل",
+    "verifyNotConfigured": "غير مُعدّة",
+    "verifyCodes": {
+      "ciTokenMissing": "لا يوجد رمز API محفوظ.",
+      "ciTokenRejected": "رفض خادم CI الرمز.",
+      "ciUnreachable": "تعذّر الوصول إلى خادم CI (تحقق من العنوان وAccess).",
+      "ciFailed": "ردّ خادم CI بخطأ.",
+      "forgeCredentialsRejected": "رفض المستودع اسم المستخدم أو الرمز.",
+      "forgeUnreachable": "تعذّر الوصول إلى المستودع.",
+      "forgeUnsupported": "التحقق من هذا المستودع غير مدعوم بعد.",
+      "forgeFailed": "ردّ المستودع بخطأ."
+    }
   },
   "cloudflareAccount": {
     "title": "حساب Cloudflare",
@@ -2538,34 +2558,6 @@
     "variableTemplates": "المتغيرات"
   },
   "appForm": {
-    "appTitle": "App",
-    "name": "Name",
-    "appKey": "App key",
-    "appKeyDescription": "Lowercase letters, digits and '-'. Cannot be changed later.",
-    "componentTitle": "Component {number}",
-    "removeComponent": "Remove component",
-    "addComponent": "Add component",
-    "connection": "CI connection",
-    "connectionPlaceholder": "Choose a CI connection",
-    "noForgeToken": "This connection has no forge token, so the generated pipeline file cannot be committed to the repository.",
-    "repo": "Repository",
-    "repoSearch": "Search repositories",
-    "reposLoading": "Loading repositories…",
-    "reposFailed": "Could not load the repositories",
-    "noRepos": "No matching repositories",
-    "linkedTo": "Linked to {component}",
-    "alreadyActive": "Active in Woodpecker",
-    "changeRepo": "Change",
-    "repoRequired": "Choose a repository",
-    "componentKey": "Component key",
-    "bundleImage": "Bundle image",
-    "bundleImageDescription": "The image the pipeline pushes the deploy bundle to.",
-    "mode": "Pipeline",
-    "modeCustom": "Custom",
-    "modeGenerated": "Generated",
-    "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
-    "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
-    "generatedAdminOnly": "Only admins can choose a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2617,21 +2609,6 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
-    },
-    "branch": "الفرع",
-    "branchDescription": "الفرع الذي يُقرأ منه المستودع ويبدأ عليه أول بناء.",
-    "branchInvalid": "أدخل اسم فرع صالحًا.",
-    "detect": {
-      "title": "ما تم اكتشافه في المستودع",
-      "loading": "جارٍ قراءة المستودع…",
-      "failed": "تعذّرت قراءة المستودع",
-      "composeFile": "ملف compose:",
-      "ports": "منفذ الحاوية {ports}",
-      "entry": "الدخول",
-      "dockerfiles": "ملفات Dockerfile:",
-      "issue_no_compose": "لم يُعثر على ملف compose في جذر المستودع أو مجلداته الأولى.",
-      "issue_no_dockerfile": "لم يُعثر على Dockerfile.",
-      "issue_compose_parse_error": "تعذّر تحليل ملف compose."
     }
   },
   "variables": {
