@@ -644,12 +644,21 @@ async function referencesInProject(
   );
 }
 
-/** All issues for a logical project, newest first. */
-export async function listIssues(projectId: string): Promise<IssueWithMeta[]> {
+/**
+ * A logical project's issues, newest first. `statuses` narrows the list (the
+ * pages pass the open + in-progress default); omitted, every status comes back,
+ * which is what the issue detail's parent picker needs.
+ */
+export async function listIssues(
+  projectId: string,
+  statuses?: readonly Issue["status"][]
+): Promise<IssueWithMeta[]> {
   await requireProjectPage({ projectId });
   try {
     const rows = await db.query.issues.findMany({
-      where: { projectId },
+      where: statuses
+        ? { projectId, status: { in: [...statuses] } }
+        : { projectId },
       with: {
         createdBy: { columns: { id: true, name: true, image: true } },
         assignee: { columns: { id: true, name: true, image: true } },
