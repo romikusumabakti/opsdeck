@@ -264,6 +264,30 @@ describe("suggestedBuildSpec", () => {
     ]);
   });
 
+  it("never emits the bundle image name", () => {
+    const out = detectRepo([
+      { path: "Dockerfile" },
+      { path: "deploy/Dockerfile" },
+      { path: "compose.yaml", content: "services:\n  web:\n    image: x\n" },
+    ]);
+    expect(suggestedBuildSpec(out, "demo", "main")?.images).toEqual([
+      { name: "demo", dockerfile: "Dockerfile", context: "." },
+    ]);
+  });
+
+  it("keeps valid images when a directory name is invalid", () => {
+    const out = detectRepo([
+      { path: "Dockerfile" },
+      { path: "Api/Dockerfile" },
+      { path: "my dir/Dockerfile" },
+      { path: "compose.yaml", content: "services:\n  web:\n    image: x\n" },
+    ]);
+    expect(suggestedBuildSpec(out, "demo", "main")?.images).toEqual([
+      { name: "demo", dockerfile: "Dockerfile", context: "." },
+      { name: "demo-api", dockerfile: "Api/Dockerfile", context: "Api" },
+    ]);
+  });
+
   it("is null without a Dockerfile or a compose file", () => {
     const compose = "services:\n  web:\n    image: x\n";
     expect(
