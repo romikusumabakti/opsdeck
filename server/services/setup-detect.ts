@@ -51,6 +51,8 @@ export async function detectComponentRepo(
   }
 }
 
+const WOODPECKER_FILES = [".woodpecker.yaml", ".woodpecker.yml"];
+
 async function readAndDetect(
   auth: BitbucketAuth,
   repoFullName: string,
@@ -69,11 +71,21 @@ async function readAndDetect(
   const composeContent = composeName
     ? await readRepoFile(auth, repoFullName, branch, composeName)
     : null;
+  const pipelineName =
+    files.find((f) => WOODPECKER_FILES.includes(f.path))?.path ??
+    files.find((f) => f.path.startsWith(".woodpecker/"))?.path;
+  const pipelineContent = pipelineName
+    ? await readRepoFile(auth, repoFullName, branch, pipelineName)
+    : null;
   return detectRepo(
-    files.map((f) =>
-      f.path === composeName && composeContent !== null
-        ? { path: f.path, content: composeContent }
-        : { path: f.path }
-    )
+    files.map((f) => {
+      if (f.path === composeName && composeContent !== null) {
+        return { path: f.path, content: composeContent };
+      }
+      if (f.path === pipelineName && pipelineContent !== null) {
+        return { path: f.path, content: pipelineContent };
+      }
+      return { path: f.path };
+    })
   );
 }
