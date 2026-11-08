@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
+import { resolveStatusFilter } from "@/lib/issue-query";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import { canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
 import { listIssuesQuery } from "@/web/api/issues";
@@ -35,7 +36,15 @@ import { IssuesClient } from "./-components/issues-client";
 import { MilestonesClient } from "./-components/project/milestones-client";
 import { ProjectMembersClient } from "./-components/project/project-members-client";
 
+/** The list's statuses for the `status` URL param (open + in progress by default). */
+const statusesFor = (status: string | undefined) =>
+  resolveStatusFilter(status, "table") ?? undefined;
+
 export const Route = createFileRoute("/$locale/_app/$projectKey/")({
+  validateSearch: (search: Record<string, unknown>): { status?: string } => ({
+    status: typeof search.status === "string" ? search.status : undefined,
+  }),
+  loaderDeps: ({ search: { status } }) => ({ status }),
   // 404 when the project is unknown or invisible to the caller.
   beforeLoad: async ({ params: { projectKey }, context: { queryClient } }) => {
     const project = await queryClient.query(
@@ -44,7 +53,11 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
     if (!project) throw notFound();
     await requireProjectRole(queryClient, project.id);
   },
-  loader: async ({ params: { projectKey }, context: { queryClient } }) => {
+  loader: async ({
+    deps: { status },
+    params: { projectKey },
+    context: { queryClient },
+  }) => {
     const [project] = await Promise.all([
       queryClient.query(getProjectByKeyWithEnvironmentsQuery(projectKey)),
       queryClient.query(getEnvironmentsLastActivityQuery()),
@@ -52,7 +65,10 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
     if (!project) throw notFound();
     const role = await requireProjectRole(queryClient, project.id);
     await Promise.all([
-      loaderQuery(queryClient, listIssuesQuery(project.id)),
+      loaderQuery(
+        queryClient,
+        listIssuesQuery(project.id, statusesFor(status))
+      ),
       loaderQuery(queryClient, listAssignableUsersQuery(project.id)),
       loaderQuery(queryClient, listMilestonesQuery(project.id)),
       // Membership management follows the project role.
@@ -71,6 +87,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
 
 function ProjectOverviewPage() {
   const { projectKey } = Route.useParams();
+  const { status } = Route.useSearch();
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");
   const tDash = useTranslations("dashboard");
@@ -90,7 +107,9 @@ function ProjectOverviewPage() {
   const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
   const canManageMembers = canProject(role, { member: ["manage"] });
 
-  const issues = useSuspenseQuery(listIssuesQuery(project.id)).data;
+  const issues = useSuspenseQuery(
+    listIssuesQuery(project.id, statusesFor(status))
+  ).data;
   const users = useSuspenseQuery(listAssignableUsersQuery(project.id)).data;
   const milestones = useSuspenseQuery(listMilestonesQuery(project.id)).data;
 
@@ -262,6 +281,7 @@ function ProjectOverviewPage() {
             users={users}
             milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
             initialIssues={issues}
+            status={status}
           />
         </TabsContent>
 
