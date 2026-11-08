@@ -1,10 +1,14 @@
+import { HTTPException } from "hono/http-exception";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const TOO_LARGE = vi.hoisted(() => Symbol("too-large"));
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
   getProjectAccess: vi.fn(),
   getComponent: vi.fn(),
-  setBuildSpec: vi.fn(),
+  appendBuildSpecBranch: vi.fn(),
+  requireProjectPermission: vi.fn(),
+  listRepos: vi.fn(),
   setPipelineFileCommit: vi.fn(),
   branchExists: vi.fn(),
   commitFile: vi.fn(),
@@ -17,6 +21,7 @@ vi.mock("@/lib/auth-session", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/lib/authz", () => ({
   getProjectAccess: mocks.getProjectAccess,
   requireOrgPermission: vi.fn(),
+  requireProjectPermission: mocks.requireProjectPermission,
 }));
 vi.mock("@/lib/apps", () => ({
   appKeyExists: async () => false,
@@ -27,7 +32,7 @@ vi.mock("@/lib/apps", () => ({
   linkedCiRepos: async () => [],
   listApps: vi.fn(),
   projectIdsWithAppEnvironment: vi.fn(),
-  setBuildSpec: mocks.setBuildSpec,
+  appendBuildSpecBranch: mocks.appendBuildSpecBranch,
   setNotifySecret: vi.fn(),
   setPipelineFileCommit: mocks.setPipelineFileCommit,
   takenComponentKeys: async () => [],
@@ -35,11 +40,13 @@ vi.mock("@/lib/apps", () => ({
 vi.mock("@/lib/ci/forges/bitbucket", () => ({
   branchExists: mocks.branchExists,
   commitFile: mocks.commitFile,
-  readRepoFile: mocks.readRepoFile,
+  readRepoFileOrLarge: mocks.readRepoFile,
+  FILE_TOO_LARGE: TOO_LARGE,
 }));
 vi.mock("@/server/services/ci-connections", () => ({
   getForgeCredentials: mocks.getForgeCredentials,
   getProviderForConnection: async () => ({
+    listRepos: mocks.listRepos,
     activateRepo: mocks.activateRepo,
     updateRepoSettings: async () => undefined,
     upsertRepoSecret: async () => undefined,
@@ -83,6 +90,11 @@ beforeEach(() => {
   mocks.commitFile.mockResolvedValue({ sha: "abc" });
   mocks.readRepoFile.mockResolvedValue(null);
   mocks.getComponent.mockResolvedValue({ ...COMPONENT, app: {} });
+  mocks.requireProjectPermission.mockResolvedValue({});
+  mocks.appendBuildSpecBranch.mockResolvedValue(true);
+  mocks.listRepos.mockResolvedValue([
+    { ciRepoId: "7", fullName: "dss/hris", forgeRemoteId: "{a}", active: true },
+  ]);
   mocks.activateRepo.mockResolvedValue({
     ciRepoId: "7",
     fullName: "dss/hris",
@@ -110,13 +122,34 @@ describe("registerApp for engineers", () => {
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses to overwrite a non-Panel pipeline file", async () => {
+  it("refuses up front (409) when a branch holds a non-Panel pipeline file", async () => {
     mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
-    await registerApp(REGISTER);
-    expect(mocks.commitFile).not.toHaveBeenCalled();
-    expect(mocks.setPipelineFileCommit).toHaveBeenCalledWith("hris", "main", {
-      error: "pipelineFileExists",
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      status: 409,
+      code: "pipelineFileExists",
     });
+    expect(mocks.activateRepo).not.toHaveBeenCalled();
+    expect(mocks.commitFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Panel file generated for another component", async () => {
+    mocks.readRepoFile.mockResolvedValue(
+      generateWoodpeckerPipeline("other", SPEC, {
+        registry: "registry.example.com",
+      })
+    );
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      code: "pipelineFileExists",
+    });
+    expect(mocks.activateRepo).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on a pipeline file too large to read", async () => {
+    mocks.readRepoFile.mockResolvedValue(TOO_LARGE);
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      code: "pipelineFileExists",
+    });
+    expect(mocks.activateRepo).not.toHaveBeenCalled();
   });
 
   it("overwrites a Panel-generated pipeline file", async () => {
@@ -128,13 +161,22 @@ describe("registerApp for engineers", () => {
 
 describe("ensureComponentBranch", () => {
   it("adds a branch and recommits to every built branch", async () => {
-    await expect(ensureComponentBranch("hris", "feature-x")).resolves.toEqual({
+    mocks.getComponent
+      .mockResolvedValueOnce({ ...COMPONENT, app: {} })
+      .mockResolvedValueOnce({
+        ...COMPONENT,
+        buildSpec: { ...SPEC, branches: ["main", "feature-x"] },
+        app: {},
+      });
+    await expect(
+      ensureComponentBranch("hris", "feature-x", "p1")
+    ).resolves.toEqual({
       added: true,
     });
-    expect(mocks.setBuildSpec).toHaveBeenCalledWith("hris", {
-      ...SPEC,
-      branches: ["main", "feature-x"],
-    });
+    expect(mocks.appendBuildSpecBranch).toHaveBeenCalledWith(
+      "hris",
+      "feature-x"
+    );
     expect(mocks.commitFile.mock.calls.map((c) => c[2])).toEqual([
       "main",
       "feature-x",
@@ -142,10 +184,10 @@ describe("ensureComponentBranch", () => {
   });
 
   it("is idempotent for a listed branch", async () => {
-    await expect(ensureComponentBranch("hris", "main")).resolves.toEqual({
+    await expect(ensureComponentBranch("hris", "main", "p1")).resolves.toEqual({
       added: false,
     });
-    expect(mocks.setBuildSpec).not.toHaveBeenCalled();
+    expect(mocks.appendBuildSpecBranch).not.toHaveBeenCalled();
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
@@ -156,16 +198,52 @@ describe("ensureComponentBranch", () => {
       buildSpec: null,
       app: {},
     });
-    await expect(ensureComponentBranch("hris", "x")).resolves.toEqual({
+    await expect(ensureComponentBranch("hris", "x", "p1")).resolves.toEqual({
       added: false,
     });
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
-  it("is refused for a user who may not register apps", async () => {
-    mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "viewer" } });
-    await expect(ensureComponentBranch("hris", "x")).rejects.toMatchObject({
-      status: 403,
+  it("is refused without environment:create on the project (403)", async () => {
+    mocks.requireProjectPermission.mockRejectedValue(
+      new HTTPException(403, { message: "Forbidden" })
+    );
+    await expect(
+      ensureComponentBranch("hris", "x", "other-project")
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mocks.requireProjectPermission).toHaveBeenCalledWith(
+      { projectId: "other-project" },
+      { environment: ["create"] }
+    );
+    expect(mocks.appendBuildSpecBranch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid branch (400) and stores nothing", async () => {
+    await expect(
+      ensureComponentBranch("hris", "bad branch*", "p1")
+    ).rejects.toMatchObject({ status: 400 });
+    expect(mocks.appendBuildSpecBranch).not.toHaveBeenCalled();
+    expect(mocks.commitFile).not.toHaveBeenCalled();
+  });
+
+  it("recommits a listed branch whose last commit failed", async () => {
+    mocks.getComponent.mockResolvedValue({
+      ...COMPONENT,
+      pipelineFileCommits: { main: { error: "Branch main does not exist" } },
+      app: {},
     });
+    await expect(ensureComponentBranch("hris", "main", "p1")).resolves.toEqual({
+      added: false,
+    });
+    expect(mocks.appendBuildSpecBranch).not.toHaveBeenCalled();
+    expect(mocks.commitFile.mock.calls.map((c) => c[2])).toEqual(["main"]);
+  });
+
+  it("does not commit when a concurrent call already added the branch", async () => {
+    mocks.appendBuildSpecBranch.mockResolvedValue(false);
+    await expect(
+      ensureComponentBranch("hris", "feature-x", "p1")
+    ).resolves.toEqual({ added: false });
+    expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 });

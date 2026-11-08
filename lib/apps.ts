@@ -1,6 +1,5 @@
 import { and, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import type { BuildSpec } from "@/lib/ci/build-spec";
 import { type DbExecutor, db } from "@/lib/db";
 import {
   type App,
@@ -171,17 +170,29 @@ export async function setPipelineFileCommit(
     .where(eq(appComponents.componentKey, componentKey));
 }
 
-/** Replaces a component's build spec (the generated pipeline's source). */
-export async function setBuildSpec(
+/**
+ * Appends a branch to a component's build spec in one statement, only when it
+ * is not listed yet. True when it was appended.
+ */
+export async function appendBuildSpecBranch(
   componentKey: string,
-  buildSpec: BuildSpec
-): Promise<void> {
+  branch: string
+): Promise<boolean> {
+  const spec = appComponents.buildSpec;
   const updated = await db
     .update(appComponents)
-    .set({ buildSpec })
-    .where(eq(appComponents.componentKey, componentKey))
+    .set({
+      buildSpec: sql`jsonb_set(${spec}, '{branches}', (${spec} -> 'branches') || to_jsonb(${branch}::text))`,
+    })
+    .where(
+      and(
+        eq(appComponents.componentKey, componentKey),
+        eq(appComponents.pipelineMode, "generated"),
+        sql`not ((${spec} -> 'branches') ? ${branch})`
+      )
+    )
     .returning({ componentKey: appComponents.componentKey });
-  if (updated.length === 0) throw new Error("Component not found");
+  return updated.length > 0;
 }
 
 /** Stores a new notify secret, already encrypted with lib/secrets.ts. */

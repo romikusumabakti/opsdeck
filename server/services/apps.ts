@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import {
+  appendBuildSpecBranch,
   appKeyExists,
   componentTargetBranches,
   getApp,
@@ -12,18 +13,23 @@ import {
   type NewAppComponent,
   type PublicAppComponent,
   projectIdsWithAppEnvironment,
-  setBuildSpec,
   setNotifySecret,
   setPipelineFileCommit,
   takenComponentKeys,
 } from "@/lib/apps";
 import { requireSession } from "@/lib/auth-session";
-import { getProjectAccess, requireOrgPermission } from "@/lib/authz";
-import type { BuildSpec } from "@/lib/ci/build-spec";
 import {
+  getProjectAccess,
+  requireOrgPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
+import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
+import {
+  type BitbucketAuth,
   branchExists,
   commitFile,
-  readRepoFile,
+  FILE_TOO_LARGE,
+  readRepoFileOrLarge,
 } from "@/lib/ci/forges/bitbucket";
 import {
   generateWoodpeckerPipeline,
@@ -31,6 +37,7 @@ import {
 } from "@/lib/ci/pipeline";
 import type { RegisterAppInput } from "@/lib/ci/registration";
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
+import { branchSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { canOrg, canProject, canRegisterApp } from "@/lib/permissions";
 import { encryptSecret } from "@/lib/secrets";
@@ -150,6 +157,28 @@ function builtBranches(spec: BuildSpec): string[] {
   return [...new Set(spec.branches)];
 }
 
+/**
+ * True when the branch holds a pipeline file the Panel must not overwrite:
+ * one it did not generate, one generated for another component, or one too
+ * large to read (fail closed). A missing file is free to commit.
+ */
+async function holdsForeignPipelineFile(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  branch: string,
+  componentKey: string
+): Promise<boolean> {
+  const current = await readRepoFileOrLarge(
+    auth,
+    repoFullName,
+    branch,
+    PIPELINE_FILE_PATH
+  );
+  if (current === null) return false;
+  if (current === FILE_TOO_LARGE) return true;
+  return PANEL_PIPELINE_MARKER.exec(current)?.[1] !== componentKey;
+}
+
 type CommitResult = { sha: string } | { error: string };
 
 /**
@@ -182,13 +211,14 @@ async function commitPipelineFiles(
           return { error: `Branch ${branch} does not exist` };
         }
         // Never overwrite a pipeline file the Panel did not generate.
-        const current = await readRepoFile(
-          auth,
-          component.repoFullName,
-          branch,
-          PIPELINE_FILE_PATH
-        );
-        if (current !== null && !PANEL_PIPELINE_MARKER.test(current)) {
+        if (
+          await holdsForeignPipelineFile(
+            auth,
+            component.repoFullName,
+            branch,
+            component.componentKey
+          )
+        ) {
           return { error: PIPELINE_FILE_EXISTS };
         }
         return commitFile(
@@ -237,6 +267,44 @@ type Prepared = {
   secret?: string;
 };
 
+/**
+ * Refuses (409 pipelineFileExists) a generated component whose repository
+ * already holds a pipeline file the Panel did not generate on one of its
+ * branches, before anything is changed in Woodpecker. Repos the CI server does
+ * not list, or forges the Panel cannot read, are left to the commit step.
+ */
+async function refuseForeignPipelineFiles(prepared: Prepared[]): Promise<void> {
+  for (const item of prepared) {
+    const { componentKey, ciConnectionId, forgeRemoteId, buildSpec } =
+      item.input;
+    if (!buildSpec) continue;
+    const { forge, auth } = await getForgeCredentials(ciConnectionId);
+    if (forge !== "bitbucket" || !auth) continue;
+    const repo = (
+      await step("Listing Woodpecker repositories", () =>
+        item.provider.listRepos()
+      )
+    ).find((r) => r.forgeRemoteId === forgeRemoteId);
+    if (!repo) continue;
+    for (const branch of builtBranches(buildSpec)) {
+      if (
+        await holdsForeignPipelineFile(
+          auth,
+          repo.fullName,
+          branch,
+          componentKey
+        )
+      ) {
+        throw new CodedHTTPException(
+          409,
+          PIPELINE_FILE_EXISTS,
+          `Branch ${branch} of ${repo.fullName} already has a ${PIPELINE_FILE_PATH} that DSS Panel did not generate`
+        );
+      }
+    }
+  }
+}
+
 export async function registerApp(
   input: RegisterAppInput
 ): Promise<AppWithComponents> {
@@ -270,6 +338,8 @@ export async function registerApp(
         : null,
     });
   }
+
+  await refuseForeignPipelineFiles(prepared);
 
   // Activate every repo first (Woodpecker reuses an already active one) and
   // refuse a repo that already builds a component, before any setting or
@@ -445,26 +515,51 @@ export async function retryPipelineFileCommit(
 /**
  * Adds a branch to a generated component's build spec and commits the
  * regenerated pipeline file to every built branch. Only appends, never
- * removes; a no-op for custom components and for a branch already listed.
- * Callable by anyone who may register apps (the new-environment flow).
+ * removes; a no-op for custom components. A branch already listed whose last
+ * commit failed is committed again (added: false). Needs environment:create
+ * on the project the new environment belongs to.
  */
 export async function ensureComponentBranch(
   componentKey: string,
-  branch: string
+  branch: string,
+  projectId: string
 ): Promise<{ added: boolean }> {
-  await requireRegistrant();
+  await requireProjectPermission({ projectId }, { environment: ["create"] });
   const component = (await getComponent(componentKey)) ?? notFound();
   if (component.pipelineMode !== "generated" || !component.buildSpec) {
     return { added: false };
   }
+  const parsedBranch = branchSchema.safeParse(branch);
+  if (!parsedBranch.success) badRequest("Invalid branch name");
   const spec = component.buildSpec as BuildSpec;
-  if (spec.branches.includes(branch)) return { added: false };
-  const next: BuildSpec = { ...spec, branches: [...spec.branches, branch] };
-  await setBuildSpec(componentKey, next);
+  if (spec.branches.includes(branch)) {
+    if (!component.pipelineFileCommits?.[branch]?.error) {
+      return { added: false };
+    }
+    await commitPipelineFiles(
+      component,
+      [branch],
+      generateWoodpeckerPipeline(componentKey, spec)
+    );
+    return { added: false };
+  }
+  // Validate and generate before persisting, so a bad spec is never stored.
+  const next = buildSpecSchema.parse({
+    ...spec,
+    branches: [...spec.branches, branch],
+  });
+  const yaml = generateWoodpeckerPipeline(componentKey, next);
+  if (!(await appendBuildSpecBranch(componentKey, branch))) {
+    return { added: false };
+  }
+  const saved = (await getComponent(componentKey))?.buildSpec as
+    | BuildSpec
+    | null
+    | undefined;
   await commitPipelineFiles(
     component,
-    builtBranches(next),
-    generateWoodpeckerPipeline(componentKey, next)
+    builtBranches(saved ?? next),
+    saved ? generateWoodpeckerPipeline(componentKey, saved) : yaml
   );
   return { added: true };
 }

@@ -189,7 +189,8 @@ vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
 const forge = vi.hoisted(() => ({
   commitFile: vi.fn(),
   branchExists: vi.fn(),
-  readRepoFile: vi.fn(),
+  readRepoFileOrLarge: vi.fn(),
+  FILE_TOO_LARGE: Symbol("too-large"),
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => forge);
 
@@ -300,7 +301,8 @@ beforeEach(() => {
     state.calls.push(`secret:${id}`);
   });
   forge.branchExists.mockResolvedValue(true);
-  forge.readRepoFile.mockResolvedValue(null);
+  forge.readRepoFileOrLarge.mockResolvedValue(null);
+  provider.listRepos.mockResolvedValue([]);
   forge.commitFile.mockImplementation(
     async (_auth: unknown, _repo: string, branch: string) => {
       state.calls.push(`commit:${branch}`);

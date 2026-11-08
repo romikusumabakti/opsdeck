@@ -257,9 +257,10 @@ function holdsEngineerAnywhere(
 
 // Registering an app activates a repository in the CI server and sets its
 // notify secret, so it is for admins (integration:manage) and for engineers
-// of any project. Org roles that imply engineer on every project (infra)
-// count, as does an explicit engineer membership. Generated pipelines,
-// pipeline file commits and secret rotation stay with integration:manage.
+// of any project, for generated and custom pipelines alike. Org roles that
+// imply engineer on every project (infra) count, as does an explicit engineer
+// membership. Retrying a pipeline file commit and secret rotation stay with
+// integration:manage.
 export function canRegisterApp(
   orgRole: string | null | undefined,
   projectRoles: readonly ProjectRole[]
