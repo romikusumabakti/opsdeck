@@ -87,7 +87,7 @@ import {
  * appear in a response. Generated and escrowed values are never copied.
  */
 
-const SETUP_PERMISSIONS = {
+export const SETUP_PERMISSIONS = {
   environment: ["create"],
   deploy: ["configure", "run"],
   variable: ["write"],

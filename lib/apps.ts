@@ -146,6 +146,19 @@ export async function insertAppWithComponents(
 }
 
 /**
+ * Inserts components into an existing app. A taken component key or CI repo
+ * surfaces as a unique violation.
+ */
+export async function insertComponents(
+  appId: string,
+  components: NewAppComponent[]
+): Promise<void> {
+  await db
+    .insert(appComponents)
+    .values(components.map((c) => ({ ...c, appId })));
+}
+
+/**
  * Records one branch's attempt to commit the generated pipeline file, merged
  * into `pipeline_file_commits` in one statement so attempts on other branches
  * are never overwritten. A failure keeps that branch's last good sha, so the

@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   readRepoFile: vi.fn(),
   getForgeCredentials: vi.fn(),
   activateRepo: vi.fn(),
+  insertComponents: vi.fn(),
+  getApp: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-session", () => ({ requireSession: mocks.requireSession }));
@@ -26,9 +28,10 @@ vi.mock("@/lib/authz", () => ({
 vi.mock("@/lib/apps", () => ({
   appKeyExists: async () => false,
   componentTargetBranches: vi.fn(),
-  getApp: async () => ({ components: [] }),
+  getApp: mocks.getApp,
   getComponent: mocks.getComponent,
   insertAppWithComponents: async () => undefined,
+  insertComponents: mocks.insertComponents,
   linkedCiRepos: async () => [],
   listApps: vi.fn(),
   projectIdsWithAppEnvironment: vi.fn(),
@@ -57,7 +60,11 @@ vi.mock("@/lib/secrets", () => ({ encryptSecret: (s: string) => s }));
 
 import { buildSpecSchema } from "@/lib/ci/build-spec";
 import { generateWoodpeckerPipeline } from "@/lib/ci/pipeline";
-import { ensureComponentBranch, registerApp } from "@/server/services/apps";
+import {
+  addComponentsToApp,
+  ensureComponentBranch,
+  registerApp,
+} from "@/server/services/apps";
 
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const SPEC = buildSpecSchema.parse({
@@ -98,6 +105,12 @@ beforeEach(() => {
   mocks.activateRepo.mockResolvedValue({
     ciRepoId: "7",
     fullName: "dss/hris",
+  });
+  mocks.getApp.mockResolvedValue({
+    id: "app-1",
+    appKey: "hris",
+    name: "HRIS",
+    components: [],
   });
 });
 
@@ -156,6 +169,56 @@ describe("registerApp for engineers", () => {
     mocks.readRepoFile.mockResolvedValue(GENERATED);
     await registerApp(REGISTER);
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("addComponentsToApp", () => {
+  it("registers the components into the existing app", async () => {
+    await expect(
+      addComponentsToApp("hris", REGISTER.components)
+    ).resolves.toMatchObject({ appKey: "hris" });
+    expect(mocks.insertComponents).toHaveBeenCalledWith("app-1", [
+      expect.objectContaining({
+        componentKey: "hris",
+        ciRepoId: "7",
+        repoFullName: "dss/hris",
+        pipelineMode: "generated",
+      }),
+    ]);
+    expect(mocks.commitFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a foreign pipeline file before inserting (409)", async () => {
+    mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
+    await expect(
+      addComponentsToApp("hris", REGISTER.components)
+    ).rejects.toMatchObject({ status: 409, code: "pipelineFileExists" });
+    expect(mocks.activateRepo).not.toHaveBeenCalled();
+    expect(mocks.insertComponents).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid component (400)", async () => {
+    await expect(
+      addComponentsToApp("hris", [
+        { ...REGISTER.components[0], bundleImage: "wrong-deploy" },
+      ] as typeof REGISTER.components)
+    ).rejects.toMatchObject({ status: 400 });
+    expect(mocks.insertComponents).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for an unknown app", async () => {
+    mocks.getApp.mockResolvedValue(undefined);
+    await expect(
+      addComponentsToApp("nope", REGISTER.components)
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("is refused for a user who may not register repos (403)", async () => {
+    mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
+    await expect(
+      addComponentsToApp("hris", REGISTER.components)
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mocks.insertComponents).not.toHaveBeenCalled();
   });
 });
 

@@ -8,6 +8,7 @@ import {
   getApp,
   getComponent,
   insertAppWithComponents,
+  insertComponents,
   linkedCiRepos,
   listApps,
   type NewAppComponent,
@@ -35,7 +36,11 @@ import {
   generateWoodpeckerPipeline,
   PANEL_PIPELINE_MARKER,
 } from "@/lib/ci/pipeline";
-import type { RegisterAppInput } from "@/lib/ci/registration";
+import {
+  type RegisterAppInput,
+  type RegisterComponentInput,
+  registerAppSchema,
+} from "@/lib/ci/registration";
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { branchSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
@@ -77,7 +82,7 @@ const PIPELINE_FILE_MESSAGE =
 const FIRST_BUILD_WINDOW_MS = 60 * 60 * 1000;
 const INTEGRATION_MANAGE = { integration: ["manage"] } as const;
 
-type AppWithComponents = NonNullable<Awaited<ReturnType<typeof getApp>>>;
+export type AppWithComponents = NonNullable<Awaited<ReturnType<typeof getApp>>>;
 
 const fail = (status: 403 | 404 | 409 | 500 | 502, message: string): never => {
   throw new HTTPException(status, { message });
@@ -309,19 +314,56 @@ export async function registerApp(
   input: RegisterAppInput
 ): Promise<AppWithComponents> {
   await requireRegistrant();
-
-  // Validate everything the Panel can know before touching Woodpecker.
   if (await appKeyExists(input.appKey)) {
     fail(409, `App ${input.appKey} already exists`);
   }
+  await registerComponents(input.components, (rows) =>
+    insertAppWithComponents({ appKey: input.appKey, name: input.name }, rows)
+  );
+  return (await getApp(input.appKey)) ?? notFound();
+}
+
+/**
+ * Registers more components into an existing app (the New environment page's
+ * "Add another repo"), with registerApp's rules and steps. Same gate.
+ */
+export async function addComponentsToApp(
+  appKey: string,
+  components: RegisterComponentInput[]
+): Promise<AppWithComponents> {
+  await requireRegistrant();
+  const app = (await getApp(appKey)) ?? notFound();
+  const parsed = registerAppSchema.safeParse({
+    appKey,
+    name: app.name,
+    components,
+  });
+  if (!parsed.success) badRequest("Invalid components");
+  await registerComponents(parsed.data.components, (rows) =>
+    insertComponents(app.id, rows)
+  );
+  return (await getApp(appKey)) ?? notFound();
+}
+
+/**
+ * The steps every registration runs, validated first: free component keys,
+ * no foreign pipeline file, each repo activated and not linked yet, its
+ * Woodpecker settings and notify secret, then `insert` stores the rows and
+ * the generated pipeline files are committed.
+ */
+async function registerComponents(
+  components: RegisterComponentInput[],
+  insert: (rows: NewAppComponent[]) => Promise<void>
+): Promise<void> {
+  // Validate everything the Panel can know before touching Woodpecker.
   const [taken] = await takenComponentKeys(
-    input.components.map((c) => c.componentKey)
+    components.map((c) => c.componentKey)
   );
   if (taken) fail(409, `Component ${taken} already exists`);
 
   const providers = new Map<string, CiProvider>();
   const prepared: Prepared[] = [];
-  for (const component of input.components) {
+  for (const component of components) {
     let provider = providers.get(component.ciConnectionId);
     if (!provider) {
       provider = await getProviderForConnection(component.ciConnectionId);
@@ -404,10 +446,7 @@ export async function registerApp(
     buildSpec: item.input.buildSpec ?? null,
   }));
   try {
-    await insertAppWithComponents(
-      { appKey: input.appKey, name: input.name },
-      rows
-    );
+    await insert(rows);
   } catch (error) {
     if (isUniqueViolation(error)) {
       // Another registration won the race after this one had already
@@ -433,8 +472,6 @@ export async function registerApp(
       item.yaml
     );
   }
-
-  return (await getApp(input.appKey)) ?? notFound();
 }
 
 async function requireAppComponent(appKey: string, componentKey: string) {
