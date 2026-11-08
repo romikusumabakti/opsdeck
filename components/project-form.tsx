@@ -14,6 +14,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
@@ -26,6 +33,9 @@ type Project = Serialized<ProjectRow>;
 
 type Mode = { type: "create" } | { type: "edit"; project: Project };
 
+/** Select value for "no default server". */
+const NO_SERVER = "none";
+
 type Props = {
   mode: Mode;
   /**
@@ -34,12 +44,26 @@ type Props = {
    */
   onSuccess?: (project: Project) => void;
   onCancel?: () => void;
+  /**
+   * Edit mode on the settings page: the project's default server. `servers`
+   * is every server the caller can list (empty without server:read); only
+   * `canChange` (org server:manage) gets a select and sends the field.
+   */
+  defaultServer?: {
+    servers: readonly { id: string; name: string }[];
+    canChange: boolean;
+  };
 };
 
 // Create/edit form for a logical project (the parent of environments). Shared by
 // the inline create dialog and the project settings page, so both stay on one
 // schema — including the reserved-key check the routing layer depends on.
-export function ProjectForm({ mode, onSuccess, onCancel }: Props) {
+export function ProjectForm({
+  mode,
+  onSuccess,
+  onCancel,
+  defaultServer,
+}: Props) {
   const t = useTranslations("projectForm");
   const tCommon = useTranslations("common");
   const router = useRouter();
@@ -59,6 +83,7 @@ export function ProjectForm({ mode, onSuccess, onCancel }: Props) {
       ),
     client: z.string().trim(),
     description: z.string().trim(),
+    defaultServerId: z.string(),
   });
   type Values = z.infer<typeof schema>;
 
@@ -69,8 +94,11 @@ export function ProjectForm({ mode, onSuccess, onCancel }: Props) {
       key: initial?.key ?? "",
       client: initial?.client ?? "",
       description: initial?.description ?? "",
+      defaultServerId: initial?.defaultServerId ?? NO_SERVER,
     },
   });
+  const canChangeDefaultServer =
+    mode.type === "edit" && defaultServer?.canChange === true;
 
   async function onSubmit(values: Values) {
     const payload = {
@@ -78,6 +106,10 @@ export function ProjectForm({ mode, onSuccess, onCancel }: Props) {
       key: values.key,
       client: values.client ? values.client : null,
       description: values.description ? values.description : null,
+      ...(canChangeDefaultServer && {
+        defaultServerId:
+          values.defaultServerId === NO_SERVER ? null : values.defaultServerId,
+      }),
     };
 
     const result =
@@ -192,6 +224,55 @@ export function ProjectForm({ mode, onSuccess, onCancel }: Props) {
             </FormItem>
           )}
         />
+        {mode.type === "edit" && defaultServer && (
+          <FormField
+            control={form.control}
+            name="defaultServerId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("defaultServer")}</FormLabel>
+                {canChangeDefaultServer ? (
+                  <Select
+                    value={field.value}
+                    onValueChange={(value) =>
+                      field.onChange(value ?? NO_SERVER)
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_SERVER}>
+                        {t("defaultServerNone")}
+                      </SelectItem>
+                      {defaultServer.servers.map((server) => (
+                        <SelectItem key={server.id} value={server.id}>
+                          {server.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  // Without server:read the name is not listable; say who set it.
+                  <p className="text-sm">
+                    {field.value === NO_SERVER
+                      ? t("defaultServerNone")
+                      : (defaultServer.servers.find((s) => s.id === field.value)
+                          ?.name ?? t("defaultServerSet"))}
+                  </p>
+                )}
+                <FormDescription>
+                  {canChangeDefaultServer
+                    ? t("defaultServerDescription")
+                    : `${t("defaultServerDescription")} ${t("defaultServerAdminOnly")}`}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <Button

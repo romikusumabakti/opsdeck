@@ -85,7 +85,7 @@
     "issues": "Issues",
     "jira": "Jira",
     "mail": "Mail",
-    "apps": "Apps",
+    "repositories": "Repositories",
     "variables": "Variables"
   },
   "commandPalette": {
@@ -141,7 +141,7 @@
     "mail": "Mail",
     "ci": "CI",
     "cloudflare": "Cloudflare",
-    "apps": "Apps",
+    "repositories": "Repositories",
     "variables": "Variables"
   },
   "header": {
@@ -1420,7 +1420,8 @@
     "databaseHostInUse": "Environments still use this database host; move them to another database first.",
     "sharedDatabaseConfined": "This environment's database host is shared; you can only use this environment's own databases. Ask an admin for others.",
     "sharedDatabaseServiceConfined": "This database container is shared with other environments; only an admin can control it or read its logs.",
-    "databaseHostVersion": "That container runs a Postgres older than 15; register only Postgres 15 or newer."
+    "databaseHostVersion": "That container runs a Postgres older than 15; register only Postgres 15 or newer.",
+    "defaultServerForbidden": "Only an admin can change the project's default server."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1667,7 +1668,12 @@
     "createFailed": "Failed to create project",
     "saveFailed": "Failed to update project",
     "keyTaken": "That key is already in use",
-    "keyReserved": "That key is reserved by an application route"
+    "keyReserved": "That key is reserved by an application route",
+    "defaultServer": "Default server",
+    "defaultServerDescription": "New environments of this project go here unless someone picks another server.",
+    "defaultServerNone": "None",
+    "defaultServerSet": "Set by an admin",
+    "defaultServerAdminOnly": "Only an admin can change the default server."
   },
   "issues": {
     "title": "Issues",
@@ -2501,11 +2507,10 @@
     "removeBound": "Environments still use this tunnel"
   },
   "apps": {
-    "title": "Apps",
-    "subtitle": "Apps the Panel deploys, their components and how CI builds them.",
-    "register": "Register app",
-    "emptyTitle": "No apps",
-    "empty": "Apps appear here once they are registered.",
+    "title": "Repositories",
+    "subtitle": "The repositories the Panel deploys, their components and how CI builds them.",
+    "emptyTitle": "No repositories",
+    "empty": "A repository appears here once an environment is created from it.",
     "colApp": "App",
     "colComponent": "Component",
     "colRepo": "Repository",

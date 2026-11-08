@@ -85,7 +85,7 @@
     "issues": "Incidencias",
     "jira": "Jira",
     "mail": "Correo",
-    "apps": "Apps",
+    "repositories": "Repositorios",
     "variables": "Variables"
   },
   "commandPalette": {
@@ -141,7 +141,7 @@
     "mail": "Correo",
     "ci": "CI",
     "cloudflare": "Cloudflare",
-    "apps": "Apps",
+    "repositories": "Repositorios",
     "variables": "Variables"
   },
   "header": {
@@ -1420,7 +1420,8 @@
     "databaseHostInUse": "Aún hay entornos que usan este host de base de datos; muévelos antes a otra base de datos.",
     "sharedDatabaseConfined": "El host de base de datos de este entorno es compartido; solo puedes usar las bases de datos propias de este entorno. Pide ayuda a un administrador para otras.",
     "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros.",
-    "databaseHostVersion": "Ese contenedor ejecuta un Postgres anterior a la 15; registra solo Postgres 15 o posterior."
+    "databaseHostVersion": "Ese contenedor ejecuta un Postgres anterior a la 15; registra solo Postgres 15 o posterior.",
+    "defaultServerForbidden": "Solo un administrador puede cambiar el servidor predeterminado del proyecto."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1667,7 +1668,12 @@
     "createFailed": "No se pudo crear el proyecto",
     "saveFailed": "No se pudo actualizar el proyecto",
     "keyTaken": "Esa clave ya está en uso",
-    "keyReserved": "Esa clave está reservada por una ruta de la aplicación"
+    "keyReserved": "Esa clave está reservada por una ruta de la aplicación",
+    "defaultServer": "Servidor predeterminado",
+    "defaultServerDescription": "Los entornos nuevos de este proyecto van aquí salvo que se elija otro servidor.",
+    "defaultServerNone": "Ninguno",
+    "defaultServerSet": "Lo fija un administrador",
+    "defaultServerAdminOnly": "Solo un administrador puede cambiar el servidor predeterminado."
   },
   "issues": {
     "title": "Incidencias",
@@ -2501,11 +2507,10 @@
     "removeBound": "Aún lo usan entornos"
   },
   "apps": {
-    "title": "Apps",
-    "subtitle": "Apps the Panel deploys, their components and how CI builds them.",
-    "register": "Register app",
-    "emptyTitle": "No apps",
-    "empty": "Apps appear here once they are registered.",
+    "title": "Repositorios",
+    "subtitle": "Los repositorios que despliega el Panel, sus componentes y cómo los compila la CI.",
+    "emptyTitle": "No hay repositorios",
+    "empty": "Un repositorio aparece aquí cuando se crea un entorno a partir de él.",
     "colApp": "App",
     "colComponent": "Component",
     "colRepo": "Repository",

@@ -85,7 +85,7 @@
     "issues": "المشكلات",
     "jira": "Jira",
     "mail": "البريد",
-    "apps": "Apps",
+    "repositories": "المستودعات",
     "variables": "المتغيرات"
   },
   "commandPalette": {
@@ -141,7 +141,7 @@
     "mail": "البريد",
     "ci": "CI",
     "cloudflare": "Cloudflare",
-    "apps": "Apps",
+    "repositories": "المستودعات",
     "variables": "المتغيرات"
   },
   "header": {
@@ -1420,7 +1420,8 @@
     "databaseHostInUse": "لا تزال هناك بيئات تستخدم مضيف قاعدة البيانات هذا؛ انقلها إلى قاعدة بيانات أخرى أولًا.",
     "sharedDatabaseConfined": "مضيف قاعدة بيانات هذه البيئة مشترك؛ يمكنك استخدام قواعد بيانات هذه البيئة فقط. اطلب المساعدة من مسؤول للقواعد الأخرى.",
     "sharedDatabaseServiceConfined": "حاوية قاعدة البيانات هذه مشتركة مع بيئات أخرى؛ لا يمكن إلا للمسؤول التحكم فيها أو قراءة سجلاتها.",
-    "databaseHostVersion": "تشغّل تلك الحاوية إصدار Postgres أقدم من 15؛ سجّل فقط Postgres 15 أو أحدث."
+    "databaseHostVersion": "تشغّل تلك الحاوية إصدار Postgres أقدم من 15؛ سجّل فقط Postgres 15 أو أحدث.",
+    "defaultServerForbidden": "يمكن للمسؤول فقط تغيير الخادم الافتراضي للمشروع."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1667,7 +1668,12 @@
     "createFailed": "فشل إنشاء المشروع",
     "saveFailed": "فشل تحديث المشروع",
     "keyTaken": "هذا الرمز مستخدم بالفعل",
-    "keyReserved": "هذا المفتاح محجوز لمسار في التطبيق"
+    "keyReserved": "هذا المفتاح محجوز لمسار في التطبيق",
+    "defaultServer": "الخادم الافتراضي",
+    "defaultServerDescription": "تُنشأ البيئات الجديدة لهذا المشروع هنا ما لم يُختر خادم آخر.",
+    "defaultServerNone": "لا شيء",
+    "defaultServerSet": "يحدده المسؤول",
+    "defaultServerAdminOnly": "يمكن للمسؤول فقط تغيير الخادم الافتراضي."
   },
   "issues": {
     "title": "المشكلات",
@@ -2501,11 +2507,10 @@
     "removeBound": "ما زالت بيئات تستخدمه"
   },
   "apps": {
-    "title": "Apps",
-    "subtitle": "Apps the Panel deploys, their components and how CI builds them.",
-    "register": "Register app",
-    "emptyTitle": "No apps",
-    "empty": "Apps appear here once they are registered.",
+    "title": "المستودعات",
+    "subtitle": "المستودعات التي ينشرها Panel ومكوناتها وكيف يبنيها CI.",
+    "emptyTitle": "لا توجد مستودعات",
+    "empty": "يظهر المستودع هنا بعد إنشاء بيئة منه.",
     "colApp": "App",
     "colComponent": "Component",
     "colRepo": "Repository",

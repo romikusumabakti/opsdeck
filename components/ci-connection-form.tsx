@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Workflow } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -6,6 +7,13 @@ import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -25,10 +33,41 @@ import {
 } from "@/web/api/ci-connections";
 import { ApiError } from "@/web/api/client";
 
-export function CiConnectionForm({
+/** The connection's settings card: its details form under a short header. */
+export function CiConnectionCard({
   connection,
+  returnTo,
 }: {
   connection: CiConnectionRow;
+  returnTo?: string;
+}) {
+  const t = useTranslations("editCi");
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Workflow className="size-5 text-muted-foreground" />
+          <CardTitle className="text-base">{t("formTitle")}</CardTitle>
+        </div>
+        <CardDescription>{t("formDescription")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <CiConnectionForm connection={connection} returnTo={returnTo} />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function CiConnectionForm({
+  connection,
+  returnTo,
+}: {
+  connection: CiConnectionRow;
+  /**
+   * Where Save and Cancel go. Without it the form stays on its page (the
+   * single-connection CI page) and Cancel discards the edits.
+   */
+  returnTo?: string;
 }) {
   const t = useTranslations("ciForm");
   const tCommon = useTranslations("common");
@@ -82,7 +121,17 @@ export function CiConnectionForm({
     form.reset(values);
     setClearApiToken(false);
     setClearForgeToken(false);
-    router.push("/admin/ci");
+    if (returnTo) router.push(returnTo);
+  }
+
+  function onCancel() {
+    if (returnTo) {
+      router.push(returnTo);
+      return;
+    }
+    form.reset();
+    setClearApiToken(false);
+    setClearForgeToken(false);
   }
 
   const loading = form.formState.isSubmitting;
@@ -232,7 +281,7 @@ export function CiConnectionForm({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => router.push("/admin/ci")}
+            onClick={onCancel}
             disabled={loading}
           >
             {tCommon("cancel")}
