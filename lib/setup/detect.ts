@@ -1,8 +1,11 @@
 import { parse } from "yaml";
-import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
+import {
+  type BuildSpec,
+  buildImageSchema,
+  buildSpecSchema,
+} from "@/lib/ci/build-spec";
 import { PANEL_PIPELINE_MARKER } from "@/lib/ci/pipeline";
 import { bundleImageFor } from "@/lib/ci/registration";
-import { bundleImageSchema } from "@/lib/deploy/validation";
 
 /**
  * What a repository offers the setup wizard: its compose file and runtime
@@ -185,19 +188,25 @@ export function suggestedBuildSpec(
     if (segments.length !== 2 || segments[1] !== "Dockerfile" || !dir) {
       return [];
     }
-    // A directory the image-name rule rejects (spaces, ...) is skipped so the
-    // other images survive; the deploy bundle's own name is never reused.
+    // The deploy bundle's own name is never reused.
     const name = `${componentKey}-${dir.toLowerCase()}`;
-    return bundleImageSchema.safeParse(name).success &&
-      name !== bundleImageFor(componentKey)
-      ? [{ name, dockerfile: path, context: dir }]
-      : [];
+    return name === bundleImageFor(componentKey)
+      ? []
+      : [{ name, dockerfile: path, context: dir }];
   });
-  if (images.length === 0) return null;
+  // A candidate the build spec's own image rules reject (spaces, a leading
+  // `-`, ...) is skipped so the others survive; on a duplicate name the
+  // first wins.
+  const valid = images
+    .filter((image) => buildImageSchema.safeParse(image).success)
+    .filter(
+      (image, i, all) => all.findIndex((o) => o.name === image.name) === i
+    );
+  if (valid.length === 0) return null;
   const bundle = [detection.composeFile, ...detection.composeOverrides];
   const candidate = {
     branches: [branch],
-    images,
+    images: valid,
     bundleFiles: bundle.map((path) => ({ from: path, to: path })),
     checks: [],
     timeoutMinutes: 60,
