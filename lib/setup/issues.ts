@@ -72,8 +72,21 @@ export const PLAN_ISSUE_CODES = [
   "no_targets",
 ] as const;
 
+/**
+ * New environment refusals (lib/setup/new-environment, and the unique-index
+ * races of its create).
+ */
+export const NEW_ENVIRONMENT_ISSUE_CODES = [
+  "noServerAvailable",
+  "repoOtherApp",
+  "repoNotBuildable",
+  "nameTaken",
+  "domainTaken",
+] as const;
+
 export const SETUP_ISSUE_MESSAGE_CODES: readonly string[] = [
   ...CLIENT_ISSUE_CODES,
+  ...NEW_ENVIRONMENT_ISSUE_CODES,
   ...SETUP_ISSUE_CODES,
   ...TARGET_ISSUE_CODES,
   ...ENVIRONMENT_ISSUE_CODES,

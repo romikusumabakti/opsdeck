@@ -58,6 +58,15 @@ export const sharedDatabaseNameSchema = z
     "Use lowercase letters, digits or '_', starting with a letter (at most 63)"
   );
 
+/**
+ * Whether two shared database names clash on one host: equal, or one is the
+ * other plus `_...` (backups are named `<database>_<timestamp>`, so `x` and
+ * `x_2` would see each other's files).
+ */
+export function sharedDatabaseNamesOverlap(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}_`) || b.startsWith(`${a}_`);
+}
+
 // ISO 8601 duration subset the mock-time UI emits: optional `-`, P[n]D, then
 // optional T[n]H[n]M[n]S, with at least one component. Mirrors the parser in
 // actions/mock-time.ts.

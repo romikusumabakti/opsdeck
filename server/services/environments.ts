@@ -64,6 +64,7 @@ import {
   environmentInputSchema,
   environmentUpdateSchema,
   sharedDatabaseNameSchema,
+  sharedDatabaseNamesOverlap,
 } from "@/lib/validation";
 import { badRequest } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
@@ -813,14 +814,13 @@ async function requireNoSharedDbOverlap(
         )
       )
   ).filter((u) => u.environmentId !== exceptEnvironmentId);
-  const overlaps = (a: string, b: string) =>
-    a === b || a.startsWith(`${b}_`) || b.startsWith(`${a}_`);
   const dbClash = shared.some(({ serverId, serviceName, sharedDb }) =>
     used.some(
       (u) =>
         (u.databaseHostId === sharedDb.hostId ||
           (u.serverId === serverId && u.serviceName === serviceName)) &&
-        ((u.dbName != null && overlaps(u.dbName, sharedDb.dbName)) ||
+        ((u.dbName != null &&
+          sharedDatabaseNamesOverlap(u.dbName, sharedDb.dbName)) ||
           (sharedDb.dbRole !== null &&
             [u.dbName, u.dbRole, u.dbUser].includes(sharedDb.dbRole)))
     )

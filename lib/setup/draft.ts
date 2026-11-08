@@ -1,3 +1,4 @@
+import { composeContainerName } from "@/lib/setup/compose-names";
 import {
   type EnvironmentSetupInput,
   environmentSetupInputSchema,
@@ -134,21 +135,13 @@ export function defaultDatabaseName(
  * `<project>-db-1` with the compose `name:` (when set) as the project.
  */
 export function defaultDbContainer(
-  draft: EnvironmentDraft,
-  ctx: DraftContext,
+  draft: { targets: readonly Pick<TargetDraft, "deployDir">[] },
+  ctx: Pick<DraftContext, "projectKey" | "slug">,
   detected?: { projectName?: string | null; containerName?: string | null }
 ): string {
-  if (detected?.containerName) return detected.containerName;
   const first = draft.targets[0];
   const dir = first ? (first.deployDir ?? defaultDeployDir(ctx)) : "";
-  const project = (
-    detected?.projectName ??
-    dir.split("/").filter(Boolean).at(-1) ??
-    ""
-  )
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "");
-  return `${project}-db-1`;
+  return composeContainerName(dir, "db", detected);
 }
 
 export function emptyTarget(
@@ -267,6 +260,31 @@ export type CopySourceLike = {
 };
 
 /**
+ * A copy source's variable as a draft row: only a plain value is ever shown
+ * or sent back; a value the caller has to type is marked required.
+ */
+export function copiedVariable(
+  v: CopySourceLike["variables"][number]
+): VariableDraft {
+  return {
+    key: v.name,
+    name: v.name,
+    kind: v.kind,
+    escrow: v.escrow,
+    fromSource: true,
+    copyable: v.copyable,
+    value: v.kind === "plain" && !v.escrow ? (v.value ?? "") : "",
+    required:
+      v.kind === "generated"
+        ? false
+        : v.escrow ||
+          (v.kind === "secret"
+            ? !v.copyable
+            : v.hasValue && v.value === undefined),
+  };
+}
+
+/**
  * Fills the draft from a copy source: server (when the caller may use it),
  * targets, database kind and host, domain kind, zone and policy, and the
  * variables by name. The deploy dir, names, label and port stay defaults. A
@@ -315,23 +333,7 @@ export function applyCopySource(
           ? (source.domain.accessPolicyId ?? PUBLIC_POLICY)
           : draft.domain.accessPolicyId,
     },
-    variables: source.variables.map((v) => ({
-      key: v.name,
-      name: v.name,
-      kind: v.kind,
-      escrow: v.escrow,
-      fromSource: true,
-      copyable: v.copyable,
-      // Only a plain value is ever shown or sent back.
-      value: v.kind === "plain" && !v.escrow ? (v.value ?? "") : "",
-      required:
-        v.kind === "generated"
-          ? false
-          : v.escrow ||
-            (v.kind === "secret"
-              ? !v.copyable
-              : v.hasValue && v.value === undefined),
-    })),
+    variables: source.variables.map(copiedVariable),
   };
   return withPasswordVariable(next);
 }
@@ -387,6 +389,31 @@ const splitList = (text: string) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
+/**
+ * A draft row as the API's variable input (a generated value is made by the
+ * server, a copied secret is read there); `missingValue` when the user still
+ * has to type the value.
+ */
+export function variableInput(v: VariableDraft): {
+  input: EnvironmentSetupInput["variables"][number];
+  missingValue: boolean;
+} {
+  const handling = variableHandling(v);
+  if (handling === "generate") {
+    return { input: { name: v.name, kind: v.kind }, missingValue: false };
+  }
+  if (handling === "copy") {
+    return {
+      input: { name: v.name, kind: v.kind, copy: true },
+      missingValue: false,
+    };
+  }
+  return {
+    input: { name: v.name, kind: v.kind, value: v.value },
+    missingValue: v.required && v.value === "",
+  };
+}
+
 /** Placeholder for a port the preview has not suggested yet. */
 const PROBE_ENTRY_PORT = 8100;
 
@@ -439,15 +466,11 @@ export function buildSetupInput(
   }
 
   const variables = draft.variables.map((v) => {
-    const handling = variableHandling(v);
-    if (handling === "generate") return { name: v.name, kind: v.kind };
-    if (handling === "copy") {
-      return { name: v.name, kind: v.kind, copy: true };
-    }
-    if (v.required && v.value === "") {
+    const { input, missingValue } = variableInput(v);
+    if (missingValue) {
       issues.push({ field: `variables.${v.name}`, code: "valueRequired" });
     }
-    return { name: v.name, kind: v.kind, value: v.value };
+    return input;
   });
 
   const input = {
