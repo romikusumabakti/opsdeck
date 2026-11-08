@@ -1,4 +1,7 @@
-import { requireProjectPermission } from "@/lib/authz";
+import {
+  requireAnyProjectPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
@@ -82,9 +85,13 @@ export async function controlService(
   role: ServiceRole,
   action: ServiceAction
 ): Promise<{ runId: string }> {
-  const { session } = await requireProjectPermission(
+  // Restart is open to QA (service:restart); start and stop need service:control,
+  // which also covers restart.
+  const { session } = await requireAnyProjectPermission(
     { environmentId },
-    { service: ["control"] }
+    action === "restart"
+      ? [{ service: ["restart"] }, { service: ["control"] }]
+      : [{ service: ["control"] }]
   );
   const parsedRole = serviceRoleSchema.safeParse(role);
   const parsedAction = serviceActionSchema.safeParse(action);

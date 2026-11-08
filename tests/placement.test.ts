@@ -579,6 +579,31 @@ describe("updateEnvironment rebinding without server:manage", () => {
     expect(updates()).toEqual([]);
   });
 
+  it("keeps prefix confinement on the kept names when rebinding to an open server", async () => {
+    state.stored.services = [
+      {
+        role: "backend",
+        serverId: SERVER_RESTRICTED,
+        serviceName: "other-api",
+      },
+    ];
+    await expect(
+      updateEnvironment(ENV_ID, { backendServerId: SERVER_OPEN })
+    ).rejects.toMatchObject({ status: 403, message: "placementServiceName" });
+    expect(updates()).toEqual([]);
+  });
+
+  it("refuses turning on a service that does not exist yet", async () => {
+    state.defaultServerId = SERVER_RESTRICTED;
+    await expect(
+      updateEnvironment(ENV_ID, {
+        backendServerId: SERVER_RESTRICTED,
+        ...databaseOn(SERVER_RESTRICTED),
+      })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+  });
+
   it("still needs server:manage for other infra fields", async () => {
     state.defaultServerId = SERVER_RESTRICTED;
     await expect(
@@ -635,6 +660,70 @@ describe("createEnvironment placement", () => {
       ...databaseOn(SERVER_RESTRICTED),
     });
     expect(result.success).toBe(true);
+  });
+
+  describe("on the restricted project default server", () => {
+    beforeEach(() => {
+      state.defaultServerId = SERVER_RESTRICTED;
+    });
+    const onDefault = (serviceName: string, extra = {}) => ({
+      projectId: PROJECT_ID,
+      name: "Dev",
+      hasDatabase: false,
+      hasFrontend: false,
+      backendServerId: SERVER_RESTRICTED,
+      backendServiceType: "docker",
+      backendServiceName: serviceName,
+      ...extra,
+    });
+
+    it("refuses a foreign-prefixed service name", async () => {
+      await expect(
+        createEnvironment(onDefault("other-backend"))
+      ).rejects.toMatchObject({ status: 403, message: "placementServiceName" });
+      expect(insertedEnvironment()).toBeUndefined();
+    });
+
+    it("refuses a registered database-host container as a plain service", async () => {
+      state.hosts = [
+        {
+          id: "h1",
+          serverId: SERVER_RESTRICTED,
+          containerName: "hris-db",
+          backupPath: "/b",
+          label: "x",
+        },
+      ];
+      await expect(
+        createEnvironment(onDefault("hris-db"))
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "placementDatabaseHostContainer",
+      });
+    });
+
+    it("refuses a name another environment uses on the server", async () => {
+      state.used = [
+        {
+          environmentId: OTHER_ENV_ID,
+          role: "backend",
+          serverId: SERVER_RESTRICTED,
+          serviceName: "hris-api",
+        },
+      ];
+      await expect(
+        createEnvironment(onDefault("hris-api"))
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "placementServiceInUse",
+      });
+    });
+
+    it("lets a prefixed free name through", async () => {
+      expect((await createEnvironment(onDefault("hris-api"))).success).toBe(
+        true
+      );
+    });
   });
 
   it("refuses a viewer even on open servers", async () => {

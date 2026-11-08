@@ -71,7 +71,8 @@ const projectStatements = {
   mail: ["read", "delete"],
   clock: ["control"],
   database: ["backup", "restore", "create", "drop", "rename"],
-  service: ["logs", "control"],
+  // `restart` alone is the QA subset; `control` adds start and stop.
+  service: ["logs", "restart", "control"],
   environment: ["create", "update", "delete"],
   member: ["manage"],
   // Acknowledge a failed run so it leaves Home's "Needs attention" for everyone.
@@ -97,8 +98,8 @@ const qaStatements = {
   mail: ["read", "delete"],
   clock: ["control"],
   database: ["backup", "restore"],
-  // QA restarts services to retest, but never edits what they run on.
-  service: ["logs", "control"],
+  // QA restarts services to retest; start and stop stay with engineers.
+  service: ["logs", "restart"],
   run: ["acknowledge"],
 } as const;
 
@@ -111,7 +112,7 @@ export const projectRoles = {
     mail: ["read", "delete"],
     clock: ["control"],
     database: ["backup", "restore", "create", "drop", "rename"],
-    service: ["logs", "control"],
+    service: ["logs", "restart", "control"],
     environment: ["create", "update", "delete"],
     member: ["manage"],
     run: ["acknowledge"],
