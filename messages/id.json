@@ -969,7 +969,7 @@
     "sftpRoot": "Root SFTP",
     "sftpRootDescription": "Jalur absolut tempat penjelajah berkas dibatasi. Gunakan / untuk seluruh host.",
     "placement": "Penempatan environment",
-    "placementRestricted": "Terbatas: hanya admin dan infra",
+    "placementRestricted": "Terbatas: hanya admin dan infra, serta engineer di server default proyek",
     "placementOpen": "Terbuka: engineer proyek",
     "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Di server terbuka, engineer proyek bisa membuat environment di server ini tanpa izin server; tandai terbuka hanya server dev/sandbox yang datanya boleh hilang. Environment yang sudah ada tidak terpengaruh.",
     "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)"

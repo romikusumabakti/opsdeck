@@ -969,7 +969,7 @@
     "sftpRoot": "SFTP 根目录",
     "sftpRootDescription": "文件浏览器限定的绝对路径。使用 / 表示整个主机。",
     "placement": "环境放置",
-    "placementRestricted": "受限：仅管理员和基础设施",
+    "placementRestricted": "受限：仅管理员和基础设施，以及项目默认服务器上的 Engineer",
     "placementOpen": "开放：项目 Engineer",
     "placementDescription": "谁可以在此服务器上创建新环境。在开放的服务器上，项目 Engineer无需服务器权限即可在此服务器上创建环境；只有可丢弃的开发/沙盒服务器才应设为开放。现有环境不受影响。",
     "sftpRootInvalid": "必须是绝对路径（以 / 开头）"
