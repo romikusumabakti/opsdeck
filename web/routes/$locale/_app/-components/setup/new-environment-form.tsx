@@ -1,14 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import {
+  defaultSpec,
+  specDraftOf,
+  toSpec,
+} from "@/components/app-registration-fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,14 +16,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import {
   Field,
   FieldContent,
@@ -41,18 +32,12 @@ import {
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useRouter } from "@/i18n/navigation";
 import {
   buildSetupInput,
@@ -63,11 +48,21 @@ import {
   issuesByField,
 } from "@/lib/setup/draft";
 import { isSetupIssueCode } from "@/lib/setup/issues";
-import {
-  type NewEnvironmentInput,
-  type NewEnvironmentPlan,
-  newEnvironmentInputSchema,
+import type {
+  NewEnvironmentInput,
+  NewEnvironmentPlan,
 } from "@/lib/setup/new-environment";
+import {
+  changedSince,
+  dedupe,
+  type FormGroup,
+  type FormSnapshot,
+  fieldOfCode,
+  groupOf,
+  parseNewEnvironmentInput,
+  snapshotOf,
+  visibleIssues,
+} from "@/lib/setup/new-environment-form-state";
 import type { SetupIssue } from "@/lib/setup/schema";
 import { baseEnvSlug } from "@/lib/setup/slug";
 import { ApiError } from "@/web/api/client";
@@ -77,7 +72,6 @@ import {
   createNewEnvironment,
   type NewEnvironmentPreview,
   previewNewEnvironment,
-  type SetupRepoRow,
   setupAccessPoliciesQuery,
   setupOptionsQuery,
   setupReposQuery,
@@ -92,6 +86,14 @@ import {
   ServerSection,
   VariablesSection,
 } from "./environment-sections";
+import { type EnvKind, KindOwnerFields } from "./kind-owner-fields";
+import {
+  type PipelineChoice,
+  PipelineChoices,
+  type PipelineRepo,
+} from "./pipeline-choices";
+import { RepoListRow } from "./repo-list-row";
+import { RepoPicker } from "./repo-picker";
 import { SetupReview } from "./review";
 import { useApiErrorMessage, useIssueMessage } from "./use-issue-message";
 
@@ -100,7 +102,7 @@ import { useApiErrorMessage, useIssueMessage } from "./use-issue-message";
 // options. The server resolves the short input (POST
 // /api/setup/new-environment/preview); the check runs only on Create, when
 // Advanced options opens and when a repository is picked, never per key.
-// Errors show for the fields the user has touched, and for all after Create.
+// Which issues show is lib/setup/new-environment-form-state's rule.
 
 export type NewEnvironmentProject = {
   id: string;
@@ -127,88 +129,17 @@ type RepoRow = {
   branch: string;
 };
 
-/** The parts of the input an issue can be about (what the user touches). */
-type Group =
-  | "startFrom"
-  | "name"
-  | "repos"
-  | "database"
-  | "address"
-  | "server"
-  | "advanced";
-
 /** The Advanced sections whose values replace the resolved ones once edited. */
 type AdvancedKey = "targets" | "services" | "database" | "variables" | "domain";
 
-const ENV_KINDS = ["qa", "dev", "release", "sandbox", "prod"] as const;
-type EnvKind = (typeof ENV_KINDS)[number];
-const NONE = "__none";
 const NEW = "__new";
 const ENTRY_PORT_VARIABLE = "ENTRY_PORT";
+const DEFAULT_BRANCH = "main";
 /** Lets the preview run (detection on pick) before a name is typed. */
 const PROBE_NAME = "new";
-const REPO_SEARCH_DEBOUNCE_MS = 300;
-
-function groupOf(field: string): Group {
-  if (field === "name") return "name";
-  if (field === "copyFromEnvironmentId") return "startFrom";
-  if (field === "repos" || field.startsWith("repos.") || field === "targets") {
-    return "repos";
-  }
-  if (field === "serverId" || field.startsWith("server")) return "server";
-  if (field.startsWith("database") || field === "needsDatabase") {
-    return "database";
-  }
-  if (field.startsWith("domain") || field.startsWith("address")) {
-    return "address";
-  }
-  return "advanced";
-}
-
-const REPO_CODES = new Set([
-  "repoNotFound",
-  "repoUnreadable",
-  "ciUnavailable",
-  "repoOtherApp",
-  "repoNotBuildable",
-  "duplicate",
-  "appKeyTaken",
-  "componentKeyTaken",
-  "repoLinked",
-  "registrationRace",
-  "pipelineFileExists",
-  "targetMissing",
-]);
-
-/**
- * The field a refusal's code points at (a refusal names no field); one of
- * no field of the page is listed under General.
- */
-function fieldOfCode(code: string): string {
-  if (code === "nameTaken" || code === "environmentNameTaken") return "name";
-  if (code === "domainTaken" || code === "domainHostnameTaken") {
-    return "domain.label";
-  }
-  if (code === "noServerAvailable") return "serverId";
-  return REPO_CODES.has(code) ? "repos" : "general";
-}
-
-/** What each group of an input is, to tell which issues are out of date. */
-function snapshotOf(input: NewEnvironmentInput): Record<Group, string> {
-  const { database, domain, ...rest } = input.advanced ?? {};
-  return {
-    startFrom: input.copyFromEnvironmentId ?? "",
-    name: input.name,
-    repos: JSON.stringify(input.repos),
-    database: JSON.stringify([input.needsDatabase, database ?? null]),
-    address: JSON.stringify([input.address, domain ?? null]),
-    server: input.serverId ?? "",
-    advanced: JSON.stringify(rest),
-  };
-}
 
 type Checked = {
-  snapshot: Record<Group, string>;
+  snapshot: FormSnapshot;
   /** Ran with PROBE_NAME: its summary is not this environment's. */
   probe: boolean;
   plan: NewEnvironmentPlan | null;
@@ -216,41 +147,20 @@ type Checked = {
   issues: SetupIssue[];
 };
 
-function dedupe(issues: SetupIssue[]): SetupIssue[] {
-  return issues.filter(
-    (issue, i, all) =>
-      all.findIndex((x) => x.field === issue.field && x.code === issue.code) ===
-      i
-  );
-}
-
-/** Zod's verdict on the input, as issues at the fields the page shows. */
-function parseInput(
-  raw: unknown
-):
-  | { ok: true; input: NewEnvironmentInput }
-  | { ok: false; issues: SetupIssue[] } {
-  const parsed = newEnvironmentInputSchema.safeParse(raw);
-  if (parsed.success) return { ok: true, input: parsed.data };
-  return {
-    ok: false,
-    issues: dedupe(
-      parsed.error.issues.map((issue) => ({
-        field: issue.path
-          .map(String)
-          .join(".")
-          .replace(/^advanced\./, "")
-          .replace(/^address\.label$/, "domain.label"),
-        code: "invalid",
-      }))
-    ),
-  };
+function withoutKeys(
+  set: ReadonlySet<AdvancedKey>,
+  ...keys: AdvancedKey[]
+): ReadonlySet<AdvancedKey> {
+  const next = new Set(set);
+  for (const key of keys) next.delete(key);
+  return next;
 }
 
 export function NewEnvironmentForm({
   project,
   apps,
   canPublish,
+  canChoosePipelines,
   initialFrom,
   initialRepo,
 }: {
@@ -259,6 +169,8 @@ export function NewEnvironmentForm({
   apps: NewEnvironmentApp[];
   /** May put an address behind no policy (org server:manage). */
   canPublish: boolean;
+  /** May choose a new repository's pipeline (org integration:manage). */
+  canChoosePipelines: boolean;
   /** `?from=`: the environment to copy. */
   initialFrom?: string;
   /** `?repo=`: the repository to start with. */
@@ -267,7 +179,6 @@ export function NewEnvironmentForm({
   const t = useTranslations("newEnvironment");
   const tSetup = useTranslations("setup");
   const tWizard = useTranslations("setupWizard");
-  const tKinds = useTranslations("environmentKinds");
   const router = useRouter();
   const message = useIssueMessage(project.key);
   const errorMessage = useApiErrorMessage(project.key);
@@ -305,7 +216,7 @@ export function NewEnvironmentForm({
           {
             ciConnectionId: startComponent.ciConnectionId,
             repoFullName: startComponent.repoFullName,
-            branch: startComponent.buildSpec?.branches[0] ?? "main",
+            branch: startComponent.buildSpec?.branches[0] ?? DEFAULT_BRANCH,
           },
         ]
       : []
@@ -317,12 +228,26 @@ export function NewEnvironmentForm({
   const [serverId, setServerId] = React.useState<string | null>(null);
   const [kind, setKind] = React.useState<EnvKind | null | undefined>();
   const [ownerId, setOwnerId] = React.useState<string | null | undefined>();
+  const [pipelines, setPipelines] = React.useState<
+    Record<string, PipelineChoice>
+  >({});
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [advanced, setAdvanced] = React.useState<EnvironmentDraft | null>(null);
-  const [edited, setEdited] = React.useState<ReadonlySet<AdvancedKey>>(
+  const [edited, setEditedState] = React.useState<ReadonlySet<AdvancedKey>>(
     new Set()
   );
-  const [touched, setTouched] = React.useState<ReadonlySet<Group>>(new Set());
+  // A check's answer seeds the sections not edited by then: the ref, not the
+  // state of the render that started the check.
+  const editedRef = React.useRef(edited);
+  const setEdited = (
+    update: (prev: ReadonlySet<AdvancedKey>) => ReadonlySet<AdvancedKey>
+  ) => {
+    editedRef.current = update(editedRef.current);
+    setEditedState(editedRef.current);
+  };
+  const [touched, setTouched] = React.useState<ReadonlySet<FormGroup>>(
+    new Set()
+  );
   const [submitted, setSubmitted] = React.useState(false);
   const [checked, setChecked] = React.useState<Checked | null>(null);
   const [checking, setChecking] = React.useState(false);
@@ -331,15 +256,20 @@ export function NewEnvironmentForm({
   const [created, setCreated] = React.useState(false);
   const requestId = React.useRef(0);
 
-  const touch = (group: Group) =>
+  const touch = (group: FormGroup) =>
     setTouched((prev) => (prev.has(group) ? prev : new Set(prev).add(group)));
 
   const options = useQuery(setupOptionsQuery(project.id)).data;
   const databaseHosts = useQuery(listDatabaseHostsQuery()).data ?? [];
-  const advancedDomain = advanced?.domain.kind === "tunnel";
+  const plan = checked?.plan ?? null;
+  // The policies name the address's policy (after a check) and fill the
+  // Advanced domain section; reading them calls Cloudflare.
+  const planDomain = plan?.setup.domain;
   const policiesQuery = useQuery({
     ...setupAccessPoliciesQuery(project.id),
-    enabled: advancedOpen && advancedDomain,
+    enabled:
+      planDomain?.kind === "tunnel" ||
+      (advancedOpen && advanced?.domain.kind === "tunnel"),
     retry: false,
   });
   const owners = useQuery({
@@ -373,22 +303,18 @@ export function NewEnvironmentForm({
     [source, components]
   );
   const appliedSource = React.useRef<string | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: setEdited writes a ref and state only
   React.useEffect(() => {
     if (!source || appliedSource.current === source.environment.id) return;
     appliedSource.current = source.environment.id;
     setRepos(sourceRepos);
-    setEdited((prev) => {
-      const next = new Set(prev);
-      next.delete("targets");
-      next.delete("services");
-      return next;
-    });
+    setEdited((prev) => withoutKeys(prev, "targets", "services"));
     setNeedsDatabase(source.database.kind !== "none");
     setAddress(source.domain.kind === "none" ? null : { label: "" });
   }, [source, sourceRepos]);
 
-  // `?repo=` of a repository no app builds yet: its CI connection comes
-  // from the repository search, once.
+  // `?repo=` of a repository no app builds yet: its CI connection and main
+  // branch come from the repository search, once.
   const [pendingRepo, setPendingRepo] = React.useState(
     initialRepo && !startComponent ? initialRepo : null
   );
@@ -397,15 +323,15 @@ export function NewEnvironmentForm({
     enabled: pendingRepo !== null,
   }).data;
   React.useEffect(() => {
-    const row = pendingRepoRows?.find((r) => r.repoFullName === pendingRepo);
     if (!pendingRepoRows) return;
+    const row = pendingRepoRows.find((r) => r.repoFullName === pendingRepo);
     setPendingRepo(null);
     if (row && !row.appKey) {
       setRepos([
         {
           ciConnectionId: row.ciConnectionId,
           repoFullName: row.repoFullName,
-          branch: "main",
+          branch: row.defaultBranch,
         },
       ]);
     }
@@ -434,15 +360,35 @@ export function NewEnvironmentForm({
     projectKey: project.key,
     slug: baseEnvSlug(name || PROBE_NAME),
     suggestedServices: [],
-    suggestedEntryPort: checked?.plan?.summary.port ?? null,
+    suggestedEntryPort: plan?.summary.port ?? null,
     defaultZoneId: options?.zones[0]?.id ?? "",
-    entryService: checked?.plan?.setup.entryService ?? null,
+    entryService: plan?.setup.entryService ?? null,
   };
+
+  // The admin's pipeline choices, for the repositories still to register.
+  const unregistered = repos.filter((r) => !componentOfRepo(r.repoFullName));
+  const chosenPipelines = canChoosePipelines
+    ? unregistered.flatMap((r) => {
+        const choice = pipelines[r.repoFullName];
+        return choice
+          ? [
+              {
+                repoFullName: r.repoFullName,
+                mode: choice.mode,
+                ...(choice.mode === "generated"
+                  ? { buildSpec: toSpec(choice.spec) }
+                  : {}),
+              },
+            ]
+          : [];
+      })
+    : [];
 
   function advancedInput(): Record<string, unknown> | undefined {
     const out: Record<string, unknown> = {};
     if (kind !== undefined) out.kind = kind;
     if (ownerId !== undefined) out.ownerId = ownerId;
+    if (chosenPipelines.length > 0) out.pipelines = chosenPipelines;
     if (advanced) {
       const built = buildSetupInput(advanced, draftCtx).input as Record<
         string,
@@ -494,12 +440,17 @@ export function NewEnvironmentForm({
     };
   }
 
-  const parsed = parseInput(rawInput(name));
+  const parsed = parseNewEnvironmentInput(rawInput(name));
+  // What a check would send now (a name filled in when none is typed).
+  const probing = name.trim() === "";
+  const checkable = probing
+    ? parseNewEnvironmentInput(rawInput(PROBE_NAME))
+    : parsed;
   const snapshot = parsed.ok ? snapshotOf(parsed.input) : null;
 
   /**
    * Resolves an input on the server. A stale answer (another check started
-   * since) is dropped. Untouched Advanced sections follow the plan.
+   * since) is dropped. Advanced sections not edited follow the plan.
    */
   async function check(
     input: NewEnvironmentInput,
@@ -527,25 +478,21 @@ export function NewEnvironmentForm({
       seeded.variables = seeded.variables.filter(
         (v) => v.name !== ENTRY_PORT_VARIABLE
       );
-      setAdvanced((prev) =>
-        prev
-          ? {
-              ...prev,
-              serverId: seeded.serverId,
-              targets: edited.has("targets") ? prev.targets : seeded.targets,
-              serviceNames: edited.has("services")
-                ? prev.serviceNames
-                : seeded.serviceNames,
-              database: edited.has("database")
-                ? prev.database
-                : seeded.database,
-              variables: edited.has("variables")
-                ? prev.variables
-                : seeded.variables,
-              domain: edited.has("domain") ? prev.domain : seeded.domain,
-            }
-          : seeded
-      );
+      setAdvanced((prev) => {
+        if (!prev) return seeded;
+        const kept = editedRef.current;
+        return {
+          ...prev,
+          serverId: seeded.serverId,
+          targets: kept.has("targets") ? prev.targets : seeded.targets,
+          serviceNames: kept.has("services")
+            ? prev.serviceNames
+            : seeded.serviceNames,
+          database: kept.has("database") ? prev.database : seeded.database,
+          variables: kept.has("variables") ? prev.variables : seeded.variables,
+          domain: kept.has("domain") ? prev.domain : seeded.domain,
+        };
+      });
       return result;
     } catch (error) {
       if (id !== requestId.current) return null;
@@ -573,42 +520,49 @@ export function NewEnvironmentForm({
     }
   }
 
-  /** A check of what the page shows now; a name is filled in if none. */
+  /** A check of what the page shows now, when it parses. */
   function checkNow() {
-    if (created) return;
-    const probe = name.trim() === "";
-    const result = parseInput(rawInput(probe ? PROBE_NAME : name));
-    if (result.ok) void check(result.input, probe);
+    if (created || !checkable.ok) return;
+    void check(checkable.input, probing);
   }
 
   // A picked repository runs the check (detection) once the state has
-  // settled. Edited deploy targets and containers follow a changed list.
-  const [repoCheck, setRepoCheck] = React.useState(0);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on request only (repoCheck), with that render's state
+  // settled; so does an open Advanced panel still waiting for a valid input.
+  const [checkRequest, setCheckRequest] = React.useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on request only (checkRequest), with that render's state
   React.useEffect(() => {
-    if (repoCheck > 0) checkNow();
-  }, [repoCheck]);
+    if (checkRequest > 0) checkNow();
+  }, [checkRequest]);
+  const waitingForInput = advancedOpen && !advanced && !checkable.ok;
+  const checkableNow = checkable.ok;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-checks once the input is fixed
+  React.useEffect(() => {
+    if (advancedOpen && !advanced && checkableNow && !checking) checkNow();
+  }, [checkableNow]);
+
   function changeRepos(update: (rows: RepoRow[]) => RepoRow[], recheck = true) {
     touch("repos");
     setRepos(update);
-    setEdited((prev) => {
-      const next = new Set(prev);
-      next.delete("targets");
-      next.delete("services");
-      return next;
-    });
-    if (recheck) setRepoCheck((n) => n + 1);
+    setEdited((prev) => withoutKeys(prev, "targets", "services"));
+    if (recheck) setCheckRequest((n) => n + 1);
   }
-  function addRepo(row: { ciConnectionId: string; repoFullName: string }) {
+  function addRepo(row: {
+    ciConnectionId: string;
+    repoFullName: string;
+    defaultBranch?: string;
+  }) {
     const component = componentOfRepo(row.repoFullName);
+    const branch =
+      component?.buildSpec?.branches[0] ?? row.defaultBranch ?? DEFAULT_BRANCH;
     changeRepos((rows) =>
       rows.some((r) => r.repoFullName === row.repoFullName)
         ? rows
         : [
             ...rows,
             {
-              ...row,
-              branch: component?.buildSpec?.branches[0] ?? "main",
+              ciConnectionId: row.ciConnectionId,
+              repoFullName: row.repoFullName,
+              branch,
             },
           ]
     );
@@ -625,13 +579,15 @@ export function NewEnvironmentForm({
     if (!advanced) return;
     const next = update(advanced);
     touch("advanced");
-    const changed = new Set(edited);
-    if (next.targets !== advanced.targets) changed.add("targets");
-    if (next.serviceNames !== advanced.serviceNames) changed.add("services");
-    if (next.database !== advanced.database) changed.add("database");
-    if (next.variables !== advanced.variables) changed.add("variables");
-    if (next.domain !== advanced.domain) changed.add("domain");
-    setEdited(changed);
+    setEdited((prev) => {
+      const changed = new Set(prev);
+      if (next.targets !== advanced.targets) changed.add("targets");
+      if (next.serviceNames !== advanced.serviceNames) changed.add("services");
+      if (next.database !== advanced.database) changed.add("database");
+      if (next.variables !== advanced.variables) changed.add("variables");
+      if (next.domain !== advanced.domain) changed.add("domain");
+      return changed;
+    });
     if (next.serverId !== advanced.serverId) {
       touch("server");
       setServerId(next.serverId || null);
@@ -642,7 +598,7 @@ export function NewEnvironmentForm({
   async function onCreate() {
     if (created || submitting) return;
     setSubmitted(true);
-    if (!parsed.ok || name.trim() === "") return;
+    if (!parsed.ok || probing) return;
     const input = parsed.input;
     const key = JSON.stringify(snapshotOf(input));
     const current =
@@ -679,54 +635,45 @@ export function NewEnvironmentForm({
     }
   }
 
-  // The issues to show: the check's, for the parts unchanged since it ran,
-  // and the browser's own; each only once its part was touched or after
-  // Create. A missing server shows at once: nothing on the page fixes it.
   const noServerKnown =
     options !== undefined &&
     options.servers.length === 0 &&
     !project.defaultServerId;
-  const changedSince = (group: Group) =>
-    !snapshot ||
-    !checked ||
-    (group === "advanced"
-      ? (Object.keys(snapshot) as Group[]).some(
-          (g) => snapshot[g] !== checked.snapshot[g]
-        )
-      : snapshot[group] !== checked.snapshot[group]);
   const clientIssues: SetupIssue[] = [
-    ...(name.trim() === "" ? [{ field: "name", code: "required" }] : []),
+    ...(probing ? [{ field: "name", code: "required" }] : []),
     ...(parsed.ok ? [] : parsed.issues.filter((i) => i.field !== "name")),
   ];
-  const checkIssues = (checked?.issues ?? []).filter(
-    (i) => !(checked?.probe && groupOf(i.field) === "name")
-  );
-  const issues = dedupe([
-    ...(noServerKnown
-      ? [{ field: "serverId", code: "noServerAvailable" }]
-      : []),
-    ...[...clientIssues, ...checkIssues].filter((issue) => {
-      if (issue.code === "noServerAvailable") return true;
-      const group = groupOf(issue.field);
-      if (!(submitted || touched.has(group))) return false;
-      return clientIssues.includes(issue) || !changedSince(group);
-    }),
-  ]);
+  const issues = visibleIssues({
+    clientIssues,
+    checkIssues: (checked?.issues ?? []).filter(
+      (i) => !(checked?.probe && groupOf(i.field) === "name")
+    ),
+    snapshot,
+    checked: checked?.snapshot ?? null,
+    submitted,
+    touched,
+    noServerKnown,
+  });
   const byField = issuesByField(issues);
   const noServer = issues.some((i) => i.code === "noServerAvailable");
-  const firstOf = (group: Group) =>
+  const firstOf = (group: FormGroup) =>
     issues.find((i) => groupOf(i.field) === group);
+  const checkIsCurrent = (group: FormGroup) =>
+    !changedSince(snapshot, checked?.snapshot ?? null, group);
 
-  const plan = checked?.plan ?? null;
   const showSummary =
-    plan !== null && !checked?.probe && !changedSince("name") && !noServer;
+    plan !== null && !checked?.probe && checkIsCurrent("name") && !noServer;
   const zones = options?.zones ?? [];
-  const planDomain = plan?.setup.domain;
   const zoneName = (
     zones.find(
       (z) => planDomain?.kind === "tunnel" && z.id === planDomain.zoneId
     ) ?? zones[0]
   )?.name;
+  const policyName =
+    planDomain?.kind === "tunnel"
+      ? policiesQuery.data?.find((p) => p.id === planDomain.accessPolicyId)
+          ?.name
+      : undefined;
   const showServerPicker = !project.defaultServerId && !noServer;
 
   const lookups = React.useMemo<ProvisioningLookups>(() => {
@@ -762,6 +709,34 @@ export function NewEnvironmentForm({
       }
     : null;
 
+  // The repositories the create registers, with the pipeline in effect.
+  const pipelineRepos: PipelineRepo[] = canChoosePipelines
+    ? unregistered.flatMap((r) => {
+        const registration = plan?.registrations.find(
+          (x) => x.repoFullName === r.repoFullName
+        );
+        const componentKey = registration?.componentKey;
+        if (!componentKey) return [];
+        const index = chosenPipelines.findIndex(
+          (p) => p.repoFullName === r.repoFullName
+        );
+        const detected: PipelineChoice = {
+          mode: registration.pipelineMode,
+          spec: registration.buildSpec
+            ? specDraftOf(registration.buildSpec)
+            : { ...defaultSpec(componentKey), branches: r.branch },
+        };
+        return [
+          {
+            repoFullName: r.repoFullName,
+            componentKey,
+            choice: pipelines[r.repoFullName] ?? detected,
+            index: index === -1 ? null : index,
+          },
+        ];
+      })
+    : [];
+
   // The repositories of the app the list misses (an older environment
   // copied after the app gained a component): one click adds each.
   const missingComponents =
@@ -770,6 +745,7 @@ export function NewEnvironmentForm({
           (c) => !repos.some((r) => r.repoFullName === c.repoFullName)
         )
       : [];
+  const detectionPlan = checkIsCurrent("repos") ? plan : null;
 
   const nameIssue = byField.name;
   const reposIssue = byField.repos ?? byField.targets;
@@ -860,9 +836,13 @@ export function NewEnvironmentForm({
                   {repos.map((repo, index) => (
                     <RepoListRow
                       key={repo.repoFullName}
-                      repo={repo}
+                      repoFullName={repo.repoFullName}
+                      branch={repo.branch}
                       index={index}
-                      plan={showDetection(checked, snapshot) ? plan : null}
+                      componentKey={
+                        componentOfRepo(repo.repoFullName)?.componentKey ?? null
+                      }
+                      plan={detectionPlan}
                       issue={byField[`repos.${index}`]}
                       message={message}
                       onBranch={(branch) =>
@@ -982,7 +962,11 @@ export function NewEnvironmentForm({
                 </Label>
               </div>
               <FieldDescription>
-                {edited.has("domain") ? t("setInAdvanced") : t("addressHint")}
+                {edited.has("domain")
+                  ? t("setInAdvanced")
+                  : policyName
+                    ? t("addressHintPolicy", { policy: policyName })
+                    : t("addressHint")}
               </FieldDescription>
               {addressIssue && (
                 <FieldError>{message(addressIssue.code)}</FieldError>
@@ -1053,68 +1037,42 @@ export function NewEnvironmentForm({
               <VariablesSection {...sectionsProps} />
               <DomainSection {...sectionsProps} />
               <DeploySection {...sectionsProps} />
-              <Card>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="env-kind">{t("kind")}</FieldLabel>
-                    <Select
-                      value={kind ?? NONE}
-                      onValueChange={(value) => {
-                        touch("advanced");
-                        setKind(
-                          value && value !== NONE ? (value as EnvKind) : null
-                        );
-                      }}
-                    >
-                      <SelectTrigger id="env-kind" aria-label={t("kind")}>
-                        <SelectValue>
-                          {(value: string) =>
-                            value === NONE
-                              ? t("kindNone")
-                              : tKinds(value as EnvKind)
-                          }
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>{t("kindNone")}</SelectItem>
-                        {ENV_KINDS.map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {tKinds(k)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="env-owner">{t("owner")}</FieldLabel>
-                    <Select
-                      value={ownerId ?? NONE}
-                      onValueChange={(value) => {
-                        touch("advanced");
-                        setOwnerId(value && value !== NONE ? value : null);
-                      }}
-                    >
-                      <SelectTrigger id="env-owner" aria-label={t("owner")}>
-                        <SelectValue>
-                          {(value: string) =>
-                            owners?.find((u) => u.id === value)?.name ??
-                            t("ownerNone")
-                          }
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>{t("ownerNone")}</SelectItem>
-                        {(owners ?? []).map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </CardContent>
-              </Card>
+              <PipelineChoices
+                repos={pipelineRepos}
+                issues={byField}
+                message={message}
+                onChange={(repoFullName, choice) => {
+                  touch("advanced");
+                  setPipelines((prev) => ({ ...prev, [repoFullName]: choice }));
+                }}
+              />
+              <KindOwnerFields
+                kind={kind}
+                ownerId={ownerId}
+                owners={owners}
+                onKind={(value) => {
+                  touch("advanced");
+                  setKind(value);
+                }}
+                onOwner={(value) => {
+                  touch("advanced");
+                  setOwnerId(value);
+                }}
+              />
             </>
+          ) : waitingForInput && !checkable.ok ? (
+            <div className="flex flex-col gap-1 text-sm">
+              <p className="text-muted-foreground">{t("fixFieldsFirst")}</p>
+              <ul className="flex flex-col gap-1 text-destructive">
+                {checkable.issues.map((issue) => (
+                  <li key={`${issue.field}:${issue.code}`}>
+                    <span className="font-mono">{issue.field}</span>
+                    {": "}
+                    {message(issue.code)}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               {checking
@@ -1151,188 +1109,5 @@ export function NewEnvironmentForm({
         )}
       </SetupReview>
     </div>
-  );
-}
-
-/** A check about the repositories shown now (detection follows the list). */
-function showDetection(
-  checked: Checked | null,
-  snapshot: Record<Group, string> | null
-): boolean {
-  return (
-    checked !== null &&
-    snapshot !== null &&
-    checked.snapshot.repos === snapshot.repos
-  );
-}
-
-function RepoListRow({
-  repo,
-  index,
-  plan,
-  issue,
-  message,
-  onBranch,
-  onRemove,
-}: {
-  repo: RepoRow;
-  index: number;
-  plan: NewEnvironmentPlan | null;
-  issue: string | undefined;
-  message: (code: string) => string;
-  onBranch: (branch: string) => void;
-  onRemove: () => void;
-}) {
-  const t = useTranslations("newEnvironment");
-  const registration = plan?.registrations.find(
-    (r) => r.repoFullName === repo.repoFullName
-  );
-  const target = plan?.setup.targets.find(
-    (x) =>
-      x.componentKey === registration?.componentKey ||
-      (!registration && plan.setup.targets.indexOf(x) === index)
-  );
-  const notNotifying = plan?.warnings.some(
-    (w) => w.field === `repos.${index}` && w.code === "pipelineNotNotifying"
-  );
-  return (
-    <li className="flex flex-col gap-2 rounded-lg border p-3">
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-sm">
-          {repo.repoFullName}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("removeRepo", { repo: repo.repoFullName })}
-          onClick={onRemove}
-        >
-          <X />
-        </Button>
-      </div>
-      <div className="flex items-center gap-2">
-        <Label
-          htmlFor={`repo-${index}-branch`}
-          className="shrink-0 font-normal"
-        >
-          {t("branch")}
-        </Label>
-        <Input
-          id={`repo-${index}-branch`}
-          className="font-mono"
-          autoComplete="off"
-          value={repo.branch}
-          onChange={(e) => onBranch(e.target.value.trim())}
-        />
-      </div>
-      {plan && target && (
-        <p className="text-sm text-muted-foreground">
-          {target.services.length > 0
-            ? t("detected", { services: target.services.join(", ") })
-            : t("detectedNone")}
-          {registration &&
-            ` · ${
-              registration.pipelineMode === "generated"
-                ? t("pipelineGenerated")
-                : t("pipelineCustom")
-            }`}
-        </p>
-      )}
-      {notNotifying && (
-        <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            {t.rich("pipelineNotNotifying", {
-              code: (chunks) => (
-                <code className="font-mono text-xs">{chunks}</code>
-              ),
-            })}
-          </span>
-        </p>
-      )}
-      {issue && <FieldError>{message(issue)}</FieldError>}
-    </li>
-  );
-}
-
-/**
- * The repository search (the CI server's repositories). Repositories of
- * another app are listed but cannot be picked; their app is named.
- */
-function RepoPicker({
-  label,
-  picked,
-  currentAppKey,
-  onPick,
-}: {
-  label: string;
-  picked: string[];
-  currentAppKey: string | null;
-  onPick: (row: SetupRepoRow) => void;
-}) {
-  const t = useTranslations("newEnvironment");
-  const [open, setOpen] = React.useState(false);
-  const [q, setQ] = React.useState("");
-  const debounced = useDebouncedValue(q, REPO_SEARCH_DEBOUNCE_MS);
-  const rows = useQuery({ ...setupReposQuery(debounced), enabled: open });
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            id="env-repo-picker"
-            type="button"
-            variant="outline"
-            className="w-fit"
-          />
-        }
-      >
-        <Plus data-icon="inline-start" />
-        {label}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-96 p-0">
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={t("searchRepos")}
-            value={q}
-            onValueChange={setQ}
-          />
-          <CommandList>
-            <CommandEmpty>
-              {rows.isError ? t("reposFailed") : t("noRepos")}
-            </CommandEmpty>
-            <CommandGroup>
-              {(rows.data ?? []).map((row) => {
-                const otherApp =
-                  row.appKey !== null &&
-                  currentAppKey !== null &&
-                  row.appKey !== currentAppKey;
-                return (
-                  <CommandItem
-                    key={`${row.ciConnectionId}:${row.repoFullName}`}
-                    value={`${row.ciConnectionId}:${row.repoFullName}`}
-                    disabled={otherApp || picked.includes(row.repoFullName)}
-                    onSelect={() => {
-                      onPick(row);
-                      requestAnimationFrame(() => setOpen(false));
-                    }}
-                  >
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                      {row.repoFullName}
-                    </span>
-                    {row.appName && (
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {row.appName}
-                      </span>
-                    )}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   );
 }

@@ -53,10 +53,11 @@ import {
   stripProjectPrefix,
 } from "@/lib/nav-path";
 import {
-  canCreateEnvironment as canCreateEnvironmentIn,
   canOrg,
+  canProject,
   type OrgRole,
   type ProjectRole,
+  SETUP_PERMISSIONS,
 } from "@/lib/permissions";
 import type { EnvironmentListItem } from "@/web/api/environments";
 import { resetSession } from "@/web/api/session";
@@ -90,7 +91,7 @@ export function CommandPalette({
   // The palette has no project context: offer "create environment" when any
   // project the caller can see lets them. The create dialog re-checks per project.
   const canCreateEnvironment = Object.values(projectRoles).some((role) =>
-    canCreateEnvironmentIn(orgRole, role)
+    canProject(role, SETUP_PERMISSIONS)
   );
   const environmentGroups = useMemo(
     () => groupEnvironmentsByProject(projects, environments),
@@ -172,7 +173,9 @@ export function CommandPalette({
             </CommandItem>
             <CommandItem
               value="projects environments"
-              onSelect={() => run(() => router.push("/projects"))}
+              onSelect={() =>
+                run(() => router.push("/projects?newEnvironment=1"))
+              }
             >
               <FolderKanban />
               {tNav("projects")}

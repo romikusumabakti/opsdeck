@@ -34,10 +34,9 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { EnvironmentSummaryWithOwner } from "@/lib/db/schema";
 import { compareEnvironments, stripProjectPrefix } from "@/lib/nav-path";
 import {
-  canCreateEnvironment as canCreateEnvironmentIn,
   canProject,
-  type OrgRole,
   type ProjectRole,
+  SETUP_PERMISSIONS,
 } from "@/lib/permissions";
 import type { ProjectWithEnvironments } from "@/web/api/project-catalog";
 import type { EnvironmentActivity } from "@/web/api/runs";
@@ -51,7 +50,6 @@ export function ProjectsOverview({
   lastOpened,
   initialSort,
   projectRoles,
-  orgRole,
 }: {
   projects: ProjectWithEnvironments[];
   openIssueCounts: Record<string, number>;
@@ -59,7 +57,6 @@ export function ProjectsOverview({
   lastOpened: Record<string, number>;
   initialSort: SortKey;
   projectRoles: Record<string, ProjectRole>;
-  orgRole: OrgRole;
 }) {
   const t = useTranslations("home");
   const router = useRouter();
@@ -188,7 +185,6 @@ export function ProjectsOverview({
               openIssues={openIssueCounts[project.id] ?? 0}
               lastActivity={lastActivity}
               role={projectRoles[project.id] ?? null}
-              orgRole={orgRole}
             />
           ))}
         </div>
@@ -202,15 +198,13 @@ function ProjectCard({
   openIssues,
   lastActivity,
   role,
-  orgRole,
 }: {
   project: ProjectWithEnvironments;
   openIssues: number;
   lastActivity: Record<string, EnvironmentActivity | null>;
   role: ProjectRole | null;
-  orgRole: OrgRole;
 }) {
-  const canCreateEnvironment = canCreateEnvironmentIn(orgRole, role);
+  const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
   const canUpdateEnvironment = canProject(role, { environment: ["update"] });
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");

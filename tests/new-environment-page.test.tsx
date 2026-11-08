@@ -32,6 +32,14 @@ vi.mock("@/i18n/navigation", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useRouter: () => ({ push: api.push }),
 }));
+vi.mock("@/web/api/apps", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  pipelinePreviewQuery: (componentKey: string, buildSpec: unknown) => ({
+    queryKey: ["pipeline-preview", componentKey, buildSpec],
+    queryFn: async () => ({ yaml: "steps: []" }),
+    enabled: buildSpec !== null,
+  }),
+}));
 vi.mock("@/web/api/database-hosts", () => ({
   listDatabaseHostsQuery: () => ({
     queryKey: ["hosts"],
@@ -246,6 +254,7 @@ async function mount(
             project={emptyProject}
             apps={apps}
             canPublish={false}
+            canChoosePipelines={false}
             {...props}
           />
         </IntlProvider>
@@ -294,6 +303,7 @@ beforeEach(() => {
       appKey: "hris",
       appName: "HRIS",
       componentKey: "hris",
+      defaultBranch: "main",
     },
     {
       ciConnectionId: CONN,
@@ -301,6 +311,7 @@ beforeEach(() => {
       appKey: "kmem",
       appName: "KMEM",
       componentKey: "kmem-api",
+      defaultBranch: "main",
     },
     {
       ciConnectionId: CONN,
@@ -308,6 +319,15 @@ beforeEach(() => {
       appKey: null,
       appName: null,
       componentKey: null,
+      defaultBranch: "develop",
+    },
+    {
+      ciConnectionId: CONN,
+      repoFullName: "dss/fresh",
+      appKey: null,
+      appName: null,
+      componentKey: null,
+      defaultBranch: "main",
     },
   ]);
   api.create.mockResolvedValue({
@@ -466,7 +486,12 @@ describe("New environment page", () => {
     expect(api.preview).toHaveBeenCalledOnce();
     expect(api.preview.mock.calls[0]?.[0].repos).toEqual([
       { ciConnectionId: CONN, repoFullName: "dss/kmem-api", branch: "develop" },
-      { ciConnectionId: CONN, repoFullName: "dss/kmem-worker", branch: "main" },
+      // The repository's main branch on the forge.
+      {
+        ciConnectionId: CONN,
+        repoFullName: "dss/kmem-worker",
+        branch: "develop",
+      },
     ]);
   });
 
@@ -529,6 +554,206 @@ describe("New environment page", () => {
     // The simple checkbox defers to the edited section.
     expect(container.textContent).toContain(
       messages.newEnvironment.setInAdvanced
+    );
+  });
+
+  it("keeps an Advanced edit made while a check is pending", async () => {
+    await mount({ project: projectWithEnvs });
+    await act(async () => type(nameInput(), "Dev 3"));
+    await act(async () =>
+      byText("button", messages.setup.advancedOptions)?.click()
+    );
+    await settle();
+    await act(async () =>
+      byText("button", messages.setupWizard.sections.database)?.click()
+    );
+    // A slow check: picking a repository while the answer is pending.
+    let answer: (value: unknown) => void = () => {};
+    api.preview.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve))
+    );
+    await act(async () =>
+      document.querySelector<HTMLElement>("#env-repo-picker")?.click()
+    );
+    await settle();
+    await act(async () =>
+      byText('[role="option"]', "dss/kmem-worker")?.click()
+    );
+    await settle();
+    expect(api.preview).toHaveBeenCalledTimes(2);
+    const dbName = document.querySelector("#db-name") as HTMLInputElement;
+    await act(async () => type(dbName, "kmem_edit"));
+    await act(async () => answer(cleanPreview));
+    await settle();
+    expect((document.querySelector("#db-name") as HTMLInputElement).value).toBe(
+      "kmem_edit"
+    );
+    await pressCreate();
+    expect(api.preview.mock.calls.at(-1)?.[0].advanced.database).toMatchObject({
+      kind: "shared",
+      dbName: "kmem_edit",
+    });
+  });
+
+  describe("pipelines of new repositories", () => {
+    const spec = {
+      branches: ["develop"],
+      tagShaLength: 7,
+      images: [{ name: "kmem-worker", dockerfile: "Dockerfile", context: "." }],
+      bundleFiles: [{ from: "compose.yaml", to: "compose.yaml" }],
+      checks: [],
+      timeoutMinutes: 60,
+    };
+    beforeEach(() => {
+      api.preview.mockResolvedValue({
+        ...cleanPreview,
+        plan: {
+          ...plan(),
+          registrations: [
+            {
+              repoFullName: "dss/kmem-worker",
+              ciConnectionId: CONN,
+              componentKey: "kmem-worker",
+              pipelineMode: "generated",
+              buildSpec: spec,
+            },
+          ],
+        },
+      });
+    });
+
+    async function pickWorkerAndOpen(canChoosePipelines: boolean) {
+      await mount({ initialRepo: "dss/kmem-worker", canChoosePipelines });
+      await act(async () => type(nameInput(), "Dev 3"));
+      await act(async () =>
+        byText("button", messages.setup.advancedOptions)?.click()
+      );
+      await settle();
+    }
+
+    it("are not offered to an engineer", async () => {
+      await pickWorkerAndOpen(false);
+      expect(container.textContent).toContain(
+        messages.setupWizard.sections.deploy
+      );
+      expect(container.textContent).not.toContain(
+        messages.newEnvironment.pipelines
+      );
+    });
+
+    it("an admin chooses the mode and edits the build spec", async () => {
+      // An open issue keeps Create from creating, so it can be pressed twice.
+      api.preview.mockResolvedValue({
+        ...cleanPreview,
+        plan: {
+          ...plan([{ field: "plan", code: "no_targets" }]),
+          registrations: [
+            {
+              repoFullName: "dss/kmem-worker",
+              ciConnectionId: CONN,
+              componentKey: "kmem-worker",
+              pipelineMode: "generated",
+              buildSpec: spec,
+            },
+          ],
+        },
+        preview: null,
+      });
+      await pickWorkerAndOpen(true);
+      expect(container.textContent).toContain(
+        messages.newEnvironment.pipelines
+      );
+      // The detected spec, in the reused registration editor.
+      const branches = byText(
+        "[data-slot=field]",
+        messages.appForm.branches
+      )?.querySelector("input") as HTMLInputElement;
+      expect(branches.value).toBe("develop");
+      await act(async () => type(branches, "develop, main"));
+      await pressCreate();
+      expect(api.preview.mock.calls.at(-1)?.[0].advanced.pipelines).toEqual([
+        {
+          repoFullName: "dss/kmem-worker",
+          mode: "generated",
+          buildSpec: { ...spec, branches: ["develop", "main"] },
+        },
+      ]);
+      await act(async () =>
+        document.querySelector<HTMLElement>("#pipeline-kmem-worker")?.click()
+      );
+      await act(async () =>
+        byText(
+          '[role="option"]',
+          messages.newEnvironment.pipelineModeCustom
+        )?.click()
+      );
+      await pressCreate();
+      expect(api.preview.mock.calls.at(-1)?.[0].advanced.pipelines).toEqual([
+        { repoFullName: "dss/kmem-worker", mode: "custom" },
+      ]);
+    });
+  });
+
+  it("disables registered repositories once a new app's repository is picked", async () => {
+    await mount({ initialRepo: "dss/kmem-worker" });
+    await act(async () =>
+      document.querySelector<HTMLElement>("#env-repo-picker")?.click()
+    );
+    await settle();
+    expect(
+      byText('[role="option"]', "dss/kmem-api")?.getAttribute("aria-disabled")
+    ).toBe("true");
+    expect(
+      byText('[role="option"]', "dss/fresh")?.getAttribute("aria-disabled")
+    ).not.toBe("true");
+  });
+
+  it("says the repositories are loading", async () => {
+    api.repos.mockImplementation(() => new Promise(() => {}));
+    await mount();
+    await act(async () =>
+      document.querySelector<HTMLElement>("#env-repo-picker")?.click()
+    );
+    await settle();
+    expect(document.body.textContent).toContain(
+      messages.newEnvironment.reposLoading
+    );
+  });
+
+  it("names the default access policy after a check", async () => {
+    await mount({ project: projectWithEnvs });
+    expect(container.textContent).toContain(
+      messages.newEnvironment.addressHint
+    );
+    await act(async () => type(nameInput(), "Dev 3"));
+    await act(async () =>
+      byText("button", messages.setup.advancedOptions)?.click()
+    );
+    await settle();
+    expect(container.textContent).toContain(
+      "Behind the DSS Internal access policy."
+    );
+  });
+
+  it("asks to fix the fields before Advanced options, then checks", async () => {
+    await mount({ project: projectWithEnvs });
+    const addressInput = document.querySelector(
+      "#env-address"
+    ) as HTMLInputElement;
+    await act(async () => type(addressInput, "-bad-"));
+    await act(async () =>
+      byText("button", messages.setup.advancedOptions)?.click()
+    );
+    await settle();
+    expect(api.preview).not.toHaveBeenCalled();
+    expect(container.textContent).toContain(
+      messages.newEnvironment.fixFieldsFirst
+    );
+    await act(async () => type(addressInput, "good"));
+    await settle();
+    expect(api.preview).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain(
+      messages.setupWizard.sections.deploy
     );
   });
 
