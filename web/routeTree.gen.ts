@@ -30,7 +30,6 @@ import { Route as LocaleAppAccountChangePasswordRouteImport } from './routes/$lo
 import { Route as LocaleAppAdminIndexRouteImport } from './routes/$locale/_app/admin.index'
 import { Route as LocaleAppAdminAccessRouteImport } from './routes/$locale/_app/admin.access'
 import { Route as LocaleAppAdminActivityRouteImport } from './routes/$locale/_app/admin.activity'
-import { Route as LocaleAppAdminCloudflareRouteImport } from './routes/$locale/_app/admin.cloudflare'
 import { Route as LocaleAppAdminUsersRouteImport } from './routes/$locale/_app/admin.users'
 import { Route as LocaleAppAppsIndexRouteImport } from './routes/$locale/_app/apps.index'
 import { Route as LocaleAppAppsNewRouteImport } from './routes/$locale/_app/apps.new'
@@ -60,6 +59,7 @@ import { Route as LocaleAppProjectKeyEnvironmentsNewRouteImport } from './routes
 import { Route as LocaleAppProjectKeyIssuesNumberRouteImport } from './routes/$locale/_app/$projectKey.issues.$number'
 import { Route as LocaleAppAdminCiIndexRouteImport } from './routes/$locale/_app/admin.ci.index'
 import { Route as LocaleAppAdminCiIdRouteImport } from './routes/$locale/_app/admin.ci.$id'
+import { Route as LocaleAppAdminCloudflareIndexRouteImport } from './routes/$locale/_app/admin.cloudflare.index'
 import { Route as LocaleAppAdminJiraIndexRouteImport } from './routes/$locale/_app/admin.jira.index'
 import { Route as LocaleAppAdminJiraIdRouteImport } from './routes/$locale/_app/admin.jira.$id'
 import { Route as LocaleAppAdminJiraNewRouteImport } from './routes/$locale/_app/admin.jira.new'
@@ -79,6 +79,9 @@ import { Route as LocaleAppServersIdTerminalRouteImport } from './routes/$locale
 import { Route as LocaleAppStorageIdIndexRouteImport } from './routes/$locale/_app/storage.$id.index'
 import { Route as LocaleAppStorageIdFilesRouteImport } from './routes/$locale/_app/storage.$id.files'
 import { Route as LocaleAppProjectKeyEnvSlugServicesIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.services.index'
+import { Route as LocaleAppAdminCloudflareLocalTunnelsNewRouteImport } from './routes/$locale/_app/admin.cloudflare.local-tunnels.new'
+import { Route as LocaleAppAdminCloudflareZonesIdRouteImport } from './routes/$locale/_app/admin.cloudflare.zones.$id'
+import { Route as LocaleAppAdminCloudflareZonesNewRouteImport } from './routes/$locale/_app/admin.cloudflare.zones.new'
 import { Route as LocaleAppAdminRepositoriesAppKeyIndexRouteImport } from './routes/$locale/_app/admin.repositories.$appKey.index'
 import { Route as LocaleAppAdminRepositoriesAppKeyVariablesRouteImport } from './routes/$locale/_app/admin.repositories.$appKey.variables'
 import { Route as LocaleAppAdminTunnelsIdIndexRouteImport } from './routes/$locale/_app/admin.tunnels.$id.index'
@@ -88,6 +91,8 @@ import { Route as LocaleAppAdminTunnelsZonesIdRouteImport } from './routes/$loca
 import { Route as LocaleAppAdminTunnelsZonesNewRouteImport } from './routes/$locale/_app/admin.tunnels.zones.new'
 import { Route as LocaleAppAppsAppKeyEnvironmentsNewRouteImport } from './routes/$locale/_app/apps.$appKey.environments.new'
 import { Route as LocaleAppProjectKeyEnvSlugServicesRoleLogsRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.services.$role.logs'
+import { Route as LocaleAppAdminCloudflareLocalTunnelsIdIndexRouteImport } from './routes/$locale/_app/admin.cloudflare.local-tunnels.$id.index'
+import { Route as LocaleAppAdminCloudflareLocalTunnelsIdEditRouteImport } from './routes/$locale/_app/admin.cloudflare.local-tunnels.$id.edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -197,12 +202,6 @@ const LocaleAppAdminActivityRoute = LocaleAppAdminActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => LocaleAppAdminRouteRoute,
 } as any)
-const LocaleAppAdminCloudflareRoute =
-  LocaleAppAdminCloudflareRouteImport.update({
-    id: '/cloudflare',
-    path: '/cloudflare',
-    getParentRoute: () => LocaleAppAdminRouteRoute,
-  } as any)
 const LocaleAppAdminUsersRoute = LocaleAppAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -363,6 +362,12 @@ const LocaleAppAdminCiIdRoute = LocaleAppAdminCiIdRouteImport.update({
   path: '/ci/$id',
   getParentRoute: () => LocaleAppAdminRouteRoute,
 } as any)
+const LocaleAppAdminCloudflareIndexRoute =
+  LocaleAppAdminCloudflareIndexRouteImport.update({
+    id: '/cloudflare/',
+    path: '/cloudflare/',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
 const LocaleAppAdminJiraIndexRoute = LocaleAppAdminJiraIndexRouteImport.update({
   id: '/jira/',
   path: '/jira/',
@@ -470,6 +475,24 @@ const LocaleAppProjectKeyEnvSlugServicesIndexRoute =
     path: '/services/',
     getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
   } as any)
+const LocaleAppAdminCloudflareLocalTunnelsNewRoute =
+  LocaleAppAdminCloudflareLocalTunnelsNewRouteImport.update({
+    id: '/cloudflare/local-tunnels/new',
+    path: '/cloudflare/local-tunnels/new',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminCloudflareZonesIdRoute =
+  LocaleAppAdminCloudflareZonesIdRouteImport.update({
+    id: '/cloudflare/zones/$id',
+    path: '/cloudflare/zones/$id',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminCloudflareZonesNewRoute =
+  LocaleAppAdminCloudflareZonesNewRouteImport.update({
+    id: '/cloudflare/zones/new',
+    path: '/cloudflare/zones/new',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
 const LocaleAppAdminRepositoriesAppKeyIndexRoute =
   LocaleAppAdminRepositoriesAppKeyIndexRouteImport.update({
     id: '/repositories/$appKey/',
@@ -524,6 +547,18 @@ const LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute =
     path: '/services/$role/logs',
     getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
   } as any)
+const LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute =
+  LocaleAppAdminCloudflareLocalTunnelsIdIndexRouteImport.update({
+    id: '/cloudflare/local-tunnels/$id/',
+    path: '/cloudflare/local-tunnels/$id/',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
+const LocaleAppAdminCloudflareLocalTunnelsIdEditRoute =
+  LocaleAppAdminCloudflareLocalTunnelsIdEditRouteImport.update({
+    id: '/cloudflare/local-tunnels/$id/edit',
+    path: '/cloudflare/local-tunnels/$id/edit',
+    getParentRoute: () => LocaleAppAdminRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -543,7 +578,6 @@ export interface FileRoutesByFullPath {
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
-  '/$locale/admin/cloudflare': typeof LocaleAppAdminCloudflareRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
@@ -586,6 +620,7 @@ export interface FileRoutesByFullPath {
   '/$locale/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
   '/$locale/admin/ci/': typeof LocaleAppAdminCiIndexRoute
+  '/$locale/admin/cloudflare/': typeof LocaleAppAdminCloudflareIndexRoute
   '/$locale/admin/jira/': typeof LocaleAppAdminJiraIndexRoute
   '/$locale/admin/repositories/': typeof LocaleAppAdminRepositoriesIndexRoute
   '/$locale/admin/tunnels/': typeof LocaleAppAdminTunnelsIndexRoute
@@ -594,6 +629,9 @@ export interface FileRoutesByFullPath {
   '/$locale/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
   '/$locale/servers/$id/': typeof LocaleAppServersIdIndexRoute
   '/$locale/storage/$id/': typeof LocaleAppStorageIdIndexRoute
+  '/$locale/admin/cloudflare/local-tunnels/new': typeof LocaleAppAdminCloudflareLocalTunnelsNewRoute
+  '/$locale/admin/cloudflare/zones/$id': typeof LocaleAppAdminCloudflareZonesIdRoute
+  '/$locale/admin/cloudflare/zones/new': typeof LocaleAppAdminCloudflareZonesNewRoute
   '/$locale/admin/repositories/$appKey/variables': typeof LocaleAppAdminRepositoriesAppKeyVariablesRoute
   '/$locale/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
   '/$locale/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
@@ -604,6 +642,8 @@ export interface FileRoutesByFullPath {
   '/$locale/admin/tunnels/$id/': typeof LocaleAppAdminTunnelsIdIndexRoute
   '/$locale/admin/tunnels/zones/': typeof LocaleAppAdminTunnelsZonesIndexRoute
   '/$locale/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
+  '/$locale/admin/cloudflare/local-tunnels/$id/edit': typeof LocaleAppAdminCloudflareLocalTunnelsIdEditRoute
+  '/$locale/admin/cloudflare/local-tunnels/$id/': typeof LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -619,7 +659,6 @@ export interface FileRoutesByTo {
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
-  '/$locale/admin/cloudflare': typeof LocaleAppAdminCloudflareRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
@@ -662,6 +701,7 @@ export interface FileRoutesByTo {
   '/$locale/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugIndexRoute
   '/$locale/admin/ci': typeof LocaleAppAdminCiIndexRoute
+  '/$locale/admin/cloudflare': typeof LocaleAppAdminCloudflareIndexRoute
   '/$locale/admin/jira': typeof LocaleAppAdminJiraIndexRoute
   '/$locale/admin/repositories': typeof LocaleAppAdminRepositoriesIndexRoute
   '/$locale/admin/tunnels': typeof LocaleAppAdminTunnelsIndexRoute
@@ -670,6 +710,9 @@ export interface FileRoutesByTo {
   '/$locale/projects/$key': typeof LocaleAppProjectsKeyIndexRoute
   '/$locale/servers/$id': typeof LocaleAppServersIdIndexRoute
   '/$locale/storage/$id': typeof LocaleAppStorageIdIndexRoute
+  '/$locale/admin/cloudflare/local-tunnels/new': typeof LocaleAppAdminCloudflareLocalTunnelsNewRoute
+  '/$locale/admin/cloudflare/zones/$id': typeof LocaleAppAdminCloudflareZonesIdRoute
+  '/$locale/admin/cloudflare/zones/new': typeof LocaleAppAdminCloudflareZonesNewRoute
   '/$locale/admin/repositories/$appKey/variables': typeof LocaleAppAdminRepositoriesAppKeyVariablesRoute
   '/$locale/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
   '/$locale/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
@@ -680,6 +723,8 @@ export interface FileRoutesByTo {
   '/$locale/admin/tunnels/$id': typeof LocaleAppAdminTunnelsIdIndexRoute
   '/$locale/admin/tunnels/zones': typeof LocaleAppAdminTunnelsZonesIndexRoute
   '/$locale/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
+  '/$locale/admin/cloudflare/local-tunnels/$id/edit': typeof LocaleAppAdminCloudflareLocalTunnelsIdEditRoute
+  '/$locale/admin/cloudflare/local-tunnels/$id': typeof LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -701,7 +746,6 @@ export interface FileRoutesById {
   '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/_app/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/_app/admin/activity': typeof LocaleAppAdminActivityRoute
-  '/$locale/_app/admin/cloudflare': typeof LocaleAppAdminCloudflareRoute
   '/$locale/_app/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/_app/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/_app/environments/new': typeof LocaleAppEnvironmentsNewRoute
@@ -744,6 +788,7 @@ export interface FileRoutesById {
   '/$locale/_app/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/_app/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
   '/$locale/_app/admin/ci/': typeof LocaleAppAdminCiIndexRoute
+  '/$locale/_app/admin/cloudflare/': typeof LocaleAppAdminCloudflareIndexRoute
   '/$locale/_app/admin/jira/': typeof LocaleAppAdminJiraIndexRoute
   '/$locale/_app/admin/repositories/': typeof LocaleAppAdminRepositoriesIndexRoute
   '/$locale/_app/admin/tunnels/': typeof LocaleAppAdminTunnelsIndexRoute
@@ -752,6 +797,9 @@ export interface FileRoutesById {
   '/$locale/_app/projects/$key/': typeof LocaleAppProjectsKeyIndexRoute
   '/$locale/_app/servers/$id/': typeof LocaleAppServersIdIndexRoute
   '/$locale/_app/storage/$id/': typeof LocaleAppStorageIdIndexRoute
+  '/$locale/_app/admin/cloudflare/local-tunnels/new': typeof LocaleAppAdminCloudflareLocalTunnelsNewRoute
+  '/$locale/_app/admin/cloudflare/zones/$id': typeof LocaleAppAdminCloudflareZonesIdRoute
+  '/$locale/_app/admin/cloudflare/zones/new': typeof LocaleAppAdminCloudflareZonesNewRoute
   '/$locale/_app/admin/repositories/$appKey/variables': typeof LocaleAppAdminRepositoriesAppKeyVariablesRoute
   '/$locale/_app/admin/tunnels/$id/edit': typeof LocaleAppAdminTunnelsIdEditRoute
   '/$locale/_app/admin/tunnels/zones/$id': typeof LocaleAppAdminTunnelsZonesIdRoute
@@ -762,6 +810,8 @@ export interface FileRoutesById {
   '/$locale/_app/admin/tunnels/$id/': typeof LocaleAppAdminTunnelsIdIndexRoute
   '/$locale/_app/admin/tunnels/zones/': typeof LocaleAppAdminTunnelsZonesIndexRoute
   '/$locale/_app/$projectKey/$envSlug/services/$role/logs': typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRoute
+  '/$locale/_app/admin/cloudflare/local-tunnels/$id/edit': typeof LocaleAppAdminCloudflareLocalTunnelsIdEditRoute
+  '/$locale/_app/admin/cloudflare/local-tunnels/$id/': typeof LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -783,7 +833,6 @@ export interface FileRouteTypes {
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
-    | '/$locale/admin/cloudflare'
     | '/$locale/admin/users'
     | '/$locale/apps/new'
     | '/$locale/environments/new'
@@ -826,6 +875,7 @@ export interface FileRouteTypes {
     | '/$locale/storage/$id/files'
     | '/$locale/$projectKey/$envSlug/'
     | '/$locale/admin/ci/'
+    | '/$locale/admin/cloudflare/'
     | '/$locale/admin/jira/'
     | '/$locale/admin/repositories/'
     | '/$locale/admin/tunnels/'
@@ -834,6 +884,9 @@ export interface FileRouteTypes {
     | '/$locale/projects/$key/'
     | '/$locale/servers/$id/'
     | '/$locale/storage/$id/'
+    | '/$locale/admin/cloudflare/local-tunnels/new'
+    | '/$locale/admin/cloudflare/zones/$id'
+    | '/$locale/admin/cloudflare/zones/new'
     | '/$locale/admin/repositories/$appKey/variables'
     | '/$locale/admin/tunnels/$id/edit'
     | '/$locale/admin/tunnels/zones/$id'
@@ -844,6 +897,8 @@ export interface FileRouteTypes {
     | '/$locale/admin/tunnels/$id/'
     | '/$locale/admin/tunnels/zones/'
     | '/$locale/$projectKey/$envSlug/services/$role/logs'
+    | '/$locale/admin/cloudflare/local-tunnels/$id/edit'
+    | '/$locale/admin/cloudflare/local-tunnels/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -859,7 +914,6 @@ export interface FileRouteTypes {
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
-    | '/$locale/admin/cloudflare'
     | '/$locale/admin/users'
     | '/$locale/apps/new'
     | '/$locale/environments/new'
@@ -902,6 +956,7 @@ export interface FileRouteTypes {
     | '/$locale/storage/$id/files'
     | '/$locale/$projectKey/$envSlug'
     | '/$locale/admin/ci'
+    | '/$locale/admin/cloudflare'
     | '/$locale/admin/jira'
     | '/$locale/admin/repositories'
     | '/$locale/admin/tunnels'
@@ -910,6 +965,9 @@ export interface FileRouteTypes {
     | '/$locale/projects/$key'
     | '/$locale/servers/$id'
     | '/$locale/storage/$id'
+    | '/$locale/admin/cloudflare/local-tunnels/new'
+    | '/$locale/admin/cloudflare/zones/$id'
+    | '/$locale/admin/cloudflare/zones/new'
     | '/$locale/admin/repositories/$appKey/variables'
     | '/$locale/admin/tunnels/$id/edit'
     | '/$locale/admin/tunnels/zones/$id'
@@ -920,6 +978,8 @@ export interface FileRouteTypes {
     | '/$locale/admin/tunnels/$id'
     | '/$locale/admin/tunnels/zones'
     | '/$locale/$projectKey/$envSlug/services/$role/logs'
+    | '/$locale/admin/cloudflare/local-tunnels/$id/edit'
+    | '/$locale/admin/cloudflare/local-tunnels/$id'
   id:
     | '__root__'
     | '/'
@@ -940,7 +1000,6 @@ export interface FileRouteTypes {
     | '/$locale/_app/account/change-password'
     | '/$locale/_app/admin/access'
     | '/$locale/_app/admin/activity'
-    | '/$locale/_app/admin/cloudflare'
     | '/$locale/_app/admin/users'
     | '/$locale/_app/apps/new'
     | '/$locale/_app/environments/new'
@@ -983,6 +1042,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/storage/$id/files'
     | '/$locale/_app/$projectKey/$envSlug/'
     | '/$locale/_app/admin/ci/'
+    | '/$locale/_app/admin/cloudflare/'
     | '/$locale/_app/admin/jira/'
     | '/$locale/_app/admin/repositories/'
     | '/$locale/_app/admin/tunnels/'
@@ -991,6 +1051,9 @@ export interface FileRouteTypes {
     | '/$locale/_app/projects/$key/'
     | '/$locale/_app/servers/$id/'
     | '/$locale/_app/storage/$id/'
+    | '/$locale/_app/admin/cloudflare/local-tunnels/new'
+    | '/$locale/_app/admin/cloudflare/zones/$id'
+    | '/$locale/_app/admin/cloudflare/zones/new'
     | '/$locale/_app/admin/repositories/$appKey/variables'
     | '/$locale/_app/admin/tunnels/$id/edit'
     | '/$locale/_app/admin/tunnels/zones/$id'
@@ -1001,6 +1064,8 @@ export interface FileRouteTypes {
     | '/$locale/_app/admin/tunnels/$id/'
     | '/$locale/_app/admin/tunnels/zones/'
     | '/$locale/_app/$projectKey/$envSlug/services/$role/logs'
+    | '/$locale/_app/admin/cloudflare/local-tunnels/$id/edit'
+    | '/$locale/_app/admin/cloudflare/local-tunnels/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1155,13 +1220,6 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/$locale/admin/activity'
       preLoaderRoute: typeof LocaleAppAdminActivityRouteImport
-      parentRoute: typeof LocaleAppAdminRouteRoute
-    }
-    '/$locale/_app/admin/cloudflare': {
-      id: '/$locale/_app/admin/cloudflare'
-      path: '/cloudflare'
-      fullPath: '/$locale/admin/cloudflare'
-      preLoaderRoute: typeof LocaleAppAdminCloudflareRouteImport
       parentRoute: typeof LocaleAppAdminRouteRoute
     }
     '/$locale/_app/admin/users': {
@@ -1367,6 +1425,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppAdminCiIdRouteImport
       parentRoute: typeof LocaleAppAdminRouteRoute
     }
+    '/$locale/_app/admin/cloudflare/': {
+      id: '/$locale/_app/admin/cloudflare/'
+      path: '/cloudflare'
+      fullPath: '/$locale/admin/cloudflare/'
+      preLoaderRoute: typeof LocaleAppAdminCloudflareIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
     '/$locale/_app/admin/jira/': {
       id: '/$locale/_app/admin/jira/'
       path: '/jira'
@@ -1500,6 +1565,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugServicesIndexRouteImport
       parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
     }
+    '/$locale/_app/admin/cloudflare/local-tunnels/new': {
+      id: '/$locale/_app/admin/cloudflare/local-tunnels/new'
+      path: '/cloudflare/local-tunnels/new'
+      fullPath: '/$locale/admin/cloudflare/local-tunnels/new'
+      preLoaderRoute: typeof LocaleAppAdminCloudflareLocalTunnelsNewRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/cloudflare/zones/$id': {
+      id: '/$locale/_app/admin/cloudflare/zones/$id'
+      path: '/cloudflare/zones/$id'
+      fullPath: '/$locale/admin/cloudflare/zones/$id'
+      preLoaderRoute: typeof LocaleAppAdminCloudflareZonesIdRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/cloudflare/zones/new': {
+      id: '/$locale/_app/admin/cloudflare/zones/new'
+      path: '/cloudflare/zones/new'
+      fullPath: '/$locale/admin/cloudflare/zones/new'
+      preLoaderRoute: typeof LocaleAppAdminCloudflareZonesNewRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
     '/$locale/_app/admin/repositories/$appKey/': {
       id: '/$locale/_app/admin/repositories/$appKey/'
       path: '/repositories/$appKey'
@@ -1563,13 +1649,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugServicesRoleLogsRouteImport
       parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
     }
+    '/$locale/_app/admin/cloudflare/local-tunnels/$id/': {
+      id: '/$locale/_app/admin/cloudflare/local-tunnels/$id/'
+      path: '/cloudflare/local-tunnels/$id'
+      fullPath: '/$locale/admin/cloudflare/local-tunnels/$id/'
+      preLoaderRoute: typeof LocaleAppAdminCloudflareLocalTunnelsIdIndexRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/cloudflare/local-tunnels/$id/edit': {
+      id: '/$locale/_app/admin/cloudflare/local-tunnels/$id/edit'
+      path: '/cloudflare/local-tunnels/$id/edit'
+      fullPath: '/$locale/admin/cloudflare/local-tunnels/$id/edit'
+      preLoaderRoute: typeof LocaleAppAdminCloudflareLocalTunnelsIdEditRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
   }
 }
 
 interface LocaleAppAdminRouteRouteChildren {
   LocaleAppAdminAccessRoute: typeof LocaleAppAdminAccessRoute
   LocaleAppAdminActivityRoute: typeof LocaleAppAdminActivityRoute
-  LocaleAppAdminCloudflareRoute: typeof LocaleAppAdminCloudflareRoute
   LocaleAppAdminUsersRoute: typeof LocaleAppAdminUsersRoute
   LocaleAppAdminIndexRoute: typeof LocaleAppAdminIndexRoute
   LocaleAppAdminCiIdRoute: typeof LocaleAppAdminCiIdRoute
@@ -1577,9 +1676,13 @@ interface LocaleAppAdminRouteRouteChildren {
   LocaleAppAdminJiraNewRoute: typeof LocaleAppAdminJiraNewRoute
   LocaleAppAdminTunnelsNewRoute: typeof LocaleAppAdminTunnelsNewRoute
   LocaleAppAdminCiIndexRoute: typeof LocaleAppAdminCiIndexRoute
+  LocaleAppAdminCloudflareIndexRoute: typeof LocaleAppAdminCloudflareIndexRoute
   LocaleAppAdminJiraIndexRoute: typeof LocaleAppAdminJiraIndexRoute
   LocaleAppAdminRepositoriesIndexRoute: typeof LocaleAppAdminRepositoriesIndexRoute
   LocaleAppAdminTunnelsIndexRoute: typeof LocaleAppAdminTunnelsIndexRoute
+  LocaleAppAdminCloudflareLocalTunnelsNewRoute: typeof LocaleAppAdminCloudflareLocalTunnelsNewRoute
+  LocaleAppAdminCloudflareZonesIdRoute: typeof LocaleAppAdminCloudflareZonesIdRoute
+  LocaleAppAdminCloudflareZonesNewRoute: typeof LocaleAppAdminCloudflareZonesNewRoute
   LocaleAppAdminRepositoriesAppKeyVariablesRoute: typeof LocaleAppAdminRepositoriesAppKeyVariablesRoute
   LocaleAppAdminTunnelsIdEditRoute: typeof LocaleAppAdminTunnelsIdEditRoute
   LocaleAppAdminTunnelsZonesIdRoute: typeof LocaleAppAdminTunnelsZonesIdRoute
@@ -1587,12 +1690,13 @@ interface LocaleAppAdminRouteRouteChildren {
   LocaleAppAdminRepositoriesAppKeyIndexRoute: typeof LocaleAppAdminRepositoriesAppKeyIndexRoute
   LocaleAppAdminTunnelsIdIndexRoute: typeof LocaleAppAdminTunnelsIdIndexRoute
   LocaleAppAdminTunnelsZonesIndexRoute: typeof LocaleAppAdminTunnelsZonesIndexRoute
+  LocaleAppAdminCloudflareLocalTunnelsIdEditRoute: typeof LocaleAppAdminCloudflareLocalTunnelsIdEditRoute
+  LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute: typeof LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute
 }
 
 const LocaleAppAdminRouteRouteChildren: LocaleAppAdminRouteRouteChildren = {
   LocaleAppAdminAccessRoute: LocaleAppAdminAccessRoute,
   LocaleAppAdminActivityRoute: LocaleAppAdminActivityRoute,
-  LocaleAppAdminCloudflareRoute: LocaleAppAdminCloudflareRoute,
   LocaleAppAdminUsersRoute: LocaleAppAdminUsersRoute,
   LocaleAppAdminIndexRoute: LocaleAppAdminIndexRoute,
   LocaleAppAdminCiIdRoute: LocaleAppAdminCiIdRoute,
@@ -1600,9 +1704,14 @@ const LocaleAppAdminRouteRouteChildren: LocaleAppAdminRouteRouteChildren = {
   LocaleAppAdminJiraNewRoute: LocaleAppAdminJiraNewRoute,
   LocaleAppAdminTunnelsNewRoute: LocaleAppAdminTunnelsNewRoute,
   LocaleAppAdminCiIndexRoute: LocaleAppAdminCiIndexRoute,
+  LocaleAppAdminCloudflareIndexRoute: LocaleAppAdminCloudflareIndexRoute,
   LocaleAppAdminJiraIndexRoute: LocaleAppAdminJiraIndexRoute,
   LocaleAppAdminRepositoriesIndexRoute: LocaleAppAdminRepositoriesIndexRoute,
   LocaleAppAdminTunnelsIndexRoute: LocaleAppAdminTunnelsIndexRoute,
+  LocaleAppAdminCloudflareLocalTunnelsNewRoute:
+    LocaleAppAdminCloudflareLocalTunnelsNewRoute,
+  LocaleAppAdminCloudflareZonesIdRoute: LocaleAppAdminCloudflareZonesIdRoute,
+  LocaleAppAdminCloudflareZonesNewRoute: LocaleAppAdminCloudflareZonesNewRoute,
   LocaleAppAdminRepositoriesAppKeyVariablesRoute:
     LocaleAppAdminRepositoriesAppKeyVariablesRoute,
   LocaleAppAdminTunnelsIdEditRoute: LocaleAppAdminTunnelsIdEditRoute,
@@ -1612,6 +1721,10 @@ const LocaleAppAdminRouteRouteChildren: LocaleAppAdminRouteRouteChildren = {
     LocaleAppAdminRepositoriesAppKeyIndexRoute,
   LocaleAppAdminTunnelsIdIndexRoute: LocaleAppAdminTunnelsIdIndexRoute,
   LocaleAppAdminTunnelsZonesIndexRoute: LocaleAppAdminTunnelsZonesIndexRoute,
+  LocaleAppAdminCloudflareLocalTunnelsIdEditRoute:
+    LocaleAppAdminCloudflareLocalTunnelsIdEditRoute,
+  LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute:
+    LocaleAppAdminCloudflareLocalTunnelsIdIndexRoute,
 }
 
 const LocaleAppAdminRouteRouteWithChildren =

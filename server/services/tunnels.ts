@@ -14,6 +14,8 @@ import {
   type TunnelWithContext,
   tunnels,
 } from "@/lib/db/schema";
+import { DOMAIN_ERRORS } from "@/lib/domains/errors";
+import { getAccountRowId } from "@/lib/domains/repository";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import {
   checkDnsRecord,
@@ -62,7 +64,9 @@ import {
   tunnelRouteInputSchema,
   tunnelUpdateSchema,
 } from "@/lib/validation";
+import { CodedHTTPException } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
+import { loadCloudflareAccount } from "@/server/services/cloudflare-account";
 
 // Admin-managed Cloudflare Tunnel subdomains. Everything here is admin-only:
 // publishing or withdrawing a hostname changes what the public internet can
@@ -76,11 +80,22 @@ import { getServerTranslator } from "@/server/i18n";
 // Zones
 // =========================
 
-// A zone may exist without its own token; anything that calls Cloudflare for it
-// cannot proceed without one.
-function zoneApiToken(stored: string | null): string {
-  if (!stored) throw new Error("This Cloudflare zone has no API token");
-  return decryptSecret(stored);
+function cloudflareNotConfigured(): never {
+  throw new CodedHTTPException(
+    409,
+    "cloudflareNotConfigured",
+    DOMAIN_ERRORS.cloudflareNotConfigured
+  );
+}
+
+// A zone's DNS calls use its own token when it has one, else the Cloudflare
+// account's (which also covers DNS). Decrypted for the call only: never
+// logged or returned.
+async function zoneApiToken(stored: string | null): Promise<string> {
+  if (stored) return decryptSecret(stored);
+  const account = await loadCloudflareAccount();
+  if (!account) cloudflareNotConfigured();
+  return account.creds.apiToken;
 }
 
 function toSafeZone(row: CloudflareZone): SafeCloudflareZone {
@@ -104,14 +119,17 @@ export async function createCloudflareZone(
   const t = await getServerTranslator("actionErrors");
   const parsed = cloudflareZoneInputSchema.safeParse(data);
   if (!parsed.success) return { success: false, message: t("invalidInput") };
+  const { apiToken, ...zone } = parsed.data;
+  // Without its own token the zone relies on the account's.
+  if (!apiToken && !(await getAccountRowId())) cloudflareNotConfigured();
 
   try {
     const created = one(
       await db
         .insert(cloudflareZones)
         .values({
-          ...parsed.data,
-          apiToken: encryptSecret(parsed.data.apiToken),
+          ...zone,
+          apiToken: apiToken ? encryptSecret(apiToken) : null,
         })
         .returning(),
       "cloudflare zone"
@@ -173,7 +191,8 @@ export async function deleteCloudflareZone(
 
 /**
  * Probe a token without persisting it — mirrors testServerConnection. In edit
- * mode the token may be omitted, in which case the stored one is loaded by id.
+ * mode the token may be omitted, in which case the stored one is loaded by id;
+ * a zone without its own token is tested with the Cloudflare account's.
  */
 export async function testCloudflareZone(input: {
   zoneId: string;
@@ -191,7 +210,11 @@ export async function testCloudflareZone(input: {
       .where(eq(cloudflareZones.id, input.id))
       .limit(1);
     if (!row) return { ok: false, message: t("zoneNotFound") };
-    apiToken = row.apiToken ? decryptSecret(row.apiToken) : undefined;
+    if (row.apiToken) apiToken = decryptSecret(row.apiToken);
+  }
+  // A zone without its own token is tested with the account's.
+  if (!apiToken) {
+    apiToken = (await loadCloudflareAccount())?.creds.apiToken;
   }
   if (!apiToken) return { ok: false, message: t("zoneTokenRequiredForTest") };
 
@@ -343,7 +366,7 @@ async function loadTunnel(id: string): Promise<LoadedTunnel | null> {
     },
     zone: {
       zoneId: row.cloudflare_zones.zoneId,
-      apiToken: zoneApiToken(row.cloudflare_zones.apiToken),
+      apiToken: await zoneApiToken(row.cloudflare_zones.apiToken),
       name: row.cloudflare_zones.name,
     },
   };

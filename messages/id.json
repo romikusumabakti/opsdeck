@@ -138,7 +138,6 @@
     "badgeAssignedOpen": "{count, plural, other {# isu terbuka ditugaskan ke Anda}}",
     "badgeProjectOpen": "{count, plural, other {# isu terbuka di proyek ini}}",
     "badgeActiveRuns": "{count, plural, other {# tugas sedang berjalan}}",
-    "tunnels": "Tunnel",
     "mail": "Email",
     "ci": "CI",
     "cloudflare": "Cloudflare",
@@ -2191,7 +2190,7 @@
   },
   "zones": {
     "title": "Zone DNS",
-    "subtitle": "Zone Cloudflare dan API token ber-scope yang menerbitkan hostname di dalamnya.",
+    "subtitle": "Zone Cloudflare tempat hostname diterbitkan. Zone memakai token akun kecuali punya token sendiri.",
     "addZone": "Tambah zone",
     "searchPlaceholder": "Cari zone…",
     "colName": "Zone",
@@ -2241,7 +2240,8 @@
     "zoneIdInvalid": "Zone ID terdiri dari 32 karakter heksadesimal.",
     "apiToken": "API token",
     "apiTokenDescription": "Beri scope Zone:DNS:Edit HANYA untuk zone ini — itu semua yang dilakukan OpsDeck dengannya. Disimpan terenkripsi dan tak pernah dikirim ke browser.",
-    "apiTokenKeep": "Kosongkan untuk mempertahankan token saat ini"
+    "apiTokenKeep": "Kosongkan untuk mempertahankan token saat ini",
+    "apiTokenOptionalDescription": "Opsional: tanpa token, zone ini memakai token akun Cloudflare. Bila diisi, beri scope Zone:DNS:Edit hanya untuk zone ini. Disimpan terenkripsi dan tak pernah dikirim ke browser."
   },
   "mailpitSettings": {
     "title": "Mailpit",
@@ -2524,7 +2524,9 @@
     "removeTitle": "Hapus pendaftaran tunnel?",
     "removeDescription": "{tunnel} tidak lagi dipakai untuk {server}. Tunnel-nya sendiri tetap ada di Cloudflare.",
     "removed": "Pendaftaran dihapus",
-    "removeBound": "Masih dipakai environment"
+    "removeBound": "Masih dipakai environment",
+    "localTunnelsTitle": "Tunnel lokal",
+    "localTunnelsDescription": "Tunnel yang dikonfigurasi lewat config.yml cloudflared di server dan diedit lewat SSH. Hanya untuk tunnel yang belum dipindah ke pengelolaan jarak jauh."
   },
   "apps": {
     "title": "Repositori",

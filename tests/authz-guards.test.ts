@@ -489,9 +489,11 @@ const ORG_READ_PAGES: Record<string, RegExp[]> = {
     /storage: \["files"\]/,
     /readOnly=\{!canManage\}/,
   ],
-  [`${APP}/admin.tunnels.index.tsx`]: [/tunnel: \["manage"\]/],
-  [`${APP}/admin.tunnels.$id.index.tsx`]: [/tunnel: \["manage"\]/],
-  [`${APP}/admin.tunnels.zones.index.tsx`]: [/tunnel: \["manage"\]/],
+  // Zones and local tunnels are sections of the Cloudflare page.
+  [`${APP}/admin.cloudflare.index.tsx`]: [/tunnel: \["manage"\]/],
+  [`${APP}/admin.cloudflare.local-tunnels.$id.index.tsx`]: [
+    /tunnel: \["manage"\]/,
+  ],
 };
 
 describe("org read pages gate their management controls", () => {
