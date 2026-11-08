@@ -2948,7 +2948,8 @@
       "repoOtherApp": "此仓库已属于另一个应用。请选择此应用的仓库之一。",
       "repoNotBuildable": "Panel 无法构建此仓库：需要 Dockerfile 和 compose 文件。",
       "nameTaken": "另一个环境刚刚占用了此名称。请另选一个。",
-      "domainTaken": "另一个环境刚刚占用了此地址。请另选一个。"
+      "domainTaken": "另一个环境刚刚占用了此地址。请另选一个。",
+      "duplicate": "此仓库被列出了两次。"
     },
     "newApp": {
       "title": "新建应用",

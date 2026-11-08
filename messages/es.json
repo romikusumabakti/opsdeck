@@ -2948,7 +2948,8 @@
       "repoOtherApp": "Este repositorio ya pertenece a otra aplicación. Elija uno de los repositorios de esta aplicación.",
       "repoNotBuildable": "El Panel no puede compilar este repositorio: necesita un Dockerfile y un archivo compose.",
       "nameTaken": "Otro entorno acaba de tomar este nombre. Elija otro.",
-      "domainTaken": "Otro entorno acaba de tomar esta dirección. Elija otra."
+      "domainTaken": "Otro entorno acaba de tomar esta dirección. Elija otra.",
+      "duplicate": "Este repositorio aparece dos veces."
     },
     "newApp": {
       "title": "Nueva aplicación",
