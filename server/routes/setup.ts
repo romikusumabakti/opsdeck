@@ -16,7 +16,7 @@ import { json, param, query } from "@/server/validation";
 /**
  * The setup wizard's server side. Each service function checks its own
  * permission; detection is for app registrants, environment setup for
- * maintainers of the target project.
+ * engineers of the target project.
  */
 export const setupRouter = sessionRouter()
   .get(
@@ -42,7 +42,7 @@ export const setupRouter = sessionRouter()
     c.json(await createEnvironmentSetup(c.req.valid("json")), 201)
   )
   // The lists the forms offer for a project, without org server or tunnel
-  // read (a maintainer has neither).
+  // read (an engineer has neither).
   .get("/options", query(z.object({ projectId: uuidSchema })), async (c) =>
     c.json(await getSetupOptions(c.req.valid("query").projectId))
   )

@@ -16,7 +16,7 @@ import { COMPOSE_OVERLAY_FILE } from "@/lib/variables/compose-overlay";
  * SSH. Pure: no SSH, no database. It is the part that decides what executes on
  * a client's server, so it validates its whole input and quotes every
  * interpolated value with `shq` — except `preStartCommand`, which is
- * maintainer-entered target config and is inserted verbatim by design.
+ * engineer-entered target config and is inserted verbatim by design.
  *
  * Invariants the tests hold it to: it never runs `compose down/stop/rm`, it
  * only (re)starts the listed services (`--no-deps`), the only `.env` line it

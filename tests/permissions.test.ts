@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canCreateEnvironment,
+  canCreateProject,
   canOrg,
   canProject,
   canRegisterApp,
@@ -145,7 +146,7 @@ const PROJECT_MATRIX: [string, string, Record<ProjectRole, boolean>][] = [
   ["database", "create", { viewer: false, qa: false, engineer: true }],
   ["database", "drop", { viewer: false, qa: false, engineer: true }],
   ["database", "rename", { viewer: false, qa: false, engineer: true }],
-  ["service", "control", { viewer: false, qa: false, engineer: true }],
+  ["service", "control", { viewer: false, qa: true, engineer: true }],
   ["environment", "create", { viewer: false, qa: false, engineer: true }],
   ["environment", "update", { viewer: false, qa: false, engineer: true }],
   ["environment", "delete", { viewer: false, qa: false, engineer: true }],
@@ -217,5 +218,25 @@ describe("canRegisterApp", () => {
     expect(canRegisterApp("observer", [])).toBe(false);
     expect(canRegisterApp("observer", ["engineer"])).toBe(true);
     for (const r of JUNK_ROLES) expect(canRegisterApp(r, [])).toBe(false);
+  });
+});
+
+describe("QA and engineer behaviour", () => {
+  it("qa can restart services", () => {
+    expect(canProject("qa", { service: ["control"] })).toBe(true);
+  });
+
+  it("qa cannot create environments", () => {
+    expect(canProject("qa", { environment: ["create"] })).toBe(false);
+  });
+
+  it("engineer can create a project", () => {
+    expect(canCreateProject("member", ["engineer"])).toBe(true);
+    expect(canCreateProject("member", ["qa"])).toBe(false);
+    expect(canCreateProject("member", [])).toBe(false);
+    expect(canCreateProject("admin", [])).toBe(true);
+    expect(canCreateProject("infra", [])).toBe(true);
+    expect(canCreateProject("observer", ["viewer"])).toBe(false);
+    expect(canCreateProject("observer", ["engineer"])).toBe(true);
   });
 });

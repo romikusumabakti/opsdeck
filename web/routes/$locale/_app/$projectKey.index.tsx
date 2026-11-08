@@ -289,7 +289,7 @@ function ProjectOverviewPage() {
 }
 
 // The members tab and panel read their own queries: the lists are only loaded
-// (and only exist) for a maintainer, so they cannot be hooks of the page.
+// (and only exist) for an engineer, so they cannot be hooks of the page.
 function MembersTab({ projectId }: { projectId: string }) {
   const tOv = useTranslations("projectOverview");
   const members = useSuspenseQuery(listProjectMembersQuery(projectId)).data;

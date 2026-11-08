@@ -76,7 +76,7 @@ const projectStatements = {
   member: ["manage"],
   // Acknowledge a failed run so it leaves Home's "Needs attention" for everyone.
   run: ["acknowledge"],
-  // Panel deploys: anyone can see history; only maintainers trigger, roll back
+  // Panel deploys: anyone can see history; only engineers trigger, roll back
   // or edit deploy targets.
   deploy: ["view", "run", "rollback", "configure"],
   // Environment variables (the managed .env): reading includes secret values.
@@ -97,6 +97,8 @@ const qaStatements = {
   mail: ["read", "delete"],
   clock: ["control"],
   database: ["backup", "restore"],
+  // QA restarts services to retest, but never edits what they run on.
+  service: ["logs", "control"],
   run: ["acknowledge"],
 } as const;
 
@@ -213,33 +215,54 @@ export function canCreateEnvironment(
 }
 
 // Who may put a new environment on a server, by the server's placement policy.
-// `restricted` is the rule above; `open` admits project maintainers
-// (environment:create) without org server:manage, so contributors (QA) never
-// create environments. Existing environments are never re-checked: placement
+// `restricted` is the rule above, plus one exception: the project's own default
+// server admits its engineers without org server:manage. `open` admits project
+// engineers (environment:create) without org server:manage, so QA never
+// creates environments. Existing environments are never re-checked: placement
 // only gates new bindings.
 export function canPlaceEnvironment(
   orgRole: string | null | undefined,
   projectRole: ProjectRole | null,
-  placement: "restricted" | "open"
+  placement: "restricted" | "open",
+  isProjectDefault: boolean
 ): boolean {
-  if (placement === "restricted") {
-    return canCreateEnvironment(orgRole, projectRole);
+  if (placement === "open" || isProjectDefault) {
+    return canProject(projectRole, { environment: ["create"] });
   }
-  return canProject(projectRole, { environment: ["create"] });
+  return canCreateEnvironment(orgRole, projectRole);
+}
+
+// Creating a project is for admins (project:create) and for engineers: an org
+// role that implies engineer everywhere (infra) counts, as does an explicit
+// engineer membership on any project. The creator becomes engineer of the new
+// project (see addProject).
+export function canCreateProject(
+  orgRole: string | null | undefined,
+  projectRoles: readonly ProjectRole[]
+): boolean {
+  if (canOrg(orgRole, { project: ["create"] })) return true;
+  return holdsEngineerAnywhere(orgRole, projectRoles);
+}
+
+function holdsEngineerAnywhere(
+  orgRole: string | null | undefined,
+  projectRoles: readonly ProjectRole[]
+): boolean {
+  if (effectiveProjectRole(orgRole, null) === "engineer") return true;
+  return projectRoles.some(
+    (role) => effectiveProjectRole(orgRole, role) === "engineer"
+  );
 }
 
 // Registering an app activates a repository in the CI server and sets its
-// notify secret, so it is for admins (integration:manage) and for maintainers
-// of any project. Org roles that imply maintainer on every project (infra)
-// count, as does an explicit maintainer membership. Generated pipelines,
+// notify secret, so it is for admins (integration:manage) and for engineers
+// of any project. Org roles that imply engineer on every project (infra)
+// count, as does an explicit engineer membership. Generated pipelines,
 // pipeline file commits and secret rotation stay with integration:manage.
 export function canRegisterApp(
   orgRole: string | null | undefined,
   projectRoles: readonly ProjectRole[]
 ): boolean {
   if (canOrg(orgRole, { integration: ["manage"] })) return true;
-  if (effectiveProjectRole(orgRole, null) === "engineer") return true;
-  return projectRoles.some(
-    (role) => effectiveProjectRole(orgRole, role) === "engineer"
-  );
+  return holdsEngineerAnywhere(orgRole, projectRoles);
 }

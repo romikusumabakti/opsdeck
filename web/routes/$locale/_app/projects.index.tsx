@@ -8,7 +8,7 @@ import type { SortKey } from "@/components/projects-overview";
 import { ProjectsOverview } from "@/components/projects-overview";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { canOrg } from "@/lib/permissions";
+import { canCreateProject } from "@/lib/permissions";
 import { getEnvironmentsLastOpenedQuery } from "@/web/api/environments";
 import { getOpenIssueCountsQuery } from "@/web/api/issues";
 import {
@@ -53,10 +53,13 @@ function ProjectsPage() {
 
   const orgRole = me?.orgRole ?? "member";
   // The list is every member's; only the create affordances depend on the role.
-  const canCreateProject = canOrg(orgRole, { project: ["create"] });
+  const mayCreateProject = canCreateProject(
+    orgRole,
+    Object.values(access.roles)
+  );
 
   if (projects.length === 0) {
-    return <ProjectsEmpty canCreate={canCreateProject} />;
+    return <ProjectsEmpty canCreate={mayCreateProject} />;
   }
 
   return (
@@ -66,7 +69,7 @@ function ProjectsPage() {
         subtitle={t("subtitle")}
         // Only "New project" here: an environment always belongs to a project,
         // so it is created from that project's card (which prefills the parent).
-        action={canCreateProject ? <NewProjectButton /> : undefined}
+        action={mayCreateProject ? <NewProjectButton /> : undefined}
       />
       <ProjectsOverview
         projects={projects}

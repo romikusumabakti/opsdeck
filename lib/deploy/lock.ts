@@ -49,7 +49,7 @@ export function isLockActive(
   return lock !== null && lock.expiresAt.getTime() > now.getTime();
 }
 
-// The environment owner (any project role) and project maintainers.
+// The environment owner (any project role) and project engineers.
 export function canLock(role: ProjectRole | null, isOwner: boolean): boolean {
   if (role === null) {
     return false;
@@ -57,7 +57,7 @@ export function canLock(role: ProjectRole | null, isOwner: boolean): boolean {
   return isOwner || role === "engineer";
 }
 
-// Only the owner and whoever set the lock; maintainers cannot unlock others'.
+// Only the owner and whoever set the lock; engineers cannot unlock others'.
 export function canUnlock(isOwner: boolean, isLocker: boolean): boolean {
   return isOwner || isLocker;
 }

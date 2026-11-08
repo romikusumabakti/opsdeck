@@ -970,8 +970,8 @@
     "sftpRootDescription": "Absolute path the file explorer is confined to. Use / for the whole host.",
     "placement": "Environment placement",
     "placementRestricted": "Restricted: admins and infra only",
-    "placementOpen": "Open: project maintainers",
-    "placementDescription": "Who may create new environments on this server. On an open server, project maintainers can create environments on this server without server permissions; only mark disposable dev/sandbox servers open. Existing environments are not affected.",
+    "placementOpen": "Open: project engineers",
+    "placementDescription": "Who may create new environments on this server. On an open server, project engineers can create environments on this server without server permissions; only mark disposable dev/sandbox servers open. Existing environments are not affected.",
     "sftpRootInvalid": "Must be an absolute path (start with /)"
   },
   "newServer": {
@@ -1869,14 +1869,14 @@
     "errorAddFailed": "Failed to add member",
     "roleDescription": {
       "viewer": "View the project and read service logs",
-      "qa": "Work on issues, back up and restore databases, control the clock",
+      "qa": "Work on issues, restart services, back up and restore databases, control the clock",
       "engineer": "Everything, plus manage services, databases, environments and members"
     },
     "removeConfirmTitle": "Remove {name} from {project}?",
     "removeConfirmDescription": "They lose access to this project, unless their organisation role still grants it.",
     "removeMember": "Remove {name}",
     "orgAccessTitle": "Also has access through their organisation role",
-    "orgAccessDescription": "Admins and infra are maintainers on every project; observers can view every project. Change org roles in Admin → Access."
+    "orgAccessDescription": "Admins and infra are engineers on every project; observers can view every project. Change org roles in Admin → Access."
   },
   "milestones": {
     "add": "Add",

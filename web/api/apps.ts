@@ -123,7 +123,7 @@ export type RegistrableRepoRow = Awaited<
 
 /**
  * Whether the caller may register apps with custom pipelines (admins and
- * project maintainers). The page loader must have loaded
+ * project engineers). The page loader must have loaded
  * getMyProjectAccessQuery; the app shell always has.
  */
 export function useCanRegisterApp(): boolean {
@@ -140,7 +140,7 @@ export function useCanManagePipelines(): boolean {
   return canOrg(useMe()?.orgRole, { integration: ["manage"] });
 }
 
-/** The projects the caller may create environments in (maintainers, admins). */
+/** The projects the caller may create environments in (engineers, admins). */
 export function projectsToAddEnvironmentTo<T extends { id: string }>(
   projects: readonly T[],
   roles: Record<string, ProjectRole>

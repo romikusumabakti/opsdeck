@@ -96,7 +96,7 @@ export function issueMessageKey(code: string): string {
 
 /**
  * ICU params of an issue's message: the prefixes the placement rules name
- * (a maintainer's names start with the project key).
+ * (an engineer's names start with the project key).
  */
 export function issueParams(projectKey: string): {
   prefix: string;

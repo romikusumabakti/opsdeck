@@ -103,7 +103,7 @@ export const environmentKindEnum = pgEnum("environment_kind", [
 
 // Who may place an environment on a server: "restricted" needs project
 // environment:create plus org server:manage (today's rule); "open" also admits
-// project contributors and above.
+// project QA and above.
 export const serverPlacementEnum = pgEnum("server_placement", [
   "restricted",
   "open",
