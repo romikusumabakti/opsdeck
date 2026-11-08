@@ -308,12 +308,22 @@ function extraServiceRows(
 
 /**
  * The container name Docker Compose gives service `svc` of the project in
- * `deployDir` without a `container_name`: `<project>-<svc>-1`, the project
- * being the directory's base name, lowercased, without characters Compose
- * drops.
+ * `deployDir`: the service's `container_name` when it fixes one, else
+ * `<project>-<svc>-1`. The project is the compose file's top-level `name:`
+ * when it has one, else the directory's base name; lowercased, without
+ * characters Compose drops.
  */
-export function composeContainerName(deployDir: string, svc: string): string {
-  const project = (deployDir.split("/").filter(Boolean).at(-1) ?? "")
+export function composeContainerName(
+  deployDir: string,
+  svc: string,
+  detected?: { projectName?: string | null; containerName?: string | null }
+): string {
+  if (detected?.containerName) return detected.containerName;
+  const project = (
+    detected?.projectName ??
+    deployDir.split("/").filter(Boolean).at(-1) ??
+    ""
+  )
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, "");
   return `${project}-${svc}-1`;
@@ -326,7 +336,8 @@ export function composeContainerName(deployDir: string, svc: string): string {
  * environment model always has one). Each name is the Compose default
  * container name; for a role whose source row names a fixed container
  * (`container_name`, not the source's own Compose default), that name is
- * suggested unchanged so the in-use check reports it.
+ * suggested unchanged so the in-use check reports it. `detected` carries the
+ * repository's compose `name:` and per-service `container_name`s.
  */
 export function suggestServices(
   targets: readonly Pick<EnvironmentSetupTarget, "deployDir" | "services">[],
@@ -334,8 +345,16 @@ export function suggestServices(
   source?: {
     rows: readonly { role: string; serviceName: string }[];
     targets: readonly { deployDir: string; services: readonly string[] }[];
-  } | null
+  } | null,
+  detected?: {
+    projectName?: string | null;
+    containerNames?: Readonly<Record<string, string | null>>;
+  }
 ): { role: SetupServiceRole; serviceName: string }[] {
+  const naming = (svc: string) => ({
+    projectName: detected?.projectName,
+    containerName: detected?.containerNames?.[svc],
+  });
   const all = targets.flatMap((t) =>
     t.services.map((svc) => ({ svc, deployDir: t.deployDir }))
   );
@@ -362,7 +381,9 @@ export function suggestServices(
   }
   const sourceDefaults = new Set(
     (source?.targets ?? []).flatMap((t) =>
-      t.services.map((svc) => composeContainerName(t.deployDir, svc))
+      t.services.map((svc) =>
+        composeContainerName(t.deployDir, svc, naming(svc))
+      )
     )
   );
   return roles.map(({ role, entry }) => {
@@ -372,7 +393,8 @@ export function suggestServices(
     return {
       role,
       serviceName:
-        fixed?.serviceName ?? composeContainerName(entry.deployDir, entry.svc),
+        fixed?.serviceName ??
+        composeContainerName(entry.deployDir, entry.svc, naming(entry.svc)),
     };
   });
 }

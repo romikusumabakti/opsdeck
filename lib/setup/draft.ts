@@ -128,14 +128,24 @@ export function defaultDatabaseName(
   return `${ctx.projectKey.toLowerCase()}_${ctx.slug.replace(/-/g, "_")}`;
 }
 
-/** The container name Compose gives a `db` service in the first target's dir. */
+/**
+ * The container name Compose gives a `db` service in the first target's dir:
+ * its `container_name` when the repository fixes one, else
+ * `<project>-db-1` with the compose `name:` (when set) as the project.
+ */
 export function defaultDbContainer(
   draft: EnvironmentDraft,
-  ctx: DraftContext
+  ctx: DraftContext,
+  detected?: { projectName?: string | null; containerName?: string | null }
 ): string {
+  if (detected?.containerName) return detected.containerName;
   const first = draft.targets[0];
   const dir = first ? (first.deployDir ?? defaultDeployDir(ctx)) : "";
-  const project = (dir.split("/").filter(Boolean).at(-1) ?? "")
+  const project = (
+    detected?.projectName ??
+    dir.split("/").filter(Boolean).at(-1) ??
+    ""
+  )
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, "");
   return `${project}-db-1`;

@@ -418,6 +418,24 @@ describe("suggestServices", () => {
     );
   });
 
+  it("prefers container_name, then the compose name over the directory", () => {
+    expect(
+      composeContainerName("/deployments/x", "web", {
+        containerName: "hris-web",
+      })
+    ).toBe("hris-web");
+    expect(
+      composeContainerName("/deployments/x", "web", { projectName: "HRIS" })
+    ).toBe("hris-web-1");
+    const [row] = suggestServices(
+      [{ deployDir: "/deployments/x", services: ["web"] }],
+      "web",
+      null,
+      { projectName: "hris", containerNames: { web: "hris-web" } }
+    );
+    expect(row?.serviceName).toBe("hris-web");
+  });
+
   it("gives two environments of an app in other dirs distinct names", () => {
     const one = suggestServices(
       [{ deployDir: "/deployments/hris-a", services: ["backend", "web"] }],

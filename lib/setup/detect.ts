@@ -1,4 +1,6 @@
 import { parse } from "yaml";
+import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
+import { PANEL_PIPELINE_MARKER } from "@/lib/ci/pipeline";
 
 /**
  * What a repository offers the setup wizard: its compose file and runtime
@@ -12,7 +14,14 @@ export type DetectedService = {
   build: string | null;
   ports: { host: string | null; container: number }[];
   profiles: string[];
+  /** The compose `container_name`, when the service fixes one. */
+  containerName: string | null;
 };
+
+export type RepoPipeline =
+  | { kind: "none" }
+  | { kind: "panel"; componentKey: string }
+  | { kind: "custom"; notifiesPanel: boolean };
 
 export type RepoDetectionIssue =
   | "no_compose"
@@ -21,9 +30,14 @@ export type RepoDetectionIssue =
 
 export type RepoDetection = {
   composeFile: string | null;
+  /** Compose override files next to the compose file, in merge order. */
+  composeOverrides: string[];
+  /** The compose top-level `name:`, which replaces the directory as project. */
+  projectName: string | null;
   /** Runtime services only: those without `profiles` (tools, migrations). */
   services: DetectedService[];
   dockerfiles: string[];
+  pipeline: RepoPipeline;
   entryService: string | null;
   entryContainerPort: number | null;
   issues: RepoDetectionIssue[];
@@ -111,6 +125,8 @@ function parseService(name: string, raw: unknown): DetectedService | null {
     profiles: Array.isArray(raw.profiles)
       ? raw.profiles.filter((p): p is string => typeof p === "string")
       : [],
+    containerName:
+      typeof raw.container_name === "string" ? raw.container_name : null,
   };
 }
 
@@ -119,6 +135,66 @@ function isDockerfile(path: string): boolean {
   if (segments.length > MAX_DOCKERFILE_DEPTH) return false;
   const base = segments.at(-1) ?? "";
   return base === "Dockerfile" || base.endsWith(".Dockerfile");
+}
+
+const WOODPECKER_NAMES = [".woodpecker.yaml", ".woodpecker.yml"];
+
+function detectPipeline(
+  files: { path: string; content?: string }[]
+): RepoPipeline {
+  const file =
+    WOODPECKER_NAMES.map((name) => files.find((f) => f.path === name)).find(
+      (f) => f !== undefined
+    ) ?? files.find((f) => f.path.startsWith(".woodpecker/"));
+  if (!file) return { kind: "none" };
+  const content = file.content ?? "";
+  const key = PANEL_PIPELINE_MARKER.exec(content)?.[1];
+  if (key) return { kind: "panel", componentKey: key };
+  return { kind: "custom", notifiesPanel: content.includes("opsdeck_notify") };
+}
+
+const COMPOSE_OVERRIDE_NAMES = [
+  "compose.override.yaml",
+  "compose.override.yml",
+  "docker-compose.override.yaml",
+  "docker-compose.override.yml",
+];
+
+/**
+ * A build spec to start from: the root Dockerfile builds image `<key>`, each
+ * `<dir>/Dockerfile` builds `<key>-<dir>`, and the compose file (plus its
+ * override, when present) goes into the bundle. Null without a Dockerfile or
+ * a compose file, or when the result is not a valid spec.
+ */
+export function suggestedBuildSpec(
+  detection: RepoDetection,
+  componentKey: string,
+  branch: string
+): BuildSpec | null {
+  if (!detection.composeFile) return null;
+  const images = detection.dockerfiles.flatMap((path) => {
+    const segments = path.split("/");
+    if (segments.length === 1) {
+      return path === "Dockerfile"
+        ? [{ name: componentKey, dockerfile: path, context: "." }]
+        : [];
+    }
+    const [dir] = segments;
+    return segments.length === 2 && segments[1] === "Dockerfile" && dir
+      ? [{ name: `${componentKey}-${dir}`, dockerfile: path, context: dir }]
+      : [];
+  });
+  if (images.length === 0) return null;
+  const bundle = [detection.composeFile, ...detection.composeOverrides];
+  const candidate = {
+    branches: [branch],
+    images,
+    bundleFiles: bundle.map((path) => ({ from: path, to: path })),
+    checks: [],
+    timeoutMinutes: 60,
+  };
+  const parsed = buildSpecSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
 }
 
 export function detectRepo(
@@ -133,8 +209,13 @@ export function detectRepo(
   ).find((f) => f !== undefined);
   const result: RepoDetection = {
     composeFile: compose?.path ?? null,
+    composeOverrides: files
+      .map((f) => f.path)
+      .filter((path) => COMPOSE_OVERRIDE_NAMES.includes(path)),
+    projectName: null,
     services: [],
     dockerfiles,
+    pipeline: detectPipeline(files),
     entryService: null,
     entryContainerPort: null,
     issues,
@@ -150,6 +231,7 @@ export function detectRepo(
     if (!(isRecord(doc) && isRecord(doc.services))) {
       throw new Error("no services map");
     }
+    result.projectName = typeof doc.name === "string" ? doc.name : null;
     services = Object.entries(doc.services).flatMap(([name, raw]) => {
       const service = parseService(name, raw);
       return service ? [service] : [];
