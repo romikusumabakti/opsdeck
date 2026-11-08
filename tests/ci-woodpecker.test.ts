@@ -47,7 +47,13 @@ describe("woodpecker provider", () => {
   it("lists repos, mapping ids to strings and inactive repos to empty ids", async () => {
     const { calls, provider } = mockFetch([
       json([
-        { id: 7, full_name: "o/a", forge_remote_id: REMOTE, active: true },
+        {
+          id: 7,
+          full_name: "o/a",
+          forge_remote_id: REMOTE,
+          active: true,
+          default_branch: "develop",
+        },
         { full_name: "o/b", forge_remote_id: "x", active: false },
       ]),
     ]);
@@ -55,7 +61,13 @@ describe("woodpecker provider", () => {
     expect(calls[0]?.url).toBe(`${BASE}/api/user/repos?all=true`);
     expect(calls[0]?.headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
     expect(repos).toEqual([
-      { ciRepoId: "7", fullName: "o/a", forgeRemoteId: REMOTE, active: true },
+      {
+        ciRepoId: "7",
+        fullName: "o/a",
+        forgeRemoteId: REMOTE,
+        active: true,
+        defaultBranch: "develop",
+      },
       { ciRepoId: "", fullName: "o/b", forgeRemoteId: "x", active: false },
     ]);
   });

@@ -12,6 +12,7 @@ type WoodpeckerRepo = {
   full_name: string;
   forge_remote_id: string;
   active?: boolean;
+  default_branch?: string | null;
 };
 
 function toCiRepo(repo: WoodpeckerRepo): CiRepo {
@@ -20,6 +21,7 @@ function toCiRepo(repo: WoodpeckerRepo): CiRepo {
     fullName: repo.full_name,
     forgeRemoteId: repo.forge_remote_id,
     active: repo.active === true,
+    ...(repo.default_branch ? { defaultBranch: repo.default_branch } : {}),
   };
 }
 

@@ -195,6 +195,7 @@ vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
         fullName: "dss/other-thing",
         forgeRemoteId: "{r3}",
         active: true,
+        defaultBranch: "develop",
       },
     ],
   })),
@@ -611,6 +612,31 @@ describe("POST /api/setup/new-environment", () => {
     expect(await res.json()).toMatchObject({ code: "ciUnavailable" });
   });
 
+  it("only an integration manager chooses a pipeline", async () => {
+    const chosen = {
+      ...freshInput,
+      advanced: {
+        pipelines: [{ repoFullName: "dss/panel-canary", mode: "custom" }],
+      },
+    };
+    for (const path of [
+      "/api/setup/new-environment",
+      "/api/setup/new-environment/preview",
+    ]) {
+      const res = await post(path, chosen);
+      expect(res.status, path).toBe(403);
+      expect(await res.json()).toMatchObject({ code: "pipelineForbidden" });
+    }
+    expect(state.calls).toEqual([]);
+    state.orgRole = "admin";
+    const res = await post("/api/setup/new-environment/preview", chosen);
+    expect(res.status).toBe(200);
+    expect((await res.json()).plan.registrations[0]).toMatchObject({
+      pipelineMode: "custom",
+      buildSpec: null,
+    });
+  });
+
   it("qa cannot create environments", async () => {
     state.projectRole = "qa";
     for (const path of [
@@ -749,6 +775,8 @@ describe("GET /api/setup/repos", () => {
         appKey: "hris",
         appName: "HRIS",
         componentKey: "hris",
+        // The CI server does not know it: the usual name.
+        defaultBranch: "main",
       },
       {
         ciConnectionId: CI,
@@ -756,6 +784,7 @@ describe("GET /api/setup/repos", () => {
         appKey: null,
         appName: null,
         componentKey: null,
+        defaultBranch: "develop",
       },
     ]);
   });
