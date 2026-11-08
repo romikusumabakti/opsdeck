@@ -172,7 +172,14 @@ export type NewEnvironmentPlan = {
     url: string | null;
   };
   issues: SetupIssue[];
-  warnings: { field: string; code: "pipelineNotNotifying" }[];
+  /**
+   * Non-blocking: a custom pipeline file that does not notify the Panel, or
+   * an admin's custom choice for a repository without one.
+   */
+  warnings: {
+    field: string;
+    code: "pipelineNotNotifying" | "pipelineFileMissing";
+  }[];
 };
 
 const PASSWORD_VARIABLE = "DB_PASSWORD";
@@ -329,6 +336,9 @@ export function resolveNewEnvironment(
     if (mode === "custom") {
       if (pipeline.kind === "custom" && !pipeline.notifiesPanel) {
         warnings.push({ field, code: "pipelineNotNotifying" });
+      } else if (pipeline.kind !== "custom") {
+        // Chosen custom, but nothing in the repository builds it yet.
+        warnings.push({ field, code: "pipelineFileMissing" });
       }
     } else if (chosen?.buildSpec) {
       buildSpec = chosen.buildSpec;

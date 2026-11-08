@@ -478,6 +478,17 @@ describe("resolveNewEnvironment", () => {
         buildSpec: null,
       });
       expect(custom.issues).toEqual([]);
+      // Custom without a pipeline file: a warning, not an issue.
+      expect(custom.warnings).toEqual([
+        { field: "repos.0", code: "pipelineFileMissing" },
+      ]);
+      const withFile = resolveNewEnvironment(
+        choose([
+          { repoFullName: "dss-consulting/panel-canary-2", mode: "custom" },
+        ]),
+        freshRepo({ kind: "custom", notifiesPanel: true })
+      );
+      expect(withFile.warnings).toEqual([]);
     });
 
     it("is the escape from repoNotBuildable", () => {

@@ -41,9 +41,10 @@ export function RepoListRow({
   const target = key
     ? plan?.setup.targets.find((x) => x.componentKey === key)
     : undefined;
-  const notNotifying = plan?.warnings.some(
-    (w) => w.field === `repos.${index}` && w.code === "pipelineNotNotifying"
-  );
+  const warned = (code: string) =>
+    plan?.warnings.some((w) => w.field === `repos.${index}` && w.code === code);
+  const notNotifying = warned("pipelineNotNotifying");
+  const fileMissing = warned("pipelineFileMissing");
   return (
     <li className="flex flex-col gap-2 rounded-lg border p-3">
       <div className="flex items-center gap-2">
@@ -98,6 +99,12 @@ export function RepoListRow({
               ),
             })}
           </span>
+        </p>
+      )}
+      {fileMissing && (
+        <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>{t("pipelineFileMissing")}</span>
         </p>
       )}
       {issue && <FieldError>{message(issue)}</FieldError>}
