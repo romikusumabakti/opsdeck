@@ -325,7 +325,6 @@
     "title": "Deploy",
     "subtitle": "Deploy tag image hasil build CI ke environment ini, dan rollback kalau rilis bermasalah.",
     "addTarget": "Tambah target",
-    "editTarget": "Ubah target",
     "emptyTitle": "Belum ada target deploy",
     "emptyDescription": "Target menghubungkan komponen dengan server dan project Compose di environment ini. Tambahkan target untuk men-deploy build yang dilaporkan CI.",
     "autoDeploy": "Auto-deploy",
@@ -376,8 +375,6 @@
     "form": {
       "createTitle": "Tambah target deploy",
       "createDescription": "Tempat komponen di-deploy di environment ini.",
-      "editTitle": "Ubah target deploy",
-      "editDescription": "Komponen sebuah target tidak bisa diubah.",
       "componentKey": "Component key",
       "componentKeyHint": "Komponen sesuai yang terdaftar untuk notifikasi build, misalnya dplk-accounting.",
       "server": "Server",
@@ -399,9 +396,7 @@
       "healthTimeoutSecondsHint": "Antara 60 dan 900.",
       "autoDeploy": "Deploy build baru secara otomatis",
       "backupBeforeDeploy": "Backup database sebelum setiap deploy",
-      "save": "Simpan",
       "create": "Tambah target",
-      "saved": "Target disimpan",
       "created": "Target ditambahkan",
       "invalid": "Nilai ini tidak sesuai format yang dijelaskan di bawah.",
       "componentNotFound": "Belum ada komponen terdaftar dengan key ini.",
@@ -436,7 +431,9 @@
       "heldBuilds": "{count, plural, =0 {Tidak ada build yang ditahan.} other {# build ditahan.}}",
       "saveLock": "Simpan kunci"
     },
-    "waitingForFirstBuild": "Menunggu build pertama dari {branch}"
+    "waitingForFirstBuild": "Menunggu build pertama dari {branch}",
+    "settingsLink": "Pengaturan deploy",
+    "settingsHint": "Branch, server, dan target deploy diubah di Pengaturan → Sumber & Deploy."
   },
   "provisioning": {
     "title": "Provisioning",
@@ -876,8 +873,6 @@
   "environmentSettings": {
     "title": "Pengaturan environment",
     "subtitle": "Ubah konfigurasi environment atau hapus environment seluruhnya.",
-    "editTitle": "Detail environment",
-    "editDescription": "Perbarui konfigurasi server database, backend, dan frontend untuk environment ini.",
     "duplicateTitle": "Duplikasi environment",
     "duplicateDescription": "Buat environment baru dengan konfigurasi environment ini sebagai isian awal. Password dan API key tidak ikut disalin.",
     "duplicateButton": "Duplikasi environment",
@@ -890,8 +885,22 @@
     "deleteEscrowedDescription": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Menghapusnya memusnahkan variabel itu selamanya: konfirmasi hanya jika sudah disimpan di tempat lain.",
     "deleteFailed": "Gagal menghapus environment",
     "deletedSuccess": "Environment {name} dihapus",
-    "tabConfig": "Konfigurasi",
-    "tabDanger": "Zona berbahaya"
+    "tabDanger": "Zona berbahaya",
+    "tabGeneral": "Umum",
+    "tabSourceDeploy": "Sumber & Deploy",
+    "tabDatabase": "Basis data",
+    "tabDomain": "Domain",
+    "tabMailMockTime": "Mail & Mock time",
+    "serverHint": "Semua layanan dan target deploy environment ini berjalan di server ini.",
+    "serverLocked": "Server terkunci setelah deploy pertama. Pengguna dengan akses manajemen server masih bisa memindahkannya.",
+    "serverMixed": "Layanan environment ini berjalan di server yang berbeda. Ubah satu per satu di Opsi lanjutan.",
+    "urlFromDomain": "Diatur oleh domain environment. Ubah alamatnya di tab Domain.",
+    "slug": "Slug",
+    "slugHint": "Bagian alamat environment ini di Panel, diambil dari namanya saat dibuat.",
+    "noTargets": "Belum ada repositori yang di-deploy ke environment ini.",
+    "noDatabase": "Tanpa basis data",
+    "mockTimeTitle": "Mock time",
+    "mockTimeDescription": "API mock time milik backend, dipakai oleh halaman Mock time."
   },
   "userMenu": {
     "users": "Manajemen pengguna",
