@@ -67,6 +67,9 @@ function NewEnvironmentPage() {
         project={project}
         apps={apps}
         canPublish={canOrg(me?.orgRole, { server: ["manage"] })}
+        canChoosePipelines={canOrg(me?.orgRole, {
+          integration: ["manage"],
+        })}
         initialFrom={from}
         initialRepo={repo}
       />

@@ -14,10 +14,11 @@ import {
   projectSwitchHref,
 } from "@/lib/nav-path";
 import {
-  canCreateEnvironment,
   canCreateProject,
+  canProject,
   type OrgRole,
   type ProjectRole,
+  SETUP_PERMISSIONS,
 } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { EnvironmentListItem } from "@/web/api/environments";
@@ -314,7 +315,7 @@ export function HeaderBreadcrumb({
         activeEnvironment={activeEnv}
         projectName={activeProject.name}
         createHref={
-          canCreateEnvironment(orgRole, role)
+          canProject(role, SETUP_PERMISSIONS)
             ? `/${activeProject.key}/environments/new`
             : null
         }

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
-import { canCreateEnvironment, canOrg } from "@/lib/permissions";
+import { canOrg, canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
 import { environmentDomainQuery } from "@/web/api/environment-domains";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { getMailpitSettingsQuery } from "@/web/api/mailpit-settings";
@@ -61,8 +61,8 @@ function EnvironmentSettingsPage() {
   const tDomains = useTranslations("domains");
   const me = useMe();
   const canManageServers = canOrg(me?.orgRole, { server: ["manage"] });
-  // Duplicating opens the new-environment page, which needs both.
-  const canDuplicate = canCreateEnvironment(me?.orgRole, role);
+  // Duplicating opens the New environment page (?from=), for engineers.
+  const canDuplicate = canProject(role, SETUP_PERMISSIONS);
   const environment = useSuspenseQuery(
     getEnvironmentByIdQuery(environmentId)
   ).data;
