@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   branchExists,
   commitFile,
+  FILE_TOO_LARGE,
   listRepoDir,
   readRepoFile,
+  readRepoFileOrLarge,
 } from "@/lib/ci/forges/bitbucket";
 import { CiProviderError } from "@/lib/ci/types";
 
@@ -287,6 +289,17 @@ describe("bitbucket readRepoFile", () => {
     expect(await readRepoFile(AUTH, REPO, "main", "big.yaml", m.impl)).toBe(
       null
     );
+  });
+
+  it("reports a file over 256 KiB as FILE_TOO_LARGE for fail-closed callers", async () => {
+    const m = mockFetch(new Response("a".repeat(256 * 1024 + 1)));
+    expect(
+      await readRepoFileOrLarge(AUTH, REPO, "main", "big.yaml", m.impl)
+    ).toBe(FILE_TOO_LARGE);
+    const missing = mockFetch(new Response("nope", { status: 404 }));
+    expect(
+      await readRepoFileOrLarge(AUTH, REPO, "main", "x.yaml", missing.impl)
+    ).toBeNull();
   });
 
   it("still throws on other failures", async () => {
