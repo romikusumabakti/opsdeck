@@ -122,6 +122,24 @@ const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   mail: ["backendMockTimeApiUrl", "backendMockTimeApiKey"],
 };
 
+/** An own-container database bound to the server the picker set. */
+export function ownsContainerDb(values: {
+  hasDatabase: boolean;
+  dbKind: SettingsValues["dbKind"];
+}): boolean {
+  return values.hasDatabase && values.dbKind === "container";
+}
+
+// The picker moved the database: it is an own container now on the app's
+// (backend) server, and that differs from its saved server.
+function pickerMovedDatabase(values: SettingsValues, saved: SettingsValues) {
+  return (
+    ownsContainerDb(values) &&
+    values.dbServerId === values.backendServerId &&
+    values.dbServerId !== saved.dbServerId
+  );
+}
+
 export function settingsValues(
   environment: SettingsEnvironment,
   targets: DeployTargetState[]
@@ -417,8 +435,13 @@ export function useSettingsForm(
   }
 
   async function saveTab(tab: SettingsTab): Promise<void> {
-    const fields = TAB_FIELDS[tab];
     const values = form.getValues();
+    // The one server picker owns moving an own-container database with the
+    // app; Source & Deploy saves that move.
+    const fields =
+      tab === "source" && pickerMovedDatabase(values, saved.current)
+        ? [...TAB_FIELDS.source, "dbServerId" as const]
+        : TAB_FIELDS[tab];
     form.clearErrors([
       ...fields,
       ...(tab === "source" ? (["targets"] as const) : []),

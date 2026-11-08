@@ -13,12 +13,12 @@ import { type ServerOption, useSettingsFormContext } from "./settings-form";
 // Field building blocks shared by the Settings tabs.
 
 /** A tab's save button; submitting runs the tab's save. */
-export function SaveButton() {
+export function SaveButton({ disabled = false }: { disabled?: boolean }) {
   const t = useTranslations("environmentForm");
   const { formState } = useSettingsFormContext();
   return (
     <div className="flex justify-end">
-      <Button type="submit" disabled={formState.isSubmitting}>
+      <Button type="submit" disabled={disabled || formState.isSubmitting}>
         {formState.isSubmitting ? t("submitting") : t("saveChanges")}
       </Button>
     </div>

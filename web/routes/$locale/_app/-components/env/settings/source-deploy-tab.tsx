@@ -27,6 +27,7 @@ import { TargetFormDialog } from "../deploys/target-form-dialog";
 import { useVariableErrorText } from "../variables/variable-form-dialog";
 import { EnumSelect, Hint, SaveButton, ServerSelect } from "./fields";
 import {
+  ownsContainerDb,
   SERVICE_TYPES,
   type ServerOption,
   type SettingsEnvironment,
@@ -85,14 +86,30 @@ export function SourceDeployTab({
     control: form.control,
     name: ["hasFrontend", "hasDatabase", "dbKind"],
   });
-  // The one picker binds the app's services (backend and frontend); the
-  // database's own server is set on the Database tab.
+  // "This environment runs on this server": the picker binds the app's
+  // services, the deploy targets and an own-container database. A shared
+  // database stays with its host, so its server is never moved.
+  const ownDb = ownsContainerDb({ hasDatabase, dbKind });
+  const sharedDb = hasDatabase && dbKind === "shared";
   const appServers = [
     backendServerId,
     ...(hasFrontend ? [frontendServerId] : []),
+    ...(ownDb ? [dbServerId] : []),
   ].filter((id) => id !== "");
   const mixed = new Set(appServers).size > 1;
   const locked = deployed && !canManageServers;
+  const savedServerId = form.formState.defaultValues?.backendServerId ?? "";
+  // Moving the app away from its shared database's host would break the
+  // setup: the save is blocked until the server is put back.
+  const sharedDbElsewhere =
+    sharedDb &&
+    backendServerId !== savedServerId &&
+    backendServerId !== dbServerId;
+  // Engineers are not offered that move at all.
+  const pickerServers =
+    sharedDb && !canManageServers
+      ? servers.filter((s) => s.id === savedServerId || s.id === dbServerId)
+      : servers;
   const names = new Map(servers.map((s) => [s.id, s.name]));
   // A target deploys to one of the servers the services run on (a shared
   // database's server comes from its host and is not one of them here).
@@ -104,12 +121,11 @@ export function SourceDeployTab({
     ]),
   ].map((id) => ({ id, name: names.get(id) ?? id }));
 
-  // The one picker moves the app's services, and each deploy target with
-  // them.
   function onServer(serverId: string) {
     const opts = { shouldDirty: true } as const;
     form.setValue("backendServerId", serverId, opts);
     if (hasFrontend) form.setValue("frontendServerId", serverId, opts);
+    if (ownDb) form.setValue("dbServerId", serverId, opts);
     for (const index of targets.keys()) {
       form.setValue(`targets.${index}.serverId`, serverId, opts);
     }
@@ -241,10 +257,14 @@ export function SourceDeployTab({
                 id="env-server"
                 value={mixed ? "" : backendServerId}
                 onChange={onServer}
-                servers={servers}
+                servers={pickerServers}
                 disabled={locked || mixed}
               />
-              {locked ? (
+              {sharedDbElsewhere ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {t("serverSharedDbElsewhere")}
+                </p>
+              ) : locked ? (
                 <Hint>{t("serverLocked")}</Hint>
               ) : mixed ? (
                 <Hint>
@@ -358,7 +378,7 @@ export function SourceDeployTab({
               )}
             </AdvancedOptions>
 
-            <SaveButton />
+            <SaveButton disabled={sharedDbElsewhere} />
           </form>
         </CardContent>
       </Card>
