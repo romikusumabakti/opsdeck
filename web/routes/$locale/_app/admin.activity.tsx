@@ -73,6 +73,17 @@ function message(
         from: String(d.from),
         to: String(d.to),
       });
+    case "project.defaultServerChanged":
+      return d.server
+        ? t("projectDefaultServerSet", {
+            actor,
+            project: String(d.project),
+            server: String(d.server),
+          })
+        : t("projectDefaultServerCleared", {
+            actor,
+            project: String(d.project),
+          });
     case "user.offboarded":
       return t("userOffboarded", { actor, user: String(d.user) });
     case "user.roleChanged":

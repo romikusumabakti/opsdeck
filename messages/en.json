@@ -134,6 +134,7 @@
     "activity": "Activity",
     "jira": "Jira",
     "admin": "Admin",
+    "integrations": "Integrations",
     "badgeAssignedOpen": "{count, plural, one {# open issue assigned to you} other {# open issues assigned to you}}",
     "badgeProjectOpen": "{count, plural, one {# open issue in this project} other {# open issues in this project}}",
     "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}",
@@ -1421,7 +1422,7 @@
     "sharedDatabaseConfined": "This environment's database host is shared; you can only use this environment's own databases. Ask an admin for others.",
     "sharedDatabaseServiceConfined": "This database container is shared with other environments; only an admin can control it or read its logs.",
     "databaseHostVersion": "That container runs a Postgres older than 15; register only Postgres 15 or newer.",
-    "defaultServerForbidden": "Only an admin can change the project's default server."
+    "defaultServerForbidden": "Only admins and infra can change the project's default server."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1672,8 +1673,8 @@
     "defaultServer": "Default server",
     "defaultServerDescription": "New environments of this project go here unless someone picks another server.",
     "defaultServerNone": "None",
-    "defaultServerSet": "Set by an admin",
-    "defaultServerAdminOnly": "Only an admin can change the default server."
+    "defaultServerSet": "Set by an admin or infra",
+    "defaultServerAdminOnly": "Only admins and infra can change the default server."
   },
   "issues": {
     "title": "Issues",
@@ -2029,7 +2030,9 @@
     "databaseHostDeleted": "{actor} removed database host {label} ({container}) from {server}",
     "cloudflareAccountUpdated": "{actor} updated the Cloudflare account ({fields})",
     "environmentDomainUpdated": "{actor} set the domain of {environment} to {hostname}",
-    "environmentDomainDeleted": "{actor} removed the domain {hostname} from {environment}"
+    "environmentDomainDeleted": "{actor} removed the domain {hostname} from {environment}",
+    "projectDefaultServerSet": "{actor} set the default server of {project} to {server}",
+    "projectDefaultServerCleared": "{actor} cleared the default server of {project}"
   },
   "jira": {
     "title": "Jira",
@@ -2453,7 +2456,24 @@
     "keepStored": "Keep stored token",
     "saveChanges": "Save changes",
     "submitting": "Saving…",
-    "saved": "CI server saved"
+    "saved": "CI server saved",
+    "verify": "Verify",
+    "verifyDescription": "Checks the saved token and forge credentials.",
+    "verifyCi": "CI API token",
+    "verifyForge": "Forge credentials",
+    "verifyOk": "works",
+    "verifyFailed": "failed",
+    "verifyNotConfigured": "not configured",
+    "verifyCodes": {
+      "ciTokenMissing": "No API token is stored.",
+      "ciTokenRejected": "The CI server rejected the token.",
+      "ciUnreachable": "The CI server could not be reached (check the URL and Access).",
+      "ciFailed": "The CI server answered with an error.",
+      "forgeCredentialsRejected": "The forge rejected the username or token.",
+      "forgeUnreachable": "The forge could not be reached.",
+      "forgeUnsupported": "Checking this forge is not supported yet.",
+      "forgeFailed": "The forge answered with an error."
+    }
   },
   "cloudflareAccount": {
     "title": "Cloudflare account",
@@ -2538,34 +2558,6 @@
     "variableTemplates": "Variables"
   },
   "appForm": {
-    "appTitle": "App",
-    "name": "Name",
-    "appKey": "App key",
-    "appKeyDescription": "Lowercase letters, digits and '-'. Cannot be changed later.",
-    "componentTitle": "Component {number}",
-    "removeComponent": "Remove component",
-    "addComponent": "Add component",
-    "connection": "CI connection",
-    "connectionPlaceholder": "Choose a CI connection",
-    "noForgeToken": "This connection has no forge token, so the generated pipeline file cannot be committed to the repository.",
-    "repo": "Repository",
-    "repoSearch": "Search repositories",
-    "reposLoading": "Loading repositories…",
-    "reposFailed": "Could not load the repositories",
-    "noRepos": "No matching repositories",
-    "linkedTo": "Linked to {component}",
-    "alreadyActive": "Active in Woodpecker",
-    "changeRepo": "Change",
-    "repoRequired": "Choose a repository",
-    "componentKey": "Component key",
-    "bundleImage": "Bundle image",
-    "bundleImageDescription": "The image the pipeline pushes the deploy bundle to.",
-    "mode": "Pipeline",
-    "modeCustom": "Custom",
-    "modeGenerated": "Generated",
-    "modeCustomDescription": "Woodpecker keeps using the repository's own pipeline file.",
-    "modeGeneratedDescription": "The Panel generates the pipeline from the build spec below and commits it as .woodpecker.yaml to every branch it builds.",
-    "generatedAdminOnly": "Only admins can choose a generated pipeline.",
     "branches": "Branches",
     "branchesDescription": "Comma-separated.",
     "tagShaLength": "Commit length in tags",
@@ -2617,21 +2609,6 @@
       "duplicateBundleTarget": "Two bundle files have the same target",
       "duplicateCheck": "Two checks have the same name",
       "invalid": "This value is not valid"
-    },
-    "branch": "Branch",
-    "branchDescription": "The branch the repository is read from and the first build starts on.",
-    "branchInvalid": "Enter a valid branch name.",
-    "detect": {
-      "title": "Detected in the repository",
-      "loading": "Reading the repository…",
-      "failed": "Could not read the repository",
-      "composeFile": "Compose file:",
-      "ports": "container port {ports}",
-      "entry": "Entry",
-      "dockerfiles": "Dockerfiles:",
-      "issue_no_compose": "No compose file found in the repository root or its first folders.",
-      "issue_no_dockerfile": "No Dockerfile found.",
-      "issue_compose_parse_error": "The compose file could not be parsed."
     }
   },
   "variables": {

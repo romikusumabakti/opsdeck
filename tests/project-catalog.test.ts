@@ -12,6 +12,9 @@ const state = vi.hoisted(() => ({
   roles: {} as Record<string, string>,
   inserts: [] as { table: unknown; values: unknown; inTx: boolean }[],
   updates: [] as { table: unknown; values: Record<string, unknown> }[],
+  // Each select's rows, in call order (the project before, the server name).
+  selects: [] as unknown[][],
+  activity: [] as unknown[],
   committed: false,
 }));
 
@@ -33,6 +36,11 @@ vi.mock("@/lib/authz", async (importOriginal) => ({
     projectId: PROJECT_ID,
   }),
 }));
+vi.mock("@/lib/activity", () => ({
+  recordActivity: async (entry: unknown) => {
+    state.activity.push(entry);
+  },
+}));
 vi.mock("@/lib/db", () => {
   const writer = (inTx: boolean) => ({
     insert: (table: unknown) => ({
@@ -46,6 +54,11 @@ vi.mock("@/lib/db", () => {
   return {
     db: {
       ...writer(false),
+      select: () => ({
+        from: () => ({
+          where: () => ({ limit: async () => state.selects.shift() ?? [] }),
+        }),
+      }),
       update: (table: unknown) => ({
         set: (values: Record<string, unknown>) => {
           state.updates.push({ table, values });
@@ -75,6 +88,8 @@ beforeEach(() => {
   state.roles = {};
   state.inserts = [];
   state.updates = [];
+  state.selects = [];
+  state.activity = [];
   state.committed = false;
 });
 
@@ -151,5 +166,6 @@ describe("editProject default server", () => {
       true
     );
     expect(state.updates[0]?.values).not.toHaveProperty("defaultServerId");
+    expect(state.activity).toEqual([]);
   });
 });

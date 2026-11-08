@@ -60,6 +60,29 @@ export function parsePipelineNumber(
   return Number.isSafeInteger(number) ? number : null;
 }
 
+/**
+ * Checks that the API token works: Woodpecker's current-user call. Throws
+ * CiProviderError (status 0 when unreachable) like every provider call.
+ */
+export async function verifyWoodpeckerToken(
+  baseUrl: string,
+  apiToken: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<void> {
+  const res = await ciFetch(
+    "Woodpecker GET /api/user",
+    `${baseUrl.replace(/\/+$/, "")}/api/user`,
+    { method: "GET", headers: { Authorization: `Bearer ${apiToken}` } },
+    fetchImpl
+  );
+  if (!res.ok) {
+    throw new CiProviderError(
+      `Woodpecker GET /api/user failed with ${res.status}`,
+      res.status
+    );
+  }
+}
+
 const orNull = (value: unknown) =>
   typeof value === "string" && value !== "" ? value : null;
 

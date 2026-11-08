@@ -105,10 +105,10 @@ async function renderSidebar(orgRole: OrgRole, pathname: string) {
 const hrefs = () =>
   [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
 
-/** The admin group's rows, in order (the group under the "Admin" label). */
-function adminRows(): string[] {
+/** A sidebar group's rows, in order (the list under its label). */
+function groupRows(heading: string): string[] {
   const label = [...container.querySelectorAll("h2")].find(
-    (h) => h.textContent === messages.nav.admin
+    (h) => h.textContent === heading
   );
   const list = label?.parentElement?.querySelector("ul");
   return [...(list?.querySelectorAll("a") ?? [])].map(
@@ -132,16 +132,24 @@ describe("app sidebar", () => {
     }
   );
 
-  it("admin group: Activity, Users, Repositories, Jira, CI, Cloudflare; no Tunnels", async () => {
+  it("admin group: Activity, Users, Repositories, then Integrations: Jira, CI, Cloudflare; no Tunnels", async () => {
     await renderSidebar("admin", "/admin/activity");
-    expect(adminRows()).toEqual([
+    expect(groupRows(messages.nav.admin)).toEqual([
       messages.nav.activity,
       messages.nav.users,
       messages.nav.repositories,
+    ]);
+    expect(groupRows(messages.nav.integrations)).toEqual([
       messages.nav.jira,
       messages.nav.ci,
       messages.nav.cloudflare,
     ]);
+    const headings = [...container.querySelectorAll("h2")].map(
+      (h) => h.textContent
+    );
+    expect(headings.indexOf(messages.nav.integrations)).toBe(
+      headings.indexOf(messages.nav.admin) + 1
+    );
     expect(hrefs()).toContain("/admin/repositories");
     expect(hrefs().some((h) => h?.startsWith("/admin/tunnels"))).toBe(false);
   });
@@ -153,6 +161,15 @@ describe("app sidebar", () => {
 
   it("shows an observer only the admin rows its role allows", async () => {
     await renderSidebar("observer", "/admin/activity");
-    expect(adminRows()).toEqual([messages.nav.activity, messages.nav.users]);
+    expect(groupRows(messages.nav.admin)).toEqual([
+      messages.nav.activity,
+      messages.nav.users,
+    ]);
+    // No integration it may open, so no empty Integrations label.
+    expect(
+      [...container.querySelectorAll("h2")].some(
+        (h) => h.textContent === messages.nav.integrations
+      )
+    ).toBe(false);
   });
 });

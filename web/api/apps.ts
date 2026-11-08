@@ -1,14 +1,7 @@
-import {
-  keepPreviousData,
-  queryOptions,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import type { BuildSpec } from "@/lib/ci/build-spec";
-import { canOrg, canProject, type ProjectRole } from "@/lib/permissions";
 import { api } from "@/web/api/client";
-import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
-import { useMe } from "@/web/api/session";
 
 const routes = api.api.apps;
 
@@ -21,6 +14,32 @@ export const listAppsQuery = () =>
 
 export type AppRow = Awaited<ReturnType<typeof listApps>>[number];
 export type AppComponentRow = AppRow["components"][number];
+
+/**
+ * Where "Add environment" for an app goes: the New environment page, with
+ * the app's repository preselected, of `projectKey` or else of the one
+ * project that holds the app's environments; with no such project, the
+ * projects list, which says to pick one.
+ */
+export function addEnvironmentHref(
+  app: { id: string; components: readonly { repoFullName: string }[] },
+  projects: readonly {
+    key: string;
+    environments: readonly { appId: string | null }[];
+  }[],
+  projectKey?: string
+): string {
+  const holding = projects.filter((p) =>
+    p.environments.some((e) => e.appId === app.id)
+  );
+  const target =
+    projects.find((p) => p.key === projectKey?.toUpperCase()) ??
+    (holding.length === 1 ? holding[0] : undefined);
+  if (!target) return "/projects?newEnvironment=1";
+  const repo = app.components[0]?.repoFullName;
+  const query = repo ? `?repo=${encodeURIComponent(repo)}` : "";
+  return `/${target.key}/environments/new${query}`;
+}
 
 export async function rotateNotifySecret(appKey: string, componentKey: string) {
   return parseResponse(
@@ -68,36 +87,3 @@ export const pipelinePreviewQuery = (
     enabled: buildSpec !== null,
     placeholderData: keepPreviousData,
   });
-
-/**
- * Whether the caller may use generated pipelines, commit pipeline files and
- * rotate notify secrets (org integration:manage, i.e. admins).
- */
-export function useCanManagePipelines(): boolean {
-  return canOrg(useMe()?.orgRole, { integration: ["manage"] });
-}
-
-/** The projects the caller may create environments in (engineers, admins). */
-export function projectsToAddEnvironmentTo<T extends { id: string }>(
-  projects: readonly T[],
-  roles: Record<string, ProjectRole>
-): T[] {
-  return projects.filter((p) =>
-    canProject(roles[p.id] ?? null, { environment: ["create"] })
-  );
-}
-
-/**
- * Whether the caller may add an environment to an app: they can create
- * environments in some project. The page loader must have loaded
- * getMyProjectAccessQuery; the app shell always has.
- */
-export function useCanAddEnvironment(): boolean {
-  const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
-  return (
-    projectsToAddEnvironmentTo(
-      Object.keys(access.roles).map((id) => ({ id })),
-      access.roles
-    ).length > 0
-  );
-}

@@ -58,13 +58,21 @@ vi.mock("@/lib/db", () => {
 
 const woodpecker = vi.hoisted(() => ({
   create: vi.fn(),
+  verify: vi.fn(),
 }));
 vi.mock("@/lib/ci/woodpecker", () => ({
   createWoodpeckerProvider: woodpecker.create,
+  verifyWoodpeckerToken: woodpecker.verify,
+}));
+const bitbucket = vi.hoisted(() => ({ verify: vi.fn() }));
+vi.mock("@/lib/ci/forges/bitbucket", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  verifyBitbucketAuth: bitbucket.verify,
 }));
 
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");
 const { encryptSecret, decryptSecret } = await import("@/lib/secrets");
+const { CiProviderError } = await import("@/lib/ci/types");
 const { app } = await import("@/server/app");
 const { getProviderForConnection } = await import(
   "@/server/services/ci-connections"
@@ -274,6 +282,77 @@ describe("getProviderForConnection", () => {
     state.rows = [];
     await expect(getProviderForConnection(ID)).rejects.toMatchObject({
       status: 404,
+    });
+  });
+});
+
+describe("POST /api/ci-connections/:id/verify", () => {
+  const verify = () => send("POST", `/api/ci-connections/${ID}/verify`);
+
+  it("is for integration:manage only", async () => {
+    state.role = "infra";
+    expect((await verify()).status).toBe(403);
+    expect(woodpecker.verify).not.toHaveBeenCalled();
+    expect(bitbucket.verify).not.toHaveBeenCalled();
+  });
+
+  it("reports both checks ok, with the stored credentials and no secret in the body", async () => {
+    woodpecker.verify.mockResolvedValue(undefined);
+    bitbucket.verify.mockResolvedValue(undefined);
+    const res = await verify();
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain("wp-secret-token");
+    expect(text).not.toContain("forge-secret-token");
+    expect(JSON.parse(text)).toEqual({
+      ci: "ok",
+      ciCode: null,
+      forge: "ok",
+      forgeCode: null,
+    });
+    expect(woodpecker.verify).toHaveBeenCalledWith(
+      "https://ci.example.test",
+      "wp-secret-token"
+    );
+    expect(bitbucket.verify).toHaveBeenCalledWith(
+      { username: "ci-bot", token: "forge-secret-token" },
+      null
+    );
+  });
+
+  it("names a rejected token and an unreachable forge by stable codes", async () => {
+    woodpecker.verify.mockRejectedValue(
+      new CiProviderError("Woodpecker GET /api/user failed with 401", 401)
+    );
+    bitbucket.verify.mockRejectedValue(
+      new CiProviderError("Bitbucket GET /user unreachable", 0)
+    );
+    expect(await (await verify()).json()).toEqual({
+      ci: "failed",
+      ciCode: "ciTokenRejected",
+      forge: "failed",
+      forgeCode: "forgeUnreachable",
+    });
+  });
+
+  it("reports a missing token and unconfigured forge credentials without calling out", async () => {
+    state.rows = [row({ apiToken: null, forgeToken: null })];
+    expect(await (await verify()).json()).toEqual({
+      ci: "failed",
+      ciCode: "ciTokenMissing",
+      forge: "notConfigured",
+      forgeCode: null,
+    });
+    expect(woodpecker.verify).not.toHaveBeenCalled();
+    expect(bitbucket.verify).not.toHaveBeenCalled();
+  });
+
+  it("maps a redirect to unreachable and other errors to failed", async () => {
+    woodpecker.verify.mockRejectedValue(new CiProviderError("redirected", 302));
+    bitbucket.verify.mockRejectedValue(new CiProviderError("boom", 500));
+    expect(await (await verify()).json()).toMatchObject({
+      ciCode: "ciUnreachable",
+      forgeCode: "forgeFailed",
     });
   });
 });

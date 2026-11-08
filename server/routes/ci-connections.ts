@@ -9,6 +9,7 @@ import {
   listCiConnections,
   updateCiConnection,
   updateCiConnectionSchema,
+  verifyCiConnection,
 } from "@/server/services/ci-connections";
 import { json, param } from "@/server/validation";
 
@@ -24,6 +25,9 @@ export const ciConnectionsRouter = sessionRouter()
   .get("/options", async (c) => c.json(await listRegistrationConnections()))
   .get("/:id/repos", idParam, async (c) =>
     c.json(await listRegistrableRepos(c.req.valid("param").id))
+  )
+  .post("/:id/verify", idParam, async (c) =>
+    c.json(await verifyCiConnection(c.req.valid("param").id))
   )
   .patch("/:id", idParam, json(updateCiConnectionSchema), async (c) =>
     c.json(
