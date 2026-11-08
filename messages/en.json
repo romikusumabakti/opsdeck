@@ -751,14 +751,46 @@
     "closeDialog": "Close any open dialog"
   },
   "newEnvironment": {
-    "title": "Create new environment",
-    "description": "Register a new environment along with its database, backend, and frontend server configuration.",
-    "formTitle": "Environment configuration",
-    "formDescription": "Pick a server for each role (database, backend, frontend) and provide service details.",
-    "cloneTitle": "Duplicate environment",
-    "cloneDescription": "Create a new environment pre-filled with the configuration of {name}.",
-    "cloneFormTitle": "Environment configuration",
-    "cloneFormDescription": "Review and adjust the copied values. Passwords and API keys are not copied — re-enter them if needed."
+    "title": "New environment",
+    "subtitle": "Pick a repository and a name. The Panel sets up the server, database and address, then deploys the first build.",
+    "startFrom": "Start from",
+    "startFromNew": "New",
+    "startFromCopy": "Copy of {name}",
+    "startFromHint": "A copy takes the repositories, branches, database choice and variables. Secret values are copied on the server and never shown.",
+    "copyFailed": "Could not read that environment.",
+    "name": "Name",
+    "namePlaceholder": "e.g. Dev 3",
+    "repository": "Repository",
+    "chooseRepo": "Choose a repository",
+    "addRepo": "Add another repo",
+    "addMissingRepo": "Add {repo}",
+    "removeRepo": "Remove {repo}",
+    "searchRepos": "Search repositories…",
+    "noRepos": "No repository matches.",
+    "reposFailed": "Could not list the repositories.",
+    "branch": "Branch",
+    "detected": "Services: {services}",
+    "detectedNone": "No compose services found",
+    "pipelineGenerated": "the Panel generates its pipeline",
+    "pipelineCustom": "builds with its own .woodpecker.yaml",
+    "pipelineNotNotifying": "Its .woodpecker.yaml does not notify the Panel, so its builds will not deploy. Add a notify-panel step signed with the repo secret <code>opsdeck_notify</code> (see docs/deploy.md).",
+    "needsDatabase": "Needs a database",
+    "needsDatabaseHint": "A shared database on the server's database host, else a database container.",
+    "setInAdvanced": "Set under Advanced options.",
+    "address": "Address",
+    "addressHint": "Behind the DSS Internal access policy. Leave empty for the suggested name.",
+    "noAddress": "No address",
+    "server": "Server",
+    "serverPlaceholder": "Choose a server",
+    "serverHint": "The project has no default server yet: this one becomes its default.",
+    "kind": "Environment kind",
+    "kindNone": "Not set",
+    "owner": "Owner",
+    "ownerNone": "No owner",
+    "created": "Environment created.",
+    "provisioningNotStarted": "The environment was created, but provisioning did not start. You can start it from the Deploys page.",
+    "buildNotStarted": "The environment was created, but a first build did not start. Start it from the Deploys page.",
+    "pickProject": "Pick the project the new environment belongs to and press New environment on its page."
   },
   "environmentForm": {
     "info": "Environment info",
@@ -796,9 +828,7 @@
     "saveChanges": "Save changes",
     "submitting": "Saving…",
     "submitFailed": "Failed to save environment",
-    "createdSuccess": "Environment created",
     "savedSuccess": "Environment saved",
-    "nameCopySuffix": "{name} (copy)",
     "project": "Project",
     "pickProject": "Select a project…",
     "projectRequired": "Select a project",
@@ -1232,7 +1262,12 @@
     "confirmPassword": "Confirm password",
     "passwordMismatch": "Password confirmation does not match",
     "submit": "Create account & sign in",
-    "submitting": "Processing…"
+    "submitting": "Processing…",
+    "advancedOptions": "Advanced options",
+    "summary": "Server {server} · port {port} · database {db} · {url}",
+    "summaryNone": "none",
+    "summaryNoAddress": "no address",
+    "noServerAvailable": "No server is available for this project. Ask an admin to set a default server or open one."
   },
   "actionErrors": {
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
@@ -2816,24 +2851,7 @@
       "general": "General"
     },
     "addEnvironment": {
-      "title": "Add environment",
-      "subtitle": "Add an environment to {app}. Copy an existing one to start from its settings.",
-      "button": "Add environment",
-      "project": "Project",
-      "projectPlaceholder": "Choose a project",
-      "noProjects": "You maintain no project, so you cannot add environments.",
-      "name": "Name",
-      "namePlaceholder": "e.g. Staging",
-      "copyFrom": "Copy from",
-      "copyFromNone": "Start empty",
-      "copyFromHint": "Fills every section from that environment. Secret values are copied on the server and never shown.",
-      "copyFailed": "Could not read that environment.",
-      "created": "Environment created.",
-      "provisioningNotStarted": "The environment was created, but provisioning did not start. You can start it from the Deploys page."
-    },
-    "legacyNotice": {
-      "title": "Environment of a registered app?",
-      "description": "Add it from the app instead: it sets up the deploy targets, database, variables and domain together. This form is for environments the Panel does not manage."
+      "button": "Add environment"
     },
     "server": {
       "label": "Server",
@@ -2958,77 +2976,6 @@
       "repoLinked": "This repository was registered meanwhile. Try again.",
       "registrationRace": "Another registration of this repository ran at the same time. Ask an admin to rotate its notify secret, then try again.",
       "pipelineFileExists": "The branch already has a .woodpecker.yaml the Panel did not generate. Make it notify the Panel, or remove it."
-    },
-    "newApp": {
-      "title": "New app",
-      "subtitle": "Register the app, set up its first environment and start the first build.",
-      "cancel": "Cancel",
-      "back": "Back",
-      "next": "Next",
-      "registered": "{name} registered",
-      "pipelineFileNotCommitted": "{component} ({branch}): pipeline file not committed: {reason}",
-      "provisioningNotStarted": "The environment was created, but provisioning did not start. You can start it from the Deploys page.",
-      "steps": {
-        "label": "Steps",
-        "repo": "Repository",
-        "environment": "Environment",
-        "database": "Database",
-        "variables": "Variables",
-        "domain": "Domain",
-        "review": "Review"
-      },
-      "environment": {
-        "project": "Project",
-        "projectPlaceholder": "Choose a project",
-        "name": "Name",
-        "namePlaceholder": "e.g. Production"
-      },
-      "variables": {
-        "hint": "A new app has no variable template yet. Add the variables the app needs; generated ones are created for you."
-      },
-      "domain": {
-        "entryDetected": "Detected entry: {service} listens on container port {port}.",
-        "entryService": "Detected entry: {service}."
-      },
-      "review": {
-        "register": "Register app {appKey}",
-        "startBuild": "Start the first build of {branch}",
-        "startBuildOf": "Start the first build of {branch} ({component})",
-        "environment": "Environment {name}",
-        "target": "Deploy target {component} from {branch} on {server}",
-        "database": {
-          "shared": "A shared database",
-          "container": "A database container",
-          "external": "An external database",
-          "none": "No database"
-        },
-        "variables": "{count, plural, one {# variable} other {# variables}}, {generated} generated",
-        "domain": {
-          "tunnel": "Tunnel domain {host}",
-          "external": "External domain {host}",
-          "none": "No domain"
-        }
-      },
-      "progress": {
-        "title": "Progress"
-      },
-      "lines": {
-        "register": "Register the app",
-        "preview": "Check the setup",
-        "setup": "Create the environment",
-        "build": "Start the first build",
-        "hasIssues": "Fix the issues above and press Create again"
-      },
-      "lineStatus": {
-        "idle": "Not run",
-        "running": "Running",
-        "done": "Done",
-        "failed": "Failed"
-      },
-      "setupFailed": "App {appKey} is registered, but its environment was not created. Fix the inputs and press Create again, or continue on the Add environment page with these inputs.",
-      "addEnvironmentLink": "Add environment",
-      "buildFailed": "The environment was created, but the first build did not start. Start it from the app's Deploys page.",
-      "openDeploys": "Open Deploys"
     }
   }
 }

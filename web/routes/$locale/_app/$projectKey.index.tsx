@@ -15,10 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/i18n/navigation";
 import { stripProjectPrefix } from "@/lib/nav-path";
-import {
-  canCreateEnvironment as canCreateEnvironmentIn,
-  canProject,
-} from "@/lib/permissions";
+import { canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
 import { listIssuesQuery } from "@/web/api/issues";
 import { listMilestonesQuery } from "@/web/api/milestones";
 import {
@@ -31,7 +28,6 @@ import {
   listProjectMembersQuery,
 } from "@/web/api/project-members";
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
-import { useMe } from "@/web/api/session";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { requireProjectRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
@@ -79,7 +75,6 @@ function ProjectOverviewPage() {
   const tOv = useTranslations("projectOverview");
   const tDash = useTranslations("dashboard");
   const tKinds = useTranslations("environmentKinds");
-  const me = useMe();
   const project = useSuspenseQuery(
     getProjectByKeyWithEnvironmentsQuery(projectKey)
   ).data;
@@ -90,7 +85,9 @@ function ProjectOverviewPage() {
   if (!project) throw notFound();
   const role = roles[project.id] ?? null;
   const canUpdateEnvironment = canProject(role, { environment: ["update"] });
-  const canCreateEnvironment = canCreateEnvironmentIn(me?.orgRole, role);
+  // Engineers set environments up on the project's servers (the page
+  // offers only the ones they may place on).
+  const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
   const canManageMembers = canProject(role, { member: ["manage"] });
 
   const issues = useSuspenseQuery(listIssuesQuery(project.id)).data;

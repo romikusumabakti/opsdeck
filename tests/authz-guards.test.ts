@@ -368,9 +368,10 @@ describe("no legacy authorization helpers outside lib/auth-session", () => {
 describe("environment setup reuses the existing rules", () => {
   const source = readFileSync("server/services/environment-setup.ts", "utf8");
   it("asks environment:create, deploy configure/run and variable:write", () => {
-    expect(source).toMatch(
+    expect(readFileSync("lib/permissions.ts", "utf8")).toMatch(
       /SETUP_PERMISSIONS = \{\s*environment: \["create"\],\s*deploy: \["configure", "run"\],\s*variable: \["write"\],\s*\}/
     );
+    expect(source).toMatch(/SETUP_PERMISSIONS,\n\} from "@\/lib\/permissions"/);
     expect(source).toMatch(
       /requireProjectPermission\(\s*\{ projectId: input\.projectId \},\s*SETUP_PERMISSIONS\s*\)/
     );
@@ -422,12 +423,17 @@ describe("environment infrastructure bindings need server:manage", () => {
     // The check must run before the try block, so ForbiddenError propagates.
     expect(fn.indexOf("changedInfraFields(")).toBeLessThan(fn.indexOf("try {"));
   });
-  it("the new-environment page requires server:manage", () => {
-    expect(
-      readFileSync(`${APP}/$projectKey.environments.new.tsx`, "utf8")
-    ).toMatch(
-      /requireProjectRole\([\s\S]*\{ environment: \["create"\] \},\s*\{ server: \["manage"\] \}/
+  // The New environment page places through the setup service, whose
+  // placement rules admit engineers on open and default servers only.
+  it("the new-environment page asks the setup's project permissions", () => {
+    const page = readFileSync(
+      `${APP}/$projectKey.environments.new.tsx`,
+      "utf8"
     );
+    expect(page).toMatch(
+      /requireProjectRole\(queryClient, project\.id, SETUP_PERMISSIONS\)/
+    );
+    expect(page).not.toMatch(/@\/components\/environment-form/);
   });
   it("the settings page only fetches servers for server:manage", () => {
     const page = readFileSync(

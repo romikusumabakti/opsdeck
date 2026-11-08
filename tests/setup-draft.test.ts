@@ -7,14 +7,10 @@ import {
   type CopySourceLike,
   type DraftContext,
   defaultDeployDir,
-  draftForHandoff,
-  draftFromRouterState,
+  draftFromSetup,
   emptyDraft,
-  entryServiceFromRouterState,
+  PUBLIC_POLICY,
   parseSetupInput,
-  SETUP_DRAFT_STATE_KEY,
-  SETUP_ENTRY_SERVICE_STATE_KEY,
-  syncTargets,
   variableHandling,
 } from "@/lib/setup/draft";
 import {
@@ -131,6 +127,89 @@ describe("defaults", () => {
     );
     expect(parsed.input.targets[0]?.services).toEqual(["api", "web"]);
     expect(parsed.input.services).toEqual(ctx.suggestedServices);
+  });
+
+  it("makes the role follow the database name until it is edited", () => {
+    const base = emptyDraft(UUID, [{ componentKey: "hris" }]);
+    const shared = (dbRole: string | null) => ({
+      ...base,
+      database: {
+        ...base.database,
+        kind: "shared" as const,
+        dbName: "hris_qa",
+        dbRole,
+      },
+    });
+    const db = (draft: ReturnType<typeof shared>) =>
+      (buildSetupInput(draft, ctx).input as { database: { dbRole: string } })
+        .database.dbRole;
+    expect(db(shared(null))).toBe("hris_qa");
+    expect(db(shared("hris_owner"))).toBe("hris_owner");
+  });
+
+  it("turns a resolved setup back into an explicit draft", () => {
+    const setup = {
+      projectId: UUID,
+      name: "QA",
+      copyFromEnvironmentId: null,
+      server: { serverId: SERVER },
+      targets: [
+        {
+          componentKey: "hris",
+          sourceBranch: "main",
+          autoDeploy: true,
+          deployDir: "/deployments/hris-qa",
+          services: ["api", "web"],
+          tagVariable: "IMAGE_TAG",
+          preStartCommand: null,
+          healthUrl: null,
+          healthTimeoutSeconds: 180,
+          backupBeforeDeploy: false,
+        },
+      ],
+      services: [{ role: "backend" as const, serviceName: "hris-qa-api-1" }],
+      database: {
+        kind: "shared" as const,
+        databaseHostId: SERVER,
+        dbName: "hris_qa",
+        dbRole: "hris_qa",
+        passwordVariable: "DB_PASSWORD",
+      },
+      variables: [
+        { name: "SMTP_PASSWORD", kind: "secret" as const, copy: true },
+        { name: "DATA_KEY", kind: "secret" as const, value: "" },
+      ],
+      domain: {
+        kind: "tunnel" as const,
+        zoneId: SERVER,
+        label: "hris-qa",
+        accessPolicyId: null,
+        entryPort: 8104,
+      },
+    };
+    const draft = draftFromSetup(setup, [
+      { field: "variables.DATA_KEY", code: "valueRequired" },
+    ]);
+    expect(draft.targets[0]?.services).toBe("api, web");
+    expect(draft.serviceNames).toEqual({ backend: "hris-qa-api-1" });
+    expect(draft.database).toMatchObject({ dbName: "hris_qa", dbRole: null });
+    expect(draft.domain).toMatchObject({
+      label: "hris-qa",
+      accessPolicyId: PUBLIC_POLICY,
+      entryPort: "8104",
+    });
+    expect(
+      draft.variables.map((v) => [v.name, variableHandling(v), v.required])
+    ).toEqual([
+      ["SMTP_PASSWORD", "copy", false],
+      ["DATA_KEY", "enter", true],
+    ]);
+    // Built again, it is the same setup.
+    const rebuilt = parseSetupInput(
+      buildSetupInput(draft, { ...ctx, suggestedServices: [] }).input
+    );
+    expect(rebuilt.ok && rebuilt.input.database).toEqual(setup.database);
+    expect(rebuilt.ok && rebuilt.input.domain).toEqual(setup.domain);
   });
 
   it("keeps a container name the user edited", () => {
@@ -318,106 +397,4 @@ describe("issue messages", () => {
       expect(typeof at(tree, issueMessagePath("not-a-code"))).toBe("string");
     });
   }
-});
-
-describe("syncTargets", () => {
-  it("adds a target per new component with its branch and detected services", () => {
-    const draft = emptyDraft(UUID, []);
-    const next = syncTargets(draft, [
-      { componentKey: "hris", branch: "develop", services: ["api", "web"] },
-    ]);
-    expect(next.targets).toHaveLength(1);
-    expect(next.targets[0]).toMatchObject({
-      componentKey: "hris",
-      sourceBranch: "develop",
-      services: "api, web",
-    });
-  });
-
-  it("keeps what the user set, follows an untouched branch and drops removed components", () => {
-    const first = syncTargets(emptyDraft(UUID, []), [
-      { componentKey: "hris", branch: "main", services: [] },
-      { componentKey: "old", branch: "main", services: [] },
-    ]);
-    const edited = {
-      ...first,
-      targets: first.targets.map((t) =>
-        t.componentKey === "hris"
-          ? { ...t, autoDeploy: true, services: "api" }
-          : t
-      ),
-    };
-    const next = syncTargets(
-      edited,
-      [{ componentKey: "hris", branch: "release", services: ["web"] }],
-      { hris: "main", old: "main" }
-    );
-    expect(next.targets).toHaveLength(1);
-    expect(next.targets[0]).toMatchObject({
-      sourceBranch: "release",
-      autoDeploy: true,
-      services: "api",
-    });
-    // A branch the user changed is theirs.
-    const custom = {
-      ...next,
-      targets: next.targets.map((t) => ({ ...t, sourceBranch: "qa" })),
-    };
-    expect(
-      syncTargets(
-        custom,
-        [{ componentKey: "hris", branch: "other", services: [] }],
-        { hris: "release" }
-      ).targets[0]?.sourceBranch
-    ).toBe("qa");
-  });
-});
-
-describe("draft hand-over", () => {
-  const draft = {
-    ...emptyDraft(UUID, [{ componentKey: "hris" }]),
-    variables: [
-      {
-        key: "k",
-        name: "TOKEN",
-        kind: "secret" as const,
-        escrow: false,
-        fromSource: false,
-        copyable: false,
-        value: "super-secret",
-        required: false,
-      },
-      {
-        key: "p",
-        name: "APP_NAME",
-        kind: "plain" as const,
-        escrow: false,
-        fromSource: false,
-        copyable: false,
-        value: "Hris",
-        required: false,
-      },
-    ],
-  };
-
-  it("drops typed secret values and makes them required again", () => {
-    const out = draftForHandoff(draft);
-    expect(JSON.stringify(out)).not.toContain("super-secret");
-    expect(out.variables[0]).toMatchObject({ value: "", required: true });
-    expect(out.variables[1]).toMatchObject({ value: "Hris" });
-  });
-
-  it("reads a draft back from router state, and nothing else", () => {
-    const state = { [SETUP_DRAFT_STATE_KEY]: draftForHandoff(draft) };
-    expect(draftFromRouterState(state)?.name).toBe(draft.name);
-    expect(draftFromRouterState({ [SETUP_DRAFT_STATE_KEY]: { x: 1 } })).toBe(
-      undefined
-    );
-    expect(draftFromRouterState(undefined)).toBe(undefined);
-    expect(draftFromRouterState({})).toBe(undefined);
-    expect(
-      entryServiceFromRouterState({ [SETUP_ENTRY_SERVICE_STATE_KEY]: "web" })
-    ).toBe("web");
-    expect(entryServiceFromRouterState({})).toBe(undefined);
-  });
 });

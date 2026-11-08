@@ -751,14 +751,46 @@
     "closeDialog": "Tutup dialog yang terbuka"
   },
   "newEnvironment": {
-    "title": "Buat environment baru",
-    "description": "Daftarkan environment baru beserta konfigurasi server database, backend, dan frontend.",
-    "formTitle": "Konfigurasi environment",
-    "formDescription": "Pilih server untuk setiap role (database, backend, frontend) dan isi detail service.",
-    "cloneTitle": "Duplikasi environment",
-    "cloneDescription": "Buat environment baru dengan konfigurasi yang disalin dari {name}.",
-    "cloneFormTitle": "Konfigurasi environment",
-    "cloneFormDescription": "Periksa dan sesuaikan nilai yang disalin. Password dan API key tidak ikut disalin — isi ulang jika diperlukan."
+    "title": "Environment baru",
+    "subtitle": "Pilih repository dan nama. Panel menyiapkan server, database, dan alamat, lalu men-deploy build pertama.",
+    "startFrom": "Mulai dari",
+    "startFromNew": "Baru",
+    "startFromCopy": "Salinan {name}",
+    "startFromHint": "Salinan mengambil repository, branch, pilihan database, dan variabel. Nilai rahasia disalin di server dan tidak pernah ditampilkan.",
+    "copyFailed": "Environment tersebut tidak dapat dibaca.",
+    "name": "Nama",
+    "namePlaceholder": "mis. Dev 3",
+    "repository": "Repository",
+    "chooseRepo": "Pilih repository",
+    "addRepo": "Tambah repo lain",
+    "addMissingRepo": "Tambah {repo}",
+    "removeRepo": "Hapus {repo}",
+    "searchRepos": "Cari repository…",
+    "noRepos": "Tidak ada repository yang cocok.",
+    "reposFailed": "Daftar repository tidak dapat dimuat.",
+    "branch": "Branch",
+    "detected": "Service: {services}",
+    "detectedNone": "Tidak ada service compose yang ditemukan",
+    "pipelineGenerated": "pipeline-nya dibuat oleh Panel",
+    "pipelineCustom": "build dengan .woodpecker.yaml miliknya sendiri",
+    "pipelineNotNotifying": ".woodpecker.yaml-nya tidak memberi tahu Panel, sehingga build-nya tidak akan di-deploy. Tambahkan step notify-panel yang ditandatangani dengan secret repo <code>opsdeck_notify</code> (lihat docs/deploy.md).",
+    "needsDatabase": "Butuh database",
+    "needsDatabaseHint": "Database bersama di host database server, atau container database bila tidak ada.",
+    "setInAdvanced": "Diatur di Opsi lanjutan.",
+    "address": "Alamat",
+    "addressHint": "Di balik access policy DSS Internal. Kosongkan untuk memakai nama yang disarankan.",
+    "noAddress": "Tanpa alamat",
+    "server": "Server",
+    "serverPlaceholder": "Pilih server",
+    "serverHint": "Proyek belum punya server default: server ini menjadi default-nya.",
+    "kind": "Jenis environment",
+    "kindNone": "Tidak diatur",
+    "owner": "Pemilik",
+    "ownerNone": "Tanpa pemilik",
+    "created": "Environment dibuat.",
+    "provisioningNotStarted": "Environment sudah dibuat, tetapi provisioning tidak berjalan. Anda dapat memulainya dari halaman Deploy.",
+    "buildNotStarted": "Environment sudah dibuat, tetapi build pertama tidak berjalan. Mulai dari halaman Deploy.",
+    "pickProject": "Pilih proyek untuk environment baru, lalu tekan Environment baru di halaman proyek tersebut."
   },
   "environmentForm": {
     "info": "Informasi environment",
@@ -796,9 +828,7 @@
     "saveChanges": "Simpan perubahan",
     "submitting": "Menyimpan…",
     "submitFailed": "Gagal menyimpan environment",
-    "createdSuccess": "Environment berhasil dibuat",
     "savedSuccess": "Environment berhasil disimpan",
-    "nameCopySuffix": "{name} (salinan)",
     "project": "Proyek",
     "pickProject": "Pilih proyek…",
     "projectRequired": "Pilih proyek",
@@ -1232,7 +1262,12 @@
     "confirmPassword": "Konfirmasi password",
     "passwordMismatch": "Konfirmasi password tidak cocok",
     "submit": "Buat akun & masuk",
-    "submitting": "Memproses…"
+    "submitting": "Memproses…",
+    "advancedOptions": "Opsi lanjutan",
+    "summary": "Server {server} · port {port} · database {db} · {url}",
+    "summaryNone": "tidak ada",
+    "summaryNoAddress": "tanpa alamat",
+    "noServerAvailable": "Tidak ada server yang tersedia untuk proyek ini. Minta admin menetapkan server default atau membuka satu server."
   },
   "actionErrors": {
     "backupTargetsBlockDatabaseRemoval": "Matikan cadangan sebelum deploy pada target deploy lingkungan ini terlebih dahulu.",
@@ -2816,24 +2851,7 @@
       "general": "Umum"
     },
     "addEnvironment": {
-      "title": "Tambah environment",
-      "subtitle": "Tambahkan environment untuk {app}. Salin environment yang sudah ada untuk memulai dari pengaturannya.",
-      "button": "Tambah environment",
-      "project": "Proyek",
-      "projectPlaceholder": "Pilih proyek",
-      "noProjects": "Anda bukan engineer proyek mana pun, sehingga tidak dapat menambah environment.",
-      "name": "Nama",
-      "namePlaceholder": "mis. Staging",
-      "copyFrom": "Salin dari",
-      "copyFromNone": "Mulai dari kosong",
-      "copyFromHint": "Mengisi setiap bagian dari environment tersebut. Nilai rahasia disalin di server dan tidak pernah ditampilkan.",
-      "copyFailed": "Tidak dapat membaca environment tersebut.",
-      "created": "Environment dibuat.",
-      "provisioningNotStarted": "Environment dibuat, tetapi provisioning belum berjalan. Anda dapat memulainya dari halaman Deploys."
-    },
-    "legacyNotice": {
-      "title": "Environment untuk aplikasi terdaftar?",
-      "description": "Tambahkan dari halaman aplikasinya: deploy target, database, variabel, dan domain diatur sekaligus. Formulir ini untuk environment yang tidak dikelola Panel."
+      "button": "Tambah environment"
     },
     "server": {
       "label": "Server",
@@ -2958,77 +2976,6 @@
       "repoLinked": "Repositori ini baru saja didaftarkan. Coba lagi.",
       "registrationRace": "Pendaftaran lain untuk repositori ini berjalan bersamaan. Minta admin merotasi notify secret-nya, lalu coba lagi.",
       "pipelineFileExists": "Branch ini sudah punya .woodpecker.yaml yang tidak dibuat Panel. Buat berkas itu memberi tahu Panel, atau hapus."
-    },
-    "newApp": {
-      "title": "Aplikasi baru",
-      "subtitle": "Daftarkan aplikasi, siapkan environment pertamanya, lalu jalankan build pertama.",
-      "cancel": "Batal",
-      "back": "Kembali",
-      "next": "Lanjut",
-      "registered": "{name} terdaftar",
-      "pipelineFileNotCommitted": "{component} ({branch}): berkas pipeline tidak di-commit: {reason}",
-      "provisioningNotStarted": "Environment dibuat, tetapi provisioning belum berjalan. Anda dapat memulainya dari halaman Deploys.",
-      "steps": {
-        "label": "Langkah",
-        "repo": "Repositori",
-        "environment": "Environment",
-        "database": "Database",
-        "variables": "Variabel",
-        "domain": "Domain",
-        "review": "Tinjau"
-      },
-      "environment": {
-        "project": "Proyek",
-        "projectPlaceholder": "Pilih proyek",
-        "name": "Nama",
-        "namePlaceholder": "mis. Production"
-      },
-      "variables": {
-        "hint": "Aplikasi baru belum punya templat variabel. Tambahkan variabel yang dibutuhkan aplikasi; variabel yang dibuat otomatis akan dibuatkan untuk Anda."
-      },
-      "domain": {
-        "entryDetected": "Titik masuk terdeteksi: {service} mendengarkan di port kontainer {port}.",
-        "entryService": "Titik masuk terdeteksi: {service}."
-      },
-      "review": {
-        "register": "Daftarkan aplikasi {appKey}",
-        "startBuild": "Jalankan build pertama dari {branch}",
-        "startBuildOf": "Jalankan build pertama dari {branch} ({component})",
-        "environment": "Environment {name}",
-        "target": "Target deploy {component} dari {branch} di {server}",
-        "database": {
-          "shared": "Database bersama",
-          "container": "Kontainer database",
-          "external": "Database eksternal",
-          "none": "Tanpa database"
-        },
-        "variables": "{count, plural, other {# variabel}}, {generated} dibuat otomatis",
-        "domain": {
-          "tunnel": "Domain tunnel {host}",
-          "external": "Domain eksternal {host}",
-          "none": "Tanpa domain"
-        }
-      },
-      "progress": {
-        "title": "Progres"
-      },
-      "lines": {
-        "register": "Daftarkan aplikasi",
-        "preview": "Periksa penyiapan",
-        "setup": "Buat environment",
-        "build": "Jalankan build pertama",
-        "hasIssues": "Perbaiki masalah di atas lalu tekan Buat lagi"
-      },
-      "lineStatus": {
-        "idle": "Belum dijalankan",
-        "running": "Berjalan",
-        "done": "Selesai",
-        "failed": "Gagal"
-      },
-      "setupFailed": "Aplikasi {appKey} sudah terdaftar, tetapi environment-nya belum dibuat. Perbaiki isian lalu tekan Buat lagi, atau lanjutkan di halaman Tambah environment dengan isian ini.",
-      "addEnvironmentLink": "Tambah environment",
-      "buildFailed": "Environment dibuat, tetapi build pertama belum berjalan. Jalankan dari halaman Deploys aplikasi.",
-      "openDeploys": "Buka Deploys"
     }
   }
 }

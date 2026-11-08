@@ -751,14 +751,46 @@
     "closeDialog": "关闭任何打开的对话框"
   },
   "newEnvironment": {
-    "title": "创建新环境",
-    "description": "注册新环境及其数据库、后端和前端服务器配置。",
-    "formTitle": "环境配置",
-    "formDescription": "为每个角色（数据库、后端、前端）选择服务器并提供服务详情。",
-    "cloneTitle": "复制环境",
-    "cloneDescription": "创建一个预填充了 {name} 配置的新环境。",
-    "cloneFormTitle": "环境配置",
-    "cloneFormDescription": "检查并调整复制的值。密码和 API 密钥不会被复制——如需请重新输入。"
+    "title": "新建环境",
+    "subtitle": "选择一个仓库并命名。面板会准备服务器、数据库和地址，然后部署第一次构建。",
+    "startFrom": "起点",
+    "startFromNew": "新建",
+    "startFromCopy": "{name} 的副本",
+    "startFromHint": "副本会带上仓库、分支、数据库选择和变量。机密值在服务器上复制，从不显示。",
+    "copyFailed": "无法读取该环境。",
+    "name": "名称",
+    "namePlaceholder": "例如 Dev 3",
+    "repository": "仓库",
+    "chooseRepo": "选择仓库",
+    "addRepo": "添加另一个仓库",
+    "addMissingRepo": "添加 {repo}",
+    "removeRepo": "移除 {repo}",
+    "searchRepos": "搜索仓库…",
+    "noRepos": "没有匹配的仓库。",
+    "reposFailed": "无法列出仓库。",
+    "branch": "分支",
+    "detected": "服务：{services}",
+    "detectedNone": "未找到 compose 服务",
+    "pipelineGenerated": "由面板生成流水线",
+    "pipelineCustom": "使用其自有的 .woodpecker.yaml 构建",
+    "pipelineNotNotifying": "它的 .woodpecker.yaml 不会通知面板，因此其构建不会被部署。请添加一个用仓库机密 <code>opsdeck_notify</code> 签名的 notify-panel 步骤（见 docs/deploy.md）。",
+    "needsDatabase": "需要数据库",
+    "needsDatabaseHint": "服务器数据库主机上的共享数据库，否则使用数据库容器。",
+    "setInAdvanced": "在高级选项中设置。",
+    "address": "地址",
+    "addressHint": "位于 DSS Internal 访问策略之后。留空则使用建议的名称。",
+    "noAddress": "无地址",
+    "server": "服务器",
+    "serverPlaceholder": "选择服务器",
+    "serverHint": "项目还没有默认服务器：这台将成为默认服务器。",
+    "kind": "环境类型",
+    "kindNone": "未设置",
+    "owner": "负责人",
+    "ownerNone": "无负责人",
+    "created": "环境已创建。",
+    "provisioningNotStarted": "环境已创建，但配置未启动。您可以在部署页面启动它。",
+    "buildNotStarted": "环境已创建，但有一个首次构建未启动。请在部署页面启动它。",
+    "pickProject": "选择新环境所属的项目，然后在其页面上点击“新建环境”。"
   },
   "environmentForm": {
     "info": "环境信息",
@@ -796,9 +828,7 @@
     "saveChanges": "保存更改",
     "submitting": "保存中…",
     "submitFailed": "保存环境失败",
-    "createdSuccess": "环境已创建",
     "savedSuccess": "环境已保存",
-    "nameCopySuffix": "{name}（副本）",
     "project": "项目",
     "pickProject": "选择项目…",
     "projectRequired": "请选择项目",
@@ -1232,7 +1262,12 @@
     "confirmPassword": "确认密码",
     "passwordMismatch": "密码确认不匹配",
     "submit": "创建账户并登录",
-    "submitting": "处理中…"
+    "submitting": "处理中…",
+    "advancedOptions": "高级选项",
+    "summary": "服务器 {server} · 端口 {port} · 数据库 {db} · {url}",
+    "summaryNone": "无",
+    "summaryNoAddress": "无地址",
+    "noServerAvailable": "此项目没有可用的服务器。请让管理员设置默认服务器或开放一台服务器。"
   },
   "actionErrors": {
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
@@ -2816,24 +2851,7 @@
       "general": "常规"
     },
     "addEnvironment": {
-      "title": "添加环境",
-      "subtitle": "为 {app} 添加环境。可复制现有环境，以其设置为起点。",
-      "button": "添加环境",
-      "project": "项目",
-      "projectPlaceholder": "选择项目",
-      "noProjects": "你不是任何项目的 Engineer，因此无法添加环境。",
-      "name": "名称",
-      "namePlaceholder": "例如 Staging",
-      "copyFrom": "复制自",
-      "copyFromNone": "从空白开始",
-      "copyFromHint": "用该环境填充每个部分。机密值在服务器上复制，绝不会显示。",
-      "copyFailed": "无法读取该环境。",
-      "created": "环境已创建。",
-      "provisioningNotStarted": "环境已创建，但预配未启动。你可以在“部署”页面启动它。"
-    },
-    "legacyNotice": {
-      "title": "属于已注册应用的环境？",
-      "description": "请改从应用页面添加：它会一并设置部署目标、数据库、变量和域名。此表单用于面板不管理的环境。"
+      "button": "添加环境"
     },
     "server": {
       "label": "服务器",
@@ -2958,77 +2976,6 @@
       "repoLinked": "此仓库刚刚被注册。请重试。",
       "registrationRace": "此仓库的另一次注册同时进行。请让管理员轮换其通知密钥，然后重试。",
       "pipelineFileExists": "该分支已有一个不是 Panel 生成的 .woodpecker.yaml。请让它通知 Panel，或将其删除。"
-    },
-    "newApp": {
-      "title": "新建应用",
-      "subtitle": "注册应用，设置它的第一个环境，并启动第一次构建。",
-      "cancel": "取消",
-      "back": "上一步",
-      "next": "下一步",
-      "registered": "{name} 已注册",
-      "pipelineFileNotCommitted": "{component}（{branch}）：流水线文件未提交：{reason}",
-      "provisioningNotStarted": "环境已创建，但预配未启动。你可以在“部署”页面启动它。",
-      "steps": {
-        "label": "步骤",
-        "repo": "仓库",
-        "environment": "环境",
-        "database": "数据库",
-        "variables": "变量",
-        "domain": "域名",
-        "review": "复核"
-      },
-      "environment": {
-        "project": "项目",
-        "projectPlaceholder": "选择项目",
-        "name": "名称",
-        "namePlaceholder": "例如 Production"
-      },
-      "variables": {
-        "hint": "新应用还没有变量模板。请添加应用所需的变量；自动生成的变量会为你创建。"
-      },
-      "domain": {
-        "entryDetected": "检测到入口：{service} 监听容器端口 {port}。",
-        "entryService": "检测到入口：{service}。"
-      },
-      "review": {
-        "register": "注册应用 {appKey}",
-        "startBuild": "启动 {branch} 的第一次构建",
-        "startBuildOf": "启动 {branch} 的第一次构建（{component}）",
-        "environment": "环境 {name}",
-        "target": "部署目标 {component}，来自 {branch}，位于 {server}",
-        "database": {
-          "shared": "共享数据库",
-          "container": "数据库容器",
-          "external": "外部数据库",
-          "none": "无数据库"
-        },
-        "variables": "{count, plural, other {# 个变量}}，其中 {generated} 个自动生成",
-        "domain": {
-          "tunnel": "隧道域名 {host}",
-          "external": "外部域名 {host}",
-          "none": "无域名"
-        }
-      },
-      "progress": {
-        "title": "进度"
-      },
-      "lines": {
-        "register": "注册应用",
-        "preview": "检查设置",
-        "setup": "创建环境",
-        "build": "启动第一次构建",
-        "hasIssues": "请修复上面的问题，然后再次点击创建"
-      },
-      "lineStatus": {
-        "idle": "未运行",
-        "running": "运行中",
-        "done": "完成",
-        "failed": "失败"
-      },
-      "setupFailed": "应用 {appKey} 已注册，但其环境未创建。请修正输入后再次点击创建，或带着这些输入前往“添加环境”页面继续。",
-      "addEnvironmentLink": "添加环境",
-      "buildFailed": "环境已创建，但第一次构建未启动。请在应用的“部署”页面启动。",
-      "openDeploys": "打开部署"
     }
   }
 }

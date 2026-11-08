@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { Info } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { NewProjectButton } from "@/components/new-project-button";
 import { PageHeader } from "@/components/page-header";
@@ -7,6 +8,7 @@ import { ProjectsEmpty } from "@/components/projects-empty";
 import type { SortKey } from "@/components/projects-overview";
 import { ProjectsOverview } from "@/components/projects-overview";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { canCreateProject } from "@/lib/permissions";
 import { getEnvironmentsLastOpenedQuery } from "@/web/api/environments";
@@ -22,8 +24,17 @@ import { loaderQuery } from "@/web/query-client";
 const SORT_KEYS: SortKey[] = ["recent", "opened", "name_asc", "name_desc"];
 
 export const Route = createFileRoute("/$locale/_app/projects/")({
-  validateSearch: (search: Record<string, unknown>): { sort?: SortKey } => ({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { sort?: SortKey; newEnvironment?: boolean } => ({
     sort: SORT_KEYS.find((key) => key === search.sort),
+    // From the retired New app pages: where a new environment starts.
+    newEnvironment:
+      search.newEnvironment === true ||
+      search.newEnvironment === 1 ||
+      search.newEnvironment === "1"
+        ? true
+        : undefined,
   }),
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
@@ -41,7 +52,8 @@ export const Route = createFileRoute("/$locale/_app/projects/")({
 
 function ProjectsPage() {
   const t = useTranslations("home");
-  const { sort } = Route.useSearch();
+  const tNew = useTranslations("newEnvironment");
+  const { sort, newEnvironment } = Route.useSearch();
   const me = useMe();
   const projects = useSuspenseQuery(listProjectsWithEnvironmentsQuery()).data;
   const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
@@ -71,6 +83,12 @@ function ProjectsPage() {
         // so it is created from that project's card (which prefills the parent).
         action={mayCreateProject ? <NewProjectButton /> : undefined}
       />
+      {newEnvironment && (
+        <Alert className="w-full max-w-3xl">
+          <Info />
+          <AlertDescription>{tNew("pickProject")}</AlertDescription>
+        </Alert>
+      )}
       <ProjectsOverview
         projects={projects}
         openIssueCounts={openIssueCounts}
