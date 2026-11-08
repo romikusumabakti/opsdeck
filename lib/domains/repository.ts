@@ -11,6 +11,7 @@ import {
   remoteTunnels,
   servers,
 } from "@/lib/db/schema";
+import { domainUrl } from "@/lib/domains/validation";
 
 // Database access for remote tunnels and environment domains. Permission and
 // rule checks are the services' job.
@@ -179,9 +180,10 @@ type DomainWrite = Pick<
 >;
 
 /**
- * Stores the binding, and the entry port when given, together. A changed
- * binding starts unprovisioned: the provisioning ids are cleared. Returns false
- * (and writes nothing) when the existing binding is provisioned.
+ * Stores the binding, the environment's URL derived from it and the entry
+ * port when given, together. A changed binding starts unprovisioned: the
+ * provisioning ids are cleared. Returns false (and writes nothing) when the
+ * existing binding is provisioned. Removing a binding keeps the URL.
  */
 export async function saveDomain(
   environmentId: string,
@@ -211,12 +213,13 @@ export async function saveDomainIn(
     })
     .returning({ id: environmentDomains.environmentId });
   if (rows.length === 0) return false;
-  if (entryPort !== undefined) {
-    await tx
-      .update(environments)
-      .set({ entryPort })
-      .where(eq(environments.id, environmentId));
-  }
+  await tx
+    .update(environments)
+    .set({
+      url: domainUrl(write.hostname),
+      ...(entryPort !== undefined ? { entryPort } : {}),
+    })
+    .where(eq(environments.id, environmentId));
   return true;
 }
 

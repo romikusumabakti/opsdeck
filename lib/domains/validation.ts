@@ -19,6 +19,11 @@ export function hostnameFor(label: string, zoneName: string): string {
   return `${label}.${zoneName.toLowerCase()}`;
 }
 
+/** The address an environment opens at through its domain's hostname. */
+export function domainUrl(hostname: string): string {
+  return `https://${hostname}`;
+}
+
 /** An FQDN: at least two labels, each valid, 253 characters at most. */
 export function isFqdn(hostname: string): boolean {
   if (hostname.length > HOSTNAME_MAX_LENGTH) return false;

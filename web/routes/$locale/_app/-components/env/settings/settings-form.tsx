@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   type FieldPath,
   type UseFormReturn,
@@ -8,15 +8,6 @@ import {
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { FormControl } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import type {
   Project as ProjectRow,
@@ -54,6 +45,7 @@ export type SettingsProject = Serialized<ProjectRow>;
 export type SettingsTarget = TargetValues & {
   id: string;
   componentKey: string;
+  repoFullName: string | null;
 };
 
 /**
@@ -99,8 +91,8 @@ export type SettingsTab = "general" | "source" | "database" | "mail";
 
 type FieldName = Exclude<keyof SettingsValues, "targets">;
 
-// The fields each tab edits. The database server and service live on the
-// Database tab; the one server picker of Source & Deploy moves them too.
+// The fields each tab edits; each field belongs to one tab. The database's
+// server and service live on the Database tab.
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
   general: ["projectId", "name", "kind", "ownerId", "url"],
   source: [
@@ -111,7 +103,6 @@ const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
     "frontendServerId",
     "frontendServiceType",
     "frontendServiceName",
-    "dbServerId",
   ],
   database: [
     "hasDatabase",
@@ -170,6 +161,7 @@ export function settingsValues(
     targets: targets.map((target) => ({
       id: target.id,
       componentKey: target.componentKey,
+      repoFullName: target.repoFullName,
       ...targetFormValues(target, []),
     })),
   };
@@ -186,24 +178,33 @@ const SERVER_FIELDS = [
  * The update payload. With org server:manage it is the full payload (secrets
  * only when typed). Without it, the info fields plus the server ids that
  * changed: the only bindings such a caller may rebind (before the first
- * deploy), and re-sent stored bindings must not count as edits.
+ * deploy), and re-sent stored bindings must not count as edits. With a domain
+ * the URL is left out: the server derives it from the domain.
  */
 export function environmentPayload(
   values: SettingsValues,
   saved: SettingsValues,
-  canManageServers: boolean
+  { canManageServers, hasDomain }: PayloadOptions
 ) {
   const { targets: _targets, ...environment } = values;
-  const full = buildEnvironmentPayload(environment, "edit");
-  if (canManageServers) return full;
-  const info = Object.fromEntries(INFO_FIELDS.map((f) => [f, full[f]]));
+  const { url, ...full } = buildEnvironmentPayload(environment, "edit");
+  const withUrl = hasDomain ? full : { ...full, url };
+  if (canManageServers) return withUrl;
+  const info = Object.fromEntries(
+    INFO_FIELDS.filter((f) => f in withUrl).map((f) => [
+      f,
+      withUrl[f as keyof typeof withUrl],
+    ])
+  );
   const servers = Object.fromEntries(
     SERVER_FIELDS.filter((f) => f in full && values[f] !== saved[f]).map(
       (f) => [f, values[f]]
     )
   );
-  return { ...info, ...servers } as Partial<typeof full>;
+  return { ...info, ...servers } as Partial<typeof withUrl>;
 }
+
+export type PayloadOptions = { canManageServers: boolean; hasDomain: boolean };
 
 // The settings each changed target sends: only the fields that differ.
 function targetChanges(next: SettingsTarget, saved: SettingsTarget) {
@@ -339,7 +340,7 @@ function useTabSchemas(environment: SettingsEnvironment) {
 export function useSettingsForm(
   environment: SettingsEnvironment,
   targets: DeployTargetState[],
-  canManageServers: boolean
+  options: PayloadOptions
 ) {
   const t = useTranslations("environmentForm");
   const tDeploys = useTranslations("deploys.form");
@@ -349,6 +350,35 @@ export function useSettingsForm(
   const saved = useRef<SettingsValues>(initial);
   const form = useForm<SettingsValues>({ defaultValues: initial });
   useUnsavedChanges(form.formState.isDirty && !form.formState.isSubmitting);
+
+  // The server sets the URL from the domain; a URL left unedited follows the
+  // stored one (e.g. after a domain change, or once the domain is removed).
+  const storedUrl = environment.url ?? "";
+  useEffect(() => {
+    if (storedUrl === saved.current.url || form.getFieldState("url").isDirty)
+      return;
+    saved.current = { ...saved.current, url: storedUrl };
+    form.resetField("url", { defaultValue: storedUrl });
+  }, [storedUrl, form]);
+
+  // A target added since (Add target) joins the form as saved, leaving every
+  // unsaved edit of the page in place.
+  useEffect(() => {
+    const known = new Set(saved.current.targets.map((s) => s.id));
+    const added = settingsValues(environment, targets).targets.filter(
+      (s) => !known.has(s.id)
+    );
+    if (added.length === 0) return;
+    saved.current = {
+      ...saved.current,
+      targets: [...saved.current.targets, ...added],
+    };
+    const start = form.getValues("targets").length;
+    form.setValue("targets", [...form.getValues("targets"), ...added]);
+    for (const [offset, target] of added.entries()) {
+      form.resetField(`targets.${start + offset}`, { defaultValue: target });
+    }
+  }, [environment, targets, form]);
 
   // A failed target save keeps that target's edits dirty.
   async function saveTargets(values: SettingsValues): Promise<boolean> {
@@ -412,7 +442,7 @@ export function useSettingsForm(
       environmentPayload(
         { ...saved.current, ...tabValues },
         saved.current,
-        canManageServers
+        options
       )
     );
     if (!result.success || !result.data) {
@@ -441,99 +471,6 @@ export function useSettingsFormContext() {
 }
 
 export type SettingsForm = UseFormReturn<SettingsValues>;
-
-/** A tab's save button; submitting runs the tab's save. */
-export function SaveButton() {
-  const t = useTranslations("environmentForm");
-  const { formState } = useSettingsFormContext();
-  return (
-    <div className="flex justify-end">
-      <Button type="submit" disabled={formState.isSubmitting}>
-        {formState.isSubmitting ? t("submitting") : t("saveChanges")}
-      </Button>
-    </div>
-  );
-}
-
-export function Hint({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-muted-foreground">{children}</p>;
-}
-
-// A form-bound Select for a fixed set of string options.
-export function EnumSelect({
-  field,
-  options,
-  getLabel,
-  placeholder,
-  disabled,
-  id,
-}: {
-  field: { value: string; onChange: (value: string) => void };
-  options: readonly string[];
-  getLabel: (value: string) => string;
-  placeholder?: string;
-  disabled?: boolean;
-  id?: string;
-}) {
-  return (
-    <Select
-      value={field.value || null}
-      onValueChange={(v) => field.onChange(v ?? "")}
-      disabled={disabled}
-    >
-      <FormControl {...(id ? { id } : {})}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-      </FormControl>
-      <SelectContent>
-        {options.map((v) => (
-          <SelectItem key={v} value={v}>
-            {getLabel(v)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-/**
- * A server select. `data-server-select` marks every server picker on the page
- * (the simple one and the per-service ones under Advanced options).
- */
-export function ServerSelect({
-  id,
-  value,
-  onChange,
-  servers,
-  disabled,
-}: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  servers: ServerOption[];
-  disabled?: boolean;
-}) {
-  const t = useTranslations("environmentForm");
-  return (
-    <Select
-      value={value || null}
-      onValueChange={(v) => onChange(v ?? "")}
-      disabled={disabled}
-    >
-      <SelectTrigger id={id} data-server-select="" className="w-full">
-        <SelectValue placeholder={t("pickServer")} />
-      </SelectTrigger>
-      <SelectContent>
-        {servers.map((s) => (
-          <SelectItem key={s.id} value={s.id}>
-            {s.host ? `${s.name} (${s.host})` : s.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 /**
  * The servers a picker offers: the caller's options plus the servers the

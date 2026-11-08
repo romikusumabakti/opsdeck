@@ -20,14 +20,11 @@ import {
 import { dbAdminUser } from "@/lib/services";
 import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
 import { listVariablesQuery } from "@/web/api/variables";
+import { EnumSelect, Hint, SaveButton, ServerSelect } from "./fields";
 import {
   DB_TYPES,
-  EnumSelect,
-  Hint,
-  SaveButton,
   SERVICE_TYPES,
   type ServerOption,
-  ServerSelect,
   type SettingsEnvironment,
   useSettingsFormContext,
 } from "./settings-form";
@@ -149,6 +146,7 @@ export function DatabaseTab({
                 )}
               />
               <AdvancedOptions
+                attempt={form.formState.submitCount}
                 invalid={ADVANCED_FIELDS.some((field) => errors[field])}
               >
                 {shared ? (

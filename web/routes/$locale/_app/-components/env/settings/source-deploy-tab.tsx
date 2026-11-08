@@ -25,14 +25,12 @@ import { ApiError } from "@/web/api/client";
 import { setEnvFileManaged } from "@/web/api/variables";
 import { TargetFormDialog } from "../deploys/target-form-dialog";
 import { useVariableErrorText } from "../variables/variable-form-dialog";
+import { EnumSelect, Hint, SaveButton, ServerSelect } from "./fields";
 import {
-  EnumSelect,
-  Hint,
-  SaveButton,
   SERVICE_TYPES,
   type ServerOption,
-  ServerSelect,
   type SettingsEnvironment,
+  type SettingsTarget,
   useSettingsFormContext,
 } from "./settings-form";
 
@@ -87,29 +85,31 @@ export function SourceDeployTab({
     control: form.control,
     name: ["hasFrontend", "hasDatabase", "dbKind"],
   });
-  // A shared database's server comes from its host, not from this picker.
-  const ownsDbServer = hasDatabase && dbKind !== "shared";
-  const bound = [
+  // The one picker binds the app's services (backend and frontend); the
+  // database's own server is set on the Database tab.
+  const appServers = [
     backendServerId,
     ...(hasFrontend ? [frontendServerId] : []),
-    ...(ownsDbServer ? [dbServerId] : []),
   ].filter((id) => id !== "");
-  const mixed = new Set(bound).size > 1;
+  const mixed = new Set(appServers).size > 1;
   const locked = deployed && !canManageServers;
   const names = new Map(servers.map((s) => [s.id, s.name]));
-  // A target deploys to one of the servers the services run on.
-  const targetServers = [...new Set(bound)].map((id) => ({
-    id,
-    name: names.get(id) ?? id,
-  }));
+  // A target deploys to one of the servers the services run on (a shared
+  // database's server comes from its host and is not one of them here).
+  const ownsDbServer = hasDatabase && dbKind !== "shared";
+  const targetServers = [
+    ...new Set([
+      ...appServers,
+      ...(ownsDbServer && dbServerId ? [dbServerId] : []),
+    ]),
+  ].map((id) => ({ id, name: names.get(id) ?? id }));
 
-  // The one picker moves every service the environment runs, and each
-  // deploy target with it.
+  // The one picker moves the app's services, and each deploy target with
+  // them.
   function onServer(serverId: string) {
     const opts = { shouldDirty: true } as const;
     form.setValue("backendServerId", serverId, opts);
     if (hasFrontend) form.setValue("frontendServerId", serverId, opts);
-    if (ownsDbServer) form.setValue("dbServerId", serverId, opts);
     for (const index of targets.keys()) {
       form.setValue(`targets.${index}.serverId`, serverId, opts);
     }
@@ -228,9 +228,7 @@ export function SourceDeployTab({
             ) : (
               targets.map((target, index) => (
                 <section key={target.id} className="flex flex-col gap-4">
-                  <h3 className="font-mono text-sm font-medium">
-                    {target.componentKey}
-                  </h3>
+                  <TargetHeading target={target} />
                   {targetText(index, "sourceBranch")}
                   {targetSwitch(index, "autoDeploy")}
                 </section>
@@ -249,13 +247,16 @@ export function SourceDeployTab({
               {locked ? (
                 <Hint>{t("serverLocked")}</Hint>
               ) : mixed ? (
-                <Hint>{t("serverMixed")}</Hint>
+                <Hint>
+                  {t(canManageServers ? "serverMixed" : "serverMixedAdminOnly")}
+                </Hint>
               ) : (
                 <Hint>{t("serverHint")}</Hint>
               )}
             </div>
 
             <AdvancedOptions
+              attempt={form.formState.submitCount}
               invalid={
                 !!(
                   errors.targets ||
@@ -268,9 +269,7 @@ export function SourceDeployTab({
             >
               {targets.map((target, index) => (
                 <section key={target.id} className="flex flex-col gap-4">
-                  <h3 className="font-mono text-sm font-medium">
-                    {target.componentKey}
-                  </h3>
+                  <TargetHeading target={target} />
                   <FormField
                     control={form.control}
                     name={`targets.${index}.serverId`}
@@ -371,6 +370,22 @@ export function SourceDeployTab({
         servers={targetServers}
       />
     </div>
+  );
+}
+
+// The repository a target deploys, with its component key beside it.
+function TargetHeading({ target }: { target: SettingsTarget }) {
+  return (
+    <h3 className="flex flex-wrap items-baseline gap-2 text-sm font-medium">
+      <span className="font-mono">
+        {target.repoFullName ?? target.componentKey}
+      </span>
+      {target.repoFullName && (
+        <span className="font-mono text-xs font-normal text-muted-foreground">
+          {target.componentKey}
+        </span>
+      )}
+    </h3>
   );
 }
 

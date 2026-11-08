@@ -16,6 +16,7 @@ import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 import { type DbExecutor, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
+  appComponents,
   type Build,
   builds,
   type Deployment,
@@ -101,6 +102,8 @@ export type TagState = {
 
 export type TargetState = DeployTarget &
   TagState & {
+    /** The component's repository (null when the component is gone). */
+    repoFullName: string | null;
     recentBuilds: Build[];
     recentDeployments: (Deployment & {
       userName: string | null;
@@ -309,14 +312,21 @@ export async function deployDirSharedWithOtherEnvironment(
 export async function listTargetsForEnvironment(
   environmentId: string
 ): Promise<TargetState[]> {
-  const targets = await db
-    .select()
+  const rows = await db
+    .select({
+      target: deployTargets,
+      repoFullName: appComponents.repoFullName,
+    })
     .from(deployTargets)
+    .leftJoin(
+      appComponents,
+      eq(appComponents.componentKey, deployTargets.componentKey)
+    )
     .where(eq(deployTargets.environmentId, environmentId))
     .orderBy(deployTargets.componentKey);
 
   return Promise.all(
-    targets.map(async (target) => {
+    rows.map(async ({ target, repoFullName }) => {
       const [tagState, recentBuilds, recentDeployments] = await Promise.all([
         getTagState(target.id),
         db
@@ -349,6 +359,7 @@ export async function listTargetsForEnvironment(
       return {
         ...target,
         ...tagState,
+        repoFullName,
         recentBuilds,
         recentDeployments: recentDeployments.map((r) => ({
           ...r.deployment,
