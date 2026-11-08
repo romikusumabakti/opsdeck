@@ -189,6 +189,7 @@ vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
 const forge = vi.hoisted(() => ({
   commitFile: vi.fn(),
   branchExists: vi.fn(),
+  readRepoFile: vi.fn(),
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => forge);
 
@@ -299,6 +300,7 @@ beforeEach(() => {
     state.calls.push(`secret:${id}`);
   });
   forge.branchExists.mockResolvedValue(true);
+  forge.readRepoFile.mockResolvedValue(null);
   forge.commitFile.mockImplementation(
     async (_auth: unknown, _repo: string, branch: string) => {
       state.calls.push(`commit:${branch}`);
@@ -460,16 +462,13 @@ describe("POST /api/apps", () => {
     ).toBeNull();
   });
 
-  it("refuses a generated component from a maintainer (403) before Woodpecker", async () => {
+  it("lets an engineer register a generated component (201)", async () => {
     state.orgRole = "member";
     state.projectRoles = { "project-1": "engineer" };
     const res = await send("POST", "/api/apps", body());
-    expect(res.status).toBe(403);
-    expect((await res.json()).error).toBe(
-      "Only admins can register a component with a generated pipeline"
-    );
-    expect(provider.activateRepo).not.toHaveBeenCalled();
-    expect(state.components).toHaveLength(0);
+    expect(res.status).toBe(201);
+    expect(provider.activateRepo).toHaveBeenCalled();
+    expect(forge.commitFile).toHaveBeenCalledTimes(2);
   });
 
   it("lets a maintainer register a custom component (201)", async () => {
