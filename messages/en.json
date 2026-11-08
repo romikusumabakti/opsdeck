@@ -969,7 +969,7 @@
     "sftpRoot": "SFTP root",
     "sftpRootDescription": "Absolute path the file explorer is confined to. Use / for the whole host.",
     "placement": "Environment placement",
-    "placementRestricted": "Restricted: admins and infra only",
+    "placementRestricted": "Restricted: admins and infra only, plus engineers on the project's default server",
     "placementOpen": "Open: project engineers",
     "placementDescription": "Who may create new environments on this server. On an open server, project engineers can create environments on this server without server permissions; only mark disposable dev/sandbox servers open. Existing environments are not affected.",
     "sftpRootInvalid": "Must be an absolute path (start with /)"

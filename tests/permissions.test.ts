@@ -146,7 +146,8 @@ const PROJECT_MATRIX: [string, string, Record<ProjectRole, boolean>][] = [
   ["database", "create", { viewer: false, qa: false, engineer: true }],
   ["database", "drop", { viewer: false, qa: false, engineer: true }],
   ["database", "rename", { viewer: false, qa: false, engineer: true }],
-  ["service", "control", { viewer: false, qa: true, engineer: true }],
+  ["service", "restart", { viewer: false, qa: true, engineer: true }],
+  ["service", "control", { viewer: false, qa: false, engineer: true }],
   ["environment", "create", { viewer: false, qa: false, engineer: true }],
   ["environment", "update", { viewer: false, qa: false, engineer: true }],
   ["environment", "delete", { viewer: false, qa: false, engineer: true }],
@@ -223,7 +224,16 @@ describe("canRegisterApp", () => {
 
 describe("QA and engineer behaviour", () => {
   it("qa can restart services", () => {
-    expect(canProject("qa", { service: ["control"] })).toBe(true);
+    expect(canProject("qa", { service: ["restart"] })).toBe(true);
+  });
+
+  it("qa cannot start or stop services", () => {
+    expect(canProject("qa", { service: ["control"] })).toBe(false);
+  });
+
+  it("engineer can restart, start and stop services", () => {
+    expect(canProject("engineer", { service: ["restart"] })).toBe(true);
+    expect(canProject("engineer", { service: ["control"] })).toBe(true);
   });
 
   it("qa cannot create environments", () => {

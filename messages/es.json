@@ -969,7 +969,7 @@
     "sftpRoot": "Raíz SFTP",
     "sftpRootDescription": "Ruta absoluta a la que se limita el explorador de archivos. Usa / para todo el host.",
     "placement": "Ubicación de entornos",
-    "placementRestricted": "Restringida: solo administradores e infra",
+    "placementRestricted": "Restringida: solo administradores e infra, y los engineers en el servidor predeterminado del proyecto",
     "placementOpen": "Abierta: engineers del proyecto",
     "placementDescription": "Quién puede crear entornos nuevos en este servidor. En un servidor abierto, los engineers del proyecto pueden crear entornos en este servidor sin permisos de servidor; marca como abiertos solo servidores de desarrollo o sandbox desechables. Los entornos existentes no se ven afectados.",
     "sftpRootInvalid": "Debe ser una ruta absoluta (empezar por /)"

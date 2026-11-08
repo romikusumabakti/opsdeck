@@ -232,7 +232,9 @@ function ServiceCard({
   const state = status?.state ?? "unknown";
   const Icon = meta.icon;
   const canControl = useProjectCan({ service: ["control"] });
+  const canRestart = useProjectCan({ service: ["restart"] }) || canControl;
   const busy = loading || pendingAction !== null || !canControl;
+  const restartBusy = loading || pendingAction !== null || !canRestart;
   // One toggle that matches the last known state; neither when it is unknown.
   const hasToggle = state === "running" || state === "stopped";
   // No tooltip while the first status is still loading.
@@ -331,7 +333,7 @@ function ServiceCard({
               size="sm"
               variant="outline"
               onClick={() => onAction("restart")}
-              disabled={busy}
+              disabled={restartBusy}
               aria-label={t("actions.restart")}
               className={cn(!hasToggle && "col-span-2")}
             >

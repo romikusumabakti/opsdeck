@@ -635,7 +635,8 @@ function changesBindings(
 // - every bound server must admit the caller under its placement policy
 //   (lib/permissions#canPlaceEnvironment); a server not found is restricted,
 //   and the project's default server admits its engineers;
-// - on an open server, a caller without org server:manage may only bind
+// - on an open server or the project's default server, a caller without org
+//   server:manage may only bind
 //   service names that start with the project's key lowercased plus "-"
 //   (`hris-backend` in HRIS) and that no other environment on that server
 //   uses, so an open placement never reaches another environment's
@@ -681,9 +682,13 @@ async function requireEnvironmentPlacement(
   );
   if (!allowed) throw new ForbiddenError("Forbidden", "placementForbidden");
   if (canOrg(orgRole, { server: ["manage"] })) return;
-  const openIds = serverIds.filter((id) => placementOf.get(id) === "open");
-  if (openIds.length === 0) return;
-  const onOpen = bindings.filter((b) => openIds.includes(b.serverId));
+  // Everything admitted without server:manage is confined: open servers, and
+  // the project's own default server even when it is restricted.
+  const confinedIds = serverIds.filter(
+    (id) => placementOf.get(id) === "open" || id === project?.defaultServerId
+  );
+  if (confinedIds.length === 0) return;
+  const onOpen = bindings.filter((b) => confinedIds.includes(b.serverId));
   const services = onOpen.filter((b) => !b.sharedDb);
   const shared = onOpen.filter((b) => b.sharedDb);
   const key = await projectKeyOf(projectId);
@@ -712,7 +717,7 @@ async function requireEnvironmentPlacement(
         containerName: databaseHosts.containerName,
       })
       .from(databaseHosts)
-      .where(inArray(databaseHosts.serverId, openIds));
+      .where(inArray(databaseHosts.serverId, confinedIds));
     const onHost = services.some((b) =>
       hosts.some(
         (h) => h.serverId === b.serverId && h.containerName === b.serviceName
@@ -751,7 +756,7 @@ async function requireEnvironmentPlacement(
         serviceName: environmentServices.serviceName,
       })
       .from(environmentServices)
-      .where(inArray(environmentServices.serverId, openIds))
+      .where(inArray(environmentServices.serverId, confinedIds))
   ).filter((u) => u.environmentId !== exceptEnvironmentId);
   const clash = services.some((b) =>
     used.some(
@@ -963,6 +968,16 @@ export async function createEnvironment(
   }
 }
 
+// True when the update turns on a service the environment does not have yet.
+function addsService(
+  input: EnvironmentUpdate,
+  stored: EnvironmentWithServers
+): boolean {
+  return (["db", "backend", "frontend"] as const).some(
+    (role) => bindingFlag(input, role) === true && !findService(stored, role)
+  );
+}
+
 const SERVER_ID_FIELDS: ReadonlySet<string> = new Set([
   "dbServerId",
   "backendServerId",
@@ -1009,6 +1024,7 @@ export async function updateEnvironment(
   if (removesService || changedInfra.length > 0) {
     const mayRebind =
       !removesService &&
+      !addsService(input, stored) &&
       changedInfra.every((field) => SERVER_ID_FIELDS.has(field)) &&
       !(await hasDeployment(id));
     if (!mayRebind) await requireOrgPermission({ server: ["manage"] });
