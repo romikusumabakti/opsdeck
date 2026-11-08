@@ -2943,7 +2943,12 @@
       "copyForbidden": "You may not read the variables of the environment to copy from: enter a value.",
       "missing_db_fields": "The shared database is incomplete: set the host, database, role and password variable.",
       "missing_entry_port": "The domain needs the local port.",
-      "no_targets": "Add a deploy target first."
+      "no_targets": "Add a deploy target first.",
+      "noServerAvailable": "No server is available for this project. Ask an admin to set a default server or open one.",
+      "repoOtherApp": "This repository already belongs to another app. Pick one of this app's repositories.",
+      "repoNotBuildable": "The Panel cannot build this repository: it needs a Dockerfile and a compose file.",
+      "nameTaken": "Another environment took this name meanwhile. Pick another one.",
+      "domainTaken": "Another environment took this address meanwhile. Pick another one."
     },
     "newApp": {
       "title": "New app",

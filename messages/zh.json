@@ -2943,7 +2943,12 @@
       "copyForbidden": "你无权读取要复制环境的变量：请输入值。",
       "missing_db_fields": "共享数据库信息不完整：请填写主机、数据库、角色和密码变量。",
       "missing_entry_port": "域名需要本地端口。",
-      "no_targets": "请先添加部署目标。"
+      "no_targets": "请先添加部署目标。",
+      "noServerAvailable": "此项目没有可用的服务器。请让管理员设置默认服务器或开放一台服务器。",
+      "repoOtherApp": "此仓库已属于另一个应用。请选择此应用的仓库之一。",
+      "repoNotBuildable": "Panel 无法构建此仓库：需要 Dockerfile 和 compose 文件。",
+      "nameTaken": "另一个环境刚刚占用了此名称。请另选一个。",
+      "domainTaken": "另一个环境刚刚占用了此地址。请另选一个。"
     },
     "newApp": {
       "title": "新建应用",

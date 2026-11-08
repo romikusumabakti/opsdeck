@@ -68,7 +68,7 @@ const { planEnvironmentVariables } = await import(
 );
 const { decryptSecret, encryptSecret } = await import("@/lib/secrets");
 const { composeContainerName, suggestServices } = await import(
-  "@/server/services/environment-setup"
+  "@/lib/setup/compose-names"
 );
 
 const input = {
