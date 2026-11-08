@@ -23,7 +23,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // class-variance-authority imports clsx; cn ships a drop-in clsx, so the
+    // bundle carries one class-joining implementation.
+    alias: { clsx: "cn" },
+  },
   build: { outDir: "dist/client" },
   server: {
     proxy: {

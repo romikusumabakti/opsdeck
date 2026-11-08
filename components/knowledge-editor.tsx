@@ -183,7 +183,7 @@ export function KnowledgeEditor({
   onChange: (markdown: string) => void;
   placeholder?: string;
   // Extra classes on the editing surface — merged last, so a min-h/height
-  // utility here overrides the default (twMerge dedupes conflicting classes).
+  // utility here overrides the default (cn dedupes conflicting classes).
   contentClassName?: string;
 }) {
   // Paste/drop handlers live inside the editor config (set once on mount) but

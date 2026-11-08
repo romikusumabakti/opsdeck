@@ -1,9 +1,4 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+export { cn } from "cn";
 
 // Human-readable byte size (base-1024): 0 → "0 B", 1536 → "1.5 KB". Keeps one
 // decimal for KB and up, trims a trailing ".0", and clamps to the largest unit.
