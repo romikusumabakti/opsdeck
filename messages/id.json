@@ -326,7 +326,7 @@
     "subtitle": "Deploy tag image hasil build CI ke environment ini, dan rollback kalau rilis bermasalah.",
     "addTarget": "Tambah target",
     "emptyTitle": "Belum ada target deploy",
-    "emptyDescription": "Target menghubungkan komponen dengan server dan project Compose di environment ini. Tambahkan target untuk men-deploy build yang dilaporkan CI.",
+    "emptyDescription": "Target menghubungkan komponen dengan server dan project Compose di environment ini. Tambahkan target di Pengaturan → Sumber & Deploy untuk men-deploy build yang dilaporkan CI.",
     "autoDeploy": "Auto-deploy",
     "lastDeployFailed": "Deploy terakhir gagal",
     "currentTag": "Tag saat ini",
@@ -900,7 +900,8 @@
     "noTargets": "Belum ada repositori yang di-deploy ke environment ini.",
     "noDatabase": "Tanpa basis data",
     "mockTimeTitle": "Mock time",
-    "mockTimeDescription": "API mock time milik backend, dipakai oleh halaman Mock time."
+    "mockTimeDescription": "API mock time milik backend, dipakai oleh halaman Mock time.",
+    "serverMixedAdminOnly": "Layanan environment ini berjalan di server yang berbeda. Hanya pengguna dengan akses manajemen server yang bisa memindahkannya."
   },
   "userMenu": {
     "users": "Manajemen pengguna",

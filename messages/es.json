@@ -326,7 +326,7 @@
     "subtitle": "Despliega en este entorno las etiquetas de imagen que genera la CI y revierte cuando una versión falla.",
     "addTarget": "Añadir destino",
     "emptyTitle": "Aún no hay destinos de despliegue",
-    "emptyDescription": "Un destino vincula una aplicación con un servidor y un proyecto de Compose en este entorno. Añade uno para desplegar las builds que informa la CI.",
+    "emptyDescription": "Un destino vincula una aplicación con un servidor y un proyecto de Compose en este entorno. Añade uno en Ajustes → Origen y despliegue para desplegar las builds que informa la CI.",
     "autoDeploy": "Despliegue automático",
     "lastDeployFailed": "El último despliegue falló",
     "currentTag": "Etiqueta actual",
@@ -900,7 +900,8 @@
     "noTargets": "Aún no hay ningún repositorio que se despliegue en este entorno.",
     "noDatabase": "Sin base de datos",
     "mockTimeTitle": "Hora simulada",
-    "mockTimeDescription": "La API de simulación de hora del backend, que usa la página Hora simulada."
+    "mockTimeDescription": "La API de simulación de hora del backend, que usa la página Hora simulada.",
+    "serverMixedAdminOnly": "Los servicios de este entorno se ejecutan en servidores distintos. Solo quien tenga acceso de gestión de servidores puede reasignarlos."
   },
   "userMenu": {
     "users": "Gestión de usuarios",

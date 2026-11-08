@@ -326,7 +326,7 @@
     "subtitle": "Roll CI-built image tags out to this environment, and roll back when a release goes wrong.",
     "addTarget": "Add target",
     "emptyTitle": "No deploy targets yet",
-    "emptyDescription": "A target links a component to a server and Compose project in this environment. Add one to deploy the builds CI reports.",
+    "emptyDescription": "A target links a component to a server and Compose project in this environment. Add one in Settings → Source & Deploy to deploy the builds CI reports.",
     "autoDeploy": "Auto-deploy",
     "lastDeployFailed": "Last deploy failed",
     "currentTag": "Current tag",
@@ -900,7 +900,8 @@
     "noTargets": "No repository deploys to this environment yet.",
     "noDatabase": "No database",
     "mockTimeTitle": "Mock time",
-    "mockTimeDescription": "The backend's time-mocking API, used by the Mock time page."
+    "mockTimeDescription": "The backend's time-mocking API, used by the Mock time page.",
+    "serverMixedAdminOnly": "This environment's services run on different servers. Only someone with server management access can rebind them."
   },
   "userMenu": {
     "users": "User management",

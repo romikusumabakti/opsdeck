@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { domainUrl } from "@/lib/domains/validation";
 import type { DeployTargetState } from "@/web/api/deploys";
 import type { EnvironmentDomain } from "@/web/api/environment-domains";
 import type { MailpitSettings } from "@/web/api/mailpit-settings";
@@ -79,11 +80,10 @@ export function EnvironmentSettingsTabs({
   const t = useTranslations("environmentSettings");
   const [ownTab, setOwnTab] = useState<SettingsTabId>("general");
   const tab = controlledTab ?? ownTab;
-  const { form, saveTab } = useSettingsForm(
-    environment,
-    targets,
-    canManageServers
-  );
+  const { form, saveTab } = useSettingsForm(environment, targets, {
+    canManageServers,
+    hasDomain: domain.domain !== null,
+  });
   const options = serverOptions(environment, servers);
   // Mirrors the server's rebinding rule: any deployment row of the
   // environment (every one belongs to a target) freezes it for engineers.
@@ -112,7 +112,7 @@ export function EnvironmentSettingsTabs({
         <TabsContent value="general">
           <GeneralTab
             environment={environment}
-            hasDomain={domain.domain !== null}
+            domainUrl={domain.domain ? domainUrl(domain.domain.hostname) : null}
             projects={projects}
             projectKey={projectKey}
             canDuplicate={canDuplicate}
