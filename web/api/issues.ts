@@ -1,7 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
+import type { z } from "zod";
 import type { IssueSort, IssueView } from "@/lib/issue-query";
+import type { issueStatusSchema } from "@/lib/validation";
 import { api, orFailure, type PostJson } from "@/web/api/client";
+
+type Status = z.infer<typeof issueStatusSchema>;
 
 const routes = api.api.issues;
 type Body<K extends keyof typeof routes> = PostJson<typeof routes, K>;
@@ -75,8 +79,16 @@ export const listAllIssuesQuery = (...args: Parameters<typeof listAllIssues>) =>
     queryFn: () => listAllIssues(...args),
   });
 
-export async function listIssues(projectId: string) {
-  return parseResponse(routes["list-issues"].$get({ query: { projectId } }));
+/** `statuses` omitted lists every status. */
+export async function listIssues(
+  projectId: string,
+  statuses?: readonly Status[]
+) {
+  return parseResponse(
+    routes["list-issues"].$get({
+      query: { projectId, statuses: statuses?.join(",") },
+    })
+  );
 }
 
 export const listIssuesQuery = (...args: Parameters<typeof listIssues>) =>

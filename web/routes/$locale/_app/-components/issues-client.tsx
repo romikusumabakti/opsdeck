@@ -43,8 +43,8 @@ import {
 } from "@/components/ui/table";
 import { TablePager } from "@/components/ui/table-pager";
 import { useProjectName } from "@/hooks/use-project-name";
-import { Link, useRouter } from "@/i18n/navigation";
-import { DEFAULT_PAGE_SIZE } from "@/lib/issue-query";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { DEFAULT_PAGE_SIZE, STATUS_ALL } from "@/lib/issue-query";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import type { UserRef } from "@/lib/types";
 import type { IssueWithMeta } from "@/web/api/issues";
@@ -55,6 +55,16 @@ import {
   updateIssue,
 } from "@/web/api/issues";
 
+const ACTIVE_ITEM = "active";
+
+/** The menu value for the raw `status` param; junk falls back to the default. */
+function statusFilterValue(status: string | undefined) {
+  return status === STATUS_ALL ||
+    (STATUSES as readonly string[]).includes(status ?? "")
+    ? (status as string)
+    : ACTIVE_ITEM;
+}
+
 export function IssuesClient({
   projectId,
   projectKey,
@@ -63,6 +73,7 @@ export function IssuesClient({
   users,
   milestones,
   initialIssues,
+  status,
 }: {
   projectId: string;
   projectKey: string;
@@ -71,11 +82,14 @@ export function IssuesClient({
   users: AssignableUser[];
   milestones: MilestoneOption[];
   initialIssues: IssueWithMeta[];
+  /** The `status` URL param the list was loaded with (unset = open + in progress). */
+  status: string | undefined;
 }) {
   const t = useTranslations("issues");
   const projectName = useProjectName(projectId);
   const tCommon = useTranslations("common");
   const router = useRouter();
+  const pathname = usePathname();
   const dialog = useDialog();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   // Keyboard cursor into the table (j/k move, x select, Enter open). -1 = none.
@@ -145,6 +159,15 @@ export function IssuesClient({
     () => visible.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
     [visible, currentPage, pageSize]
   );
+
+  // The status filter lives in the URL like on /issues: the server returns only
+  // the chosen statuses, so changing it is a navigation, not a client filter.
+  function setStatusFilter(value: string) {
+    router.replace(
+      value === ACTIVE_ITEM ? pathname : `${pathname}?status=${value}`,
+      { scroll: false }
+    );
+  }
 
   async function onStatusChange(id: string, status: Status) {
     setIssues((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
@@ -308,6 +331,23 @@ export function IssuesClient({
             aria-label={t("searchPlaceholder")}
           />
         </div>
+        <Select
+          value={statusFilterValue(status)}
+          onValueChange={(v) => setStatusFilter(v ?? ACTIVE_ITEM)}
+        >
+          <SelectTrigger className="w-44" aria-label={t("filterStatus")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ACTIVE_ITEM}>{t("statusActive")}</SelectItem>
+            <SelectItem value={STATUS_ALL}>{t("allStatuses")}</SelectItem>
+            {STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {t(`status.${s}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {milestones.length > 0 ? (
           <Select
             value={milestoneFilter}

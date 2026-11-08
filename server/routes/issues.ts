@@ -70,8 +70,23 @@ export const issuesRouter = sessionRouter()
   .get("/list-all-issues", jsonQuery(issueQuerySchema), async (c) =>
     c.json(await listAllIssues(c.req.valid("query")))
   )
-  .get("/list-issues", query(z.object({ projectId: uuidSchema })), async (c) =>
-    c.json(await listIssues(c.req.valid("query").projectId))
+  .get(
+    "/list-issues",
+    query(
+      z.object({
+        projectId: uuidSchema,
+        // Comma-separated statuses; absent means every status.
+        statuses: z
+          .string()
+          .transform((s) => s.split(","))
+          .pipe(z.array(issueStatusSchema).min(1).max(4))
+          .optional(),
+      })
+    ),
+    async (c) => {
+      const { projectId, statuses } = c.req.valid("query");
+      return c.json(await listIssues(projectId, statuses));
+    }
   )
   .get(
     "/get-issue-form-options",
