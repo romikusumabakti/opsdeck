@@ -214,8 +214,8 @@ vi.mock("@/server/services/environment-setup", async (importOriginal) => ({
 }));
 
 const apps = vi.hoisted(() => ({
-  registerApp: vi.fn(),
-  addComponentsToApp: vi.fn(),
+  registerSetupApp: vi.fn(),
+  addSetupComponents: vi.fn(),
   ensureComponentBranch: vi.fn(),
   triggerComponentBuild: vi.fn(),
 }));
@@ -320,17 +320,25 @@ beforeEach(() => {
       runId: "run-1",
     };
   });
-  apps.registerApp.mockImplementation(async (input: { appKey: string }) => {
-    state.calls.push("register");
-    return { id: APP_ID, appKey: input.appKey, name: "x", components: [] };
-  });
-  apps.addComponentsToApp.mockImplementation(async (appKey: string) => {
+  apps.registerSetupApp.mockImplementation(
+    async (input: { appKey: string }) => {
+      state.calls.push("register");
+      return {
+        app: { id: APP_ID, appKey: input.appKey, name: "x", components: [] },
+        pipelineFileFailures: [],
+      };
+    }
+  );
+  apps.addSetupComponents.mockImplementation(async (appKey: string) => {
     state.calls.push("addComponents");
-    return { id: APP_ID, appKey, name: "x", components: [] };
+    return {
+      app: { id: APP_ID, appKey, name: "x", components: [] },
+      pipelineFileFailures: [],
+    };
   });
   apps.ensureComponentBranch.mockImplementation(async () => {
     state.calls.push("ensureBranch");
-    return { added: true };
+    return { added: true, pipelineFileFailures: [] };
   });
   apps.triggerComponentBuild.mockImplementation(async () => {
     state.calls.push("build");
@@ -347,11 +355,12 @@ describe("POST /api/setup/new-environment", () => {
       envSlug: "dev",
       runId: "run-1",
       buildFailures: [],
+      pipelineFileFailures: [],
     });
 
     // One new app with one generated component, named from the repo.
-    expect(apps.registerApp).toHaveBeenCalledTimes(1);
-    const registered = apps.registerApp.mock.calls[0]?.[0];
+    expect(apps.registerSetupApp).toHaveBeenCalledTimes(1);
+    const registered = apps.registerSetupApp.mock.calls[0]?.[0];
     expect(registered).toMatchObject({
       appKey: "panel-canary",
       components: [
@@ -365,7 +374,12 @@ describe("POST /api/setup/new-environment", () => {
         },
       ],
     });
-    expect(apps.addComponentsToApp).not.toHaveBeenCalled();
+    // The build spec is detection's (server-derived); the new environment's
+    // branch is the one that builds.
+    expect(apps.registerSetupApp.mock.calls[0]?.[1]).toEqual({
+      "panel-canary": ["main"],
+    });
+    expect(apps.addSetupComponents).not.toHaveBeenCalled();
 
     // The resolved setup, on the registered app.
     const created = setup.createEnvironmentSetup.mock.calls[0]?.[0];
@@ -474,8 +488,8 @@ describe("POST /api/setup/new-environment", () => {
       repos: [{ ciConnectionId: CI, repoFullName: "dss/hris", branch: "uat" }],
     });
     expect(res.status).toBe(201);
-    expect(apps.registerApp).not.toHaveBeenCalled();
-    expect(apps.addComponentsToApp).not.toHaveBeenCalled();
+    expect(apps.registerSetupApp).not.toHaveBeenCalled();
+    expect(apps.addSetupComponents).not.toHaveBeenCalled();
     expect(apps.ensureComponentBranch).toHaveBeenCalledWith(
       "hris",
       "uat",
@@ -504,13 +518,17 @@ describe("POST /api/setup/new-environment", () => {
       ],
     });
     expect(res.status).toBe(201);
-    expect(apps.registerApp).not.toHaveBeenCalled();
-    expect(apps.addComponentsToApp).toHaveBeenCalledWith("hris", [
-      expect.objectContaining({
-        componentKey: "panel-canary",
-        forgeRemoteId: "{r1}",
-      }),
-    ]);
+    expect(apps.registerSetupApp).not.toHaveBeenCalled();
+    expect(apps.addSetupComponents).toHaveBeenCalledWith(
+      "hris",
+      [
+        expect.objectContaining({
+          componentKey: "panel-canary",
+          forgeRemoteId: "{r1}",
+        }),
+      ],
+      { hris: ["main"], "panel-canary": ["main"] }
+    );
     // The new component is not checked against the app before it exists.
     expect(setup.previewEnvironmentSetup.mock.calls[0]?.[0]).toMatchObject({
       appId: APP_ID,
@@ -543,18 +561,54 @@ describe("POST /api/setup/new-environment", () => {
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "nameTaken" });
-    expect(apps.registerApp).not.toHaveBeenCalled();
+    expect(apps.registerSetupApp).not.toHaveBeenCalled();
     expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
   });
 
   it("a failed registration leaves no environment", async () => {
-    apps.registerApp.mockRejectedValueOnce(
+    apps.registerSetupApp.mockRejectedValueOnce(
       new CodedHTTPException(409, "pipelineFileExists", "exists")
     );
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "pipelineFileExists" });
     expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
+  });
+
+  it("returns pipeline file commit failures per branch", async () => {
+    const failure = {
+      componentKey: "panel-canary",
+      branch: "main",
+      code: null,
+      error: "Branch main does not exist",
+    };
+    apps.registerSetupApp.mockResolvedValueOnce({
+      app: { id: APP_ID, appKey: "panel-canary", name: "x", components: [] },
+      pipelineFileFailures: [failure],
+    });
+    const res = await post("/api/setup/new-environment", freshInput);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ pipelineFileFailures: [failure] });
+  });
+
+  it("returns the added branch's pipeline file failure", async () => {
+    state.apps = [hrisApp("generated")];
+    const failure = {
+      componentKey: "hris",
+      branch: "uat",
+      code: "pipelineFileExists",
+      error: "pipelineFileExists",
+    };
+    apps.ensureComponentBranch.mockResolvedValueOnce({
+      added: true,
+      pipelineFileFailures: [failure],
+    });
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      repos: [{ ciConnectionId: CI, repoFullName: "dss/hris", branch: "uat" }],
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ pipelineFileFailures: [failure] });
   });
 
   it("reports a failed first build without failing the create", async () => {
@@ -596,7 +650,7 @@ describe("POST /api/setup/new-environment", () => {
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ code: "repoNotFound" });
-    expect(apps.registerApp).not.toHaveBeenCalled();
+    expect(apps.registerSetupApp).not.toHaveBeenCalled();
   });
 
   it("answers ciUnavailable when the CI server fails", async () => {
@@ -665,8 +719,8 @@ describe("POST /api/setup/new-environment/preview", () => {
     // The setup preview ran for the not-yet-registered app, without the
     // refusal its absence causes.
     expect(body.preview).toMatchObject({ issues: [], slug: "dev" });
-    expect(apps.registerApp).not.toHaveBeenCalled();
-    expect(apps.addComponentsToApp).not.toHaveBeenCalled();
+    expect(apps.registerSetupApp).not.toHaveBeenCalled();
+    expect(apps.addSetupComponents).not.toHaveBeenCalled();
     expect(apps.ensureComponentBranch).not.toHaveBeenCalled();
     expect(apps.triggerComponentBuild).not.toHaveBeenCalled();
     expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
