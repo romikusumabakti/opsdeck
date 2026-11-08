@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { branchSchema } from "@/lib/deploy/validation";
+import { newEnvironmentInputSchema } from "@/lib/setup/new-environment";
 import { environmentSetupInputSchema } from "@/lib/setup/schema";
 import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
@@ -10,6 +11,11 @@ import {
   getSetupOptions,
   previewEnvironmentSetup,
 } from "@/server/services/environment-setup";
+import {
+  createNewEnvironment,
+  previewNewEnvironment,
+  searchSetupRepos,
+} from "@/server/services/new-environment";
 import { detectComponentRepo } from "@/server/services/setup-detect";
 import { json, param, query } from "@/server/validation";
 
@@ -40,6 +46,22 @@ export const setupRouter = sessionRouter()
   )
   .post("/environments", json(environmentSetupInputSchema), async (c) =>
     c.json(await createEnvironmentSetup(c.req.valid("json")), 201)
+  )
+  // The New environment page: a short input the server resolves into a
+  // setup (preview writes nothing, like /environments/preview).
+  .post(
+    "/new-environment/preview",
+    json(newEnvironmentInputSchema),
+    async (c) => c.json(await previewNewEnvironment(c.req.valid("json")))
+  )
+  .post("/new-environment", json(newEnvironmentInputSchema), async (c) =>
+    c.json(await createNewEnvironment(c.req.valid("json")), 201)
+  )
+  // The repo picker: the CI server's repos by name, each with its owning app.
+  .get(
+    "/repos",
+    query(z.object({ q: z.string().max(200).default("") })),
+    async (c) => c.json(await searchSetupRepos(c.req.valid("query").q))
   )
   // The lists the forms offer for a project, without org server or tunnel
   // read (an engineer has neither).
