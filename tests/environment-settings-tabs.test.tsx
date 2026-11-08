@@ -162,6 +162,22 @@ const withFrontend = {
   ],
 } as Props["environment"];
 
+// Backend, frontend and an own-container database, all on SERVER.
+const containerEnv = {
+  ...withFrontend,
+  services: withFrontend.services.map((svc) =>
+    svc.role === "db"
+      ? {
+          ...svc,
+          dbKind: "container",
+          databaseHostId: null,
+          dbRole: null,
+          dbPasswordVariable: null,
+        }
+      : svc
+  ),
+} as Props["environment"];
+
 const target = (deployed: boolean) =>
   ({
     id: TARGET,
@@ -454,7 +470,7 @@ describe("environment settings tabs", () => {
   });
 
   it("the one server picker moves every service and target", async () => {
-    await mount({ environment: withFrontend });
+    await mount({ environment: containerEnv });
     await openTab(t.tabSourceDeploy);
     await click(document.querySelector<HTMLElement>("#env-server"));
     await click(byText('[role="option"]', ".56.115"));
@@ -463,6 +479,8 @@ describe("environment settings tabs", () => {
     expect(payload).toMatchObject({
       backendServerId: OTHER_SERVER,
       frontendServerId: OTHER_SERVER,
+      dbServerId: OTHER_SERVER,
+      dbKind: "container",
     });
     expect(api.updateDeployTarget).toHaveBeenCalledWith(TARGET, {
       serverId: OTHER_SERVER,
@@ -573,6 +591,54 @@ describe("environment settings tabs", () => {
     await save();
     expect(document.querySelector("#env-url")).not.toBeNull();
     expect(api.updateEnvironment).not.toHaveBeenCalled();
+  });
+  it("an engineer before the first deploy moves the app, its container database and targets", async () => {
+    api.orgRole = "member";
+    await mount({ environment: containerEnv, canManageServers: false });
+    await openTab(t.tabSourceDeploy);
+    await click(document.querySelector<HTMLElement>("#env-server"));
+    await click(byText('[role="option"]', ".56.115"));
+    await click(byText("button", messages.environmentForm.saveChanges));
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).toEqual({
+      projectId: PROJECT,
+      name: "Dev 1",
+      kind: "dev",
+      ownerId: null,
+      url: null,
+      backendServerId: OTHER_SERVER,
+      frontendServerId: OTHER_SERVER,
+      dbServerId: OTHER_SERVER,
+    });
+    expect(api.updateDeployTarget).toHaveBeenCalledWith(TARGET, {
+      serverId: OTHER_SERVER,
+    });
+  });
+
+  it("moving away from a shared database's host is blocked and keeps dbServerId", async () => {
+    await mount({ environment: withFrontend });
+    await openTab(t.tabSourceDeploy);
+    await click(document.querySelector<HTMLElement>("#env-server"));
+    await click(byText('[role="option"]', ".56.115"));
+    expect(document.body.textContent).toContain(t.serverSharedDbElsewhere);
+    const save = byText(
+      "button",
+      messages.environmentForm.saveChanges
+    ) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await click(save);
+    expect(api.updateEnvironment).not.toHaveBeenCalled();
+  });
+
+  it("an engineer is not offered a server away from the shared database's host", async () => {
+    api.orgRole = "member";
+    await mount({ environment: withFrontend, canManageServers: false });
+    await openTab(t.tabSourceDeploy);
+    await click(document.querySelector<HTMLElement>("#env-server"));
+    const options = [...document.querySelectorAll('[role="option"]')].map(
+      (el) => el.textContent?.trim()
+    );
+    expect(options).toEqual([".56.129"]);
   });
 });
 

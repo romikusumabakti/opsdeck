@@ -46,6 +46,15 @@ describe("panel simplification migration", () => {
     expect(sql).toContain("DROP COLUMN owner");
   });
 
+  it("sets every domain-bound environment's url to the domain, after the host copy", () => {
+    const host = sql.indexOf("UPDATE environments SET url = 'http://' || host");
+    const backfill = sql.indexOf(
+      "UPDATE environments e SET url = 'https://' || d.hostname\n  FROM environment_domains d\n  WHERE d.environment_id = e.id AND e.url IS DISTINCT FROM 'https://' || d.hostname;"
+    );
+    expect(backfill).toBeGreaterThan(host);
+    expect(backfill).toBeLessThan(sql.indexOf("COMMIT;"));
+  });
+
   it("makes the Cloudflare zone API token optional", () => {
     expect(sql).toContain(
       "ALTER TABLE cloudflare_zones ALTER COLUMN api_token DROP NOT NULL"

@@ -891,7 +891,7 @@
     "tabDatabase": "数据库",
     "tabDomain": "域名",
     "tabMailMockTime": "邮件与模拟时间",
-    "serverHint": "此环境的所有服务和部署目标都运行在此服务器上。",
+    "serverHint": "此环境的应用服务、部署目标及其自有数据库容器运行在此服务器上。共享数据库保留在其主机上。",
     "serverLocked": "首次部署后服务器即被锁定。拥有服务器管理权限的人仍可更改。",
     "serverMixed": "此环境的服务运行在不同的服务器上。请在高级选项中逐个更改。",
     "urlFromDomain": "由环境的域名决定。请在“域名”选项卡中更改地址。",
@@ -901,7 +901,8 @@
     "noDatabase": "无数据库",
     "mockTimeTitle": "模拟时间",
     "mockTimeDescription": "后端的时间模拟 API，供“模拟时间”页面使用。",
-    "serverMixedAdminOnly": "此环境的服务运行在不同的服务器上。只有拥有服务器管理权限的人才能重新绑定。"
+    "serverMixedAdminOnly": "此环境的服务运行在不同的服务器上。只有拥有服务器管理权限的人才能重新绑定。",
+    "serverSharedDbElsewhere": "此环境的共享数据库位于另一台服务器的数据库主机上，将应用迁移到此处会导致其失效。请选择数据库主机所在的服务器或保留当前服务器。"
   },
   "userMenu": {
     "users": "用户管理",
