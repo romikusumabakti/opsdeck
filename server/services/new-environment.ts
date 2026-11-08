@@ -39,9 +39,11 @@ import {
 } from "@/server/errors";
 import {
   type AppWithComponents,
-  addComponentsToApp,
+  addSetupComponents,
+  type EnvironmentBranches,
   ensureComponentBranch,
-  registerApp,
+  type PipelineFileFailure,
+  registerSetupApp,
   requireRegistrant,
   triggerComponentBuild,
 } from "@/server/services/apps";
@@ -504,21 +506,42 @@ async function registrationComponents(
   return components;
 }
 
-/** Registers the plan's new repos; returns the environment's app id. */
+/** The branches the plan's targets deploy from, by component. */
+function environmentBranches(plan: NewEnvironmentPlan): EnvironmentBranches {
+  const branches: Record<string, string[]> = {};
+  for (const { componentKey, sourceBranch } of plan.setup.targets) {
+    const list = branches[componentKey] ?? [];
+    if (!list.includes(sourceBranch)) list.push(sourceBranch);
+    branches[componentKey] = list;
+  }
+  return branches;
+}
+
+/**
+ * Registers the plan's new repos; returns the environment's app id and the
+ * branches the generated pipeline file was not committed to. A generated
+ * component's build spec is the resolver's: detection's suggestion, or an
+ * admin's advanced.pipelines choice (authorize gates it), never other input.
+ */
 async function registerRepos(
   plan: NewEnvironmentPlan,
   ctx: NewEnvironmentContext
-): Promise<string> {
+): Promise<{ appId: string; pipelineFileFailures: PipelineFileFailure[] }> {
   if (plan.registrations.length === 0) {
     if (!ctx.app) {
       throw new CodedHTTPException(404, "appNotFound", "App not found");
     }
-    return ctx.app.id;
+    return { appId: ctx.app.id, pipelineFileFailures: [] };
   }
   const components = await registrationComponents(plan);
+  const branches = environmentBranches(plan);
   if (ctx.app) {
-    await addComponentsToApp(ctx.app.key, components);
-    return ctx.app.id;
+    const { pipelineFileFailures } = await addSetupComponents(
+      ctx.app.key,
+      components,
+      branches
+    );
+    return { appId: ctx.app.id, pipelineFileFailures };
   }
   const first = plan.registrations[0]?.repoFullName ?? plan.appKey;
   const parsed = registerAppSchema.safeParse({
@@ -527,7 +550,11 @@ async function registerRepos(
     components,
   });
   if (!parsed.success) badRequest("Invalid registration", "invalidInput");
-  return (await registerApp(parsed.data)).id;
+  const { app, pipelineFileFailures } = await registerSetupApp(
+    parsed.data,
+    branches
+  );
+  return { appId: app.id, pipelineFileFailures };
 }
 
 /**
@@ -572,6 +599,8 @@ export type BuildFailure = {
 export type NewEnvironmentCreated = SetupCreated & {
   /** First builds that did not start; the environment exists regardless. */
   buildFailures: BuildFailure[];
+  /** Branches the generated pipeline file was not committed to. */
+  pipelineFileFailures: PipelineFileFailure[];
 };
 
 /**
@@ -623,15 +652,16 @@ export async function createNewEnvironment(
   const [setupIssue] = (await previewPlan(plan, ctx)).issues;
   if (setupIssue) throw issueRefusal(setupIssue);
 
-  const appId = await registerRepos(plan, ctx);
+  const { appId, pipelineFileFailures } = await registerRepos(plan, ctx);
   const registered = new Set(plan.registrations.map((r) => r.componentKey));
   for (const target of plan.setup.targets) {
     if (registered.has(target.componentKey)) continue;
-    await ensureComponentBranch(
+    const ensured = await ensureComponentBranch(
       target.componentKey,
       target.sourceBranch,
       input.projectId
     );
+    pipelineFileFailures.push(...ensured.pipelineFileFailures);
   }
 
   let created: SetupCreated;
@@ -647,7 +677,7 @@ export async function createNewEnvironment(
 
   await saveDefaultServer(ctx, plan.setup.server.serverId, caller);
   const buildFailures = await startFirstBuilds(plan, plan.appKey);
-  return { ...created, buildFailures };
+  return { ...created, buildFailures, pipelineFileFailures };
 }
 
 export type SetupRepo = {

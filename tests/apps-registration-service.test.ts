@@ -66,8 +66,10 @@ import { buildSpecSchema } from "@/lib/ci/build-spec";
 import { generateWoodpeckerPipeline } from "@/lib/ci/pipeline";
 import {
   addComponentsToApp,
+  addSetupComponents,
   ensureComponentBranch,
   registerApp,
+  registerSetupApp,
 } from "@/server/services/apps";
 
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789c1";
@@ -137,11 +139,114 @@ const REGISTER = {
   ],
 };
 
-describe("registerApp for engineers", () => {
-  it("lets an engineer register a generated pipeline", async () => {
+const INPUT = REGISTER.components[0] as (typeof REGISTER.components)[number];
+const CUSTOM = {
+  ...REGISTER,
+  components: [
+    {
+      ...INPUT,
+      pipelineMode: "custom" as const,
+      buildSpec: undefined,
+    },
+  ],
+};
+const BRANCHES = { hris: ["main"] };
+const asAdmin = () =>
+  mocks.requireSession.mockResolvedValue({ user: { role: "admin" } });
+
+describe("registerApp and addComponentsToApp choose generated for admins only", () => {
+  it("refuses an engineer a generated component (403 pipelineForbidden)", async () => {
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      status: 403,
+      code: "pipelineForbidden",
+    });
+    await expect(
+      addComponentsToApp("hris", REGISTER.components)
+    ).rejects.toMatchObject({ status: 403, code: "pipelineForbidden" });
+    expect(mocks.activateRepo).not.toHaveBeenCalled();
+    expect(mocks.commitFile).not.toHaveBeenCalled();
+  });
+
+  it("lets an engineer register a custom component", async () => {
+    await expect(registerApp(CUSTOM)).resolves.toBeDefined();
+    await expect(
+      addComponentsToApp("hris", CUSTOM.components)
+    ).resolves.toBeDefined();
+    expect(mocks.commitFile).not.toHaveBeenCalled();
+  });
+
+  it("lets an admin register a generated component", async () => {
+    asAdmin();
     await expect(registerApp(REGISTER)).resolves.toBeDefined();
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
+    // No environment: the commit builds as before.
+    expect(mocks.commitFile.mock.calls[0]?.[5]).not.toContain("[CI SKIP]");
   });
+});
+
+describe("registerSetupApp (New environment, server-derived spec)", () => {
+  it("lets an engineer register a generated pipeline", async () => {
+    await expect(registerSetupApp(REGISTER, BRANCHES)).resolves.toMatchObject({
+      app: { appKey: "hris" },
+      pipelineFileFailures: [],
+    });
+    expect(mocks.commitFile).toHaveBeenCalledTimes(1);
+    // The environment's branch builds: its build is the first deploy.
+    expect(mocks.commitFile.mock.calls[0]?.[5]).not.toContain("[CI SKIP]");
+  });
+
+  it("skips the build of a branch the environment does not deploy", async () => {
+    const twoBranches = {
+      ...REGISTER,
+      components: [
+        {
+          ...INPUT,
+          buildSpec: { ...SPEC, branches: ["main", "release"] },
+        },
+      ],
+    };
+    await registerSetupApp(twoBranches, BRANCHES);
+    const messages = Object.fromEntries(
+      mocks.commitFile.mock.calls.map((c) => [c[2], c[5] as string])
+    );
+    expect(messages.main).not.toContain("[CI SKIP]");
+    expect(messages.release?.startsWith("[CI SKIP] ")).toBe(true);
+  });
+
+  it("returns the branches the file was not committed to", async () => {
+    mocks.branchExists.mockResolvedValue(false);
+    await expect(registerSetupApp(REGISTER, BRANCHES)).resolves.toMatchObject({
+      pipelineFileFailures: [
+        {
+          componentKey: "hris",
+          branch: "main",
+          code: null,
+          error: "Branch main does not exist",
+        },
+      ],
+    });
+  });
+
+  it("addSetupComponents lets an engineer add a generated component", async () => {
+    await expect(
+      addSetupComponents("hris", REGISTER.components, BRANCHES)
+    ).resolves.toMatchObject({ pipelineFileFailures: [] });
+    expect(mocks.insertComponents).toHaveBeenCalled();
+  });
+
+  it("is refused for a user who may not register repos (403)", async () => {
+    mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
+    await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(
+      addSetupComponents("hris", REGISTER.components, BRANCHES)
+    ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("generated registration checks", () => {
+  beforeEach(asAdmin);
 
   it("refuses up front (409) when a branch holds a non-Panel pipeline file", async () => {
     mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
@@ -181,6 +286,7 @@ describe("registerApp for engineers", () => {
 });
 
 describe("registration refusals carry a stable code", () => {
+  beforeEach(asAdmin);
   it("appKeyTaken", async () => {
     mocks.appKeyExists.mockResolvedValue(true);
     await expect(registerApp(REGISTER)).rejects.toMatchObject({
@@ -227,6 +333,7 @@ describe("registration refusals carry a stable code", () => {
 });
 
 describe("addComponentsToApp", () => {
+  beforeEach(asAdmin);
   it("registers the components into the existing app", async () => {
     await expect(
       addComponentsToApp("hris", REGISTER.components)
@@ -268,16 +375,17 @@ describe("addComponentsToApp", () => {
   });
 
   it("is refused for a user who may not register repos (403)", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { role: "member" } });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
     await expect(
-      addComponentsToApp("hris", REGISTER.components)
+      addComponentsToApp("hris", CUSTOM.components)
     ).rejects.toMatchObject({ status: 403 });
     expect(mocks.insertComponents).not.toHaveBeenCalled();
   });
 });
 
 describe("ensureComponentBranch", () => {
-  it("adds a branch and recommits to every built branch", async () => {
+  it("adds a branch and commits once, to that branch only", async () => {
     mocks.getComponent
       .mockResolvedValueOnce({ ...COMPONENT, app: {} })
       .mockResolvedValueOnce({
@@ -287,21 +395,40 @@ describe("ensureComponentBranch", () => {
       });
     await expect(
       ensureComponentBranch("hris", "feature-x", "p1")
-    ).resolves.toEqual({
-      added: true,
-    });
+    ).resolves.toEqual({ added: true, pipelineFileFailures: [] });
     expect(mocks.appendBuildSpecBranch).toHaveBeenCalledWith(
       "hris",
       "feature-x"
     );
-    expect(mocks.commitFile.mock.calls.map((c) => c[2])).toEqual([
-      "main",
-      "feature-x",
-    ]);
+    expect(mocks.commitFile.mock.calls.map((c) => c[2])).toEqual(["feature-x"]);
+    // The file lists every built branch; the new branch's build is not
+    // skipped (it is the first deploy).
+    expect(mocks.commitFile.mock.calls[0]?.[4]).toContain("feature-x");
+    expect(mocks.commitFile.mock.calls[0]?.[5]).not.toContain("[CI SKIP]");
+  });
+
+  it("returns the added branch's commit failure", async () => {
+    mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
+    await expect(
+      ensureComponentBranch("hris", "feature-x", "p1")
+    ).resolves.toEqual({
+      added: true,
+      pipelineFileFailures: [
+        {
+          componentKey: "hris",
+          branch: "feature-x",
+          code: "pipelineFileExists",
+          error: "pipelineFileExists",
+        },
+      ],
+    });
+    expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
   it("is idempotent for a listed branch", async () => {
-    await expect(ensureComponentBranch("hris", "main", "p1")).resolves.toEqual({
+    await expect(
+      ensureComponentBranch("hris", "main", "p1")
+    ).resolves.toMatchObject({
       added: false,
     });
     expect(mocks.appendBuildSpecBranch).not.toHaveBeenCalled();
@@ -315,7 +442,9 @@ describe("ensureComponentBranch", () => {
       buildSpec: null,
       app: {},
     });
-    await expect(ensureComponentBranch("hris", "x", "p1")).resolves.toEqual({
+    await expect(
+      ensureComponentBranch("hris", "x", "p1")
+    ).resolves.toMatchObject({
       added: false,
     });
     expect(mocks.commitFile).not.toHaveBeenCalled();
@@ -349,7 +478,9 @@ describe("ensureComponentBranch", () => {
       pipelineFileCommits: { main: { error: "Branch main does not exist" } },
       app: {},
     });
-    await expect(ensureComponentBranch("hris", "main", "p1")).resolves.toEqual({
+    await expect(
+      ensureComponentBranch("hris", "main", "p1")
+    ).resolves.toMatchObject({
       added: false,
     });
     expect(mocks.appendBuildSpecBranch).not.toHaveBeenCalled();
@@ -360,7 +491,7 @@ describe("ensureComponentBranch", () => {
     mocks.appendBuildSpecBranch.mockResolvedValue(false);
     await expect(
       ensureComponentBranch("hris", "feature-x", "p1")
-    ).resolves.toEqual({ added: false });
+    ).resolves.toMatchObject({ added: false });
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 });

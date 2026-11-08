@@ -266,7 +266,9 @@ function holdsEngineerAnywhere(
 
 // Registering an app activates a repository in the CI server and sets its
 // notify secret, so it is for admins (integration:manage) and for engineers
-// of any project, for generated and custom pipelines alike. Org roles that
+// of any project. A generated pipeline commits its build spec with the
+// Panel's forge token, so choosing one needs integration:manage (the New
+// environment page registers detection's spec for engineers). Org roles that
 // imply engineer on every project (infra) count, as does an explicit engineer
 // membership. Retrying a pipeline file commit and secret rotation stay with
 // integration:manage.
