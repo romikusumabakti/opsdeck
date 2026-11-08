@@ -6,10 +6,9 @@ import {
   Hourglass,
   Loader2,
   Lock,
-  Pencil,
-  Plus,
   Rocket,
   ScrollText,
+  Settings,
   Undo2,
   Zap,
 } from "lucide-react";
@@ -25,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -45,6 +43,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Link } from "@/i18n/navigation";
 import { firstLine, runActorLabel } from "@/lib/deploy/run-actor";
 import { ApiError } from "@/web/api/client";
 import {
@@ -55,24 +54,28 @@ import {
 import type { EnvironmentWithServers } from "@/web/api/environments";
 import { ProvisioningPanel } from "../provisioning-panel";
 import { DeployLockPanel, useDeployLock } from "./deploy-lock";
-import { environmentServers, TargetFormDialog } from "./target-form-dialog";
+import { environmentServers } from "./target-form-dialog";
 
 type Deployment = DeployTargetState["recentDeployments"][number];
 type Build = DeployTargetState["recentBuilds"][number];
 type ActiveRun = { runId: string; tag: string; componentKey: string };
-type FormState = { target: DeployTargetState | null } | null;
 
+/**
+ * Deploy history, deploys and rollbacks. Deploy targets are edited in
+ * Settings → Source & Deploy (`settingsHref`).
+ */
 export function DeploysClient({
   environment,
   targets,
+  settingsHref,
 }: {
   environment: EnvironmentWithServers;
   targets: DeployTargetState[];
+  settingsHref: string;
 }) {
   const t = useTranslations("deploys");
   const queryClient = useQueryClient();
   const canConfigure = useProjectCan({ deploy: ["configure"] });
-  const [form, setForm] = React.useState<FormState>(null);
   const [run, setRun] = React.useState<ActiveRun | null>(null);
   const lock = useDeployLock(environment.id).data?.lock ?? null;
   const lockedReason = lock
@@ -98,9 +101,14 @@ export function DeploysClient({
         subtitle={t("subtitle")}
         action={
           canConfigure && (
-            <Button onClick={() => setForm({ target: null })}>
-              <Plus data-icon="inline-start" />
-              {t("addTarget")}
+            <Button
+              variant="outline"
+              render={<Link href={settingsHref} />}
+              nativeButton={false}
+              title={t("settingsHint")}
+            >
+              <Settings data-icon="inline-start" />
+              {t("settingsLink")}
             </Button>
           )
         }
@@ -129,21 +137,11 @@ export function DeploysClient({
               target={target}
               serverName={serverNames.get(target.serverId) ?? ""}
               lockedReason={lockedReason}
-              onEdit={() => setForm({ target })}
               onRun={setRun}
             />
           ))}
         </div>
       )}
-
-      <TargetFormDialog
-        open={form !== null}
-        onOpenChange={(open) => {
-          if (!open) setForm(null);
-        }}
-        environment={environment}
-        target={form?.target ?? null}
-      />
 
       <LiveRunDialog
         runId={run?.runId ?? null}
@@ -165,14 +163,12 @@ function TargetCard({
   target,
   serverName,
   lockedReason,
-  onEdit,
   onRun,
 }: {
   target: DeployTargetState;
   serverName: string;
   // Set while the environment is locked: manual deploys and rollbacks are off.
   lockedReason: string | null;
-  onEdit: () => void;
   onRun: (run: ActiveRun) => void;
 }) {
   const t = useTranslations("deploys");
@@ -180,7 +176,6 @@ function TargetCard({
   const dialog = useDialog();
   const canRun = useProjectCan({ deploy: ["run"] });
   const canRollback = useProjectCan({ deploy: ["rollback"] });
-  const canConfigure = useProjectCan({ deploy: ["configure"] });
   // The tag being deployed or rolled back to, while its request is in flight.
   const [pending, setPending] = React.useState<string | null>(null);
 
@@ -262,14 +257,6 @@ function TargetCard({
           <span> · </span>
           <code className="font-mono text-xs">{target.deployDir}</code>
         </CardDescription>
-        {canConfigure && (
-          <CardAction>
-            <Button variant="outline" size="sm" onClick={onEdit}>
-              <Pencil data-icon="inline-start" />
-              {t("editTarget")}
-            </Button>
-          </CardAction>
-        )}
       </CardHeader>
 
       <CardContent className="flex flex-col gap-6">

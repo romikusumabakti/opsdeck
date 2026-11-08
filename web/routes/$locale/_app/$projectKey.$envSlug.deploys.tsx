@@ -25,6 +25,7 @@ export const Route = createFileRoute(
 });
 
 function DeploysPage() {
+  const { projectKey, envSlug } = Route.useParams();
   const { environmentId } = Route.useRouteContext();
   const tCommon = useTranslations("common");
   const environment = useSuspenseQuery(
@@ -46,5 +47,11 @@ function DeploysPage() {
     return <p>{tCommon("environmentNotFound")}</p>;
   }
 
-  return <DeploysClient environment={environment} targets={targets} />;
+  return (
+    <DeploysClient
+      environment={environment}
+      targets={targets}
+      settingsHref={`/${projectKey}/${envSlug}/settings?tab=source`}
+    />
+  );
 }

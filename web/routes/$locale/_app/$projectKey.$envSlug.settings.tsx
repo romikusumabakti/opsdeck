@@ -1,49 +1,54 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Copy } from "lucide-react";
 import { useTranslations } from "use-intl";
-import { EnvironmentDomainForm } from "@/components/environment-domain-form";
-import { EnvironmentForm } from "@/components/environment-form";
-import { MailpitSettingsForm } from "@/components/mailpit-settings-form";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "@/i18n/navigation";
 import { canOrg, canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
+import { listDeployTargetsQuery } from "@/web/api/deploys";
 import { environmentDomainQuery } from "@/web/api/environment-domains";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { getMailpitSettingsQuery } from "@/web/api/mailpit-settings";
 import { listProjectsQuery } from "@/web/api/project-catalog";
 import { getServersQuery } from "@/web/api/servers";
 import { meQuery, useMe } from "@/web/api/session";
+import { setupOptionsQuery } from "@/web/api/setup";
 import { requireRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
-import { DeleteEnvironmentCard } from "./-components/env/delete-environment-card";
+import {
+  EnvironmentSettingsTabs,
+  SETTINGS_TABS,
+  type SettingsTabId,
+} from "./-components/env/settings/settings-tabs";
 import { SettingsPending } from "./-components/env/skeletons";
+
+type SettingsSearch = { tab?: SettingsTabId };
 
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/settings"
 )({
+  validateSearch: (search: Record<string, unknown>): SettingsSearch =>
+    SETTINGS_TABS.includes(search.tab as SettingsTabId)
+      ? { tab: search.tab as SettingsTabId }
+      : {},
   beforeLoad: ({ context: { role } }) =>
     requireRole(role, { environment: ["update"] }),
-  loader: async ({ context: { queryClient, environmentId } }) => {
+  loader: async ({ context: { queryClient, environmentId, role } }) => {
     const me = await queryClient.query(meQuery());
+    const environment = await loaderQuery(
+      queryClient,
+      getEnvironmentByIdQuery(environmentId)
+    );
     await Promise.all([
-      loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId)),
       // Infrastructure bindings (servers, services, credentials) need org
-      // server:manage. Without it the form shows them read-only from the
-      // stored environment and never fetches the server list.
+      // server:manage, which lists every server. Without it the server picker
+      // offers the servers placement admits (setup options), and the other
+      // bindings are shown read-only.
       canOrg(me?.orgRole, { server: ["manage"] })
         ? loaderQuery(queryClient, getServersQuery())
-        : null,
+        : environment && canProject(role, SETUP_PERMISSIONS)
+          ? loaderQuery(queryClient, setupOptionsQuery(environment.projectId))
+          : null,
       loaderQuery(queryClient, listProjectsQuery()),
+      loaderQuery(queryClient, listDeployTargetsQuery(environmentId)),
       loaderQuery(queryClient, getMailpitSettingsQuery(environmentId)),
       loaderQuery(queryClient, environmentDomainQuery(environmentId)),
     ]);
@@ -54,21 +59,27 @@ export const Route = createFileRoute(
 
 function EnvironmentSettingsPage() {
   const { projectKey } = Route.useParams();
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { environmentId, role } = Route.useRouteContext();
   const t = useTranslations("environmentSettings");
   const tCommon = useTranslations("common");
-  const tMailpit = useTranslations("mailpitSettings");
-  const tDomains = useTranslations("domains");
   const me = useMe();
   const canManageServers = canOrg(me?.orgRole, { server: ["manage"] });
   // Duplicating opens the New environment page (?from=), for engineers.
-  const canDuplicate = canProject(role, SETUP_PERMISSIONS);
+  const canSetUp = canProject(role, SETUP_PERMISSIONS);
   const environment = useSuspenseQuery(
     getEnvironmentByIdQuery(environmentId)
   ).data;
-  const servers =
+  const allServers =
     useQuery({ ...getServersQuery(), enabled: canManageServers }).data ?? [];
+  const placeable =
+    useQuery({
+      ...setupOptionsQuery(environment?.projectId ?? ""),
+      enabled: !canManageServers && canSetUp && !!environment,
+    }).data?.servers ?? [];
   const projects = useSuspenseQuery(listProjectsQuery()).data;
+  const targets = useSuspenseQuery(listDeployTargetsQuery(environmentId)).data;
   const mailpit = useSuspenseQuery(getMailpitSettingsQuery(environmentId)).data;
   const domain = useSuspenseQuery(environmentDomainQuery(environmentId)).data;
 
@@ -79,95 +90,26 @@ function EnvironmentSettingsPage() {
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
-
-      <Tabs defaultValue="config" className="max-w-2xl w-full">
-        <TabsList>
-          <TabsTrigger value="config">{t("tabConfig")}</TabsTrigger>
-          <TabsTrigger value="danger">{t("tabDanger")}</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="config" className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("editTitle")}</CardTitle>
-              <CardDescription>{t("editDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EnvironmentForm
-                mode={{ type: "edit", environment }}
-                servers={servers}
-                canManageServers={canManageServers}
-                projects={projects}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{tDomains("title")}</CardTitle>
-              <CardDescription>{tDomains("description")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EnvironmentDomainForm
-                // A fresh form once the saved binding changes.
-                key={JSON.stringify(domain)}
-                environmentId={environment.id}
-                data={domain}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{tMailpit("title")}</CardTitle>
-              <CardDescription>{tMailpit("description")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <MailpitSettingsForm
-                environmentId={environment.id}
-                settings={mailpit}
-              />
-            </CardContent>
-          </Card>
-
-          {canDuplicate ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("duplicateTitle")}</CardTitle>
-                <CardDescription>{t("duplicateDescription")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  render={
-                    <Link
-                      href={`/${projectKey}/environments/new?from=${environment.id}`}
-                    />
-                  }
-                  nativeButton={false}
-                  variant="outline"
-                >
-                  <Copy className="size-4" />
-                  {t("duplicateButton")}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-        </TabsContent>
-
-        <TabsContent value="danger">
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-destructive">
-                {t("dangerZoneTitle")}
-              </CardTitle>
-              <CardDescription>{t("dangerZoneDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DeleteEnvironmentCard environment={environment} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <EnvironmentSettingsTabs
+        // A target added on Source & Deploy joins the form state afresh.
+        key={targets.map((target) => target.id).join()}
+        environment={environment}
+        targets={targets}
+        domain={domain}
+        mailpit={mailpit}
+        servers={canManageServers ? allServers : placeable}
+        projects={projects}
+        projectKey={projectKey}
+        canManageServers={canManageServers}
+        canDuplicate={canSetUp}
+        tab={tab ?? "general"}
+        onTabChange={(next) =>
+          navigate({
+            search: next === "general" ? {} : { tab: next },
+            replace: true,
+          })
+        }
+      />
     </>
   );
 }

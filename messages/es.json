@@ -325,7 +325,6 @@
     "title": "Despliegues",
     "subtitle": "Despliega en este entorno las etiquetas de imagen que genera la CI y revierte cuando una versión falla.",
     "addTarget": "Añadir destino",
-    "editTarget": "Editar destino",
     "emptyTitle": "Aún no hay destinos de despliegue",
     "emptyDescription": "Un destino vincula una aplicación con un servidor y un proyecto de Compose en este entorno. Añade uno para desplegar las builds que informa la CI.",
     "autoDeploy": "Despliegue automático",
@@ -376,8 +375,6 @@
     "form": {
       "createTitle": "Añadir destino de despliegue",
       "createDescription": "Dónde se despliega una aplicación en este entorno.",
-      "editTitle": "Editar destino de despliegue",
-      "editDescription": "La aplicación de un destino no se puede cambiar.",
       "componentKey": "Clave de la aplicación",
       "componentKeyHint": "La aplicación tal como está registrada para las notificaciones de build, p. ej. dplk-accounting.",
       "server": "Servidor",
@@ -399,9 +396,7 @@
       "healthTimeoutSecondsHint": "Entre 60 y 900.",
       "autoDeploy": "Desplegar automáticamente las nuevas builds",
       "backupBeforeDeploy": "Hacer copia de seguridad de la base de datos antes de cada despliegue",
-      "save": "Guardar",
       "create": "Añadir destino",
-      "saved": "Destino guardado",
       "created": "Destino añadido",
       "invalid": "Este valor no coincide con el formato descrito abajo.",
       "componentNotFound": "No hay ninguna aplicación de despliegue registrada con esta clave.",
@@ -436,7 +431,9 @@
       "heldBuilds": "{count, plural, =0 {No hay compilaciones retenidas.} one {# compilación retenida.} other {# compilaciones retenidas.}}",
       "saveLock": "Guardar bloqueo"
     },
-    "waitingForFirstBuild": "Esperando la primera build de {branch}"
+    "waitingForFirstBuild": "Esperando la primera build de {branch}",
+    "settingsLink": "Ajustes de despliegue",
+    "settingsHint": "Las ramas, los servidores y los destinos se editan en Ajustes → Origen y despliegue."
   },
   "provisioning": {
     "title": "Aprovisionamiento",
@@ -876,8 +873,6 @@
   "environmentSettings": {
     "title": "Ajustes del entorno",
     "subtitle": "Edita la configuración del entorno o elimínalo por completo.",
-    "editTitle": "Detalles del entorno",
-    "editDescription": "Actualiza la configuración de los servidores de base de datos, backend y frontend del entorno.",
     "duplicateTitle": "Duplicar entorno",
     "duplicateDescription": "Crea un nuevo entorno precargado con la configuración de este entorno. Las contraseñas y las claves de API no se copian.",
     "duplicateButton": "Duplicar entorno",
@@ -890,8 +885,22 @@
     "deleteEscrowedDescription": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Eliminarlo las destruye para siempre: confirma solo si ya están guardadas en otro lugar.",
     "deleteFailed": "No se pudo eliminar el entorno",
     "deletedSuccess": "Entorno {name} eliminado",
-    "tabConfig": "Configuración",
-    "tabDanger": "Zona de peligro"
+    "tabDanger": "Zona de peligro",
+    "tabGeneral": "General",
+    "tabSourceDeploy": "Origen y despliegue",
+    "tabDatabase": "Base de datos",
+    "tabDomain": "Dominio",
+    "tabMailMockTime": "Correo y hora simulada",
+    "serverHint": "Todos los servicios y destinos de despliegue de este entorno se ejecutan en este servidor.",
+    "serverLocked": "El servidor queda fijo tras el primer despliegue. Quien tenga acceso de gestión de servidores aún puede moverlo.",
+    "serverMixed": "Los servicios de este entorno se ejecutan en servidores distintos. Cámbialos uno a uno en Opciones avanzadas.",
+    "urlFromDomain": "Lo fija el dominio del entorno. Cambia la dirección en la pestaña Dominio.",
+    "slug": "Slug",
+    "slugHint": "Parte de la dirección de este entorno en el Panel, tomada de su nombre al crearlo.",
+    "noTargets": "Aún no hay ningún repositorio que se despliegue en este entorno.",
+    "noDatabase": "Sin base de datos",
+    "mockTimeTitle": "Hora simulada",
+    "mockTimeDescription": "La API de simulación de hora del backend, que usa la página Hora simulada."
   },
   "userMenu": {
     "users": "Gestión de usuarios",

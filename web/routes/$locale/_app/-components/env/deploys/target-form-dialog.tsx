@@ -47,11 +47,7 @@ import {
 } from "@/lib/deploy/validation";
 import { hasReservedPrefix } from "@/lib/variables/validation";
 import { ApiError } from "@/web/api/client";
-import {
-  createDeployTarget,
-  type DeployTargetState,
-  updateDeployTarget,
-} from "@/web/api/deploys";
+import { createDeployTarget, type DeployTargetState } from "@/web/api/deploys";
 import type { EnvironmentWithServers } from "@/web/api/environments";
 
 /**
@@ -68,11 +64,11 @@ export function environmentServers(
   return [...byId].map(([id, name]) => ({ id, name }));
 }
 
-const splitServices = (value: string) =>
+export const splitServices = (value: string) =>
   value.split(/[\s,]+/).filter((s) => s.length > 0);
 
-type Values = {
-  componentKey: string;
+/** A deploy target's settings as form strings and switches. */
+export type TargetValues = {
   serverId: string;
   sourceBranch: string;
   deployDir: string;
@@ -85,12 +81,14 @@ type Values = {
   backupBeforeDeploy: boolean;
 };
 
-function defaults(
+type Values = TargetValues & { componentKey: string };
+
+/** The form values of a stored target, or of a new one (`target` null). */
+export function targetFormValues(
   target: DeployTargetState | null,
   servers: { id: string }[]
-): Values {
+): TargetValues {
   return {
-    componentKey: target?.componentKey ?? "",
     // One server is the common case; preselect it.
     serverId:
       target?.serverId ?? (servers.length === 1 ? (servers[0]?.id ?? "") : ""),
@@ -106,38 +104,33 @@ function defaults(
   };
 }
 
-/** Add a deploy target (`target` null) or edit one. */
-export function TargetFormDialog({
-  open,
-  onOpenChange,
-  environment,
-  target,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  environment: EnvironmentWithServers;
-  target: DeployTargetState | null;
-}) {
+/** The API payload of a target's form values. */
+export function targetSettings(values: TargetValues) {
+  return {
+    serverId: values.serverId,
+    sourceBranch: values.sourceBranch.trim(),
+    deployDir: values.deployDir.trim(),
+    services: splitServices(values.services),
+    tagVariable: values.tagVariable.trim(),
+    preStartCommand: values.preStartCommand.trim() || null,
+    healthUrl: values.healthUrl.trim() || null,
+    healthTimeoutSeconds: Number(values.healthTimeoutSeconds),
+    autoDeploy: values.autoDeploy,
+    backupBeforeDeploy: values.backupBeforeDeploy,
+  };
+}
+
+/** The API's own target field schemas, with the form's localized messages. */
+export function useTargetSchema() {
   const t = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
-  const servers = React.useMemo(
-    () => environmentServers(environment),
-    [environment]
-  );
-
-  // The API's own field schemas, with the form's localized messages.
   const required = tCommon("required");
   const invalid = t("invalid");
   const matches = (schema: z.ZodType) => (value: string) =>
     schema.safeParse(value.trim()).success;
   const optional = (schema: z.ZodType) => (value: string) =>
     value.trim() === "" || schema.safeParse(value.trim()).success;
-  const schema = z.object({
-    componentKey: z
-      .string()
-      .trim()
-      .min(1, required)
-      .refine(matches(componentKeySchema), invalid),
+  return z.object({
     serverId: z.string().min(1, required),
     sourceBranch: z
       .string()
@@ -179,42 +172,59 @@ export function TargetFormDialog({
     autoDeploy: z.boolean(),
     backupBeforeDeploy: z.boolean(),
   });
+}
+
+/**
+ * Adds a deploy target. Existing targets are edited on the environment's
+ * Settings → Source & Deploy tab.
+ */
+export function TargetFormDialog({
+  open,
+  onOpenChange,
+  environment,
+  servers,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  environment: Pick<EnvironmentWithServers, "id">;
+  // The servers the environment's services run on (environmentServers).
+  servers: { id: string; name: string }[];
+}) {
+  const t = useTranslations("deploys.form");
+  const tCommon = useTranslations("common");
+
+  const invalid = t("invalid");
+  const schema = useTargetSchema().extend({
+    componentKey: z
+      .string()
+      .trim()
+      .min(1, tCommon("required"))
+      .refine((value) => componentKeySchema.safeParse(value).success, invalid),
+  });
+  const defaults = (): Values => ({
+    componentKey: "",
+    ...targetFormValues(null, servers),
+  });
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: defaults(target, servers),
+    defaultValues: defaults(),
   });
 
-  // Start from the target's saved values (or a blank form) on every open.
+  // Start from a blank form on every open.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on open only
   React.useEffect(() => {
-    if (open) form.reset(defaults(target, servers));
-  }, [open, target, servers, form]);
+    if (open) form.reset(defaults());
+  }, [open]);
 
   async function onSubmit(values: Values) {
-    const settings = {
-      serverId: values.serverId,
-      sourceBranch: values.sourceBranch.trim(),
-      deployDir: values.deployDir.trim(),
-      services: splitServices(values.services),
-      tagVariable: values.tagVariable.trim(),
-      preStartCommand: values.preStartCommand.trim() || null,
-      healthUrl: values.healthUrl.trim() || null,
-      healthTimeoutSeconds: Number(values.healthTimeoutSeconds),
-      autoDeploy: values.autoDeploy,
-      backupBeforeDeploy: values.backupBeforeDeploy,
-    };
     try {
-      if (target) {
-        await updateDeployTarget(target.id, settings);
-        toast.success(t("saved"));
-      } else {
-        await createDeployTarget({
-          ...settings,
-          environmentId: environment.id,
-          componentKey: values.componentKey.trim(),
-        });
-        toast.success(t("created"));
-      }
+      await createDeployTarget({
+        ...targetSettings(values),
+        environmentId: environment.id,
+        componentKey: values.componentKey.trim(),
+      });
+      toast.success(t("created"));
       onOpenChange(false);
     } catch (error) {
       if (
@@ -222,9 +232,9 @@ export function TargetFormDialog({
         error.message === TAG_VARIABLE_IS_VARIABLE_MESSAGE
       ) {
         form.setError("tagVariable", { message: t("tagVariableIsVariable") });
-      } else if (error instanceof ApiError && !target && error.status === 404) {
+      } else if (error instanceof ApiError && error.status === 404) {
         form.setError("componentKey", { message: t("componentNotFound") });
-      } else if (error instanceof ApiError && !target && error.status === 409) {
+      } else if (error instanceof ApiError && error.status === 409) {
         form.setError("componentKey", {
           message:
             error.message === COMPONENT_OTHER_APP_MESSAGE
@@ -286,20 +296,15 @@ export function TargetFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t(target ? "editTitle" : "createTitle")}</DialogTitle>
-          <DialogDescription>
-            {t(target ? "editDescription" : "createDescription")}
-          </DialogDescription>
+          <DialogTitle>{t("createTitle")}</DialogTitle>
+          <DialogDescription>{t("createDescription")}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
-            {text("componentKey", {
-              disabled: target !== null,
-              placeholder: "dplk-accounting",
-            })}
+            {text("componentKey", { placeholder: "dplk-accounting" })}
             <FormField
               control={form.control}
               name="serverId"
@@ -349,7 +354,7 @@ export function TargetFormDialog({
                 {tCommon("cancel")}
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {t(target ? "save" : "create")}
+                {t("create")}
               </Button>
             </DialogFooter>
           </form>

@@ -1,9 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { AdvancedOptions } from "@/components/advanced-options";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,6 +102,9 @@ export function EnvironmentDomainForm({
   });
 
   const kind = useWatch({ control: form.control, name: "kind" });
+  // Zone, entry port and the external hostname are advanced options; an
+  // external domain has no other field, so it opens them.
+  const [advancedOpen, setAdvancedOpen] = useState(domain?.kind === "external");
   const label = useWatch({ control: form.control, name: "label" });
   const zoneId = useWatch({ control: form.control, name: "zoneId" });
   const zoneName = zones.find((z) => z.id === zoneId)?.name;
@@ -151,7 +156,12 @@ export function EnvironmentDomainForm({
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, (errors) => {
+          // Show the advanced field a failed save points at.
+          if (errors.zoneId || errors.entryPort || errors.hostname) {
+            setAdvancedOpen(true);
+          }
+        })}
         className="flex flex-col gap-4"
       >
         {provisioned && (
@@ -168,7 +178,10 @@ export function EnvironmentDomainForm({
               <FormLabel>{t("kind")}</FormLabel>
               <Select
                 value={field.value}
-                onValueChange={(value) => field.onChange(value as Kind)}
+                onValueChange={(value) => {
+                  field.onChange(value as Kind);
+                  if (value === "external") setAdvancedOpen(true);
+                }}
                 disabled={provisioned}
               >
                 <FormControl>
@@ -198,40 +211,6 @@ export function EnvironmentDomainForm({
             )}
             <FormField
               control={form.control}
-              name="zoneId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("zone")}</FormLabel>
-                  <Select
-                    value={field.value || undefined}
-                    onValueChange={(value) => field.onChange(value ?? "")}
-                    disabled={provisioned || zones.length === 0}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            zones.length === 0
-                              ? t("noZones")
-                              : t("zonePlaceholder")
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {zones.map((zone) => (
-                        <SelectItem key={zone.id} value={zone.id}>
-                          {zone.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="label"
               render={({ field }) => (
                 <FormItem>
@@ -252,25 +231,6 @@ export function EnvironmentDomainForm({
                       ? `${label}.${zoneName}`
                       : t("labelHint")}
                   </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="entryPort"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("entryPort")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      inputMode="numeric"
-                      className="font-mono"
-                      disabled={provisioned}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>{t("entryPortDescription")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -322,11 +282,68 @@ export function EnvironmentDomainForm({
                 </FormItem>
               )}
             />
+            <AdvancedOptions open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <FormField
+                control={form.control}
+                name="zoneId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("zone")}</FormLabel>
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={(value) => field.onChange(value ?? "")}
+                      disabled={provisioned || zones.length === 0}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              zones.length === 0
+                                ? t("noZones")
+                                : t("zonePlaceholder")
+                            }
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {zones.map((zone) => (
+                          <SelectItem key={zone.id} value={zone.id}>
+                            {zone.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="entryPort"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("entryPort")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        inputMode="numeric"
+                        className="font-mono"
+                        disabled={provisioned}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("entryPortDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </AdvancedOptions>
           </>
         )}
 
         {kind === "external" && (
-          <>
+          <AdvancedOptions open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <FormField
               control={form.control}
               name="hostname"
@@ -354,7 +371,7 @@ export function EnvironmentDomainForm({
                 ))}
               </ul>
             </div>
-          </>
+          </AdvancedOptions>
         )}
 
         <div className="flex justify-end pt-2">
