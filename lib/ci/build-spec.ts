@@ -63,19 +63,20 @@ const unique =
     }
   };
 
+/** One image of the build spec: its name, Dockerfile and build context. */
+export const buildImageSchema = z.object({
+  name: bundleImageSchema,
+  dockerfile: relativePath,
+  context: directory,
+});
+
 export const buildSpecSchema = z.object({
   // Woodpecker branch filter. The branch also becomes part of the image tag,
   // so it has to pass the Panel's branch rule (no globs).
   branches: z.array(branchSchema).min(1),
   tagShaLength: z.number().int().min(7).max(40).default(7),
   images: z
-    .array(
-      z.object({
-        name: bundleImageSchema,
-        dockerfile: relativePath,
-        context: directory,
-      })
-    )
+    .array(buildImageSchema)
     .min(1)
     .superRefine(unique((image) => image.name, "Duplicate image name")),
   // Files copied into the deploy bundle; `to` is relative to the deploy dir.
