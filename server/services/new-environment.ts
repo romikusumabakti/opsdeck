@@ -16,6 +16,7 @@ import {
   projects,
   servers,
 } from "@/lib/db/schema";
+import { branchSchema } from "@/lib/deploy/validation";
 import { listZones } from "@/lib/domains/repository";
 import {
   canOrg,
@@ -99,11 +100,25 @@ function parseInput(raw: unknown): NewEnvironmentInput {
   return parsed.data;
 }
 
-async function authorize(projectId: string): Promise<Caller> {
+/**
+ * The setup's project permissions; choosing a pipeline's mode or build spec
+ * (`advanced.pipelines`) also needs org integration:manage.
+ */
+async function authorize(input: NewEnvironmentInput): Promise<Caller> {
   const { session, role } = await requireProjectPermission(
-    { projectId },
+    { projectId: input.projectId },
     SETUP_PERMISSIONS
   );
+  if (
+    (input.advanced?.pipelines?.length ?? 0) > 0 &&
+    !canOrg(session.user.role, { integration: ["manage"] })
+  ) {
+    throw new CodedHTTPException(
+      403,
+      "pipelineForbidden",
+      "Choosing a pipeline needs integration:manage"
+    );
+  }
   return { orgRole: session.user.role, projectRole: role };
 }
 
@@ -442,7 +457,7 @@ export async function previewNewEnvironment(
   raw: unknown
 ): Promise<{ plan: NewEnvironmentPlan; preview: SetupPreview | null }> {
   const input = parseInput(raw);
-  const caller = await authorize(input.projectId);
+  const caller = await authorize(input);
   const ctx = await loadContext(input, caller);
   const plan = resolveNewEnvironment(input, ctx);
   if (plan.issues.length > 0) return { plan, preview: null };
@@ -599,7 +614,7 @@ export async function createNewEnvironment(
   raw: unknown
 ): Promise<NewEnvironmentCreated> {
   const input = parseInput(raw);
-  const caller = await authorize(input.projectId);
+  const caller = await authorize(input);
   const ctx = await loadContext(input, caller);
   const plan = resolveNewEnvironment(input, ctx);
   const [planIssue] = plan.issues;
@@ -642,6 +657,8 @@ export type SetupRepo = {
   appKey: string | null;
   appName: string | null;
   componentKey: string | null;
+  /** The repository's main branch on the forge, else `main`. */
+  defaultBranch: string;
 };
 
 /**
@@ -670,6 +687,9 @@ export async function searchSetupRepos(q: string): Promise<SetupRepo[]> {
         appKey: component?.app.appKey ?? null,
         appName: component?.app.name ?? null,
         componentKey: component?.componentKey ?? null,
+        defaultBranch: branchSchema.safeParse(repo.defaultBranch).success
+          ? (repo.defaultBranch as string)
+          : "main",
       });
     }
   }

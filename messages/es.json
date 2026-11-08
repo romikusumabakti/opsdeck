@@ -778,7 +778,7 @@
     "needsDatabaseHint": "Una base de datos compartida en el host de bases de datos del servidor; si no hay, un contenedor de base de datos.",
     "setInAdvanced": "Se configura en Opciones avanzadas.",
     "address": "Dirección",
-    "addressHint": "Tras la política de acceso DSS Internal. Déjela vacía para el nombre sugerido.",
+    "addressHint": "Tras la política de acceso predeterminada del proyecto. Déjela vacía para el nombre sugerido.",
     "noAddress": "Sin dirección",
     "server": "Servidor",
     "serverPlaceholder": "Elegir un servidor",
@@ -790,7 +790,15 @@
     "created": "Entorno creado.",
     "provisioningNotStarted": "El entorno se creó, pero el aprovisionamiento no comenzó. Puede iniciarlo desde la página Despliegues.",
     "buildNotStarted": "El entorno se creó, pero una primera compilación no comenzó. Iníciela desde la página Despliegues.",
-    "pickProject": "Elija el proyecto del nuevo entorno y pulse Nuevo entorno en su página."
+    "pickProject": "Elija el proyecto del nuevo entorno y pulse Nuevo entorno en su página.",
+    "addressHintPolicy": "Tras la política de acceso {policy}. Déjela vacía para el nombre sugerido.",
+    "reposLoading": "Cargando repositorios…",
+    "fixFieldsFirst": "Corrija estos campos para ver las opciones avanzadas:",
+    "pipelines": "Pipelines",
+    "pipelineMode": "Pipeline de {repo}",
+    "pipelineModeGenerated": "Generado por el Panel",
+    "pipelineModeCustom": "Propio (el .woodpecker.yaml del repositorio)",
+    "pipelinesHint": "Lo eligió la detección. Un pipeline generado necesita la rama del entorno entre sus ramas."
   },
   "environmentForm": {
     "info": "Datos del entorno",
@@ -2975,7 +2983,9 @@
       "componentKeyTaken": "Se acaba de registrar un repositorio con esta clave. Inténtelo de nuevo.",
       "repoLinked": "Este repositorio se acaba de registrar. Inténtelo de nuevo.",
       "registrationRace": "Otro registro de este repositorio se ejecutó a la vez. Pida a un administrador que rote su secreto de notificación y vuelva a intentarlo.",
-      "pipelineFileExists": "La rama ya tiene un .woodpecker.yaml que el Panel no generó. Haga que notifique al Panel o elimínelo."
+      "pipelineFileExists": "La rama ya tiene un .woodpecker.yaml que el Panel no generó. Haga que notifique al Panel o elimínelo.",
+      "pipelineBranchMissing": "El pipeline debe compilar la rama del entorno: añádala a las ramas.",
+      "pipelineForbidden": "Solo un administrador puede elegir el pipeline de un repositorio."
     }
   }
 }

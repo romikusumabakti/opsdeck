@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BuildSpec } from "@/lib/ci/build-spec";
+import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
 import { branchSchema, envVarNameSchema } from "@/lib/deploy/validation";
 import { domainLabelSchema } from "@/lib/domains/validation";
 import { suggestServices } from "@/lib/setup/compose-names";
@@ -64,6 +64,21 @@ const advancedSchema = z
     variables: setupShape.variables.unwrap().optional(),
     domain: setupShape.domain.optional(),
     targets: setupShape.targets.optional(),
+    // The pipeline of a repository registered by this create (admins, org
+    // integration:manage): replaces the detected mode and build spec. An
+    // entry for a repository already registered is ignored.
+    pipelines: z
+      .array(
+        z
+          .object({
+            repoFullName: z.string().trim().min(1).max(255),
+            mode: z.enum(["custom", "generated"]),
+            buildSpec: buildSpecSchema.optional(),
+          })
+          .strict()
+      )
+      .max(20)
+      .optional(),
   })
   .strict();
 
@@ -302,10 +317,27 @@ export function resolveNewEnvironment(
         ? pipeline.componentKey
         : uniqueKey(repoKey(picked.repoFullName), takenComponents);
     takenComponents.add(componentKey);
+    // Detection decides the pipeline unless an admin chose it: a custom
+    // pipeline file is used, else one is generated.
+    const pipelineIndex = (advanced.pipelines ?? []).findIndex(
+      (p) => p.repoFullName === picked.repoFullName
+    );
+    const chosen = advanced.pipelines?.[pipelineIndex];
+    const mode =
+      chosen?.mode ?? (pipeline.kind === "custom" ? "custom" : "generated");
     let buildSpec: BuildSpec | null = null;
-    if (pipeline.kind === "custom") {
-      if (!pipeline.notifiesPanel) {
+    if (mode === "custom") {
+      if (pipeline.kind === "custom" && !pipeline.notifiesPanel) {
         warnings.push({ field, code: "pipelineNotNotifying" });
+      }
+    } else if (chosen?.buildSpec) {
+      buildSpec = chosen.buildSpec;
+      // The environment's branch must be one the pipeline builds.
+      if (!buildSpec.branches.includes(picked.branch)) {
+        issues.push({
+          field: `pipelines.${pipelineIndex}.buildSpec.branches`,
+          code: "pipelineBranchMissing",
+        });
       }
     } else {
       // No pipeline file, or a Panel-generated one left behind: generate.
@@ -320,7 +352,7 @@ export function resolveNewEnvironment(
       repoFullName: picked.repoFullName,
       ciConnectionId: picked.ciConnectionId,
       componentKey,
-      pipelineMode: pipeline.kind === "custom" ? "custom" : "generated",
+      pipelineMode: mode,
       buildSpec,
     });
     repos.push({

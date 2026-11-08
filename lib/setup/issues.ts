@@ -92,6 +92,8 @@ export const NEW_ENVIRONMENT_ISSUE_CODES = [
   "repoLinked",
   "registrationRace",
   "pipelineFileExists",
+  "pipelineBranchMissing",
+  "pipelineForbidden",
 ] as const;
 
 export const SETUP_ISSUE_MESSAGE_CODES: readonly string[] = [

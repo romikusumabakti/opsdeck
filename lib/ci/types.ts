@@ -3,6 +3,8 @@ export type CiRepo = {
   fullName: string;
   forgeRemoteId: string;
   active: boolean;
+  /** The forge's main branch (Bitbucket `mainbranch`), when the CI knows it. */
+  defaultBranch?: string | null;
 };
 
 export type RepoSettings = {

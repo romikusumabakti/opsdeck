@@ -778,7 +778,7 @@
     "needsDatabaseHint": "Database bersama di host database server, atau container database bila tidak ada.",
     "setInAdvanced": "Diatur di Opsi lanjutan.",
     "address": "Alamat",
-    "addressHint": "Di balik access policy DSS Internal. Kosongkan untuk memakai nama yang disarankan.",
+    "addressHint": "Di balik access policy default proyek. Kosongkan untuk memakai nama yang disarankan.",
     "noAddress": "Tanpa alamat",
     "server": "Server",
     "serverPlaceholder": "Pilih server",
@@ -790,7 +790,15 @@
     "created": "Environment dibuat.",
     "provisioningNotStarted": "Environment sudah dibuat, tetapi provisioning tidak berjalan. Anda dapat memulainya dari halaman Deploy.",
     "buildNotStarted": "Environment sudah dibuat, tetapi build pertama tidak berjalan. Mulai dari halaman Deploy.",
-    "pickProject": "Pilih proyek untuk environment baru, lalu tekan Environment baru di halaman proyek tersebut."
+    "pickProject": "Pilih proyek untuk environment baru, lalu tekan Environment baru di halaman proyek tersebut.",
+    "addressHintPolicy": "Di balik access policy {policy}. Kosongkan untuk memakai nama yang disarankan.",
+    "reposLoading": "Memuat repository…",
+    "fixFieldsFirst": "Perbaiki field berikut untuk melihat opsi lanjutan:",
+    "pipelines": "Pipeline",
+    "pipelineMode": "Pipeline {repo}",
+    "pipelineModeGenerated": "Dibuat oleh Panel",
+    "pipelineModeCustom": "Custom (.woodpecker.yaml milik repository)",
+    "pipelinesHint": "Dipilih oleh deteksi. Pipeline yang dibuat Panel harus memuat branch environment ini di daftar branch-nya."
   },
   "environmentForm": {
     "info": "Informasi environment",
@@ -2975,7 +2983,9 @@
       "componentKeyTaken": "Repositori dengan kunci ini baru saja didaftarkan. Coba lagi.",
       "repoLinked": "Repositori ini baru saja didaftarkan. Coba lagi.",
       "registrationRace": "Pendaftaran lain untuk repositori ini berjalan bersamaan. Minta admin merotasi notify secret-nya, lalu coba lagi.",
-      "pipelineFileExists": "Branch ini sudah punya .woodpecker.yaml yang tidak dibuat Panel. Buat berkas itu memberi tahu Panel, atau hapus."
+      "pipelineFileExists": "Branch ini sudah punya .woodpecker.yaml yang tidak dibuat Panel. Buat berkas itu memberi tahu Panel, atau hapus.",
+      "pipelineBranchMissing": "Pipeline harus mem-build branch environment ini: tambahkan ke daftar branch.",
+      "pipelineForbidden": "Hanya admin yang boleh memilih pipeline repository."
     }
   }
 }
