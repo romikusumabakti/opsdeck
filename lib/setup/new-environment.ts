@@ -118,7 +118,9 @@ export type NewEnvironmentContext = {
     component: { componentKey: string; appId: string; appKey: string } | null;
   }[];
   /** The app of the copy source, else of the first registered repo. */
-  appId: string | null;
+  app: { id: string; key: string } | null;
+  /** The environment's unique URL name (uniqueEnvSlug of the input's name). */
+  slug: string;
   /** Already filtered by the copy rules (secrets only with variable:read). */
   copySource: CopySourceLike | null;
   /** The chosen server's lowest free entry port (preflight). */
@@ -162,6 +164,7 @@ const PASSWORD_VARIABLE = "DB_PASSWORD";
 const ENTRY_PORT_VARIABLE = "ENTRY_PORT";
 const KEY_MAX_LENGTH = 64;
 const DB_NAME_MAX_LENGTH = 63;
+const LABEL_MAX_LENGTH = 63;
 
 /** `base`, else `base-2`, `base-3`, ... the first not in `taken`. */
 function uniqueKey(base: string, taken: ReadonlySet<string>): string {
@@ -190,15 +193,24 @@ function uniqueDatabaseName(
 ): string {
   const free = (name: string) =>
     !existing.some((e) => sharedDatabaseNamesOverlap(e, name));
-  const base = defaultDatabaseName({ projectKey, slug });
+  const cut = (name: string) =>
+    name.slice(0, DB_NAME_MAX_LENGTH).replace(/_+$/, "");
+  const base = cut(defaultDatabaseName({ projectKey, slug }));
   if (free(base)) return base;
-  const compact = `${projectKey.toLowerCase()}_${slug.replace(/-/g, "")}`;
+  const compact = cut(`${projectKey.toLowerCase()}_${slug.replace(/-/g, "")}`);
   if (free(compact)) return compact;
   for (let n = 2; ; n++) {
     const suffix = String(n);
     const name = `${compact.slice(0, DB_NAME_MAX_LENGTH - suffix.length)}${suffix}`;
     if (free(name)) return name;
   }
+}
+
+/** `<project key>-<slug>`, cut to one DNS label (63, no trailing `-`). */
+function defaultLabel(projectKey: string, slug: string): string {
+  return `${projectKey.toLowerCase()}-${slug}`
+    .slice(0, LABEL_MAX_LENGTH)
+    .replace(/-+$/, "");
 }
 
 type ResolvedRepo = {
@@ -215,19 +227,23 @@ export function resolveNewEnvironment(
   const warnings: NewEnvironmentPlan["warnings"] = [];
   const registrations: NewEnvironmentRegistration[] = [];
   const projectKey = ctx.project.key;
-  const slug = baseEnvSlug(input.name);
+  const slug = ctx.slug;
   const advanced = input.advanced ?? {};
   const source = ctx.copySource;
 
-  // Server: the one picked, else the project's default.
-  const serverId = input.serverId ?? ctx.project.defaultServerId;
-  const server = ctx.servers.find((s) => s.id === serverId);
-  if (input.serverId && !server) {
-    issues.push({ field: "serverId", code: "invalid" });
-  } else if (!serverId) {
+  // Server: the one picked, else the project's default; only a placeable
+  // one (ctx.servers) is ever used.
+  const server = ctx.servers.find(
+    (s) => s.id === (input.serverId ?? ctx.project.defaultServerId)
+  );
+  if (!server) {
     issues.push({
       field: "serverId",
-      code: ctx.servers.length === 0 ? "noServerAvailable" : "required",
+      code: input.serverId
+        ? "invalid"
+        : ctx.servers.length === 0
+          ? "noServerAvailable"
+          : "required",
     });
   }
 
@@ -250,6 +266,13 @@ export function resolveNewEnvironment(
   }
   input.repos.forEach((picked, index) => {
     const field = `repos.${index}`;
+    if (
+      input.repos.findIndex((r) => r.repoFullName === picked.repoFullName) !==
+      index
+    ) {
+      issues.push({ field, code: "duplicate" });
+      return;
+    }
     const repo = ctx.repos.find(
       (r) =>
         r.repoFullName === picked.repoFullName &&
@@ -260,7 +283,7 @@ export function resolveNewEnvironment(
       return;
     }
     if (repo.component) {
-      if (ctx.appId && repo.component.appId !== ctx.appId) {
+      if (ctx.app && repo.component.appId !== ctx.app.id) {
         issues.push({ field, code: "repoOtherApp" });
         return;
       }
@@ -307,10 +330,9 @@ export function resolveNewEnvironment(
     });
   });
 
+  // An existing app keeps its key; only a new app gets one.
   const appKey =
-    (ctx.appId &&
-      ctx.repos.find((r) => r.component?.appId === ctx.appId)?.component
-        ?.appKey) ||
+    ctx.app?.key ??
     uniqueKey(
       repoKey(input.repos[0]?.repoFullName ?? slug),
       new Set(ctx.takenAppKeys)
@@ -415,7 +437,7 @@ export function resolveNewEnvironment(
     domain = {
       kind: "tunnel",
       zoneId: ctx.defaultZoneId ?? "",
-      label: input.address.label || `${projectKey.toLowerCase()}-${slug}`,
+      label: input.address.label || defaultLabel(projectKey, slug),
       // Never null here: null is a public address.
       accessPolicyId: ctx.defaultAccessPolicyId ?? "",
       entryPort: ctx.suggestedPort ?? 0,
@@ -487,7 +509,7 @@ export function resolveNewEnvironment(
       ownerId: advanced.ownerId ?? null,
       copyFromEnvironmentId:
         source?.environment.id ?? input.copyFromEnvironmentId ?? null,
-      server: { serverId: serverId ?? "" },
+      server: { serverId: server?.id ?? "" },
       targets,
       services,
       entryService,

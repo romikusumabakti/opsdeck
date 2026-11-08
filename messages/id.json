@@ -2948,7 +2948,8 @@
       "repoOtherApp": "Repositori ini sudah milik aplikasi lain. Pilih salah satu repositori aplikasi ini.",
       "repoNotBuildable": "Panel tidak dapat membangun repositori ini: dibutuhkan Dockerfile dan file compose.",
       "nameTaken": "Lingkungan lain baru saja memakai nama ini. Pilih nama lain.",
-      "domainTaken": "Lingkungan lain baru saja memakai alamat ini. Pilih alamat lain."
+      "domainTaken": "Lingkungan lain baru saja memakai alamat ini. Pilih alamat lain.",
+      "duplicate": "Repositori ini tercantum dua kali."
     },
     "newApp": {
       "title": "Aplikasi baru",

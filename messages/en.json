@@ -2948,7 +2948,8 @@
       "repoOtherApp": "This repository already belongs to another app. Pick one of this app's repositories.",
       "repoNotBuildable": "The Panel cannot build this repository: it needs a Dockerfile and a compose file.",
       "nameTaken": "Another environment took this name meanwhile. Pick another one.",
-      "domainTaken": "Another environment took this address meanwhile. Pick another one."
+      "domainTaken": "Another environment took this address meanwhile. Pick another one.",
+      "duplicate": "This repository is listed twice."
     },
     "newApp": {
       "title": "New app",
