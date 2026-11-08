@@ -431,6 +431,9 @@
       "heldBuilds": "{count, plural, =0 {没有被暂扣的构建。} other {已暂扣 # 个构建。}}",
       "saveLock": "保存锁定"
     },
+    "startBuild": "开始构建",
+    "startBuildHint": "Build {branch} now; the build deploys when it lands.",
+    "buildStarted": "Build {number} started",
     "waitingForFirstBuild": "正在等待 {branch} 的首次构建",
     "settingsLink": "部署设置",
     "settingsHint": "分支、服务器和部署目标在“设置 → 源码与部署”中编辑。"
@@ -786,7 +789,8 @@
     "ownerNone": "无负责人",
     "created": "环境已创建。",
     "provisioningNotStarted": "环境已创建，但配置未启动。您可以在部署页面启动它。",
-    "buildNotStarted": "环境已创建，但有一个首次构建未启动。请在部署页面启动它。",
+    "pipelineFileNotCommitted": "The pipeline file was not committed to {branch} of {component}. An admin can commit it again on the repository's page.",
+    "buildNotStarted": "环境已创建，但有一个首次构建未启动。请在部署页面点击“开始构建”。",
     "pickProject": "选择新环境所属的项目，然后在其页面上点击“新建环境”。",
     "addressHintPolicy": "位于 {policy} 访问策略之后。留空则使用建议的名称。",
     "reposLoading": "正在加载仓库…",
@@ -2712,7 +2716,7 @@
       "nameReservedPrefix": "COMPOSE_、DOCKER_ 和 BUILDKIT_ 为保留前缀：Docker 会从 .env 读取它们，可能改变部署目标。DOCKER_REGISTRY 由 Panel 自动写入",
       "kind": "类型",
       "defaultValue": "默认值",
-      "defaultValueHint": "可选。占位符 '{host}'、'{url}' 和 '{envSlug}' 会被替换为环境的值。",
+      "defaultValueHint": "可选。占位符 '{url}' 和 '{envSlug}' 会被替换为环境的值。",
       "defaultInvalid": "默认值必须是单行（不含换行）",
       "generatedLength": "长度",
       "generatedLengthHint": "{min} 到 {max} 个字符；留空表示 32。",

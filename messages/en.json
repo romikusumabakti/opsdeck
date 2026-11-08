@@ -431,6 +431,9 @@
       "heldBuilds": "{count, plural, =0 {No builds are held.} one {# build is held.} other {# builds are held.}}",
       "saveLock": "Save lock"
     },
+    "startBuild": "Start build",
+    "startBuildHint": "Build {branch} now; the build deploys when it lands.",
+    "buildStarted": "Build {number} started",
     "waitingForFirstBuild": "Waiting for the first build of {branch}",
     "settingsLink": "Deploy settings",
     "settingsHint": "Branches, servers and deploy targets are edited in Settings → Source & Deploy."
@@ -786,7 +789,8 @@
     "ownerNone": "No owner",
     "created": "Environment created.",
     "provisioningNotStarted": "The environment was created, but provisioning did not start. You can start it from the Deploys page.",
-    "buildNotStarted": "The environment was created, but a first build did not start. Start it from the Deploys page.",
+    "pipelineFileNotCommitted": "The pipeline file was not committed to {branch} of {component}. An admin can commit it again on the repository's page.",
+    "buildNotStarted": "The environment was created, but a first build did not start. Press Start build on the Deploys page.",
     "pickProject": "Pick the project the new environment belongs to and press New environment on its page.",
     "addressHintPolicy": "Behind the {policy} access policy. Leave empty for the suggested name.",
     "reposLoading": "Loading repositories…",
@@ -2712,7 +2716,7 @@
       "nameReservedPrefix": "COMPOSE_, DOCKER_ and BUILDKIT_ are reserved: Docker reads them from .env and they could redirect the deploy. The Panel writes DOCKER_REGISTRY itself",
       "kind": "Kind",
       "defaultValue": "Default value",
-      "defaultValueHint": "Optional. Placeholders: '{host}', '{url}' and '{envSlug}' are replaced with the environment's values.",
+      "defaultValueHint": "Optional. Placeholders: '{url}' and '{envSlug}' are replaced with the environment's values.",
       "defaultInvalid": "The default must be one line (no line breaks)",
       "generatedLength": "Length",
       "generatedLengthHint": "{min} to {max} characters; empty means 32.",

@@ -614,6 +614,14 @@ export function NewEnvironmentForm({
       setCreated(true);
       toast.success(t("created"));
       if (result.provisioningError) toast.warning(t("provisioningNotStarted"));
+      for (const failure of result.pipelineFileFailures) {
+        toast.warning(
+          t("pipelineFileNotCommitted", {
+            branch: failure.branch,
+            component: failure.componentKey,
+          })
+        );
+      }
       if (result.buildFailures.length > 0) toast.warning(t("buildNotStarted"));
       router.push(`/${result.projectKey}/${result.envSlug}/deploys`);
     } catch (error) {

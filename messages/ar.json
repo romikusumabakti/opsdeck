@@ -431,6 +431,9 @@
       "heldBuilds": "{count, plural, =0 {لا توجد بنايات محتجزة.} one {بناء واحد محتجز.} two {بناءان محتجزان.} few {# بنايات محتجزة.} many {# بناءً محتجزًا.} other {# بناء محتجز.}}",
       "saveLock": "حفظ القفل"
     },
+    "startBuild": "بدء البناء",
+    "startBuildHint": "Build {branch} now; the build deploys when it lands.",
+    "buildStarted": "Build {number} started",
     "waitingForFirstBuild": "في انتظار أول بناء للفرع {branch}",
     "settingsLink": "إعدادات النشر",
     "settingsHint": "تُعدَّل الفروع والخوادم وأهداف النشر من الإعدادات ← المصدر والنشر."
@@ -786,7 +789,8 @@
     "ownerNone": "بلا مالك",
     "created": "أُنشئت البيئة.",
     "provisioningNotStarted": "أُنشئت البيئة، لكن التهيئة لم تبدأ. يمكنك بدؤها من صفحة النشر.",
-    "buildNotStarted": "أُنشئت البيئة، لكن أحد البناءات الأولى لم يبدأ. ابدأه من صفحة النشر.",
+    "pipelineFileNotCommitted": "The pipeline file was not committed to {branch} of {component}. An admin can commit it again on the repository's page.",
+    "buildNotStarted": "أُنشئت البيئة، لكن أحد البناءات الأولى لم يبدأ. اضغط بدء البناء في صفحة النشر.",
     "pickProject": "اختر المشروع الذي تنتمي إليه البيئة الجديدة واضغط بيئة جديدة في صفحته.",
     "addressHintPolicy": "خلف سياسة الوصول {policy}. اتركه فارغًا للاسم المقترح.",
     "reposLoading": "جارٍ تحميل المستودعات…",
@@ -2712,7 +2716,7 @@
       "nameReservedPrefix": "البادئات COMPOSE_ وDOCKER_ وBUILDKIT_ محجوزة: يقرؤها Docker من ‎.env وقد تحوّل النشر. تكتب اللوحة DOCKER_REGISTRY بنفسها",
       "kind": "النوع",
       "defaultValue": "القيمة الافتراضية",
-      "defaultValueHint": "اختياري. تُستبدل العناصر النائبة '{host}' و '{url}' و '{envSlug}' بقيم البيئة.",
+      "defaultValueHint": "اختياري. تُستبدل العناصر النائبة '{url}' و '{envSlug}' بقيم البيئة.",
       "defaultInvalid": "يجب أن تكون القيمة الافتراضية سطراً واحداً (بلا فواصل أسطر)",
       "generatedLength": "الطول",
       "generatedLengthHint": "من {min} إلى {max} حرفاً؛ الفارغ يعني 32.",

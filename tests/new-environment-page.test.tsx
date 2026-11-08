@@ -336,6 +336,7 @@ beforeEach(() => {
     envSlug: "dev-3",
     runId: "run-1",
     buildFailures: [],
+    pipelineFileFailures: [],
   });
 });
 
@@ -364,6 +365,32 @@ describe("New environment page", () => {
     expect(advanced?.getAttribute("aria-expanded")).toBe("false");
     expect(text).not.toContain(messages.setupWizard.sections.deploy);
     expect(api.preview).not.toHaveBeenCalled();
+  });
+
+  it("warns with the branch when a pipeline file was not committed", async () => {
+    api.create.mockResolvedValueOnce({
+      environmentId: "env-3",
+      projectKey: "SCMB",
+      envSlug: "dev-3",
+      runId: "run-1",
+      buildFailures: [],
+      pipelineFileFailures: [
+        {
+          componentKey: "hris",
+          branch: "dev-3",
+          code: null,
+          error: "Branch dev-3 does not exist",
+        },
+      ],
+    });
+    await mount({ project: projectWithEnvs });
+    await act(async () => type(nameInput(), "Dev 3"));
+    await pressCreate();
+    expect(api.create).toHaveBeenCalledOnce();
+    expect(api.toast.warning).toHaveBeenCalledWith(
+      "The pipeline file was not committed to dev-3 of hris. An admin can commit it again on the repository's page."
+    );
+    expect(api.push).toHaveBeenCalledWith("/SCMB/dev-3/deploys");
   });
 
   it("no errors before interaction", async () => {

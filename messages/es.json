@@ -431,6 +431,9 @@
       "heldBuilds": "{count, plural, =0 {No hay compilaciones retenidas.} one {# compilación retenida.} other {# compilaciones retenidas.}}",
       "saveLock": "Guardar bloqueo"
     },
+    "startBuild": "Iniciar compilación",
+    "startBuildHint": "Build {branch} now; the build deploys when it lands.",
+    "buildStarted": "Build {number} started",
     "waitingForFirstBuild": "Esperando la primera build de {branch}",
     "settingsLink": "Ajustes de despliegue",
     "settingsHint": "Las ramas, los servidores y los destinos se editan en Ajustes → Origen y despliegue."
@@ -786,7 +789,8 @@
     "ownerNone": "Sin responsable",
     "created": "Entorno creado.",
     "provisioningNotStarted": "El entorno se creó, pero el aprovisionamiento no comenzó. Puede iniciarlo desde la página Despliegues.",
-    "buildNotStarted": "El entorno se creó, pero una primera compilación no comenzó. Iníciela desde la página Despliegues.",
+    "pipelineFileNotCommitted": "The pipeline file was not committed to {branch} of {component}. An admin can commit it again on the repository's page.",
+    "buildNotStarted": "El entorno se creó, pero una primera compilación no comenzó. Pulse Iniciar compilación en la página Despliegues.",
     "pickProject": "Elija el proyecto del nuevo entorno y pulse Nuevo entorno en su página.",
     "addressHintPolicy": "Tras la política de acceso {policy}. Déjela vacía para el nombre sugerido.",
     "reposLoading": "Cargando repositorios…",
@@ -2712,7 +2716,7 @@
       "nameReservedPrefix": "COMPOSE_, DOCKER_ y BUILDKIT_ están reservados: Docker los lee de .env y podrían desviar el despliegue. El Panel escribe DOCKER_REGISTRY por sí mismo",
       "kind": "Tipo",
       "defaultValue": "Valor predeterminado",
-      "defaultValueHint": "Opcional. Los marcadores '{host}', '{url}' y '{envSlug}' se sustituyen por los valores del entorno.",
+      "defaultValueHint": "Opcional. Los marcadores '{url}' y '{envSlug}' se sustituyen por los valores del entorno.",
       "defaultInvalid": "El valor predeterminado debe ser una sola línea (sin saltos de línea)",
       "generatedLength": "Longitud",
       "generatedLengthHint": "De {min} a {max} caracteres; vacío significa 32.",
