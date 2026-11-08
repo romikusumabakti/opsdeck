@@ -891,7 +891,7 @@
     "tabDatabase": "Basis data",
     "tabDomain": "Domain",
     "tabMailMockTime": "Mail & Mock time",
-    "serverHint": "Semua layanan dan target deploy environment ini berjalan di server ini.",
+    "serverHint": "Layanan aplikasi, target deploy, dan container basis data milik environment ini berjalan di server ini. Basis data bersama tetap di host-nya.",
     "serverLocked": "Server terkunci setelah deploy pertama. Pengguna dengan akses manajemen server masih bisa memindahkannya.",
     "serverMixed": "Layanan environment ini berjalan di server yang berbeda. Ubah satu per satu di Opsi lanjutan.",
     "urlFromDomain": "Diatur oleh domain environment. Ubah alamatnya di tab Domain.",
@@ -901,7 +901,8 @@
     "noDatabase": "Tanpa basis data",
     "mockTimeTitle": "Mock time",
     "mockTimeDescription": "API mock time milik backend, dipakai oleh halaman Mock time.",
-    "serverMixedAdminOnly": "Layanan environment ini berjalan di server yang berbeda. Hanya pengguna dengan akses manajemen server yang bisa memindahkannya."
+    "serverMixedAdminOnly": "Layanan environment ini berjalan di server yang berbeda. Hanya pengguna dengan akses manajemen server yang bisa memindahkannya.",
+    "serverSharedDbElsewhere": "Basis data bersama environment ini ada di host basis data server lain, jadi memindahkan aplikasi ke sini akan merusaknya. Pilih server host basis data atau tetap di server saat ini."
   },
   "userMenu": {
     "users": "Manajemen pengguna",

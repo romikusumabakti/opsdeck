@@ -891,7 +891,7 @@
     "tabDatabase": "Database",
     "tabDomain": "Domain",
     "tabMailMockTime": "Mail & Mock time",
-    "serverHint": "Every service and deploy target of this environment runs on this server.",
+    "serverHint": "This environment's app services, its deploy targets and its own database container run on this server. A shared database stays on its host.",
     "serverLocked": "The server is fixed after the first deploy. Someone with server management access can still move it.",
     "serverMixed": "This environment's services run on different servers. Change them one by one under Advanced options.",
     "urlFromDomain": "Set by the environment's domain. Change the address on the Domain tab.",
@@ -901,7 +901,8 @@
     "noDatabase": "No database",
     "mockTimeTitle": "Mock time",
     "mockTimeDescription": "The backend's time-mocking API, used by the Mock time page.",
-    "serverMixedAdminOnly": "This environment's services run on different servers. Only someone with server management access can rebind them."
+    "serverMixedAdminOnly": "This environment's services run on different servers. Only someone with server management access can rebind them.",
+    "serverSharedDbElsewhere": "This environment's shared database lives on another server's database host, so moving the app there would break it. Pick the database host's server or keep the current one."
   },
   "userMenu": {
     "users": "User management",
