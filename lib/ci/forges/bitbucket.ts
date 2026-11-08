@@ -168,6 +168,9 @@ function srcSuffix(ref: string, path: string): string {
   return `/src/${encodePath(ref)}${encoded ? `/${encoded}` : ""}`;
 }
 
+/** Marks a file over the size limit, for callers that must fail closed. */
+export const FILE_TOO_LARGE = Symbol("FILE_TOO_LARGE");
+
 /**
  * Reads one file at a ref (branch, tag or commit) as text. Null on 404, and
  * null when the file is larger than 256 KiB (never a truncated file).
@@ -179,6 +182,24 @@ export async function readRepoFile(
   path: string,
   fetchImpl: typeof fetch = fetch
 ): Promise<string | null> {
+  const content = await readRepoFileOrLarge(
+    auth,
+    repoFullName,
+    ref,
+    path,
+    fetchImpl
+  );
+  return content === FILE_TOO_LARGE ? null : content;
+}
+
+/** Like readRepoFile, but reports a too-large file as FILE_TOO_LARGE. */
+export async function readRepoFileOrLarge(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  ref: string,
+  path: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string | typeof FILE_TOO_LARGE | null> {
   assertRepo(repoFullName);
   let res: Response;
   try {
@@ -197,7 +218,7 @@ export async function readRepoFile(
   const declared = Number(res.headers.get("content-length"));
   if (declared > MAX_FILE_BYTES) {
     await res.body?.cancel();
-    return null;
+    return FILE_TOO_LARGE;
   }
   const reader = res.body?.getReader();
   if (!reader) return "";
@@ -209,7 +230,7 @@ export async function readRepoFile(
     size += value.byteLength;
     if (size > MAX_FILE_BYTES) {
       await reader.cancel();
-      return null;
+      return FILE_TOO_LARGE;
     }
     chunks.push(value);
   }
