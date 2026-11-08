@@ -1,5 +1,6 @@
 import { and, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
+import type { BuildSpec } from "@/lib/ci/build-spec";
 import { type DbExecutor, db } from "@/lib/db";
 import {
   type App,
@@ -168,6 +169,19 @@ export async function setPipelineFileCommit(
       pipelineFileCommits: sql`coalesce(${column}, '{}'::jsonb) || jsonb_build_object(${branch}::text, ${entry})`,
     })
     .where(eq(appComponents.componentKey, componentKey));
+}
+
+/** Replaces a component's build spec (the generated pipeline's source). */
+export async function setBuildSpec(
+  componentKey: string,
+  buildSpec: BuildSpec
+): Promise<void> {
+  const updated = await db
+    .update(appComponents)
+    .set({ buildSpec })
+    .where(eq(appComponents.componentKey, componentKey))
+    .returning({ componentKey: appComponents.componentKey });
+  if (updated.length === 0) throw new Error("Component not found");
 }
 
 /** Stores a new notify secret, already encrypted with lib/secrets.ts. */
