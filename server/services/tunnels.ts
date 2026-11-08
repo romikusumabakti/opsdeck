@@ -91,6 +91,14 @@ function cloudflareNotConfigured(): never {
 // A zone's DNS calls use its own token when it has one, else the Cloudflare
 // account's (which also covers DNS). Decrypted for the call only: never
 // logged or returned.
+// The account-token fallback lets the tunnel:manage/read paths (loadTunnel)
+// act with the account token, which is otherwise reached only behind
+// server:manage (the Cloudflare page). It assumes tunnel:manage and
+// tunnel:read are held only by roles that also hold server:manage (admin,
+// infra). Observer is the exception today: it holds tunnel:read without
+// server:manage, and its paths (getTunnelRoutes, getOriginCandidates) only
+// read DNS with the token. Revisit this before a tunnel permission goes to
+// any other role, or before a tunnel:read path writes.
 async function zoneApiToken(stored: string | null): Promise<string> {
   if (stored) return decryptSecret(stored);
   const account = await loadCloudflareAccount();

@@ -593,12 +593,25 @@ describe("updateEnvironment rebinding without server:manage", () => {
     expect(updates()).toEqual([]);
   });
 
-  it("refuses turning on a service that does not exist yet", async () => {
+  // The minimal payloads: only the flag and a server id, so nothing but the
+  // addsService guard tells them from a server-only rebind.
+  it("refuses turning on a database that does not exist yet", async () => {
     state.defaultServerId = SERVER_RESTRICTED;
     await expect(
       updateEnvironment(ENV_ID, {
-        backendServerId: SERVER_RESTRICTED,
-        ...databaseOn(SERVER_RESTRICTED),
+        hasDatabase: true,
+        dbServerId: SERVER_RESTRICTED,
+      })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+  });
+
+  it("refuses turning on a frontend that does not exist yet", async () => {
+    state.defaultServerId = SERVER_RESTRICTED;
+    await expect(
+      updateEnvironment(ENV_ID, {
+        hasFrontend: true,
+        frontendServerId: SERVER_RESTRICTED,
       })
     ).rejects.toMatchObject({ status: 403 });
     expect(updates()).toEqual([]);

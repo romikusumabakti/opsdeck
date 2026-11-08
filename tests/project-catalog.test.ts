@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth-session", () => ({
   requireSession: async () => ({
-    user: { id: USER_ID, role: state.orgRole },
+    user: { id: USER_ID, name: "Rina", role: state.orgRole },
   }),
   getServerSession: async () => ({
     user: { id: USER_ID, role: state.orgRole },
@@ -110,6 +110,15 @@ describe("addProject", () => {
     expect(state.inserts.find((i) => i.table === schema.projects)?.inTx).toBe(
       true
     );
+    expect(state.activity).toEqual([
+      {
+        actorId: USER_ID,
+        action: "member.added",
+        entityType: "member",
+        entityId: USER_ID,
+        data: { user: "Rina", project: "New project", role: "engineer" },
+      },
+    ]);
   });
 
   it("adds no membership for an admin, who is engineer everywhere", async () => {
@@ -118,6 +127,7 @@ describe("addProject", () => {
     expect(state.inserts.some((i) => i.table === schema.projectMembers)).toBe(
       false
     );
+    expect(state.activity).toEqual([]);
   });
 
   it("refuses a member who is only QA, before writing anything", async () => {
