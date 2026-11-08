@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   activateRepo: vi.fn(),
   insertComponents: vi.fn(),
   getApp: vi.fn(),
+  appKeyExists: vi.fn(),
+  takenComponentKeys: vi.fn(),
+  linkedCiRepos: vi.fn(),
+  insertAppWithComponents: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-session", () => ({ requireSession: mocks.requireSession }));
@@ -26,19 +30,19 @@ vi.mock("@/lib/authz", () => ({
   requireProjectPermission: mocks.requireProjectPermission,
 }));
 vi.mock("@/lib/apps", () => ({
-  appKeyExists: async () => false,
+  appKeyExists: mocks.appKeyExists,
   componentTargetBranches: vi.fn(),
   getApp: mocks.getApp,
   getComponent: mocks.getComponent,
-  insertAppWithComponents: async () => undefined,
+  insertAppWithComponents: mocks.insertAppWithComponents,
   insertComponents: mocks.insertComponents,
-  linkedCiRepos: async () => [],
+  linkedCiRepos: mocks.linkedCiRepos,
   listApps: vi.fn(),
   projectIdsWithAppEnvironment: vi.fn(),
   appendBuildSpecBranch: mocks.appendBuildSpecBranch,
   setNotifySecret: vi.fn(),
   setPipelineFileCommit: mocks.setPipelineFileCommit,
-  takenComponentKeys: async () => [],
+  takenComponentKeys: mocks.takenComponentKeys,
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => ({
   branchExists: mocks.branchExists,
@@ -106,6 +110,10 @@ beforeEach(() => {
     ciRepoId: "7",
     fullName: "dss/hris",
   });
+  mocks.appKeyExists.mockResolvedValue(false);
+  mocks.takenComponentKeys.mockResolvedValue([]);
+  mocks.linkedCiRepos.mockResolvedValue([]);
+  mocks.insertAppWithComponents.mockResolvedValue(undefined);
   mocks.getApp.mockResolvedValue({
     id: "app-1",
     appKey: "hris",
@@ -169,6 +177,52 @@ describe("registerApp for engineers", () => {
     mocks.readRepoFile.mockResolvedValue(GENERATED);
     await registerApp(REGISTER);
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("registration refusals carry a stable code", () => {
+  it("appKeyTaken", async () => {
+    mocks.appKeyExists.mockResolvedValue(true);
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      status: 409,
+      code: "appKeyTaken",
+    });
+  });
+
+  it("componentKeyTaken", async () => {
+    mocks.takenComponentKeys.mockResolvedValue(["hris"]);
+    await expect(
+      addComponentsToApp("hris", REGISTER.components)
+    ).rejects.toMatchObject({ status: 409, code: "componentKeyTaken" });
+  });
+
+  it("repoLinked", async () => {
+    mocks.linkedCiRepos.mockResolvedValue([
+      { componentKey: "old", ciRepoId: "7", repoFullName: "dss/hris" },
+    ]);
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      status: 409,
+      code: "repoLinked",
+    });
+  });
+
+  it("registrationRace", async () => {
+    mocks.insertAppWithComponents.mockRejectedValue(
+      Object.assign(new Error("dup"), { code: "23505" })
+    );
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      status: 409,
+      code: "registrationRace",
+    });
+  });
+
+  it("ciUnavailable", async () => {
+    const { CiProviderError } = await import("@/lib/ci/types");
+    mocks.activateRepo.mockRejectedValue(new CiProviderError("down", 503));
+    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+      status: 502,
+      code: "ciUnavailable",
+    });
   });
 });
 

@@ -24,7 +24,7 @@ const state = vi.hoisted(() => ({
   orgRole: "member",
   // Rows by table name; the fake db ignores `where` (fixtures are per test).
   rows: {} as Record<string, Row[]>,
-  updates: [] as { table: string; values: Row }[],
+  updates: [] as { table: string; values: Row; where: unknown }[],
   inserts: [] as string[],
   apps: [] as Row[],
   calls: [] as string[],
@@ -82,10 +82,11 @@ vi.mock("@/lib/db", async () => {
       select: () => ({ from: chain }),
       update: (table: unknown) => ({
         set: (values: Row) => ({
-          where: async () => {
+          where: async (where: unknown) => {
             state.updates.push({
               table: getTableName(table as never),
               values,
+              where,
             });
           },
         }),
@@ -223,6 +224,8 @@ vi.mock("@/server/services/apps", async (importOriginal) => ({
 }));
 
 const { app } = await import("@/server/app");
+const { PgDialect } = await import("drizzle-orm/pg-core");
+type SQL = import("drizzle-orm").SQL;
 const { CodedHTTPException } = await import("@/server/errors");
 
 function post(path: string, body: unknown) {
@@ -380,15 +383,17 @@ describe("POST /api/setup/new-environment", () => {
       },
     });
 
-    // Checked before registering; flagged before the first build.
+    // Checked before registering. Provisioning started (runId) and flags
+    // the targets itself, after its database and domain steps: never here.
     expect(state.calls).toEqual([
       "detect",
       "preview",
       "register",
       "create",
-      `flag:${TARGET_ID}`,
       "build",
     ]);
+    const deploys = await import("@/lib/deploy/repository");
+    expect(deploys.flagDeployNextBuild).not.toHaveBeenCalled();
     expect(apps.triggerComponentBuild).toHaveBeenCalledWith(
       "panel-canary",
       "panel-canary",
@@ -399,9 +404,54 @@ describe("POST /api/setup/new-environment", () => {
   it("first server choice becomes the project default", async () => {
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(201);
-    expect(state.updates).toEqual([
+    expect(state.updates).toMatchObject([
       { table: "projects", values: { defaultServerId: OPEN_SERVER } },
     ]);
+    // Only while the project has none: a default set meanwhile stays.
+    const { sql, params } = new PgDialect().sqlToQuery(
+      state.updates[0]?.where as SQL
+    );
+    expect(sql).toBe(
+      '(("projects"."id" = $1) and (("projects"."default_server_id" is null)))'
+    );
+    expect(params).toEqual([PROJECT_ID]);
+  });
+
+  it("a server manager's restricted choice becomes the default", async () => {
+    state.orgRole = "admin";
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      serverId: RESTRICTED_SERVER,
+    });
+    expect(res.status).toBe(201);
+    expect(state.updates).toMatchObject([
+      { table: "projects", values: { defaultServerId: RESTRICTED_SERVER } },
+    ]);
+  });
+
+  it("an engineer cannot make a restricted server the default", async () => {
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      serverId: RESTRICTED_SERVER,
+    });
+    // Not placeable for the engineer: refused before anything is written.
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "invalid" });
+    expect(state.updates).toEqual([]);
+    expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
+  });
+
+  it("never overwrites a set default, even with another choice", async () => {
+    state.orgRole = "admin";
+    state.rows.projects = [
+      { id: PROJECT_ID, key: "PCAN", defaultServerId: OPEN_SERVER },
+    ];
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      serverId: RESTRICTED_SERVER,
+    });
+    expect(res.status).toBe(201);
+    expect(state.updates).toEqual([]);
   });
 
   it("keeps an existing project default", async () => {
@@ -518,6 +568,47 @@ describe("POST /api/setup/new-environment", () => {
         { componentKey: "panel-canary", code: "componentNotActivated" },
       ],
     });
+  });
+
+  it("answers stable codes when a repo cannot be read", async () => {
+    const { HTTPException } = await import("hono/http-exception");
+    const detect = await import("@/server/services/setup-detect");
+    for (const [status, code] of [
+      [400, "repoUnreadable"],
+      [404, "repoNotFound"],
+      [502, "ciUnavailable"],
+    ] as const) {
+      vi.mocked(detect.detectComponentRepo).mockRejectedValueOnce(
+        new HTTPException(status, { message: "x" })
+      );
+      const res = await post("/api/setup/new-environment/preview", freshInput);
+      expect(res.status, code).toBe(status);
+      expect(await res.json(), code).toMatchObject({ code });
+    }
+  });
+
+  it("answers repoNotFound when the CI server no longer lists the repo", async () => {
+    const ci = await import("@/server/services/ci-connections");
+    vi.mocked(ci.getProviderForConnection).mockResolvedValueOnce({
+      listRepos: async () => [],
+    } as never);
+    const res = await post("/api/setup/new-environment", freshInput);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: "repoNotFound" });
+    expect(apps.registerApp).not.toHaveBeenCalled();
+  });
+
+  it("answers ciUnavailable when the CI server fails", async () => {
+    const ci = await import("@/server/services/ci-connections");
+    const { CiProviderError } = await import("@/lib/ci/types");
+    vi.mocked(ci.getProviderForConnection).mockResolvedValueOnce({
+      listRepos: async () => {
+        throw new CiProviderError("down", 503);
+      },
+    } as never);
+    const res = await post("/api/setup/new-environment", freshInput);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ code: "ciUnavailable" });
   });
 
   it("qa cannot create environments", async () => {

@@ -2949,7 +2949,15 @@
       "repoNotBuildable": "Panel tidak dapat membangun repositori ini: dibutuhkan Dockerfile dan file compose.",
       "nameTaken": "Lingkungan lain baru saja memakai nama ini. Pilih nama lain.",
       "domainTaken": "Lingkungan lain baru saja memakai alamat ini. Pilih alamat lain.",
-      "duplicate": "Repositori ini tercantum dua kali."
+      "duplicate": "Repositori ini tercantum dua kali.",
+      "repoNotFound": "Server CI tidak mencantumkan repositori ini. Pastikan repositori sudah diaktifkan di Woodpecker.",
+      "repoUnreadable": "Panel tidak bisa membaca berkas repositori ini: koneksi CI tidak punya token forge.",
+      "ciUnavailable": "Server CI atau Bitbucket tidak menjawab. Coba lagi sebentar lagi.",
+      "appKeyTaken": "Aplikasi dengan kunci ini baru saja didaftarkan. Coba lagi.",
+      "componentKeyTaken": "Repositori dengan kunci ini baru saja didaftarkan. Coba lagi.",
+      "repoLinked": "Repositori ini baru saja didaftarkan. Coba lagi.",
+      "registrationRace": "Pendaftaran lain untuk repositori ini berjalan bersamaan. Minta admin merotasi notify secret-nya, lalu coba lagi.",
+      "pipelineFileExists": "Branch ini sudah punya .woodpecker.yaml yang tidak dibuat Panel. Buat berkas itu memberi tahu Panel, atau hapus."
     },
     "newApp": {
       "title": "Aplikasi baru",
