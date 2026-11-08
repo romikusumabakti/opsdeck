@@ -778,7 +778,7 @@
     "needsDatabaseHint": "服务器数据库主机上的共享数据库，否则使用数据库容器。",
     "setInAdvanced": "在高级选项中设置。",
     "address": "地址",
-    "addressHint": "位于 DSS Internal 访问策略之后。留空则使用建议的名称。",
+    "addressHint": "位于项目默认访问策略之后。留空则使用建议的名称。",
     "noAddress": "无地址",
     "server": "服务器",
     "serverPlaceholder": "选择服务器",
@@ -790,7 +790,15 @@
     "created": "环境已创建。",
     "provisioningNotStarted": "环境已创建，但配置未启动。您可以在部署页面启动它。",
     "buildNotStarted": "环境已创建，但有一个首次构建未启动。请在部署页面启动它。",
-    "pickProject": "选择新环境所属的项目，然后在其页面上点击“新建环境”。"
+    "pickProject": "选择新环境所属的项目，然后在其页面上点击“新建环境”。",
+    "addressHintPolicy": "位于 {policy} 访问策略之后。留空则使用建议的名称。",
+    "reposLoading": "正在加载仓库…",
+    "fixFieldsFirst": "请先修正以下字段以查看高级选项：",
+    "pipelines": "流水线",
+    "pipelineMode": "{repo} 的流水线",
+    "pipelineModeGenerated": "由面板生成",
+    "pipelineModeCustom": "自定义（仓库中的 .woodpecker.yaml）",
+    "pipelinesHint": "由检测选择。生成的流水线必须在其分支中包含该环境的分支。"
   },
   "environmentForm": {
     "info": "环境信息",
@@ -2975,7 +2983,9 @@
       "componentKeyTaken": "刚刚有一个使用此键的仓库被注册。请重试。",
       "repoLinked": "此仓库刚刚被注册。请重试。",
       "registrationRace": "此仓库的另一次注册同时进行。请让管理员轮换其通知密钥，然后重试。",
-      "pipelineFileExists": "该分支已有一个不是 Panel 生成的 .woodpecker.yaml。请让它通知 Panel，或将其删除。"
+      "pipelineFileExists": "该分支已有一个不是 Panel 生成的 .woodpecker.yaml。请让它通知 Panel，或将其删除。",
+      "pipelineBranchMissing": "流水线必须构建该环境的分支：请将其加入分支列表。",
+      "pipelineForbidden": "只有管理员可以选择仓库的流水线。"
     }
   }
 }

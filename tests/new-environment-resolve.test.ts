@@ -436,6 +436,119 @@ describe("resolveNewEnvironment", () => {
     });
   });
 
+  describe("an admin's pipeline choice", () => {
+    const spec = {
+      branches: ["develop", "main"],
+      tagShaLength: 7,
+      images: [
+        { name: "canary", dockerfile: "docker/Dockerfile", context: "." },
+      ],
+      bundleFiles: [{ from: "deploy/compose.yaml", to: "compose.yaml" }],
+      checks: [],
+      timeoutMinutes: 60,
+    };
+    const choose = (
+      pipelines: NonNullable<NewEnvironmentInput["advanced"]>["pipelines"]
+    ) => input({ ...freshInput, advanced: { pipelines } });
+
+    it("replaces the detected mode and build spec", () => {
+      const generated = resolveNewEnvironment(
+        choose([
+          {
+            repoFullName: "dss-consulting/panel-canary-2",
+            mode: "generated",
+            buildSpec: spec,
+          },
+        ]),
+        freshRepo({ kind: "custom", notifiesPanel: false })
+      );
+      expect(generated.registrations[0]).toMatchObject({
+        pipelineMode: "generated",
+        buildSpec: spec,
+      });
+      expect(generated.warnings).toEqual([]);
+      const custom = resolveNewEnvironment(
+        choose([
+          { repoFullName: "dss-consulting/panel-canary-2", mode: "custom" },
+        ]),
+        freshRepo()
+      );
+      expect(custom.registrations[0]).toMatchObject({
+        pipelineMode: "custom",
+        buildSpec: null,
+      });
+      expect(custom.issues).toEqual([]);
+    });
+
+    it("is the escape from repoNotBuildable", () => {
+      const ctx = freshRepo();
+      const repo = ctx.repos[0];
+      if (!repo) throw new Error("fixture");
+      repo.detection = detection({ dockerfiles: [] });
+      const plan = resolveNewEnvironment(
+        choose([
+          {
+            repoFullName: "dss-consulting/panel-canary-2",
+            mode: "generated",
+            buildSpec: spec,
+          },
+        ]),
+        ctx
+      );
+      expect(plan.issues).toEqual([]);
+      expect(plan.registrations[0]?.buildSpec).toEqual(spec);
+    });
+
+    it("needs the environment's branch among the built branches", () => {
+      const plan = resolveNewEnvironment(
+        choose([
+          {
+            repoFullName: "dss-consulting/panel-canary-2",
+            mode: "generated",
+            buildSpec: { ...spec, branches: ["main"] },
+          },
+        ]),
+        freshRepo()
+      );
+      expect(plan.issues).toContainEqual({
+        field: "pipelines.0.buildSpec.branches",
+        code: "pipelineBranchMissing",
+      });
+    });
+
+    it("ignores a choice for a repository already registered", () => {
+      const plan = resolveNewEnvironment(
+        input({
+          advanced: {
+            pipelines: [
+              {
+                repoFullName: "dss-consulting/panel-canary",
+                mode: "generated",
+              },
+            ],
+          },
+        }),
+        context()
+      );
+      expect(plan.registrations).toEqual([]);
+      expect(plan.issues).toEqual([]);
+    });
+
+    it("refuses an invalid build spec in the schema", () => {
+      expect(
+        newEnvironmentInputSchema.safeParse(
+          choose([
+            {
+              repoFullName: "dss-consulting/panel-canary-2",
+              mode: "generated",
+              buildSpec: { ...spec, images: [] },
+            },
+          ])
+        ).success
+      ).toBe(false);
+    });
+  });
+
   it("component key from slug", () => {
     expect(
       resolveNewEnvironment(freshInput, freshRepo()).registrations[0]
