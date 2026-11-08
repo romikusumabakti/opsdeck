@@ -1,6 +1,8 @@
 import { parse } from "yaml";
 import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
 import { PANEL_PIPELINE_MARKER } from "@/lib/ci/pipeline";
+import { bundleImageFor } from "@/lib/ci/registration";
+import { bundleImageSchema } from "@/lib/deploy/validation";
 
 /**
  * What a repository offers the setup wizard: its compose file and runtime
@@ -180,8 +182,15 @@ export function suggestedBuildSpec(
         : [];
     }
     const [dir] = segments;
-    return segments.length === 2 && segments[1] === "Dockerfile" && dir
-      ? [{ name: `${componentKey}-${dir}`, dockerfile: path, context: dir }]
+    if (segments.length !== 2 || segments[1] !== "Dockerfile" || !dir) {
+      return [];
+    }
+    // A directory the image-name rule rejects (spaces, ...) is skipped so the
+    // other images survive; the deploy bundle's own name is never reused.
+    const name = `${componentKey}-${dir.toLowerCase()}`;
+    return bundleImageSchema.safeParse(name).success &&
+      name !== bundleImageFor(componentKey)
+      ? [{ name, dockerfile: path, context: dir }]
       : [];
   });
   if (images.length === 0) return null;
