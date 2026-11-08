@@ -43,7 +43,12 @@ import {
 } from "@/components/ui/table";
 import { TablePager } from "@/components/ui/table-pager";
 import { useProjectName } from "@/hooks/use-project-name";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import {
+  Link,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@/i18n/navigation";
 import { DEFAULT_PAGE_SIZE, STATUS_ALL } from "@/lib/issue-query";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import type { UserRef } from "@/lib/types";
@@ -63,6 +68,22 @@ function statusFilterValue(status: string | undefined) {
     (STATUSES as readonly string[]).includes(status ?? "")
     ? (status as string)
     : ACTIVE_ITEM;
+}
+
+/**
+ * The href of a status filter choice: `status` set (or dropped for the
+ * default), every other param (the project overview's `tab`) kept.
+ */
+export function statusFilterHref(
+  pathname: string,
+  search: URLSearchParams,
+  value: string
+): string {
+  const next = new URLSearchParams(search);
+  if (value === ACTIVE_ITEM) next.delete("status");
+  else next.set("status", value);
+  const query = next.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 export function IssuesClient({
@@ -90,6 +111,7 @@ export function IssuesClient({
   const tCommon = useTranslations("common");
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const dialog = useDialog();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   // Keyboard cursor into the table (j/k move, x select, Enter open). -1 = none.
@@ -162,11 +184,11 @@ export function IssuesClient({
 
   // The status filter lives in the URL like on /issues: the server returns only
   // the chosen statuses, so changing it is a navigation, not a client filter.
+  // Other params (the project overview's `tab`) are kept.
   function setStatusFilter(value: string) {
-    router.replace(
-      value === ACTIVE_ITEM ? pathname : `${pathname}?status=${value}`,
-      { scroll: false }
-    );
+    router.replace(statusFilterHref(pathname, searchParams, value), {
+      scroll: false,
+    });
   }
 
   async function onStatusChange(id: string, status: Status) {

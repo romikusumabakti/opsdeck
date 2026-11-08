@@ -177,14 +177,14 @@ export async function addProject(
     // Admins and infra are engineer on every project already; anyone else
     // (a member, or an observer who is engineer elsewhere) becomes its
     // engineer, in the same transaction.
+    const addsMember =
+      implicitProjectRole(normalizeOrgRole(session.user.role)) !== "engineer";
     const created = await db.transaction(async (tx) => {
       const project = one(
         await tx.insert(projects).values(parsed.data).returning(),
         "project"
       );
-      if (
-        implicitProjectRole(normalizeOrgRole(session.user.role)) !== "engineer"
-      ) {
+      if (addsMember) {
         await tx.insert(projectMembers).values({
           projectId: project.id,
           userId: session.user.id,
@@ -193,6 +193,20 @@ export async function addProject(
       }
       return project;
     });
+    // The membership is logged like one added on the Members tab.
+    if (addsMember) {
+      await recordActivity({
+        actorId: session.user.id,
+        action: "member.added",
+        entityType: "member",
+        entityId: session.user.id,
+        data: {
+          user: session.user.name ?? "?",
+          project: created.name,
+          role: "engineer",
+        },
+      });
+    }
     return { success: true, data: created };
   } catch (error) {
     // Unique violation on `key` (pg 23505) → surface a friendly message.

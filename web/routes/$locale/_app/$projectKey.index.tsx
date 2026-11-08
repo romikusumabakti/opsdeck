@@ -40,9 +40,20 @@ import { ProjectMembersClient } from "./-components/project/project-members-clie
 const statusesFor = (status: string | undefined) =>
   resolveStatusFilter(status, "table") ?? undefined;
 
+const TABS = ["environments", "issues", "milestones", "members"] as const;
+type Tab = (typeof TABS)[number];
+const isTab = (value: unknown): value is Tab => TABS.includes(value as Tab);
+
 export const Route = createFileRoute("/$locale/_app/$projectKey/")({
-  validateSearch: (search: Record<string, unknown>): { status?: string } => ({
+  // The tab lives in the URL, so a status change (a navigation) keeps it.
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { status?: string; tab?: Tab } => ({
     status: typeof search.status === "string" ? search.status : undefined,
+    tab:
+      isTab(search.tab) && search.tab !== "environments"
+        ? search.tab
+        : undefined,
   }),
   loaderDeps: ({ search: { status } }) => ({ status }),
   // 404 when the project is unknown or invisible to the caller.
@@ -87,7 +98,8 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
 
 function ProjectOverviewPage() {
   const { projectKey } = Route.useParams();
-  const { status } = Route.useSearch();
+  const { status, tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");
   const tDash = useTranslations("dashboard");
@@ -159,7 +171,20 @@ function ProjectOverviewPage() {
           so switching tabs never moves the strip out from under the cursor and
           a long list can't push the pager off-screen. */}
       <Tabs
-        defaultValue="environments"
+        value={
+          tab === "members" && !canManageMembers
+            ? "environments"
+            : (tab ?? "environments")
+        }
+        onValueChange={(next) =>
+          navigate({
+            search: (prev) => ({
+              ...prev,
+              tab: isTab(next) && next !== "environments" ? next : undefined,
+            }),
+            replace: true,
+          })
+        }
         // `gap-4`, matching the other full-height tab layouts (users,
         // databases) — the primitive's `gap-2` default sits a panel too close
         // under its own tab strip.
