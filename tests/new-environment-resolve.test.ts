@@ -84,7 +84,8 @@ function context(
         component: known("panel-canary"),
       },
     ],
-    appId: APP,
+    app: { id: APP, key: "pcan" },
+    slug: "canary-2",
     copySource: null,
     suggestedPort: 8104,
     defaultZoneId: ZONE,
@@ -118,7 +119,7 @@ function input(
 
 const freshRepo = (pipeline: RepoDetection["pipeline"] = { kind: "none" }) =>
   context({
-    appId: null,
+    app: null,
     repos: [
       {
         repoFullName: "dss-consulting/panel-canary-2",
@@ -253,6 +254,81 @@ describe("resolveNewEnvironment", () => {
       context({ project: { id: PROJECT, key: "PCAN", defaultServerId: null } })
     );
     expect(plan.issues).toContainEqual({ field: "serverId", code: "required" });
+  });
+
+  it("never uses a default server the caller may not place on", () => {
+    const hidden = "0197f3a0-1b2c-7def-8000-0000000000ee";
+    const project = { id: PROJECT, key: "PCAN", defaultServerId: hidden };
+    const plan = resolveNewEnvironment(input(), context({ project }));
+    expect(plan.issues).toContainEqual({ field: "serverId", code: "required" });
+    expect(plan.setup.server.serverId).toBe("");
+    expect(plan.summary.serverName).toBe("");
+    const none = resolveNewEnvironment(
+      input(),
+      context({ project, servers: [] })
+    );
+    expect(none.issues).toContainEqual({
+      field: "serverId",
+      code: "noServerAvailable",
+    });
+    expect(none.setup.server.serverId).toBe("");
+  });
+
+  it("refuses the same repo twice", () => {
+    const plan = resolveNewEnvironment(
+      input({ repos: [...input().repos, ...input().repos] }),
+      context()
+    );
+    expect(plan.issues).toEqual([{ field: "repos.1", code: "duplicate" }]);
+    expect(plan.setup.targets).toHaveLength(1);
+  });
+
+  it("keeps the existing app's key even without a known repo", () => {
+    const plan = resolveNewEnvironment(
+      input({ repos: [], copyFromEnvironmentId: SOURCE_ENV }),
+      context({ copySource: source, repos: [] })
+    );
+    expect(plan.appKey).toBe("pcan");
+  });
+
+  it("derives names from the context's unique slug", () => {
+    const plan = resolveNewEnvironment(
+      input({ name: "Canary", needsDatabase: true }),
+      context({ slug: "canary-3" })
+    );
+    expect(plan.setup.targets[0]?.deployDir).toBe("/deployments/pcan-canary-3");
+    expect(plan.setup.database).toMatchObject({ dbName: "pcan_canary_3" });
+    expect(plan.setup.domain).toMatchObject({ label: "pcan-canary-3" });
+  });
+
+  it("fits long names into 63 characters", () => {
+    // 60 characters; the 63-character cut of `pcan-<slug>` ends on the `-`.
+    const slug = `${"a".repeat(57)}-bb`;
+    expect(slug).toHaveLength(60);
+    const plan = resolveNewEnvironment(
+      input({ needsDatabase: true }),
+      context({ slug })
+    );
+    const db = plan.setup.database;
+    if (db.kind !== "shared") throw new Error("shared expected");
+    expect(db.dbName.length).toBeLessThanOrEqual(63);
+    expect(db.dbName).toMatch(/^[a-z][a-z0-9_]*[a-z0-9]$/);
+    expect(db.dbRole).toBe(db.dbName);
+    const domain = plan.setup.domain;
+    if (domain.kind !== "tunnel") throw new Error("tunnel expected");
+    expect(domain.label.length).toBeLessThanOrEqual(63);
+    expect(domain.label).toMatch(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/);
+
+    // Taken names: the suffix still fits.
+    const taken = resolveNewEnvironment(
+      input({ needsDatabase: true }),
+      context({ slug, existingDbNames: [db.dbName] })
+    );
+    const next = taken.setup.database;
+    if (next.kind !== "shared") throw new Error("shared expected");
+    expect(next.dbName.length).toBeLessThanOrEqual(63);
+    expect(next.dbName).not.toBe(db.dbName);
+    expect(next.dbName.startsWith(`${db.dbName}_`)).toBe(false);
   });
 
   it("refuses a repo of another app", () => {
