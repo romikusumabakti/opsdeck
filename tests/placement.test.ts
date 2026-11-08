@@ -36,16 +36,35 @@ describe("canPlaceEnvironment", () => {
   ];
   for (const [org, project, restricted, open] of MATRIX) {
     it(`${org} × ${project}: restricted=${restricted}, open=${open}`, () => {
-      expect(canPlaceEnvironment(org, project, "restricted")).toBe(restricted);
-      expect(canPlaceEnvironment(org, project, "open")).toBe(open);
+      expect(canPlaceEnvironment(org, project, "restricted", false)).toBe(
+        restricted
+      );
+      expect(canPlaceEnvironment(org, project, "open", false)).toBe(open);
     });
   }
 
   it("refuses a caller without a project role on either placement", () => {
     for (const org of ["admin", "infra", "member"]) {
-      expect(canPlaceEnvironment(org, null, "restricted")).toBe(false);
-      expect(canPlaceEnvironment(org, null, "open")).toBe(false);
+      expect(canPlaceEnvironment(org, null, "restricted", false)).toBe(false);
+      expect(canPlaceEnvironment(org, null, "open", false)).toBe(false);
+      expect(canPlaceEnvironment(org, null, "restricted", true)).toBe(false);
     }
+  });
+
+  it("project default server admits engineers", () => {
+    expect(canPlaceEnvironment("member", "engineer", "restricted", true)).toBe(
+      true
+    );
+    expect(canPlaceEnvironment("member", "engineer", "restricted", false)).toBe(
+      false
+    );
+  });
+
+  it("the project default server never admits QA or viewers", () => {
+    expect(canPlaceEnvironment("member", "qa", "restricted", true)).toBe(false);
+    expect(canPlaceEnvironment("member", "viewer", "restricted", true)).toBe(
+      false
+    );
   });
 });
 
@@ -67,6 +86,10 @@ const state = vi.hoisted(() => ({
   projectRole: "engineer" as string | null,
   // Key of the project a placement is checked for (the projects lookup).
   projectKey: "HRIS",
+  // The project's default server (the projects lookup).
+  defaultServerId: null as string | null,
+  // deployments rows of the environment an update loads.
+  deployments: [] as { id: string }[],
   // Role in the project an update moves the environment into.
   targetProjectRole: "engineer" as string | null,
   userId: "0197f3a0-1b2c-7def-8000-0123456789a9",
@@ -163,7 +186,12 @@ vi.mock("@/lib/db", async () => {
     }
     if (table === schema.users) return [{ id: OWNER_ID }];
     if (table === schema.databaseHosts) return state.hosts;
-    if (table === schema.projects) return [{ key: state.projectKey }];
+    if (table === schema.projects) {
+      return [
+        { key: state.projectKey, defaultServerId: state.defaultServerId },
+      ];
+    }
+    if (table === schema.deployments) return state.deployments;
     if (table === schema.environmentServices) return state.used;
     if (table === schema.environments) {
       return [{ id: "0197f3a0-1b2c-7def-8000-0123456789e1", slug: "taken" }];
@@ -258,6 +286,8 @@ beforeEach(() => {
   state.orgRole = "member";
   state.projectRole = "engineer";
   state.projectKey = "HRIS";
+  state.defaultServerId = null;
+  state.deployments = [];
   state.placements = {
     [SERVER_OPEN]: "open",
     [SERVER_RESTRICTED]: "restricted",
@@ -522,6 +552,45 @@ describe("updateEnvironment placement", () => {
   });
 });
 
+describe("updateEnvironment rebinding without server:manage", () => {
+  const updates = () => state.calls.filter((c) => c.op === "update");
+
+  it("lets an engineer rebind to the project default server before any deploy", async () => {
+    state.defaultServerId = SERVER_RESTRICTED;
+    const result = await updateEnvironment(ENV_ID, {
+      backendServerId: SERVER_RESTRICTED,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("refuses the same rebind once a deploy exists", async () => {
+    state.defaultServerId = SERVER_RESTRICTED;
+    state.deployments = [{ id: "d1" }];
+    await expect(
+      updateEnvironment(ENV_ID, { backendServerId: SERVER_RESTRICTED })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+  });
+
+  it("refuses a rebind to a restricted server that is not the default", async () => {
+    await expect(
+      updateEnvironment(ENV_ID, { backendServerId: SERVER_RESTRICTED })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+  });
+
+  it("still needs server:manage for other infra fields", async () => {
+    state.defaultServerId = SERVER_RESTRICTED;
+    await expect(
+      updateEnvironment(ENV_ID, {
+        backendServerId: SERVER_RESTRICTED,
+        backendServiceName: "hris-api-2",
+      })
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates()).toEqual([]);
+  });
+});
+
 describe("createEnvironment placement", () => {
   it("refuses a contributor even on open servers", async () => {
     state.projectRole = "qa";
@@ -554,6 +623,18 @@ describe("createEnvironment placement", () => {
       })
     ).rejects.toMatchObject({ status: 403 });
     expect(insertedEnvironment()).toBeUndefined();
+  });
+
+  it("lets an engineer place an environment on the project default server", async () => {
+    state.defaultServerId = SERVER_RESTRICTED;
+    const result = await createEnvironment({
+      projectId: PROJECT_ID,
+      name: "Dev",
+      hasFrontend: false,
+      ...backend,
+      ...databaseOn(SERVER_RESTRICTED),
+    });
+    expect(result.success).toBe(true);
   });
 
   it("refuses a viewer even on open servers", async () => {

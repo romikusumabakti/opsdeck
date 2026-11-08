@@ -61,7 +61,7 @@ export type DatabaseHostSummary = Pick<
   "id" | "serverId" | "label" | "containerName" | "network"
 >;
 
-// Readable by any signed-in user (a maintainer binds a shared database on an
+// Readable by any signed-in user (an engineer binds a shared database on an
 // open server without server:manage). The backup path stays out.
 export async function listDatabaseHosts(
   serverId?: string

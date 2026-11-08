@@ -23,8 +23,8 @@ const componentParam = param(
 
 /**
  * Apps and their components. Listing is for every signed-in user; registering
- * is for app registrants (admins and project maintainers; generated pipelines
- * for admins only); starting a build is for admins and project maintainers
+ * is for app registrants (admins and project engineers; generated pipelines
+ * for admins only); starting a build is for admins and project engineers
  * (see triggerComponentBuild); rotating a notify secret and committing the
  * pipeline file are for admins. Each service function checks its own
  * permission.

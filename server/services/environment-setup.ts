@@ -78,9 +78,9 @@ import {
  * with; the create runs them in the same order, throws the first refusal, and
  * writes every row in one transaction, so a refused setup leaves nothing.
  *
- * Who: maintainers of the target project (environment:create, plus the deploy
+ * Who: engineers of the target project (environment:create, plus the deploy
  * and variable rights the target, variable and domain APIs ask for); a
- * contributor (QA) gets 403. Copying from another environment needs project
+ * QA gets 403. Copying from another environment needs project
  * read on it (404 otherwise); its plain and secret values are copied only for
  * a caller who may read its variables (variable:read), server-side, and never
  * appear in a response. Generated and escrowed values are never copied.
@@ -1181,7 +1181,7 @@ export type SetupOptions = {
 
 /**
  * What the setup forms offer for a project: the servers the caller may place
- * an environment on, the registered zones and the remote tunnels. Maintainers
+ * an environment on, the registered zones and the remote tunnels. Engineers
  * have no org server or tunnel read, so the lists the forms need come from
  * here (names only). Needs environment:create in the project.
  */
@@ -1192,7 +1192,7 @@ export async function getSetupOptions(
     { projectId },
     { environment: ["create"] }
   );
-  const [serverRows, zones, tunnels] = await Promise.all([
+  const [serverRows, zones, tunnels, [project]] = await Promise.all([
     db
       .select({
         id: servers.id,
@@ -1207,10 +1207,22 @@ export async function getSetupOptions(
       .select({ id: remoteTunnels.id, name: remoteTunnels.name })
       .from(remoteTunnels)
       .orderBy(asc(remoteTunnels.name)),
+    db
+      .select({ defaultServerId: projects.defaultServerId })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1),
   ]);
   return {
     servers: serverRows
-      .filter((s) => canPlaceEnvironment(session.user.role, role, s.placement))
+      .filter((s) =>
+        canPlaceEnvironment(
+          session.user.role,
+          role,
+          s.placement,
+          project?.defaultServerId === s.id
+        )
+      )
       .map(({ id, name, host }) => ({ id, name, host })),
     zones,
     tunnels,

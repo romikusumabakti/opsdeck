@@ -46,7 +46,7 @@ import {
  * branch the component builds; a failed branch is recorded, never undone into
  * the rest.
  *
- * Maintainers register custom components; generated components, pipeline file
+ * Engineers register custom components; generated components, pipeline file
  * commits and notify secret rotation need org integration:manage (admins).
  */
 
@@ -67,7 +67,7 @@ const fail = (status: 403 | 404 | 409 | 500 | 502, message: string): never => {
 };
 
 /**
- * Maintainers of any project and admins (see canRegisterApp). Returns whether
+ * Engineers of any project and admins (see canRegisterApp). Returns whether
  * the caller also has org integration:manage, which generated pipelines need.
  */
 export async function requireRegistrant(): Promise<{

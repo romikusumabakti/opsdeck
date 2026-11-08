@@ -3,6 +3,8 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import {
+  ForbiddenError,
+  getProjectAccess,
   getProjectRole,
   projectIdsWhere,
   projectScope,
@@ -18,10 +20,16 @@ import {
   environments,
   environmentVariables,
   type Project,
+  projectMembers,
   projects,
 } from "@/lib/db/schema";
 import { OWNER_COLUMNS } from "@/lib/environments";
-import { canOrg } from "@/lib/permissions";
+import {
+  canCreateProject,
+  canOrg,
+  implicitProjectRole,
+  normalizeOrgRole,
+} from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import {
   projectMetaInputSchema,
@@ -155,16 +163,35 @@ export async function getProjectByKeyWithEnvironments(
 export async function addProject(
   data: unknown
 ): Promise<ActionResponse<Project>> {
-  await requireOrgPermission({ project: ["create"] });
+  const session = await requireSession();
+  const access = await getProjectAccess();
+  if (!canCreateProject(session.user.role, Object.values(access.roles))) {
+    throw new ForbiddenError();
+  }
   const parsed = projectMetaInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid project data" };
   }
   try {
-    const created = one(
-      await db.insert(projects).values(parsed.data).returning(),
-      "project"
-    );
+    // Admins and infra are engineer on every project already; anyone else
+    // (a member, or an observer who is engineer elsewhere) becomes its
+    // engineer, in the same transaction.
+    const created = await db.transaction(async (tx) => {
+      const project = one(
+        await tx.insert(projects).values(parsed.data).returning(),
+        "project"
+      );
+      if (
+        implicitProjectRole(normalizeOrgRole(session.user.role)) !== "engineer"
+      ) {
+        await tx.insert(projectMembers).values({
+          projectId: project.id,
+          userId: session.user.id,
+          role: "engineer",
+        });
+      }
+      return project;
+    });
     return { success: true, data: created };
   } catch (error) {
     // Unique violation on `key` (pg 23505) → surface a friendly message.

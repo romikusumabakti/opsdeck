@@ -970,8 +970,8 @@
     "sftpRootDescription": "Jalur absolut tempat penjelajah berkas dibatasi. Gunakan / untuk seluruh host.",
     "placement": "Penempatan environment",
     "placementRestricted": "Terbatas: hanya admin dan infra",
-    "placementOpen": "Terbuka: maintainer proyek",
-    "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Di server terbuka, maintainer proyek bisa membuat environment di server ini tanpa izin server; tandai terbuka hanya server dev/sandbox yang datanya boleh hilang. Environment yang sudah ada tidak terpengaruh.",
+    "placementOpen": "Terbuka: engineer proyek",
+    "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Di server terbuka, engineer proyek bisa membuat environment di server ini tanpa izin server; tandai terbuka hanya server dev/sandbox yang datanya boleh hilang. Environment yang sudah ada tidak terpengaruh.",
     "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)"
   },
   "newServer": {
@@ -1852,7 +1852,7 @@
     "selectUser": "Pilih pengguna…",
     "add": "Tambah",
     "role": {
-      "viewer": "Pengamat",
+      "viewer": "Viewer",
       "qa": "QA",
       "engineer": "Engineer"
     },
@@ -1869,14 +1869,14 @@
     "errorAddFailed": "Gagal menambahkan anggota",
     "roleDescription": {
       "viewer": "Melihat project dan membaca log service",
-      "qa": "Mengerjakan issue, backup dan restore database, mengatur waktu",
+      "qa": "Mengerjakan issue, restart service, backup dan restore database, mengatur waktu",
       "engineer": "Semuanya, ditambah mengelola service, database, environment, dan anggota"
     },
     "removeConfirmTitle": "Hapus {name} dari {project}?",
     "removeConfirmDescription": "Dia akan kehilangan akses ke project ini, kecuali role organisasinya masih memberikan akses.",
     "removeMember": "Hapus {name}",
     "orgAccessTitle": "Juga punya akses lewat role organisasi",
-    "orgAccessDescription": "Admin dan infra adalah maintainer di semua project; observer bisa melihat semua project. Ubah role organisasi di Admin → Access."
+    "orgAccessDescription": "Admin dan infra adalah engineer di semua project; observer bisa melihat semua project. Ubah role organisasi di Admin → Access."
   },
   "milestones": {
     "add": "Tambah",
@@ -2821,7 +2821,7 @@
       "button": "Tambah environment",
       "project": "Proyek",
       "projectPlaceholder": "Pilih proyek",
-      "noProjects": "Anda bukan maintainer proyek mana pun, sehingga tidak dapat menambah environment.",
+      "noProjects": "Anda bukan engineer proyek mana pun, sehingga tidak dapat menambah environment.",
       "name": "Nama",
       "namePlaceholder": "mis. Staging",
       "copyFrom": "Salin dari",

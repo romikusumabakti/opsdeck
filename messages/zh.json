@@ -970,8 +970,8 @@
     "sftpRootDescription": "文件浏览器限定的绝对路径。使用 / 表示整个主机。",
     "placement": "环境放置",
     "placementRestricted": "受限：仅管理员和基础设施",
-    "placementOpen": "开放：项目维护者",
-    "placementDescription": "谁可以在此服务器上创建新环境。在开放的服务器上，项目维护者无需服务器权限即可在此服务器上创建环境；只有可丢弃的开发/沙盒服务器才应设为开放。现有环境不受影响。",
+    "placementOpen": "开放：项目 Engineer",
+    "placementDescription": "谁可以在此服务器上创建新环境。在开放的服务器上，项目 Engineer无需服务器权限即可在此服务器上创建环境；只有可丢弃的开发/沙盒服务器才应设为开放。现有环境不受影响。",
     "sftpRootInvalid": "必须是绝对路径（以 / 开头）"
   },
   "newServer": {
@@ -1852,7 +1852,7 @@
     "selectUser": "选择用户…",
     "add": "添加",
     "role": {
-      "viewer": "查看者",
+      "viewer": "Viewer",
       "qa": "QA",
       "engineer": "Engineer"
     },
@@ -1869,14 +1869,14 @@
     "errorAddFailed": "添加成员失败",
     "roleDescription": {
       "viewer": "查看项目并读取服务日志",
-      "qa": "处理问题、备份和恢复数据库、控制时钟",
+      "qa": "处理问题、重启服务、备份和恢复数据库、控制时钟",
       "engineer": "以上全部，并可管理服务、数据库、环境和成员"
     },
     "removeConfirmTitle": "将 {name} 从 {project} 中移除？",
     "removeConfirmDescription": "对方将失去此项目的访问权限，除非其组织角色仍授予访问权限。",
     "removeMember": "移除 {name}",
     "orgAccessTitle": "通过组织角色同样拥有访问权限",
-    "orgAccessDescription": "管理员和基础设施角色在所有项目中都是维护者；观察者可以查看所有项目。可在“管理 → 访问”中更改组织角色。"
+    "orgAccessDescription": "管理员和基础设施角色在所有项目中都是 Engineer；观察者可以查看所有项目。可在“管理 → 访问”中更改组织角色。"
   },
   "milestones": {
     "add": "添加",
@@ -2821,7 +2821,7 @@
       "button": "添加环境",
       "project": "项目",
       "projectPlaceholder": "选择项目",
-      "noProjects": "你不是任何项目的维护者，因此无法添加环境。",
+      "noProjects": "你不是任何项目的 Engineer，因此无法添加环境。",
       "name": "名称",
       "namePlaceholder": "例如 Staging",
       "copyFrom": "复制自",

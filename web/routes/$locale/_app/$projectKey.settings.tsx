@@ -42,7 +42,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
     ]);
     if (!project) throw notFound();
     await Promise.all([
-      // Connections are an org-level integration: a maintainer without that
+      // Connections are an org-level integration: an engineer without that
       // permission just gets no connection to pick from.
       canOrg(me?.orgRole, { integration: ["manage"] })
         ? loaderQuery(queryClient, getJiraConnectionsQuery())

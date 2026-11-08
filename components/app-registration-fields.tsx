@@ -380,7 +380,7 @@ export function RegistrationFields({
 }: {
   draft: RegistrationDraft;
   connections: { id: string; name: string; hasForgeToken: boolean }[];
-  /** Generated pipelines need org integration:manage; maintainers get custom. */
+  /** Generated pipelines need org integration:manage; engineers get custom. */
   canGenerate: boolean;
 }) {
   const t = useTranslations("appForm");
