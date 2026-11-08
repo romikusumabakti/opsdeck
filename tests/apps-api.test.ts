@@ -464,13 +464,23 @@ describe("POST /api/apps", () => {
     ).toBeNull();
   });
 
-  it("lets an engineer register a generated component (201)", async () => {
+  it("refuses an engineer a generated component (403 pipelineForbidden)", async () => {
     state.orgRole = "member";
     state.projectRoles = { "project-1": "engineer" };
     const res = await send("POST", "/api/apps", body());
-    expect(res.status).toBe(201);
-    expect(provider.activateRepo).toHaveBeenCalled();
-    expect(forge.commitFile).toHaveBeenCalledTimes(2);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "pipelineForbidden" });
+    expect(provider.activateRepo).not.toHaveBeenCalled();
+    expect(forge.commitFile).not.toHaveBeenCalled();
+    expect(state.components).toHaveLength(0);
+  });
+
+  it("refuses infra a generated component (403 pipelineForbidden)", async () => {
+    state.orgRole = "infra";
+    const res = await send("POST", "/api/apps", body());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "pipelineForbidden" });
+    expect(provider.activateRepo).not.toHaveBeenCalled();
   });
 
   it("lets a maintainer register a custom component (201)", async () => {
