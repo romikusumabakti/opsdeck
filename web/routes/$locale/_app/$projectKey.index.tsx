@@ -210,7 +210,7 @@ function ProjectOverviewPage() {
                               className="relative z-10"
                             />
                             <EnvironmentHost
-                              host={env.host}
+                              url={env.url}
                               className="max-w-[40%]"
                             />
                             {env.kind ? (

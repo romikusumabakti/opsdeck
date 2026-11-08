@@ -96,22 +96,19 @@ describe("variableValueSchema", () => {
 
 describe("resolvePlaceholders", () => {
   const ctx = {
-    host: "app.example.com",
     url: "https://app.example.com",
     envSlug: "kestrel-dev",
   };
 
-  it("replaces {host}, {url} and {envSlug}, every occurrence", () => {
-    expect(
-      resolvePlaceholders("{url}/cb?h={host}&e={envSlug}&again={host}", ctx)
-    ).toBe(
-      "https://app.example.com/cb?h=app.example.com&e=kestrel-dev&again=app.example.com"
+  it("replaces {url} and {envSlug}, every occurrence", () => {
+    expect(resolvePlaceholders("{url}/cb?e={envSlug}&again={url}", ctx)).toBe(
+      "https://app.example.com/cb?e=kestrel-dev&again=https://app.example.com"
     );
   });
 
   it("leaves unknown placeholders and plain braces alone", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: .env text
-    const value = "{other} ${VAR} {} {HOST} {";
+    const value = "{other} ${VAR} {} {HOST} {host} {";
     expect(resolvePlaceholders(value, ctx)).toBe(value);
   });
 
@@ -119,18 +116,15 @@ describe("resolvePlaceholders", () => {
     expect(() => resolvePlaceholders("x={url}", { ...ctx, url: null })).toThrow(
       "Placeholder {url} has no value for this environment"
     );
-    expect(() => resolvePlaceholders("{host}", { ...ctx, host: null })).toThrow(
-      "Placeholder {host} has no value for this environment"
-    );
     // An unused null placeholder is fine.
-    expect(
-      resolvePlaceholders("{envSlug}", { host: null, url: null, envSlug: "e" })
-    ).toBe("e");
+    expect(resolvePlaceholders("{envSlug}", { url: null, envSlug: "e" })).toBe(
+      "e"
+    );
   });
 
   it("does not resolve placeholders inside substituted values", () => {
-    expect(resolvePlaceholders("{host}", { ...ctx, host: "{url}" })).toBe(
-      "{url}"
+    expect(resolvePlaceholders("{url}", { ...ctx, url: "{envSlug}" })).toBe(
+      "{envSlug}"
     );
   });
 });

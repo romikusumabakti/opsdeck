@@ -209,6 +209,11 @@ export const projects = pgTable("projects", {
   // access control is ever needed. Keeps the model two-level, not three.
   client: text("client"),
   description: text("description"),
+  // The server new environments of this project deploy to by default. Cleared
+  // when the server is deleted.
+  defaultServerId: uuid("default_server_id").references(() => servers.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -231,11 +236,6 @@ export const environments = pgTable(
     // --- Purpose / ownership (both optional) ---
     // What this deployment is for; drives the kind badge in the grid/switcher.
     kind: environmentKindEnum("kind"),
-    // DEPRECATED: the old free-text owner ("QA — Budi"), replaced by `ownerId`.
-    // No app code reads or writes it; the column stays only until the build
-    // that reads `owner_id` is deployed, then a later migration drops it.
-    // Mapped as `legacyOwner` so the `owner` relation can take the name.
-    legacyOwner: text("owner"),
     // The user who owns this deployment: someone eligible to be an issue
     // assignee in its project (see lib/assignees#assignableUsersWhere). A
     // display relation, not an access grant. An offboarded (banned) owner
@@ -243,9 +243,6 @@ export const environments = pgTable(
     ownerId: uuid("owner_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    // Address of the deployment: IP or hostname with an optional :port, no
-    // path (e.g. "192.168.10.129"). Display only; not used to connect.
-    host: text("host"),
     // Where the deployed app opens in a browser (absolute http/https URL).
     url: text("url"),
     // The app this environment deploys. Null until one is assigned (e.g. an
@@ -569,7 +566,7 @@ export const appVariableTemplates = pgTable(
     name: text("name").notNull(),
     kind: variableKindEnum("kind").notNull(),
     required: boolean("required").notNull().default(false),
-    // Plain only. May contain the placeholders {host}, {url} and {envSlug}.
+    // Plain only. May contain the placeholders {url} and {envSlug}.
     defaultValue: text("default_value"),
     // Generated only: length of the random value, 16-128 (the service
     // defaults it to 32).
@@ -814,8 +811,8 @@ export const environmentAccess = pgTable(
 // implicit role = the project is invisible to them.
 export const projectRoleEnum = pgEnum("project_role", [
   "viewer",
-  "contributor",
-  "maintainer",
+  "qa",
+  "engineer",
 ]);
 
 export const projectMembers = pgTable(
@@ -1410,7 +1407,7 @@ export const cloudflareZones = pgTable("cloudflare_zones", {
   // does with it, and it deliberately excludes creating or deleting tunnels —
   // which is why tunnel creation is not a feature here and stays a manual,
   // audited step performed with the account-wide origin certificate.
-  apiToken: text("api_token").notNull(),
+  apiToken: text("api_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

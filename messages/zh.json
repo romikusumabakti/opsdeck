@@ -808,10 +808,6 @@
     "owner": "负责人",
     "ownerNone": "无负责人",
     "ownerHint": "可在此项目中被分配问题的人员。可选。",
-    "host": "主机",
-    "hostPlaceholder": "例如 192.168.10.129 或 dev.example.com",
-    "hostHint": "该部署的服务器地址,显示在名称旁边。可选。",
-    "hostNoPath": "只填写 IP 或主机名（可带 :端口）。网址请填写在 URL 中。",
     "url": "URL",
     "urlHint": "通过环境名称旁的链接图标打开。可选。",
     "urlInvalid": "请输入以 http:// 或 https:// 开头的完整 URL",
@@ -1857,8 +1853,8 @@
     "add": "添加",
     "role": {
       "viewer": "查看者",
-      "contributor": "贡献者",
-      "maintainer": "维护者"
+      "qa": "QA",
+      "engineer": "Engineer"
     },
     "colName": "用户",
     "colRole": "角色",
@@ -1873,8 +1869,8 @@
     "errorAddFailed": "添加成员失败",
     "roleDescription": {
       "viewer": "查看项目并读取服务日志",
-      "contributor": "处理问题、备份和恢复数据库、控制时钟",
-      "maintainer": "以上全部，并可管理服务、数据库、环境和成员"
+      "qa": "处理问题、备份和恢复数据库、控制时钟",
+      "engineer": "以上全部，并可管理服务、数据库、环境和成员"
     },
     "removeConfirmTitle": "将 {name} 从 {project} 中移除？",
     "removeConfirmDescription": "对方将失去此项目的访问权限，除非其组织角色仍授予访问权限。",

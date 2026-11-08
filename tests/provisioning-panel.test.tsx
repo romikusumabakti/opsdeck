@@ -116,10 +116,7 @@ function step(
   } as ProvisioningStep;
 }
 
-function wrap(
-  node: React.ReactNode,
-  role: "viewer" | "maintainer" = "maintainer"
-) {
+function wrap(node: React.ReactNode, role: "viewer" | "engineer" = "engineer") {
   return (
     <IntlProvider locale="en" messages={messages}>
       <ProjectRoleProvider role={role}>{node}</ProjectRoleProvider>
@@ -287,7 +284,7 @@ describe("ProvisioningPanel", () => {
     queryClient.setQueryData(["databaseHosts", "listDatabaseHosts", []], []);
     return queryClient;
   }
-  function panel(role: "viewer" | "maintainer", showPanel = true) {
+  function panel(role: "viewer" | "engineer", showPanel = true) {
     return renderToString(
       <QueryClientProvider client={client(showPanel)}>
         {wrap(
@@ -299,7 +296,7 @@ describe("ProvisioningPanel", () => {
   }
 
   it("is shown to a maintainer", () => {
-    expect(panel("maintainer")).toContain(">Provision<");
+    expect(panel("engineer")).toContain(">Provision<");
   });
 
   it("names the tunnel and policy from the GET's domain block", () => {
@@ -317,7 +314,7 @@ describe("ProvisioningPanel", () => {
   });
 
   it("is hidden when the API says so (a legacy env that already deployed)", () => {
-    expect(panel("maintainer", false)).toBe("");
+    expect(panel("engineer", false)).toBe("");
   });
 
   describe("Provision button", () => {
@@ -430,7 +427,6 @@ describe("buildEnvironmentPayload", () => {
       name: "Staging",
       kind: "",
       ownerId: "",
-      host: "",
       url: "",
       hasDatabase: true,
       hasFrontend: false,

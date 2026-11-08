@@ -79,8 +79,8 @@ describe("permissions", () => {
   it("canLock", () => {
     expect(canLock("viewer", false)).toBe(false);
     expect(canLock("viewer", true)).toBe(true);
-    expect(canLock("contributor", false)).toBe(false);
-    expect(canLock("maintainer", false)).toBe(true);
+    expect(canLock("qa", false)).toBe(false);
+    expect(canLock("engineer", false)).toBe(true);
     expect(canLock(null, false)).toBe(false);
   });
   it("canUnlock is owner or locker only", () => {

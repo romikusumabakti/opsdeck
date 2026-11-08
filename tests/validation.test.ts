@@ -384,32 +384,13 @@ describe("environment schema host, url and owner", () => {
     expect(parsed.hasFrontend).toBeUndefined();
   });
 
-  it("environment schema trims host and maps empty to null", () => {
+  it("environment schema has no host field", () => {
     expect(
-      environmentInputSchema.parse({ ...valid, host: "  56.129  " }).host
-    ).toBe("56.129");
-    expect(
-      environmentInputSchema.parse({ ...valid, host: "" }).host
-    ).toBeNull();
-    expect(
-      environmentInputSchema.safeParse({ ...valid, host: "x".repeat(201) })
-        .success
-    ).toBe(false);
-  });
-
-  it("leaves host untouched when an update omits it", () => {
-    expect(environmentUpdateSchema.parse({ name: "Dev" }).host).toBeUndefined();
-  });
-
-  it("rejects a host carrying a path", () => {
-    expect(
-      environmentInputSchema.safeParse({ ...valid, host: "56.129/membership" })
-        .success
-    ).toBe(false);
-    expect(
-      environmentInputSchema.parse({ ...valid, host: "dev.example.com:8080" })
-        .host
-    ).toBe("dev.example.com:8080");
+      environmentInputSchema.parse({ ...valid, host: "56.129" })
+    ).not.toHaveProperty("host");
+    expect(environmentUpdateSchema.parse({ name: "Dev" })).not.toHaveProperty(
+      "host"
+    );
   });
 
   const parseUrl = (url: unknown) =>

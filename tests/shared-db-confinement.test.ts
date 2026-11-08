@@ -35,18 +35,18 @@ vi.mock("@/lib/authz", async (importOriginal) => {
     ...real,
     requireProjectPermission: async () => ({
       session: session(),
-      role: "maintainer",
+      role: "engineer",
       projectId: "p",
     }),
     requireAnyProjectPermission: async () => ({
       session: session(),
-      role: "maintainer",
+      role: "engineer",
       projectId: "p",
     }),
     routeProjectGuard: async () => ({
       ok: true,
       session: session(),
-      role: "maintainer",
+      role: "engineer",
     }),
   };
 });

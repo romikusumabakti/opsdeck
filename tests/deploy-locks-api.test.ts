@@ -23,7 +23,7 @@ type Dep = {
 
 const state = vi.hoisted(() => ({
   userId: "",
-  role: "maintainer" as string | null,
+  role: "engineer" as string | null,
   orgRole: "member",
 }));
 
@@ -232,7 +232,7 @@ beforeEach(() => {
   store.env.ownerId = OWNER;
   store.lock = null;
   store.deps = [];
-  as(MAINTAINER, "maintainer");
+  as(MAINTAINER, "engineer");
 });
 
 afterEach(() => {
@@ -302,7 +302,7 @@ describe("PUT deploy-lock (who may lock)", () => {
   it("refuses a viewer who is not the owner, and a contributor who is not", async () => {
     as(VIEWER, "viewer");
     expect((await send("PUT", lockPath, { reason: "x" })).status).toBe(403);
-    as(VIEWER, "contributor");
+    as(VIEWER, "qa");
     expect((await send("PUT", lockPath, { reason: "x" })).status).toBe(403);
     expect(store.lock).toBeNull();
     expect(activity.recordActivity).not.toHaveBeenCalled();
@@ -535,7 +535,7 @@ describe("POST deploy-lock/force-unlock", () => {
 
   it("refuses an admin without a reason (translated)", async () => {
     setLock(OWNER);
-    as(ADMIN, "maintainer", "admin");
+    as(ADMIN, "engineer", "admin");
     for (const body of [{}, { reason: "   " }]) {
       const res = await send("POST", forcePath, body);
       expect(res.status).toBe(400);
@@ -549,7 +549,7 @@ describe("POST deploy-lock/force-unlock", () => {
   it("lets an admin force-unlock with a reason, recorded in the activity log", async () => {
     setLock(OWNER);
     store.deps = [held("a1", TARGET_A, 1)];
-    as(ADMIN, "maintainer", "admin");
+    as(ADMIN, "engineer", "admin");
     const res = await send("POST", forcePath, { reason: "Production hotfix" });
     expect(res.status).toBe(200);
     expect(store.lock).toBeNull();
@@ -574,7 +574,7 @@ describe("POST deploy-lock/force-unlock run owner", () => {
   it("gives the released runs to the admin who forced the unlock", async () => {
     const { releaseDeployLock } = await import("@/lib/deploy/repository");
     setLock(OWNER);
-    as(ADMIN, "maintainer", "admin");
+    as(ADMIN, "engineer", "admin");
     await send("POST", forcePath, { reason: "Production hotfix" });
     expect(vi.mocked(releaseDeployLock).mock.calls.at(-1)?.[2]).toBe(ADMIN);
   });

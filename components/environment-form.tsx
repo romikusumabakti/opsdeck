@@ -111,10 +111,6 @@ export function EnvironmentForm({
     kind: z.enum(ENV_KINDS).or(z.literal("")),
     // "" = no owner (mapped to null on submit).
     ownerId: z.string(),
-    host: z
-      .string()
-      .max(200)
-      .refine((v) => !v.includes("/"), t("hostNoPath")),
     // "" = no URL. Same rule as the server: absolute http(s) only.
     url: z
       .string()
@@ -252,7 +248,6 @@ export function EnvironmentForm({
               : source.name,
           kind: source.kind ?? "",
           ownerId: source.ownerId ?? "",
-          host: source.host ?? "",
           url: source.url ?? "",
           // Edit and clone mirror the stored services: a missing row is a
           // switched-off service.
@@ -284,7 +279,6 @@ export function EnvironmentForm({
           name: "",
           kind: "",
           ownerId: "",
-          host: "",
           url: "",
           hasDatabase: true,
           hasFrontend: true,
@@ -367,7 +361,6 @@ export function EnvironmentForm({
         name: values.name,
         kind: values.kind ? values.kind : null,
         ownerId: values.ownerId || null,
-        host: values.host.trim() ? values.host.trim() : null,
         url: values.url.trim() ? values.url.trim() : null,
       });
       if (!result.success || !result.data) {
@@ -470,26 +463,6 @@ export function EnvironmentForm({
                   <FormControl>
                     <Input placeholder={t("namePlaceholder")} {...field} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="host"
-              render={({ field }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>{t("host")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      className="font-mono"
-                      placeholder={t("hostPlaceholder")}
-                      {...field}
-                    />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {t("hostHint")}
-                  </p>
                   <FormMessage />
                 </FormItem>
               )}

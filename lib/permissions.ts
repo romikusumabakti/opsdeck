@@ -10,7 +10,7 @@ import { defaultStatements } from "better-auth/plugins/admin/access";
 export const ORG_ROLES = ["admin", "infra", "observer", "member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 
-export const PROJECT_ROLES = ["viewer", "contributor", "maintainer"] as const;
+export const PROJECT_ROLES = ["viewer", "qa", "engineer"] as const;
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 // Org-scoped statements. `user`/`session` extend better-auth's admin-plugin
@@ -91,7 +91,7 @@ const viewerStatements = {
   deploy: ["view"],
 } as const;
 
-const contributorStatements = {
+const qaStatements = {
   ...viewerStatements,
   issue: ["write"],
   mail: ["read", "delete"],
@@ -102,8 +102,8 @@ const contributorStatements = {
 
 export const projectRoles = {
   viewer: projectAc.newRole(viewerStatements),
-  contributor: projectAc.newRole(contributorStatements),
-  maintainer: projectAc.newRole({
+  qa: projectAc.newRole(qaStatements),
+  engineer: projectAc.newRole({
     project: ["read"],
     issue: ["write", "delete"],
     mail: ["read", "delete"],
@@ -149,12 +149,12 @@ export function normalizeProjectRole(
 
 const PROJECT_RANK: Record<ProjectRole, number> = {
   viewer: 0,
-  contributor: 1,
-  maintainer: 2,
+  qa: 1,
+  engineer: 2,
 };
 
 export function implicitProjectRole(org: OrgRole): ProjectRole | null {
-  if (org === "admin" || org === "infra") return "maintainer";
+  if (org === "admin" || org === "infra") return "engineer";
   if (org === "observer") return "viewer";
   return null;
 }
@@ -238,8 +238,8 @@ export function canRegisterApp(
   projectRoles: readonly ProjectRole[]
 ): boolean {
   if (canOrg(orgRole, { integration: ["manage"] })) return true;
-  if (effectiveProjectRole(orgRole, null) === "maintainer") return true;
+  if (effectiveProjectRole(orgRole, null) === "engineer") return true;
   return projectRoles.some(
-    (role) => effectiveProjectRole(orgRole, role) === "maintainer"
+    (role) => effectiveProjectRole(orgRole, role) === "engineer"
   );
 }

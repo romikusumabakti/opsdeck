@@ -41,7 +41,7 @@ type Template = {
 };
 
 const state = vi.hoisted(() => ({
-  role: "maintainer" as string | null,
+  role: "engineer" as string | null,
   orgRole: "member" as string,
 }));
 
@@ -50,7 +50,6 @@ const store = vi.hoisted(() => ({
     id: "0197f3a0-1b2c-7def-8000-0123456789e1",
     name: "Kestrel Dev",
     slug: "dev",
-    host: "192.168.10.129" as string | null,
     url: "https://dev.example.test" as string | null,
     appId: "0197f3a0-1b2c-7def-8000-0123456789d1" as string | null,
     envFileManaged: false,
@@ -258,7 +257,7 @@ function template(
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.role = "maintainer";
+  state.role = "engineer";
   state.orgRole = "member";
   store.env.envFileManaged = false;
   store.env.url = "https://dev.example.test";
@@ -307,7 +306,7 @@ describe("permissions", () => {
   });
 
   it("a contributor gets 403 everywhere", async () => {
-    state.role = "contributor";
+    state.role = "qa";
     const before = JSON.stringify([...store.vars.entries()]);
     for (const call of [...VARIABLE_ROUTES, ENV_FILE_ROUTE]) {
       const res = await send(call.method, call.path, call.body);
@@ -842,6 +841,9 @@ describe("templates", () => {
     expect(
       (await put("G", { kind: "plain", defaultValue: "a\nb" })).status
     ).toBe(400);
+    const retired = await put("H", { kind: "plain", defaultValue: "{host}" });
+    expect(retired.status).toBe(400);
+    expect(await retired.text()).toContain("Unknown placeholder {host}");
     expect((await put("lower", { kind: "plain" })).status).toBe(400);
     const reserved = await put("COMPOSE_FILE", { kind: "plain" });
     expect(reserved.status).toBe(400);

@@ -161,15 +161,6 @@ const environmentFields = z.object({
   // schema only shapes the id.
   kind: z.enum(["qa", "dev", "release", "sandbox", "prod"]).nullish(),
   ownerId: z.uuid().nullish(),
-  // Address of the deployment (IP/hostname, optional :port), shown beside the
-  // name. No path: the web address goes in `url`.
-  host: z
-    .string()
-    .trim()
-    .max(200)
-    .refine((v) => !v.includes("/"), "Host must not include a path")
-    .nullish()
-    .transform((v) => (v ? v : null)),
   // Where the deployed app opens in a browser. Absolute http(s) only, so the
   // link can never carry a `javascript:` or other scheme.
   url: z

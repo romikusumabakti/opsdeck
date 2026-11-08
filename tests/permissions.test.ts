@@ -48,7 +48,7 @@ describe("normalizeProjectRole", () => {
   });
   it("treats junk and the removed `admin`/`member` values as no membership", () => {
     for (const r of [...JUNK_ROLES, "admin", "member"]) {
-      if (r === "viewer" || r === "maintainer") continue;
+      if (r === "viewer" || r === "engineer") continue;
       expect(normalizeProjectRole(r)).toBeNull();
     }
   });
@@ -56,8 +56,8 @@ describe("normalizeProjectRole", () => {
 
 describe("implicitProjectRole", () => {
   it("maps org roles to their implicit project role", () => {
-    expect(implicitProjectRole("admin")).toBe("maintainer");
-    expect(implicitProjectRole("infra")).toBe("maintainer");
+    expect(implicitProjectRole("admin")).toBe("engineer");
+    expect(implicitProjectRole("infra")).toBe("engineer");
     expect(implicitProjectRole("observer")).toBe("viewer");
     expect(implicitProjectRole("member")).toBeNull();
   });
@@ -67,14 +67,14 @@ describe("effectiveProjectRole", () => {
   const cases: [OrgRole, ProjectRole | null, ProjectRole | null][] = [
     ["member", null, null],
     ["member", "viewer", "viewer"],
-    ["member", "contributor", "contributor"],
-    ["member", "maintainer", "maintainer"],
+    ["member", "qa", "qa"],
+    ["member", "engineer", "engineer"],
     ["observer", null, "viewer"],
-    ["observer", "contributor", "contributor"],
-    ["infra", null, "maintainer"],
-    ["infra", "viewer", "maintainer"],
-    ["admin", null, "maintainer"],
-    ["admin", "contributor", "maintainer"],
+    ["observer", "qa", "qa"],
+    ["infra", null, "engineer"],
+    ["infra", "viewer", "engineer"],
+    ["admin", null, "engineer"],
+    ["admin", "qa", "engineer"],
   ];
   for (const [org, membership, expected] of cases) {
     it(`${org} + ${membership ?? "none"} → ${expected ?? "none"}`, () => {
@@ -133,28 +133,28 @@ describe("canOrg matrix", () => {
 
 // biome-ignore format: kept as a one-row-per-statement table to mirror the spec
 const PROJECT_MATRIX: [string, string, Record<ProjectRole, boolean>][] = [
-  ["project", "read", { viewer: true, contributor: true, maintainer: true }],
-  ["service", "logs", { viewer: true, contributor: true, maintainer: true }],
-  ["issue", "write", { viewer: false, contributor: true, maintainer: true }],
-  ["issue", "delete", { viewer: false, contributor: false, maintainer: true }],
-  ["mail", "read", { viewer: false, contributor: true, maintainer: true }],
-  ["mail", "delete", { viewer: false, contributor: true, maintainer: true }],
-  ["clock", "control", { viewer: false, contributor: true, maintainer: true }],
-  ["database", "backup", { viewer: false, contributor: true, maintainer: true }],
-  ["database", "restore", { viewer: false, contributor: true, maintainer: true }],
-  ["database", "create", { viewer: false, contributor: false, maintainer: true }],
-  ["database", "drop", { viewer: false, contributor: false, maintainer: true }],
-  ["database", "rename", { viewer: false, contributor: false, maintainer: true }],
-  ["service", "control", { viewer: false, contributor: false, maintainer: true }],
-  ["environment", "create", { viewer: false, contributor: false, maintainer: true }],
-  ["environment", "update", { viewer: false, contributor: false, maintainer: true }],
-  ["environment", "delete", { viewer: false, contributor: false, maintainer: true }],
-  ["member", "manage", { viewer: false, contributor: false, maintainer: true }],
-  ["run", "acknowledge", { viewer: false, contributor: true, maintainer: true }],
-  ["deploy", "view", { viewer: true, contributor: true, maintainer: true }],
-  ["deploy", "run", { viewer: false, contributor: false, maintainer: true }],
-  ["deploy", "rollback", { viewer: false, contributor: false, maintainer: true }],
-  ["deploy", "configure", { viewer: false, contributor: false, maintainer: true }],
+  ["project", "read", { viewer: true, qa: true, engineer: true }],
+  ["service", "logs", { viewer: true, qa: true, engineer: true }],
+  ["issue", "write", { viewer: false, qa: true, engineer: true }],
+  ["issue", "delete", { viewer: false, qa: false, engineer: true }],
+  ["mail", "read", { viewer: false, qa: true, engineer: true }],
+  ["mail", "delete", { viewer: false, qa: true, engineer: true }],
+  ["clock", "control", { viewer: false, qa: true, engineer: true }],
+  ["database", "backup", { viewer: false, qa: true, engineer: true }],
+  ["database", "restore", { viewer: false, qa: true, engineer: true }],
+  ["database", "create", { viewer: false, qa: false, engineer: true }],
+  ["database", "drop", { viewer: false, qa: false, engineer: true }],
+  ["database", "rename", { viewer: false, qa: false, engineer: true }],
+  ["service", "control", { viewer: false, qa: false, engineer: true }],
+  ["environment", "create", { viewer: false, qa: false, engineer: true }],
+  ["environment", "update", { viewer: false, qa: false, engineer: true }],
+  ["environment", "delete", { viewer: false, qa: false, engineer: true }],
+  ["member", "manage", { viewer: false, qa: false, engineer: true }],
+  ["run", "acknowledge", { viewer: false, qa: true, engineer: true }],
+  ["deploy", "view", { viewer: true, qa: true, engineer: true }],
+  ["deploy", "run", { viewer: false, qa: false, engineer: true }],
+  ["deploy", "rollback", { viewer: false, qa: false, engineer: true }],
+  ["deploy", "configure", { viewer: false, qa: false, engineer: true }],
 ];
 
 describe("canProject matrix", () => {
@@ -175,8 +175,8 @@ describe("canProject matrix", () => {
 describe("deploy permissions", () => {
   it("only maintainers may run, roll back and configure deploys", () => {
     for (const p of ["run", "rollback", "configure"] as const) {
-      expect(canProject("maintainer", { deploy: [p] })).toBe(true);
-      expect(canProject("contributor", { deploy: [p] })).toBe(false);
+      expect(canProject("engineer", { deploy: [p] })).toBe(true);
+      expect(canProject("qa", { deploy: [p] })).toBe(false);
       expect(canProject("viewer", { deploy: [p] })).toBe(false);
     }
     expect(canProject("viewer", { deploy: ["view"] })).toBe(true);
@@ -185,16 +185,16 @@ describe("deploy permissions", () => {
 
 describe("canCreateEnvironment", () => {
   it("needs environment:create on the project and org server:manage", () => {
-    expect(canCreateEnvironment("admin", "maintainer")).toBe(true);
-    expect(canCreateEnvironment("infra", "maintainer")).toBe(true);
+    expect(canCreateEnvironment("admin", "engineer")).toBe(true);
+    expect(canCreateEnvironment("infra", "engineer")).toBe(true);
   });
   it("denies a maintainer whose org role lacks server:manage", () => {
     for (const org of ["member", "observer", "Admin", null]) {
-      expect(canCreateEnvironment(org, "maintainer")).toBe(false);
+      expect(canCreateEnvironment(org, "engineer")).toBe(false);
     }
   });
   it("denies server:manage holders without environment:create", () => {
-    expect(canCreateEnvironment("infra", "contributor")).toBe(false);
+    expect(canCreateEnvironment("infra", "qa")).toBe(false);
     expect(canCreateEnvironment("admin", null)).toBe(false);
   });
 });
@@ -207,15 +207,15 @@ describe("canRegisterApp", () => {
     expect(canRegisterApp("infra", [])).toBe(true);
   });
   it("a member who maintains one project may register apps", () => {
-    expect(canRegisterApp("member", ["viewer", "maintainer"])).toBe(true);
+    expect(canRegisterApp("member", ["viewer", "engineer"])).toBe(true);
   });
   it("a member with only contributor or viewer roles may not", () => {
-    expect(canRegisterApp("member", ["contributor", "viewer"])).toBe(false);
+    expect(canRegisterApp("member", ["qa", "viewer"])).toBe(false);
     expect(canRegisterApp("member", [])).toBe(false);
   });
   it("observers and junk org roles need a maintainer membership", () => {
     expect(canRegisterApp("observer", [])).toBe(false);
-    expect(canRegisterApp("observer", ["maintainer"])).toBe(true);
+    expect(canRegisterApp("observer", ["engineer"])).toBe(true);
     for (const r of JUNK_ROLES) expect(canRegisterApp(r, [])).toBe(false);
   });
 });

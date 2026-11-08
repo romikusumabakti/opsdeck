@@ -192,18 +192,16 @@ const target = (
 
 describe("canOpenSection", () => {
   it("needs a connected Mailpit for mail", () => {
-    expect(canOpenSection("mail", { hasMailpit: false }, "maintainer")).toBe(
+    expect(canOpenSection("mail", { hasMailpit: false }, "engineer")).toBe(
       false
     );
-    expect(canOpenSection("mail", { hasMailpit: true }, "maintainer")).toBe(
-      true
-    );
+    expect(canOpenSection("mail", { hasMailpit: true }, "engineer")).toBe(true);
   });
   it("checks the section permission against the role", () => {
     expect(canOpenSection("settings", { hasMailpit: true }, "viewer")).toBe(
       false
     );
-    expect(canOpenSection("settings", { hasMailpit: true }, "maintainer")).toBe(
+    expect(canOpenSection("settings", { hasMailpit: true }, "engineer")).toBe(
       true
     );
   });
@@ -239,13 +237,13 @@ describe("environmentSwitchHref", () => {
       environmentSwitchHref(
         dest,
         parseNavPath("/CMEM/prod/backup-restore"),
-        "maintainer"
+        "engineer"
       )
     ).toBe("/CMEM/qa");
   });
   it("drops mail when the target has no Mailpit", () => {
     expect(
-      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/mail"), "maintainer")
+      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/mail"), "engineer")
     ).toBe("/CMEM/qa");
   });
   it("drops a section the role may not open", () => {
@@ -255,7 +253,7 @@ describe("environmentSwitchHref", () => {
   });
   it("lands on the dashboard from a project-level page", () => {
     expect(
-      environmentSwitchHref(dest, parseNavPath("/CMEM/settings"), "maintainer")
+      environmentSwitchHref(dest, parseNavPath("/CMEM/settings"), "engineer")
     ).toBe("/CMEM/qa");
   });
 });
@@ -282,7 +280,7 @@ describe("projectSwitchHref", () => {
       projectSwitchHref({
         projectKey: "KESTREL",
         environments,
-        role: "maintainer",
+        role: "engineer",
         from: parseNavPath("/CMEM/prod/backup-restore"),
       })
     ).toBe("/KESTREL/latest");
@@ -312,7 +310,7 @@ describe("projectSwitchHref", () => {
       projectSwitchHref({
         projectKey: "KESTREL",
         environments,
-        role: "maintainer",
+        role: "engineer",
         from: parseNavPath("/CMEM/settings"),
       })
     ).toBe("/KESTREL/settings");
@@ -334,7 +332,7 @@ describe("projectSwitchHref", () => {
         projectSwitchHref({
           projectKey: "KESTREL",
           environments,
-          role: "maintainer",
+          role: "engineer",
           from: parseNavPath(path),
         })
       ).toBe("/KESTREL");
@@ -403,7 +401,7 @@ describe("projectSwitchHref for the active project", () => {
         projectSwitchHref({
           projectKey: "KESTREL",
           environments: [target("latest", "2026-10-08T00:00:00Z")],
-          role: "maintainer",
+          role: "engineer",
           from: parseNavPath(path),
         })
       ).toBe("/KESTREL");

@@ -34,7 +34,6 @@ export type EnvironmentSubmitValues = DbFields &
     hasFrontend: boolean;
     kind: "qa" | "dev" | "release" | "sandbox" | "prod" | "";
     ownerId: string;
-    host: string;
     url: string;
     backendMockTimeApiUrl: string;
     backendMockTimeApiKey: string;
@@ -75,7 +74,6 @@ export function buildEnvironmentPayload<V extends EnvironmentSubmitValues>(
     frontendServiceName,
     kind,
     ownerId,
-    host,
     url,
     backendMockTimeApiUrl,
     ...rest
@@ -112,7 +110,6 @@ export function buildEnvironmentPayload<V extends EnvironmentSubmitValues>(
     // "" from the picker/input means "unset".
     kind: kind ? kind : null,
     ownerId: ownerId || null,
-    host: host.trim() ? host.trim() : null,
     url: url.trim() ? url.trim() : null,
   };
   const withPassword =

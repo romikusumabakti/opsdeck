@@ -409,7 +409,6 @@ export async function applyTemplate(
       continue;
     }
     const value = templateValue(template, {
-      host: env.host,
       url: env.url,
       envSlug: env.slug,
     });
@@ -520,6 +519,10 @@ function checkTemplateKind(input: z.infer<typeof templateInputSchema>) {
       badRequest("Only plain variables can have a default value");
     }
     parseOr400(variableValueSchema, defaultValue);
+    // {host} was retired with the environment host column; the URL carries it.
+    if (defaultValue.includes("{host}")) {
+      badRequest("Unknown placeholder {host}");
+    }
   }
   if (generatedLength !== null) {
     if (input.kind !== "generated") {

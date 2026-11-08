@@ -808,10 +808,6 @@
     "owner": "Owner",
     "ownerNone": "No owner",
     "ownerHint": "Someone who can be assigned issues in this project. Optional.",
-    "host": "Host",
-    "hostPlaceholder": "e.g. 192.168.10.129 or dev.example.com",
-    "hostHint": "Server address of this deployment, shown beside the name. Optional.",
-    "hostNoPath": "Enter only the IP or hostname (with an optional :port). Put the web address in URL.",
     "url": "URL",
     "urlHint": "Opens from the link icon beside the environment name. Optional.",
     "urlInvalid": "Enter an absolute http:// or https:// URL",
@@ -1857,8 +1853,8 @@
     "add": "Add",
     "role": {
       "viewer": "Viewer",
-      "contributor": "Contributor",
-      "maintainer": "Maintainer"
+      "qa": "QA",
+      "engineer": "Engineer"
     },
     "colName": "User",
     "colRole": "Role",
@@ -1873,8 +1869,8 @@
     "errorAddFailed": "Failed to add member",
     "roleDescription": {
       "viewer": "View the project and read service logs",
-      "contributor": "Work on issues, back up and restore databases, control the clock",
-      "maintainer": "Everything, plus manage services, databases, environments and members"
+      "qa": "Work on issues, back up and restore databases, control the clock",
+      "engineer": "Everything, plus manage services, databases, environments and members"
     },
     "removeConfirmTitle": "Remove {name} from {project}?",
     "removeConfirmDescription": "They lose access to this project, unless their organisation role still grants it.",

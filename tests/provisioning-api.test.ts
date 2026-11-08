@@ -7,7 +7,7 @@ const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 const state = vi.hoisted(() => ({
-  role: "maintainer" as string | null,
+  role: "engineer" as string | null,
   activeRunId: null as string | null,
   config: null as unknown,
   seq: 0,
@@ -106,7 +106,7 @@ beforeEach(() => {
   cloudflare.listAccessPolicies.mockResolvedValue([
     { id: "pol-1", name: "DSS staff", decision: "allow", everyone: false },
   ]);
-  state.role = "maintainer";
+  state.role = "engineer";
   state.activeRunId = null;
   state.seq = 0;
   repo.loadProvisioningConfig.mockResolvedValue(goodConfig);
@@ -123,7 +123,7 @@ beforeEach(() => {
 
 describe("provisioning API", () => {
   it("refuses a contributor", async () => {
-    state.role = "contributor";
+    state.role = "qa";
     expect((await post()).status).toBe(403);
     const get = await app.request(`/api/environments/${ENV_ID}/provisioning`);
     expect(get.status).toBe(403);

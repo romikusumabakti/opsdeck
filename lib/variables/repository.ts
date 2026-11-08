@@ -25,7 +25,6 @@ export type EnvironmentContext = {
   id: string;
   name: string;
   slug: string;
-  host: string | null;
   url: string | null;
   appId: string | null;
   envFileManaged: boolean;
@@ -39,7 +38,6 @@ export async function getEnvironmentContext(
       id: environments.id,
       name: environments.name,
       slug: environments.slug,
-      host: environments.host,
       url: environments.url,
       appId: environments.appId,
       envFileManaged: environments.envFileManaged,

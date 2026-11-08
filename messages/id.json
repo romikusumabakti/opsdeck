@@ -808,10 +808,6 @@
     "owner": "Pemilik",
     "ownerNone": "Tanpa pemilik",
     "ownerHint": "Orang yang dapat ditugaskan issue di proyek ini. Opsional.",
-    "host": "Host",
-    "hostPlaceholder": "mis. 192.168.10.129 atau dev.example.com",
-    "hostHint": "Alamat server deployment ini, ditampilkan di samping nama. Opsional.",
-    "hostNoPath": "Isi hanya IP atau hostname (dengan :port opsional). Taruh alamat web di URL.",
     "url": "URL",
     "urlHint": "Dibuka dari ikon tautan di samping nama environment. Opsional.",
     "urlInvalid": "Masukkan URL absolut http:// atau https://",
@@ -1857,8 +1853,8 @@
     "add": "Tambah",
     "role": {
       "viewer": "Pengamat",
-      "contributor": "Kontributor",
-      "maintainer": "Pengelola"
+      "qa": "QA",
+      "engineer": "Engineer"
     },
     "colName": "Pengguna",
     "colRole": "Peran",
@@ -1873,8 +1869,8 @@
     "errorAddFailed": "Gagal menambahkan anggota",
     "roleDescription": {
       "viewer": "Melihat project dan membaca log service",
-      "contributor": "Mengerjakan issue, backup dan restore database, mengatur waktu",
-      "maintainer": "Semuanya, ditambah mengelola service, database, environment, dan anggota"
+      "qa": "Mengerjakan issue, backup dan restore database, mengatur waktu",
+      "engineer": "Semuanya, ditambah mengelola service, database, environment, dan anggota"
     },
     "removeConfirmTitle": "Hapus {name} dari {project}?",
     "removeConfirmDescription": "Dia akan kehilangan akses ke project ini, kecuali role organisasinya masih memberikan akses.",
