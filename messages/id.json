@@ -431,6 +431,9 @@
       "heldBuilds": "{count, plural, =0 {Tidak ada build yang ditahan.} other {# build ditahan.}}",
       "saveLock": "Simpan kunci"
     },
+    "startBuild": "Mulai build",
+    "startBuildHint": "Build {branch} sekarang; hasil build di-deploy saat tiba.",
+    "buildStarted": "Build {number} dimulai",
     "waitingForFirstBuild": "Menunggu build pertama dari {branch}",
     "settingsLink": "Pengaturan deploy",
     "settingsHint": "Branch, server, dan target deploy diubah di Pengaturan → Sumber & Deploy."
@@ -786,7 +789,8 @@
     "ownerNone": "Tanpa pemilik",
     "created": "Environment dibuat.",
     "provisioningNotStarted": "Environment sudah dibuat, tetapi provisioning tidak berjalan. Anda dapat memulainya dari halaman Deploy.",
-    "buildNotStarted": "Environment sudah dibuat, tetapi build pertama tidak berjalan. Mulai dari halaman Deploy.",
+    "pipelineFileNotCommitted": "File pipeline tidak ter-commit ke {branch} milik {component}. Admin dapat meng-commit ulang di halaman repository.",
+    "buildNotStarted": "Environment sudah dibuat, tetapi build pertama tidak berjalan. Tekan Mulai build di halaman Deploy.",
     "pickProject": "Pilih proyek untuk environment baru, lalu tekan Environment baru di halaman proyek tersebut.",
     "addressHintPolicy": "Di balik access policy {policy}. Kosongkan untuk memakai nama yang disarankan.",
     "reposLoading": "Memuat repository…",
@@ -2712,7 +2716,7 @@
       "nameReservedPrefix": "COMPOSE_, DOCKER_, dan BUILDKIT_ dicadangkan: Docker membacanya dari .env dan bisa mengalihkan deploy. Panel menulis DOCKER_REGISTRY sendiri",
       "kind": "Jenis",
       "defaultValue": "Nilai bawaan",
-      "defaultValueHint": "Opsional. Placeholder '{host}', '{url}' dan '{envSlug}' diganti dengan nilai environment.",
+      "defaultValueHint": "Opsional. Placeholder '{url}' dan '{envSlug}' diganti dengan nilai environment.",
       "defaultInvalid": "Nilai bawaan harus satu baris (tanpa baris baru)",
       "generatedLength": "Panjang",
       "generatedLengthHint": "{min} sampai {max} karakter; kosong berarti 32.",
