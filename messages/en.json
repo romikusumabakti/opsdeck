@@ -2949,7 +2949,15 @@
       "repoNotBuildable": "The Panel cannot build this repository: it needs a Dockerfile and a compose file.",
       "nameTaken": "Another environment took this name meanwhile. Pick another one.",
       "domainTaken": "Another environment took this address meanwhile. Pick another one.",
-      "duplicate": "This repository is listed twice."
+      "duplicate": "This repository is listed twice.",
+      "repoNotFound": "The CI server does not list this repository. Check that it is enabled in Woodpecker.",
+      "repoUnreadable": "The Panel cannot read this repository's files: the CI connection has no forge token.",
+      "ciUnavailable": "The CI server or Bitbucket did not answer. Try again in a moment.",
+      "appKeyTaken": "An app with this key was registered meanwhile. Try again.",
+      "componentKeyTaken": "A repository with this key was registered meanwhile. Try again.",
+      "repoLinked": "This repository was registered meanwhile. Try again.",
+      "registrationRace": "Another registration of this repository ran at the same time. Ask an admin to rotate its notify secret, then try again.",
+      "pipelineFileExists": "The branch already has a .woodpecker.yaml the Panel did not generate. Make it notify the Panel, or remove it."
     },
     "newApp": {
       "title": "New app",

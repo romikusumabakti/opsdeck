@@ -2949,7 +2949,15 @@
       "repoNotBuildable": "Panel 无法构建此仓库：需要 Dockerfile 和 compose 文件。",
       "nameTaken": "另一个环境刚刚占用了此名称。请另选一个。",
       "domainTaken": "另一个环境刚刚占用了此地址。请另选一个。",
-      "duplicate": "此仓库被列出了两次。"
+      "duplicate": "此仓库被列出了两次。",
+      "repoNotFound": "CI 服务器未列出此仓库。请确认已在 Woodpecker 中启用。",
+      "repoUnreadable": "Panel 无法读取此仓库的文件：CI 连接没有 forge 令牌。",
+      "ciUnavailable": "CI 服务器或 Bitbucket 没有响应。请稍后重试。",
+      "appKeyTaken": "刚刚有一个使用此键的应用被注册。请重试。",
+      "componentKeyTaken": "刚刚有一个使用此键的仓库被注册。请重试。",
+      "repoLinked": "此仓库刚刚被注册。请重试。",
+      "registrationRace": "此仓库的另一次注册同时进行。请让管理员轮换其通知密钥，然后重试。",
+      "pipelineFileExists": "该分支已有一个不是 Panel 生成的 .woodpecker.yaml。请让它通知 Panel，或将其删除。"
     },
     "newApp": {
       "title": "新建应用",

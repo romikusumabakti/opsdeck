@@ -11,13 +11,11 @@ import { CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { db } from "@/lib/db";
 import {
   databaseHosts,
-  deployTargets,
   environmentServices,
   environments,
   projects,
   servers,
 } from "@/lib/db/schema";
-import { flagDeployNextBuild } from "@/lib/deploy/repository";
 import { listZones } from "@/lib/domains/repository";
 import {
   canOrg,
@@ -115,9 +113,11 @@ async function ciStep<T>(run: () => Promise<T>): Promise<T> {
     return await run();
   } catch (error) {
     if (error instanceof CiProviderError) {
-      throw new HTTPException(502, {
-        message: `Reading the CI server failed: ${error.message}`,
-      });
+      throw new CodedHTTPException(
+        502,
+        "ciUnavailable",
+        `Reading the CI server failed: ${error.message}`
+      );
     }
     throw error;
   }
@@ -211,6 +211,45 @@ async function defaultAccessPolicy(
   }
 }
 
+function repoNotFound(repoFullName: string): never {
+  throw new CodedHTTPException(
+    404,
+    "repoNotFound",
+    `The CI server does not list ${repoFullName}`
+  );
+}
+
+// Detection's refusals by status: an unknown connection or repo, one whose
+// files the Panel cannot read, a CI server or forge that failed.
+const DETECTION_CODES: Record<number, [string, string]> = {
+  400: ["repoUnreadable", "The Panel cannot read this repository's files"],
+  404: ["repoNotFound", "The CI server does not list this repository"],
+  502: ["ciUnavailable", "Reading the repository failed"],
+};
+
+/** detectComponentRepo, with a stable code on each of its refusals. */
+async function detect(
+  ciConnectionId: string,
+  repoFullName: string,
+  branch: string
+) {
+  try {
+    return await detectComponentRepo(ciConnectionId, repoFullName, branch);
+  } catch (error) {
+    const coded =
+      error instanceof HTTPException && !errorCode(error)
+        ? DETECTION_CODES[error.status]
+        : undefined;
+    if (!coded) throw error;
+    const [code, fallback] = coded;
+    throw new CodedHTTPException(
+      (error as HTTPException).status as 400 | 404 | 502,
+      code,
+      (error as HTTPException).message || fallback
+    );
+  }
+}
+
 /** Everything the resolver needs, read for this caller. */
 async function loadContext(
   input: NewEnvironmentInput,
@@ -289,11 +328,7 @@ async function loadContext(
       return {
         repoFullName: r.repoFullName,
         ciConnectionId: r.ciConnectionId,
-        detection: await detectComponentRepo(
-          r.ciConnectionId,
-          r.repoFullName,
-          r.branch
-        ),
+        detection: await detect(r.ciConnectionId, r.repoFullName, r.branch),
         component: component
           ? {
               componentKey: component.componentKey,
@@ -316,7 +351,7 @@ async function loadContext(
         repos.push({
           repoFullName: component.repoFullName,
           ciConnectionId: component.ciConnectionId,
-          detection: await detectComponentRepo(
+          detection: await detect(
             component.ciConnectionId,
             component.repoFullName,
             target.sourceBranch
@@ -439,7 +474,9 @@ async function registrationComponents(
       repos = await ciStep(() => provider.listRepos());
       reposByConnection.set(r.ciConnectionId, repos);
     }
-    const repo = repos.find((x) => x.fullName === r.repoFullName) ?? notFound();
+    const repo =
+      repos.find((x) => x.fullName === r.repoFullName) ??
+      repoNotFound(r.repoFullName);
     components.push({
       componentKey: r.componentKey,
       ciConnectionId: r.ciConnectionId,
@@ -523,26 +560,15 @@ export type NewEnvironmentCreated = SetupCreated & {
 };
 
 /**
- * Flags the new targets to deploy their next build (when provisioning
- * started; it flags them too, in its deploy step), then starts one build per
- * component and branch, as the New app stepper did.
+ * Starts one build per component and branch, as the New app stepper did.
+ * The targets are not flagged here: the provisioning run's deploy step flags
+ * each one (`deploy_next_build`) after the database and domain steps, then
+ * deploys the newest build or the one that lands next.
  */
 async function startFirstBuilds(
-  created: SetupCreated,
   plan: NewEnvironmentPlan,
   appKey: string
 ): Promise<BuildFailure[]> {
-  if (created.runId) {
-    try {
-      const targets = await db
-        .select({ id: deployTargets.id })
-        .from(deployTargets)
-        .where(eq(deployTargets.environmentId, created.environmentId));
-      for (const target of targets) await flagDeployNextBuild(target.id);
-    } catch (error) {
-      console.error("Flagging the first deploy failed:", error);
-    }
-  }
   const failures: BuildFailure[] = [];
   const started = new Set<string>();
   for (const { componentKey, sourceBranch: branch } of plan.setup.targets) {
@@ -605,7 +631,7 @@ export async function createNewEnvironment(
   }
 
   await saveDefaultServer(ctx, plan.setup.server.serverId, caller);
-  const buildFailures = await startFirstBuilds(created, plan, plan.appKey);
+  const buildFailures = await startFirstBuilds(plan, plan.appKey);
   return { ...created, buildFailures };
 }
 
