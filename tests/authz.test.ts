@@ -14,10 +14,10 @@ describe("resolveProjectAccess", () => {
   it("gives a member exactly their memberships", () => {
     expect(
       resolveProjectAccess("member", ALL, [
-        { projectId: "p1", role: "contributor" },
+        { projectId: "p1", role: "qa" },
         { projectId: "p3", role: "viewer" },
       ])
-    ).toEqual({ all: false, roles: { p1: "contributor", p3: "viewer" } });
+    ).toEqual({ all: false, roles: { p1: "qa", p3: "viewer" } });
   });
 
   it("drops memberships carrying an unknown role", () => {
@@ -29,11 +29,11 @@ describe("resolveProjectAccess", () => {
   it("gives observer every project as viewer, raised by membership", () => {
     expect(
       resolveProjectAccess("observer", ALL, [
-        { projectId: "p2", role: "maintainer" },
+        { projectId: "p2", role: "engineer" },
       ])
     ).toEqual({
       all: true,
-      roles: { p1: "viewer", p2: "maintainer", p3: "viewer" },
+      roles: { p1: "viewer", p2: "engineer", p3: "viewer" },
     });
   });
 
@@ -41,7 +41,7 @@ describe("resolveProjectAccess", () => {
     for (const org of ["infra", "admin"]) {
       expect(resolveProjectAccess(org, ALL, [])).toEqual({
         all: true,
-        roles: { p1: "maintainer", p2: "maintainer", p3: "maintainer" },
+        roles: { p1: "engineer", p2: "engineer", p3: "engineer" },
       });
     }
   });
@@ -56,8 +56,8 @@ describe("resolveProjectAccess", () => {
 
 describe("checkProjectAccess", () => {
   const access = resolveProjectAccess("member", ALL, [
-    { projectId: "p1", role: "maintainer" },
-    { projectId: "p2", role: "contributor" },
+    { projectId: "p1", role: "engineer" },
+    { projectId: "p2", role: "qa" },
   ]);
 
   it("passes when every project grants the permission", () => {

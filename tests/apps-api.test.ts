@@ -310,7 +310,7 @@ beforeEach(() => {
 describe("permissions", () => {
   it("a member with only contributor roles gets 403 on every registrant route", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "contributor" };
+    state.projectRoles = { "project-1": "qa" };
     state.apps = [{ id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" }];
     state.components = [
       existingComponent({ appId: "0197f3a0-1b2c-7def-8000-0123456789a9" }),
@@ -344,7 +344,7 @@ describe("permissions", () => {
 
   it("a maintainer gets 403 on rotate-secret and commit-pipeline-file", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer" };
+    state.projectRoles = { "project-1": "engineer" };
     state.apps = [{ id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" }];
     state.components = [existingComponent()];
     expect(
@@ -462,7 +462,7 @@ describe("POST /api/apps", () => {
 
   it("refuses a generated component from a maintainer (403) before Woodpecker", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer" };
+    state.projectRoles = { "project-1": "engineer" };
     const res = await send("POST", "/api/apps", body());
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe(
@@ -474,7 +474,7 @@ describe("POST /api/apps", () => {
 
   it("lets a maintainer register a custom component (201)", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer" };
+    state.projectRoles = { "project-1": "engineer" };
     const res = await send(
       "POST",
       "/api/apps",
@@ -928,7 +928,7 @@ describe("POST build", () => {
 
   it("lets a maintainer build the branch a target of the component deploys in their project", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer" };
+    state.projectRoles = { "project-1": "engineer" };
     state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
@@ -937,7 +937,7 @@ describe("POST build", () => {
 
   it("refuses a maintainer a branch no target of the component deploys", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer" };
+    state.projectRoles = { "project-1": "engineer" };
     state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "feature/x" })).status).toBe(
@@ -948,7 +948,7 @@ describe("POST build", () => {
 
   it("refuses a maintainer a branch deployed only in another project", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer", "project-2": "viewer" };
+    state.projectRoles = { "project-1": "engineer", "project-2": "viewer" };
     state.envProjects = ["project-1", "project-2"];
     state.targetBranches = [
       { projectId: "project-1", sourceBranch: "main" },
@@ -960,7 +960,7 @@ describe("POST build", () => {
 
   it("refuses a maintainer when the app's environments have no target of this component", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "maintainer" };
+    state.projectRoles = { "project-1": "engineer" };
     state.envProjects = ["project-1"];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
   });
@@ -975,7 +975,7 @@ describe("POST build", () => {
 
   it("refuses a maintainer of another project once the app has environments", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-2": "maintainer" };
+    state.projectRoles = { "project-2": "engineer" };
     state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
@@ -984,7 +984,7 @@ describe("POST build", () => {
 
   it("refuses a contributor of the app's project", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-1": "contributor" };
+    state.projectRoles = { "project-1": "qa" };
     state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
@@ -992,7 +992,7 @@ describe("POST build", () => {
 
   it("lets a registrant start the first build of a fresh app with no environment", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-2": "maintainer" };
+    state.projectRoles = { "project-2": "engineer" };
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
   });
 
@@ -1001,7 +1001,7 @@ describe("POST build", () => {
       { ...APP_ROW, createdAt: new Date(Date.now() - 2 * 3600_000) },
     ];
     state.orgRole = "member";
-    state.projectRoles = { "project-2": "maintainer" };
+    state.projectRoles = { "project-2": "engineer" };
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
     expect(provider.triggerPipeline).not.toHaveBeenCalled();
     state.orgRole = "admin";
@@ -1011,7 +1011,7 @@ describe("POST build", () => {
 
   it("refuses a non-registrant for an app with no environment", async () => {
     state.orgRole = "member";
-    state.projectRoles = { "project-2": "contributor" };
+    state.projectRoles = { "project-2": "qa" };
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
   });
 

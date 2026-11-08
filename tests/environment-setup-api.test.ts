@@ -14,8 +14,8 @@ const SOURCE_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 
 const state = vi.hoisted(() => ({
   // Role in the target project, and in the copy source's; null = invisible.
-  projectRole: "maintainer" as string | null,
-  sourceRole: "maintainer" as string | null,
+  projectRole: "engineer" as string | null,
+  sourceRole: "engineer" as string | null,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -99,13 +99,13 @@ function post(path: string, body: unknown) {
 }
 
 beforeEach(() => {
-  state.projectRole = "maintainer";
-  state.sourceRole = "maintainer";
+  state.projectRole = "engineer";
+  state.sourceRole = "engineer";
   dbCalls.count = 0;
 });
 
 describe("environment setup permissions", () => {
-  for (const role of ["contributor", "viewer"]) {
+  for (const role of ["qa", "viewer"]) {
     it(`refuses a ${role} (QA) with 403 on create and preview`, async () => {
       state.projectRole = role;
       for (const path of [
@@ -121,7 +121,7 @@ describe("environment setup permissions", () => {
 
   for (const path of ["options", "access-policies"]) {
     it(`refuses a contributor with 403 on GET /api/setup/${path}`, async () => {
-      state.projectRole = "contributor";
+      state.projectRole = "qa";
       const res = await app.request(
         `/api/setup/${path}?projectId=${PROJECT_ID}`
       );

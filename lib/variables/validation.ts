@@ -53,15 +53,14 @@ export const variableValueSchema = z
   );
 
 export interface PlaceholderContext {
-  host: string | null;
   url: string | null;
   envSlug: string;
 }
 
-const PLACEHOLDER = /\{(host|url|envSlug)\}/g;
+const PLACEHOLDER = /\{(url|envSlug)\}/g;
 
 /**
- * Replaces `{host}`, `{url}` and `{envSlug}` with the environment's values in
+ * Replaces `{url}` and `{envSlug}` with the environment's values in
  * one pass (a substituted value is not scanned again). Any other `{…}` is left
  * as is. Throws when a placeholder that occurs has no value.
  */

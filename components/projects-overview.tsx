@@ -334,7 +334,7 @@ function EnvironmentRow({
             {stripProjectPrefix(env.name, projectName)}
           </Link>
           <EnvironmentUrlButton url={env.url} className="relative z-10" />
-          <EnvironmentHost host={env.host} className="max-w-[40%]" />
+          <EnvironmentHost url={env.url} className="max-w-[40%]" />
           {env.kind ? (
             <Badge variant="outline" className="text-[10px] uppercase shrink-0">
               {tKinds(env.kind)}

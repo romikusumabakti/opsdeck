@@ -657,7 +657,7 @@ async function checkSetup(
     source: sourceVariables,
     canReadSource: source?.canReadVariables ?? false,
     tagNames: [...new Set(input.targets.map((t) => t.tagVariable))],
-    placeholders: { host: null, url, envSlug: slug },
+    placeholders: { url, envSlug: slug },
   });
   for (const issue of plannedVariables.issues) {
     checks.refuse(`variables.${issue.name}`, variableIssueError(issue));
