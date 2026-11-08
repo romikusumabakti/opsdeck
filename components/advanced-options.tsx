@@ -9,8 +9,9 @@ import {
 
 /**
  * The "Advanced options" disclosure of the simple-by-default forms: closed
- * unless `defaultOpen`, or controlled through `open`/`onOpenChange`. It opens
- * when `invalid` turns true, so a failed save shows the field at fault.
+ * unless `defaultOpen`, or controlled through `open`/`onOpenChange`. When
+ * `invalid`, it opens on every save attempt (`attempt` counts them), so a
+ * failed save shows the field at fault.
  */
 export function AdvancedOptions({
   children,
@@ -18,9 +19,11 @@ export function AdvancedOptions({
   open: controlledOpen,
   onOpenChange,
   invalid = false,
+  attempt = 0,
 }: {
   children: React.ReactNode;
   invalid?: boolean;
+  attempt?: number;
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -28,9 +31,10 @@ export function AdvancedOptions({
   const t = useTranslations("setup");
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
   const open = controlledOpen ?? uncontrolledOpen;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each attempt reopens
   useEffect(() => {
     if (invalid) setUncontrolledOpen(true);
-  }, [invalid]);
+  }, [invalid, attempt]);
   return (
     <Collapsible
       open={open}

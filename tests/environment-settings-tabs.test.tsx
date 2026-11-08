@@ -149,11 +149,25 @@ const environment = {
   ],
 } as unknown as Props["environment"];
 
+const withFrontend = {
+  ...environment,
+  services: [
+    ...environment.services,
+    {
+      ...environment.services[0],
+      id: "svc-frontend",
+      role: "frontend",
+      serviceName: "dev1-web-1",
+    },
+  ],
+} as Props["environment"];
+
 const target = (deployed: boolean) =>
   ({
     id: TARGET,
     environmentId: ENV,
     componentKey: "scmb-api",
+    repoFullName: "dss/scmb-api",
     serverId: SERVER,
     sourceBranch: "develop",
     autoDeploy: true,
@@ -178,6 +192,7 @@ const noDomain = {
 const tunnelDomain = {
   domain: {
     kind: "tunnel",
+    hostname: "scmb-dev-1.dssconsulting.id",
     zoneId: ZONE,
     label: "scmb-dev-1",
     accessPolicyId: "pol",
@@ -203,11 +218,10 @@ async function settle() {
   }
 }
 
-async function mount(props: Partial<Props> = {}) {
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  const all: Props = {
+let queryClient: QueryClient;
+
+function defaults(props: Partial<Props>): Props {
+  return {
     environment,
     targets: [target(false)],
     domain: noDomain,
@@ -222,22 +236,32 @@ async function mount(props: Partial<Props> = {}) {
     canDuplicate: true,
     ...props,
   };
+}
+
+// Renders (or re-renders, keeping the form's state) the tabs.
+async function render(props: Partial<Props> = {}) {
   await act(async () => {
     root.render(
-      <QueryClientProvider
-        client={
-          new QueryClient({ defaultOptions: { queries: { retry: false } } })
-        }
-      >
+      <QueryClientProvider client={queryClient}>
         <IntlProvider locale="en" messages={messages}>
           <ProjectRoleProvider role={ENGINEER}>
-            <EnvironmentSettingsTabs {...all} />
+            <EnvironmentSettingsTabs {...defaults(props)} />
           </ProjectRoleProvider>
         </IntlProvider>
       </QueryClientProvider>
     );
   });
   await settle();
+}
+
+async function mount(props: Partial<Props> = {}) {
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  await render(props);
 }
 
 const t = messages.environmentSettings;
@@ -421,13 +445,147 @@ describe("environment settings tabs", () => {
       url: null,
     });
   });
+  it("an admin keeps the server picker after the first deploy", async () => {
+    await mount({ targets: [target(true)] });
+    await openTab(t.tabSourceDeploy);
+    const select = document.querySelector<HTMLElement>("#env-server");
+    expect(select?.hasAttribute("data-disabled")).toBe(false);
+    expect(document.body.textContent).not.toContain(t.serverLocked);
+  });
+
+  it("the one server picker moves every service and target", async () => {
+    await mount({ environment: withFrontend });
+    await openTab(t.tabSourceDeploy);
+    await click(document.querySelector<HTMLElement>("#env-server"));
+    await click(byText('[role="option"]', ".56.115"));
+    await click(byText("button", messages.environmentForm.saveChanges));
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).toMatchObject({
+      backendServerId: OTHER_SERVER,
+      frontendServerId: OTHER_SERVER,
+    });
+    expect(api.updateDeployTarget).toHaveBeenCalledWith(TARGET, {
+      serverId: OTHER_SERVER,
+    });
+  });
+
+  it("the Database tab saves its fields", async () => {
+    await mount();
+    await openTab(t.tabDatabase);
+    const dbName = document.querySelector<HTMLInputElement>(
+      'input[name="dbName"]'
+    ) as HTMLInputElement;
+    expect(dbName.value).toBe("scmb_dev1");
+    await act(async () => type(dbName, "scmb_dev1b"));
+    await click(byText("button", messages.environmentForm.saveChanges));
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).toMatchObject({
+      name: "Dev 1",
+      hasDatabase: true,
+      dbKind: "shared",
+      dbName: "scmb_dev1b",
+      databaseHostId: HOST,
+    });
+  });
+
+  it("the Mail & Mock time tab saves the mock-time API", async () => {
+    await mount();
+    await openTab(t.tabMailMockTime);
+    const url = document.querySelector<HTMLInputElement>(
+      'input[name="backendMockTimeApiUrl"]'
+    ) as HTMLInputElement;
+    await act(async () => type(url, "https://api.example.com/clock"));
+    const saves = [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (b) => b.textContent?.trim() === messages.environmentForm.saveChanges
+    );
+    await click(saves.at(-1));
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).toMatchObject({
+      backendMockTimeApiUrl: "https://api.example.com/clock",
+      dbName: "scmb_dev1",
+    });
+    expect(payload).not.toHaveProperty("backendMockTimeApiKey");
+  });
+
+  it("a domain without a stored URL shows the derived address", async () => {
+    await mount({ domain: tunnelDomain });
+    const url = document.querySelector<HTMLInputElement>("#env-url");
+    expect(url?.value).toBe("https://scmb-dev-1.dssconsulting.id");
+    expect(url?.disabled).toBe(true);
+  });
+
+  it("with a domain a save leaves the URL to the server", async () => {
+    await mount({ domain: tunnelDomain });
+    await click(byText("button", messages.environmentForm.saveChanges));
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).not.toHaveProperty("url");
+  });
+
+  it("removing the domain keeps the URL and unlocks the field", async () => {
+    const bound = {
+      ...environment,
+      url: "https://scmb-dev-1.dssconsulting.id",
+    } as Props["environment"];
+    await mount({ environment: bound, domain: tunnelDomain });
+    await render({ environment: bound, domain: noDomain });
+    await openAdvanced();
+    const url = document.querySelector<HTMLInputElement>("#env-url");
+    expect(url?.disabled).toBe(false);
+    expect(url?.value).toBe("https://scmb-dev-1.dssconsulting.id");
+  });
+
+  it("an added target joins the form without dropping unsaved edits", async () => {
+    await mount();
+    const name = document.querySelector<HTMLInputElement>(
+      "#env-name"
+    ) as HTMLInputElement;
+    await act(async () => type(name, "Dev One"));
+    const added = {
+      ...target(false),
+      id: "0197f3a0-1b2c-7def-8000-0123456789aa",
+      componentKey: "scmb-web",
+      repoFullName: "dss/scmb-web",
+    } as Props["targets"][number];
+    await render({ targets: [target(false), added] });
+    expect(document.querySelector<HTMLInputElement>("#env-name")?.value).toBe(
+      "Dev One"
+    );
+    await openTab(t.tabSourceDeploy);
+    expect(document.body.textContent).toContain("dss/scmb-web");
+    expect(document.body.textContent).toContain("dss/scmb-api");
+    await click(byText("button", messages.environmentForm.saveChanges));
+    expect(api.updateDeployTarget).not.toHaveBeenCalled();
+  });
+
+  it("Advanced options reopen on every failed save", async () => {
+    await mount();
+    await openAdvanced();
+    const url = document.querySelector<HTMLInputElement>(
+      "#env-url"
+    ) as HTMLInputElement;
+    await act(async () => type(url, "not a url"));
+    const save = () =>
+      click(byText("button", messages.environmentForm.saveChanges));
+    await save();
+    expect(document.querySelector("#env-url")).not.toBeNull();
+    await openAdvanced();
+    expect(document.querySelector("#env-url")).toBeNull();
+    await save();
+    expect(document.querySelector("#env-url")).not.toBeNull();
+    expect(api.updateEnvironment).not.toHaveBeenCalled();
+  });
 });
 
 describe("environmentPayload", () => {
   it("sends an engineer's changed server ids only, never other bindings", () => {
     const saved = settingsValues(environment, [target(false)]);
     const moved = { ...saved, backendServerId: OTHER_SERVER };
-    expect(environmentPayload(moved, saved, false)).toEqual({
+    expect(
+      environmentPayload(moved, saved, {
+        canManageServers: false,
+        hasDomain: false,
+      })
+    ).toEqual({
       projectId: PROJECT,
       name: "Dev 1",
       kind: "dev",

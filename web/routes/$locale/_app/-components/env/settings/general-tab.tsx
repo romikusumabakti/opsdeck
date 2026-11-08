@@ -31,10 +31,9 @@ import {
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
 import { listAssignableUsersQuery } from "@/web/api/users";
+import { Hint, SaveButton } from "./fields";
 import {
   ENV_KINDS,
-  Hint,
-  SaveButton,
   type SettingsEnvironment,
   type SettingsProject,
   useSettingsFormContext,
@@ -51,14 +50,15 @@ const OWNER_NONE = "__none";
  */
 export function GeneralTab({
   environment,
-  hasDomain,
+  domainUrl,
   projects,
   projectKey,
   canDuplicate,
   onSave,
 }: {
   environment: SettingsEnvironment;
-  hasDomain: boolean;
+  // The address of the environment's domain; null without one.
+  domainUrl: string | null;
   projects: SettingsProject[];
   projectKey: string;
   canDuplicate: boolean;
@@ -69,6 +69,7 @@ export function GeneralTab({
   const tKinds = useTranslations("environmentKinds");
   const tPeople = useTranslations("people");
   const form = useSettingsFormContext();
+  const hasDomain = domainUrl !== null;
   const { errors } = form.formState;
 
   // Owner candidates: whoever can be assigned issues in the selected project.
@@ -98,6 +99,21 @@ export function GeneralTab({
     }
   }, [eligibleOwners, ownerId, extraOwner?.id, form]);
 
+  // With a domain the server keeps the URL at the domain's address, so the
+  // derived address is shown (also for a URL never stored).
+  const derivedUrl = (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="env-url">{t("url")}</Label>
+      <Input
+        id="env-url"
+        className="font-mono"
+        value={domainUrl ?? ""}
+        disabled
+        readOnly
+      />
+      <Hint>{tSettings("urlFromDomain")}</Hint>
+    </div>
+  );
   const urlField = (
     <FormField
       control={form.control}
@@ -111,11 +127,10 @@ export function GeneralTab({
               inputMode="url"
               className="font-mono"
               placeholder="https://app.example.com"
-              disabled={hasDomain}
               {...field}
             />
           </FormControl>
-          <Hint>{hasDomain ? tSettings("urlFromDomain") : t("urlHint")}</Hint>
+          <Hint>{t("urlHint")}</Hint>
           <FormMessage />
         </FormItem>
       )}
@@ -219,9 +234,10 @@ export function GeneralTab({
                 )}
               />
             </div>
-            {hasDomain && urlField}
+            {hasDomain && derivedUrl}
 
             <AdvancedOptions
+              attempt={form.formState.submitCount}
               invalid={!!(errors.projectId || (!hasDomain && errors.url))}
             >
               <div className="flex flex-col gap-2">

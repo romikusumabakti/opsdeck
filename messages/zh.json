@@ -326,7 +326,7 @@
     "subtitle": "将 CI 构建的镜像标签部署到此环境，发布出问题时可回滚。",
     "addTarget": "添加目标",
     "emptyTitle": "尚无部署目标",
-    "emptyDescription": "部署目标将应用关联到此环境中的服务器和 Compose 项目。添加一个目标即可部署 CI 上报的构建。",
+    "emptyDescription": "部署目标将应用关联到此环境中的服务器和 Compose 项目。在“设置 → 源码与部署”中添加目标，即可部署 CI 上报的构建。",
     "autoDeploy": "自动部署",
     "lastDeployFailed": "上次部署失败",
     "currentTag": "当前标签",
@@ -900,7 +900,8 @@
     "noTargets": "尚无仓库部署到此环境。",
     "noDatabase": "无数据库",
     "mockTimeTitle": "模拟时间",
-    "mockTimeDescription": "后端的时间模拟 API，供“模拟时间”页面使用。"
+    "mockTimeDescription": "后端的时间模拟 API，供“模拟时间”页面使用。",
+    "serverMixedAdminOnly": "此环境的服务运行在不同的服务器上。只有拥有服务器管理权限的人才能重新绑定。"
   },
   "userMenu": {
     "users": "用户管理",

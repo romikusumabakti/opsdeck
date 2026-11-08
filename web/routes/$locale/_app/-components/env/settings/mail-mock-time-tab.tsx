@@ -18,9 +18,8 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { backendService } from "@/lib/services";
 import type { MailpitSettings } from "@/web/api/mailpit-settings";
+import { Hint, SaveButton } from "./fields";
 import {
-  Hint,
-  SaveButton,
   type SettingsEnvironment,
   useSettingsFormContext,
 } from "./settings-form";

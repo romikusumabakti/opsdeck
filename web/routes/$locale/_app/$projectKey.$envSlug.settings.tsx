@@ -91,8 +91,6 @@ function EnvironmentSettingsPage() {
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <EnvironmentSettingsTabs
-        // A target added on Source & Deploy joins the form state afresh.
-        key={targets.map((target) => target.id).join()}
         environment={environment}
         targets={targets}
         domain={domain}
