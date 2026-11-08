@@ -62,7 +62,7 @@ type CheckDraft = {
   dir: string;
   commands: string;
 };
-type SpecDraft = {
+export type SpecDraft = {
   branches: string;
   tagShaLength: string;
   timeoutMinutes: string;
@@ -100,7 +100,7 @@ function repoName(fullName: string): string {
   return fullName.split("/").pop() ?? fullName;
 }
 
-function defaultSpec(componentKey: string): SpecDraft {
+export function defaultSpec(componentKey: string): SpecDraft {
   return {
     branches: "main",
     tagShaLength: "7",
@@ -125,7 +125,44 @@ function newComponent(ciConnectionId: string): ComponentDraft {
   };
 }
 
-function toSpec(draft: SpecDraft) {
+/** A stored or suggested build spec as the editor's draft. */
+export function specDraftOf(spec: BuildSpec): SpecDraft {
+  return {
+    branches: spec.branches.join(", "),
+    tagShaLength: String(spec.tagShaLength),
+    timeoutMinutes: String(spec.timeoutMinutes),
+    images: spec.images.map((image) => ({ ...image })),
+    bundleFiles: spec.bundleFiles.map((file) => ({ ...file })),
+    checks: spec.checks.map((check) => ({
+      name: check.name,
+      image: check.image,
+      dir: check.dir,
+      commands: check.commands.join("\n"),
+    })),
+  };
+}
+
+/**
+ * The translated issues of a draft spec, keyed `<path>.<field>` as
+ * `SpecEditor` reads them (`appForm.issues` messages).
+ */
+export function useSpecIssues(spec: SpecDraft, path: string): Issues {
+  const tIssues = useTranslations("appForm.issues");
+  return useMemo(() => {
+    const result = buildSpecSchema.safeParse(toSpec(spec));
+    const issues: Issues = new Map();
+    if (result.success) return issues;
+    for (const issue of result.error.issues) {
+      const key = [path, ...issue.path].join(".");
+      if (issues.has(key)) continue;
+      const { key: messageKey, values } = issueMessage(issue);
+      issues.set(key, tIssues(messageKey, values));
+    }
+    return issues;
+  }, [spec, path, tIssues]);
+}
+
+export function toSpec(draft: SpecDraft) {
   return {
     branches: draft.branches
       .split(",")
@@ -171,7 +208,7 @@ export function toRegisterInput(
  * "components.0.componentKey". The schema's own text is never shown: each
  * issue maps to an `appForm.issues` key (lib/ci/registration-issues.ts).
  */
-type Issues = Map<string, string>;
+export type Issues = Map<string, string>;
 
 function issuesOf(
   input: unknown,
@@ -762,7 +799,8 @@ function RepoPicker({
   );
 }
 
-function SpecEditor({
+/** The build spec editor of a generated pipeline, with the YAML preview. */
+export function SpecEditor({
   componentKey,
   spec,
   issues,

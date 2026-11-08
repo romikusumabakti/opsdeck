@@ -96,7 +96,6 @@ function ProjectsPage() {
         lastOpened={lastOpened}
         initialSort={sort ?? "recent"}
         projectRoles={access.roles}
-        orgRole={orgRole}
       />
     </>
   );
