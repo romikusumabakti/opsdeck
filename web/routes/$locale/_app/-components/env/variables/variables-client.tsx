@@ -21,16 +21,8 @@ import { RelativeTime } from "@/components/relative-time";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RowActions } from "@/components/ui/row-actions";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -40,18 +32,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { canOrg } from "@/lib/permissions";
-import {
-  missingRequiredNames,
-  SHARED_DEPLOY_DIR_MESSAGE,
-} from "@/lib/variables/errors";
-import { ApiError } from "@/web/api/client";
 import { useMe } from "@/web/api/session";
 import {
   applyVariableTemplate,
   deleteVariable,
   regenerateVariable,
   revealVariables,
-  setEnvFileManaged,
   type VariableRow,
   type VariablesListing,
 } from "@/web/api/variables";
@@ -76,10 +62,6 @@ export function VariablesClient({
   const dialog = useDialog();
   const errorText = useVariableErrorText();
   const canWrite = useProjectCan({ variable: ["write"] });
-  const canSwitch = useProjectCan({
-    variable: ["write"],
-    deploy: ["configure"],
-  });
   const canClearEscrow = canOrg(useMe()?.orgRole, {
     integration: ["manage"],
   });
@@ -129,26 +111,6 @@ export function VariablesClient({
         toast.warning(t("templateMissing", { names: missing.join(", ") }));
       }
     });
-  }
-
-  async function onToggleManaged(enabled: boolean) {
-    setBusy("managed");
-    try {
-      await setEnvFileManaged(environmentId, enabled);
-      toast.success(t(enabled ? "managedOn" : "managedOff"));
-    } catch (error) {
-      const conflict = error instanceof ApiError && error.status === 409;
-      const names = conflict ? missingRequiredNames(error.message) : null;
-      toast.error(
-        names
-          ? t("missingRequired", { names: names.join(", ") })
-          : conflict && error.message === SHARED_DEPLOY_DIR_MESSAGE
-            ? t("sharedDeployDir")
-            : errorText(error)
-      );
-    } finally {
-      setBusy(null);
-    }
   }
 
   async function onRegenerate(variable: VariableRow) {
@@ -234,21 +196,6 @@ export function VariablesClient({
       />
 
       <div className="flex flex-col gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("managedTitle")}</CardTitle>
-            <CardDescription>{t("managedDescription")}</CardDescription>
-            <CardAction>
-              <Switch
-                aria-label={t("managedTitle")}
-                checked={listing.envFileManaged}
-                disabled={!canSwitch || busy !== null}
-                onCheckedChange={(checked) => void onToggleManaged(checked)}
-              />
-            </CardAction>
-          </CardHeader>
-        </Card>
-
         {hasEscrow && (
           <Alert>
             <Lock />

@@ -325,7 +325,6 @@
     "title": "部署",
     "subtitle": "将 CI 构建的镜像标签部署到此环境，发布出问题时可回滚。",
     "addTarget": "添加目标",
-    "editTarget": "编辑目标",
     "emptyTitle": "尚无部署目标",
     "emptyDescription": "部署目标将应用关联到此环境中的服务器和 Compose 项目。添加一个目标即可部署 CI 上报的构建。",
     "autoDeploy": "自动部署",
@@ -376,8 +375,6 @@
     "form": {
       "createTitle": "添加部署目标",
       "createDescription": "应用在此环境中的部署位置。",
-      "editTitle": "编辑部署目标",
-      "editDescription": "目标所属的应用不可更改。",
       "componentKey": "应用标识",
       "componentKeyHint": "构建通知中注册的应用，例如 dplk-accounting。",
       "server": "服务器",
@@ -399,9 +396,7 @@
       "healthTimeoutSecondsHint": "介于 60 到 900 之间。",
       "autoDeploy": "自动部署新构建",
       "backupBeforeDeploy": "每次部署前备份数据库",
-      "save": "保存",
       "create": "添加目标",
-      "saved": "目标已保存",
       "created": "目标已添加",
       "invalid": "该值不符合下方说明的格式。",
       "componentNotFound": "未注册使用此标识的部署应用。",
@@ -436,7 +431,9 @@
       "heldBuilds": "{count, plural, =0 {没有被暂扣的构建。} other {已暂扣 # 个构建。}}",
       "saveLock": "保存锁定"
     },
-    "waitingForFirstBuild": "正在等待 {branch} 的首次构建"
+    "waitingForFirstBuild": "正在等待 {branch} 的首次构建",
+    "settingsLink": "部署设置",
+    "settingsHint": "分支、服务器和部署目标在“设置 → 源码与部署”中编辑。"
   },
   "provisioning": {
     "title": "环境配置",
@@ -876,8 +873,6 @@
   "environmentSettings": {
     "title": "环境设置",
     "subtitle": "编辑环境配置或完全删除该环境。",
-    "editTitle": "环境详情",
-    "editDescription": "更新该环境的数据库、后端和前端服务器配置。",
     "duplicateTitle": "复制环境",
     "duplicateDescription": "创建一个预填充了此环境配置的新环境。密码和 API 密钥不会被复制。",
     "duplicateButton": "复制环境",
@@ -890,8 +885,22 @@
     "deleteEscrowedDescription": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。删除环境会永久销毁它们：仅在已保存到别处后再确认。",
     "deleteFailed": "删除环境失败",
     "deletedSuccess": "环境 {name} 已删除",
-    "tabConfig": "配置",
-    "tabDanger": "危险区域"
+    "tabDanger": "危险区域",
+    "tabGeneral": "常规",
+    "tabSourceDeploy": "源码与部署",
+    "tabDatabase": "数据库",
+    "tabDomain": "域名",
+    "tabMailMockTime": "邮件与模拟时间",
+    "serverHint": "此环境的所有服务和部署目标都运行在此服务器上。",
+    "serverLocked": "首次部署后服务器即被锁定。拥有服务器管理权限的人仍可更改。",
+    "serverMixed": "此环境的服务运行在不同的服务器上。请在高级选项中逐个更改。",
+    "urlFromDomain": "由环境的域名决定。请在“域名”选项卡中更改地址。",
+    "slug": "短标识",
+    "slugHint": "此环境在面板中地址的一部分，创建时根据名称生成。",
+    "noTargets": "尚无仓库部署到此环境。",
+    "noDatabase": "无数据库",
+    "mockTimeTitle": "模拟时间",
+    "mockTimeDescription": "后端的时间模拟 API，供“模拟时间”页面使用。"
   },
   "userMenu": {
     "users": "用户管理",

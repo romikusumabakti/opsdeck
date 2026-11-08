@@ -325,7 +325,6 @@
     "title": "Deploys",
     "subtitle": "Roll CI-built image tags out to this environment, and roll back when a release goes wrong.",
     "addTarget": "Add target",
-    "editTarget": "Edit target",
     "emptyTitle": "No deploy targets yet",
     "emptyDescription": "A target links a component to a server and Compose project in this environment. Add one to deploy the builds CI reports.",
     "autoDeploy": "Auto-deploy",
@@ -376,8 +375,6 @@
     "form": {
       "createTitle": "Add deploy target",
       "createDescription": "Where a component is deployed in this environment.",
-      "editTitle": "Edit deploy target",
-      "editDescription": "The component of a target cannot be changed.",
       "componentKey": "Component key",
       "componentKeyHint": "The component as registered for build notifications, e.g. dplk-accounting.",
       "server": "Server",
@@ -399,9 +396,7 @@
       "healthTimeoutSecondsHint": "Between 60 and 900.",
       "autoDeploy": "Deploy new builds automatically",
       "backupBeforeDeploy": "Back up the database before each deploy",
-      "save": "Save",
       "create": "Add target",
-      "saved": "Target saved",
       "created": "Target added",
       "invalid": "This value doesn't match the format described below.",
       "componentNotFound": "No component with this key is registered.",
@@ -436,7 +431,9 @@
       "heldBuilds": "{count, plural, =0 {No builds are held.} one {# build is held.} other {# builds are held.}}",
       "saveLock": "Save lock"
     },
-    "waitingForFirstBuild": "Waiting for the first build of {branch}"
+    "waitingForFirstBuild": "Waiting for the first build of {branch}",
+    "settingsLink": "Deploy settings",
+    "settingsHint": "Branches, servers and deploy targets are edited in Settings → Source & Deploy."
   },
   "provisioning": {
     "title": "Provisioning",
@@ -876,8 +873,6 @@
   "environmentSettings": {
     "title": "Environment settings",
     "subtitle": "Edit the environment configuration or remove the environment entirely.",
-    "editTitle": "Environment details",
-    "editDescription": "Update the environment's database, backend, and frontend server configuration.",
     "duplicateTitle": "Duplicate environment",
     "duplicateDescription": "Create a new environment pre-filled with this environment's configuration. Passwords and API keys are not copied.",
     "duplicateButton": "Duplicate environment",
@@ -890,8 +885,22 @@
     "deleteEscrowedDescription": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Deleting it destroys them for good: confirm only once they are stored elsewhere.",
     "deleteFailed": "Failed to delete environment",
     "deletedSuccess": "Environment {name} deleted",
-    "tabConfig": "Configuration",
-    "tabDanger": "Danger zone"
+    "tabDanger": "Danger zone",
+    "tabGeneral": "General",
+    "tabSourceDeploy": "Source & Deploy",
+    "tabDatabase": "Database",
+    "tabDomain": "Domain",
+    "tabMailMockTime": "Mail & Mock time",
+    "serverHint": "Every service and deploy target of this environment runs on this server.",
+    "serverLocked": "The server is fixed after the first deploy. Someone with server management access can still move it.",
+    "serverMixed": "This environment's services run on different servers. Change them one by one under Advanced options.",
+    "urlFromDomain": "Set by the environment's domain. Change the address on the Domain tab.",
+    "slug": "Slug",
+    "slugHint": "Part of this environment's address in the Panel, set from its name when it was created.",
+    "noTargets": "No repository deploys to this environment yet.",
+    "noDatabase": "No database",
+    "mockTimeTitle": "Mock time",
+    "mockTimeDescription": "The backend's time-mocking API, used by the Mock time page."
   },
   "userMenu": {
     "users": "User management",
