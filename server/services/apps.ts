@@ -84,7 +84,12 @@ const INTEGRATION_MANAGE = { integration: ["manage"] } as const;
 
 export type AppWithComponents = NonNullable<Awaited<ReturnType<typeof getApp>>>;
 
-const fail = (status: 403 | 404 | 409 | 500 | 502, message: string): never => {
+const fail = (
+  status: 403 | 404 | 409 | 500 | 502,
+  message: string,
+  code?: string
+): never => {
+  if (code) throw new CodedHTTPException(status, code, message);
   throw new HTTPException(status, { message });
 };
 
@@ -107,7 +112,7 @@ async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
     return await run();
   } catch (error) {
     if (error instanceof CiProviderError) {
-      return fail(502, `${label} failed: ${error.message}`);
+      return fail(502, `${label} failed: ${error.message}`, "ciUnavailable");
     }
     throw error;
   }
@@ -315,7 +320,7 @@ export async function registerApp(
 ): Promise<AppWithComponents> {
   await requireRegistrant();
   if (await appKeyExists(input.appKey)) {
-    fail(409, `App ${input.appKey} already exists`);
+    fail(409, `App ${input.appKey} already exists`, "appKeyTaken");
   }
   await registerComponents(input.components, (rows) =>
     insertAppWithComponents({ appKey: input.appKey, name: input.name }, rows)
@@ -338,7 +343,7 @@ export async function addComponentsToApp(
     name: app.name,
     components,
   });
-  if (!parsed.success) badRequest("Invalid components");
+  if (!parsed.success) badRequest("Invalid components", "invalidInput");
   await registerComponents(parsed.data.components, (rows) =>
     insertComponents(app.id, rows)
   );
@@ -359,7 +364,9 @@ async function registerComponents(
   const [taken] = await takenComponentKeys(
     components.map((c) => c.componentKey)
   );
-  if (taken) fail(409, `Component ${taken} already exists`);
+  if (taken) {
+    fail(409, `Component ${taken} already exists`, "componentKeyTaken");
+  }
 
   const providers = new Map<string, CiProvider>();
   const prepared: Prepared[] = [];
@@ -400,11 +407,16 @@ async function registerComponents(
     if (linked) {
       fail(
         409,
-        `Repository ${repo.fullName} is already linked to component ${linked.componentKey}`
+        `Repository ${repo.fullName} is already linked to component ${linked.componentKey}`,
+        "repoLinked"
       );
     }
     if (!repo.ciRepoId) {
-      fail(502, `Woodpecker returned no id for ${repo.fullName}`);
+      fail(
+        502,
+        `Woodpecker returned no id for ${repo.fullName}`,
+        "ciUnavailable"
+      );
     }
     item.repo = repo;
   }
@@ -454,7 +466,8 @@ async function registerComponents(
       const keys = prepared.map((item) => item.input.componentKey).join(", ");
       fail(
         409,
-        `The app, a component or a repository was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of ${keys} on its app page.`
+        `The app, a component or a repository was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of ${keys} on its app page.`,
+        "registrationRace"
       );
     }
     throw error;

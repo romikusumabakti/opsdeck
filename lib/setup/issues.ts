@@ -74,7 +74,8 @@ export const PLAN_ISSUE_CODES = [
 
 /**
  * New environment refusals (lib/setup/new-environment, and the unique-index
- * races of its create).
+ * races of its create), and the repo detection and registration refusals its
+ * create answers with (server/services/new-environment, apps).
  */
 export const NEW_ENVIRONMENT_ISSUE_CODES = [
   "noServerAvailable",
@@ -83,6 +84,14 @@ export const NEW_ENVIRONMENT_ISSUE_CODES = [
   "nameTaken",
   "domainTaken",
   "duplicate",
+  "repoNotFound",
+  "repoUnreadable",
+  "ciUnavailable",
+  "appKeyTaken",
+  "componentKeyTaken",
+  "repoLinked",
+  "registrationRace",
+  "pipelineFileExists",
 ] as const;
 
 export const SETUP_ISSUE_MESSAGE_CODES: readonly string[] = [

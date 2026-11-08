@@ -2949,7 +2949,15 @@
       "repoNotBuildable": "El Panel no puede compilar este repositorio: necesita un Dockerfile y un archivo compose.",
       "nameTaken": "Otro entorno acaba de tomar este nombre. Elija otro.",
       "domainTaken": "Otro entorno acaba de tomar esta dirección. Elija otra.",
-      "duplicate": "Este repositorio aparece dos veces."
+      "duplicate": "Este repositorio aparece dos veces.",
+      "repoNotFound": "El servidor de CI no muestra este repositorio. Compruebe que esté activado en Woodpecker.",
+      "repoUnreadable": "El Panel no puede leer los archivos de este repositorio: la conexión de CI no tiene token de forja.",
+      "ciUnavailable": "El servidor de CI o Bitbucket no respondió. Inténtelo de nuevo en un momento.",
+      "appKeyTaken": "Se acaba de registrar una app con esta clave. Inténtelo de nuevo.",
+      "componentKeyTaken": "Se acaba de registrar un repositorio con esta clave. Inténtelo de nuevo.",
+      "repoLinked": "Este repositorio se acaba de registrar. Inténtelo de nuevo.",
+      "registrationRace": "Otro registro de este repositorio se ejecutó a la vez. Pida a un administrador que rote su secreto de notificación y vuelva a intentarlo.",
+      "pipelineFileExists": "La rama ya tiene un .woodpecker.yaml que el Panel no generó. Haga que notifique al Panel o elimínelo."
     },
     "newApp": {
       "title": "Nueva aplicación",
