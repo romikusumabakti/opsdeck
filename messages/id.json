@@ -85,7 +85,7 @@
     "issues": "Isu",
     "jira": "Jira",
     "mail": "Email",
-    "apps": "Aplikasi",
+    "repositories": "Repositori",
     "variables": "Variabel"
   },
   "commandPalette": {
@@ -141,7 +141,7 @@
     "mail": "Email",
     "ci": "CI",
     "cloudflare": "Cloudflare",
-    "apps": "Aplikasi",
+    "repositories": "Repositori",
     "variables": "Variabel"
   },
   "header": {
@@ -1420,7 +1420,8 @@
     "databaseHostInUse": "Masih ada environment yang memakai host database ini; pindahkan dulu ke database lain.",
     "sharedDatabaseConfined": "Host database environment ini dipakai bersama; kamu hanya bisa memakai database milik environment ini. Minta bantuan admin untuk yang lain.",
     "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya.",
-    "databaseHostVersion": "Container itu menjalankan Postgres lebih lama dari 15; daftarkan hanya Postgres 15 atau lebih baru."
+    "databaseHostVersion": "Container itu menjalankan Postgres lebih lama dari 15; daftarkan hanya Postgres 15 atau lebih baru.",
+    "defaultServerForbidden": "Hanya admin yang bisa mengubah server default proyek."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1667,7 +1668,12 @@
     "createFailed": "Gagal membuat proyek",
     "saveFailed": "Gagal memperbarui proyek",
     "keyTaken": "Kunci sudah dipakai",
-    "keyReserved": "Key itu dipakai route aplikasi"
+    "keyReserved": "Key itu dipakai route aplikasi",
+    "defaultServer": "Server default",
+    "defaultServerDescription": "Environment baru proyek ini ditempatkan di sini kecuali dipilih server lain.",
+    "defaultServerNone": "Tidak ada",
+    "defaultServerSet": "Diatur oleh admin",
+    "defaultServerAdminOnly": "Hanya admin yang bisa mengubah server default."
   },
   "issues": {
     "title": "Isu",
@@ -2501,11 +2507,10 @@
     "removeBound": "Masih dipakai environment"
   },
   "apps": {
-    "title": "Aplikasi",
-    "subtitle": "Aplikasi yang di-deploy Panel, komponennya, dan cara CI membangunnya.",
-    "register": "Daftarkan aplikasi",
-    "emptyTitle": "Belum ada aplikasi",
-    "empty": "Aplikasi muncul di sini setelah didaftarkan.",
+    "title": "Repositori",
+    "subtitle": "Repositori yang di-deploy Panel, komponennya, dan cara CI membangunnya.",
+    "emptyTitle": "Belum ada repositori",
+    "empty": "Repositori muncul di sini setelah ada environment yang dibuat darinya.",
     "colApp": "Aplikasi",
     "colComponent": "Komponen",
     "colRepo": "Repositori",

@@ -5,7 +5,6 @@ import {
   Cable,
   CircleDot,
   Clock,
-  Cloud,
   CloudCog,
   DatabaseZap,
   FolderKanban,
@@ -108,7 +107,8 @@ const projectItems: ProjectItem[] = [
 ];
 
 // Sections of the /admin area, shown as their own sidebar group while the
-// user is inside it. Each page enforces the same permission server-side.
+// user is inside it: the people side first, then the integrations. Each page
+// enforces the same permission server-side.
 const adminItems: {
   key: string;
   url: string;
@@ -120,6 +120,13 @@ const adminItems: {
     url: "/admin/activity",
     icon: Activity,
     perm: { audit: ["read"] },
+  },
+  { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
+  {
+    key: "repositories",
+    url: "/admin/repositories",
+    icon: Boxes,
+    perm: { integration: ["manage"] },
   },
   {
     key: "jira",
@@ -134,18 +141,11 @@ const adminItems: {
     perm: { integration: ["manage"] },
   },
   {
-    key: "tunnels",
-    url: "/admin/tunnels",
-    icon: Cloud,
-    perm: { tunnel: ["read"] },
-  },
-  {
     key: "cloudflare",
     url: "/admin/cloudflare",
     icon: CloudCog,
     perm: { server: ["manage"] },
   },
-  { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
 ];
 
 /**
@@ -292,16 +292,6 @@ export function AppSidebar({
                 >
                   <FolderKanban />
                   <span>{tNav("projects")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/apps" />}
-                  isActive={pathname.startsWith("/apps")}
-                  tooltip={tNav("apps")}
-                >
-                  <Boxes />
-                  <span>{tNav("apps")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

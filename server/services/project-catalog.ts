@@ -207,13 +207,26 @@ export async function editProject(
   id: string,
   data: unknown
 ): Promise<ActionResponse<Project>> {
-  await requireProjectPermission(
+  const { session } = await requireProjectPermission(
     { projectId: id },
     { environment: ["update"] }
   );
   const parsed = projectMetaUpdateSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid project data" };
+  }
+  // The default server is where engineers may place this project's
+  // environments even when it is restricted, so only server:manage sets or
+  // clears it.
+  if (
+    parsed.data.defaultServerId !== undefined &&
+    !canOrg(session.user.role, { server: ["manage"] })
+  ) {
+    const t = await getServerTranslator("actionErrors");
+    throw new ForbiddenError(
+      t("defaultServerForbidden"),
+      "defaultServerForbidden"
+    );
   }
   try {
     const [updated] = await db
@@ -228,6 +241,10 @@ export async function editProject(
   } catch (error) {
     if ((error as { code?: string })?.code === "23505") {
       return { success: false, message: "keyTaken" };
+    }
+    // Foreign-key violation: the default server does not exist.
+    if ((error as { code?: string })?.code === "23503") {
+      return { success: false, message: "serverNotFound" };
     }
     console.error(`Failed to update project ${id}:`, error);
     return { success: false, message: "Failed to update project" };

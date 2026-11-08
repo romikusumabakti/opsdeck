@@ -2,6 +2,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Pencil, Workflow } from "lucide-react";
 import { useTranslations } from "use-intl";
+import { CiConnectionCard } from "@/components/ci-connection-form";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +31,8 @@ export const Route = createFileRoute("/$locale/_app/admin/ci/")({
   component: CiPage,
 });
 
+// Today there is one CI connection, so the page is its settings card; the
+// table appears only once there are more.
 function CiPage() {
   const t = useTranslations("ci");
   const tCommon = useTranslations("common");
@@ -45,6 +48,10 @@ function CiPage() {
             title={t("emptyTitle")}
             description={t("empty")}
           />
+        </div>
+      ) : connections.length === 1 && connections[0] ? (
+        <div className="flex flex-col gap-4 max-w-2xl w-full">
+          <CiConnectionCard connection={connections[0]} />
         </div>
       ) : (
         <div className="rounded-lg border bg-card">

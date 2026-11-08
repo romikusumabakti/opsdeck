@@ -5,19 +5,12 @@ import {
 } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
 import type { BuildSpec } from "@/lib/ci/build-spec";
-import type { RegisterAppInput } from "@/lib/ci/registration";
-import {
-  canOrg,
-  canProject,
-  canRegisterApp,
-  type ProjectRole,
-} from "@/lib/permissions";
+import { canOrg, canProject, type ProjectRole } from "@/lib/permissions";
 import { api } from "@/web/api/client";
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { useMe } from "@/web/api/session";
 
 const routes = api.api.apps;
-const connections = api.api["ci-connections"];
 
 export async function listApps() {
   return parseResponse(routes.$get());
@@ -28,10 +21,6 @@ export const listAppsQuery = () =>
 
 export type AppRow = Awaited<ReturnType<typeof listApps>>[number];
 export type AppComponentRow = AppRow["components"][number];
-
-export async function registerApp(input: RegisterAppInput) {
-  return parseResponse(routes.$post({ json: input }));
-}
 
 export async function rotateNotifySecret(appKey: string, componentKey: string) {
   return parseResponse(
@@ -57,20 +46,6 @@ export async function commitPipelineFile(
   );
 }
 
-/** Starts a build of the component's branch; resolves with its number. */
-export async function triggerComponentBuild(
-  appKey: string,
-  componentKey: string,
-  branch: string
-) {
-  return parseResponse(
-    routes[":appKey"].components[":componentKey"].build.$post({
-      param: { appKey, componentKey },
-      json: { branch },
-    })
-  );
-}
-
 export async function getPipelinePreview(
   componentKey: string,
   buildSpec: BuildSpec
@@ -93,44 +68,6 @@ export const pipelinePreviewQuery = (
     enabled: buildSpec !== null,
     placeholderData: keepPreviousData,
   });
-
-export async function listCiConnectionOptions() {
-  return parseResponse(connections.options.$get());
-}
-
-export const listCiConnectionOptionsQuery = () =>
-  queryOptions({
-    queryKey: ["ci-connections", "options"],
-    queryFn: listCiConnectionOptions,
-  });
-
-export async function listConnectionRepos(id: string) {
-  return parseResponse(connections[":id"].repos.$get({ param: { id } }));
-}
-
-export const listConnectionReposQuery = (id: string | null) =>
-  queryOptions({
-    queryKey: ["ci-connections", "repos", id],
-    queryFn: () => listConnectionRepos(id as string),
-    enabled: id !== null,
-    // Woodpecker's list changes rarely; a remount should not refetch it.
-    staleTime: 60_000,
-  });
-
-export type RegistrableRepoRow = Awaited<
-  ReturnType<typeof listConnectionRepos>
->[number];
-
-/**
- * Whether the caller may register apps with custom pipelines (admins and
- * project engineers). The page loader must have loaded
- * getMyProjectAccessQuery; the app shell always has.
- */
-export function useCanRegisterApp(): boolean {
-  const me = useMe();
-  const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
-  return canRegisterApp(me?.orgRole, Object.values(access.roles));
-}
 
 /**
  * Whether the caller may use generated pipelines, commit pipeline files and

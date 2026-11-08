@@ -85,7 +85,7 @@
     "issues": "问题",
     "jira": "Jira",
     "mail": "邮件",
-    "apps": "Apps",
+    "repositories": "代码仓库",
     "variables": "变量"
   },
   "commandPalette": {
@@ -141,7 +141,7 @@
     "mail": "邮件",
     "ci": "CI",
     "cloudflare": "Cloudflare",
-    "apps": "Apps",
+    "repositories": "代码仓库",
     "variables": "变量"
   },
   "header": {
@@ -1420,7 +1420,8 @@
     "databaseHostInUse": "仍有环境在使用此数据库主机；请先将它们迁移到其他数据库。",
     "sharedDatabaseConfined": "此环境的数据库主机是共享的；你只能使用此环境自己的数据库。其他数据库请联系管理员。",
     "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。",
-    "databaseHostVersion": "该容器运行的 Postgres 版本低于 15；只能注册 Postgres 15 或更高版本。"
+    "databaseHostVersion": "该容器运行的 Postgres 版本低于 15；只能注册 Postgres 15 或更高版本。",
+    "defaultServerForbidden": "只有管理员可以更改项目的默认服务器。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1667,7 +1668,12 @@
     "createFailed": "创建项目失败",
     "saveFailed": "更新项目失败",
     "keyTaken": "该标识已被使用",
-    "keyReserved": "该 Key 与应用路由冲突"
+    "keyReserved": "该 Key 与应用路由冲突",
+    "defaultServer": "默认服务器",
+    "defaultServerDescription": "此项目的新环境默认放在这里，除非另选服务器。",
+    "defaultServerNone": "无",
+    "defaultServerSet": "由管理员设置",
+    "defaultServerAdminOnly": "只有管理员可以更改默认服务器。"
   },
   "issues": {
     "title": "问题",
@@ -2501,11 +2507,10 @@
     "removeBound": "仍有环境在使用"
   },
   "apps": {
-    "title": "Apps",
-    "subtitle": "Apps the Panel deploys, their components and how CI builds them.",
-    "register": "Register app",
-    "emptyTitle": "No apps",
-    "empty": "Apps appear here once they are registered.",
+    "title": "代码仓库",
+    "subtitle": "面板部署的代码仓库、其组件以及 CI 的构建方式。",
+    "emptyTitle": "暂无代码仓库",
+    "empty": "从代码仓库创建环境后，它会显示在这里。",
     "colApp": "App",
     "colComponent": "Component",
     "colRepo": "Repository",
