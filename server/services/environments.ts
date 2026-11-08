@@ -895,7 +895,6 @@ export async function insertEnvironmentIn(
         slug,
         kind: input.kind,
         ownerId,
-        host: input.host,
         url: input.url,
         ...extra,
       })
@@ -1051,7 +1050,6 @@ export async function updateEnvironment(
       name: input.name,
       kind: input.kind,
       ownerId: input.ownerId,
-      host: input.host,
       url: input.url,
     });
     // Optional services: a flag turned off drops the role's row, turned on

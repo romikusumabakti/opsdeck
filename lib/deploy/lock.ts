@@ -54,7 +54,7 @@ export function canLock(role: ProjectRole | null, isOwner: boolean): boolean {
   if (role === null) {
     return false;
   }
-  return isOwner || role === "maintainer";
+  return isOwner || role === "engineer";
 }
 
 // Only the owner and whoever set the lock; maintainers cannot unlock others'.

@@ -146,10 +146,7 @@ describe("parseBackupListing", () => {
 describe("canAnyProject", () => {
   it("is true when any alternative is allowed", () => {
     expect(
-      canAnyProject("contributor", [
-        { database: ["drop"] },
-        { database: ["restore"] },
-      ])
+      canAnyProject("qa", [{ database: ["drop"] }, { database: ["restore"] }])
     ).toBe(true);
   });
   it("is false when none is, or with no role", () => {

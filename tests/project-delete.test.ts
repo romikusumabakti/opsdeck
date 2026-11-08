@@ -30,7 +30,7 @@ vi.mock("@/lib/auth-session", () => ({
 vi.mock("@/lib/authz", () => ({
   projectIdsWhere: () => undefined,
   projectScope: () => undefined,
-  getProjectRole: async () => "maintainer",
+  getProjectRole: async () => "engineer",
   requireProjectPermission: async () => undefined,
   requireOrgPermission: async () => ({
     user: { id: USER_ID, role: state.orgRole },

@@ -25,14 +25,14 @@ describe("canPlaceEnvironment", () => {
   // [orgRole, projectRole, restricted, open]
   const MATRIX: [string, ProjectRole, boolean, boolean][] = [
     ["admin", "viewer", false, false],
-    ["admin", "contributor", false, false],
-    ["admin", "maintainer", true, true],
+    ["admin", "qa", false, false],
+    ["admin", "engineer", true, true],
     ["infra", "viewer", false, false],
-    ["infra", "contributor", false, false],
-    ["infra", "maintainer", true, true],
+    ["infra", "qa", false, false],
+    ["infra", "engineer", true, true],
     ["member", "viewer", false, false],
-    ["member", "contributor", false, false],
-    ["member", "maintainer", false, true],
+    ["member", "qa", false, false],
+    ["member", "engineer", false, true],
   ];
   for (const [org, project, restricted, open] of MATRIX) {
     it(`${org} × ${project}: restricted=${restricted}, open=${open}`, () => {
@@ -64,11 +64,11 @@ type Service = {
 const state = vi.hoisted(() => ({
   orgRole: "member" as string,
   // Role in the environment's (or the created environment's) project.
-  projectRole: "maintainer" as string | null,
+  projectRole: "engineer" as string | null,
   // Key of the project a placement is checked for (the projects lookup).
   projectKey: "HRIS",
   // Role in the project an update moves the environment into.
-  targetProjectRole: "maintainer" as string | null,
+  targetProjectRole: "engineer" as string | null,
   userId: "0197f3a0-1b2c-7def-8000-0123456789a9",
   placements: {} as Record<string, "restricted" | "open">,
   // Registered database hosts (the lookup returns the first).
@@ -256,13 +256,13 @@ const insertedEnvironment = () =>
 
 beforeEach(() => {
   state.orgRole = "member";
-  state.projectRole = "maintainer";
+  state.projectRole = "engineer";
   state.projectKey = "HRIS";
   state.placements = {
     [SERVER_OPEN]: "open",
     [SERVER_RESTRICTED]: "restricted",
   };
-  state.targetProjectRole = "maintainer";
+  state.targetProjectRole = "engineer";
   state.used = [];
   state.hosts = [];
   state.stored = {
@@ -399,7 +399,7 @@ describe("open placement: service names in use", () => {
 
   it("lets a caller with server:manage share a service name", async () => {
     state.orgRole = "infra";
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     state.used = [
       {
         environmentId: OTHER_ENV_ID,
@@ -418,8 +418,8 @@ describe("updateEnvironment placement", () => {
   it("refuses moving an environment on a restricted server without server:manage", async () => {
     // Maintainer of both projects, org member: may update here, may create
     // environments there, but not place one on a restricted server.
-    state.projectRole = "maintainer";
-    state.targetProjectRole = "maintainer";
+    state.projectRole = "engineer";
+    state.targetProjectRole = "engineer";
     state.stored.services = [
       { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "hris-api" },
     ];
@@ -435,8 +435,8 @@ describe("updateEnvironment placement", () => {
 
   it("lets admins move it (restricted rule satisfied)", async () => {
     state.orgRole = "admin";
-    state.projectRole = "maintainer";
-    state.targetProjectRole = "maintainer";
+    state.projectRole = "engineer";
+    state.targetProjectRole = "engineer";
     state.stored.services = [
       { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "hris-api" },
     ];
@@ -447,16 +447,16 @@ describe("updateEnvironment placement", () => {
   });
 
   it("judges a move by the role in the target project", async () => {
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     state.targetProjectRole = "viewer";
     await expect(
       updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
     ).rejects.toMatchObject({ status: 403 });
-    state.targetProjectRole = "contributor";
+    state.targetProjectRole = "qa";
     await expect(
       updateEnvironment(ENV_ID, { projectId: TARGET_PROJECT_ID })
     ).rejects.toMatchObject({ status: 403 });
-    state.targetProjectRole = "maintainer";
+    state.targetProjectRole = "engineer";
     // Open server, own service rows do not count as "in use".
     state.used = [
       {
@@ -473,7 +473,7 @@ describe("updateEnvironment placement", () => {
   });
 
   it("refuses a move onto an open server whose service another environment shares", async () => {
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     state.used = [
       {
         environmentId: OTHER_ENV_ID,
@@ -489,7 +489,7 @@ describe("updateEnvironment placement", () => {
   });
 
   it("does not re-check placement when the project id is re-sent unchanged", async () => {
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     state.stored.services = [
       { role: "backend", serverId: SERVER_RESTRICTED, serviceName: "hris-api" },
     ];
@@ -501,7 +501,7 @@ describe("updateEnvironment placement", () => {
   });
 
   it("refuses a service-name change without server:manage", async () => {
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     await expect(
       updateEnvironment(ENV_ID, { backendServiceName: "hris-api-2" })
     ).rejects.toMatchObject({ status: 403 });
@@ -510,7 +510,7 @@ describe("updateEnvironment placement", () => {
 
   it("checks placement of a binding change (restricted rule for infra)", async () => {
     state.orgRole = "infra";
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     const result = await updateEnvironment(ENV_ID, {
       backendServerId: SERVER_RESTRICTED,
     });
@@ -524,7 +524,7 @@ describe("updateEnvironment placement", () => {
 
 describe("createEnvironment placement", () => {
   it("refuses a contributor even on open servers", async () => {
-    state.projectRole = "contributor";
+    state.projectRole = "qa";
     await expect(createEnvironment(newOnOpen)).rejects.toMatchObject({
       status: 403,
     });
@@ -585,7 +585,7 @@ describe("createEnvironment placement", () => {
 
   it("keeps today's rule on restricted servers (admin maintainer)", async () => {
     state.orgRole = "admin";
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     const result = await createEnvironment({
       projectId: PROJECT_ID,
       name: "Dev",
@@ -899,11 +899,11 @@ describe("open placement: shared database hosts", () => {
   });
 
   it("still refuses a contributor, and a host on a restricted server", async () => {
-    state.projectRole = "contributor";
+    state.projectRole = "qa";
     await expect(createEnvironment(sandbox)).rejects.toMatchObject({
       status: 403,
     });
-    state.projectRole = "maintainer";
+    state.projectRole = "engineer";
     state.hosts = [{ ...host, serverId: SERVER_RESTRICTED }];
     await expect(createEnvironment(sandbox)).rejects.toMatchObject({
       status: 403,

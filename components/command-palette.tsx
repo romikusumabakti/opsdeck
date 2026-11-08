@@ -27,7 +27,7 @@ import { useLocale, useTranslations } from "use-intl";
 import { AccentDot } from "@/components/accent-dot";
 import { useAccent } from "@/components/accent-provider";
 import { useMotif } from "@/components/motif-provider";
-import { EnvironmentHost } from "@/components/nav/environment-host";
+import { EnvironmentHost, urlHost } from "@/components/nav/environment-host";
 import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -278,7 +278,7 @@ export function CommandPalette({
                     key={env.id}
                     // Project-qualified so same-named environments in two
                     // projects stay distinct and searchable by project.
-                    value={`environment ${project.name} ${project.key} ${env.name} ${env.host ?? ""}`}
+                    value={`environment ${project.name} ${project.key} ${env.name} ${urlHost(env.url) ?? ""}`}
                     onSelect={() =>
                       run(() => router.push(`/${env.key}/${env.slug}`))
                     }
@@ -287,7 +287,7 @@ export function CommandPalette({
                     <span className="flex-1 min-w-0 truncate">
                       {stripProjectPrefix(env.name, project.name)}
                     </span>
-                    <EnvironmentHost host={env.host} className="max-w-[40%]" />
+                    <EnvironmentHost url={env.url} className="max-w-[40%]" />
                     <EnvironmentKindBadge kind={env.kind} />
                   </CommandItem>
                 ))}

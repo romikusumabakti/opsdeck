@@ -92,7 +92,7 @@ export function ProjectMembersClient({
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
   const [addUserId, setAddUserId] = useState<string>("");
-  const [addRole, setAddRole] = useState<ProjectRole>("contributor");
+  const [addRole, setAddRole] = useState<ProjectRole>("qa");
 
   const memberIds = useMemo(
     () => new Set(initialMembers.map((m) => m.userId)),
@@ -169,7 +169,7 @@ export function ProjectMembersClient({
               addProjectMember({ projectId, userId: addUserId, role: addRole })
             );
             setAddUserId("");
-            setAddRole("contributor");
+            setAddRole("qa");
           }}
         >
           <UserPlus className="size-4" />

@@ -17,8 +17,8 @@ const OTHER_USER = "0197f3a0-1b2c-7def-8000-0123456789a2";
 describe("variable statement", () => {
   it("is held by maintainers only", () => {
     for (const action of ["read", "write"] as const) {
-      expect(canProject("maintainer", { variable: [action] })).toBe(true);
-      expect(canProject("contributor", { variable: [action] })).toBe(false);
+      expect(canProject("engineer", { variable: [action] })).toBe(true);
+      expect(canProject("qa", { variable: [action] })).toBe(false);
       expect(canProject("viewer", { variable: [action] })).toBe(false);
     }
   });
@@ -106,7 +106,7 @@ describe("requireProjectPermission and the environment owner", () => {
     { variable: ["write"] },
   ] satisfies ProjectPermissions[];
 
-  for (const role of ["viewer", "contributor"] as const) {
+  for (const role of ["viewer", "qa"] as const) {
     it(`refuses an owner who is only ${role} (403) on their own environment`, async () => {
       state.memberships = [{ projectId: PROJECT_ID, role }];
       for (const perms of OWNER_REQUESTS) {
@@ -126,13 +126,13 @@ describe("requireProjectPermission and the environment owner", () => {
   });
 
   it("answers maintainers from their role, owner or not", async () => {
-    state.memberships = [{ projectId: PROJECT_ID, role: "maintainer" }];
+    state.memberships = [{ projectId: PROJECT_ID, role: "engineer" }];
     for (const environmentId of [ENV_A, ENV_B]) {
       const result = await requireProjectPermission(
         { environmentId },
         { deploy: ["run"], variable: ["read", "write"] }
       );
-      expect(result.role).toBe("maintainer");
+      expect(result.role).toBe("engineer");
       expect(result).not.toHaveProperty("isOwner");
     }
   });

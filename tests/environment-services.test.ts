@@ -32,7 +32,7 @@ vi.mock("@/lib/authz", () => ({
   requireOrgPermission: async () => undefined,
   requireProjectPermission: async () => ({
     session: { user: { id: "user-1", role: "admin" } },
-    role: "maintainer",
+    role: "engineer",
   }),
 }));
 vi.mock("@/lib/secrets", () => ({

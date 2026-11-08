@@ -9,7 +9,7 @@ const BUILD_ID = "0197f3a0-1b2c-7def-8000-0123456789b1";
 const TAG = "origin-sucor-development-abc1234";
 const PREVIOUS_TAG = "origin-sucor-development-0000001";
 
-const state = vi.hoisted(() => ({ role: "maintainer" as string }));
+const state = vi.hoisted(() => ({ role: "engineer" as string }));
 
 vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: async () => null }, handler: vi.fn() },
@@ -106,7 +106,7 @@ function send(method: string, path: string, body?: unknown) {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.56.113:5000");
-  state.role = "maintainer";
+  state.role = "engineer";
   repo.getTarget.mockResolvedValue(target);
   repo.getDeployLock.mockResolvedValue(null);
   repo.getEnvironmentForLock.mockResolvedValue({
@@ -144,7 +144,7 @@ beforeEach(() => {
 
 describe("permissions", () => {
   it("contributor gets 403 on deploy, rollback and target create", async () => {
-    state.role = "contributor";
+    state.role = "qa";
     expect(
       (
         await send("POST", "/api/deploys/deploy", {
@@ -175,7 +175,7 @@ describe("permissions", () => {
   });
 
   it("contributor cannot update or delete a target", async () => {
-    state.role = "contributor";
+    state.role = "qa";
     expect(
       (
         await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
@@ -412,7 +412,7 @@ describe("deploy lock", () => {
 
   it("checks the lock only after the permission check", async () => {
     repo.getDeployLock.mockResolvedValue(lock);
-    state.role = "contributor";
+    state.role = "qa";
     const res = await send("POST", "/api/deploys/deploy", {
       targetId: TARGET_ID,
       tag: TAG,

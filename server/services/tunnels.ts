@@ -76,9 +76,16 @@ import { getServerTranslator } from "@/server/i18n";
 // Zones
 // =========================
 
+// A zone may exist without its own token; anything that calls Cloudflare for it
+// cannot proceed without one.
+function zoneApiToken(stored: string | null): string {
+  if (!stored) throw new Error("This Cloudflare zone has no API token");
+  return decryptSecret(stored);
+}
+
 function toSafeZone(row: CloudflareZone): SafeCloudflareZone {
   const { apiToken, ...rest } = row;
-  return { ...rest, hasToken: apiToken.length > 0 };
+  return { ...rest, hasToken: !!apiToken };
 }
 
 export async function getCloudflareZones(): Promise<SafeCloudflareZone[]> {
@@ -184,7 +191,7 @@ export async function testCloudflareZone(input: {
       .where(eq(cloudflareZones.id, input.id))
       .limit(1);
     if (!row) return { ok: false, message: t("zoneNotFound") };
-    apiToken = decryptSecret(row.apiToken);
+    apiToken = row.apiToken ? decryptSecret(row.apiToken) : undefined;
   }
   if (!apiToken) return { ok: false, message: t("zoneTokenRequiredForTest") };
 
@@ -336,7 +343,7 @@ async function loadTunnel(id: string): Promise<LoadedTunnel | null> {
     },
     zone: {
       zoneId: row.cloudflare_zones.zoneId,
-      apiToken: decryptSecret(row.cloudflare_zones.apiToken),
+      apiToken: zoneApiToken(row.cloudflare_zones.apiToken),
       name: row.cloudflare_zones.name,
     },
   };

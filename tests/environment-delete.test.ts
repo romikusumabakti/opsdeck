@@ -28,12 +28,12 @@ vi.mock("@/lib/authz", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/authz")>();
   return {
     ForbiddenError: real.ForbiddenError,
-    getProjectRole: async () => "maintainer",
+    getProjectRole: async () => "engineer",
     projectScope: () => undefined,
     requireOrgPermission: async () => undefined,
     requireProjectPermission: async () => ({
       session: { user: { id: USER_ID, role: state.orgRole } },
-      role: "maintainer",
+      role: "engineer",
       projectId: "0197f3a0-1b2c-7def-8000-0123456789f1",
     }),
   };

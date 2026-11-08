@@ -261,9 +261,9 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     ids.projectB = (await project("WIZB")).id;
     ids.projectC = (await project("WIZC")).id;
     await db.insert(s.projectMembers).values([
-      { projectId: ids.projectA, userId: ids.maintainer, role: "maintainer" },
+      { projectId: ids.projectA, userId: ids.maintainer, role: "engineer" },
       { projectId: ids.projectB, userId: ids.maintainer, role: "viewer" },
-      { projectId: ids.projectA, userId: ids.contributor, role: "contributor" },
+      { projectId: ids.projectA, userId: ids.contributor, role: "qa" },
     ]);
     ids.server = (
       await one(
