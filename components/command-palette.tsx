@@ -173,9 +173,7 @@ export function CommandPalette({
             </CommandItem>
             <CommandItem
               value="projects environments"
-              onSelect={() =>
-                run(() => router.push("/projects?newEnvironment=1"))
-              }
+              onSelect={() => run(() => router.push("/projects"))}
             >
               <FolderKanban />
               {tNav("projects")}
@@ -258,11 +256,13 @@ export function CommandPalette({
                 ))}
                 {canCreateEnvironment && (
                   // An environment needs a parent project, so the palette (which
-                  // has no project context) sends the user to the list, where
-                  // every project card carries the action.
+                  // has no project context) sends the user to the list, which
+                  // says to pick the project.
                   <CommandItem
                     value="new environment create"
-                    onSelect={() => run(() => router.push("/projects"))}
+                    onSelect={() =>
+                      run(() => router.push("/projects?newEnvironment=1"))
+                    }
                   >
                     <Plus />
                     {tHeader("createEnvironment")}

@@ -469,6 +469,25 @@ describe("New environment page", () => {
     expect(container.textContent).toContain("dss/kmem-worker");
   });
 
+  it("warns, without blocking, about a custom repo with no pipeline file", async () => {
+    api.preview.mockResolvedValue({
+      ...cleanPreview,
+      plan: {
+        ...plan(),
+        warnings: [{ field: "repos.0", code: "pipelineFileMissing" }],
+      },
+    });
+    await mount({ initialRepo: "dss/kmem-worker" });
+    await act(async () =>
+      byText("button", messages.setup.advancedOptions)?.click()
+    );
+    await settle();
+    expect(container.textContent).toContain(
+      messages.newEnvironment.pipelineFileMissing
+    );
+    expect(alerts()).toHaveLength(0);
+  });
+
   it("lists other apps' repositories disabled, with their app", async () => {
     await mount({ project: projectWithEnvs });
     await act(async () =>
@@ -749,6 +768,10 @@ describe("New environment page", () => {
     expect(container.textContent).toContain(
       messages.newEnvironment.fixFieldsFirst
     );
+    // Named by the field's label, not its input path.
+    const list = byText("li", messages.setupWizard.issues.invalid);
+    expect(list?.textContent).toContain(messages.newEnvironment.address);
+    expect(list?.textContent).not.toContain("domain.label");
     await act(async () => type(addressInput, "good"));
     await settle();
     expect(api.preview).toHaveBeenCalledOnce();

@@ -64,6 +64,7 @@ import {
   visibleIssues,
 } from "@/lib/setup/new-environment-form-state";
 import type { SetupIssue } from "@/lib/setup/schema";
+import { sectionOfField } from "@/lib/setup/sections";
 import { baseEnvSlug } from "@/lib/setup/slug";
 import { ApiError } from "@/web/api/client";
 import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
@@ -446,7 +447,9 @@ export function NewEnvironmentForm({
   const checkable = probing
     ? parseNewEnvironmentInput(rawInput(PROBE_NAME))
     : parsed;
-  const snapshot = parsed.ok ? snapshotOf(parsed.input) : null;
+  // What a check now would be about: with no name typed, the probe's (a
+  // repository picked first still shows its detection and issues).
+  const snapshot = checkable.ok ? snapshotOf(checkable.input) : null;
 
   /**
    * Resolves an input on the server. A stale answer (another check started
@@ -533,7 +536,6 @@ export function NewEnvironmentForm({
   React.useEffect(() => {
     if (checkRequest > 0) checkNow();
   }, [checkRequest]);
-  const waitingForInput = advancedOpen && !advanced && !checkable.ok;
   const checkableNow = checkable.ok;
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-checks once the input is fixed
   React.useEffect(() => {
@@ -746,6 +748,24 @@ export function NewEnvironmentForm({
         )
       : [];
   const detectionPlan = checkIsCurrent("repos") ? plan : null;
+
+  /** The label of the field an issue is about, as the page shows it. */
+  function fieldLabel(field: string): string {
+    switch (groupOf(field)) {
+      case "startFrom":
+        return t("startFrom");
+      case "name":
+        return t("name");
+      case "repos":
+        return t("repository");
+      case "address":
+        return t("address");
+      case "server":
+        return t("server");
+      default:
+        return tWizard(`sections.${sectionOfField(field) ?? "general"}`);
+    }
+  }
 
   const nameIssue = byField.name;
   const reposIssue = byField.repos ?? byField.targets;
@@ -1060,13 +1080,15 @@ export function NewEnvironmentForm({
                 }}
               />
             </>
-          ) : waitingForInput && !checkable.ok ? (
+          ) : !checkable.ok ? (
             <div className="flex flex-col gap-1 text-sm">
               <p className="text-muted-foreground">{t("fixFieldsFirst")}</p>
               <ul className="flex flex-col gap-1 text-destructive">
                 {checkable.issues.map((issue) => (
                   <li key={`${issue.field}:${issue.code}`}>
-                    <span className="font-mono">{issue.field}</span>
+                    <span className="font-medium">
+                      {fieldLabel(issue.field)}
+                    </span>
                     {": "}
                     {message(issue.code)}
                   </li>

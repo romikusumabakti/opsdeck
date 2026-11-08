@@ -798,7 +798,8 @@
     "pipelineMode": "Pipeline de {repo}",
     "pipelineModeGenerated": "Generado por el Panel",
     "pipelineModeCustom": "Propio (el .woodpecker.yaml del repositorio)",
-    "pipelinesHint": "Lo eligió la detección. Un pipeline generado necesita la rama del entorno entre sus ramas."
+    "pipelinesHint": "Lo eligió la detección. Un pipeline generado necesita la rama del entorno entre sus ramas.",
+    "pipelineFileMissing": "Esta rama aún no tiene .woodpecker.yaml: sus compilaciones empezarán cuando el repositorio tenga uno que avise al Panel."
   },
   "environmentForm": {
     "info": "Datos del entorno",
