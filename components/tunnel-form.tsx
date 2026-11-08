@@ -100,7 +100,7 @@ export function TunnelForm({
       return;
     }
     toast.success(result.message ?? "");
-    router.push("/admin/tunnels");
+    router.push("/admin/cloudflare");
   }
 
   const loading = form.formState.isSubmitting;
@@ -256,7 +256,7 @@ export function TunnelForm({
             type="button"
             variant="outline"
             disabled={loading}
-            onClick={() => router.push("/admin/tunnels")}
+            onClick={() => router.push("/admin/cloudflare")}
           >
             {tCommon("cancel")}
           </Button>

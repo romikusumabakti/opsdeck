@@ -1,4 +1,4 @@
-import { KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
+import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,33 +14,37 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RowActions } from "@/components/ui/row-actions";
 import { Link } from "@/i18n/navigation";
 import {
-  deleteCloudflareZone,
-  type ZoneRow as SafeCloudflareZone,
+  deleteTunnel,
+  type TunnelRow as TunnelWithContext,
 } from "@/web/api/tunnels";
 
-export function ZonesClient({
-  zones,
+export function TunnelsClient({
+  tunnels,
+  hasZones,
   canManage,
 }: {
-  zones: SafeCloudflareZone[];
+  tunnels: TunnelWithContext[];
+  hasZones: boolean;
   canManage: boolean;
 }) {
-  const t = useTranslations("zones");
+  const t = useTranslations("tunnels");
   const tCommon = useTranslations("common");
   const dialog = useDialog();
   const [isPending, startTransition] = useTransition();
 
   const [optimistic, removeOptimistic] = useOptimistic<
-    SafeCloudflareZone[],
+    TunnelWithContext[],
     string[]
-  >(zones, (state, ids) => state.filter((z) => !ids.includes(z.id)));
+  >(tunnels, (state, ids) => state.filter((row) => !ids.includes(row.id)));
 
   const onDelete = React.useCallback(
-    async (zone: SafeCloudflareZone) => {
+    async (tunnel: TunnelWithContext) => {
       const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
-        description: t("deleteDescription", { name: zone.name }),
-        phrase: zone.name,
+        // Spelled out because the wording matters: this removes the panel's
+        // record, not the tunnel. Every hostname keeps working afterwards.
+        description: t("deleteDescription", { name: tunnel.name }),
+        phrase: tunnel.name,
         phraseLabel: tCommon("confirmTypingLabel"),
         placeholder: tCommon("confirmTypingPlaceholder"),
         confirmText: tCommon("delete"),
@@ -48,8 +52,8 @@ export function ZonesClient({
       });
       if (!ok) return;
       startTransition(async () => {
-        removeOptimistic([zone.id]);
-        const result = await deleteCloudflareZone(zone.id);
+        removeOptimistic([tunnel.id]);
+        const result = await deleteTunnel(tunnel.id);
         if (!result.success) {
           toast.error(result.message);
           return;
@@ -60,7 +64,7 @@ export function ZonesClient({
     [dialog, t, tCommon, removeOptimistic]
   );
 
-  const columns = React.useMemo<DataTableColumnDef<SafeCloudflareZone>[]>(
+  const columns = React.useMemo<DataTableColumnDef<TunnelWithContext>[]>(
     () => [
       {
         accessorKey: "name",
@@ -69,16 +73,42 @@ export function ZonesClient({
           <DataTableColumnHeader column={column} title={t("colName")} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono font-medium">{row.getValue("name")}</span>
+          <Link
+            href={`/admin/cloudflare/local-tunnels/${row.original.id}`}
+            className="font-medium hover:underline"
+          >
+            {row.getValue("name")}
+          </Link>
         ),
       },
       {
-        accessorKey: "zoneId",
-        meta: { label: t("colZoneId") },
-        header: t("colZoneId"),
+        id: "server",
+        meta: { label: t("colServer") },
+        header: t("colServer"),
+        cell: ({ row }) => (
+          <span className="text-sm">
+            {row.original.server.name}
+            <span className="text-muted-foreground font-mono text-xs ml-2">
+              {row.original.server.host}
+            </span>
+          </span>
+        ),
+      },
+      {
+        id: "zone",
+        meta: { label: t("colZone") },
+        header: t("colZone"),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs">{row.original.zone.name}</span>
+        ),
+      },
+      {
+        accessorKey: "stackDir",
+        meta: { label: t("colStackDir") },
+        header: t("colStackDir"),
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
-            {row.getValue("zoneId")}
+            {row.getValue("stackDir")}
           </span>
         ),
       },
@@ -93,7 +123,7 @@ export function ZonesClient({
             primary={{
               label: tCommon("edit"),
               icon: Pencil,
-              href: `/admin/tunnels/zones/${row.original.id}`,
+              href: `/admin/cloudflare/local-tunnels/${row.original.id}/edit`,
             }}
             items={[
               {
@@ -117,19 +147,27 @@ export function ZonesClient({
     return (
       <div className="rounded-lg border bg-card">
         <EmptyState
-          icon={KeyRound}
+          icon={Cloud}
           title={t("emptyTitle")}
-          description={t("empty")}
+          description={hasZones ? t("empty") : t("emptyNoZone")}
           action={
-            canManage ? (
+            !canManage ? undefined : hasZones ? (
               <Button
                 nativeButton={false}
-                render={<Link href="/admin/tunnels/zones/new" />}
+                render={<Link href="/admin/cloudflare/local-tunnels/new" />}
+              >
+                <Plus className="size-4" />
+                {t("addTunnel")}
+              </Button>
+            ) : (
+              <Button
+                nativeButton={false}
+                render={<Link href="/admin/cloudflare/zones/new" />}
               >
                 <Plus className="size-4" />
                 {t("addZone")}
               </Button>
-            ) : undefined
+            )
           }
         />
       </div>
@@ -143,7 +181,7 @@ export function ZonesClient({
       filterColumn="name"
       filterPlaceholder={t("searchPlaceholder")}
       getRowId={(row) => row.id}
-      urlKey="zones"
+      urlKey="tunnels"
     />
   );
 }

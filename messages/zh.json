@@ -138,7 +138,6 @@
     "badgeAssignedOpen": "{count, plural, other {分配给你的 # 个未解决问题}}",
     "badgeProjectOpen": "{count, plural, other {此项目中有 # 个未解决问题}}",
     "badgeActiveRuns": "{count, plural, other {# 个任务正在运行}}",
-    "tunnels": "隧道",
     "mail": "邮件",
     "ci": "CI",
     "cloudflare": "Cloudflare",
@@ -2191,7 +2190,7 @@
   },
   "zones": {
     "title": "DNS 区域",
-    "subtitle": "Cloudflare 区域，以及在其中发布主机名所用的受限 API 令牌。",
+    "subtitle": "发布主机名所在的 Cloudflare 区域。区域使用账户的令牌，除非它有自己的令牌。",
     "addZone": "添加区域",
     "searchPlaceholder": "搜索区域…",
     "colName": "区域",
@@ -2241,7 +2240,8 @@
     "zoneIdInvalid": "区域 ID 为 32 位十六进制字符。",
     "apiToken": "API 令牌",
     "apiTokenDescription": "请将其权限限定为「仅本区域」的 Zone:DNS:Edit——OpsDeck 用它做的就这些。加密存储，绝不发送到浏览器。",
-    "apiTokenKeep": "留空以保留当前令牌"
+    "apiTokenKeep": "留空以保留当前令牌",
+    "apiTokenOptionalDescription": "可选：不填时，此区域使用 Cloudflare 账户的令牌。如填写，请将其权限限定为仅本区域的 Zone:DNS:Edit。加密存储，绝不发送到浏览器。"
   },
   "mailpitSettings": {
     "title": "Mailpit",
@@ -2524,7 +2524,9 @@
     "removeTitle": "移除隧道注册？",
     "removeDescription": "{tunnel} 将不再用于 {server}。隧道本身仍保留在 Cloudflare 中。",
     "removed": "注册已移除",
-    "removeBound": "仍有环境在使用"
+    "removeBound": "仍有环境在使用",
+    "localTunnelsTitle": "本地隧道",
+    "localTunnelsDescription": "由服务器上 cloudflared 的 config.yml 配置、通过 SSH 编辑的隧道。仅用于尚未迁移到远程管理的隧道。"
   },
   "apps": {
     "title": "代码仓库",

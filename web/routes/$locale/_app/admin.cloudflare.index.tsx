@@ -1,9 +1,10 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Cloud } from "lucide-react";
+import { Cloud, Plus } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import { AdvancedOptions } from "@/components/advanced-options";
 import { CloudflareAccountForm } from "@/components/cloudflare-account-form";
 import { useDialog } from "@/components/dialog-provider";
 import { PageHeader } from "@/components/page-header";
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -28,6 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Link } from "@/i18n/navigation";
+import { canOrg } from "@/lib/permissions";
 import { ApiError } from "@/web/api/client";
 import {
   cloudflareTunnelsQuery,
@@ -37,15 +41,25 @@ import {
   deleteRemoteTunnel,
   remoteTunnelsQuery,
 } from "@/web/api/remote-tunnels";
+import { useMe } from "@/web/api/session";
+import { getCloudflareZonesQuery, getTunnelsQuery } from "@/web/api/tunnels";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
+import { TunnelsClient } from "./-components/admin/cloudflare/tunnels-client";
+import { ZonesClient } from "./-components/admin/cloudflare/zones-client";
 
-export const Route = createFileRoute("/$locale/_app/admin/cloudflare")({
+// The one Cloudflare page: the account, its DNS zones and remote tunnels, and
+// the legacy locally configured tunnels under Advanced options.
+export const Route = createFileRoute("/$locale/_app/admin/cloudflare/")({
   beforeLoad: async ({ context: { queryClient } }) => {
     await requireOrgRole(queryClient, { server: ["manage"] });
   },
   loader: async ({ context: { queryClient } }) => {
-    await loaderQuery(queryClient, getCloudflareAccountQuery());
+    await Promise.all([
+      loaderQuery(queryClient, getCloudflareAccountQuery()),
+      loaderQuery(queryClient, getCloudflareZonesQuery()),
+      loaderQuery(queryClient, getTunnelsQuery()),
+    ]);
   },
   component: CloudflarePage,
 });
@@ -53,11 +67,15 @@ export const Route = createFileRoute("/$locale/_app/admin/cloudflare")({
 function CloudflarePage() {
   const t = useTranslations("cloudflareAccount");
   const account = useSuspenseQuery(getCloudflareAccountQuery()).data;
+  const me = useMe();
+  // Zones and local tunnels keep their own gate: adding, editing and deleting
+  // need tunnel:manage.
+  const canManage = canOrg(me?.orgRole, { tunnel: ["manage"] });
 
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
-      <div className="flex flex-col gap-4 max-w-2xl w-full">
+      <div className="flex flex-col gap-4 max-w-4xl w-full">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -70,9 +88,84 @@ function CloudflarePage() {
             <CloudflareAccountForm account={account} />
           </CardContent>
         </Card>
+        <ZonesCard canManage={canManage} />
         {account?.hasToken && <TunnelsCard />}
+        <AdvancedOptions>
+          <LocalTunnelsCard canManage={canManage} />
+        </AdvancedOptions>
       </div>
     </>
+  );
+}
+
+function ZonesCard({ canManage }: { canManage: boolean }) {
+  const t = useTranslations("zones");
+  const zones = useSuspenseQuery(getCloudflareZonesQuery()).data;
+  return (
+    <Card id="zones">
+      <CardHeader>
+        <CardTitle className="text-base">{t("title")}</CardTitle>
+        <CardDescription>{t("subtitle")}</CardDescription>
+        {canManage && zones.length > 0 && (
+          <CardAction>
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/admin/cloudflare/zones/new" />}
+            >
+              <Plus className="size-4" />
+              {t("addZone")}
+            </Button>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardContent>
+        <ZonesClient zones={zones} canManage={canManage} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// Tunnels whose ingress lives in a cloudflared config.yml on the server,
+// edited over SSH. Kept until the last of them moves to a remote tunnel.
+function LocalTunnelsCard({ canManage }: { canManage: boolean }) {
+  const t = useTranslations("cloudflareAccount");
+  const tTunnels = useTranslations("tunnels");
+  const tunnels = useSuspenseQuery(getTunnelsQuery()).data;
+  const zones = useSuspenseQuery(getCloudflareZonesQuery()).data;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t("localTunnelsTitle")}</CardTitle>
+        <CardDescription>{t("localTunnelsDescription")}</CardDescription>
+        {/* A tunnel can only be registered once a zone exists: its hostnames
+            are published in one. */}
+        {canManage && tunnels.length > 0 && (
+          <CardAction>
+            <Button
+              size="sm"
+              nativeButton={zones.length === 0}
+              disabled={zones.length === 0}
+              render={
+                zones.length === 0 ? undefined : (
+                  <Link href="/admin/cloudflare/local-tunnels/new" />
+                )
+              }
+            >
+              <Plus className="size-4" />
+              {tTunnels("addTunnel")}
+            </Button>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardContent>
+        <TunnelsClient
+          tunnels={tunnels}
+          hasZones={zones.length > 0}
+          canManage={canManage}
+        />
+      </CardContent>
+    </Card>
   );
 }
 

@@ -138,7 +138,6 @@
     "badgeAssignedOpen": "{count, plural, one {# incidencia abierta asignada a ti} other {# incidencias abiertas asignadas a ti}}",
     "badgeProjectOpen": "{count, plural, one {# incidencia abierta en este proyecto} other {# incidencias abiertas en este proyecto}}",
     "badgeActiveRuns": "{count, plural, one {# tarea en ejecución} other {# tareas en ejecución}}",
-    "tunnels": "Túneles",
     "mail": "Correo",
     "ci": "CI",
     "cloudflare": "Cloudflare",
@@ -2191,7 +2190,7 @@
   },
   "zones": {
     "title": "Zonas DNS",
-    "subtitle": "Zonas de Cloudflare y los tokens de API acotados que publican nombres en ellas.",
+    "subtitle": "Zonas de Cloudflare en las que se publican los nombres. Una zona usa el token de la cuenta salvo que tenga uno propio.",
     "addZone": "Añadir zona",
     "searchPlaceholder": "Buscar zonas…",
     "colName": "Zona",
@@ -2241,7 +2240,8 @@
     "zoneIdInvalid": "Un ID de zona tiene 32 caracteres hexadecimales.",
     "apiToken": "Token de API",
     "apiTokenDescription": "Acótalo a Zone:DNS:Edit SOLO EN ESTA ZONA: es todo lo que OpsDeck hace con él. Se guarda cifrado y nunca se envía al navegador.",
-    "apiTokenKeep": "Déjalo en blanco para conservar el token actual"
+    "apiTokenKeep": "Déjalo en blanco para conservar el token actual",
+    "apiTokenOptionalDescription": "Opcional: sin él, esta zona usa el token de la cuenta de Cloudflare. Si lo indicas, acótalo a Zone:DNS:Edit solo en esta zona. Se guarda cifrado y nunca se envía al navegador."
   },
   "mailpitSettings": {
     "title": "Mailpit",
@@ -2524,7 +2524,9 @@
     "removeTitle": "¿Quitar el registro del túnel?",
     "removeDescription": "{tunnel} deja de usarse para {server}. El túnel sigue existiendo en Cloudflare.",
     "removed": "Registro eliminado",
-    "removeBound": "Aún lo usan entornos"
+    "removeBound": "Aún lo usan entornos",
+    "localTunnelsTitle": "Túneles locales",
+    "localTunnelsDescription": "Túneles configurados con un config.yml de cloudflared en el servidor, editados por SSH. Solo para túneles que aún no pasaron a gestión remota."
   },
   "apps": {
     "title": "Repositorios",
