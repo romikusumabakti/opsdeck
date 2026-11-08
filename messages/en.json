@@ -138,7 +138,6 @@
     "badgeAssignedOpen": "{count, plural, one {# open issue assigned to you} other {# open issues assigned to you}}",
     "badgeProjectOpen": "{count, plural, one {# open issue in this project} other {# open issues in this project}}",
     "badgeActiveRuns": "{count, plural, one {# task running} other {# tasks running}}",
-    "tunnels": "Tunnels",
     "mail": "Mail",
     "ci": "CI",
     "cloudflare": "Cloudflare",
@@ -2191,7 +2190,7 @@
   },
   "zones": {
     "title": "DNS zones",
-    "subtitle": "Cloudflare zones and the scoped API tokens that publish hostnames in them.",
+    "subtitle": "The Cloudflare zones hostnames are published in. A zone uses the account's token unless it has its own.",
     "addZone": "Add zone",
     "searchPlaceholder": "Search zones…",
     "colName": "Zone",
@@ -2241,7 +2240,8 @@
     "zoneIdInvalid": "A zone ID is 32 hexadecimal characters.",
     "apiToken": "API token",
     "apiTokenDescription": "Scope it to Zone:DNS:Edit on THIS ZONE ONLY — that is everything OpsDeck does with it. Stored encrypted and never sent to the browser.",
-    "apiTokenKeep": "Leave blank to keep the current token"
+    "apiTokenKeep": "Leave blank to keep the current token",
+    "apiTokenOptionalDescription": "Optional: without one, this zone uses the Cloudflare account's token. If set, scope it to Zone:DNS:Edit on this zone only. Stored encrypted and never sent to the browser."
   },
   "mailpitSettings": {
     "title": "Mailpit",
@@ -2524,7 +2524,9 @@
     "removeTitle": "Remove tunnel registration?",
     "removeDescription": "{tunnel} is no longer used for {server}. The tunnel itself stays in Cloudflare.",
     "removed": "Registration removed",
-    "removeBound": "Environments still use this tunnel"
+    "removeBound": "Environments still use this tunnel",
+    "localTunnelsTitle": "Local tunnels",
+    "localTunnelsDescription": "Tunnels configured by a cloudflared config.yml on the server, edited over SSH. Only for tunnels not yet moved to remote management."
   },
   "apps": {
     "title": "Repositories",

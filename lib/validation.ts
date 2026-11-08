@@ -615,13 +615,12 @@ export const cloudflareZoneInputSchema = z.object({
       /^[0-9a-f]{32}$/,
       "A Cloudflare zone ID is 32 hexadecimal characters"
     ),
-  apiToken: z.string().trim().min(1).max(1024),
+  // Optional: a zone without its own token uses the Cloudflare account's.
+  apiToken: z.string().trim().min(1).max(1024).optional(),
 });
 
 // Update allows omitting apiToken ("leave blank to keep the current token").
-export const cloudflareZoneUpdateSchema = cloudflareZoneInputSchema
-  .partial()
-  .extend({ apiToken: z.string().trim().min(1).max(1024).optional() });
+export const cloudflareZoneUpdateSchema = cloudflareZoneInputSchema.partial();
 
 // Absolute POSIX path with no traversal segment. `stackDir` is interpolated
 // into shell commands (shq-quoted) and joined with `configPath` to address a
