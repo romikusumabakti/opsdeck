@@ -54,7 +54,7 @@ if [ "$step" = "\${STUB_NOISY:-}" ]; then
   printf 'x%0200d\\n' 0 | sed 's/0/é/g'
 fi
 # What systemd does on stop or timeout: TERM while a step is running.
-if [ "$step" = "\${STUB_KILL:-}" ]; then
+if [ "$step" = "\${STUB_KILL:-}" ] || [ "$step@$v" = "\${STUB_KILL:-}" ]; then
   kill -TERM "$PPID"
   sleep 1
   exit 1
@@ -67,6 +67,13 @@ if [ "$step" = "\${STUB_FAIL:-}" ] && [ ! -e "$STUB_STATE/failed-$step" ]; then
   echo "$step went wrong" >&2
   exit 1
 fi
+if [ "$step" = restore ] && [ -n "\${STUB_RESTORE_REFUSE:-}" ]; then
+  echo '{"status":"refused","errorCode":"'"$STUB_RESTORE_REFUSE"'"}'
+  exit 3
+fi
+case "$*" in
+  *"--trigger restore") if [ -n "\${STUB_BACKUP_GARBLED:-}" ]; then echo 'backup done'; exit 0; fi ;;
+esac
 case $step in
   backup) echo '{"id":"0195f0c2-0000-7abc-8def-0123456789ab","status":"succeeded","location":"s3","objectKey":"opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-'"$v"'/","errorCode":null}' ;;
   up) printf '%s' "$v" > "$STUB_STATE/deployed" ;;
@@ -593,6 +600,47 @@ describe("update.sh", () => {
     expect(status.safetyBackup?.objectKey).toBe(
       "opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/"
     );
+    expect(t.readEnv()).toBe(envFile("1.2.0"));
+    expect(t.dockerCalls().at(-1)).toBe(
+      "docker compose up -d --wait --wait-timeout 180 [1.2.0]"
+    );
+  });
+
+  it.each([
+    ["restoreKeyMismatch", "restoreKeyMismatch"],
+    ["somethingNew", "restoreRefused"],
+  ])("a refused restore (exit 3, %s) rolls back", (cliCode, code) => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_RESTORE_REFUSE: cliCode }).status).toBe(1);
+    expect(t.status()).toMatchObject({ state: "rolled_back", code });
+    expect(t.readEnv()).toBe(t.env);
+    expect(t.dockerCalls().at(-1)).toBe(
+      "docker compose up -d --wait --wait-timeout 180 [1.3.0]"
+    );
+  });
+
+  it("an unreadable safety backup result aborts the restore", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_BACKUP_GARBLED: "1" }).status).toBe(1);
+    expect(t.status()).toMatchObject({ state: "failed", code: "backupFailed" });
+    expect(t.dockerCalls()).toEqual([
+      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+    ]);
+    expect(existsSync(join(t.updates, "previous.env"))).toBe(false);
+    expect(t.readEnv()).toBe(t.env);
+  });
+
+  it("TERM in the update after a restore rolls back to the restored version", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_KILL: "pull@1.3.0" }).status).not.toBe(0);
+    expect(t.status()).toMatchObject({
+      state: "rolled_back",
+      code: "interrupted",
+      from: "1.2.0",
+    });
     expect(t.readEnv()).toBe(envFile("1.2.0"));
     expect(t.dockerCalls().at(-1)).toBe(
       "docker compose up -d --wait --wait-timeout 180 [1.2.0]"

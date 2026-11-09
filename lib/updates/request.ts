@@ -48,6 +48,23 @@ export const updateRequestSchema = z.discriminatedUnion("action", [
 export type UpdateRequest = z.infer<typeof updateRequestSchema>;
 
 /**
+ * Contract of `opsdeck restore <objectKey>` (Task 7) with update.sh, which
+ * runs it as `docker compose run --rm app opsdeck restore <key>`:
+ * - It prints one JSON line with an `errorCode` (string or null).
+ * - Exit 0: restored.
+ * - Exit RESTORE_REFUSED_EXIT (3): refused, and the database and Garage are
+ *   untouched. Every check runs before any write: the archive can be read
+ *   (`restoreNotFound`), the manifest sha256 (`restoreChecksumMismatch`), the
+ *   SECRETS_KEY fingerprint (`restoreKeyMismatch`), and the manifest version
+ *   equals the requested one (`restoreVersionMismatch`). update.sh then puts
+ *   the previous images back: rolled_back with that code (another code
+ *   becomes `restoreRefused`).
+ * - Any other non-zero exit: the data may have changed. update.sh keeps the
+ *   restore version and reports failed/`restoreFailed` with `safetyBackup`.
+ */
+export const RESTORE_REFUSED_EXIT = 3;
+
+/**
  * The canonical file content update.sh accepts: one line, keys in this exact
  * order. Throws (ZodError) for a request the updater would refuse.
  */
@@ -110,6 +127,12 @@ export const UPDATE_STATUS_CODES = [
   "migrateFailed",
   "upFailed",
   "healthFailed",
+  // rolled_back: `opsdeck restore` refused (exit 3) before any write
+  "restoreChecksumMismatch",
+  "restoreKeyMismatch",
+  "restoreNotFound",
+  "restoreVersionMismatch",
+  "restoreRefused",
   // rolled_back after a signal (`interrupted`) or an updater bug (`updaterError`);
   // failed with these when it stopped before anything changed
   "interrupted",

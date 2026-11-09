@@ -169,6 +169,8 @@ on_exit() {
   if [ -n "$work" ]; then rm -rf "$work"; fi
   if [ "$running" = 1 ] && [ -z "$caught" ] &&
     { [ -e "$request" ] || [ -L "$request" ]; }; then
+    # Ignored signals would be inherited and could not be trapped again.
+    trap - TERM INT HUP EXIT
     exec 9<&-
     exec sh "$0" "$dir"
   fi
@@ -328,6 +330,20 @@ rollback() { # <failed step>
   finish failed rollbackFailed
 }
 
+# `opsdeck restore` exit 3: refused before any write (lib/updates/request.ts),
+# so the previous images go back. Its errorCode is kept when it is known.
+restore_refused() {
+  restore_invoked=0
+  code=$(sed -n 's/.*"errorCode":"\([A-Za-z0-9_]*\)".*/\1/p' "$work/out" | tail -n 1)
+  case $code in
+    restoreChecksumMismatch | restoreKeyMismatch | restoreNotFound | restoreVersionMismatch) ;;
+    *) code=restoreRefused ;;
+  esac
+  log "restore refused ($code); the database is untouched"
+  if restore_previous; then finish rolled_back "$code"; fi
+  finish failed rollbackFailed
+}
+
 # After `opsdeck restore` ran, the data is no longer the previous version's,
 # so nothing is rolled back: the restore version is started again and the run
 # fails with restoreFailed (the safety backup in the status undoes it).
@@ -340,6 +356,9 @@ restore_failed() { # <failed step>
 # Steps 5-10: record, pin, pull, migrate, up, health; rollback on failure.
 pin_and_start() { # <version> <pin file>
   record_previous
+  # After a restore, previous.env now holds the restored version: from here a
+  # failure rolls back to it (never to the images from before the restore).
+  restore_invoked=0
   set_step pull
   apply_env_lines "$2"
   run_logged docker compose pull || rollback pull
@@ -361,17 +380,17 @@ backup() { # <trigger>
 }
 
 # The pre-restore backup, so the UI can offer to undo the restore. The CLI's
-# result line is checked like any other untrusted JSON.
+# result line is checked like any other untrusted JSON; 1 when it is unusable.
 remember_safety_backup() {
   grep -E '^\{"id":' "$work/out" | tail -n 1 >"$work/backup.json"
-  one_line_json "$work/backup.json" 4096 || return 0
+  one_line_json "$work/backup.json" 4096 || return 1
   id=$(json_str id "$work/backup.json") || id=
-  location=$(json_str location "$work/backup.json") || return 0
-  key=$(json_str objectKey "$work/backup.json") || return 0
-  case $key in *..*) return 0 ;; esac
-  [ "${#key}" -le 511 ] || return 0
-  matches "$key" "$OBJECT_KEY_RE" || return 0
-  matches "$location" '(local|s3)' || return 0
+  location=$(json_str location "$work/backup.json") || return 1
+  key=$(json_str objectKey "$work/backup.json") || return 1
+  case $key in *..*) return 1 ;; esac
+  [ "${#key}" -le 511 ] || return 1
+  matches "$key" "$OBJECT_KEY_RE" || return 1
+  matches "$location" '(local|s3)' || return 1
   matches "$id" '[A-Za-z0-9_-]{1,64}' || id=
   safety_id=$id
   safety_location=$location
@@ -412,7 +431,11 @@ restore() {
 
   # Taken by the running images, before anything changes.
   backup restore
-  remember_safety_backup
+  if ! remember_safety_backup; then
+    # Never restore without a way back.
+    log "safety backup: no usable result line"
+    finish failed backupFailed
+  fi
   record_previous
   set_step pull
   apply_env_lines "$pin_backup"
@@ -420,12 +443,17 @@ restore() {
   set_step restore
   run_logged docker compose stop app terminal || rollback stop
   restore_invoked=1
-  run_logged docker compose run --rm app opsdeck restore "$object_key" || restore_failed restore
+  rc=0
+  run_logged docker compose run --rm app opsdeck restore "$object_key" || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    restore_refused
+  elif [ "$rc" -ne 0 ]; then
+    restore_failed restore
+  fi
   set_step up
   compose_up || restore_failed up
   set_step health
   healthy "$version" || restore_failed health
-  restore_invoked=0
 
   if [ -n "$continue_to" ]; then
     # From here on, a rollback returns to the restored version.
