@@ -39,6 +39,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     ci: "",
     server: "",
     server2: "",
+    serverAlias: "",
     account: "",
     zone: "",
     tunnel: "",
@@ -79,7 +80,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       .where(eq(s.cloudflareAccounts.name, "td-it"));
     await db
       .delete(s.servers)
-      .where(inArray(s.servers.name, ["td-it server", "td-it server 2"]));
+      .where(
+        inArray(s.servers.name, [
+          "td-it server",
+          "td-it server 2",
+          "td-it server alias",
+        ])
+      );
   }
 
   async function server(name: string, host: string) {
@@ -152,6 +159,8 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     }
     ids.server = await server("td-it server", "192.0.2.20");
     ids.server2 = await server("td-it server 2", "192.0.2.21");
+    // A second row for the first machine, as another login would add it.
+    ids.serverAlias = await server("td-it server alias", " 192.0.2.20 ");
     ids.env = await environment("TD Main");
     ids.other = await environment("TD Other");
     await db.insert(s.deployTargets).values([
@@ -215,10 +224,20 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     const loaded = await loadTeardownEnvironment(ids.env);
     expect(loaded).toEqual({
       targets: [
-        { serverId: ids.server, deployDir: "/deployments/td-it" },
-        { serverId: ids.server, deployDir: "/deployments/td-it/" },
+        {
+          serverId: ids.server,
+          host: "192.0.2.20",
+          deployDir: "/deployments/td-it",
+        },
+        {
+          serverId: ids.server,
+          host: "192.0.2.20",
+          deployDir: "/deployments/td-it/",
+        },
       ],
-      otherTargets: [],
+      // Every other environment's target; the planner matches by host.
+      otherTargets: [{ host: "192.0.2.21", deployDir: "/deployments/td-it" }],
+      otherDomains: [],
       dbServices: [
         { id: ids.dbService, dbType: "postgres", dbKind: "container" },
       ],
@@ -241,17 +260,24 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     ]);
   });
 
-  it("refuses once another environment uses the dir on the same server", async () => {
+  it("refuses once another environment uses the dir on the same machine", async () => {
     const third = await environment("TD Third");
     await db.insert(s.deployTargets).values({
       environmentId: third,
       componentKey: "td-it",
-      serverId: ids.server,
+      // Another server row with the same host.
+      serverId: ids.serverAlias,
       sourceBranch: "main",
       deployDir: "/deployments/td-it",
       services: ["backend"],
     });
     try {
+      expect(
+        (await loadTeardownEnvironment(ids.env))?.otherTargets
+      ).toContainEqual({
+        host: " 192.0.2.20 ",
+        deployDir: "/deployments/td-it",
+      });
       await expect(buildTeardownPlan(ids.env)).resolves.toEqual({
         refusal: "deployDirShared",
       });
@@ -315,6 +341,31 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       accessAppId: "cf-app-1",
       dnsRecordId: "cf-rec-1",
     });
+    expect(loaded?.otherDomains).toEqual([]);
+  });
+
+  it("loads another environment's domain that records the same Access app", async () => {
+    await db.insert(s.environmentDomains).values({
+      environmentId: ids.other,
+      kind: "tunnel",
+      hostname: "other.td-it.example",
+      zoneId: ids.zone,
+      remoteTunnelId: ids.tunnel,
+      accessAppId: "cf-app-1",
+      dnsRecordId: "cf-rec-other",
+    });
+    try {
+      expect((await loadTeardownEnvironment(ids.env))?.otherDomains).toEqual([
+        { accessAppId: "cf-app-1", dnsRecordId: "cf-rec-other" },
+      ]);
+      await expect(buildTeardownPlan(ids.env)).resolves.toEqual({
+        refusal: "domainShared",
+      });
+    } finally {
+      await db
+        .delete(s.environmentDomains)
+        .where(eq(s.environmentDomains.environmentId, ids.other));
+    }
   });
 
   it("saves and lists steps in order, keeping finished ones on a re-save", async () => {

@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import { z } from "zod";
 import type { TeardownRefusal } from "@/lib/teardown/errors";
 import {
@@ -27,26 +28,78 @@ export type TeardownStepKind = TeardownStepSpec["kind"];
 // One path segment: no `.`/`..`, whitespace, quotes or shell metacharacters.
 const SAFE_SEGMENT = /^[A-Za-z0-9._@+-]+$/;
 
-/** The directory without trailing slashes; `/` stays `/`. */
+// System trees: neither they nor anything under them is ever a deploy dir.
+const SYSTEM_TREES = [
+  "/etc",
+  "/usr",
+  "/bin",
+  "/sbin",
+  "/lib",
+  "/lib64",
+  "/boot",
+  "/proc",
+  "/sys",
+  "/dev",
+  "/run",
+  "/var/lib/docker",
+  "/var/lib/containers",
+];
+
+// Parents of real data: refused themselves, their subdirectories are fine.
+const PARENT_DIRS = new Set(["/root", "/opt/stacks", "/srv", "/var/lib"]);
+
+/**
+ * The canonical form used for every comparison: `.`/`..`/`//` resolved
+ * (`path.posix.normalize`), no trailing slash; `/` stays `/`.
+ */
 export function normaliseDeployDir(dir: string): string {
-  const trimmed = dir.replace(/\/+$/, "");
-  return trimmed === "" && dir.startsWith("/") ? "/" : trimmed;
+  const normal = posix.normalize(dir);
+  return normal.length > 1 ? normal.replace(/\/+$/, "") : normal;
 }
 
 /**
  * Whether a deploy directory may be archived, brought down and `rm -rf`-ed:
  * absolute, at least two plain segments (so neither `/` nor a top-level dir
- * such as `/deployments`), no `.`/`..` or empty segment, and nothing a shell
- * would read (whitespace, quotes, `$`, `;`, `*`, …). A trailing slash is fine.
+ * such as `/deployments`), no `.`/`..` or empty segment, nothing a shell
+ * would read (whitespace, quotes, `$`, `;`, `*`, …), not in or under a system
+ * tree (`/etc`, `/usr`, `/var/lib/docker`, …) and not itself a parent of real
+ * data (`/root`, `/home/<user>`, `/opt/stacks`, `/srv`, `/var/lib`). A
+ * trailing slash is fine.
  */
 export function isSafeDeployDir(dir: string): boolean {
   if (!dir.startsWith("/")) return false;
-  const segments = normaliseDeployDir(dir).slice(1).split("/");
+  const segments = dir.replace(/\/+$/, "").slice(1).split("/");
   if (segments.length < 2) return false;
-  return segments.every(
+  const plain = segments.every(
     (segment) =>
       segment !== "." && segment !== ".." && SAFE_SEGMENT.test(segment)
   );
+  if (!plain) return false;
+  const normal = `/${segments.join("/")}`;
+  if (SYSTEM_TREES.some((tree) => dirsOverlap(normal, tree))) return false;
+  if (PARENT_DIRS.has(normal)) return false;
+  return !(segments.length === 2 && segments[0] === "home");
+}
+
+/**
+ * The project name plain `docker compose` (no `-p`, no `name:`) derives from
+ * a directory: its basename, lowercased, keeping only `[a-z0-9_-]`, without
+ * leading `_`/`-` (compose-go's NormalizeProjectName).
+ */
+export function composeProjectName(dir: string): string {
+  return (
+    posix
+      .basename(normaliseDeployDir(dir))
+      .toLowerCase()
+      .match(/[a-z0-9_-]/g) ?? []
+  )
+    .join("")
+    .replace(/^[_-]+/, "");
+}
+
+/** The machine a server row points at, for comparing rows. */
+export function normaliseHost(host: string): string {
+  return host.trim().toLowerCase();
 }
 
 const dirParams = z.object({
@@ -98,9 +151,20 @@ export type TeardownPlan =
   | { steps: TeardownStepSpec[] }
   | { refusal: TeardownRefusal };
 
-/** Whether one directory is the other or lies inside it. */
+/** Whether one directory is the other or lies inside it (canonical dirs). */
 function dirsOverlap(a: string, b: string): boolean {
   return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+/**
+ * Whether another environment's dir collides with ours on one machine: the
+ * dirs overlap, or plain `docker compose` would give both the same project
+ * (so `compose down --remove-orphans --volumes` in ours hits theirs).
+ */
+function dirsCollide(ours: string, theirs: string): boolean {
+  if (dirsOverlap(ours, theirs)) return true;
+  const project = composeProjectName(ours);
+  return project !== "" && project === composeProjectName(theirs);
 }
 
 /**
@@ -109,28 +173,32 @@ function dirsOverlap(a: string, b: string): boolean {
  * databases, remove the Cloudflare objects the Panel created (only those whose
  * ids are recorded), remove the deploy directories, then the environment row.
  * Nothing destructive comes before both archives. Refuses an unsafe deploy
- * dir, a dir that overlaps another environment's on the same server, and a
- * database the Panel cannot dump (only Postgres is). Pure.
+ * dir, a dir that collides with another environment's on the same machine
+ * (compared by host, so two server rows for one machine count as one), a
+ * database the Panel cannot dump (only Postgres is), and a Cloudflare object
+ * another environment also records. Pure.
  */
 export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   const dirs: DirParams[] = [];
+  const machineDirs: { host: string; deployDir: string }[] = [];
   const seen = new Set<string>();
   for (const target of env.targets) {
     if (!isSafeDeployDir(target.deployDir)) {
       return { refusal: "unsafeDeployDir" };
     }
     const deployDir = normaliseDeployDir(target.deployDir);
+    machineDirs.push({ host: normaliseHost(target.host), deployDir });
     const key = JSON.stringify([target.serverId, deployDir]);
     if (seen.has(key)) continue;
     seen.add(key);
     dirs.push({ serverId: target.serverId, deployDir });
   }
 
-  const shared = dirs.some((dir) =>
+  const shared = machineDirs.some((ours) =>
     env.otherTargets.some(
       (other) =>
-        other.serverId === dir.serverId &&
-        dirsOverlap(dir.deployDir, normaliseDeployDir(other.deployDir))
+        normaliseHost(other.host) === ours.host &&
+        dirsCollide(ours.deployDir, normaliseDeployDir(other.deployDir))
     )
   );
   if (shared) return { refusal: "deployDirShared" };
@@ -138,6 +206,18 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   if (env.dbServices.some((service) => service.dbType !== "postgres")) {
     return { refusal: "databaseBackupUnsupported" };
   }
+
+  const domain = env.domain?.kind === "tunnel" ? env.domain : null;
+  const domainShared =
+    domain !== null &&
+    env.otherDomains.some(
+      (other) =>
+        (domain.accessAppId !== null &&
+          other.accessAppId === domain.accessAppId) ||
+        (domain.dnsRecordId !== null &&
+          other.dnsRecordId === domain.dnsRecordId)
+    );
+  if (domainShared) return { refusal: "domainShared" };
 
   const steps: TeardownStepSpec[] = [];
   for (const params of dirs) steps.push({ kind: "check_stack", params });
@@ -152,8 +232,15 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
     steps.push({ kind: "drop_database", params: { serviceId: service.id } });
   }
 
-  const domain = env.domain;
-  if (domain?.kind === "tunnel" && domain.remoteTunnelId) {
+  // DNS record, then route, then Access app: at every step in between the
+  // hostname either does not resolve or is still behind Access.
+  if (domain?.zoneId && domain.dnsRecordId) {
+    steps.push({
+      kind: "remove_dns_record",
+      params: { zoneId: domain.zoneId, recordId: domain.dnsRecordId },
+    });
+  }
+  if (domain?.remoteTunnelId) {
     steps.push({
       kind: "remove_tunnel_route",
       params: {
@@ -166,12 +253,6 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
     steps.push({
       kind: "remove_access_app",
       params: { zoneId: domain.zoneId, appId: domain.accessAppId },
-    });
-  }
-  if (domain?.zoneId && domain.dnsRecordId) {
-    steps.push({
-      kind: "remove_dns_record",
-      params: { zoneId: domain.zoneId, recordId: domain.dnsRecordId },
     });
   }
 

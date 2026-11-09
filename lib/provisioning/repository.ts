@@ -16,11 +16,11 @@ import {
   runs,
   servers,
 } from "@/lib/db/schema";
-import {
-  matchDoneSteps,
-  type ProvisioningEnvironment,
-  type ProvisioningStepSpec,
+import type {
+  ProvisioningEnvironment,
+  ProvisioningStepSpec,
 } from "@/lib/provisioning/plan";
+import { replaceSteps } from "@/lib/steps/replace-steps";
 
 /** The domain as planned, plus what the GET shows and showPanel reads. */
 export type ProvisioningDomain = NonNullable<
@@ -133,44 +133,7 @@ export async function savePlan(
   environmentId: string,
   specs: ProvisioningStepSpec[]
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    const existing = await tx
-      .select()
-      .from(provisioningSteps)
-      .where(eq(provisioningSteps.environmentId, environmentId));
-    const keepIds = matchDoneSteps(existing, specs);
-    const kept = new Set(keepIds.filter((id): id is string => id !== null));
-    const dropIds = existing.filter((s) => !kept.has(s.id)).map((s) => s.id);
-    if (dropIds.length > 0) {
-      await tx
-        .delete(provisioningSteps)
-        .where(inArray(provisioningSteps.id, dropIds));
-    }
-    if (kept.size > 0) {
-      // Two phases: park kept rows on negative positions so moving one never
-      // collides with another's old position on the unique index.
-      await tx
-        .update(provisioningSteps)
-        .set({ position: sql`-1 - ${provisioningSteps.position}` })
-        .where(inArray(provisioningSteps.id, [...kept]));
-    }
-    for (const [position, spec] of specs.entries()) {
-      const keepId = keepIds[position];
-      if (keepId) {
-        await tx
-          .update(provisioningSteps)
-          .set({ position })
-          .where(eq(provisioningSteps.id, keepId));
-      } else {
-        await tx.insert(provisioningSteps).values({
-          environmentId,
-          position,
-          kind: spec.kind,
-          params: spec.params,
-        });
-      }
-    }
-  });
+  await replaceSteps(provisioningSteps, environmentId, specs);
 }
 
 export const STALE_PROVISION_RUN_MS = 60 * 60_000;

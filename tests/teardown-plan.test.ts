@@ -25,14 +25,35 @@ const { TEARDOWN_ERRORS } = await import("@/lib/teardown/errors");
 
 const S1 = "server-1";
 const S2 = "server-2";
+// The machine behind each server row (S1b is a second row for S1's machine).
+const HOSTS: Record<string, string> = {
+  [S1]: "app-1.lan",
+  [S2]: "app-2.lan",
+  "server-1b": " APP-1.lan ",
+};
 
-function env(over: Partial<TeardownEnvironment> = {}): TeardownEnvironment {
+type Dir = { serverId: string; deployDir: string };
+type EnvInput = Omit<
+  Partial<TeardownEnvironment>,
+  "targets" | "otherTargets"
+> & { targets?: Dir[]; otherTargets?: Dir[] };
+
+/** Fills in each dir's host from its server row. */
+function env(over: EnvInput = {}): TeardownEnvironment {
+  const host = (serverId: string) => HOSTS[serverId] ?? serverId;
   return {
-    targets: [],
-    otherTargets: [],
     dbServices: [],
     domain: null,
+    otherDomains: [],
     ...over,
+    targets: (over.targets ?? []).map((t) => ({
+      ...t,
+      host: host(t.serverId),
+    })),
+    otherTargets: (over.otherTargets ?? []).map((t) => ({
+      host: host(t.serverId),
+      deployDir: t.deployDir,
+    })),
   };
 }
 
@@ -63,6 +84,28 @@ describe("isSafeDeployDir", () => {
     "/deployments/a&b",
     "/deployments/a*",
     "/deployments/a\nb",
+    "/etc/nginx",
+    "/etc/nginx/conf.d",
+    "/usr/local",
+    "/bin/x",
+    "/sbin/x",
+    "/lib/x",
+    "/lib64/x",
+    "/boot/efi",
+    "/proc/1",
+    "/sys/fs",
+    "/dev/shm",
+    "/run/user",
+    "/var/lib/docker",
+    "/var/lib/docker/volumes/x",
+    "/var/lib/containers/storage",
+    "/root",
+    "/home/deploy",
+    "/home/deploy/",
+    "/opt/stacks",
+    "/opt/stacks/",
+    "/srv",
+    "/var/lib",
   ])("refuses %j", (dir) => {
     expect(isSafeDeployDir(dir)).toBe(false);
   });
@@ -72,6 +115,11 @@ describe("isSafeDeployDir", () => {
     "/opt/stacks/x",
     "/deployments/dplk-dms/",
     "/srv/app_1.2",
+    "/srv/x",
+    "/home/deploy/stacks",
+    "/var/lib/app",
+    "/etcetera/x",
+    "/usrx/y",
   ])("accepts %j", (dir) => {
     expect(isSafeDeployDir(dir)).toBe(true);
   });
@@ -185,6 +233,87 @@ describe("planTeardown", () => {
     expect("steps" in result).toBe(true);
   });
 
+  it("compares machines by host, not by server row", () => {
+    expect(
+      planTeardown(
+        env({
+          targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+          otherTargets: [
+            { serverId: "server-1b", deployDir: "/deployments/dms" },
+          ],
+        })
+      )
+    ).toEqual({ refusal: "deployDirShared" });
+  });
+
+  it("canonicalises another environment's dir before comparing", () => {
+    for (const other of [
+      "/deployments//dms",
+      "/deployments/./dms",
+      "/deployments/x/../dms/",
+    ]) {
+      expect(
+        planTeardown(
+          env({
+            targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+            otherTargets: [{ serverId: S1, deployDir: other }],
+          })
+        )
+      ).toEqual({ refusal: "deployDirShared" });
+    }
+  });
+
+  it("refuses a dir with the same compose project name as another environment's", () => {
+    for (const other of ["/opt/stacks/dms", "/opt/stacks/DMS/", "/srv/d.ms"]) {
+      expect(
+        planTeardown(
+          env({
+            targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+            otherTargets: [{ serverId: S1, deployDir: other }],
+          })
+        )
+      ).toEqual({ refusal: "deployDirShared" });
+    }
+  });
+
+  it("ignores the same compose project name on another machine", () => {
+    const result = planTeardown(
+      env({
+        targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+        otherTargets: [{ serverId: S2, deployDir: "/opt/stacks/dms" }],
+      })
+    );
+    expect("steps" in result).toBe(true);
+  });
+
+  it("refuses when another environment records the same Access app or DNS record", () => {
+    const domain = {
+      kind: "tunnel" as const,
+      hostname: "dms.example.com",
+      zoneId: "zone-1",
+      remoteTunnelId: "tunnel-1",
+      accessAppId: "app-1",
+      dnsRecordId: "rec-1",
+    };
+    for (const other of [
+      { accessAppId: "app-1", dnsRecordId: null },
+      { accessAppId: null, dnsRecordId: "rec-1" },
+    ]) {
+      expect(planTeardown(env({ domain, otherDomains: [other] }))).toEqual({
+        refusal: "domainShared",
+      });
+    }
+    expect(
+      "steps" in
+        planTeardown(
+          env({
+            domain,
+            otherDomains: [{ accessAppId: "app-2", dnsRecordId: "rec-2" }],
+          })
+        )
+    ).toBe(true);
+  });
+
   it("refuses an unsafe deploy dir", () => {
     for (const deployDir of ["/", "/deployments", "/deployments/../etc"]) {
       expect(
@@ -234,29 +363,29 @@ describe("planTeardown", () => {
     expect(planTeardown(env({ domain }))).toEqual({
       steps: [
         {
-          kind: "remove_tunnel_route",
-          params: { remoteTunnelId: "tunnel-1", hostname: "dms.example.com" },
-        },
-        {
           kind: "remove_dns_record",
           params: { zoneId: "zone-1", recordId: "rec-1" },
+        },
+        {
+          kind: "remove_tunnel_route",
+          params: { remoteTunnelId: "tunnel-1", hostname: "dms.example.com" },
         },
         { kind: "delete_environment", params: {} },
       ],
     });
   });
 
-  it("plans nothing on Cloudflare for an external domain", () => {
+  it("plans nothing on Cloudflare for an external domain, even with ids", () => {
     expect(
       planTeardown(
         env({
           domain: {
             kind: "external",
             hostname: "dms.example.org",
-            zoneId: null,
-            remoteTunnelId: null,
-            accessAppId: null,
-            dnsRecordId: null,
+            zoneId: "zone-1",
+            remoteTunnelId: "tunnel-1",
+            accessAppId: "app-1",
+            dnsRecordId: "rec-1",
           },
         })
       )
@@ -287,9 +416,9 @@ describe("planTeardown", () => {
       "archive_deploy_dir",
       "stack_down",
       "drop_database",
+      "remove_dns_record",
       "remove_tunnel_route",
       "remove_access_app",
-      "remove_dns_record",
       "remove_deploy_dir",
       "delete_environment",
     ]);
@@ -353,6 +482,7 @@ describe("teardownStepSpecSchema", () => {
 describe("teardown error messages", () => {
   const codes = [
     "deployDirShared",
+    "domainShared",
     "databaseBackupUnsupported",
     "unsafeDeployDir",
     "environmentBusy",

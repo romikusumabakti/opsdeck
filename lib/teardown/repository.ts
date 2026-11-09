@@ -1,24 +1,23 @@
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   deployTargets,
   environmentDomains,
   environmentServices,
   environments,
+  servers,
   type TeardownStep,
   teardownSteps,
 } from "@/lib/db/schema";
-import { matchDoneSteps } from "@/lib/provisioning/plan";
+import { replaceSteps } from "@/lib/steps/replace-steps";
 import type { TeardownStepSpec } from "@/lib/teardown/plan";
 
-type DeployDir = { serverId: string; deployDir: string };
-
-/** What planTeardown needs of an environment. */
+/** What planTeardown needs of an environment. Dirs and hosts as stored. */
 export type TeardownEnvironment = {
-  /** The environment's deploy targets, as stored (dirs not normalised). */
-  targets: DeployDir[];
-  /** Other environments' targets on the same servers. */
-  otherTargets: DeployDir[];
+  /** The environment's deploy targets with their server's host. */
+  targets: { serverId: string; host: string; deployDir: string }[];
+  /** Every other environment's target with its server's host. */
+  otherTargets: { host: string; deployDir: string }[];
   dbServices: {
     id: string;
     dbType: "postgres" | "mssql" | "mysql" | null;
@@ -33,6 +32,8 @@ export type TeardownEnvironment = {
     accessAppId: string | null;
     dnsRecordId: string | null;
   } | null;
+  /** Other environments' domains that record the same Access app or DNS record. */
+  otherDomains: { accessAppId: string | null; dnsRecordId: string | null }[];
 };
 
 /** The environment's targets, db services and domain, or null when absent. */
@@ -48,27 +49,24 @@ export async function loadTeardownEnvironment(
   const targets = await db
     .select({
       serverId: deployTargets.serverId,
+      host: servers.host,
       deployDir: deployTargets.deployDir,
     })
     .from(deployTargets)
+    .innerJoin(servers, eq(servers.id, deployTargets.serverId))
     .where(eq(deployTargets.environmentId, environmentId))
     .orderBy(asc(deployTargets.createdAt), asc(deployTargets.id));
-  const serverIds = [...new Set(targets.map((t) => t.serverId))];
+  // Every other environment's target with its host: planTeardown matches
+  // machines by normalised host, since two server rows (another login, say)
+  // can be one machine. The Panel has tens of targets, not thousands.
   const otherTargets =
-    serverIds.length === 0
+    targets.length === 0
       ? []
       : await db
-          .select({
-            serverId: deployTargets.serverId,
-            deployDir: deployTargets.deployDir,
-          })
+          .select({ host: servers.host, deployDir: deployTargets.deployDir })
           .from(deployTargets)
-          .where(
-            and(
-              inArray(deployTargets.serverId, serverIds),
-              ne(deployTargets.environmentId, environmentId)
-            )
-          )
+          .innerJoin(servers, eq(servers.id, deployTargets.serverId))
+          .where(ne(deployTargets.environmentId, environmentId))
           .orderBy(asc(deployTargets.id));
 
   const dbServices = await db
@@ -98,7 +96,36 @@ export async function loadTeardownEnvironment(
     .from(environmentDomains)
     .where(eq(environmentDomains.environmentId, environmentId));
 
-  return { targets, otherTargets, dbServices, domain: domain ?? null };
+  const ids = [domain?.accessAppId, domain?.dnsRecordId].filter(
+    (id): id is string => typeof id === "string"
+  );
+  const otherDomains =
+    ids.length === 0
+      ? []
+      : await db
+          .select({
+            accessAppId: environmentDomains.accessAppId,
+            dnsRecordId: environmentDomains.dnsRecordId,
+          })
+          .from(environmentDomains)
+          .where(
+            and(
+              ne(environmentDomains.environmentId, environmentId),
+              or(
+                inArray(environmentDomains.accessAppId, ids),
+                inArray(environmentDomains.dnsRecordId, ids)
+              )
+            )
+          )
+          .orderBy(asc(environmentDomains.environmentId));
+
+  return {
+    targets,
+    otherTargets,
+    dbServices,
+    domain: domain ?? null,
+    otherDomains,
+  };
 }
 
 export async function listTeardownSteps(
@@ -121,40 +148,5 @@ export async function saveTeardownSteps(
   environmentId: string,
   specs: TeardownStepSpec[]
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    const existing = await tx
-      .select()
-      .from(teardownSteps)
-      .where(eq(teardownSteps.environmentId, environmentId));
-    const keepIds = matchDoneSteps(existing, specs);
-    const kept = new Set(keepIds.filter((id): id is string => id !== null));
-    const dropIds = existing.filter((s) => !kept.has(s.id)).map((s) => s.id);
-    if (dropIds.length > 0) {
-      await tx.delete(teardownSteps).where(inArray(teardownSteps.id, dropIds));
-    }
-    if (kept.size > 0) {
-      // Park kept rows on negative positions first so moving one never
-      // collides with another's old position on the unique index.
-      await tx
-        .update(teardownSteps)
-        .set({ position: sql`-1 - ${teardownSteps.position}` })
-        .where(inArray(teardownSteps.id, [...kept]));
-    }
-    for (const [position, spec] of specs.entries()) {
-      const keepId = keepIds[position];
-      if (keepId) {
-        await tx
-          .update(teardownSteps)
-          .set({ position, updatedAt: new Date() })
-          .where(eq(teardownSteps.id, keepId));
-      } else {
-        await tx.insert(teardownSteps).values({
-          environmentId,
-          position,
-          kind: spec.kind,
-          params: spec.params,
-        });
-      }
-    }
-  });
+  await replaceSteps(teardownSteps, environmentId, specs);
 }
