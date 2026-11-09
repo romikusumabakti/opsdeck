@@ -13,6 +13,7 @@ import {
   authorizedKeysLine,
   beginRotation,
   ensureCurrentKey,
+  installCommand,
   isValidFrom,
   keyJobLock,
   keyJobLockHeld,
@@ -282,11 +283,8 @@ export async function getInstanceSshKey(): Promise<InstanceSshKey> {
 }
 
 /**
- * The current key's authorized_keys line restricted to `from`, and a command
- * that installs it as the login user: ~/.ssh 0700, the line appended (after a
- * newline, in case the file does not end with one; sshd skips blank lines),
- * the file 0600. The line holds no single quote (authorizedKeysLine allows
- * none), so it is safe inside one.
+ * The current key's authorized_keys line restricted to `from`, and the
+ * command that installs it (installCommand), for a server not saved yet.
  */
 export async function getAuthorizedKeysLine(
   from: string
@@ -298,6 +296,5 @@ export async function getAuthorizedKeysLine(
   }
   const key = await ensureCurrentKey();
   const line = authorizedKeysLine(key.publicKey, from, keyMarker(key.id));
-  const command = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && printf '\\n%s\\n' '${line}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`;
-  return { line, command };
+  return { line, command: installCommand(line) };
 }

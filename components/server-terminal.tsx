@@ -3,8 +3,11 @@ import "@xterm/xterm/css/xterm.css";
 import { useTheme } from "next-themes";
 import * as React from "react";
 import { useTranslations } from "use-intl";
+import {
+  HostKeyReviewLink,
+  isHostKeyMismatchFrame,
+} from "@/components/host-key-mismatch";
 import { Button } from "@/components/ui/button";
-import { Link } from "@/i18n/navigation";
 
 // The browser half of the terminal. xterm reaches for `window` during
 // construction, so the library is imported inside the effect rather than at
@@ -242,7 +245,7 @@ export function ServerTerminal({
           }
           // The sidecar sends a changed host key as its stable code; retrying
           // would only be refused again.
-          if (msg.message === "hostKeyMismatch") {
+          if (isHostKeyMismatchFrame(msg.message)) {
             ended = true;
             setHostKeyMismatch(true);
             return;
@@ -311,9 +314,9 @@ export function ServerTerminal({
           {hostKeyMismatch && (
             <span className="text-destructive">
               · {tErrors("hostKeyMismatch")}{" "}
-              <Link href={`/servers/${serverId}`} className="underline">
+              <HostKeyReviewLink serverId={serverId}>
                 {t("reviewHostKey")}
-              </Link>
+              </HostKeyReviewLink>
             </span>
           )}
         </span>

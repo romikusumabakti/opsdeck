@@ -1,6 +1,6 @@
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { KeyRound, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useKeyErrorMessage } from "@/hooks/use-key-error-message";
 import {
   getInstanceSshKeyQuery,
   type InstanceSshKeyData,
@@ -33,10 +34,12 @@ import { reportError } from "./report-error";
 
 const POLL_MS = 2000;
 
-/** A stored key error code as a sentence (the code itself when unknown). */
-function useCodeMessage(): (code: string) => string {
-  const t = useTranslations("actionErrors");
-  return (code) => (t.has(code as never) ? t(code as never) : code);
+/** How often to refetch: every POLL_MS while the last job runs, else never. */
+export function keyJobPollInterval(
+  data: Pick<InstanceSshKeyData, "lastJob"> | undefined
+): number | false {
+  const job = data?.lastJob;
+  return job && job.finishedAt === null ? POLL_MS : false;
 }
 
 /**
@@ -51,13 +54,19 @@ export function SshKeyTab() {
   const queryClient = useQueryClient();
   const data = useSuspenseQuery({
     ...getInstanceSshKeyQuery(),
-    refetchInterval: (query) => {
-      const job = query.state.data?.lastJob;
-      return job && job.finishedAt === null ? POLL_MS : false;
-    },
+    refetchInterval: (query) => keyJobPollInterval(query.state.data),
   }).data;
   const [requesting, setRequesting] = useState(false);
   const running = data.lastJob !== null && data.lastJob.finishedAt === null;
+  // A job that just finished changed servers' sign-in: the Servers list
+  // refetches instead of showing the old Access badges.
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      void queryClient.invalidateQueries({ queryKey: ["servers"] });
+    }
+    wasRunning.current = running;
+  }, [running, queryClient]);
 
   async function start(
     confirm: { title: string; description: string; confirmText: string },
@@ -101,6 +110,11 @@ export function SshKeyTab() {
             <dt className="text-muted-foreground">{t("fingerprint")}</dt>
             <dd className="font-mono text-xs break-all">{data.fingerprint}</dd>
           </dl>
+          {data.previous ? (
+            <p className="text-sm text-amber-700 dark:text-amber-500">
+              {t("previousKey", { fingerprint: data.previous.fingerprint })}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={running || requesting}
@@ -143,7 +157,7 @@ export function SshKeyTab() {
 
 function JobCard({ job }: { job: NonNullable<InstanceSshKeyData["lastJob"]> }) {
   const t = useTranslations("instanceSshKey");
-  const message = useCodeMessage();
+  const message = useKeyErrorMessage();
   const running = job.finishedAt === null;
   const count = job.results.length;
 

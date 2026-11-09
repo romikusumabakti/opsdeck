@@ -1017,7 +1017,9 @@
     "hostKeyHint": "主机密钥 {fingerprint}",
     "hostKeyNotPinnedHint": "主机密钥尚未固定",
     "deleteKeyNote": "面板的密钥仍保留在该服务器的 ~/.ssh/authorized_keys 中。请手动删除以 {marker} 结尾的那一行。",
-    "bulkDeleteKeyNote": "使用 SSH 密钥的服务器仍会在 ~/.ssh/authorized_keys 中保留面板的密钥。请手动删除该行。"
+    "bulkDeleteKeyNote": "使用 SSH 密钥的服务器仍会在 ~/.ssh/authorized_keys 中保留面板的密钥。请手动删除该行。",
+    "accessKeyNotVerified": "密钥尚未验证",
+    "accessNeedsSetup": "需要设置"
   },
   "serverForm": {
     "name": "名称",
@@ -1469,7 +1471,10 @@
     "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。",
     "databaseHostVersion": "该容器运行的 Postgres 版本低于 15；只能注册 Postgres 15 或更高版本。",
     "defaultServerForbidden": "只有管理员和基础设施人员可以更改项目的默认服务器。",
-    "invalidFrom": "请输入 IP 地址或子网，例如 192.168.1.10 或 172.29.0.0/16。"
+    "invalidFrom": "请输入 IP 地址或子网，例如 192.168.1.10 或 172.29.0.0/16。",
+    "keyNotVerified": "SSH 密钥尚未成功登录。请在服务器上运行安装命令，然后点击检查密钥登录。",
+    "notKeyServer": "此服务器不使用 SSH 密钥登录。",
+    "keyServerNoPassword": "此服务器使用 SSH 密钥登录，因此不保存密码。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -3254,7 +3259,12 @@
     "trustTitle": "信任新的主机密钥？",
     "trustDescription": "只有在服务器本机上核对过 {fingerprint} 后才信任它。",
     "trustDone": "已信任新的主机密钥。",
-    "reviewHostKey": "查看主机密钥"
+    "reviewHostKey": "查看主机密钥",
+    "keyNotVerified": "SSH 密钥，尚未验证",
+    "needsSetup": "需要设置：没有密码也没有密钥",
+    "showInstallCommand": "显示安装命令",
+    "checkKeyLogin": "检查密钥登录",
+    "checkKeyLoginDone": "SSH 密钥登录成功。"
   },
   "instanceSshKey": {
     "title": "SSH 密钥",
@@ -3276,6 +3286,7 @@
     "colServer": "服务器",
     "colResult": "结果",
     "ok": "完成",
-    "failed": "失败"
+    "failed": "失败",
+    "previousKey": "轮换未完成：部分服务器仍在使用 {fingerprint}。再次运行轮换以重试。"
   }
 }

@@ -132,3 +132,33 @@ export async function trustServerHostKey(
     })
   );
 }
+
+/**
+ * The install command for a key server's own key (the one its row names),
+ * restricted to `from`.
+ */
+export async function getServerAuthorizedLine(id: string, from: string) {
+  return parseResponse(
+    routes[":id"]["authorized-line"].$get({ param: { id }, query: { from } })
+  );
+}
+
+export const getServerAuthorizedLineQuery = (id: string, from: string) =>
+  queryOptions({
+    queryKey: ["servers", "getServerAuthorizedLine", id, from],
+    queryFn: () => getServerAuthorizedLine(id, from),
+    retry: false,
+  });
+
+/**
+ * Signs in to a key server with its key alone; on success the server counts
+ * as verified and `from` (when given) is saved as its from= address.
+ */
+export async function checkServerKeyLogin(id: string, from?: string) {
+  return parseResponse(
+    routes[":id"]["check-key-login"].$post({
+      param: { id },
+      json: from === undefined ? {} : { from },
+    })
+  );
+}

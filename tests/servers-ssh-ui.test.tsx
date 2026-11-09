@@ -20,11 +20,16 @@ const api = vi.hoisted(() => ({
   push: vi.fn(),
   confirm: vi.fn(),
   confirmTyping: vi.fn(),
+  serverLine: vi.fn(),
+  check: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
 }));
+vi.mock("sonner", () => ({ toast }));
 vi.mock("@/hooks/use-unsaved-changes", () => ({ useUnsavedChanges: () => {} }));
 vi.mock("@/i18n/navigation", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -47,6 +52,12 @@ vi.mock("@/web/api/servers", () => ({
   testServerConnection: api.test,
   deleteServer: api.remove,
   bulkDeleteServers: api.bulkRemove,
+  checkServerKeyLogin: api.check,
+  getServerAuthorizedLineQuery: (id: string, from: string) => ({
+    queryKey: ["servers", "getServerAuthorizedLine", id, from],
+    queryFn: () => api.serverLine(id, from),
+    retry: false,
+  }),
 }));
 vi.mock("@/web/api/instance", () => ({
   getInstanceSshKeyQuery: () => ({
@@ -134,6 +145,10 @@ beforeEach(() => {
     fingerprint: "SHA256:instanceFp",
     lastJob: null,
   });
+  api.serverLine.mockImplementation(async (_id: string, from: string) => ({
+    line: `from="${from}" row-key`,
+    command: `install from="${from}" row-key`,
+  }));
   api.line.mockImplementation(async (from: string) => ({
     line: `from="${from}",no-agent-forwarding,no-X11-forwarding ${PUBLIC_KEY} opsdeck:opsdeck:${KEY_ID}`,
     command: `mkdir -p ~/.ssh && chmod 700 ~/.ssh && printf '\\n%s\\n' 'from="${from}" …' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`,
@@ -393,5 +408,171 @@ describe("server form", () => {
     expect(sent).not.toHaveProperty("auth", "key");
     expect(JSON.stringify(sent)).not.toContain("s3cret");
     expect(api.reinstall).toHaveBeenCalledWith(ID, "s3cret");
+  });
+});
+
+const submit = () =>
+  act(async () => {
+    document
+      .querySelector("form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+
+describe("servers that cannot sign in yet", () => {
+  it("the list shows Key not verified yet and Needs setup", async () => {
+    await render(
+      <ServersClient
+        can={ALL}
+        servers={[
+          server({
+            id: `${ID.slice(0, -1)}1`,
+            name: "a",
+            keyError: "keyNotVerified",
+          }),
+          server({
+            id: `${ID.slice(0, -1)}2`,
+            name: "b",
+            auth: "password",
+            hasPassword: false,
+            keyMarker: null,
+            sshKeyId: null,
+          }),
+        ]}
+      />
+    );
+    const rows = [...document.querySelectorAll("tbody tr")].map(
+      (tr) => tr.textContent ?? ""
+    );
+    expect(rows[0]).toContain(tServers.accessKeyNotVerified);
+    expect(rows[1]).toContain(tServers.accessNeedsSetup);
+    expect(rows[1]).not.toContain(tServers.accessPassword);
+  });
+
+  it("an unverified key server's page shows its own command and checks the key with a changed from", async () => {
+    api.check.mockResolvedValue({ ok: true });
+    await render(
+      <ServerAccessCard
+        server={server({ keyError: "keyNotVerified", sshFrom: "192.0.2.1" })}
+        canManage
+      />
+    );
+    expect(text()).toContain(t.keyNotVerified);
+    // Open at once, for the saved row's from.
+    expect(input("sshFrom")?.value).toBe("192.0.2.1");
+    await vi.waitFor(() =>
+      expect(text()).toContain('install from="192.0.2.1" row-key')
+    );
+    expect(api.serverLine).toHaveBeenCalledWith(ID, "192.0.2.1");
+
+    await type(input("sshFrom"), "192.0.2.5");
+    // The old from's command is not shown for the new address.
+    expect(text()).not.toContain('install from="192.0.2.1" row-key');
+    await vi.waitFor(() =>
+      expect(text()).toContain('install from="192.0.2.5" row-key')
+    );
+    await click(button(t.checkKeyLogin));
+    expect(api.check).toHaveBeenCalledWith(ID, "192.0.2.5");
+  });
+
+  it("Check key login with the saved from sends none", async () => {
+    api.check.mockResolvedValue({ ok: true });
+    await render(<ServerAccessCard server={server()} canManage />);
+    await click(button(t.showInstallCommand));
+    await click(button(t.checkKeyLogin));
+    expect(api.check).toHaveBeenCalledWith(ID, undefined);
+  });
+
+  it("Needs setup: Move to SSH key asks for the password and installs with it", async () => {
+    api.reinstall.mockResolvedValue({ ok: true });
+    await render(
+      <ServerAccessCard
+        server={server({ auth: "password", hasPassword: false, sshFrom: null })}
+        canManage
+      />
+    );
+    expect(text()).toContain(t.needsSetup);
+    await click(button(t.moveToKey));
+    expect(api.moveToKey).not.toHaveBeenCalled();
+    await type(
+      document.querySelector<HTMLInputElement>("input[type='password']"),
+      "s3cret"
+    );
+    await click(button(t.install));
+    expect(api.reinstall).toHaveBeenCalledWith(ID, "s3cret");
+  });
+
+  it("a refused key action shows the server's message", async () => {
+    const { ApiError } = await import("@/web/api/client");
+    api.moveToKey.mockRejectedValue(
+      new ApiError(
+        409,
+        "Another SSH key operation is running.",
+        "keyJobRunning"
+      )
+    );
+    await render(
+      <ServerAccessCard
+        server={server({ auth: "password", hasPassword: true })}
+        canManage
+      />
+    );
+    await click(button(t.moveToKey));
+    expect(toast.error).toHaveBeenCalledWith(
+      "Another SSH key operation is running."
+    );
+  });
+});
+
+describe("new server, after it is created", () => {
+  async function fill() {
+    await type(input("name"), "web-2");
+    await type(input("host"), "192.0.2.11");
+    await type(input("username"), "root");
+  }
+
+  it("key mode goes to the server page (the saved row's command)", async () => {
+    api.create.mockResolvedValue({
+      success: true,
+      data: server(),
+      message: "ok",
+    });
+    await render(<ServerForm mode={{ type: "create" }} />);
+    await fill();
+    await type(input("sshFrom"), "192.0.2.1");
+    await submit();
+    await vi.waitFor(() =>
+      expect(api.push).toHaveBeenCalledWith(`/servers/${ID}`)
+    );
+  });
+
+  it("the command waits for the typing to stop and is only for the typed from", async () => {
+    await render(<ServerForm mode={{ type: "create" }} />);
+    await type(input("sshFrom"), "1");
+    await type(input("sshFrom"), "19");
+    await type(input("sshFrom"), "192.0.2.1");
+    await vi.waitFor(() => expect(text()).toContain('from="192.0.2.1"'));
+    expect(api.line.mock.calls).toEqual([["192.0.2.1"]]);
+  });
+
+  it("password once: a failed install never creates again and opens the new server", async () => {
+    api.create.mockResolvedValue({
+      success: true,
+      data: server({ auth: "password", hasPassword: false }),
+      message: "ok",
+    });
+    api.reinstall.mockRejectedValue(new TypeError("Failed to fetch"));
+    await render(<ServerForm mode={{ type: "create" }} />);
+    const radio = [...document.querySelectorAll("label")].find((l) =>
+      l.textContent?.includes(tForm.methodPassword)
+    );
+    await click(radio);
+    await fill();
+    await type(input("password"), "s3cret");
+    await submit();
+    await vi.waitFor(() =>
+      expect(api.push).toHaveBeenCalledWith(`/servers/${ID}`)
+    );
+    expect(toast.error).toHaveBeenCalled();
+    expect(api.create).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { serverView } from "@/lib/server-view";
 import {
   serverInputSchema,
   serverUpdateSchema,
@@ -11,8 +12,10 @@ import {
   suggestEntryPort,
 } from "@/server/services/preflight";
 import {
+  checkKeyLoginAction,
   moveToKeyAction,
   reinstallKeyAction,
+  serverAuthorizedLineAction,
   trustHostKeyAction,
 } from "@/server/services/server-keys";
 import {
@@ -22,11 +25,12 @@ import {
   getServerById,
   getServers,
   getServerUsage,
-  serverView,
   testServerConnection,
   updateServer,
 } from "@/server/services/servers";
 import { json, param, query } from "@/server/validation";
+
+const fromSchema = z.string().trim().min(1).max(64);
 
 // The services return whole rows, encrypted SSH password and host key blobs
 // included; serverView keeps the password and the blobs on the server (edit
@@ -115,6 +119,32 @@ export const serversRouter = sessionRouter()
         await reinstallKeyAction(
           c.req.valid("param").id,
           c.req.valid("json").password
+        )
+      )
+  )
+  // A key installed by hand: its command, and a key-only login check that
+  // records the from= it was installed with.
+  .get(
+    "/:id/authorized-line",
+    idParam,
+    query(z.object({ from: fromSchema })),
+    async (c) =>
+      c.json(
+        await serverAuthorizedLineAction(
+          c.req.valid("param").id,
+          c.req.valid("query").from
+        )
+      )
+  )
+  .post(
+    "/:id/check-key-login",
+    idParam,
+    json(z.object({ from: fromSchema.optional() })),
+    async (c) =>
+      c.json(
+        await checkKeyLoginAction(
+          c.req.valid("param").id,
+          c.req.valid("json").from
         )
       )
   )

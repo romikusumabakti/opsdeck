@@ -1017,7 +1017,9 @@
     "hostKeyHint": "Host key {fingerprint}",
     "hostKeyNotPinnedHint": "Host key belum disimpan",
     "deleteKeyNote": "Key Panel tetap ada di ~/.ssh/authorized_keys server ini. Hapus sendiri baris yang berakhiran {marker}.",
-    "bulkDeleteKeyNote": "Server yang memakai SSH key tetap menyimpan key Panel di ~/.ssh/authorized_keys. Hapus barisnya sendiri."
+    "bulkDeleteKeyNote": "Server yang memakai SSH key tetap menyimpan key Panel di ~/.ssh/authorized_keys. Hapus barisnya sendiri.",
+    "accessKeyNotVerified": "Key belum diverifikasi",
+    "accessNeedsSetup": "Perlu disiapkan"
   },
   "serverForm": {
     "name": "Nama",
@@ -1469,7 +1471,10 @@
     "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya.",
     "databaseHostVersion": "Container itu menjalankan Postgres lebih lama dari 15; daftarkan hanya Postgres 15 atau lebih baru.",
     "defaultServerForbidden": "Hanya admin dan infra yang bisa mengubah server default proyek.",
-    "invalidFrom": "Isi alamat IP atau subnet, misalnya 192.168.1.10 atau 172.29.0.0/16."
+    "invalidFrom": "Isi alamat IP atau subnet, misalnya 192.168.1.10 atau 172.29.0.0/16.",
+    "keyNotVerified": "SSH key belum pernah berhasil masuk. Jalankan perintah pemasangan di server, lalu Cek login key.",
+    "notKeyServer": "Server ini tidak masuk dengan SSH key.",
+    "keyServerNoPassword": "Server ini masuk dengan SSH key, jadi tidak menyimpan password."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -3254,7 +3259,12 @@
     "trustTitle": "Percayai host key baru?",
     "trustDescription": "Percayai {fingerprint} hanya jika sudah Anda cek langsung di server.",
     "trustDone": "Host key baru dipercayai.",
-    "reviewHostKey": "Tinjau host key"
+    "reviewHostKey": "Tinjau host key",
+    "keyNotVerified": "SSH key, belum diverifikasi",
+    "needsSetup": "Perlu disiapkan: tidak ada password maupun key",
+    "showInstallCommand": "Tampilkan perintah pemasangan",
+    "checkKeyLogin": "Cek login key",
+    "checkKeyLoginDone": "SSH key berhasil masuk."
   },
   "instanceSshKey": {
     "title": "SSH key",
@@ -3276,6 +3286,7 @@
     "colServer": "Server",
     "colResult": "Hasil",
     "ok": "Berhasil",
-    "failed": "Gagal"
+    "failed": "Gagal",
+    "previousKey": "Penggantian key belum selesai: beberapa server masih memakai {fingerprint}. Jalankan Ganti key lagi untuk mencobanya ulang."
   }
 }

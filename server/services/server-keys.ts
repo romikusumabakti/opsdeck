@@ -21,7 +21,10 @@ import {
   ensureCurrentKey,
   fromAddress,
   type InstanceKey,
+  installCommand,
+  instanceKey,
   isOurs,
+  isValidFrom,
   keyMarker,
   mergeAuthorizedKeys,
   ownKeyMarkers,
@@ -1008,5 +1011,114 @@ export async function trustHostKeyAction(
     .where(
       and(eq(servers.id, serverId), eq(servers.keyError, "hostKeyMismatch"))
     );
+  return { ok: true };
+}
+
+// --- A key installed by hand (org server:manage) -----------------------------
+
+/** The code a key server not proven yet carries in key_error. */
+export const KEY_NOT_VERIFIED = "keyNotVerified";
+
+async function requireKeyServer(serverId: string) {
+  const [row] = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.id, serverId))
+    .limit(1);
+  if (!row) {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(404, "serverNotFound", t("serverNotFound"));
+  }
+  if (row.auth !== "key") return refuse("notKeyServer");
+  return row;
+}
+
+async function requireFrom(from: string) {
+  if (!isValidFrom(from)) {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(400, "invalidFrom", t("invalidFrom"));
+  }
+}
+
+/**
+ * The line of the key a key server's row names (the current key when it
+ * names none), restricted to `from`, with the command that installs it: what
+ * the server page shows so a key server installed by hand is never a dead end.
+ */
+export async function serverAuthorizedLineAction(
+  serverId: string,
+  from: string
+): Promise<{ line: string; command: string }> {
+  await requireOrgPermission({ server: ["manage"] });
+  const server = await requireKeyServer(serverId);
+  await requireFrom(from);
+  const key = server.sshKeyId
+    ? await instanceKey(server.sshKeyId)
+    : await ensureCurrentKey();
+  if (!key) return refuse("keyInstallFailed");
+  const line = authorizedKeysLine(key.publicKey, from, keyMarker(key.id));
+  return { line, command: installCommand(line) };
+}
+
+/**
+ * Sign in to a key server with its key alone (never a password). Success
+ * clears key_error (a key not verified yet, or a login that failed) and, with
+ * `from`, records it as the address the line was installed with. A failure
+ * changes nothing. Held under the server's key lock, so it never races a
+ * move or a rotation of the same server.
+ */
+export async function checkKeyLoginAction(
+  serverId: string,
+  from?: string
+): Promise<{ ok: true }> {
+  const session = await requireOrgPermission({ server: ["manage"] });
+  const server = await requireKeyServer(serverId);
+  if (from !== undefined) await requireFrom(from);
+  const release = await serverKeyLock(serverId);
+  if (!release) return refuse("keyJobRunning");
+  let failure: KeyMoveCode | null = null;
+  try {
+    let ssh: NodeSSH | undefined;
+    try {
+      ssh = await openSsh(
+        sshTarget({ ...server, password: null }),
+        SSH_TUNING,
+        {
+          keyOnly: true,
+          actor: session.user.id,
+        }
+      );
+      const result = await exec(ssh, "true");
+      if (result.code !== 0) failure = "keyLoginFailed";
+    } catch (error) {
+      failure = connectFailure(error, "key", false);
+    } finally {
+      ssh?.dispose();
+    }
+    if (failure === null) {
+      // Conditional on the login it proved: an edit meanwhile is another
+      // machine or account.
+      await db
+        .update(servers)
+        .set({
+          keyError: null,
+          ...(from !== undefined ? { sshFrom: from } : {}),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(servers.id, serverId),
+            eq(servers.auth, "key"),
+            eq(servers.host, server.host),
+            eq(servers.username, server.username)
+          )
+        );
+    }
+  } finally {
+    await release().catch(() =>
+      console.error(`server key lock release failed for ${serverId}`)
+    );
+  }
+  if (failure !== null) return refuse(failure);
   return { ok: true };
 }

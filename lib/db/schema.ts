@@ -2056,7 +2056,22 @@ export type EnvironmentListItem = EnvironmentSummary & {
 // boundary (RSC payloads are visible in the browser). Server code loads the
 // full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers;
 // anything passed to a client component must be sanitized to these shapes first.
-export type SafeServer = Omit<Server, "password">;
+// A server seen through another object (lib/server-view#toSafeServer): no
+// password and nothing about how the Panel signs in.
+export type SafeServer = Omit<
+  Server,
+  | "password"
+  | "hostKeyType"
+  | "hostKey"
+  | "hostKeyFingerprint"
+  | "hostKeyPinnedAt"
+  | "hostKeyOfferedType"
+  | "hostKeyOffered"
+  | "hostKeyOfferedFingerprint"
+  | "sshKeyId"
+  | "sshFrom"
+  | "keyError"
+>;
 
 // A service stripped of its secrets, with presence flags so edit forms can show
 // a "leave blank to keep" affordance and validate per-engine password
