@@ -52,6 +52,7 @@ function DeploysPage() {
       environment={environment}
       targets={targets}
       settingsHref={`/${projectKey}/${envSlug}/settings?tab=source`}
+      addTargetHref={`/${projectKey}/${envSlug}/settings?tab=source&add=target`}
     />
   );
 }

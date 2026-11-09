@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { canOrg, canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
+import { listAppsQuery } from "@/web/api/apps";
 import { listDeployTargetsQuery } from "@/web/api/deploys";
 import { environmentDomainQuery } from "@/web/api/environment-domains";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
@@ -15,20 +16,14 @@ import { requireRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import {
   EnvironmentSettingsTabs,
-  SETTINGS_TABS,
-  type SettingsTabId,
+  settingsSearch,
 } from "./-components/env/settings/settings-tabs";
 import { SettingsPending } from "./-components/env/skeletons";
-
-type SettingsSearch = { tab?: SettingsTabId };
 
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/settings"
 )({
-  validateSearch: (search: Record<string, unknown>): SettingsSearch =>
-    SETTINGS_TABS.includes(search.tab as SettingsTabId)
-      ? { tab: search.tab as SettingsTabId }
-      : {},
+  validateSearch: settingsSearch,
   beforeLoad: ({ context: { role } }) =>
     requireRole(role, { environment: ["update"] }),
   loader: async ({ context: { queryClient, environmentId, role } }) => {
@@ -51,6 +46,8 @@ export const Route = createFileRoute(
       loaderQuery(queryClient, listDeployTargetsQuery(environmentId)),
       loaderQuery(queryClient, getMailpitSettingsQuery(environmentId)),
       loaderQuery(queryClient, environmentDomainQuery(environmentId)),
+      // The add-target dialog picks the component from the environment's app.
+      environment?.appId ? loaderQuery(queryClient, listAppsQuery()) : null,
     ]);
   },
   pendingComponent: SettingsPending,
@@ -59,7 +56,7 @@ export const Route = createFileRoute(
 
 function EnvironmentSettingsPage() {
   const { projectKey } = Route.useParams();
-  const { tab } = Route.useSearch();
+  const { tab, add } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { environmentId, role } = Route.useRouteContext();
   const t = useTranslations("environmentSettings");
@@ -104,6 +101,17 @@ function EnvironmentSettingsPage() {
         onTabChange={(next) =>
           navigate({
             search: next === "general" ? {} : { tab: next },
+            replace: true,
+          })
+        }
+        addingTarget={add === "target"}
+        onAddingTargetChange={(open) =>
+          navigate({
+            search: (prev) => ({
+              ...prev,
+              tab: "source",
+              add: open ? "target" : undefined,
+            }),
             replace: true,
           })
         }

@@ -37,6 +37,23 @@ export const SETTINGS_TABS = [
 ] as const;
 export type SettingsTabId = (typeof SETTINGS_TABS)[number];
 
+/**
+ * The Settings page's search params: the open tab, and `add=target` to open
+ * the add-target dialog (the Deploys page's empty state links there).
+ */
+export type SettingsSearch = { tab?: SettingsTabId; add?: "target" };
+
+export function settingsSearch(
+  search: Record<string, unknown>
+): SettingsSearch {
+  return {
+    ...(SETTINGS_TABS.includes(search.tab as SettingsTabId) && {
+      tab: search.tab as SettingsTabId,
+    }),
+    ...(search.add === "target" && { add: "target" as const }),
+  };
+}
+
 const TAB_LABELS = {
   general: "tabGeneral",
   source: "tabSourceDeploy",
@@ -62,6 +79,8 @@ export function EnvironmentSettingsTabs({
   canDuplicate,
   tab: controlledTab,
   onTabChange,
+  addingTarget,
+  onAddingTargetChange,
 }: {
   environment: SettingsEnvironment;
   targets: DeployTargetState[];
@@ -76,6 +95,9 @@ export function EnvironmentSettingsTabs({
   canDuplicate: boolean;
   tab?: SettingsTabId;
   onTabChange?: (tab: SettingsTabId) => void;
+  // The add-target dialog of Source & Deploy, when the caller controls it.
+  addingTarget?: boolean;
+  onAddingTargetChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("environmentSettings");
   const [ownTab, setOwnTab] = useState<SettingsTabId>("general");
@@ -126,6 +148,8 @@ export function EnvironmentSettingsTabs({
             servers={options}
             canManageServers={canManageServers}
             deployed={deployed}
+            adding={addingTarget}
+            onAddingChange={onAddingTargetChange}
             onSave={() => saveTab("source")}
           />
         </TabsContent>

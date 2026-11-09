@@ -7,6 +7,7 @@ import {
   Loader2,
   Lock,
   Play,
+  Plus,
   Rocket,
   ScrollText,
   Settings,
@@ -64,16 +65,19 @@ type ActiveRun = { runId: string; tag: string; componentKey: string };
 
 /**
  * Deploy history, deploys and rollbacks. Deploy targets are edited in
- * Settings → Source & Deploy (`settingsHref`).
+ * Settings → Source & Deploy (`settingsHref`); with none yet, the empty state
+ * leads there with the add-target dialog open (`addTargetHref`).
  */
 export function DeploysClient({
   environment,
   targets,
   settingsHref,
+  addTargetHref,
 }: {
   environment: EnvironmentWithServers;
   targets: DeployTargetState[];
   settingsHref: string;
+  addTargetHref: string;
 }) {
   const t = useTranslations("deploys");
   const queryClient = useQueryClient();
@@ -128,7 +132,20 @@ export function DeploysClient({
           <EmptyState
             icon={Rocket}
             title={t("emptyTitle")}
-            description={t("emptyDescription")}
+            description={t(
+              canConfigure ? "emptyDescription" : "emptyDescriptionReadOnly"
+            )}
+            action={
+              canConfigure && (
+                <Button
+                  render={<Link href={addTargetHref} />}
+                  nativeButton={false}
+                >
+                  <Plus data-icon="inline-start" />
+                  {t("addTarget")}
+                </Button>
+              )
+            }
           />
         </div>
       ) : (

@@ -13,10 +13,12 @@ const OTHER_SERVER = "0197f3a0-1b2c-7def-8000-0123456789c2";
 const HOST = "0197f3a0-1b2c-7def-8000-0123456789d2";
 const ZONE = "0197f3a0-1b2c-7def-8000-0123456789b1";
 const TARGET = "0197f3a0-1b2c-7def-8000-0123456789a9";
+const APP = "0197f3a0-1b2c-7def-8000-0123456789f9";
 
 const api = vi.hoisted(() => ({
   updateEnvironment: vi.fn(),
   updateDeployTarget: vi.fn(),
+  createDeployTarget: vi.fn(),
   orgRole: "admin" as string,
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
@@ -38,7 +40,22 @@ vi.mock("@/web/api/environments", () => ({
 }));
 vi.mock("@/web/api/deploys", () => ({
   updateDeployTarget: api.updateDeployTarget,
-  createDeployTarget: vi.fn(),
+  createDeployTarget: api.createDeployTarget,
+}));
+vi.mock("@/web/api/apps", () => ({
+  listAppsQuery: () => ({
+    queryKey: ["apps", "listApps"],
+    queryFn: async () => [
+      {
+        id: APP,
+        appKey: "scmb",
+        components: [
+          { componentKey: "scmb-api", repoFullName: "dss/scmb-api" },
+          { componentKey: "scmb-web", repoFullName: "dss/scmb-web" },
+        ],
+      },
+    ],
+  }),
 }));
 vi.mock("@/web/api/variables", () => ({
   setEnvFileManaged: vi.fn(),
@@ -81,7 +98,10 @@ import {
   environmentPayload,
   settingsValues,
 } from "../web/routes/$locale/_app/-components/env/settings/settings-form";
-import { EnvironmentSettingsTabs } from "../web/routes/$locale/_app/-components/env/settings/settings-tabs";
+import {
+  EnvironmentSettingsTabs,
+  settingsSearch,
+} from "../web/routes/$locale/_app/-components/env/settings/settings-tabs";
 
 type Props = React.ComponentProps<typeof EnvironmentSettingsTabs>;
 const ENGINEER = "engineer" as const;
@@ -639,6 +659,94 @@ describe("environment settings tabs", () => {
       (el) => el.textContent?.trim()
     );
     expect(options).toEqual([".56.129"]);
+  });
+});
+
+describe("adding a deploy target from Source & Deploy", () => {
+  const tDeploys = messages.deploys;
+  const addButtons = () =>
+    [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (b) => b.textContent?.trim() === tDeploys.addTarget
+    );
+  const dialog = () => document.querySelector('[role="dialog"]');
+  const withApp = { ...environment, appId: APP } as Props["environment"];
+
+  it("offers Add target under the empty state, without opening Advanced options", async () => {
+    await mount({ targets: [] });
+    await openTab(t.tabSourceDeploy);
+    expect(document.body.textContent).toContain(t.noTargets);
+    expect(addButtons()).toHaveLength(1);
+    await openAdvanced();
+    expect(addButtons()).toHaveLength(1);
+  });
+
+  it("offers Add target under the targets list, without opening Advanced options", async () => {
+    await mount();
+    await openTab(t.tabSourceDeploy);
+    expect(addButtons()).toHaveLength(1);
+    await openAdvanced();
+    expect(addButtons()).toHaveLength(1);
+  });
+
+  it("opens the add-target dialog when asked to (?add=target)", async () => {
+    const onAddingTargetChange = vi.fn();
+    await mount({
+      targets: [],
+      tab: "source",
+      addingTarget: true,
+      onAddingTargetChange,
+    });
+    expect(dialog()?.textContent).toContain(tDeploys.form.createTitle);
+    await click(
+      [...(dialog()?.querySelectorAll<HTMLElement>("button") ?? [])].find(
+        (b) => b.textContent?.trim() === messages.common.cancel
+      )
+    );
+    expect(onAddingTargetChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("asks for the component as free text when the environment has no app", async () => {
+    await mount({ targets: [] });
+    await openTab(t.tabSourceDeploy);
+    await click(addButtons()[0]);
+    expect(
+      dialog()?.querySelector('input[name="componentKey"]')
+    ).not.toBeNull();
+  });
+
+  it("picks the component from the environment's app and preselects the one not yet targeted", async () => {
+    await mount({ environment: withApp });
+    await openTab(t.tabSourceDeploy);
+    await click(addButtons()[0]);
+    expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
+    const trigger = dialog()?.querySelector<HTMLElement>("#target-component");
+    expect(trigger?.textContent).toContain("scmb-web");
+    expect(trigger?.textContent).toContain("dss/scmb-web");
+    await click(trigger);
+    const options = [...document.querySelectorAll('[role="option"]')].map(
+      (el) => el.textContent
+    );
+    expect(options).toHaveLength(2);
+    expect(options[0]).toContain("scmb-api");
+    expect(options[0]).toContain("dss/scmb-api");
+  });
+
+  it("preselects nothing when more than one component is free", async () => {
+    await mount({ environment: withApp, targets: [] });
+    await openTab(t.tabSourceDeploy);
+    await click(addButtons()[0]);
+    const trigger = dialog()?.querySelector<HTMLElement>("#target-component");
+    expect(trigger?.textContent).toContain(tDeploys.form.componentPlaceholder);
+  });
+});
+
+describe("settingsSearch", () => {
+  it("keeps a known tab and the add-target request", () => {
+    expect(settingsSearch({ tab: "source", add: "target" })).toEqual({
+      tab: "source",
+      add: "target",
+    });
+    expect(settingsSearch({ tab: "nope", add: "nope" })).toEqual({});
   });
 });
 
