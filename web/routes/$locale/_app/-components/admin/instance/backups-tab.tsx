@@ -55,7 +55,6 @@ import {
 } from "@/components/ui/table";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { formatBytes } from "@/lib/utils";
-import { ApiError } from "@/web/api/client";
 import {
   acknowledgeInstanceBackup,
   getInstanceBackupsQuery,
@@ -66,7 +65,8 @@ import {
   saveInstanceBackupSettings,
   verifySecretsKey,
 } from "@/web/api/instance";
-import { RestoreDialog } from "./updates-tab";
+import { reportError } from "./report-error";
+import { RestoreDialog } from "./restore-dialog";
 
 // The Select's value for "no destination" (Base UI items need a string).
 const LOCAL = "local";
@@ -90,15 +90,6 @@ export function backupErrorMessage(t: T, code: string): string {
   return (ERROR_CODES as readonly string[]).includes(code)
     ? t(`errorCodes.${code as (typeof ERROR_CODES)[number]}`)
     : t("errorCodes.unknown", { code });
-}
-
-/** Shows a refused request's message; rethrows a 401 (sign-in is underway). */
-function reportError(error: unknown): void {
-  if (error instanceof ApiError && error.status !== 401) {
-    toast.error(error.message);
-    return;
-  }
-  throw error;
 }
 
 export function BackupsTab() {

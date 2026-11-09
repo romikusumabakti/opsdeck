@@ -379,23 +379,25 @@ backup() { # <trigger>
   fi
 }
 
-# The pre-restore backup, so the UI can offer to undo the restore. The CLI's
-# result line is checked like any other untrusted JSON; 1 when it is unusable.
+# The pre-restore backup, so the UI can offer to undo the restore. Its local
+# copy (localObjectKey, always kept for trigger `restore`) is what the status
+# names: undoing a restore must not depend on the restored database's
+# destination settings. The CLI's result line is checked like any other
+# untrusted JSON; 1 when it is unusable or has no local copy.
 remember_safety_backup() {
   grep -E '^\{"id":' "$work/out" | tail -n 1 >"$work/backup.json"
   one_line_json "$work/backup.json" 4096 || return 1
   id=$(json_str id "$work/backup.json") || id=
-  location=$(json_str location "$work/backup.json") || return 1
-  key=$(json_str objectKey "$work/backup.json") || return 1
+  key=$(json_str localObjectKey "$work/backup.json") || return 1
   case $key in *..*) return 1 ;; esac
   [ "${#key}" -le 511 ] || return 1
   matches "$key" "$OBJECT_KEY_RE" || return 1
-  matches "$location" '(local|s3)' || return 1
+  case $key in local:*) return 1 ;; esac
   matches "$id" '[A-Za-z0-9_-]{1,64}' || id=
   safety_id=$id
-  safety_location=$location
+  safety_location=local
   safety_key=$key
-  log "safety backup: $location $key"
+  log "safety backup: local:$key"
 }
 
 update() {

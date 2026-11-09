@@ -50,6 +50,13 @@ import {
 export const LOCAL_BACKUP_ROOT = "/var/lib/opsdeck/backups";
 export const REMOTE_PREFIX = "opsdeck-backups/";
 export const LOCAL_KEEP = 3;
+/**
+ * Marks a local folder as a safety backup (trigger `restore`): the way back
+ * from a restore. The newest one is kept locally whatever the destination,
+ * outside the LOCAL_KEEP count, so undoing a restore never needs the
+ * restored database's destination settings.
+ */
+export const SAFETY_MARKER = ".safety";
 /** A row still `running` after this long belongs to a crashed process. */
 export const INTERRUPTED_AFTER_MS = 6 * 60 * 60 * 1000;
 
@@ -97,6 +104,11 @@ export type BackupResult =
       location: "s3" | "local";
       /** S3 key prefix, or the folder under the local root; null when nothing was kept. */
       objectKey: string | null;
+      /**
+       * The folder under the local root when a local copy was kept (a local
+       * backup, a failed upload, or always for trigger `restore`); else null.
+       */
+      localObjectKey: string | null;
       errorCode: string | null;
     }
   // Another backup holds the lock: nothing was recorded or written.
@@ -105,6 +117,7 @@ export type BackupResult =
       status: "alreadyRunning";
       location: null;
       objectKey: null;
+      localObjectKey: null;
       errorCode: "backupAlreadyRunning";
     };
 
@@ -113,6 +126,7 @@ export const ALREADY_RUNNING: BackupResult = {
   status: "alreadyRunning",
   location: null,
   objectKey: null,
+  localObjectKey: null,
   errorCode: "backupAlreadyRunning",
 };
 
@@ -427,7 +441,12 @@ async function mirrorGarage(
   return { objects, bytes };
 }
 
-type Listed = { name: string; createdAt: Date; complete: boolean };
+type Listed = {
+  name: string;
+  createdAt: Date;
+  complete: boolean;
+  safety?: boolean;
+};
 
 /** What retention deletes: superseded complete backups and stale incomplete ones. */
 function doomedNames(
@@ -456,12 +475,20 @@ async function applyLocalRetention(
   for (const entry of await readdir(instanceDir, { withFileTypes: true })) {
     const createdAt = parseBackupName(entry.name);
     if (!entry.isDirectory() || !createdAt) continue;
-    const complete = await stat(join(instanceDir, entry.name, MANIFEST_FILE))
-      .then(() => true)
-      .catch(() => false);
-    listed.push({ name: entry.name, createdAt, complete });
+    const exists = (file: string) =>
+      stat(join(instanceDir, entry.name, file))
+        .then(() => true)
+        .catch(() => false);
+    const complete = await exists(MANIFEST_FILE);
+    const safety = complete && (await exists(SAFETY_MARKER));
+    listed.push({ name: entry.name, createdAt, complete, safety });
   }
-  for (const name of doomedNames(listed, current, now, (keys) =>
+  // The newest safety backup is outside the count until a newer one exists.
+  const newestSafety = listed
+    .filter((l) => l.safety)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]?.name;
+  const pool = listed.filter((l) => l.name !== newestSafety);
+  for (const name of doomedNames(pool, current, now, (keys) =>
     selectByCount(keys, LOCAL_KEEP)
   )) {
     await rm(join(instanceDir, name), { recursive: true, force: true });
@@ -497,6 +524,7 @@ type Outcome = {
   status: "succeeded" | "failed";
   location: "s3" | "local";
   objectKey: string | null;
+  localObjectKey: string | null;
   sizeBytes: number | null;
   error: unknown;
 };
@@ -583,6 +611,7 @@ async function runLocked(
 
   const outcome = await backUp(
     deps,
+    trigger,
     startedAt,
     destination,
     destinationError
@@ -591,6 +620,7 @@ async function runLocked(
       status: "failed",
       location: declared,
       objectKey: null,
+      localObjectKey: null,
       sizeBytes: null,
       error,
     })
@@ -630,6 +660,7 @@ async function runLocked(
     status,
     location: outcome.location,
     objectKey: outcome.objectKey,
+    localObjectKey: outcome.localObjectKey,
     errorCode,
   };
 }
@@ -637,6 +668,7 @@ async function runLocked(
 /** Stages, uploads and applies retention; never records the row itself. */
 async function backUp(
   deps: BackupDeps,
+  trigger: BackupTrigger,
   startedAt: Date,
   destination: BackupDestination | null,
   destinationError: BackupError | null
@@ -694,21 +726,31 @@ async function backUp(
       status: "failed",
       location: declared,
       objectKey: null,
+      localObjectKey: null,
       sizeBytes: null,
       error,
     };
   }
 
+  const safety = trigger === "restore";
+  const markSafety = async () => {
+    if (!safety) return;
+    await writeFile(join(dir, SAFETY_MARKER), "").catch((e) =>
+      log(`backupSafetyMarkFailed: ${describe(e)}`)
+    );
+  };
   const localRetention = () =>
     applyLocalRetention(instanceDir, name, deps.now()).catch((e) =>
       log(`backupRetentionFailed: ${describe(e)}`)
     );
   const keptLocal = async (error: unknown): Promise<Outcome> => {
+    await markSafety();
     await localRetention();
     return {
       status: "failed",
       location: "local",
       objectKey: localKey,
+      localObjectKey: localKey,
       sizeBytes,
       error,
     };
@@ -722,11 +764,13 @@ async function backUp(
 
   if (!destination) {
     await rememberFingerprint();
+    await markSafety();
     await localRetention();
     return {
       status: "succeeded",
       location: "local",
       objectKey: localKey,
+      localObjectKey: localKey,
       sizeBytes,
       error: null,
     };
@@ -750,10 +794,16 @@ async function backUp(
     return keptLocal(new BackupError("backupUploadFailed", describe(error)));
   }
 
-  // 3. The upload is complete: drop the local copy, then apply retention.
-  await rm(dir, { recursive: true, force: true }).catch((e) =>
-    log(`backupCleanupFailed: ${describe(e)}`)
-  );
+  // 3. The upload is complete: drop the local copy (a safety backup keeps
+  // it), then apply retention.
+  if (safety) {
+    await markSafety();
+    await localRetention();
+  } else {
+    await rm(dir, { recursive: true, force: true }).catch((e) =>
+      log(`backupCleanupFailed: ${describe(e)}`)
+    );
+  }
   await rememberFingerprint();
   await applyRemoteRetention(
     destination,
@@ -765,6 +815,7 @@ async function backUp(
     status: "succeeded",
     location: "s3",
     objectKey: remoteKey,
+    localObjectKey: safety ? localKey : null,
     sizeBytes,
     error: null,
   };

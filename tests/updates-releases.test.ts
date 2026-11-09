@@ -126,15 +126,14 @@ describe("latestRelease", () => {
     ).resolves.toMatchObject({ version: "1.2.1" });
   });
 
-  it("refuses a release.json for another version", async () => {
-    const routes = defaultRoutes();
-    routes[`${BASE}/v1.2.1/release.json`] = {
-      status: 200,
-      body: releaseJson("1.2.0"),
-    };
-    await expect(
-      latestRelease("stable", "1.2.0", fakeFetch(routes))
-    ).rejects.toBeInstanceOf(ReleaseCheckError);
+  it("skips a candidate whose release.json is malformed or for another version", async () => {
+    for (const bad of [releaseJson("1.2.0"), { version: "1.2.1" }, "garbage"]) {
+      const routes = defaultRoutes();
+      routes[`${BASE}/v1.2.1/release.json`] = { status: 200, body: bad };
+      await expect(
+        latestRelease("stable", "1.1.0", fakeFetch(routes))
+      ).resolves.toMatchObject({ version: "1.2.0" });
+    }
   });
 
   it("throws updateCheckFailed on the unauthenticated rate limit (403)", async () => {
