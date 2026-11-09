@@ -6,6 +6,7 @@ import {
 } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   customType,
@@ -2121,3 +2122,82 @@ export type TunnelWithContext = Tunnel & {
   server: SafeServer;
   zone: Pick<CloudflareZone, "id" | "name" | "zoneId">;
 };
+
+// =========================
+// Instance settings and backup history
+// =========================
+
+// The instance's own settings: a single row, id = 1 (seeded by the migration).
+export const instanceSettings = pgTable(
+  "instance_settings",
+  {
+    id: integer("id").primaryKey().default(1),
+    // Where instance backups go; null keeps them local only.
+    backupDestinationId: uuid("backup_destination_id").references(
+      () => s3Connections.id,
+      { onDelete: "set null" }
+    ),
+    // HH:MM in the instance time zone.
+    backupTime: text("backup_time").notNull().default("02:30"),
+    backupKeepDaily: integer("backup_keep_daily").notNull().default(14),
+    backupKeepWeekly: integer("backup_keep_weekly").notNull().default(8),
+    // sha256(SECRETS_KEY) truncated to 16 hex chars; never the key itself.
+    secretsKeyFingerprint: text("secrets_key_fingerprint"),
+    updateChannel: text("update_channel", { enum: ["stable", "beta"] })
+      .notNull()
+      .default("stable"),
+    autoUpdate: boolean("auto_update").notNull().default(false),
+    // HH:MM in the instance time zone.
+    autoUpdateWindow: text("auto_update_window").notNull().default("03:00"),
+  },
+  (t) => [
+    check("instance_settings_singleton", sql`${t.id} = 1`),
+    check(
+      "instance_settings_update_channel_check",
+      sql`${t.updateChannel} in ('stable', 'beta')`
+    ),
+  ]
+);
+
+export const instanceBackupStatusEnum = pgEnum("instance_backup_status", [
+  "running",
+  "succeeded",
+  "failed",
+]);
+
+export const instanceBackupTriggerEnum = pgEnum("instance_backup_trigger", [
+  "schedule",
+  "manual",
+  "update",
+]);
+
+export const instanceBackups = pgTable(
+  "instance_backups",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+    status: instanceBackupStatusEnum("status").notNull().default("running"),
+    trigger: instanceBackupTriggerEnum("trigger").notNull(),
+    // OPSDECK_VERSION the backup was taken from.
+    version: text("version").notNull(),
+    location: text("location", { enum: ["s3", "local"] }).notNull(),
+    objectKey: text("object_key"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    // Stable code of the failure, never display prose.
+    errorCode: text("error_code"),
+    // When an admin dismissed the failure notice.
+    acknowledgedAt: timestamp("acknowledged_at"),
+  },
+  (t) => [
+    check(
+      "instance_backups_location_check",
+      sql`${t.location} in ('s3', 'local')`
+    ),
+    index("instance_backups_started_at_idx").on(t.startedAt),
+  ]
+);
+
+export type InstanceSettings = InferSelectModel<typeof instanceSettings>;
+export type InstanceBackup = InferSelectModel<typeof instanceBackups>;
+export type NewInstanceBackup = InferInsertModel<typeof instanceBackups>;
