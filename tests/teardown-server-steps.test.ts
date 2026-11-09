@@ -2,8 +2,10 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -26,7 +28,13 @@ const RUN_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const SSH_PASSWORD = "ssh-pw-very-secret-42";
 const CONFIG_SECRET = "config-secret-value-77";
 
-const ROOT = mkdtempSync(join(tmpdir(), "td-steps-"));
+// TD_STEPS_CONTAINER runs every script in that container instead (e.g. a
+// busybox one), with TD_STEPS_ROOT bind-mounted at the same path:
+//   podman run -d --name td-bb -v /tmp/td-bb:/tmp/td-bb docker.io/library/busybox:1.37 sleep 3600
+//   TD_STEPS_CONTAINER=td-bb TD_STEPS_ROOT=/tmp/td-bb env -u SECRETS_KEY bun --bun vitest run tests/teardown-server-steps.test.ts
+const CONTAINER = process.env.TD_STEPS_CONTAINER;
+const ROOT =
+  process.env.TD_STEPS_ROOT ?? mkdtempSync(join(tmpdir(), "td-steps-"));
 const BIN = join(ROOT, "bin");
 const FAKE = join(ROOT, "fake");
 const DEPLOY = join(ROOT, "deployments");
@@ -122,11 +130,25 @@ const state = vi.hoisted(() => ({
 }));
 
 function runLocally(command: string, stdin: string | undefined) {
-  const result = spawnSync("sh", ["-c", command], {
-    env: state.env,
-    input: stdin ?? "",
-    encoding: "utf8",
-  });
+  const result = CONTAINER
+    ? spawnSync(
+        "podman",
+        [
+          "exec",
+          "-i",
+          ...Object.entries(state.env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+          CONTAINER,
+          "sh",
+          "-c",
+          command,
+        ],
+        { input: stdin ?? "", encoding: "utf8" }
+      )
+    : spawnSync("sh", ["-c", command], {
+        env: state.env,
+        input: stdin ?? "",
+        encoding: "utf8",
+      });
   return {
     code: result.status,
     stdout: result.stdout ?? "",
@@ -244,7 +266,11 @@ function composeLog(): string[] {
 }
 
 beforeEach(() => {
-  rmSync(ROOT, { recursive: true, force: true });
+  // Emptied, not removed: in container mode ROOT is a bind mount.
+  mkdirSync(ROOT, { recursive: true });
+  for (const entry of readdirSync(ROOT)) {
+    rmSync(join(ROOT, entry), { recursive: true, force: true });
+  }
   for (const dir of [BIN, FAKE, DEPLOY]) mkdirSync(dir, { recursive: true });
   writeFileSync(join(BIN, "docker"), FAKE_DOCKER);
   writeFileSync(join(BIN, "sudo"), FAKE_SUDO);
@@ -293,7 +319,8 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  rmSync(ROOT, { recursive: true, force: true });
+  if (!process.env.TD_STEPS_ROOT)
+    rmSync(ROOT, { recursive: true, force: true });
 });
 
 const HOSTILE = [
@@ -393,18 +420,30 @@ describe("checkStack", () => {
     expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
   });
 
-  it("accepts containers whose working dir is the resolved symlink target", async () => {
-    const real = join(ROOT, "data", "app");
-    mkdirSync(join(ROOT, "data"), { recursive: true });
+  it("accepts containers whose working dir is the resolved path under a symlinked parent", async () => {
+    const realParent = join(ROOT, "data");
+    const real = join(realParent, "app");
     stack(real, { volumes: ["pgdata"] });
     const link = join(DEPLOY, "linked");
-    symlinkSync(real, link);
-    // compose derives the project from the dir it was started in.
-    writeFileSync(join(real, ".name"), "app");
+    symlinkSync(realParent, link);
     containers([`app|app-web-1|${real}`]);
     await expect(
-      checkStack(ctx(), { ...params, deployDir: link })
+      checkStack(ctx(), { ...params, deployDir: join(link, "app") })
     ).resolves.toContain("Stack app");
+  });
+
+  it("refuses a deploy dir that is itself a symlink", async () => {
+    const real = join(ROOT, "data", "app");
+    stack(real);
+    const link = join(DEPLOY, "linked");
+    symlinkSync(real, link);
+    containers([`app|app-web-1|${real}`]);
+    for (const step of [checkStack, stopStack, stackDown]) {
+      expect(await code(step(ctx(), { ...params, deployDir: link }))).toBe(
+        "unsafeDeployDir"
+      );
+    }
+    expect(composeLog()).toEqual([]);
   });
 
   it("refuses an overlap that only shows once paths are resolved", async () => {
@@ -612,33 +651,65 @@ describe("removeDeployDir", () => {
 });
 
 describe("removeDeployDir on the resolved real dir", () => {
-  it("removes the symlink target and the link when the dir is a symlink", async () => {
+  it("refuses a dir that is itself a symlink and deletes neither it nor its target", async () => {
+    // As /deployments/x -> /var/lib/postgresql: a target isSafeDeployDir accepts.
     rmSync(DIR, { recursive: true });
-    const real = join(ROOT, "data", "app");
-    mkdirSync(real, { recursive: true });
-    symlinkSync(real, DIR);
-    await expect(removeDeployDir(ctx(), params)).resolves.toContain("removed");
-    expect(existsSync(real)).toBe(false);
-    expect(existsSync(DIR)).toBe(false);
-    expect(existsSync(join(ROOT, "data"))).toBe(true);
-  });
-
-  it("refuses when the real dir is a system tree or a top-level dir", async () => {
-    for (const target of ["/proc/td-nonexistent", "/td-nonexistent-top"]) {
-      rmSync(DIR, { recursive: true, force: true });
+    const data = join(ROOT, "var", "lib", "postgresql");
+    mkdirSync(data, { recursive: true });
+    writeFileSync(join(data, "PG_VERSION"), "18\n");
+    for (const target of [data, "/var/lib/postgresql"]) {
+      rmSync(DIR, { force: true });
       symlinkSync(target, DIR);
       expect(await code(removeDeployDir(ctx(), params)), target).toBe(
         "unsafeDeployDir"
       );
+      expect(lstatSync(DIR).isSymbolicLink()).toBe(true);
+    }
+    expect(existsSync(join(data, "PG_VERSION"))).toBe(true);
+  });
+
+  it("removes the resolved real dir under a symlinked parent", async () => {
+    rmSync(DEPLOY, { recursive: true });
+    const realParent = join(ROOT, "data", "deployments");
+    mkdirSync(join(realParent, "app"), { recursive: true });
+    symlinkSync(realParent, DEPLOY);
+    await expect(removeDeployDir(ctx(), params)).resolves.toContain("removed");
+    expect(existsSync(join(realParent, "app"))).toBe(false);
+    expect(existsSync(realParent)).toBe(true);
+  });
+
+  it("refuses when the real dir is a system tree or a top-level dir", async () => {
+    // A parent symlinked to / (case G): /deployments/root -> /.
+    symlinkSync("/", join(DEPLOY, "root"));
+    for (const deployDir of [
+      // /proc/sys: two segments, in a system tree; /proc: top-level too.
+      // Both exist (a missing dir is simply "already removed") and cannot
+      // be deleted even if a check were missing.
+      join(DEPLOY, "root", "proc", "sys"),
+      join(DEPLOY, "root", "proc"),
+    ]) {
+      expect(
+        await code(removeDeployDir(ctx(), { ...params, deployDir })),
+        deployDir
+      ).toBe("unsafeDeployDir");
     }
   });
 });
 
-// busybox (Alpine) has no `realpath -m`: a fake `realpath` rejects -m and
-// hands everything else to the real one, so the fallbacks run for real.
-const NO_M_REALPATH = `#!/bin/sh
-for a; do [ "$a" = -m ] && { echo "realpath: unrecognized option: m" >&2; exit 1; }; done
-exec /usr/bin/realpath "$@"
+// busybox 1.37 (and Alpine) `realpath` takes `-m` and `--` for file names:
+// it complains about them on stderr, still prints the resolved path of each
+// existing argument on stdout, and exits 1. The fake does the same through
+// the real one, so the fallbacks run for real. (Under TD_STEPS_CONTAINER
+// with a busybox image the real busybox is used instead.)
+const BUSYBOX_REALPATH = `#!/bin/sh
+rc=0
+for a; do
+  case "$a" in
+    -m|--) echo "realpath: $a: No such file or directory" >&2; rc=1;;
+    *) /usr/bin/realpath -e -- "$a" 2>/dev/null || { echo "realpath: $a: No such file or directory" >&2; rc=1; };;
+  esac
+done
+exit $rc
 `;
 const FAILING = `#!/bin/sh
 echo "$0: not available" >&2
@@ -647,9 +718,19 @@ exit 1
 
 describe("without realpath -m (busybox)", () => {
   beforeEach(() => {
-    writeFileSync(join(BIN, "realpath"), NO_M_REALPATH);
+    if (CONTAINER) return;
+    writeFileSync(join(BIN, "realpath"), BUSYBOX_REALPATH);
     chmodSync(join(BIN, "realpath"), 0o755);
   });
+
+  it.skipIf(CONTAINER !== undefined)(
+    "the fake prints the path and exits 1 on -m, as busybox does",
+    () => {
+      const result = runLocally(`realpath -m -- ${DIR}`, undefined);
+      expect(result.code).toBe(1);
+      expect(result.stdout.trim()).toBe(DIR);
+    }
+  );
 
   /** Ours reached through a symlinked parent; the real parent returned. */
   function symlinkedParent(): string {
@@ -678,6 +759,23 @@ describe("without realpath -m (busybox)", () => {
     expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
     expect(await code(removeDeployDir(ctx(), params))).toBe("deployDirShared");
     expect(existsSync(DIR)).toBe(true);
+  });
+
+  it("refuses a neighbour that is our real parent (review case F)", async () => {
+    const realParent = symlinkedParent();
+    setGuard({ otherDeployDirs: [realParent] });
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+    expect(await code(removeDeployDir(ctx(), params))).toBe("deployDirShared");
+    expect(existsSync(DIR)).toBe(true);
+  });
+
+  it("refuses a real dir under a parent symlinked to / (review case G)", async () => {
+    symlinkedParent();
+    symlinkSync("/", join(ROOT, "data", "deployments", "root"));
+    const deployDir = join(DEPLOY, "root", "proc", "sys");
+    expect(await code(removeDeployDir(ctx(), { ...params, deployDir }))).toBe(
+      "unsafeDeployDir"
+    );
   });
 
   it("still removes our dir when nothing overlaps", async () => {
