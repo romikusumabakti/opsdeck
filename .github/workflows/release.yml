@@ -47,6 +47,10 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # The tests lint ops/install and the workflows with these (pinned).
+      - name: Lint tools
+        uses: ./.github/actions/lint-tools
+
       - name: Test
         run: bun run test
 

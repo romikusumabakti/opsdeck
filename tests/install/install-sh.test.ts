@@ -1223,17 +1223,20 @@ describe("lint", () => {
     expect([...manifest.IMAGE_KEYS]).toEqual(shKeys);
   });
 
-  it("pins every action in release.yml to a commit SHA", () => {
-    const uses = readFileSync(WORKFLOW, "utf8")
-      .split("\n")
-      .filter((l) => l.trim().startsWith("uses:"));
-    expect(uses.length).toBeGreaterThan(5);
-    for (const l of uses) {
-      expect(l).toMatch(
-        /uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/
-      );
+  it.each(["release.yml", "ci.yml"])(
+    "pins every action in %s to a commit SHA (or uses a local one)",
+    (file) => {
+      const uses = readFileSync(join(REPO, ".github/workflows", file), "utf8")
+        .split("\n")
+        .filter((l) => l.trim().startsWith("uses:"));
+      expect(uses.length).toBeGreaterThan(3);
+      for (const l of uses) {
+        expect(l).toMatch(
+          /uses: (\.\/\.github\/actions\/[\w.-]+|[\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+)$/
+        );
+      }
     }
-  });
+  );
 
   it("release.yml uploads every install asset", () => {
     const workflow = readFileSync(WORKFLOW, "utf8");
