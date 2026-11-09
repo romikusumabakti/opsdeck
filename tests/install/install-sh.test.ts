@@ -34,6 +34,15 @@ const STUB_DOCKER = `#!/bin/sh
 printf 'docker %s\\n' "$*" >> "$STUB_LOG"
 case "$1 $2" in
   "compose version") echo "Docker Compose version v\${STUB_COMPOSE_VERSION:-2.40.0}" ;;
+  "version "|"version --format")
+    if [ -n "\${STUB_DOCKER_PODMAN:-}" ]; then echo "Client:       Podman Engine"; echo "Version:      5.4.0"; exit 0; fi
+    echo "Client: Docker Engine - Community"; echo " Version:           29.5.3" ;;
+  "info "|"info --format")
+    if [ -n "\${STUB_DOCKER_INFO_FAIL:-}" ]; then
+      echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" >&2
+      exit 1
+    fi
+    echo " Server Version: 29.5.3" ;;
   "volume inspect")
     if [ -n "\${STUB_DOCKER_DOWN:-}" ]; then
       echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" >&2
@@ -1245,17 +1254,125 @@ describe("install.sh on another systemd distribution (Rocky Linux 9)", () => {
     noApt(ctx, r.stdout);
   });
 
-  it("refuses SELinux in enforcing mode, and runs when it is permissive", () => {
+  const stops = (stdout: string, problem: string) =>
+    expect(stdout).toContain(`dry run: a real run would stop here: ${problem}`);
+  const SELINUX = "SELinux is enforcing on this host";
+
+  it("refuses SELinux in enforcing mode, and runs when it is permissive or disabled", () => {
     const ctx = rocky();
     const getenforce = join(ctx.bin, "getenforce");
     writeFileSync(getenforce, "#!/bin/sh\necho Enforcing\n", { mode: 0o755 });
     const r = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    expect(r.status, r.all).toBe(0);
+    stops(r.stdout, SELINUX);
+    for (const mode of ["Permissive", "Disabled"]) {
+      writeFileSync(getenforce, `#!/bin/sh\necho ${mode}\n`, { mode: 0o755 });
+      const ok = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+      expect(ok.status, ok.all).toBe(0);
+      expect(ok.stdout).not.toContain("a real run would stop here");
+    }
+  });
+
+  it("reads selinuxfs without getenforce, or when getenforce fails", () => {
+    const ctx = rocky();
+    // No getenforce and no selinuxfs: SELinux is off.
+    const off = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    expect(off.status, off.all).toBe(0);
+    expect(off.stdout).not.toContain(SELINUX);
+    const selinuxfs = join(ctx.sysroot, "sys/fs/selinux");
+    mkdirSync(selinuxfs, { recursive: true });
+    writeFileSync(join(selinuxfs, "enforce"), "1");
+    const absent = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    stops(absent.stdout, SELINUX);
+    writeFileSync(join(ctx.bin, "getenforce"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const failing = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    stops(failing.stdout, SELINUX);
+    writeFileSync(join(selinuxfs, "enforce"), "0");
+    const permissive = install(ctx, args(ctx), {
+      STUB_COMPOSE_VERSION: "5.1.4",
+    });
+    expect(permissive.stdout).not.toContain(SELINUX);
+  });
+
+  it("stops when the Docker Engine daemon is not running", () => {
+    const ctx = rocky();
+    const r = install(ctx, args(ctx), {
+      STUB_COMPOSE_VERSION: "5.1.4",
+      STUB_DOCKER_INFO_FAIL: "1",
+    });
+    expect(r.status, r.all).toBe(0);
+    stops(
+      r.stdout,
+      "the Docker Engine daemon is not running: start docker.service"
+    );
+  });
+
+  it.each(["rocky", "ubuntu"])("refuses Podman posing as docker (%s)", (id) => {
+    const ctx = id === "rocky" ? rocky() : setup();
+    const r = install(ctx, args(ctx), { STUB_DOCKER_PODMAN: "1" });
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain("SELinux is enforcing");
-    expect(r.stdout).not.toContain("==> Docker");
-    writeFileSync(getenforce, "#!/bin/sh\necho Permissive\n", { mode: 0o755 });
-    const ok = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
-    expect(ok.status, ok.all).toBe(0);
+    expect(r.stderr).toContain(
+      "Docker Engine is required, podman is not supported"
+    );
+    expect(r.stdout).not.toContain("==> Install dir");
+  });
+
+  it.each([
+    ["Fedora", "ID=fedora\nVERSION_ID=43\n"],
+    ["an unknown distribution", "ID=someos\n"],
+    ["a host without os-release", null],
+  ])("passes the host checks on %s with Docker installed", (_, osRelease) => {
+    const ctx = rocky();
+    const file = join(ctx.sysroot, "etc/os-release");
+    if (osRelease === null) rmSync(file);
+    else writeFileSync(file, osRelease);
+    const r = install(ctx, args(ctx));
+    expect(r.status, r.all).toBe(0);
+    expect(r.stdout).not.toContain("a real run would stop here");
+    inOrder(r.stdout, ["==> Docker", "found: Docker Compose", "==> Start"]);
+    noApt(ctx, r.stdout);
+  });
+});
+
+describe("install.sh on Debian", () => {
+  function debian({ docker = true }: { docker?: boolean } = {}) {
+    const ctx = setup({ docker });
+    writeFileSync(
+      join(ctx.sysroot, "etc/os-release"),
+      'ID=debian\nVERSION_ID="12"\nVERSION_CODENAME=bookworm\n'
+    );
+    return ctx;
+  }
+  const args = (ctx: Ctx) => [
+    "--dry-run",
+    "--version",
+    "v1.2.0",
+    "--dir",
+    ctx.dir,
+  ];
+
+  it("installs Docker from Docker's Debian repository when it is missing", () => {
+    const ctx = debian({ docker: false });
+    const r = install(ctx, args(ctx));
+    expect(r.status, r.all).toBe(0);
+    expect(r.stdout).not.toContain("a real run would stop here");
+    expect(r.stdout).toContain("https://download.docker.com/linux/debian/gpg");
+    expect(r.stdout).toContain("apt-get install -y docker-ce docker-ce-cli");
+  });
+
+  it("refuses to put docker-ce over the distribution's docker.io", () => {
+    const ctx = debian({ docker: false });
+    writeFileSync(
+      join(ctx.bin, "dpkg-query"),
+      '#!/bin/sh\ncase "$*" in *docker.io*) printf "install ok installed" ;; *) exit 1 ;; esac\n',
+      { mode: 0o755 }
+    );
+    const r = install(ctx, args(ctx));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("docker.io package is installed");
+    expect(r.stdout).not.toContain("apt-get install");
   });
 });
 

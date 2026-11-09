@@ -207,6 +207,28 @@ require_compose() {
   fi
 }
 
+# The docker command must be Docker Engine, and its daemon running.
+require_engine() {
+  engine=$(docker version 2>&1 </dev/null || :)
+  if info=$(docker info 2>&1 </dev/null); then running=1; else running=0; fi
+  case "$engine$NL$info" in
+    *[Pp]odman*) die "docker here is Podman (podman-docker or a podman wrapper): Docker Engine is required, podman is not supported. Install Docker Engine ($DOCKER_DOCS), then run install.sh again" ;;
+  esac
+  if [ "$running" = 0 ]; then
+    host_problem "the Docker Engine daemon is not running: start docker.service (systemctl enable --now docker.service), then run install.sh again"
+  fi
+}
+
+# SELinux in enforcing mode: getenforce, else selinuxfs (no getenforce, or
+# it failed).
+selinux_enforcing() {
+  if command -v getenforce >/dev/null 2>&1 && mode=$(getenforce 2>/dev/null </dev/null); then
+    [ "$mode" = Enforcing ]
+    return
+  fi
+  [ "$(cat "$sysroot/sys/fs/selinux/enforce" 2>/dev/null)" = 1 ]
+}
+
 # After a failure once the host was changed: how to get back. `down -v` only
 # when every volume of this instance is one this run created.
 way_back() {
@@ -394,8 +416,8 @@ main() {
   done
   # compose.yaml bind-mounts <dir>/updates and <dir>/backups without SELinux
   # relabelling (:z), so an enforcing host would deny the app those dirs.
-  if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null </dev/null)" = Enforcing ]; then
-    die "SELinux is enforcing on this host: opsdeck's bind mounts are not relabelled for it, so this host is not supported yet (permissive or disabled SELinux is)"
+  if selinux_enforcing; then
+    host_problem "SELinux is enforcing on this host: opsdeck's bind mounts are not relabelled for it, so this host is not supported yet (permissive or disabled SELinux is)"
   fi
 
   work=$(mktemp -d)
@@ -564,6 +586,8 @@ EOF
     run systemctl enable --now docker.service
     if [ "$dry_run" = 0 ]; then require_compose; fi
   fi
+  # A dry run that would install Docker has no engine to ask yet.
+  if [ "$dry_run" = 0 ] || [ "$have_docker" = 1 ]; then require_engine; fi
 
   # --- 2. The install dir ----------------------------------------------------
 
