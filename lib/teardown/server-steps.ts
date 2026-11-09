@@ -367,30 +367,36 @@ export async function checkStack(
 }
 
 /**
- * The first half of archive_volumes: after the guard, `docker compose stop`
- * so the volumes are consistent while they are read, then the project's
- * real volumes (labelled with its name), each checked against Docker's name
- * rule. No volumes when there is no stack.
+ * stop_stack: after the guard, in the same script, `docker compose stop`
+ * pinned to the project just checked, so the deploy dir and the volumes do
+ * not change while they are archived. Ok without a stack. Not destructive:
+ * a cancelled teardown leaves the stack stopped.
  */
-export async function stopProjectForArchive(
+export async function stopStack(
   ctx: TeardownContext,
   params: DirParams
-): Promise<{ message: string; project: string | null; volumes: string[] }> {
+): Promise<string> {
   const { dir, report } = await runStackStep(ctx, params, [
     `docker compose -p "$name" stop >/dev/null 2>&1 || exit ${EXIT.composeActionFailed}`,
   ]);
   if (report.state !== "stack") {
-    return {
-      message: `No compose stack in ${dir}; no volumes to archive`,
-      project: null,
-      volumes: [],
-    };
+    return `No compose stack in ${dir}; nothing to stop`;
   }
-  return {
-    message: `Stack ${report.project} in ${dir} stopped; ${report.volumes.length} volumes to archive`,
-    project: report.project,
-    volumes: report.volumes,
-  };
+  return `Stack ${report.project} in ${dir} stopped (${report.containers} containers)`;
+}
+
+/**
+ * The project's real volumes (labelled with its name), after the guard, each
+ * checked against Docker's name rule; none when there is no stack. Changes
+ * nothing: stop_stack has already stopped the stack.
+ */
+export async function projectVolumes(
+  ctx: TeardownContext,
+  params: DirParams
+): Promise<{ dir: string; project: string | null; volumes: string[] }> {
+  const { dir, report } = await runStackStep(ctx, params, []);
+  if (report.state !== "stack") return { dir, project: null, volumes: [] };
+  return { dir, project: report.project, volumes: report.volumes };
 }
 
 /**

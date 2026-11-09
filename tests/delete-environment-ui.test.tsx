@@ -309,6 +309,7 @@ describe("Teardown messages", () => {
   const STEP_KINDS = [
     "check_stack",
     "archive_database",
+    "stop_stack",
     "archive_deploy_dir",
     "archive_volumes",
     "stack_down",

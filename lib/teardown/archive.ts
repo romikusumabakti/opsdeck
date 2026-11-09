@@ -33,7 +33,7 @@ import {
   loadTeardownDbService,
 } from "@/lib/teardown/repository";
 import {
-  stopProjectForArchive,
+  projectVolumes,
   type TeardownContext,
   volumeArchiveCommand,
 } from "@/lib/teardown/server-steps";
@@ -484,25 +484,29 @@ export async function archiveDeployDir(
 }
 
 /**
- * archive_volumes: stops the stack (stopProjectForArchive, after its checks)
- * so its volumes are consistent, then keeps each of the project's volumes as
- * `volume-<host>-<volume>-<hash of host and volume>.tar.gz`. Each volume is
- * checked to still exist right before it is read (`docker run -v` would
- * create an empty one); only docker's "no such volume" counts as gone, any
- * other inspect error fails with docker's message. A
- * failure after the stop leaves the stack stopped, and says so; a retry
- * resumes with the volumes not archived yet.
+ * archive_volumes: keeps each of the project's volumes (projectVolumes,
+ * after its checks; stop_stack has stopped the stack so they are
+ * consistent) as `volume-<host>-<volume>-<hash of host and volume>.tar.gz`.
+ * Each volume is checked to still exist right before it is read (`docker
+ * run -v` would create an empty one); only docker's "no such volume" counts
+ * as gone, any other inspect error fails with docker's message. A failure
+ * says the stack is left stopped; a retry resumes with the volumes not
+ * archived yet.
  */
 export async function archiveVolumes(
   ctx: ArchiveContext,
   params: DirParams
 ): Promise<string> {
-  const stopped = await stopProjectForArchive(ctx, params);
-  if (stopped.volumes.length === 0) return stopped.message;
+  const listed = await projectVolumes(ctx, params);
+  if (listed.volumes.length === 0) {
+    return listed.project === null
+      ? `No compose stack in ${listed.dir}; no volumes to archive`
+      : `Stack ${listed.project} in ${listed.dir} has no volumes to archive`;
+  }
   const archived: string[] = [];
   try {
     const target = await serverTarget(ctx, params.serverId);
-    for (const volume of stopped.volumes) {
+    for (const volume of listed.volumes) {
       const host = machine(target);
       const name = fileName(
         "volume",
@@ -545,8 +549,8 @@ export async function archiveVolumes(
         : errorMessage(ctx, error);
     throw new StepFailed(
       "archiveFailed",
-      `${detail}. The stack ${stopped.project} in ${normaliseDeployDir(params.deployDir)} was stopped for the archive and is left stopped`
+      `${detail}. The stack ${listed.project} in ${listed.dir} was stopped for the archive and is left stopped`
     );
   }
-  return `${stopped.message}; ${archived.join(", ")}`;
+  return `Stack ${listed.project} in ${listed.dir}: ${archived.join(", ")}`;
 }

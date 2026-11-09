@@ -2974,6 +2974,7 @@
     "steps": {
       "check_stack": "Revisar el stack",
       "archive_database": "Copiar la base de datos",
+      "stop_stack": "Detener el stack",
       "archive_deploy_dir": "Copiar la carpeta del servidor",
       "archive_volumes": "Copiar los volúmenes",
       "stack_down": "Detener y quitar los contenedores",

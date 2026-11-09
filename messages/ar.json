@@ -2974,6 +2974,7 @@
     "steps": {
       "check_stack": "فحص الـ stack",
       "archive_database": "نسخ قاعدة البيانات احتياطيًا",
+      "stop_stack": "إيقاف المكدس",
       "archive_deploy_dir": "نسخ مجلد الخادم احتياطيًا",
       "archive_volumes": "نسخ وحدات التخزين احتياطيًا",
       "stack_down": "إيقاف الحاويات وإزالتها",

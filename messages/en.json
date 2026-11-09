@@ -2974,6 +2974,7 @@
     "steps": {
       "check_stack": "Check the stack",
       "archive_database": "Back up the database",
+      "stop_stack": "Stop the stack",
       "archive_deploy_dir": "Back up the server folder",
       "archive_volumes": "Back up the volumes",
       "stack_down": "Stop and remove the containers",

@@ -783,6 +783,7 @@ export const provisioningSteps = pgTable(
 export const teardownStepKindEnum = pgEnum("teardown_step_kind", [
   "check_stack",
   "archive_database",
+  "stop_stack",
   "archive_deploy_dir",
   "archive_volumes",
   "stack_down",

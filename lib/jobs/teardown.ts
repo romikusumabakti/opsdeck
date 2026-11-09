@@ -36,6 +36,7 @@ import {
   dropDatabase,
   removeDeployDir,
   stackDown,
+  stopStack,
 } from "@/lib/teardown/server-steps";
 import { loadCloudflareAccount } from "@/server/services/cloudflare-account";
 
@@ -56,6 +57,7 @@ type Params<K extends TeardownStepSpec["kind"]> = Extract<
 function summarize(spec: TeardownStepSpec): string {
   switch (spec.kind) {
     case "check_stack":
+    case "stop_stack":
     case "archive_deploy_dir":
     case "archive_volumes":
     case "stack_down":
@@ -207,6 +209,8 @@ function executeStep(
       return checkStack(ctx, spec.params);
     case "archive_database":
       return archiveDatabase(ctx, spec.params);
+    case "stop_stack":
+      return stopStack(ctx, spec.params);
     case "archive_deploy_dir":
       return archiveDeployDir(ctx, spec.params);
     case "archive_volumes":

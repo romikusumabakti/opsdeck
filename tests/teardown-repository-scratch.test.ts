@@ -281,6 +281,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     expect(plan && "steps" in plan && plan.steps.map((st) => st.kind)).toEqual([
       "check_stack",
       "archive_database",
+      "stop_stack",
       "archive_deploy_dir",
       "archive_volumes",
       "stack_down",
@@ -1095,6 +1096,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       const kinds = [
         "check_stack",
         "archive_database",
+        "stop_stack",
         "archive_deploy_dir",
         "archive_volumes",
         "stack_down",
@@ -1116,14 +1118,14 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       };
 
       // stack_down done: past the archives.
-      await seed(5);
+      await seed(6);
       await expect(cancelTeardownSteps(env)).resolves.toEqual({
         refusal: "teardownCannotCancel",
       });
-      await expect(listTeardownSteps(env)).resolves.toHaveLength(6);
+      await expect(listTeardownSteps(env)).resolves.toHaveLength(7);
 
       // A started teardown run: still running.
-      await seed(4);
+      await seed(5);
       const running = await startedRun(env, "teardown");
       await expect(cancelTeardownSteps(env)).resolves.toEqual({
         refusal: "teardownRunning",
@@ -1136,15 +1138,15 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
         .where(
           and(
             eq(s.teardownSteps.environmentId, env),
-            eq(s.teardownSteps.position, 4)
+            eq(s.teardownSteps.position, 5)
           )
         );
       await expect(cancelTeardownSteps(env)).resolves.toEqual({
         refusal: "teardownRunning",
       });
 
-      // Every archive step done, nothing else: cancelled, unfrozen.
-      await seed(4);
+      // Every archive step and the stop done, nothing else: cancelled, unfrozen.
+      await seed(5);
       const base = {
         environmentId: env,
         projectName: "Teardown IT",

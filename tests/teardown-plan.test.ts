@@ -158,6 +158,10 @@ describe("planTeardown", () => {
           params: { serverId: S1, deployDir: "/deployments/dms" },
         },
         {
+          kind: "stop_stack",
+          params: { serverId: S1, deployDir: "/deployments/dms" },
+        },
+        {
           kind: "archive_deploy_dir",
           params: { serverId: S1, deployDir: "/deployments/dms" },
         },
@@ -190,6 +194,8 @@ describe("planTeardown", () => {
     expect("steps" in result && result.steps.map((s) => s.kind)).toEqual([
       "check_stack",
       "check_stack",
+      "stop_stack",
+      "stop_stack",
       "archive_deploy_dir",
       "archive_deploy_dir",
       "archive_volumes",
@@ -419,6 +425,7 @@ describe("planTeardown", () => {
     expect("steps" in result && result.steps.map((s) => s.kind)).toEqual([
       "check_stack",
       "archive_database",
+      "stop_stack",
       "archive_deploy_dir",
       "archive_volumes",
       "stack_down",
@@ -460,6 +467,7 @@ describe("teardownStepSpecSchema", () => {
   it("rejects an unsafe deploy dir read back from jsonb", () => {
     for (const kind of [
       "check_stack",
+      "stop_stack",
       "archive_deploy_dir",
       "archive_volumes",
       "stack_down",

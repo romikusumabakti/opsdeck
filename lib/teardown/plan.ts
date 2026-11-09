@@ -25,6 +25,7 @@ type DirParams = { serverId: string; deployDir: string };
 export type TeardownStepSpec =
   | { kind: "check_stack"; params: DirParams }
   | { kind: "archive_database"; params: { serviceId: string } }
+  | { kind: "stop_stack"; params: DirParams }
   | { kind: "archive_deploy_dir"; params: DirParams }
   | { kind: "archive_volumes"; params: DirParams }
   | { kind: "stack_down"; params: DirParams }
@@ -59,6 +60,7 @@ export const teardownStepSpecSchema: z.ZodType<TeardownStepSpec> =
   z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("check_stack"), params: dirParams }),
     z.object({ kind: z.literal("archive_database"), params: serviceParams }),
+    z.object({ kind: z.literal("stop_stack"), params: dirParams }),
     z.object({ kind: z.literal("archive_deploy_dir"), params: dirParams }),
     z.object({ kind: z.literal("archive_volumes"), params: dirParams }),
     z.object({ kind: z.literal("stack_down"), params: dirParams }),
@@ -99,10 +101,12 @@ export type TeardownPlan =
 
 /**
  * The ordered steps that delete an environment: check each stack, archive
- * every database, deploy directory and stack volume, bring the stacks down, drop shared
- * databases, remove the Cloudflare objects the Panel created (only those whose
+ * every database while it runs, stop the stacks, archive every deploy
+ * directory and stack volume (so a running container cannot change a file
+ * under tar), bring the stacks down, drop shared databases, remove the Cloudflare objects the Panel created (only those whose
  * ids are recorded), remove the deploy directories, then the environment row.
- * Nothing destructive comes before the archives. Refuses an unsafe deploy
+ * Nothing destructive comes before the archives; stopping is not
+ * destructive (a cancelled teardown leaves the stacks stopped). Refuses an unsafe deploy
  * dir, a dir that collides with another environment's on the same machine
  * (compared by host, so two server rows for one machine count as one), a
  * database the Panel cannot dump (only Postgres is), and a Cloudflare object
@@ -154,6 +158,7 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   for (const service of env.dbServices) {
     steps.push({ kind: "archive_database", params: { serviceId: service.id } });
   }
+  for (const params of dirs) steps.push({ kind: "stop_stack", params });
   for (const params of dirs) steps.push({ kind: "archive_deploy_dir", params });
   // Named volumes: `down --volumes` deletes them, registered db or not.
   for (const params of dirs) steps.push({ kind: "archive_volumes", params });

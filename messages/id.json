@@ -2974,6 +2974,7 @@
     "steps": {
       "check_stack": "Periksa stack",
       "archive_database": "Cadangkan database",
+      "stop_stack": "Hentikan stack",
       "archive_deploy_dir": "Cadangkan folder di server",
       "archive_volumes": "Cadangkan volume",
       "stack_down": "Hentikan dan hapus container",
