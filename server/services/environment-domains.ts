@@ -1,19 +1,33 @@
 import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
-import { requireProjectPermission } from "@/lib/authz";
-import { listAccessPolicies } from "@/lib/cloudflare/api";
+import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
+import {
+  accessAppDomains,
+  CloudflareConflictError,
+  type CloudflareCreds,
+  findDnsRecord,
+  getTunnelConfig,
+  listAccessAppsByDomain,
+  listAccessPolicies,
+  putTunnelConfig,
+  UnsafeTunnelConfigError,
+  withIngressRoute,
+} from "@/lib/cloudflare/api";
 import {
   DOMAIN_ERRORS,
   type DomainErrorCode,
   pgErrorCode,
 } from "@/lib/domains/errors";
 import {
+  adoptDomain,
   deleteDomain,
   getDomain,
   getDomainView,
   getEnvironmentRow,
+  getRemoteTunnel,
   getRemoteTunnelByServer,
   getZone,
+  getZoneCloudflareId,
   hasProvisioningProgress,
   hostnameTakenByOther,
   listDeployServerIds,
@@ -21,13 +35,16 @@ import {
   saveDomain,
 } from "@/lib/domains/repository";
 import {
+  type AdoptDomainInput,
   type DomainInput,
   hostnameFor,
   isPublicPolicy,
   isUnderZone,
+  zoneOf,
 } from "@/lib/domains/validation";
 import { canOrg } from "@/lib/permissions";
 import { ENTRY_PORT_RANGE } from "@/lib/provisioning/ports";
+import { withAdvisoryXactLock } from "@/lib/provisioning/repository";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { callCloudflare } from "@/server/services/cloudflare-account";
 import { listEntryPortsOnServer } from "@/server/services/preflight-repository";
@@ -316,6 +333,132 @@ export async function deleteEnvironmentDomain(environmentId: string) {
     entityType: "environment",
     entityId: environmentId,
     data: { environment: environment.name, hostname: current.hostname },
+  });
+}
+
+/**
+ * Records a hostname Cloudflare already publishes through a registered remote
+ * tunnel as the environment's tunnel domain, so its teardown removes it later.
+ * Org `server:manage` only. The hostname must be under a registered zone and
+ * have a CNAME into that tunnel; the Access app covering exactly it (if any) is
+ * recorded, never created, so the hostname's exposure stays as it is. The
+ * tunnel route is added only when missing; a route to another service is
+ * refused rather than rewritten. Only an environment without a domain.
+ */
+export async function adoptEnvironmentDomain(
+  environmentId: string,
+  input: AdoptDomainInput
+) {
+  const session = await requireOrgPermission({ server: ["manage"] });
+  const environment = await getEnvironmentRow(environmentId);
+  if (!environment) notFound();
+  if (await getDomain(environmentId)) {
+    return failDomain(409, "domainProvisioned");
+  }
+  const { hostname, service } = input;
+  if (await hostnameTakenByOther(hostname, environmentId)) {
+    return failDomain(409, "domainHostnameTaken");
+  }
+  const zone = zoneOf(hostname, await listZones());
+  const cfZoneId = zone && (await getZoneCloudflareId(zone.id));
+  if (!zone || !cfZoneId) return failDomain(422, "domainUnknownZone");
+  const tunnel = await getRemoteTunnel(input.remoteTunnelId);
+  if (!tunnel) return failDomain(422, "tunnelUnknown");
+
+  const { dnsRecordId, accessAppId } = await callCloudflare(async (creds) => {
+    const found = await findAdoptable(
+      creds,
+      cfZoneId,
+      hostname,
+      tunnel.tunnelId
+    );
+    await addRouteIfMissing(creds, tunnel.tunnelId, hostname, service);
+    return found;
+  });
+
+  try {
+    const stored = await adoptDomain(environmentId, {
+      kind: "tunnel",
+      hostname,
+      zoneId: zone.id,
+      remoteTunnelId: tunnel.id,
+      accessPolicyId: null,
+      accessAppId,
+      dnsRecordId,
+    });
+    if (!stored) return failDomain(409, "domainProvisioned");
+  } catch (error) {
+    if (pgErrorCode(error) === "23505") {
+      return failDomain(409, "domainHostnameTaken");
+    }
+    throw error;
+  }
+  await recordActivity({
+    actorId: session.user.id,
+    action: "environment.domain.adopted",
+    entityType: "environment",
+    entityId: environmentId,
+    data: { environment: environment.name, hostname },
+  });
+  return { hostname };
+}
+
+/**
+ * The hostname's CNAME into the tunnel and its Access app (null when none),
+ * read before anything is written. An app that covers other hostnames too is
+ * refused: deleting it at teardown would expose them.
+ */
+async function findAdoptable(
+  creds: CloudflareCreds,
+  zoneId: string,
+  hostname: string,
+  tunnelId: string
+): Promise<{ dnsRecordId: string; accessAppId: string | null }> {
+  const record = await findDnsRecord(creds, zoneId, hostname);
+  if (
+    record?.type !== "CNAME" ||
+    record.content.toLowerCase() !==
+      `${tunnelId}.cfargotunnel.com`.toLowerCase()
+  ) {
+    return failDomain(409, "hostnameNotOnTunnel");
+  }
+  const apps = await listAccessAppsByDomain(creds, hostname);
+  if (apps.length > 1) return failDomain(409, "domainAccessAppAmbiguous");
+  const app = apps[0];
+  if (
+    app &&
+    accessAppDomains(app).some(
+      (domain) => domain.toLowerCase() !== hostname.toLowerCase()
+    )
+  ) {
+    return failDomain(409, "domainAccessAppShared");
+  }
+  return { dnsRecordId: record.id, accessAppId: app?.id ?? null };
+}
+
+// The same lock as the provisioning tunnel_route step, so concurrent edits of
+// one tunnel's config cannot drop each other's route.
+async function addRouteIfMissing(
+  creds: CloudflareCreds,
+  tunnelId: string,
+  hostname: string,
+  service: string
+): Promise<void> {
+  await withAdvisoryXactLock(`cf-tunnel:${tunnelId}`, async () => {
+    const current = await getTunnelConfig(creds, tunnelId);
+    let next: ReturnType<typeof withIngressRoute>;
+    try {
+      next = withIngressRoute(current, hostname, service);
+    } catch (error) {
+      if (error instanceof CloudflareConflictError) {
+        return failDomain(409, "domainRouteConflict");
+      }
+      if (error instanceof UnsafeTunnelConfigError) {
+        return failDomain(409, "domainTunnelConfigUnsafe");
+      }
+      throw error;
+    }
+    if (next.changed) await putTunnelConfig(creds, tunnelId, next.config);
   });
 }
 

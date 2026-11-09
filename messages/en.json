@@ -2899,7 +2899,12 @@
       "domainPublicForbidden": "Only an admin can publish without Access",
       "domainPortInUse": "Another environment on this server uses this entry port",
       "domainPortForbidden": "Only an admin can pick an entry port outside 8100–8999",
-      "domainExternalInZone": "This hostname is under a registered zone: use the Cloudflare tunnel type"
+      "domainExternalInZone": "This hostname is under a registered zone: use the Cloudflare tunnel type",
+      "hostnameNotOnTunnel": "The hostname has no DNS record pointing at this tunnel",
+      "domainAccessAppAmbiguous": "More than one Access app covers this hostname",
+      "domainAccessAppShared": "The hostname's Access app also covers other hostnames",
+      "domainRouteConflict": "The tunnel already routes this hostname to another service",
+      "domainTunnelConfigUnsafe": "The tunnel's config has no catch-all ingress rule and cannot be edited safely"
     }
   },
   "teardown": {

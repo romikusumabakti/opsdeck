@@ -2899,7 +2899,12 @@
       "domainPublicForbidden": "وحده المسؤول يمكنه النشر بدون Access",
       "domainPortInUse": "بيئة أخرى على هذا الخادم تستخدم منفذ الدخول هذا",
       "domainPortForbidden": "وحده المسؤول يمكنه اختيار منفذ دخول خارج النطاق 8100–8999",
-      "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare"
+      "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare",
+      "hostnameNotOnTunnel": "لا يوجد لاسم المضيف سجل DNS يشير إلى هذا النفق",
+      "domainAccessAppAmbiguous": "أكثر من تطبيق Access يغطي اسم المضيف هذا",
+      "domainAccessAppShared": "تطبيق Access لاسم المضيف هذا يغطي أسماء مضيفين أخرى أيضًا",
+      "domainRouteConflict": "النفق يوجّه اسم المضيف هذا بالفعل إلى خدمة أخرى",
+      "domainTunnelConfigUnsafe": "إعداد النفق لا يحتوي على قاعدة ingress شاملة ولا يمكن تعديله بأمان"
     }
   },
   "teardown": {

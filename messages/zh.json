@@ -2899,7 +2899,12 @@
       "domainPublicForbidden": "只有管理员可以在不使用 Access 的情况下公开发布",
       "domainPortInUse": "此服务器上的另一个环境已使用该入口端口",
       "domainPortForbidden": "只有管理员可以选择 8100–8999 之外的入口端口",
-      "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型"
+      "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型",
+      "hostnameNotOnTunnel": "该主机名没有指向此隧道的 DNS 记录",
+      "domainAccessAppAmbiguous": "有多个 Access 应用覆盖此主机名",
+      "domainAccessAppShared": "此主机名的 Access 应用还覆盖其他主机名",
+      "domainRouteConflict": "该隧道已将此主机名路由到其他服务",
+      "domainTunnelConfigUnsafe": "该隧道配置没有兜底 ingress 规则，无法安全编辑"
     }
   },
   "teardown": {

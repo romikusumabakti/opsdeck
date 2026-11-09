@@ -2899,7 +2899,12 @@
       "domainPublicForbidden": "Solo un administrador puede publicar sin Access",
       "domainPortInUse": "Otro entorno de este servidor ya usa este puerto de entrada",
       "domainPortForbidden": "Solo un administrador puede elegir un puerto de entrada fuera de 8100–8999",
-      "domainExternalInZone": "Este hostname está bajo una zona registrada: usa el tipo túnel de Cloudflare"
+      "domainExternalInZone": "Este hostname está bajo una zona registrada: usa el tipo túnel de Cloudflare",
+      "hostnameNotOnTunnel": "El hostname no tiene un registro DNS que apunte a este túnel",
+      "domainAccessAppAmbiguous": "Más de una app de Access cubre este hostname",
+      "domainAccessAppShared": "La app de Access de este hostname también cubre otros hostnames",
+      "domainRouteConflict": "El túnel ya enruta este hostname a otro servicio",
+      "domainTunnelConfigUnsafe": "La configuración del túnel no tiene una regla de ingress catch-all y no se puede editar con seguridad"
     }
   },
   "teardown": {
