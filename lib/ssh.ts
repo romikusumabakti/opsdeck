@@ -133,6 +133,51 @@ export async function executeRemoteCommand(
   }
 }
 
+export type RemoteScriptResult = {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+};
+
+/**
+ * Runs `command` and returns its exit code and output instead of throwing on
+ * a non-zero exit, for scripts that report outcomes by exit code. Nothing is
+ * logged: the caller decides what of the output is safe to keep (stderr of
+ * a compose command can quote the compose file or .env). Connection errors
+ * and the wall-clock timeout still throw.
+ */
+export async function runRemoteScript(
+  target: SshTarget,
+  command: string,
+  options: { timeoutMs: number; stdin?: string }
+): Promise<RemoteScriptResult> {
+  const { timeoutMs, stdin } = options;
+  let ssh: NodeSSH | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    ssh = await openSsh(target, { readyTimeout: 5000 });
+    const result = await Promise.race([
+      stdin === undefined
+        ? ssh.execCommand(command)
+        : ssh.execCommand(command, { stdin }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`SSH command timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      }),
+    ]);
+    return {
+      code: result.code,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    };
+  } finally {
+    clearTimeout(timer);
+    ssh?.dispose();
+  }
+}
+
 // SFTP a file OFF a remote host to a local path. Fresh client per call (same
 // rationale as executeRemoteCommand). The remote path must be readable by the
 // SSH user — callers stage container/root-owned files into an SSH-owned temp

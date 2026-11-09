@@ -5,7 +5,12 @@ import { provisionedRoleMarker } from "@/lib/provisioning/database";
 import { loadDatabaseHost } from "@/lib/provisioning/repository";
 import { decryptNullable } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
-import { executeRemoteCommand, redactSecrets } from "@/lib/ssh";
+import {
+  executeRemoteCommand,
+  type RemoteScriptResult,
+  redactSecrets,
+  runRemoteScript,
+} from "@/lib/ssh";
 import { HostKeyMismatchError, type SshTarget } from "@/lib/ssh-connect";
 import { StepFailed } from "@/lib/teardown/errors";
 import {
@@ -14,8 +19,8 @@ import {
   dirsOverlap,
   isSafeDeployDir,
   normaliseDeployDir,
-  type TeardownStepSpec,
-} from "@/lib/teardown/plan";
+} from "@/lib/teardown/paths";
+import type { TeardownStepSpec } from "@/lib/teardown/plan";
 import {
   loadStackGuard,
   loadTeardownDbService,
@@ -23,15 +28,23 @@ import {
 } from "@/lib/teardown/repository";
 
 // The teardown steps that act on servers over SSH. Each one re-validates its
-// stored params and re-reads the current rows before anything destructive
-// (another environment may have appeared since the plan), is idempotent (a
-// retry after success changes nothing and returns ok), returns one log line
-// and throws StepFailed with a TEARDOWN_ERRORS code. Paths and names reach
-// the shell single-quoted; no secret is ever part of a command.
+// stored params and re-reads the current rows before any SSH, then runs ONE
+// remote script that repeats the checks on the server and only then acts, so
+// nothing can come between the check and `compose down` / `rm`. A refusal is
+// a distinct exit code. Steps are idempotent (a retry after success changes
+// nothing and returns ok), return one log line and throw StepFailed with a
+// TEARDOWN_ERRORS code. Paths and names reach the shell single-quoted; no
+// secret is part of a command; compose's stderr (it can quote the compose
+// file or .env) is never kept.
 //
 // Compose runs as the SSH user, as deploys do (on Podman hosts through the
-// `docker` CLI shim); only `rm -rf` is elevated, since containers leave
-// root-owned files in bind mounts.
+// `docker` CLI shim with the Docker Compose v2 provider, whose banner goes to
+// stderr); only `rm -rf` is elevated, since containers leave root-owned files
+// in bind mounts.
+//
+// Known limits: a bind mount another stack has inside the dir is not
+// detected; a project network left without containers or volumes, and a
+// stack whose compose file was deleted while it runs, are left alone.
 
 const INSPECT_TIMEOUT_MS = 2 * 60_000;
 const STEP_COMMAND_TIMEOUT_MS = 10 * 60_000;
@@ -50,10 +63,23 @@ type ServiceParams = Extract<
   { kind: "drop_database" }
 >["params"];
 
-// compose-go's project name rules; anything else means we misread it.
-const PROJECT_NAME = /^[a-z0-9][a-z0-9_-]*$/;
+// Docker's volume name rule; anything else is refused before it is used.
+const VOLUME_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
+// The throwaway container that reads a volume for its archive.
+const ARCHIVE_IMAGE = "docker.io/library/busybox:1.37";
 
-/** One remote command; any failure but a host-key mismatch is a StepFailed. */
+// Exit codes of the step scripts.
+const EXIT = {
+  deployDirShared: 10,
+  stackHostsSharedDatabase: 11,
+  unreadableProject: 12,
+  composeConfigFailed: 20,
+  dockerListFailed: 21,
+  composeActionFailed: 30,
+  removeFailed: 31,
+} as const;
+
+/** executeRemoteCommand; any failure but a host-key mismatch is a StepFailed. */
 async function remote(
   ctx: TeardownContext,
   target: SshTarget,
@@ -66,13 +92,74 @@ async function remote(
       secrets: ctx.secrets,
     });
   } catch (error) {
-    // Carries its own code, which the UI knows.
     if (error instanceof HostKeyMismatchError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new StepFailed(
       "serverCommandFailed",
       redactSecrets(message, ctx.secrets)
     );
+  }
+}
+
+/** Runs a step script; connection errors become serverCommandFailed. */
+async function script(
+  ctx: TeardownContext,
+  target: SshTarget,
+  body: string,
+  options: { timeoutMs: number; stdin?: string }
+): Promise<RemoteScriptResult> {
+  try {
+    return await runRemoteScript(target, `sh -c ${shq(body)}`, options);
+  } catch (error) {
+    if (error instanceof HostKeyMismatchError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new StepFailed(
+      "serverCommandFailed",
+      redactSecrets(message, ctx.secrets)
+    );
+  }
+}
+
+/**
+ * The step's StepFailed for a non-zero exit, with a fixed detail. Only the
+ * first stderr line of `docker ps`/`volume ls` or `rm`/`sudo` is kept;
+ * never anything compose printed.
+ */
+function failed(ctx: TeardownContext, result: RemoteScriptResult): StepFailed {
+  const firstLine = () =>
+    redactSecrets(result.stderr.split("\n")[0]?.trim() ?? "", ctx.secrets);
+  switch (result.code) {
+    case EXIT.deployDirShared:
+      return new StepFailed("deployDirShared");
+    case EXIT.stackHostsSharedDatabase:
+      return new StepFailed("stackHostsSharedDatabase");
+    case EXIT.unreadableProject:
+      return new StepFailed(
+        "serverCommandFailed",
+        "could not read the compose project of this or another environment's dir"
+      );
+    case EXIT.composeConfigFailed:
+      return new StepFailed(
+        "serverCommandFailed",
+        "docker compose config failed"
+      );
+    case EXIT.dockerListFailed:
+      return new StepFailed(
+        "serverCommandFailed",
+        `docker could not list the project's containers or volumes: ${firstLine()}`
+      );
+    case EXIT.composeActionFailed:
+      return new StepFailed("serverCommandFailed", "docker compose failed");
+    case EXIT.removeFailed:
+      return new StepFailed(
+        "serverCommandFailed",
+        `the deploy dir could not be removed: ${firstLine()}`
+      );
+    default:
+      return new StepFailed(
+        "serverCommandFailed",
+        `the step script exited with ${result.code ?? "a signal"}`
+      );
   }
 }
 
@@ -100,188 +187,222 @@ async function load(
   return { guard, target: { ...creds, run: ctx.runId } };
 }
 
-/** deployDirShared when another environment's dir overlaps ours. */
-function refuseOverlap(dir: string, guard: StackGuard): void {
-  const shared = guard.otherDeployDirs.some((other) =>
-    dirsOverlap(dir, normaliseDeployDir(other))
-  );
-  if (shared) throw new StepFailed("deployDirShared");
-}
-
-type StackInspection =
-  | { state: "absent" | "nofile" }
-  | {
-      state: "stack";
-      // The dir as the shell sees it, and with symlinks resolved.
-      dirs: string[];
-      project: string;
-      volumes: string[];
-      containers: { name: string; workingDir: string }[];
-      projectVolumes: string[];
-    };
+// Shell helpers every step script starts with. `under A B`: A is B or lies
+// inside it (B = / covers every absolute path). `resolved P`: realpath -m,
+// or P itself where realpath has no -m (busybox).
+const SHELL_HELPERS = [
+  'under() { if [ "$2" = / ]; then return 0; fi; case "$1/" in "$2"/*) return 0;; esac; return 1; }',
+  'overlap() { under "$1" "$2" || under "$2" "$1"; }',
+  'resolved() { realpath -m -- "$1" 2>/dev/null || printf \'%s\\n\' "$1"; }',
+];
 
 /**
- * One read-only command: whether the dir and a compose file exist, the
- * project `docker compose` resolves there (a `name:` key and
- * COMPOSE_PROJECT_NAME included), its named volumes, and the containers and
- * volumes labelled with that project anywhere on the machine. The resolved
- * config holds the .env's values, so it stays on the server: only its
- * top-level `name:` line comes back.
+ * The checks before a stack is touched, as script lines run on the server.
+ * Prints `state absent`/`state nofile` and exits 0 when there is no stack;
+ * otherwise sets $name, $cs (containers) and $vs (volumes) and prints
+ * `project`, `containers` and `volume` lines. Refuses (exit code):
+ * - deployDirShared: another environment's dir overlaps ours once both are
+ *   resolved (symlinks), or its compose project, as compose resolves it
+ *   there (`name:`, COMPOSE_PROJECT_NAME; the dir name when it has no
+ *   compose file), is ours; or a container of our project was started from
+ *   another dir (or carries no working dir label);
+ * - stackHostsSharedDatabase: a container of our project is a registered
+ *   database host's or another environment's db container;
+ * - unreadableProject: a project name cannot be read or is not one compose
+ *   could produce (YAML quotes are stripped first).
+ * Compose's stderr goes to /dev/null: it can quote the compose file or .env.
+ * The resolved config holds the .env's values and never leaves the server;
+ * only its top-level `name:` is read.
  */
-function inspectCommand(dir: string): string {
-  const d = shq(dir);
+function stackGuardLines(
+  dir: string,
+  guard: StackGuard,
+  others: string[]
+): string[] {
+  const hasCompose = (d: string) =>
+    `{ [ -e ${d}/compose.yaml ] || [ -e ${d}/compose.yml ] || [ -e ${d}/docker-compose.yaml ] || [ -e ${d}/docker-compose.yml ] || grep -qs '^COMPOSE_FILE=' ${d}/.env; }`;
+  const dbList = guard.databaseContainers.map(shq).join(" ");
   const containerFormat = shq(
     '{{.Names}}|{{.Label "com.docker.compose.project.working_dir"}}'
   );
   return [
-    `if [ ! -d ${d} ]; then echo absent; exit 0; fi`,
-    `cd ${d} || exit 1`,
-    "if [ ! -e compose.yaml ] && [ ! -e compose.yml ] && [ ! -e docker-compose.yaml ] && [ ! -e docker-compose.yml ] && ! grep -qs '^COMPOSE_FILE=' .env; then echo nofile; exit 0; fi",
-    'echo "pwd $(pwd)"',
-    'echo "real $(pwd -P)"',
-    "cfg=$(docker compose config) || exit 1",
-    `name=$(printf '%s\\n' "$cfg" | sed -n 's/^name: //p' | head -n 1)`,
-    'echo "name $name"',
-    "vols=$(docker compose config --volumes) || exit 1",
-    `printf '%s\\n' "$vols" | sed -n '/./s/^/volume /p'`,
-    'if [ -z "$name" ]; then exit 0; fi',
-    `cs=$(docker ps -a --filter "label=com.docker.compose.project=$name" --format ${containerFormat}) || exit 1`,
-    `printf '%s\\n' "$cs" | sed -n '/./s/^/container /p'`,
-    `vs=$(docker volume ls -q --filter "label=com.docker.compose.project=$name") || exit 1`,
-    `printf '%s\\n' "$vs" | sed -n '/./s/^/projectvolume /p'`,
-  ].join("\n");
+    `D=${shq(dir)}`,
+    ...SHELL_HELPERS,
+    'valid() { case "$1" in ""|[!a-z0-9]*|*[!a-z0-9_-]*) return 1;; esac; return 0; }',
+    // The project compose resolves in dir $1, quotes stripped.
+    `project_in() { cfg=$(cd "$1" && docker compose config 2>/dev/null) || return 1; printf '%s\\n' "$cfg" | sed -n 's/^name: //p' | head -n 1 | sed -e "s/^[\\"']//" -e "s/[\\"']\\$//"; }`,
+    `if [ ! -d "$D" ]; then echo 'state absent'; exit 0; fi`,
+    `cd "$D" || exit ${EXIT.dockerListFailed}`,
+    `if ! ${hasCompose('"$D"')}; then echo 'state nofile'; exit 0; fi`,
+    `real=$(pwd -P) || exit ${EXIT.dockerListFailed}`,
+    `name=$(project_in "$D") || exit ${EXIT.composeConfigFailed}`,
+    `valid "$name" || exit ${EXIT.unreadableProject}`,
+    'echo "project $name"',
+    // $1 another environment's dir as stored, $2 its dir-derived project.
+    "check_other() {",
+    '  o_real=$(resolved "$1")',
+    `  if overlap "$real" "$o_real" || overlap "$D" "$1"; then exit ${EXIT.deployDirShared}; fi`,
+    `  if [ -d "$1" ] && ${hasCompose('"$1"')}; then`,
+    `    o_name=$(project_in "$1") || exit ${EXIT.unreadableProject}`,
+    `    valid "$o_name" || exit ${EXIT.unreadableProject}`,
+    "  else",
+    "    o_name=$2",
+    "  fi",
+    `  if [ "$o_name" = "$name" ]; then exit ${EXIT.deployDirShared}; fi`,
+    "}",
+    ...others.map(
+      (other) => `check_other ${shq(other)} ${shq(composeProjectName(other))}`
+    ),
+    `cs=$(docker ps -a --filter "label=com.docker.compose.project=$name" --format ${containerFormat}) || exit ${EXIT.dockerListFailed}`,
+    "while IFS='|' read -r c_name c_dir; do",
+    '  [ -n "$c_name" ] || continue',
+    `  for db in ${dbList}; do if [ "$c_name" = "$db" ]; then exit ${EXIT.stackHostsSharedDatabase}; fi; done`,
+    `  [ -n "$c_dir" ] || exit ${EXIT.deployDirShared}`,
+    `  if [ "$c_dir" != "$D" ] && [ "$(resolved "$c_dir")" != "$real" ]; then exit ${EXIT.deployDirShared}; fi`,
+    "done <<EOF_CONTAINERS",
+    "$cs",
+    "EOF_CONTAINERS",
+    `vs=$(docker volume ls -q --filter "label=com.docker.compose.project=$name") || exit ${EXIT.dockerListFailed}`,
+    `echo "containers $(printf '%s\\n' "$cs" | grep -c .)"`,
+    `printf '%s\\n' "$vs" | sed -n '/./s/^/volume /p'`,
+  ];
 }
 
-function parseInspection(output: string): StackInspection {
-  const lines = output.split("\n").filter((line) => line.length > 0);
-  if (lines[0] === "absent") return { state: "absent" };
-  if (lines[0] === "nofile") return { state: "nofile" };
-  const inspection = {
-    state: "stack" as const,
-    dirs: [] as string[],
-    project: "",
-    volumes: [] as string[],
-    containers: [] as { name: string; workingDir: string }[],
-    projectVolumes: [] as string[],
-  };
-  for (const line of lines) {
-    const space = line.indexOf(" ");
-    const key = space < 0 ? line : line.slice(0, space);
-    const value = space < 0 ? "" : line.slice(space + 1);
-    if (key === "pwd" || key === "real") {
-      inspection.dirs.push(normaliseDeployDir(value));
-    } else if (key === "name") {
-      inspection.project = value.trim();
-    } else if (key === "volume") {
-      inspection.volumes.push(value);
-    } else if (key === "container") {
-      const bar = value.indexOf("|");
-      inspection.containers.push({
-        name: bar < 0 ? value : value.slice(0, bar),
-        workingDir: bar < 0 ? "" : value.slice(bar + 1),
-      });
-    } else if (key === "projectvolume") {
-      inspection.projectVolumes.push(value);
-    }
+type StackReport =
+  | { state: "absent" | "nofile" }
+  | {
+      state: "stack";
+      project: string;
+      containers: number;
+      volumes: string[];
+      done: string | null;
+    };
+
+function parseReport(stdout: string): StackReport {
+  const lines = stdout.split("\n").filter((line) => line.length > 0);
+  const state = lines.find((l) => l.startsWith("state "))?.slice(6);
+  const project = lines.find((l) => l.startsWith("project "))?.slice(8);
+  if (project === undefined) {
+    if (state === "absent" || state === "nofile") return { state };
+    throw new StepFailed("serverCommandFailed", "unexpected step output");
   }
-  return inspection;
+  const volumes = lines
+    .filter((l) => l.startsWith("volume "))
+    .map((l) => l.slice(7));
+  if (volumes.some((v) => !VOLUME_NAME.test(v))) {
+    throw new StepFailed("serverCommandFailed", "unexpected volume name");
+  }
+  const count = lines.find((l) => l.startsWith("containers "))?.slice(11);
+  return {
+    state: "stack",
+    project,
+    containers: Number(count ?? 0),
+    volumes,
+    done: state ?? null,
+  };
 }
 
-/**
- * The run-time checks before a stack is archived or brought down. Refuses
- * - deployDirShared: another environment's dir on the machine overlaps ours,
- *   or would get the same compose project (by its dir name, or by the
- *   project ours actually resolves to), or a container of our project was
- *   started from another dir;
- * - stackHostsSharedDatabase: a container of our project is a registered
- *   database host's or another environment's db service;
- * - databaseNotRegistered: the stack has named volumes and the environment
- *   no db service, so the archive would miss that data.
- * Null when there is no stack (dir or compose file missing).
- */
-async function guardStack(
+/** Checks in TS, then the guard plus `tail` in one remote script. */
+async function runStackStep(
   ctx: TeardownContext,
-  params: DirParams
-): Promise<{
-  dir: string;
-  target: SshTarget;
-  stack: Extract<StackInspection, { state: "stack" }> | null;
-}> {
+  params: DirParams,
+  tail: string[]
+): Promise<{ dir: string; report: StackReport }> {
   const dir = safeDir(params);
   const { guard, target } = await load(ctx, params.serverId);
   const others = guard.otherDeployDirs.map(normaliseDeployDir);
   if (others.some((other) => dirsCollide(dir, other))) {
     throw new StepFailed("deployDirShared");
   }
-
-  const inspection = parseInspection(
-    await remote(ctx, target, inspectCommand(dir), {
-      timeoutMs: INSPECT_TIMEOUT_MS,
-    })
+  const result = await script(
+    ctx,
+    target,
+    [...stackGuardLines(dir, guard, others), ...tail].join("\n"),
+    { timeoutMs: STEP_COMMAND_TIMEOUT_MS }
   );
-  if (inspection.state !== "stack") return { dir, target, stack: null };
-
-  const { project } = inspection;
-  if (!PROJECT_NAME.test(project)) {
-    throw new StepFailed(
-      "serverCommandFailed",
-      `could not read the compose project of ${dir}`
-    );
-  }
-  if (others.some((other) => composeProjectName(other) === project)) {
-    throw new StepFailed("deployDirShared");
-  }
-  const databaseContainers = new Set(guard.databaseContainers);
-  if (inspection.containers.some((c) => databaseContainers.has(c.name))) {
-    throw new StepFailed("stackHostsSharedDatabase");
-  }
-  const ourDirs = new Set([dir, ...inspection.dirs]);
-  const foreign = inspection.containers.some(
-    (c) => c.workingDir === "" || !ourDirs.has(normaliseDeployDir(c.workingDir))
-  );
-  if (foreign) throw new StepFailed("deployDirShared");
-  if (inspection.volumes.length > 0 && !guard.hasDbService) {
-    throw new StepFailed("databaseNotRegistered");
-  }
-  return { dir, target, stack: inspection };
+  if (result.code !== 0) throw failed(ctx, result);
+  return { dir, report: parseReport(result.stdout) };
 }
 
-/** check_stack: the run-time refusals of guardStack, nothing changed. */
+/** check_stack: the guard's refusals; nothing is changed. */
 export async function checkStack(
   ctx: TeardownContext,
   params: DirParams
 ): Promise<string> {
-  const { dir, stack } = await guardStack(ctx, params);
-  if (!stack) return `No compose stack in ${dir}; nothing to check`;
-  return `Stack ${stack.project} in ${dir} checked (${stack.containers.length} containers, ${stack.volumes.length} named volumes)`;
+  const { dir, report } = await runStackStep(ctx, params, []);
+  if (report.state !== "stack") {
+    return `No compose stack in ${dir}; nothing to check`;
+  }
+  return `Stack ${report.project} in ${dir} checked (${report.containers} containers, ${report.volumes.length} volumes)`;
 }
 
 /**
- * stack_down: `docker compose down --remove-orphans --volumes` in the dir,
- * pinned to the project the checks just read. Ok without a dir, a compose
- * file, or anything left of the project.
+ * The first half of archive_volumes: after the guard, `docker compose stop`
+ * so the volumes are consistent while they are read, then the project's
+ * real volumes (labelled with its name), each checked against Docker's name
+ * rule. No volumes when there is no stack.
+ */
+export async function stopProjectForArchive(
+  ctx: TeardownContext,
+  params: DirParams
+): Promise<{ message: string; project: string | null; volumes: string[] }> {
+  const { dir, report } = await runStackStep(ctx, params, [
+    `docker compose -p "$name" stop >/dev/null 2>&1 || exit ${EXIT.composeActionFailed}`,
+  ]);
+  if (report.state !== "stack") {
+    return {
+      message: `No compose stack in ${dir}; no volumes to archive`,
+      project: null,
+      volumes: [],
+    };
+  }
+  return {
+    message: `Stack ${report.project} in ${dir} stopped; ${report.volumes.length} volumes to archive`,
+    project: report.project,
+    volumes: report.volumes,
+  };
+}
+
+/**
+ * The command that writes one volume as a gzipped tar to stdout: a
+ * throwaway container with no network and no log driver (the stream would
+ * otherwise be logged) mounts it read-only. The name must pass Docker's
+ * rule, so it cannot carry a mount option or a path.
+ */
+export function volumeArchiveCommand(volume: string): string {
+  if (!VOLUME_NAME.test(volume)) {
+    throw new StepFailed("serverCommandFailed", "invalid volume name");
+  }
+  return `docker run --rm --network none --log-driver none -v ${shq(`${volume}:/v:ro`)} ${ARCHIVE_IMAGE} tar -C /v -czf - .`;
+}
+
+/**
+ * stack_down: after the guard, in the same script, `docker compose down
+ * --remove-orphans --volumes` pinned to the project just checked. Ok without
+ * a dir, a compose file, or anything left of the project.
  */
 export async function stackDown(
   ctx: TeardownContext,
   params: DirParams
 ): Promise<string> {
-  const { dir, target, stack } = await guardStack(ctx, params);
-  if (!stack) return `No compose stack in ${dir}; nothing to bring down`;
-  if (stack.containers.length === 0 && stack.projectVolumes.length === 0) {
-    return `Stack ${stack.project} in ${dir} is already down`;
+  const { dir, report } = await runStackStep(ctx, params, [
+    `if [ -z "$cs" ] && [ -z "$vs" ]; then echo 'state down'; exit 0; fi`,
+    `docker compose -p "$name" down --remove-orphans --volumes >/dev/null 2>&1 || exit ${EXIT.composeActionFailed}`,
+    "echo 'state removed'",
+  ]);
+  if (report.state !== "stack") {
+    return `No compose stack in ${dir}; nothing to bring down`;
   }
-  await remote(
-    ctx,
-    target,
-    `cd ${shq(dir)} && docker compose -p ${shq(stack.project)} down --remove-orphans --volumes`,
-    { timeoutMs: STEP_COMMAND_TIMEOUT_MS }
-  );
-  return `Stack ${stack.project} in ${dir} brought down with its volumes`;
+  if (report.done === "down") {
+    return `Stack ${report.project} in ${dir} is already down`;
+  }
+  return `Stack ${report.project} in ${dir} brought down with its volumes`;
 }
 
 /**
  * remove_deploy_dir: `rm -rf --` on the canonical dir, once it is still a
- * safe path and no other environment's dir overlaps it. Tried as the SSH
+ * safe path and no other environment's dir overlaps it, as stored and,
+ * within the same script, once resolved on the server. Tried as the SSH
  * user first, then elevated (container-owned files in bind mounts). Ok when
  * already absent.
  */
@@ -291,24 +412,34 @@ export async function removeDeployDir(
 ): Promise<string> {
   const dir = safeDir(params);
   const { guard, target } = await load(ctx, params.serverId);
-  refuseOverlap(dir, guard);
-  const d = shq(dir);
-  const present = await remote(
-    ctx,
-    target,
-    `if [ -e ${d} ] || [ -L ${d} ]; then echo present; else echo absent; fi`,
-    { timeoutMs: INSPECT_TIMEOUT_MS }
-  );
-  if (present.trim() !== "present") return `${dir} already removed`;
-  const rm = `rm -rf -- ${d}`;
+  const others = guard.otherDeployDirs.map(normaliseDeployDir);
+  if (others.some((other) => dirsOverlap(dir, other))) {
+    throw new StepFailed("deployDirShared");
+  }
+  const rm = 'rm -rf -- "$D"';
   const elevated = privilegedViaStdin(rm, target);
-  const command =
+  const remove =
     elevated.command === rm ? rm : `${rm} 2>/dev/null || ${elevated.command}`;
-  await remote(ctx, target, command, {
+  const body = [
+    `D=${shq(dir)}`,
+    ...SHELL_HELPERS,
+    `if [ ! -e "$D" ] && [ ! -L "$D" ]; then echo 'state absent'; exit 0; fi`,
+    'real=$(resolved "$D")',
+    ...others.map(
+      (other) =>
+        `if overlap "$real" "$(resolved ${shq(other)})"; then exit ${EXIT.deployDirShared}; fi`
+    ),
+    `${remove} || exit ${EXIT.removeFailed}`,
+    "echo 'state removed'",
+  ].join("\n");
+  const result = await script(ctx, target, body, {
     timeoutMs: STEP_COMMAND_TIMEOUT_MS,
     ...(elevated.stdin === undefined ? {} : { stdin: elevated.stdin }),
   });
-  return `${dir} removed`;
+  if (result.code !== 0) throw failed(ctx, result);
+  return result.stdout.includes("state absent")
+    ? `${dir} already removed`
+    : `${dir} removed`;
 }
 
 const PSQL = "psql -U postgres -X -q -At -v ON_ERROR_STOP=1";

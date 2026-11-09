@@ -1,10 +1,24 @@
-import { posix } from "node:path";
 import { z } from "zod";
 import type { TeardownRefusal } from "@/lib/teardown/errors";
+import {
+  dirsCollide,
+  isSafeDeployDir,
+  normaliseDeployDir,
+  normaliseHost,
+} from "@/lib/teardown/paths";
 import {
   loadTeardownEnvironment,
   type TeardownEnvironment,
 } from "@/lib/teardown/repository";
+
+export {
+  composeProjectName,
+  dirsCollide,
+  dirsOverlap,
+  isSafeDeployDir,
+  normaliseDeployDir,
+  normaliseHost,
+} from "@/lib/teardown/paths";
 
 type DirParams = { serverId: string; deployDir: string };
 
@@ -12,6 +26,7 @@ export type TeardownStepSpec =
   | { kind: "check_stack"; params: DirParams }
   | { kind: "archive_database"; params: { serviceId: string } }
   | { kind: "archive_deploy_dir"; params: DirParams }
+  | { kind: "archive_volumes"; params: DirParams }
   | { kind: "stack_down"; params: DirParams }
   | { kind: "drop_database"; params: { serviceId: string } }
   | {
@@ -24,83 +39,6 @@ export type TeardownStepSpec =
   | { kind: "delete_environment"; params: Record<string, never> };
 
 export type TeardownStepKind = TeardownStepSpec["kind"];
-
-// One path segment: no `.`/`..`, whitespace, quotes or shell metacharacters.
-const SAFE_SEGMENT = /^[A-Za-z0-9._@+-]+$/;
-
-// System trees: neither they nor anything under them is ever a deploy dir.
-const SYSTEM_TREES = [
-  "/etc",
-  "/usr",
-  "/bin",
-  "/sbin",
-  "/lib",
-  "/lib64",
-  "/boot",
-  "/proc",
-  "/sys",
-  "/dev",
-  "/run",
-  "/var/lib/docker",
-  "/var/lib/containers",
-];
-
-// Parents of real data: refused themselves, their subdirectories are fine.
-const PARENT_DIRS = new Set(["/root", "/opt/stacks", "/srv", "/var/lib"]);
-
-/**
- * The canonical form used for every comparison: `.`/`..`/`//` resolved
- * (`path.posix.normalize`), no trailing slash; `/` stays `/`.
- */
-export function normaliseDeployDir(dir: string): string {
-  const normal = posix.normalize(dir);
-  return normal.length > 1 ? normal.replace(/\/+$/, "") : normal;
-}
-
-/**
- * Whether a deploy directory may be archived, brought down and `rm -rf`-ed:
- * absolute, at least two plain segments (so neither `/` nor a top-level dir
- * such as `/deployments`), no `.`/`..` or empty segment, nothing a shell
- * would read (whitespace, quotes, `$`, `;`, `*`, …), not in or under a system
- * tree (`/etc`, `/usr`, `/var/lib/docker`, …) and not itself a parent of real
- * data (`/root`, `/home/<user>`, `/opt/stacks`, `/srv`, `/var/lib`). A
- * trailing slash is fine.
- */
-export function isSafeDeployDir(dir: string): boolean {
-  if (!dir.startsWith("/")) return false;
-  const segments = dir.replace(/\/+$/, "").slice(1).split("/");
-  if (segments.length < 2) return false;
-  const plain = segments.every(
-    (segment) =>
-      segment !== "." && segment !== ".." && SAFE_SEGMENT.test(segment)
-  );
-  if (!plain) return false;
-  const normal = `/${segments.join("/")}`;
-  if (SYSTEM_TREES.some((tree) => dirsOverlap(normal, tree))) return false;
-  if (PARENT_DIRS.has(normal)) return false;
-  return !(segments.length === 2 && segments[0] === "home");
-}
-
-/**
- * The project name plain `docker compose` (no `-p`, no `name:`) derives from
- * a directory: its basename, lowercased, keeping only `[a-z0-9_-]`, without
- * leading `_`/`-` (compose-go's NormalizeProjectName).
- */
-export function composeProjectName(dir: string): string {
-  return (
-    posix
-      .basename(normaliseDeployDir(dir))
-      .toLowerCase()
-      .match(/[a-z0-9_-]/g) ?? []
-  )
-    .join("")
-    .replace(/^[_-]+/, "");
-}
-
-/** The machine a server row points at, for comparing rows. */
-export function normaliseHost(host: string): string {
-  return host.trim().toLowerCase();
-}
 
 const dirParams = z.object({
   serverId: z.string().min(1),
@@ -117,6 +55,7 @@ export const teardownStepSpecSchema: z.ZodType<TeardownStepSpec> =
     z.object({ kind: z.literal("check_stack"), params: dirParams }),
     z.object({ kind: z.literal("archive_database"), params: serviceParams }),
     z.object({ kind: z.literal("archive_deploy_dir"), params: dirParams }),
+    z.object({ kind: z.literal("archive_volumes"), params: dirParams }),
     z.object({ kind: z.literal("stack_down"), params: dirParams }),
     z.object({ kind: z.literal("drop_database"), params: serviceParams }),
     z.object({
@@ -151,38 +90,12 @@ export type TeardownPlan =
   | { steps: TeardownStepSpec[] }
   | { refusal: TeardownRefusal };
 
-/** Whether `child` lies strictly inside `parent` (canonical dirs). */
-function isInside(child: string, parent: string): boolean {
-  return parent === "/"
-    ? child !== "/" && child.startsWith("/")
-    : child.startsWith(`${parent}/`);
-}
-
-/**
- * Whether one directory is the other or lies inside it (canonical dirs).
- * `/` is the ancestor of every absolute dir.
- */
-export function dirsOverlap(a: string, b: string): boolean {
-  return a === b || isInside(a, b) || isInside(b, a);
-}
-
-/**
- * Whether another environment's dir collides with ours on one machine: the
- * dirs overlap, or plain `docker compose` would give both the same project
- * (so `compose down --remove-orphans --volumes` in ours hits theirs).
- */
-export function dirsCollide(ours: string, theirs: string): boolean {
-  if (dirsOverlap(ours, theirs)) return true;
-  const project = composeProjectName(ours);
-  return project !== "" && project === composeProjectName(theirs);
-}
-
 /**
  * The ordered steps that delete an environment: check each stack, archive
- * every database and deploy directory, bring the stacks down, drop shared
+ * every database, deploy directory and stack volume, bring the stacks down, drop shared
  * databases, remove the Cloudflare objects the Panel created (only those whose
  * ids are recorded), remove the deploy directories, then the environment row.
- * Nothing destructive comes before both archives. Refuses an unsafe deploy
+ * Nothing destructive comes before the archives. Refuses an unsafe deploy
  * dir, a dir that collides with another environment's on the same machine
  * (compared by host, so two server rows for one machine count as one), a
  * database the Panel cannot dump (only Postgres is), and a Cloudflare object
@@ -235,6 +148,8 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
     steps.push({ kind: "archive_database", params: { serviceId: service.id } });
   }
   for (const params of dirs) steps.push({ kind: "archive_deploy_dir", params });
+  // Named volumes: `down --volumes` deletes them, registered db or not.
+  for (const params of dirs) steps.push({ kind: "archive_volumes", params });
   for (const params of dirs) steps.push({ kind: "stack_down", params });
   // In-stack databases went with their stack; only a shared host keeps one.
   for (const service of env.dbServices) {

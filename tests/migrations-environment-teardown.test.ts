@@ -18,7 +18,7 @@ describe("environment teardown migration", () => {
 
   it("creates the enums", () => {
     expect(sql).toContain(
-      `CREATE TYPE "teardown_step_kind" AS ENUM('check_stack', 'archive_database', 'archive_deploy_dir', 'stack_down', 'drop_database', 'remove_tunnel_route', 'remove_access_app', 'remove_dns_record', 'remove_deploy_dir', 'delete_environment')`
+      `CREATE TYPE "teardown_step_kind" AS ENUM('check_stack', 'archive_database', 'archive_deploy_dir', 'archive_volumes', 'stack_down', 'drop_database', 'remove_tunnel_route', 'remove_access_app', 'remove_dns_record', 'remove_deploy_dir', 'delete_environment')`
     );
     expect(sql).toContain(
       `CREATE TYPE "teardown_step_status" AS ENUM('pending', 'running', 'done', 'failed')`

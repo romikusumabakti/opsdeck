@@ -1,6 +1,6 @@
 SET LOCAL lock_timeout = '5s';--> statement-breakpoint
 CREATE TYPE "environment_archive_location" AS ENUM('local', 's3');--> statement-breakpoint
-CREATE TYPE "teardown_step_kind" AS ENUM('check_stack', 'archive_database', 'archive_deploy_dir', 'stack_down', 'drop_database', 'remove_tunnel_route', 'remove_access_app', 'remove_dns_record', 'remove_deploy_dir', 'delete_environment');--> statement-breakpoint
+CREATE TYPE "teardown_step_kind" AS ENUM('check_stack', 'archive_database', 'archive_deploy_dir', 'archive_volumes', 'stack_down', 'drop_database', 'remove_tunnel_route', 'remove_access_app', 'remove_dns_record', 'remove_deploy_dir', 'delete_environment');--> statement-breakpoint
 CREATE TYPE "teardown_step_status" AS ENUM('pending', 'running', 'done', 'failed');--> statement-breakpoint
 ALTER TYPE "run_kind" ADD VALUE IF NOT EXISTS 'teardown';--> statement-breakpoint
 CREATE TABLE "environment_archives" (

@@ -11,7 +11,8 @@ import {
   teardownSteps,
 } from "@/lib/db/schema";
 import { replaceSteps } from "@/lib/steps/replace-steps";
-import { normaliseHost, type TeardownStepSpec } from "@/lib/teardown/plan";
+import { normaliseHost } from "@/lib/teardown/paths";
+import type { TeardownStepSpec } from "@/lib/teardown/plan";
 
 /** What planTeardown needs of an environment. Dirs and hosts as stored. */
 export type TeardownEnvironment = {
@@ -162,8 +163,6 @@ export type StackGuard = {
    * environment's docker db service there.
    */
   databaseContainers: string[];
-  /** Whether this environment has a db service registered. */
-  hasDbService: boolean;
 };
 
 /**
@@ -213,16 +212,6 @@ export async function loadStackGuard(
       )
     )
     .orderBy(asc(environmentServices.id));
-  const [ownDb] = await db
-    .select({ id: environmentServices.id })
-    .from(environmentServices)
-    .where(
-      and(
-        eq(environmentServices.environmentId, environmentId),
-        eq(environmentServices.role, "db")
-      )
-    );
-
   return {
     otherDeployDirs: otherTargets.map((t) => t.deployDir),
     databaseContainers: [
@@ -231,7 +220,6 @@ export async function loadStackGuard(
         ...otherDbServices.map((s) => s.serviceName),
       ]),
     ],
-    hasDbService: ownDb !== undefined,
   };
 }
 

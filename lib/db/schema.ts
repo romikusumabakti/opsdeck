@@ -784,6 +784,7 @@ export const teardownStepKindEnum = pgEnum("teardown_step_kind", [
   "check_stack",
   "archive_database",
   "archive_deploy_dir",
+  "archive_volumes",
   "stack_down",
   "drop_database",
   "remove_tunnel_route",
