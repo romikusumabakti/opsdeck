@@ -35,12 +35,12 @@ const STUB_DOCKER = `#!/bin/sh
 v=$(sed -n 's/^OPSDECK_VERSION=//p' ./.env)
 printf 'docker %s [%s]\\n' "$*" "$v" >> "$STUB_LOG"
 case "$*" in
-  "compose run --rm app opsdeck backup run --trigger "*) step=backup ;;
+  "compose run --rm --no-deps app opsdeck backup run --trigger "*) step=backup ;;
   "compose pull") step=pull ;;
   "compose run --rm migrate") step=migrate ;;
   "compose up -d --wait --wait-timeout 180") step=up ;;
   "compose stop app terminal") step=stop ;;
-  "compose run --rm app opsdeck restore "*) step=restore ;;
+  "compose run --rm --no-deps app opsdeck restore "*) step=restore ;;
   *) echo "unexpected docker call" >&2; exit 99 ;;
 esac
 if [ "$step" = "\${STUB_SNAPSHOT:-}" ]; then cp updates/status.json "$STUB_STATE/snapshot.json"; fi
@@ -400,7 +400,7 @@ describe("update.sh", () => {
     });
     expect(status.logTail.join("\n")).toContain("backupAlreadyRunning");
     expect(t.dockerCalls()).toEqual([
-      "docker compose run --rm app opsdeck backup run --trigger update [1.2.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger update [1.2.0]",
     ]);
     expect(t.readEnv()).toBe(t.env);
   });
@@ -422,7 +422,7 @@ describe("update.sh", () => {
       expect(envLines).toContain(line);
     }
     expect(t.dockerCalls()).toEqual([
-      "docker compose run --rm app opsdeck backup run --trigger update [1.2.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger update [1.2.0]",
       "docker compose pull [1.3.0]",
       "docker compose run --rm migrate [1.3.0]",
       "docker compose up -d --wait --wait-timeout 180 [1.3.0]",
@@ -452,7 +452,7 @@ describe("update.sh", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(t.calls()).toEqual([
       "curl https://github.com/romikusumabakti/opsdeck/releases/download/v1.3.0/release.json ",
-      "docker compose run --rm app opsdeck backup run --trigger update [1.2.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger update [1.2.0]",
       "docker compose pull [1.3.0]",
       "docker compose run --rm migrate [1.3.0]",
       "docker compose up -d --wait --wait-timeout 180 [1.3.0]",
@@ -522,10 +522,10 @@ describe("update.sh", () => {
     const result = t.run();
     expect(result.status, result.stderr).toBe(0);
     expect(t.dockerCalls()).toEqual([
-      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger restore [1.3.0]",
       "docker compose pull [1.2.0]",
       "docker compose stop app terminal [1.2.0]",
-      "docker compose run --rm app opsdeck restore opsdeck-backups/opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0/ [1.2.0]",
+      "docker compose run --rm --no-deps app opsdeck restore opsdeck-backups/opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0/ [1.2.0]",
       "docker compose up -d --wait --wait-timeout 180 [1.2.0]",
       "docker compose pull [1.3.0]",
       "docker compose run --rm migrate [1.3.0]",
@@ -569,7 +569,7 @@ describe("update.sh", () => {
     expect(t.run({ STUB_FAIL: "backup" }).status).toBe(1);
     expect(t.status()).toMatchObject({ state: "failed", code: "backupFailed" });
     expect(t.dockerCalls()).toEqual([
-      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger restore [1.3.0]",
     ]);
     expect(t.readEnv()).toBe(t.env);
   });
@@ -629,7 +629,7 @@ describe("update.sh", () => {
     expect(t.run({ STUB_BACKUP_NO_LOCAL: "1" }).status).toBe(1);
     expect(t.status()).toMatchObject({ state: "failed", code: "backupFailed" });
     expect(t.dockerCalls()).toEqual([
-      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger restore [1.3.0]",
     ]);
     expect(t.readEnv()).toBe(t.env);
   });
@@ -640,7 +640,7 @@ describe("update.sh", () => {
     expect(t.run({ STUB_BACKUP_GARBLED: "1" }).status).toBe(1);
     expect(t.status()).toMatchObject({ state: "failed", code: "backupFailed" });
     expect(t.dockerCalls()).toEqual([
-      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger restore [1.3.0]",
     ]);
     expect(existsSync(join(t.updates, "previous.env"))).toBe(false);
     expect(t.readEnv()).toBe(t.env);

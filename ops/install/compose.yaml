@@ -1,0 +1,260 @@
+# opsdeck: the installed product (install.sh writes it to <dir>/compose.yaml).
+# The repo-root compose.yaml is the development stack that builds from source.
+#
+# - Every image comes from .env, pinned by digest (name:tag@sha256:...). The
+#   host updater (update.sh) rewrites those lines on an update.
+# - No container_name: names come from COMPOSE_PROJECT_NAME (the install dir's
+#   basename), so several instances share a host.
+# - OPSDECK_VERSION in .env is the updater's bookkeeping only. It is never
+#   passed into a container: /api/health reports the version baked into the
+#   image, which is what the updater's health check verifies.
+# - Nothing is published except Caddy on loopback. TLS is terminated in front
+#   of it (Cloudflare Tunnel or the operator's own proxy).
+
+x-app-env: &app-env
+  # Set in .env by install.sh, with the password URL-safe.
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  # Must be the browser-visible origin: it also fixes the passkey Relying Party
+  # and the origin the terminal accepts.
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL is required}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+  # Encrypts secrets at rest. Never in a backup: keep a copy offline.
+  SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
+  # The instance name in backup object keys.
+  COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}
+
+x-app-image: &app-image ${OPSDECK_IMAGE:?OPSDECK_IMAGE is required}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required}
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-opsdeck}
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+    # No host port: only the compose network reaches it.
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      # Over TCP: during the first start the image's init server listens on
+      # the socket only, and must not count as ready for migrate.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\""]
+      interval: 5s
+      start_period: 30s
+
+  valkey:
+    image: ${VALKEY_IMAGE:?VALKEY_IMAGE is required}
+    restart: always
+    volumes:
+      - valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  garage:
+    image: ${GARAGE_IMAGE:?GARAGE_IMAGE is required}
+    restart: always
+    # Single node: Garage lays itself out and creates the app's key and bucket
+    # from the environment on start (and keeps an existing layout, key and
+    # bucket as they are).
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?GARAGE_RPC_SECRET is required}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?GARAGE_ADMIN_TOKEN is required}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-knowledge}
+    configs:
+      - source: garage
+        target: /etc/garage.toml
+    volumes:
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+
+  imgproxy:
+    image: ${IMGPROXY_IMAGE:?IMGPROXY_IMAGE is required}
+    restart: always
+    environment:
+      # Must match the app's; install.sh generates them (hex).
+      IMGPROXY_KEY: ${IMGPROXY_KEY:?IMGPROXY_KEY is required}
+      IMGPROXY_SALT: ${IMGPROXY_SALT:?IMGPROXY_SALT is required}
+      IMGPROXY_USE_S3: "true"
+      IMGPROXY_S3_ENDPOINT: http://garage:3900
+      IMGPROXY_S3_REGION: ${S3_REGION:-garage}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      IMGPROXY_ALLOWED_SOURCES: s3://${S3_BUCKET:-knowledge}/
+      IMGPROXY_AUTO_WEBP: "true"
+      IMGPROXY_AUTO_AVIF: "true"
+    depends_on:
+      garage:
+        condition: service_started
+
+  # One-shot: applies pending migrations (Drizzle's migrator) before the app
+  # starts. The updater also runs it alone: `docker compose run --rm migrate`.
+  migrate:
+    image: *app-image
+    restart: "no"
+    command: ["opsdeck", "migrate"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    image: *app-image
+    restart: always
+    expose:
+      - "3000"
+    environment:
+      <<: *app-env
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET-}
+      APP_NAME: ${APP_NAME:-${NEXT_PUBLIC_APP_NAME-}}
+      COMPANY_NAME: ${COMPANY_NAME:-${NEXT_PUBLIC_COMPANY_NAME-}}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}}
+      APP_TIMEZONE: ${APP_TIMEZONE-}
+      BRAND: ${BRAND-}
+      RESEND_API_KEY: ${RESEND_API_KEY-}
+      EMAIL_FROM: ${EMAIL_FROM-}
+      DEPLOY_REGISTRY: ${DEPLOY_REGISTRY-}
+      REDIS_URL: redis://valkey:6379
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: ${S3_REGION:-garage}
+      S3_BUCKET: ${S3_BUCKET:-knowledge}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      IMGPROXY_URL: http://imgproxy:8080
+      IMGPROXY_KEY: ${IMGPROXY_KEY:?IMGPROXY_KEY is required}
+      IMGPROXY_SALT: ${IMGPROXY_SALT:?IMGPROXY_SALT is required}
+    volumes:
+      # The app's only channel to the host updater: it writes request.json,
+      # the updater writes status.json (updates/ is 1770 root:1001).
+      - ${OPSDECK_DIR:?OPSDECK_DIR is required}/updates:/var/lib/opsdeck/updates
+      # Local backups (no S3 destination yet, and restore safety copies).
+      - ${OPSDECK_DIR:?OPSDECK_DIR is required}/backups:/var/lib/opsdeck/backups
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      start_period: 100s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      garage:
+        condition: service_started
+      imgproxy:
+        condition: service_started
+
+  # Same image, its own process for the WebSocket terminal sessions, so an
+  # app restart cannot kill a live shell.
+  terminal:
+    image: *app-image
+    restart: always
+    command: ["bun", "dist/terminal-server.js"]
+    expose:
+      - "3001"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL is required}
+      TERMINAL_WS_PORT: "3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3001/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      start_period: 20s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE is required}
+    restart: always
+    # Loopback only; the tunnel or proxy in front dials it.
+    ports:
+      - "127.0.0.1:${OPSDECK_HTTP_PORT:-8080}:80"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+      terminal:
+        condition: service_healthy
+
+configs:
+  # Plain HTTP on :80 for any Host: the hostname in BETTER_AUTH_URL included
+  # (the updater's health check sends it). Only loopback reaches this port.
+  caddyfile:
+    content: |
+      {
+        admin off
+      }
+
+      :80 {
+        handle /ws/terminal* {
+          reverse_proxy terminal:3001
+        }
+        handle {
+          reverse_proxy app:3000
+        }
+      }
+  # Secrets come from the environment (GARAGE_RPC_SECRET, GARAGE_ADMIN_TOKEN).
+  garage:
+    content: |
+      metadata_dir = "/var/lib/garage/meta"
+      data_dir = "/var/lib/garage/data"
+      db_engine = "lmdb"
+      replication_factor = 1
+      rpc_bind_addr = "[::]:3901"
+      rpc_public_addr = "127.0.0.1:3901"
+
+      [s3_api]
+      s3_region = "garage"
+      api_bind_addr = "[::]:3900"
+      root_domain = ".s3.garage"
+
+      [admin]
+      api_bind_addr = "[::]:3903"
+
+# <project>_postgres and so on. An adopted install (install.sh --adopt) keeps
+# the volumes of the stack it replaces through OPSDECK_VOLUME_*.
+volumes:
+  postgres:
+    name: ${OPSDECK_VOLUME_POSTGRES:-${COMPOSE_PROJECT_NAME}_postgres}
+  valkey:
+    name: ${OPSDECK_VOLUME_VALKEY:-${COMPOSE_PROJECT_NAME}_valkey}
+  garage_meta:
+    name: ${OPSDECK_VOLUME_GARAGE_META:-${COMPOSE_PROJECT_NAME}_garage_meta}
+  garage_data:
+    name: ${OPSDECK_VOLUME_GARAGE_DATA:-${COMPOSE_PROJECT_NAME}_garage_data}
+  caddy_data:
+    name: ${OPSDECK_VOLUME_CADDY_DATA:-${COMPOSE_PROJECT_NAME}_caddy_data}
+  caddy_config:
+    name: ${OPSDECK_VOLUME_CADDY_CONFIG:-${COMPOSE_PROJECT_NAME}_caddy_config}

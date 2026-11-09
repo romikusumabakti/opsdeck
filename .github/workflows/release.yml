@@ -1,0 +1,158 @@
+name: Release
+
+# A tag vX.Y.Z (stable) or vX.Y.Z-beta.N (beta, a prerelease) builds the
+# multi-arch image to GHCR, attests its provenance and publishes the GitHub
+# Release that install.sh and the host updater read (release.json).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/romikusumabakti/opsdeck
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # postgres.js connects lazily, so a dummy URL is enough for typecheck.
+      DATABASE_URL: postgres://user:pass@localhost:5432/db
+      BETTER_AUTH_SECRET: ci-dummy-secret-not-used
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint (Biome)
+        run: bun run biome ci .
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the GitHub Release
+      packages: write # push to GHCR
+      id-token: write # sign the provenance attestation
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Version and channel from the tag
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?'; then
+            echo "::error::$TAG is not vX.Y.Z or vX.Y.Z-beta.N"
+            exit 1
+          fi
+          version=${TAG#v}
+          case $version in
+            *-beta.*) channel=beta prerelease=true ;;
+            *) channel=stable prerelease=false ;;
+          esac
+          {
+            echo "version=$version"
+            echo "channel=$channel"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: OPSDECK_VERSION=${{ steps.tag.outputs.version }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.version }}
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.channel }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Pin the base images by digest
+        run: |
+          : > base-images.env
+          grep -Ev '^[[:space:]]*(#|$)' release/base-images.txt | while IFS='=' read -r key ref; do
+            digest=$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}')
+            printf '%s=%s@%s\n' "$key" "$ref" "$digest" >> base-images.env
+          done
+          cat base-images.env
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Write release.json
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          bun scripts/release-manifest.ts \
+            --version "$VERSION" \
+            --app "$IMAGE:$VERSION@$DIGEST" \
+            --images base-images.env \
+            --min-from release/min-from.txt \
+            --out release.json
+
+      - name: Publish the GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          prerelease: ${{ steps.tag.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release.json
+            ops/install/install.sh
+            ops/install/update.sh
+            ops/install/compose.yaml
+            ops/install/env.example
+            ops/install/opsdeck-updater@.path
+            ops/install/opsdeck-updater@.service
