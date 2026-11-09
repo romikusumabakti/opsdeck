@@ -292,6 +292,28 @@ describe("GET /api/instance/updates", () => {
     ]);
   });
 
+  it("flags auto-update skipping a version whose last run did not succeed", async () => {
+    state.results[`select:${T.settings}`] = [settingsRow({ autoUpdate: true })];
+    await writeFile(
+      join(dirs.updates, "status.json"),
+      JSON.stringify(
+        status({
+          state: "rolled_back",
+          code: "healthFailed",
+          finishedAt: "2026-11-09T20:05:00Z",
+        })
+      )
+    );
+    let body = await (await send("GET", "/api/instance/updates")).json();
+    expect(body.autoUpdateSkipped).toBe(true);
+    await writeFile(
+      join(dirs.updates, "status.json"),
+      JSON.stringify(status())
+    );
+    body = await (await send("GET", "/api/instance/updates")).json();
+    expect(body.autoUpdateSkipped).toBe(false);
+  });
+
   it("reports a missing updater and no status", async () => {
     await rm(dirs.updates, { recursive: true, force: true });
     const body = await (await send("GET", "/api/instance/updates")).json();

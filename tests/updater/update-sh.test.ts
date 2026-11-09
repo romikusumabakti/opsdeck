@@ -75,7 +75,9 @@ case "$*" in
   *"--trigger restore") if [ -n "\${STUB_BACKUP_GARBLED:-}" ]; then echo 'backup done'; exit 0; fi ;;
 esac
 case $step in
-  backup) echo '{"id":"0195f0c2-0000-7abc-8def-0123456789ab","status":"succeeded","location":"s3","objectKey":"opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-'"$v"'/","errorCode":null}' ;;
+  backup)
+    if [ -n "\${STUB_BACKUP_NO_LOCAL:-}" ]; then local_key=null; else local_key='"opsdeck/2026-11-09T100000.000Z-abcdef-'"$v"'/"'; fi
+    echo '{"id":"0195f0c2-0000-7abc-8def-0123456789ab","status":"succeeded","location":"s3","objectKey":"opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-'"$v"'/","localObjectKey":'"$local_key"',"errorCode":null}' ;;
   up) printf '%s' "$v" > "$STUB_STATE/deployed" ;;
 esac
 exit 0
@@ -539,11 +541,11 @@ describe("update.sh", () => {
       from: "1.2.0",
       step: "done",
       state: "succeeded",
+      // The local copy, so undoing never needs the destination settings.
       safetyBackup: {
         id: "0195f0c2-0000-7abc-8def-0123456789ab",
-        location: "s3",
-        objectKey:
-          "opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/",
+        location: "local",
+        objectKey: "opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/",
       },
     });
     expect(t.readEnv()).toBe(t.env);
@@ -597,9 +599,10 @@ describe("update.sh", () => {
     expect(t.run({ STUB_FAIL: "restore" }).status).toBe(1);
     const status = t.status();
     expect(status).toMatchObject({ state: "failed", code: "restoreFailed" });
-    expect(status.safetyBackup?.objectKey).toBe(
-      "opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/"
-    );
+    expect(status.safetyBackup).toMatchObject({
+      location: "local",
+      objectKey: "opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/",
+    });
     expect(t.readEnv()).toBe(envFile("1.2.0"));
     expect(t.dockerCalls().at(-1)).toBe(
       "docker compose up -d --wait --wait-timeout 180 [1.2.0]"
@@ -618,6 +621,17 @@ describe("update.sh", () => {
     expect(t.dockerCalls().at(-1)).toBe(
       "docker compose up -d --wait --wait-timeout 180 [1.3.0]"
     );
+  });
+
+  it("a safety backup without a local copy aborts the restore", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_BACKUP_NO_LOCAL: "1" }).status).toBe(1);
+    expect(t.status()).toMatchObject({ state: "failed", code: "backupFailed" });
+    expect(t.dockerCalls()).toEqual([
+      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+    ]);
+    expect(t.readEnv()).toBe(t.env);
   });
 
   it("an unreadable safety backup result aborts the restore", () => {

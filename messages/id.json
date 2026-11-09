@@ -3170,6 +3170,7 @@
       "restoreKeyMismatch": "Cadangan itu dibuat dengan SECRETS_KEY lain.",
       "restoreVersionMismatch": "Versi cadangan itu tidak dapat dipulihkan.",
       "updateCheckFailed": "GitHub tidak dapat dihubungi untuk memeriksa pembaruan."
-    }
+    },
+    "autoUpdateSkipped": "Pembaruan otomatis melewati {version}: proses terakhirnya tidak berhasil. Perbarui secara manual bila sudah siap."
   }
 }

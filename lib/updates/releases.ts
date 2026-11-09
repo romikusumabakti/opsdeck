@@ -61,8 +61,8 @@ async function get(fetchImpl: Fetch, url: string, init: RequestInit = {}) {
 /**
  * The newest release newer than `current` on the channel, or null. `stable`
  * ignores prereleases; `beta` takes the newest of all (a newer stable
- * included). A release without a usable release.json (still uploading) is
- * skipped. A build that is not a release (`0.0.0-dev`) is never offered one.
+ * included). A release without a usable release.json (missing, still
+ * uploading, or malformed) is skipped. A build that is not a release (`0.0.0-dev`) is never offered one.
  */
 export async function latestRelease(
   channel: UpdateChannel,
@@ -111,10 +111,10 @@ export async function latestRelease(
     const manifest = releaseJsonSchema.safeParse(
       await file.json().catch(() => null)
     );
+    // Unusable (broken, or for another version): the updater would refuse
+    // it too, so the next candidate is offered instead.
     if (!manifest.success || manifest.data.version !== release.version) {
-      throw new ReleaseCheckError(
-        `release.json of v${release.version} is invalid`
-      );
+      continue;
     }
     return {
       version: release.version,

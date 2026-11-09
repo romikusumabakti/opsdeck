@@ -204,8 +204,13 @@ describe("Restore from the history", () => {
       )?.set?.call(field, "opsdeck");
       field?.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    const fetches = api.get.mock.calls.length;
     await act(async () => byText(confirm)?.click());
     expect(api.restore).toHaveBeenCalledWith("b1", "opsdeck");
+    // The instance queries are refetched, so the request shows at once.
+    await vi.waitFor(() =>
+      expect(api.get.mock.calls.length).toBeGreaterThan(fetches)
+    );
   });
 });
 

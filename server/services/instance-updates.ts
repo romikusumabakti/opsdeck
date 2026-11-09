@@ -73,7 +73,25 @@ export type InstanceUpdatesPage = {
   pending: boolean;
   /** The updater's last status.json. */
   status: UpdateStatus | null;
+  /**
+   * Auto-update is on but leaves `available` alone: its last run did not
+   * succeed, so an admin applies it by hand.
+   */
+  autoUpdateSkipped: boolean;
 };
+
+/** The last run updated to `version` and did not succeed (nor is running). */
+function lastRunFailedFor(
+  status: UpdateStatus | null,
+  version: string
+): boolean {
+  return (
+    status?.action === "update" &&
+    status.version === version &&
+    status.state !== "succeeded" &&
+    status.state !== "running"
+  );
+}
 
 async function loadSettings() {
   const [row] = await db
@@ -92,6 +110,7 @@ export async function getInstanceUpdates(): Promise<InstanceUpdatesPage> {
     checkForUpdate(row.updateChannel, OPSDECK_VERSION),
     updaterInstalled(UPDATES_DIR),
   ]);
+  const status = installed ? await readUpdateStatus(UPDATES_DIR) : null;
   return {
     current: OPSDECK_VERSION,
     instance: instanceName(),
@@ -104,7 +123,11 @@ export async function getInstanceUpdates(): Promise<InstanceUpdatesPage> {
     checkedAt: check.checkedAt,
     updaterInstalled: installed,
     pending: installed && (await hasPendingRequest(UPDATES_DIR)),
-    status: installed ? await readUpdateStatus(UPDATES_DIR) : null,
+    status,
+    autoUpdateSkipped:
+      row.autoUpdate &&
+      check.available !== null &&
+      lastRunFailedFor(status, check.available.version),
   };
 }
 
@@ -228,13 +251,7 @@ export async function runInstanceUpdateCheck(
   if (await hasPendingRequest(UPDATES_DIR)) return { requested: null };
   const status = await readUpdateStatus(UPDATES_DIR);
   if (status?.state === "running") return { requested: null };
-  if (
-    status?.action === "update" &&
-    status.version === available.version &&
-    status.state !== "succeeded"
-  ) {
-    return { requested: null };
-  }
+  if (lastRunFailedFor(status, available.version)) return { requested: null };
   await writeUpdateRequest(UPDATES_DIR, {
     action: "update",
     version: available.version,

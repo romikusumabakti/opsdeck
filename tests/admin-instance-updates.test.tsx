@@ -138,6 +138,39 @@ describe("Admin → Instance → Updates", () => {
     expect(api.apply).toHaveBeenCalledWith("1.2.1");
   });
 
+  it("after Update, refetches and shows the progress (no running data seeded)", async () => {
+    api.apply.mockResolvedValue({ requested: true });
+    await render(data());
+    expect(container.textContent).not.toContain(t.pending);
+    // What the server says once the request is written, then once it runs.
+    api.get.mockResolvedValueOnce(data({ pending: true }));
+    await act(async () => button(t.update)?.click());
+    const confirm = buttons().filter((b) => b.textContent?.trim() === t.update);
+    await act(async () => confirm.at(-1)?.click());
+    await vi.waitFor(() => expect(container.textContent).toContain(t.pending));
+    expect(button(t.update)?.disabled).toBe(true);
+
+    api.get.mockResolvedValue(data({ status: status({ step: "pull" }) }));
+    // Pending/running data polls every 2 s.
+    await vi.waitFor(
+      () =>
+        expect(
+          container
+            .querySelector("li[data-step='pull']")
+            ?.getAttribute("data-state")
+        ).toBe("active"),
+      { timeout: 4000 }
+    );
+    expect(button(t.update)?.disabled).toBe(true);
+  });
+
+  it("hints that auto-update skips a version whose last run failed", async () => {
+    await render(data({ autoUpdate: true, autoUpdateSkipped: true }));
+    expect(container.textContent).toContain(
+      "Auto-update skips 1.2.1: its last run did not succeed."
+    );
+  });
+
   it("says up to date with nothing available", async () => {
     await render(data({ available: null }));
     expect(container.textContent).toContain(t.upToDate);
