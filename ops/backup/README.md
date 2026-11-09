@@ -19,7 +19,7 @@ boot. The script runs as root and does this:
 1. Creates `/var/backups/dss-panel/<YYYY-MM-DD>/` (the date in Asia/Jakarta) with mode 0700. Every file
    in it is 0600.
 2. Dumps from container `opsdeck-postgres`:
-   - `dss_panel.dump` and `sonarqube_db.dump` with `pg_dump -Fc`.
+   - `dss_panel.dump` (from `opsdeck-postgres`) and `sonarqube_db.dump` (from `shared-postgres` since 2026-11-09, via `EXTRA_DUMPS`) with `pg_dump -Fc`.
    - `globals.sql` with `pg_dumpall --globals-only`, which holds roles and
      tablespaces.
 
@@ -182,7 +182,7 @@ That error is expected.
 
 4. Start the services again.
 
-Restore `sonarqube_db` the same way, with SonarQube stopped.
+Restore `sonarqube_db` the same way, with SonarQube stopped, into `shared-postgres` (`docker exec -i shared-postgres pg_restore -U postgres -d sonarqube_db --no-owner --role=sonarqube`).
 
 ### Garage: copy the bucket back
 

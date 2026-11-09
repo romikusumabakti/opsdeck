@@ -8,7 +8,10 @@ set -euo pipefail
 
 BACKUP_DIR=${BACKUP_DIR:-/var/backups/dss-panel}
 PG_CONTAINER=${PG_CONTAINER:-opsdeck-postgres}
-DATABASES=${DATABASES:-"dss_panel sonarqube_db"}
+DATABASES=${DATABASES:-"dss_panel"}
+# Databases living in other containers, as container:database pairs.
+# SonarQube moved to shared-postgres on 2026-11-09.
+EXTRA_DUMPS=${EXTRA_DUMPS:-"shared-postgres:sonarqube_db"}
 COMPOSE_NETWORK=${COMPOSE_NETWORK:-dss-panel_default}
 ENV_FILE=${ENV_FILE:-/deployments/dss-panel/.env}
 # rrsync on the receiver roots paths at /var/backups/dss-panel-113, so the
@@ -158,6 +161,14 @@ chmod 0700 "$BACKUP_DIR" "$day_dir"
 summary=()
 for db in $DATABASES; do
   dump_to "$day_dir/$db.dump" docker exec "$PG_CONTAINER" pg_dump -U postgres -Fc "$db"
+  summary+=("$db=$(size_of "$day_dir/$db.dump")")
+done
+for pair in $EXTRA_DUMPS; do
+  container=${pair%%:*}
+  db=${pair#*:}
+  [[ $container =~ ^[A-Za-z0-9_.-]+$ && $db =~ ^[A-Za-z0-9_]+$ ]] ||
+    fail "EXTRA_DUMPS entry must be container:database"
+  dump_to "$day_dir/$db.dump" docker exec "$container" pg_dump -U postgres -Fc "$db"
   summary+=("$db=$(size_of "$day_dir/$db.dump")")
 done
 dump_to "$day_dir/globals.sql" docker exec "$PG_CONTAINER" pg_dumpall -U postgres --globals-only
