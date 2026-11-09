@@ -439,6 +439,23 @@ describe("moveServerToKey", () => {
     );
   });
 
+  it("relabels a ~/.ssh it creates, and the file, where restorecon exists", async () => {
+    const log = join(root, "restorecon.log");
+    const fake = join(sshd.bin, "restorecon");
+    writeFileSync(fake, `#!/bin/sh\necho "$*" >> ${log}\n`);
+    chmodSync(fake, 0o755);
+    try {
+      expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({ ok: true });
+      const calls = readFileSync(log, "utf8").trim().split("\n");
+      const dir = join(sshd.home, ".ssh");
+      expect(calls[0]).toBe(`-R ${dir}`);
+      expect(calls).toContain(join(dir, "authorized_keys"));
+    } finally {
+      rmSync(fake, { force: true });
+      rmSync(log, { force: true });
+    }
+  });
+
   it("verification failure rolls back", async () => {
     seedAuthorizedKeys(FOREIGN);
     sshd.rejectKey = true;
