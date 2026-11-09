@@ -267,9 +267,9 @@
   - plus a per-run log `${dir}/updates/logs/<runId>.log`.
 - **Units:**
   - `opsdeck-updater@.path` uses `PathChanged=/opt/%i/updates/request.json`, where the instance name is the dir basename;
-  - `.service` is `Type=oneshot` with `ExecStart=/usr/local/lib/opsdeck/update.sh /opt/%i`.
+  - `.service` is `Type=oneshot` with `ExecStart=/opt/%i/.updater/update.sh /opt/%i`.
 - **`update.sh <dir>` algorithm:**
-  1. Take a lock with `flock` on `${dir}/updates/.lock`. If it is already running, exit without touching the status.
+  1. Take a lock with `flock` on `${dir}/.updater/.lock`. If it is already running, exit without touching the status.
   2. Read the request. The version must match `^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$`, else `refused` with code `invalidRequest`.
   3. Download `release.json` for `v<version>` from the GitHub Release (`https://github.com/romikusumabakti/opsdeck/releases/download/v<version>/release.json`) and check:
      - the running `OPSDECK_VERSION` (from `.env`) is at least `minFrom`, else `refused` with `belowMinFrom`;
@@ -384,10 +384,10 @@
   - `--restore <objectKey or local path>`;
   - `--dry-run` (prints every action and runs nothing).
 - **What `install.sh` does:**
-  - Installs Docker from Docker's apt repo when it is missing.
+  - Installs Docker from Docker's apt repo when it is missing (Debian/Ubuntu only; another systemd distribution must have Docker Engine and Compose 2.23.1+ installed first).
   - Generates secrets with `openssl rand -base64 32`, except in adopt mode, which copies `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `SECRETS_KEY`, the Microsoft and Resend keys, `BRAND` and the S3 keys from the old `.env`.
   - Writes `.env` 0600.
-  - Installs `update.sh` to `/usr/local/lib/opsdeck/` and enables `opsdeck-updater@<basename>.path`.
+  - Installs `update.sh` to `/opt/<name>/.updater/` (0700 root) and enables `opsdeck-updater@<basename>.path`.
   - Runs `docker compose up -d --wait`.
   - Adopt mode runs `opsdeck migrate --adopt` before `up`.
   - Prints the URL and the `SECRETS_KEY` save reminder (never the key).

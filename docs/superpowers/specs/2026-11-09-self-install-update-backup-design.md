@@ -29,9 +29,9 @@ Prior art (researched 2026-11-09):
 
 The command is `curl -fsSL https://<release host>/install.sh | sh`, which serves `install.sh` from the latest GitHub Release. It also runs as `sh install.sh --version vX.Y.Z --channel beta --dir /opt/opsdeck-beta --hostname …`.
 
-- **Supported hosts:** Debian/Ubuntu with systemd, amd64 and arm64. The script refuses anything else, with a clear message.
+- **Supported hosts:** any Linux with systemd on amd64 or arm64 (Debian, Ubuntu, Rocky/RHEL, ...) whose Docker Engine runs with Compose v2 2.23.1 or later. Only on Debian/Ubuntu does the script install Docker itself; on another distribution without Docker, or with an older Compose, it stops and points to Docker's install docs for that distribution. It refuses SELinux in enforcing mode (the bind mounts are not relabelled) and anything else unsupported, with a clear message.
 - **What the script does, in order:**
-  1. Install Docker Engine and Compose v2 if absent, via Docker's official apt repository.
+  1. Install Docker Engine and Compose v2 if absent, via Docker's official apt repository (Debian/Ubuntu only; elsewhere Docker must already be installed).
   2. Create the install dir, `/opt/opsdeck` by default; one dir per instance.
   3. Write `compose.yaml` from the release assets.
   4. Write `.env` (0600) with generated `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `SECRETS_KEY` and the Garage keys. Images are pinned by digest, e.g. `OPSDECK_IMAGE=ghcr.io/romikusumabakti/opsdeck:1.2.0@sha256:…`.
@@ -66,7 +66,7 @@ The app writes a request and a host unit performs the update.
   - The app never runs Docker.
 - **`opsdeck-updater@<instance>.path` + `.service` (root):**
   - The path unit watches the request file.
-  - The service runs a fixed script shipped with the release, e.g. `/usr/local/lib/opsdeck/update.sh <dir>`.
+  - The service runs a fixed script shipped with the release, the instance's own copy, `/opt/<name>/.updater/update.sh /opt/<name>`.
   - The script reads only the version string and validates it against the GitHub Release (the tag exists, `release.json` digests match, and the running version is at least `minFrom`). Anything else is refused.
 - **Steps, each written to `/<dir>/updates/status.json`** (which the UI polls):
   1. Back up the DB with the same code path as scheduled backups, to the configured destination. A backup failure aborts the update.
@@ -149,7 +149,7 @@ The app writes a request and a host unit performs the update.
 ## Goals, non-goals, anti-goals
 
 - **Goals:**
-  - a fresh Debian/Ubuntu server runs opsdeck with one command;
+  - a fresh systemd Linux server (Docker installed first except on Debian/Ubuntu) runs opsdeck with one command;
   - an admin updates from the UI, with an automatic backup first and automatic rollback of the images on failure;
   - the Panel backs itself up offsite and can restore;
   - Jenkins is no longer involved in deploying the Panel;

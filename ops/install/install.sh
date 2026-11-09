@@ -1,5 +1,7 @@
 #!/bin/sh
-# opsdeck installer, for Debian/Ubuntu hosts with systemd (amd64, arm64).
+# opsdeck installer, for Linux hosts with systemd (amd64, arm64). Docker
+# Engine with Compose v2 must be installed first, except on Debian/Ubuntu,
+# where the installer adds it.
 #
 #   curl -fsSL https://github.com/romikusumabakti/opsdeck/releases/latest/download/install.sh | sh -s -- [flags]
 #   sh install.sh [--version vX.Y.Z] [--channel stable|beta] [--dir /opt/<name>]
@@ -10,7 +12,8 @@
 #
 # One instance per dir, /opt/<name>: <name> is its compose project and its
 # updater unit, opsdeck-updater@<name>.path. In order: Docker (from Docker's
-# apt repository when missing; Compose 2.23.1 or later), the dir,
+# apt repository when missing, on Debian/Ubuntu only; Compose 2.23.1 or
+# later), the dir,
 # compose.yaml, .env (0600, generated secrets), the updater (its own copy in
 # <dir>/.updater, 0700 root), then `docker compose up -d --wait`.
 #
@@ -61,6 +64,8 @@ ADOPT_DEFAULT_PORT=80
 INSTANCE_VOLUMES='postgres valkey garage_meta garage_data caddy_data caddy_config'
 # compose.yaml uses configs.content, added in Compose 2.23.1.
 MIN_COMPOSE=2.23.1
+# Where to get Docker Engine and its Compose plugin for each distribution.
+DOCKER_DOCS=https://docs.docker.com/engine/install/
 # Release assets checked against their sha256 in release.json.
 RELEASE_ASSETS='compose.yaml update.sh'
 RESTORE_S3_KEYS='OPSDECK_RESTORE_S3_ENDPOINT OPSDECK_RESTORE_S3_REGION OPSDECK_RESTORE_S3_BUCKET OPSDECK_RESTORE_S3_ACCESS_KEY_ID OPSDECK_RESTORE_S3_SECRET_ACCESS_KEY OPSDECK_RESTORE_S3_FORCE_PATH_STYLE'
@@ -158,8 +163,8 @@ fetch() { # <url> <file>
 hex() { openssl rand -hex "$1"; }
 b64() { openssl rand -base64 32; }
 
-# A docker.io (Debian/Ubuntu) or podman-docker package: Docker's packages
-# conflict with it.
+# A docker.io or podman-docker package (Debian/Ubuntu only: dpkg): Docker's
+# packages conflict with it.
 distro_docker() {
   for pkg in docker.io podman-docker; do
     if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'ok installed'; then
@@ -198,7 +203,7 @@ version_at_least() { # <a> <b>
 require_compose() {
   v=$(compose_version)
   if [ -z "$v" ] || ! version_at_least "$v" "$MIN_COMPOSE"; then
-    die "Docker Compose ${v:-of unknown version} is too old: compose.yaml needs $MIN_COMPOSE or later (configs.content). Update docker-compose-plugin (Docker's repository), then run install.sh again"
+    die "Docker Compose ${v:-of unknown version} is too old: compose.yaml needs $MIN_COMPOSE or later (configs.content). Update docker-compose-plugin from Docker's repository ($DOCKER_DOCS), then run install.sh again"
   fi
 }
 
@@ -375,10 +380,10 @@ main() {
     # shellcheck source=/dev/null
     os_codename=$(. "$os_release" && printf '%s' "${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}")
   fi
-  case $os_id in
-    debian | ubuntu) ;;
-    *) host_problem "only Debian and Ubuntu are supported (this host: ${os_id:-unknown})" ;;
-  esac
+  # Any systemd distribution runs opsdeck on Docker Engine; only Debian and
+  # Ubuntu get Docker installed from Docker's apt repository (step 1).
+  apt_host=0
+  case $os_id in debian | ubuntu) apt_host=1 ;; esac
   case $(uname -m) in
     x86_64 | amd64 | aarch64 | arm64) ;;
     *) host_problem "only amd64 and arm64 are supported (this host: $(uname -m))" ;;
@@ -387,6 +392,11 @@ main() {
   for tool in curl openssl sha256sum stat; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
   done
+  # compose.yaml bind-mounts <dir>/updates and <dir>/backups without SELinux
+  # relabelling (:z), so an enforcing host would deny the app those dirs.
+  if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null </dev/null)" = Enforcing ]; then
+    die "SELinux is enforcing on this host: opsdeck's bind mounts are not relabelled for it, so this host is not supported yet (permissive or disabled SELinux is)"
+  fi
 
   work=$(mktemp -d)
   log_file=$work/install.log
@@ -526,6 +536,8 @@ main() {
   if [ "$have_docker" = 1 ] && docker compose version >/dev/null 2>&1 </dev/null; then
     say "found: $(docker compose version 2>/dev/null </dev/null | head -n 1)"
     require_compose
+  elif [ "$apt_host" = 0 ]; then
+    die "Docker Engine with the Compose v2 plugin ($MIN_COMPOSE or later) is required: install both from Docker's instructions for ${os_id:-this distribution} ($DOCKER_DOCS), start docker.service, then run install.sh again"
   elif pkg=$(distro_docker); then
     die "the distribution's $pkg package is installed; Docker's docker-ce conflicts with it. Remove it (apt-get remove $pkg) or add its Compose v2 (docker-compose-v2), then run install.sh again"
   elif [ "$have_docker" = 1 ]; then

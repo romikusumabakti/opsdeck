@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { hostTools, lintToolAvailable } from "../support/host-tools";
 
-// ops/install/install.sh runs as root on a Debian/Ubuntu host. Here only its
+// ops/install/install.sh runs as root on a systemd Linux host. Here only its
 // --dry-run runs (unprivileged, against a temp root through
 // OPSDECK_INSTALL_ROOT and a fake host through OPSDECK_INSTALL_SYSROOT, both
 // honoured with --dry-run only), with stub `docker`, `curl`, `id`, `uname`,
@@ -486,7 +486,7 @@ describe("install.sh --dry-run", () => {
     expect(r.stdout).toContain("apt-get install -y docker-ce docker-ce-cli");
   });
 
-  it("checks the host: root, Debian or Ubuntu, systemd (notices in a dry run)", () => {
+  it("checks the host: root, systemd (notices in a dry run)", () => {
     // The fake host comes from OPSDECK_INSTALL_SYSROOT, which install.sh
     // honours with --dry-run only (next to OPSDECK_INSTALL_ROOT in main()); a
     // real run always reads /etc/os-release and /run/systemd/system.
@@ -506,13 +506,13 @@ describe("install.sh --dry-run", () => {
     expect(r.status, r.all).toBe(0);
     for (const problem of [
       "run as root",
-      "only Debian and Ubuntu are supported (this host: fedora)",
       "systemd is not running on this host",
     ]) {
       expect(r.stdout).toContain(
         `dry run: a real run would stop here: ${problem}`
       );
     }
+    expect(r.stdout).not.toContain("supported (this host: fedora)");
   });
 
   it("refuses an existing .env without --adopt", () => {
@@ -1175,6 +1175,87 @@ describe("updater units", () => {
     const path = unit("opsdeck-updater@.path");
     expect(path).toContain("PathChanged=/opt/%i/updates/request.json");
     expect(path).not.toMatch(/^PathExists=/m);
+  });
+});
+
+describe("install.sh on another systemd distribution (Rocky Linux 9)", () => {
+  // Docker Engine and Compose come from Docker's own packages there; the
+  // installer only checks them, and never calls dpkg or apt.
+  function rocky({ docker = true }: { docker?: boolean } = {}) {
+    const ctx = setup({ docker });
+    writeFileSync(
+      join(ctx.sysroot, "etc/os-release"),
+      'NAME="Rocky Linux"\nVERSION="9.8 (Blue Onyx)"\nID="rocky"\nID_LIKE="rhel centos fedora"\nVERSION_ID="9.8"\nPLATFORM_ID="platform:el9"\n'
+    );
+    // Logged, so a call shows; a Rocky host has neither tool.
+    for (const tool of ["dpkg", "dpkg-query", "apt-get"]) {
+      writeFileSync(
+        join(ctx.bin, tool),
+        `#!/bin/sh\nprintf '${tool} %s\\n' "$*" >> "$STUB_LOG"\nexit 127\n`,
+        { mode: 0o755 }
+      );
+    }
+    return ctx;
+  }
+  const args = (ctx: Ctx) => [
+    "--dry-run",
+    "--version",
+    "v1.2.0",
+    "--dir",
+    ctx.dir,
+  ];
+  const noApt = (ctx: Ctx, stdout: string) => {
+    expect(readFileSync(ctx.log, "utf8")).not.toMatch(/^(dpkg|apt-get)/m);
+    expect(stdout).not.toContain("apt-get");
+  };
+
+  it("proceeds with Docker and Compose 5.1.4 already installed", () => {
+    const ctx = rocky();
+    const r = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    expect(r.status, r.all).toBe(0);
+    expect(r.stdout).not.toContain("a real run would stop here");
+    inOrder(r.stdout, [
+      "==> Docker",
+      "found: Docker Compose version v5.1.4",
+      "==> Install dir",
+      "==> Start",
+    ]);
+    noApt(ctx, r.stdout);
+  });
+
+  it("asks for Docker from Docker's docs when it is missing", () => {
+    const ctx = rocky({ docker: false });
+    const r = install(ctx, args(ctx));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(
+      "Docker Engine with the Compose v2 plugin (2.23.1 or later) is required"
+    );
+    expect(r.stderr).toContain("for rocky");
+    expect(r.stderr).toContain("https://docs.docker.com/engine/install/");
+    expect(r.stdout).not.toContain("==> Install dir");
+    noApt(ctx, r.stdout);
+  });
+
+  it("refuses Docker Compose 2.20", () => {
+    const ctx = rocky();
+    const r = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "2.20.3" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("Docker Compose 2.20.3 is too old");
+    expect(r.stdout).not.toContain("==> Install dir");
+    noApt(ctx, r.stdout);
+  });
+
+  it("refuses SELinux in enforcing mode, and runs when it is permissive", () => {
+    const ctx = rocky();
+    const getenforce = join(ctx.bin, "getenforce");
+    writeFileSync(getenforce, "#!/bin/sh\necho Enforcing\n", { mode: 0o755 });
+    const r = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("SELinux is enforcing");
+    expect(r.stdout).not.toContain("==> Docker");
+    writeFileSync(getenforce, "#!/bin/sh\necho Permissive\n", { mode: 0o755 });
+    const ok = install(ctx, args(ctx), { STUB_COMPOSE_VERSION: "5.1.4" });
+    expect(ok.status, ok.all).toBe(0);
   });
 });
 
