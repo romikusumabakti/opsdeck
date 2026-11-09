@@ -26,6 +26,8 @@ const orgStatements = {
   integration: ["manage"],
   knowledge: ["read", "write", "manage"],
   audit: ["read"],
+  // The Panel instance itself: its backups and updates (Admin → Instance).
+  instance: ["manage"],
 } as const;
 
 export const orgAc = createAccessControl(orgStatements);
@@ -45,6 +47,7 @@ export const orgRoles = {
     integration: ["manage"],
     knowledge: ["read", "write", "manage"],
     audit: ["read"],
+    instance: ["manage"],
   }),
   infra: orgAc.newRole({
     ...infraOps,

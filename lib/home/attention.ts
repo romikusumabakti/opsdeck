@@ -144,3 +144,46 @@ export function failurePrefill(
     description: parts.join("\n\n"),
   };
 }
+
+// --- The Panel's own backups ---
+
+/** A backup that has not succeeded for this long needs attention. */
+export const BACKUP_STALE_AFTER_MS = 36 * 60 * 60 * 1000;
+
+export type InstanceBackupAttention =
+  | { kind: "failed"; backupId: string; errorCode: string | null; at: Date }
+  | { kind: "stale"; lastSucceededAt: Date | null };
+
+/**
+ * Home's item for the Panel's own backups: the latest finished backup failed
+ * and nobody acknowledged it, or none has succeeded for 36 h. With no
+ * successful backup ever, the 36 h count from `installedAt`, so a fresh
+ * install is not flagged before its first scheduled run.
+ */
+export function instanceBackupAttention(input: {
+  latest: {
+    id: string;
+    status: "running" | "succeeded" | "failed";
+    errorCode: string | null;
+    startedAt: Date;
+    acknowledgedAt: Date | null;
+  } | null;
+  lastSucceededAt: Date | null;
+  installedAt: Date | null;
+  now: Date;
+}): InstanceBackupAttention | null {
+  const { latest, lastSucceededAt, installedAt, now } = input;
+  if (latest?.status === "failed" && !latest.acknowledgedAt) {
+    return {
+      kind: "failed",
+      backupId: latest.id,
+      errorCode: latest.errorCode,
+      at: latest.startedAt,
+    };
+  }
+  const since = lastSucceededAt ?? installedAt;
+  if (since && now.getTime() - since.getTime() > BACKUP_STALE_AFTER_MS) {
+    return { kind: "stale", lastSucceededAt };
+  }
+  return null;
+}

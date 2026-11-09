@@ -30,6 +30,7 @@ import { Route as LocaleAppAccountChangePasswordRouteImport } from './routes/$lo
 import { Route as LocaleAppAdminIndexRouteImport } from './routes/$locale/_app/admin.index'
 import { Route as LocaleAppAdminAccessRouteImport } from './routes/$locale/_app/admin.access'
 import { Route as LocaleAppAdminActivityRouteImport } from './routes/$locale/_app/admin.activity'
+import { Route as LocaleAppAdminInstanceRouteImport } from './routes/$locale/_app/admin.instance'
 import { Route as LocaleAppAdminUsersRouteImport } from './routes/$locale/_app/admin.users'
 import { Route as LocaleAppAppsIndexRouteImport } from './routes/$locale/_app/apps.index'
 import { Route as LocaleAppAppsNewRouteImport } from './routes/$locale/_app/apps.new'
@@ -200,6 +201,11 @@ const LocaleAppAdminAccessRoute = LocaleAppAdminAccessRouteImport.update({
 const LocaleAppAdminActivityRoute = LocaleAppAdminActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
+const LocaleAppAdminInstanceRoute = LocaleAppAdminInstanceRouteImport.update({
+  id: '/instance',
+  path: '/instance',
   getParentRoute: () => LocaleAppAdminRouteRoute,
 } as any)
 const LocaleAppAdminUsersRoute = LocaleAppAdminUsersRouteImport.update({
@@ -578,6 +584,7 @@ export interface FileRoutesByFullPath {
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/admin/instance': typeof LocaleAppAdminInstanceRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
@@ -659,6 +666,7 @@ export interface FileRoutesByTo {
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/admin/instance': typeof LocaleAppAdminInstanceRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/environments/new': typeof LocaleAppEnvironmentsNewRoute
@@ -746,6 +754,7 @@ export interface FileRoutesById {
   '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/_app/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/_app/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/_app/admin/instance': typeof LocaleAppAdminInstanceRoute
   '/$locale/_app/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/_app/apps/new': typeof LocaleAppAppsNewRoute
   '/$locale/_app/environments/new': typeof LocaleAppEnvironmentsNewRoute
@@ -833,6 +842,7 @@ export interface FileRouteTypes {
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
+    | '/$locale/admin/instance'
     | '/$locale/admin/users'
     | '/$locale/apps/new'
     | '/$locale/environments/new'
@@ -914,6 +924,7 @@ export interface FileRouteTypes {
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
+    | '/$locale/admin/instance'
     | '/$locale/admin/users'
     | '/$locale/apps/new'
     | '/$locale/environments/new'
@@ -1000,6 +1011,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/account/change-password'
     | '/$locale/_app/admin/access'
     | '/$locale/_app/admin/activity'
+    | '/$locale/_app/admin/instance'
     | '/$locale/_app/admin/users'
     | '/$locale/_app/apps/new'
     | '/$locale/_app/environments/new'
@@ -1220,6 +1232,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/$locale/admin/activity'
       preLoaderRoute: typeof LocaleAppAdminActivityRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
+    '/$locale/_app/admin/instance': {
+      id: '/$locale/_app/admin/instance'
+      path: '/instance'
+      fullPath: '/$locale/admin/instance'
+      preLoaderRoute: typeof LocaleAppAdminInstanceRouteImport
       parentRoute: typeof LocaleAppAdminRouteRoute
     }
     '/$locale/_app/admin/users': {
@@ -1669,6 +1688,7 @@ declare module '@tanstack/react-router' {
 interface LocaleAppAdminRouteRouteChildren {
   LocaleAppAdminAccessRoute: typeof LocaleAppAdminAccessRoute
   LocaleAppAdminActivityRoute: typeof LocaleAppAdminActivityRoute
+  LocaleAppAdminInstanceRoute: typeof LocaleAppAdminInstanceRoute
   LocaleAppAdminUsersRoute: typeof LocaleAppAdminUsersRoute
   LocaleAppAdminIndexRoute: typeof LocaleAppAdminIndexRoute
   LocaleAppAdminCiIdRoute: typeof LocaleAppAdminCiIdRoute
@@ -1697,6 +1717,7 @@ interface LocaleAppAdminRouteRouteChildren {
 const LocaleAppAdminRouteRouteChildren: LocaleAppAdminRouteRouteChildren = {
   LocaleAppAdminAccessRoute: LocaleAppAdminAccessRoute,
   LocaleAppAdminActivityRoute: LocaleAppAdminActivityRoute,
+  LocaleAppAdminInstanceRoute: LocaleAppAdminInstanceRoute,
   LocaleAppAdminUsersRoute: LocaleAppAdminUsersRoute,
   LocaleAppAdminIndexRoute: LocaleAppAdminIndexRoute,
   LocaleAppAdminCiIdRoute: LocaleAppAdminCiIdRoute,

@@ -142,7 +142,8 @@
     "ci": "CI",
     "cloudflare": "Cloudflare",
     "repositories": "Repositori",
-    "variables": "Variabel"
+    "variables": "Variabel",
+    "instance": "Instans"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -1846,7 +1847,9 @@
       "undo": "Urungkan",
       "undoFailed": "Gagal mengurungkan.",
       "issueTitle": "{kind} gagal: {environment}",
-      "runHistory": "Riwayat run"
+      "runHistory": "Riwayat run",
+      "instanceBackupFailed": "Cadangan Panel gagal",
+      "instanceBackupStale": "Tidak ada cadangan Panel yang berhasil dalam 36 jam"
     },
     "issues": {
       "title": "Issue saya",
@@ -2986,6 +2989,81 @@
       "pipelineFileExists": "Branch ini sudah punya .woodpecker.yaml yang tidak dibuat Panel. Buat berkas itu memberi tahu Panel, atau hapus.",
       "pipelineBranchMissing": "Pipeline harus mem-build branch environment ini: tambahkan ke daftar branch.",
       "pipelineForbidden": "Hanya admin yang boleh memilih pipeline repository."
+    }
+  },
+  "instance": {
+    "title": "Instans",
+    "subtitle": "Cadangan milik Panel ini sendiri.",
+    "tabBackups": "Cadangan"
+  },
+  "instanceBackups": {
+    "settingsTitle": "Jadwal dan tujuan",
+    "settingsDescription": "Cadangan berjalan setiap hari pada jam ini. Isinya basis data dan berkas yang tersimpan.",
+    "destination": "Tujuan",
+    "destinationLocal": "Tidak ada — simpan di server ini saja",
+    "destinationDescription": "Koneksi S3, sebaiknya di luar lokasi (misalnya Cloudflare R2).",
+    "time": "Jam",
+    "timeDescription": "Setiap hari, dalam zona {zone}.",
+    "keepDaily": "Cadangan harian yang disimpan",
+    "keepDailyDescription": "1 sampai 90. Cadangan terbaru tiap hari.",
+    "keepWeekly": "Cadangan mingguan yang disimpan",
+    "keepWeeklyDescription": "0 sampai 52, di luar cadangan harian.",
+    "invalidTime": "Masukkan jam dengan format HH:MM",
+    "invalidRange": "Masukkan bilangan bulat dari {min} sampai {max}",
+    "saved": "Pengaturan cadangan disimpan",
+    "runNow": "Cadangkan sekarang",
+    "runQueued": "Pencadangan dimulai",
+    "notOffsiteTitle": "Cadangan tidak disimpan di luar lokasi",
+    "notOffsiteDescription": "Tanpa tujuan, cadangan tetap di server ini (3 terbaru disimpan). Jika server hilang, cadangannya ikut hilang. Pilih koneksi S3.",
+    "secretsKeyTitle": "Simpan SECRETS_KEY dengan aman",
+    "secretsKeyDescription": "Pemulihan memerlukan SECRETS_KEY instans ini, dan kunci itu tidak ada di dalam cadangan. Simpan salinannya secara offline. Sidik jarinya {fingerprint}.",
+    "secretsKeyNoFingerprint": "tidak diketahui",
+    "verifyKeyLabel": "Periksa salinan SECRETS_KEY Anda",
+    "verifyKeyPlaceholder": "Tempel kuncinya",
+    "verifyKey": "Periksa",
+    "keyMatches": "Cocok dengan kunci instans ini.",
+    "keyMismatch": "Tidak cocok dengan kunci instans ini.",
+    "historyTitle": "Riwayat",
+    "historyEmpty": "Belum ada cadangan.",
+    "colStarted": "Dimulai",
+    "colTrigger": "Pemicu",
+    "colStatus": "Status",
+    "colLocation": "Lokasi",
+    "colVersion": "Versi",
+    "colSize": "Ukuran",
+    "colError": "Galat",
+    "trigger": {
+      "schedule": "Terjadwal",
+      "manual": "Manual",
+      "update": "Sebelum pembaruan"
+    },
+    "status": {
+      "running": "Berjalan",
+      "succeeded": "Berhasil",
+      "failed": "Gagal"
+    },
+    "location": {
+      "s3": "S3",
+      "local": "Server ini"
+    },
+    "acknowledge": "Tandai sudah dilihat",
+    "acknowledged": "Sudah ditandai",
+    "errors": {
+      "backupAlreadyRunning": "Pencadangan sedang berjalan.",
+      "backupDestinationNotFound": "Koneksi S3 itu sudah tidak ada.",
+      "backupScheduleFailed": "Pengaturan sudah disimpan, tetapi jadwal tidak bisa diperbarui. Jadwal dipasang ulang saat Panel dimulai ulang."
+    },
+    "errorCodes": {
+      "backupSecretsKeyMissing": "SECRETS_KEY belum diatur di Panel.",
+      "backupDestinationFailed": "Tujuan tidak bisa dibaca. Salinan disimpan di server ini.",
+      "backupDumpFailed": "Dump basis data gagal.",
+      "backupGarageFailed": "Berkas yang tersimpan tidak bisa disalin.",
+      "backupWriteFailed": "Cadangan tidak bisa ditulis di server ini.",
+      "backupUploadFailed": "Unggahan ke tujuan gagal. Salinan disimpan di server ini.",
+      "backupRecordFailed": "Cadangan selesai tetapi tidak bisa dicatat.",
+      "backupInterrupted": "Pencadangan terputus.",
+      "backupFailed": "Pencadangan gagal.",
+      "unknown": "Pencadangan gagal ({code})."
     }
   }
 }

@@ -142,7 +142,8 @@
     "ci": "CI",
     "cloudflare": "Cloudflare",
     "repositories": "Repositories",
-    "variables": "Variables"
+    "variables": "Variables",
+    "instance": "Instance"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -1846,7 +1847,9 @@
       "undo": "Undo",
       "undoFailed": "Couldn't undo the acknowledgement.",
       "issueTitle": "{kind} failed: {environment}",
-      "runHistory": "Run history"
+      "runHistory": "Run history",
+      "instanceBackupFailed": "Panel backup failed",
+      "instanceBackupStale": "No successful Panel backup in 36 hours"
     },
     "issues": {
       "title": "My issues",
@@ -2986,6 +2989,81 @@
       "pipelineFileExists": "The branch already has a .woodpecker.yaml the Panel did not generate. Make it notify the Panel, or remove it.",
       "pipelineBranchMissing": "The pipeline must build the environment's branch: add it to the branches.",
       "pipelineForbidden": "Only an admin may choose a repository's pipeline."
+    }
+  },
+  "instance": {
+    "title": "Instance",
+    "subtitle": "This Panel's own backups.",
+    "tabBackups": "Backups"
+  },
+  "instanceBackups": {
+    "settingsTitle": "Schedule and destination",
+    "settingsDescription": "A backup runs every day at this time. It holds the database and the stored files.",
+    "destination": "Destination",
+    "destinationLocal": "None — keep on this server only",
+    "destinationDescription": "An S3 connection, ideally offsite (for example Cloudflare R2).",
+    "time": "Time",
+    "timeDescription": "Daily, in {zone}.",
+    "keepDaily": "Daily backups to keep",
+    "keepDailyDescription": "1 to 90. The newest backup of each day.",
+    "keepWeekly": "Weekly backups to keep",
+    "keepWeeklyDescription": "0 to 52, on top of the daily ones.",
+    "invalidTime": "Enter a time as HH:MM",
+    "invalidRange": "Enter a whole number from {min} to {max}",
+    "saved": "Backup settings saved",
+    "runNow": "Back up now",
+    "runQueued": "Backup started",
+    "notOffsiteTitle": "Backups are not offsite",
+    "notOffsiteDescription": "With no destination, backups stay on this server (the newest 3 are kept). If the server is lost, so are they. Choose an S3 connection.",
+    "secretsKeyTitle": "Keep SECRETS_KEY safe",
+    "secretsKeyDescription": "A restore needs this instance's SECRETS_KEY, and the key is not in the backup. Keep a copy offline. Its fingerprint is {fingerprint}.",
+    "secretsKeyNoFingerprint": "unknown",
+    "verifyKeyLabel": "Check your copy of SECRETS_KEY",
+    "verifyKeyPlaceholder": "Paste the key",
+    "verifyKey": "Check",
+    "keyMatches": "It matches this instance's key.",
+    "keyMismatch": "It does not match this instance's key.",
+    "historyTitle": "History",
+    "historyEmpty": "No backups yet.",
+    "colStarted": "Started",
+    "colTrigger": "Trigger",
+    "colStatus": "Status",
+    "colLocation": "Location",
+    "colVersion": "Version",
+    "colSize": "Size",
+    "colError": "Error",
+    "trigger": {
+      "schedule": "Scheduled",
+      "manual": "Manual",
+      "update": "Before update"
+    },
+    "status": {
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed"
+    },
+    "location": {
+      "s3": "S3",
+      "local": "This server"
+    },
+    "acknowledge": "Acknowledge",
+    "acknowledged": "Acknowledged",
+    "errors": {
+      "backupAlreadyRunning": "A backup is already running.",
+      "backupDestinationNotFound": "That S3 connection no longer exists.",
+      "backupScheduleFailed": "The settings were saved, but the schedule could not be updated. It is set again when the Panel restarts."
+    },
+    "errorCodes": {
+      "backupSecretsKeyMissing": "SECRETS_KEY is not set on the Panel.",
+      "backupDestinationFailed": "The destination could not be read. A copy was kept on this server.",
+      "backupDumpFailed": "The database dump failed.",
+      "backupGarageFailed": "The stored files could not be copied.",
+      "backupWriteFailed": "The backup could not be written on this server.",
+      "backupUploadFailed": "The upload to the destination failed. A copy was kept on this server.",
+      "backupRecordFailed": "The backup finished but could not be recorded.",
+      "backupInterrupted": "The backup was interrupted.",
+      "backupFailed": "The backup failed.",
+      "unknown": "The backup failed ({code})."
     }
   }
 }

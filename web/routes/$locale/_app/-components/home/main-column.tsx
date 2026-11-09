@@ -7,6 +7,8 @@ import {
   type AttentionGroup,
   getAttentionGroupsQuery,
   getHomeAccessQuery,
+  getInstanceBackupAttentionQuery,
+  type InstanceBackupAttentionItem,
   listMyOpenIssuesQuery,
   type MyIssue,
 } from "@/web/api/home";
@@ -35,11 +37,15 @@ export function MainColumn() {
   const attention = settle(useQuery(getAttentionGroupsQuery()));
   const issues = settle(useQuery(listMyOpenIssuesQuery()));
   const access = settle(useQuery(getHomeAccessQuery()));
+  // Not waited for: a failure or a slow answer only leaves the item out.
+  const instanceBackup =
+    useQuery(getInstanceBackupAttentionQuery()).data ?? null;
   if (!(attention && issues && access)) return <MainColumnSkeleton />;
 
   const order = sectionOrder({
     hasOpsAccess: access.ok && access.value.hasOpsAccess,
-    attentionCount: attention.ok ? attention.value.length : 0,
+    attentionCount:
+      (attention.ok ? attention.value.length : 0) + (instanceBackup ? 1 : 0),
     issueCount: issues.ok ? issues.value.total : 0,
   });
 
@@ -47,7 +53,12 @@ export function MainColumn() {
     <>
       {order.map((s) =>
         s.id === "attention" ? (
-          <AttentionSection key="attention" mode={s.mode} result={attention} />
+          <AttentionSection
+            key="attention"
+            mode={s.mode}
+            result={attention}
+            instanceBackup={instanceBackup}
+          />
         ) : (
           <MyIssuesSection key="issues" mode={s.mode} result={issues} />
         )
@@ -59,9 +70,11 @@ export function MainColumn() {
 function AttentionSection({
   mode,
   result,
+  instanceBackup,
 }: {
   mode: SectionMode;
   result: Result<AttentionGroup[]>;
+  instanceBackup: InstanceBackupAttentionItem | null;
 }) {
   const t = useTranslations("homePage");
   // A failed query counts as 0 and may come out "hidden"; show the error anyway.
@@ -81,9 +94,15 @@ function AttentionSection({
       icon={CircleAlert}
       iconClassName="text-destructive"
       title={t("attention.title")}
-      count={result.ok ? result.value.length : undefined}
+      count={
+        result.ok ? result.value.length + (instanceBackup ? 1 : 0) : undefined
+      }
     >
-      {result.ok ? <AttentionList groups={result.value} /> : <SectionError />}
+      {result.ok ? (
+        <AttentionList groups={result.value} instanceBackup={instanceBackup} />
+      ) : (
+        <SectionError />
+      )}
     </HomeSection>
   );
 }
