@@ -346,9 +346,12 @@ main() {
   fi
 
   # The updater units watch /opt/%i, so an instance lives in /opt/<name>. The
-  # tests point the root elsewhere, for a dry run only.
+  # tests point the root elsewhere, and read the host checks' files below
+  # (os-release, systemd) from a fake host, for a dry run only.
   root=/opt
+  sysroot=
   if [ "$dry_run" = 1 ] && [ -n "${OPSDECK_INSTALL_ROOT:-}" ]; then root=$OPSDECK_INSTALL_ROOT; fi
+  if [ "$dry_run" = 1 ] && [ -n "${OPSDECK_INSTALL_SYSROOT:-}" ]; then sysroot=${OPSDECK_INSTALL_SYSROOT%/}; fi
   dir=${dir%/}
   name=${dir#"$root"/}
   if [ "$dir" != "$root/$name" ] || ! matches "$name" "$NAME_RE"; then
@@ -365,11 +368,12 @@ main() {
   [ "$(id -u)" -eq 0 ] || host_problem "run as root (sudo sh install.sh ...)"
   os_id=
   os_codename=
-  if [ -r /etc/os-release ]; then
+  os_release=$sysroot/etc/os-release
+  if [ -r "$os_release" ]; then
     # shellcheck source=/dev/null
-    os_id=$(. /etc/os-release && printf '%s' "${ID:-}")
+    os_id=$(. "$os_release" && printf '%s' "${ID:-}")
     # shellcheck source=/dev/null
-    os_codename=$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}")
+    os_codename=$(. "$os_release" && printf '%s' "${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}")
   fi
   case $os_id in
     debian | ubuntu) ;;
@@ -379,7 +383,7 @@ main() {
     x86_64 | amd64 | aarch64 | arm64) ;;
     *) host_problem "only amd64 and arm64 are supported (this host: $(uname -m))" ;;
   esac
-  [ -d /run/systemd/system ] || host_problem "systemd is not running on this host"
+  [ -d "$sysroot/run/systemd/system" ] || host_problem "systemd is not running on this host"
   for tool in curl openssl sha256sum stat; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
   done

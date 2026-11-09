@@ -21,14 +21,17 @@ import {
   updateRequestSchema,
   updateStatusSchema,
 } from "@/lib/updates/request";
+import { hostTools, lintToolAvailable } from "../support/host-tools";
 
 // ops/install/update.sh runs as root on the host. Here it runs as the test
-// user under `sh` against a temp install dir, with stub `docker`, `curl` and
-// `sleep` on PATH. The docker stub reads OPSDECK_VERSION from ./.env (compose's
-// working dir) on every call, so the log shows which release each step ran
-// under; `up` "deploys" that version, and the health stub reports it. Each
-// release's compose.yaml starts with `# compose v<version>`: a call made with
-// a compose.yaml of another release than .env's is marked `compose=<v>`.
+// user under `sh` against a temp install dir, with stub `docker`, `curl`,
+// `sleep` and `id` on PATH next to plain host tools only (support/host-tools),
+// so no host probe reaches the machine running the tests. The docker stub
+// reads OPSDECK_VERSION from ./.env (compose's working dir) on every call, so
+// the log shows which release each step ran under; `up` "deploys" that
+// version, and the health stub reports it. Each release's compose.yaml starts
+// with `# compose v<version>`: a call made with a compose.yaml of another
+// release than .env's is marked `compose=<v>`.
 
 const SCRIPT = join(__dirname, "..", "..", "ops/install/update.sh");
 const SECRET = "secrets-key-Zq9!do-not-log";
@@ -212,12 +215,15 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
   const dir = join(root, "opsdeck");
   const updates = join(dir, "updates");
   for (const d of [bin, state, rel, updates]) mkdirSync(d, { recursive: true });
+  const hostBin = hostTools(join(root, "host-bin"));
   chmodSync(updates, 0o770);
   for (const [name, body] of [
     ["docker", STUB_DOCKER],
     ["curl", STUB_CURL],
     // Health retries need no real wait; the TERM stub's own `sleep 1` is real.
     ["sleep", '#!/bin/sh\n[ "$1" = 1 ] && exec /bin/sleep 1\nexit 0\n'],
+    // The real uid: update.sh checks that its files are owned by it.
+    ["id", `#!/bin/sh\n[ "$1" = -u ] && echo ${process.getuid?.() ?? 0}\n`],
   ] as const) {
     writeFileSync(join(bin, name), body, { mode: 0o755 });
   }
@@ -248,7 +254,7 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
     const result = spawnSync(wrap[0] ?? "sh", [...wrap.slice(1), SCRIPT, dir], {
       encoding: "utf8",
       env: {
-        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        PATH: `${bin}:${hostBin}`,
         HOME: root,
         STUB_LOG: log,
         STUB_STATE: state,
@@ -832,8 +838,7 @@ describe("update.sh", () => {
   });
 
   it("shellcheck clean", (ctx) => {
-    const probe = spawnSync("shellcheck", ["--version"], { encoding: "utf8" });
-    if (probe.error || probe.status !== 0) {
+    if (!lintToolAvailable("shellcheck")) {
       console.warn("shellcheck not found; skipping the lint of update.sh");
       ctx.skip();
     }

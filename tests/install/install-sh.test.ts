@@ -13,11 +13,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { hostTools, lintToolAvailable } from "../support/host-tools";
 
 // ops/install/install.sh runs as root on a Debian/Ubuntu host. Here only its
 // --dry-run runs (unprivileged, against a temp root through
-// OPSDECK_INSTALL_ROOT, which is honoured with --dry-run only), with stub
-// `docker` and `curl` on PATH. A dry run reads (release assets, the old .env,
+// OPSDECK_INSTALL_ROOT and a fake host through OPSDECK_INSTALL_SYSROOT, both
+// honoured with --dry-run only), with stub `docker`, `curl`, `id`, `uname`,
+// `dpkg` and `dpkg-query` on PATH next to plain host tools only
+// (support/host-tools): the host running the tests is never probed. A dry run reads (release assets, the old .env,
 // volumes) but changes nothing; it prints every action it would take.
 
 const REPO = join(__dirname, "..", "..");
@@ -77,6 +80,14 @@ case $url in
   *) exit 6 ;;
 esac
 `;
+
+// The host as install.sh sees it: root, amd64, no distribution Docker package.
+const HOST_STUBS = {
+  id: '#!/bin/sh\n[ "$1" = -u ] && echo 0\n',
+  uname: '#!/bin/sh\n[ "$1" = -m ] && echo x86_64 || echo Linux\n',
+  dpkg: '#!/bin/sh\n[ "$1" = --print-architecture ] && echo amd64\n',
+  "dpkg-query": "#!/bin/sh\nexit 1\n",
+};
 
 const IMAGE_NAMES = {
   app: "ghcr.io/romikusumabakti/opsdeck",
@@ -167,8 +178,22 @@ function setup({ docker = true }: { docker?: boolean } = {}) {
   const releases = join(root, "releases");
   mkdirSync(bin);
   mkdirSync(opt);
+  const hostBin = hostTools(join(root, "host-bin"));
   if (docker) writeFileSync(join(bin, "docker"), STUB_DOCKER, { mode: 0o755 });
-  writeFileSync(join(bin, "curl"), STUB_CURL, { mode: 0o755 });
+  for (const [name, body] of Object.entries({
+    ...HOST_STUBS,
+    curl: STUB_CURL,
+  })) {
+    writeFileSync(join(bin, name), body, { mode: 0o755 });
+  }
+  // An Ubuntu 24.04 host with systemd.
+  const sysroot = join(root, "sysroot");
+  mkdirSync(join(sysroot, "etc"), { recursive: true });
+  mkdirSync(join(sysroot, "run/systemd/system"), { recursive: true });
+  writeFileSync(
+    join(sysroot, "etc/os-release"),
+    'ID=ubuntu\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=noble\n'
+  );
   for (const version of ["1.2.0", "1.3.0", "1.4.0-beta.1"]) {
     const d = join(releases, version);
     mkdirSync(d, { recursive: true });
@@ -185,7 +210,16 @@ function setup({ docker = true }: { docker?: boolean } = {}) {
   }
   const log = join(root, "stub.log");
   writeFileSync(log, "");
-  return { root, bin, opt, releases, log, dir: join(opt, "opsdeck") };
+  return {
+    root,
+    bin,
+    hostBin,
+    sysroot,
+    opt,
+    releases,
+    log,
+    dir: join(opt, "opsdeck"),
+  };
 }
 
 type Ctx = ReturnType<typeof setup>;
@@ -205,9 +239,10 @@ function install(
       cwd,
       input: piped ? readFileSync(SCRIPT, "utf8") : undefined,
       env: {
-        PATH: `${ctx.bin}:/usr/bin:/bin`,
+        PATH: `${ctx.bin}:${ctx.hostBin}`,
         HOME: ctx.root,
         OPSDECK_INSTALL_ROOT: ctx.opt,
+        OPSDECK_INSTALL_SYSROOT: ctx.sysroot,
         STUB_LOG: ctx.log,
         STUB_RELEASES: ctx.releases,
         STUB_S3: join(ctx.root, "s3"),
@@ -444,8 +479,36 @@ describe("install.sh --dry-run", () => {
       ctx.dir,
     ]);
     expect(r.status, r.all).toBe(0);
+    expect(r.stdout).not.toContain("a real run would stop here");
+    expect(r.stdout).toContain("https://download.docker.com/linux/ubuntu/gpg");
     expect(r.stdout).toContain("/etc/apt/sources.list.d/docker.sources");
     expect(r.stdout).toContain("apt-get install -y docker-ce docker-ce-cli");
+  });
+
+  it("checks the host: root, Debian or Ubuntu, systemd (notices in a dry run)", () => {
+    const ctx = setup();
+    writeFileSync(join(ctx.sysroot, "etc/os-release"), "ID=fedora\n");
+    rmSync(join(ctx.sysroot, "run/systemd"), { recursive: true });
+    writeFileSync(join(ctx.bin, "id"), "#!/bin/sh\necho 1000\n", {
+      mode: 0o755,
+    });
+    const r = install(ctx, [
+      "--dry-run",
+      "--version",
+      "v1.2.0",
+      "--dir",
+      ctx.dir,
+    ]);
+    expect(r.status, r.all).toBe(0);
+    for (const problem of [
+      "run as root",
+      "only Debian and Ubuntu are supported (this host: fedora)",
+      "systemd is not running on this host",
+    ]) {
+      expect(r.stdout).toContain(
+        `dry run: a real run would stop here: ${problem}`
+      );
+    }
   });
 
   it("refuses an existing .env without --adopt", () => {
@@ -1113,7 +1176,7 @@ describe("updater units", () => {
 
 describe("lint", () => {
   it("install.sh is shellcheck clean", (ctx) => {
-    if (spawnSync("shellcheck", ["--version"]).status !== 0) {
+    if (!lintToolAvailable("shellcheck")) {
       console.warn("shellcheck not found; skipping the lint of install.sh");
       ctx.skip();
     }
@@ -1123,12 +1186,13 @@ describe("lint", () => {
     expect(r.status, r.stdout).toBe(0);
   });
 
-  it("release.yml passes actionlint", (ctx) => {
-    if (spawnSync("actionlint", ["--version"]).status !== 0) {
-      console.warn("actionlint not found; skipping the lint of release.yml");
+  it("the workflows pass actionlint", (ctx) => {
+    if (!lintToolAvailable("actionlint")) {
+      console.warn("actionlint not found; skipping the lint of the workflows");
       ctx.skip();
     }
-    const r = spawnSync("actionlint", [WORKFLOW], { encoding: "utf8" });
+    // Every file in .github/workflows, with the local actions they use.
+    const r = spawnSync("actionlint", [], { cwd: REPO, encoding: "utf8" });
     expect(r.status, r.stdout).toBe(0);
   });
 
