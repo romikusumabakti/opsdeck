@@ -2939,13 +2939,13 @@
   "teardown": {
     "errors": {
       "deployDirShared": "Environment lain memakai direktori deploy ini di server yang sama",
-      "domainShared": "Environment lain mencatat Access app atau DNS record Cloudflare yang sama",
+      "domainShared": "Access app atau DNS record Cloudflare ini dipakai bersama: environment lain mencatatnya, atau sejak itu diubah sehingga mencakup hostname lain",
       "databaseBackupUnsupported": "Hanya database PostgreSQL yang dapat diarsipkan sebelum dihapus. Gunakan Hapus dari Panel saja",
       "unsafeDeployDir": "Direktori deploy ini bukan path yang aman untuk dihapus",
       "environmentBusy": "Ada deploy atau provisioning yang sedang berjalan di environment ini. Coba lagi setelah selesai",
       "teardownRunning": "Environment ini sedang dihapus",
       "teardownCannotCancel": "Penghapusan ini sudah mulai menghapus environment, jadi tidak bisa dibatalkan lagi. Coba lagi untuk menyelesaikannya",
-      "databaseNotRegistered": "Stack ini menyimpan data di named volume tetapi tidak ada layanan database yang terdaftar, sehingga arsip akan melewatkannya. Daftarkan database terlebih dahulu, atau gunakan Hapus dari Panel saja",
+      "databaseNotRegistered": "Layanan database environment ini, atau host database-nya, tidak lagi terdaftar seperti saat penghapusan direncanakan. Periksa layanan database, lalu coba lagi, atau gunakan Hapus dari Panel saja",
       "archiveFailed": "Arsip tidak dapat diselesaikan, jadi tidak ada yang dihapus. Coba lagi untuk melanjutkan",
       "confirmNameMismatch": "Ketik nama environment persis untuk mengonfirmasi",
       "environmentIsProduction": "Hanya admin yang dapat menghapus environment production",

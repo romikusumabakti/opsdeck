@@ -3,6 +3,8 @@ import {
   CloudflareApiError,
   deleteAccessApp,
   deleteDnsRecord,
+  getAccessApp,
+  getDnsRecord,
   type TunnelConfig,
   UnsafeTunnelConfigError,
   withoutIngressRoute,
@@ -159,5 +161,39 @@ describe("deleteAccessApp", () => {
     await expect(
       deleteAccessApp(creds, creds.accountId, "app-1")
     ).rejects.toThrow(CloudflareApiError);
+  });
+});
+
+describe("getDnsRecord and getAccessApp", () => {
+  it("reads the record and the app by id", async () => {
+    responses.push(ok({ id: "rec-1", name: "a.example.com" }));
+    responses.push(ok({ id: "app-1", domain: "a.example.com" }));
+    await expect(getDnsRecord(creds, "zone 1", "rec-1")).resolves.toEqual({
+      id: "rec-1",
+      name: "a.example.com",
+    });
+    await expect(
+      getAccessApp(creds, creds.accountId, "app-1")
+    ).resolves.toMatchObject({ id: "app-1" });
+    expect(calls).toEqual([
+      { url: `${base}/zones/zone%201/dns_records/rec-1`, method: "GET" },
+      {
+        url: `${base}/accounts/${creds.accountId}/access/apps/app-1`,
+        method: "GET",
+      },
+    ]);
+  });
+
+  it("maps 404 to null and throws on other failures", async () => {
+    responses.push(failure(404, 81044, "Record does not exist."));
+    responses.push(failure(404, 12006, "Access app not found"));
+    responses.push(failure(403, 10000, "Authentication error"));
+    await expect(getDnsRecord(creds, "zone", "rec-1")).resolves.toBeNull();
+    await expect(
+      getAccessApp(creds, creds.accountId, "app-1")
+    ).resolves.toBeNull();
+    await expect(getAccessApp(creds, creds.accountId, "app-1")).rejects.toThrow(
+      CloudflareApiError
+    );
   });
 });

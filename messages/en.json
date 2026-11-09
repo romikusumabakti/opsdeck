@@ -2939,13 +2939,13 @@
   "teardown": {
     "errors": {
       "deployDirShared": "Another environment uses this deploy directory on the same server",
-      "domainShared": "Another environment records the same Cloudflare Access app or DNS record",
+      "domainShared": "The Cloudflare Access app or DNS record is shared: another environment records it, or it has since been changed to cover another hostname",
       "databaseBackupUnsupported": "Only PostgreSQL databases can be archived before deletion. Use Remove from Panel only instead",
       "unsafeDeployDir": "The deploy directory is not a safe path to delete",
       "environmentBusy": "A deploy or provisioning run is active on this environment. Try again when it finishes",
       "teardownRunning": "This environment is already being deleted",
       "teardownCannotCancel": "This deletion has already started removing the environment, so it can no longer be cancelled. Retry to finish it",
-      "databaseNotRegistered": "The stack keeps data in named volumes but no database service is registered, so the archive would miss it. Register the database first, or use Remove from Panel only",
+      "databaseNotRegistered": "The environment's database service, or its database host, is no longer registered as it was when the deletion was planned. Check the database service, then retry, or use Remove from Panel only",
       "archiveFailed": "The archive could not be completed, so nothing was deleted. Retry to continue",
       "confirmNameMismatch": "Type the environment name exactly to confirm",
       "environmentIsProduction": "Only an admin can delete a production environment",

@@ -240,6 +240,21 @@ export function withoutIngressRoute(
   return { config: next, removed: true };
 }
 
+/** Run a GET of one resource, mapping Cloudflare's 404 (gone) to null. */
+async function getResource<T>(
+  creds: CloudflareCreds,
+  path: string
+): Promise<T | null> {
+  try {
+    return await request<T>(creds.apiToken, path);
+  } catch (error) {
+    if (error instanceof CloudflareApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 /** Run a DELETE, mapping Cloudflare's 404 (already gone) to "absent". */
 async function deleteResource(
   creds: CloudflareCreds,
@@ -305,6 +320,18 @@ export async function createProxiedCname(
         comment,
       }),
     }
+  );
+}
+
+/** The DNS record with this id, or null when it is gone. */
+export async function getDnsRecord(
+  creds: CloudflareCreds,
+  zoneId: string,
+  recordId: string
+): Promise<DnsRecord | null> {
+  return getResource<DnsRecord>(
+    creds,
+    `/zones/${encodeURIComponent(zoneId)}/dns_records/${encodeURIComponent(recordId)}`
   );
 }
 
@@ -382,6 +409,16 @@ export function accessAppDomains(app: AccessApp): string[] {
 }
 
 /**
+ * The hostnames an Access app covers, lowercased: a destination's path
+ * (`host/path`) is dropped, and an absent domain skipped.
+ */
+export function accessAppHostnames(app: AccessApp): string[] {
+  return accessAppDomains(app).map(
+    (domain) => domain.split("/")[0]?.toLowerCase() ?? ""
+  );
+}
+
+/**
  * The Access app that covers exactly `domain` (no path), through its
  * `domain`, its `self_hosted_domains` or a public destination; or null.
  * Compared case-insensitively.
@@ -419,6 +456,18 @@ export async function createAccessApp(
       policies: [{ id: app.policyId, precedence: 1 }],
     }),
   });
+}
+
+/** The Access app with this id, or null when it is gone. */
+export async function getAccessApp(
+  creds: CloudflareCreds,
+  accountId: string,
+  appId: string
+): Promise<AccessApp | null> {
+  return getResource<AccessApp>(
+    creds,
+    `${account({ ...creds, accountId })}/access/apps/${encodeURIComponent(appId)}`
+  );
 }
 
 export async function deleteAccessApp(

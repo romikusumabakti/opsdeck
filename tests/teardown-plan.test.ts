@@ -376,7 +376,11 @@ describe("planTeardown", () => {
       steps: [
         {
           kind: "remove_dns_record",
-          params: { zoneId: "zone-1", recordId: "rec-1" },
+          params: {
+            zoneId: "zone-1",
+            recordId: "rec-1",
+            hostname: "dms.example.com",
+          },
         },
         {
           kind: "remove_tunnel_route",
@@ -439,7 +443,11 @@ describe("planTeardown", () => {
     if ("steps" in result) {
       expect(
         result.steps.find((s) => s.kind === "remove_access_app")?.params
-      ).toEqual({ zoneId: "zone-1", appId: "app-1" });
+      ).toEqual({
+        zoneId: "zone-1",
+        appId: "app-1",
+        hostname: "dms.example.com",
+      });
       for (const step of result.steps) {
         expect(teardownStepSpecSchema.parse(step)).toEqual(step);
       }
@@ -487,6 +495,12 @@ describe("teardownStepSpecSchema", () => {
       teardownStepSpecSchema.safeParse({
         kind: "remove_dns_record",
         params: { zoneId: "zone-1" },
+      }).success
+    ).toBe(false);
+    expect(
+      teardownStepSpecSchema.safeParse({
+        kind: "remove_access_app",
+        params: { zoneId: "zone-1", appId: "app-1" },
       }).success
     ).toBe(false);
     expect(
