@@ -62,7 +62,7 @@ async function probeBackupList(
   const inner = backupListCommand(dbSvc.dbBackupPath);
   const cmd = buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: dbOsUser(dbSvc.dbType),
-    sudoPassword: dbSvc.server.password ?? undefined,
+    server: dbSvc.server,
   });
   const output = await executeRemoteCommand(sshTarget(dbSvc.server), cmd);
 

@@ -102,7 +102,7 @@ export const serviceLogsRouter = sessionRouter().get(
       cfg.serviceType,
       cfg.serviceName,
       lines,
-      cfg.server.password ?? ""
+      cfg.server
     );
     const startedAt = Date.now();
 
