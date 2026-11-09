@@ -400,7 +400,8 @@ export async function adoptEnvironmentDomain(
   });
   // A refused write leaves nothing recorded: the route this call added would
   // be an orphan no teardown removes. Best-effort; a route that was already
-  // there is left alone.
+  // there is left alone, and so is one an environment records by now (a
+  // concurrent adopt of the same hostname that won the write).
   const undoRoute = async () => {
     if (!routeAdded) return;
     await callCloudflare((creds) =>
@@ -499,13 +500,17 @@ async function addRouteIfMissing(
   });
 }
 
-/** Takes the hostname's rule out of the tunnel config, under the same lock. */
+/**
+ * Takes the hostname's rule out of the tunnel config, under the same lock,
+ * unless an environment records the hostname by then.
+ */
 async function removeRouteIfPresent(
   creds: CloudflareCreds,
   tunnelId: string,
   hostname: string
 ): Promise<void> {
   await withAdvisoryXactLock(`cf-tunnel:${tunnelId}`, async () => {
+    if (await hostnameTakenByOther(hostname)) return;
     const next = withoutIngressRoute(
       await getTunnelConfig(creds, tunnelId),
       hostname

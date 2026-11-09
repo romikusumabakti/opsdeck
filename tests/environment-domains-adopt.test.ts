@@ -118,6 +118,7 @@ vi.mock("@/lib/domains/repository", () => ({
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");
 
 const { app } = await import("@/server/app");
+const { hostnameTakenByOther } = await import("@/lib/domains/repository");
 
 const ok = (result: unknown) =>
   new Response(
@@ -368,6 +369,20 @@ describe("POST /domain/adopt", () => {
       expect(cf.puts).toHaveLength(2);
       expect(cf.config).toEqual(before);
     }
+  });
+
+  it("leaves the route when a concurrent adopt recorded the hostname meanwhile", async () => {
+    state.adoptError = Object.assign(new Error("duplicate"), { code: "23505" });
+    // The other adopt's row exists once the write raced: only the undo sees it.
+    vi.mocked(hostnameTakenByOther)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    const res = await send(body());
+    expect(res.status).toBe(409);
+    expect(cf.puts).toHaveLength(1);
+    expect(cf.config).toMatchObject({
+      ingress: expect.arrayContaining([{ hostname: HOST, service: SERVICE }]),
+    });
   });
 
   it("leaves a route that was already there when the write is refused", async () => {

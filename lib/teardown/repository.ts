@@ -563,12 +563,16 @@ export async function loadTeardownSubject(environmentId: string): Promise<{
 
 /** Run kinds that act on an environment's stack or data while they run. */
 const BUSY_RUN_KINDS = ["deploy", "provision", "backup", "restore"] as const;
+// Database and service control runs carry no kind and nothing sweeps them,
+// so one a dead worker left `started` would block every teardown. They take
+// minutes: only one started within this window counts.
+const UNKINDED_RUN_BUSY_HOURS = 6;
 
 /**
  * Whether a teardown must wait: a deploy, provisioning, backup or restore run
  * is `started` on the environment, or a database (create, drop, rename) or
- * service control (start, stop, restart) run, which carry no kind; or its
- * deploy lock is active.
+ * service control (start, stop, restart) run (no kind) started within the
+ * last UNKINDED_RUN_BUSY_HOURS; or its deploy lock is active.
  */
 export async function environmentBusy(
   environmentId: string,
@@ -581,7 +585,16 @@ export async function environmentBusy(
       and(
         eq(runs.environmentId, environmentId),
         eq(runs.status, "started"),
-        or(inArray(runs.kind, [...BUSY_RUN_KINDS]), isNull(runs.kind))
+        or(
+          inArray(runs.kind, [...BUSY_RUN_KINDS]),
+          and(
+            isNull(runs.kind),
+            gt(
+              runs.runAt,
+              new Date(Date.now() - UNKINDED_RUN_BUSY_HOURS * 3_600_000)
+            )
+          )
+        )
       )
     )
     .limit(1);
