@@ -89,7 +89,8 @@ describe("generateInstanceKey", () => {
       const pub = join(dir, "k.pub");
       writeFileSync(pub, `${k.publicKey}\n`);
       out = execFileSync("ssh-keygen", ["-lf", pub], { encoding: "utf8" });
-    } catch {
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
       console.warn(
         "ssh-keygen not available; skipping fingerprint cross-check"
       );
@@ -175,6 +176,8 @@ describe("authorizedKeysLine validation", () => {
     "fd00::/129",
     "10.0.0.0/",
     "10.0.0.0/8/8",
+    "fe80::1%eth0",
+    "fe80::/64%eth0",
   ])("rejects from=%j", (from) => {
     expect(() => authorizedKeysLine(KEY, from, MARKER)).toThrow();
   });
