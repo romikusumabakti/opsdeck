@@ -1145,12 +1145,57 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
 
       // Every archive step done, nothing else: cancelled, unfrozen.
       await seed(4);
+      const base = {
+        environmentId: env,
+        projectName: "Teardown IT",
+        environmentName: "TD Cancel",
+        environmentSlug: "td-cancel",
+        location: "local" as const,
+        keyPrefix: "/tmp/td-it/",
+      };
+      const day = 86_400_000;
+      const old = await createArchive({
+        ...base,
+        expiresAt: new Date(Date.now() + 30 * day),
+      });
+      await addArchiveFile(old.id, { name: "db-x.dump", size: 1 });
       await expect(teardownBlocks(env)).resolves.toBe(true);
       await expect(cancelTeardownSteps(env)).resolves.toEqual({
         cancelled: true,
       });
       await expect(listTeardownSteps(env)).resolves.toEqual([]);
       await expect(teardownBlocks(env)).resolves.toBe(false);
+
+      // The open archive is detached: still open, no longer the env's.
+      const detached = await getArchive(old.id);
+      expect(detached).toMatchObject({
+        environmentId: null,
+        completedAt: null,
+      });
+      await expect(findOpenArchive(env)).resolves.toBe(null);
+      // Still listed (and so downloadable).
+      expect((await listArchives()).map((a) => a.id)).toContain(old.id);
+      // The next teardown's first archive step creates a new, empty row.
+      const fresh = await createArchive({
+        ...base,
+        expiresAt: new Date(Date.now() + 30 * day),
+      });
+      expect(fresh.id).not.toBe(old.id);
+      expect(fresh.files).toEqual([]);
+      // The incomplete-archive prune takes the detached one after 30 days.
+      const later = new Date(Date.now() + 31 * day);
+      const prunable = (
+        await listPrunableArchives(later, new Date(later.getTime() - 30 * day))
+      ).map((a) => a.id);
+      expect(prunable).toContain(old.id);
+      // The fresh one belongs to an environment with no steps now, so it
+      // is prunable too once old; with steps it would be kept.
+      await seed(1);
+      const withSteps = (
+        await listPrunableArchives(later, new Date(later.getTime() - 30 * day))
+      ).map((a) => a.id);
+      expect(withSteps).toContain(old.id);
+      expect(withSteps).not.toContain(fresh.id);
     } finally {
       await db.delete(s.environments).where(eq(s.environments.id, env));
     }

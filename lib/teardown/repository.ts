@@ -676,8 +676,9 @@ const CANCELLABLE_DONE_KINDS = new Set<TeardownStep["kind"]>([
  * lets deploys, backups and provisioning act on the environment again
  * (lib/teardown/guard). Only while no teardown run is started and no step
  * is running (teardownRunning), and only checks and archives are done
- * (teardownCannotCancel). The open archive is left to the prune of
- * incomplete archives. Under the environment's advisory lock, exclusively,
+ * (teardownCannotCancel). The open archive is detached (environment_id
+ * null) and left to the prune of incomplete archives, so the next teardown
+ * archives afresh. Under the environment's advisory lock, exclusively,
  * so no run starts in between. `nothing` without steps.
  */
 export async function cancelTeardownSteps(
@@ -707,6 +708,18 @@ export async function cancelTeardownSteps(
     await tx
       .delete(teardownSteps)
       .where(eq(teardownSteps.environmentId, environmentId));
+    // Detach the open archive: it stays open (completed_at null), so the
+    // incomplete-archive prune removes it, and no later teardown can reuse
+    // its files, which the environment has outdated by then.
+    await tx
+      .update(environmentArchives)
+      .set({ environmentId: null })
+      .where(
+        and(
+          eq(environmentArchives.environmentId, environmentId),
+          isNull(environmentArchives.completedAt)
+        )
+      );
     return { cancelled: true as const };
   });
 }
@@ -789,8 +802,9 @@ export async function getArchive(
 /**
  * The archives the daily prune deletes: completed ones past `expires_at`,
  * and open ones created before `incompleteBefore` whose environment has no
- * teardown steps left (the teardown was abandoned, or the row removed from
- * the Panel). An open archive whose teardown still has steps is kept even
+ * teardown steps left (the teardown was abandoned, the row removed from
+ * the Panel, or the teardown cancelled: a detached archive's null
+ * environment_id matches no step). An open archive whose teardown still has steps is kept even
  * past expiry: its finished archive steps are not taken again, so a retry
  * would go on to the destructive steps with the files gone.
  */
