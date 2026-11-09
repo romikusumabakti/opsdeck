@@ -98,6 +98,8 @@ export function keyMarker(keyId: string): string {
 }
 
 function isValidFrom(from: string): boolean {
+  // isIP accepts IPv6 zone ids ("fe80::1%eth0"), which sshd does not match.
+  if (from.includes("%")) return false;
   const [addr = "", prefix, ...rest] = from.split("/");
   if (rest.length > 0) return false;
   const family = isIP(addr);
