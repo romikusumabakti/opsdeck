@@ -20,7 +20,9 @@ export type ExplorerSource =
 // the DB. Returns null when the referenced connection/server no longer exists.
 // This is the ONLY place credentials are read for the explorer.
 export async function resolveBackend(
-  source: ExplorerSource
+  source: ExplorerSource,
+  // The signed-in user, recorded if an SFTP connection pins the host key.
+  actorId?: string
 ): Promise<StorageBackend | null> {
   if (source.kind === "s3") {
     const [conn] = await db
@@ -43,6 +45,7 @@ export async function resolveBackend(
   if (!server) return null;
   return createSftpBackend(
     sshTarget({ ...server, password: decryptNullable(server.password) }),
-    server.sftpRoot
+    server.sftpRoot,
+    { actor: actorId }
   );
 }

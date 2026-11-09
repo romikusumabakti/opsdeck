@@ -19,8 +19,9 @@ import {
 type Row = Record<string, unknown>;
 type Cond =
   | { op: "eq"; key: string; value: unknown }
+  | { op: "ne"; key: string; value: unknown }
   | { op: "isNull"; key: string }
-  | { op: "and"; conds: Cond[] };
+  | { op: "and" | "or"; conds: Cond[] };
 
 const state = vi.hoisted(() => ({
   servers: [] as Record<string, unknown>[],
@@ -44,17 +45,28 @@ vi.mock("drizzle-orm", async (importOriginal) => ({
     key: camel(column.name),
     value,
   }),
+  ne: (column: { name: string }, value: unknown) => ({
+    op: "ne",
+    key: camel(column.name),
+    value,
+  }),
   isNull: (column: { name: string }) => ({
     op: "isNull",
     key: camel(column.name),
   }),
   and: (...conds: unknown[]) => ({ op: "and", conds }),
+  or: (...conds: unknown[]) => ({ op: "or", conds }),
 }));
 
 vi.mock("@/lib/db", () => {
   const matches = (row: Row, cond: Cond): boolean => {
     if (cond.op === "eq") return row[cond.key] === cond.value;
+    // SQL semantics: a comparison with NULL is never true.
+    if (cond.op === "ne") {
+      return row[cond.key] != null && row[cond.key] !== cond.value;
+    }
     if (cond.op === "isNull") return row[cond.key] == null;
+    if (cond.op === "or") return cond.conds.some((c) => matches(row, c));
     return cond.conds.every((c) => matches(row, c));
   };
   const barrier = async () => {
@@ -133,7 +145,9 @@ const { connectConfig, trustOfferedHostKey } = await import(
 );
 const { executeRemoteCommand, testSshConnection } = await import("@/lib/ssh");
 const { sshFingerprint } = await import("@/lib/ssh-keys");
-const { updateServer } = await import("@/server/services/servers");
+const { testServerConnection, updateServer } = await import(
+  "@/server/services/servers"
+);
 const { leaseSftp, openSftp, __resetSftpPool } = await import(
   "@/lib/explorer/sftp-pool"
 );
@@ -227,6 +241,8 @@ function serverRow(overrides: Row = {}): Row {
     hostKey: null,
     hostKeyFingerprint: null,
     hostKeyPinnedAt: null,
+    hostKeyOfferedType: null,
+    hostKeyOffered: null,
     hostKeyOfferedFingerprint: null,
     sshKeyId: null,
     ...overrides,
@@ -317,9 +333,36 @@ describe("host key pinning", () => {
     ).rejects.toMatchObject({ code: "hostKeyMismatch" });
 
     expect(sshdB.authMethods).toEqual([]);
-    expect(row().hostKeyOfferedFingerprint).toBe(sshFingerprint(blobB));
-    expect(row().hostKey).toBe(blobA.toString("base64"));
-    expect(state.activity).toEqual([]);
+    expect(row()).toMatchObject({
+      hostKey: blobA.toString("base64"),
+      hostKeyOfferedType: "ssh-ed25519",
+      hostKeyOffered: blobB.toString("base64"),
+      hostKeyOfferedFingerprint: sshFingerprint(blobB),
+    });
+    expect(state.activity).toEqual([
+      expect.objectContaining({
+        actorId: null,
+        action: "server.hostKeyMismatch",
+        entityId: SERVER_ID,
+        data: {
+          server: "web-1",
+          fingerprint: sshFingerprint(blobB),
+          pinned: sshFingerprint(blobA),
+        },
+      }),
+    ]);
+  });
+
+  it("records a mismatch once per newly offered key", async () => {
+    state.servers = [serverRow(pinnedTo(blobA))];
+    for (let i = 0; i < 2; i++) {
+      await expect(
+        executeRemoteCommand(target(sshdB), "true")
+      ).rejects.toMatchObject({ code: "hostKeyMismatch" });
+    }
+    expect(
+      state.activity.filter((a) => a.action === "server.hostKeyMismatch")
+    ).toHaveLength(1);
   });
 
   it("reports a mismatch from the connection test as a code", async () => {
@@ -438,21 +481,33 @@ describe("server edits and trust", () => {
     expect(row().name).toBe("web-2");
   });
 
-  it("trustOfferedHostKey clears the pin so the next connection re-pins", async () => {
-    state.servers = [
-      serverRow({
-        ...pinnedTo(blobA),
-        hostKeyOfferedFingerprint: sshFingerprint(blobB),
-      }),
-    ];
+  async function mismatchWith(sshd: Sshd) {
+    await expect(
+      executeRemoteCommand(target(sshd), "true")
+    ).rejects.toMatchObject({ code: "hostKeyMismatch" });
+  }
 
-    await trustOfferedHostKey(SERVER_ID, "user-1");
+  it("trust pins exactly the offered key", async () => {
+    state.servers = [serverRow(pinnedTo(blobA))];
+    await mismatchWith(sshdB);
+    state.activity = [];
 
+    const result = await trustOfferedHostKey(
+      SERVER_ID,
+      "user-1",
+      sshFingerprint(blobB)
+    );
+
+    expect(result).toEqual({ ok: true });
     expect(row()).toMatchObject({
-      hostKey: null,
-      hostKeyFingerprint: null,
+      hostKeyType: "ssh-ed25519",
+      hostKey: blobB.toString("base64"),
+      hostKeyFingerprint: sshFingerprint(blobB),
+      hostKeyOfferedType: null,
+      hostKeyOffered: null,
       hostKeyOfferedFingerprint: null,
     });
+    expect(row().hostKeyPinnedAt).not.toEqual(new Date("2026-01-01T00:00:00Z"));
     expect(state.activity).toEqual([
       expect.objectContaining({
         actorId: "user-1",
@@ -462,9 +517,56 @@ describe("server edits and trust", () => {
       }),
     ]);
 
-    state.activity = [];
+    // The trusted key connects; any other key is refused again.
     await executeRemoteCommand(target(sshdB), "true");
+    await mismatchWith(sshdA);
     expect(row().hostKey).toBe(blobB.toString("base64"));
+    expect(row().hostKeyOfferedFingerprint).toBe(sshFingerprint(blobA));
+  });
+
+  it("trust with a stale expected fingerprint is refused", async () => {
+    state.servers = [serverRow(pinnedTo(blobA))];
+    await mismatchWith(sshdB);
+    state.activity = [];
+    const before = { ...row() };
+
+    const result = await trustOfferedHostKey(
+      SERVER_ID,
+      "user-1",
+      sshFingerprint(clientBlob)
+    );
+
+    expect(result).toEqual({ ok: false, code: "hostKeyChanged" });
+    expect(row()).toEqual(before);
+    expect(state.activity).toEqual([]);
+  });
+
+  it("trust without an offered key is refused", async () => {
+    state.servers = [serverRow(pinnedTo(blobA))];
+    const result = await trustOfferedHostKey(
+      SERVER_ID,
+      "user-1",
+      sshFingerprint(blobB)
+    );
+    expect(result).toEqual({ ok: false, code: "hostKeyChanged" });
+    expect(row().hostKey).toBe(blobA.toString("base64"));
+  });
+
+  it("test connection never sends the stored password to an edited host", async () => {
+    state.servers = [serverRow({ host: "10.9.9.9" })];
+
+    const result = await testServerConnection({
+      host: "127.0.0.1",
+      username: "root",
+      serverId: SERVER_ID,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "passwordRequired",
+      message: "passwordRequired",
+    });
+    expect(connectConfig).not.toHaveBeenCalled();
   });
 });
 
@@ -493,6 +595,32 @@ describe("every client goes through connectConfig", () => {
     shell.close();
     expect(connectConfig).toHaveBeenCalledTimes(1);
     expect(row().hostKey).toBe(blobA.toString("base64"));
+  });
+
+  it("terminal records its user on a first-use pin", async () => {
+    const shell = await openSshShell(target(sshdA), {
+      cols: 80,
+      rows: 24,
+      actor: "user-9",
+    });
+    shell.close();
+    expect(state.activity).toEqual([
+      expect.objectContaining({
+        actorId: "user-9",
+        action: "server.hostKeyPinned",
+      }),
+    ]);
+  });
+
+  it("explorer records its user on a first-use pin", async () => {
+    const lease = await leaseSftp(target(sshdA), { actor: "user-8" });
+    lease.release();
+    expect(state.activity).toEqual([
+      expect.objectContaining({
+        actorId: "user-8",
+        action: "server.hostKeyPinned",
+      }),
+    ]);
   });
 
   it("terminal refuses a mismatched host", async () => {
@@ -531,10 +659,20 @@ describe("no SSH connection bypasses the factory", () => {
       }))
       .filter(
         ({ source }) =>
+          // node-ssh in any value form: import, require, dynamic import.
           /^import (?!type )[^;]*from "node-ssh"/m.test(source) ||
+          /(require|import)\(\s*["']node-ssh["']\s*\)/.test(source) ||
+          // ssh2's Client: named, default/namespace (`ssh2.Client`), require.
           /^import \{[^}]*\bClient\b[^}]*\} from "ssh2"/m.test(source) ||
+          /^import (?!type )(\* as )?\w+[^;]*from "ssh2"/m.test(source) ||
+          /(require|import)\(\s*["']ssh2["']\s*\)/.test(source) ||
           /new\s+(NodeSSH|Client)\s*\(/.test(source) ||
-          /ssh2\.Client\b/.test(source)
+          /\.Client\s*\(/.test(source) ||
+          // The OpenSSH binaries, through child_process or Bun.spawn.
+          /\b(spawn|spawnSync|exec|execSync|execFile|execFileSync)\(\s*["'`](ssh|sftp|scp)\b/.test(
+            source
+          ) ||
+          /Bun\.spawn(Sync)?\(\s*\[\s*["'`](ssh|sftp|scp)\b/.test(source)
       )
       .map(({ file }) => file)
       .filter((file) => !ALLOWED.includes(file));

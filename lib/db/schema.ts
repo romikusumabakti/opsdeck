@@ -191,7 +191,11 @@ export const servers = pgTable("servers", {
   hostKey: text("host_key"),
   hostKeyFingerprint: text("host_key_fingerprint"),
   hostKeyPinnedAt: timestamp("host_key_pinned_at"),
-  // Fingerprint the server offered when it did not match the pinned one.
+  // The key the server offered when it did not match the pinned one: type,
+  // base64 blob and fingerprint. Trusting it copies exactly this key into the
+  // pin.
+  hostKeyOfferedType: text("host_key_offered_type"),
+  hostKeyOffered: text("host_key_offered"),
   hostKeyOfferedFingerprint: text("host_key_offered_fingerprint"),
   sshKeyId: uuid("ssh_key_id").references(() => sshKeys.id, {
     onDelete: "set null",

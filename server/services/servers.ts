@@ -181,7 +181,14 @@ export async function testServerConnection(input: {
   username: string;
   password?: string;
   serverId?: string;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
+}): Promise<
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      code?: "passwordRequired" | "hostKeyMismatch";
+    }
+> {
   const session = await requireOrgPermission({ server: ["manage"] });
   const t = await getServerTranslator("actionErrors");
 
@@ -213,13 +220,23 @@ export async function testServerConnection(input: {
       .where(eq(servers.id, input.serverId))
       .limit(1);
     if (!row) return { ok: false, message: t("serverNotFound") };
+    // A host typed over the stored one is another machine, checked against no
+    // pin: the stored password must never be sent to it. The key is fine (it
+    // only signs a challenge).
+    const sameHost = row.host === host;
+    if (!input.password && !sameHost && row.auth === "password") {
+      return {
+        ok: false,
+        code: "passwordRequired",
+        message: t("passwordRequired"),
+      };
+    }
     target = {
-      // A host typed over the stored one is another machine: it is checked
-      // against nothing and pins nothing.
-      serverId: row.host === host ? row.id : null,
+      serverId: sameHost ? row.id : null,
       host,
       username,
-      password: input.password || decryptNullable(row.password),
+      password:
+        input.password || (sameHost ? decryptNullable(row.password) : null),
       auth: input.password ? "password" : row.auth,
     };
   }
@@ -230,7 +247,11 @@ export async function testServerConnection(input: {
 
   const result = await testSshConnection(target, { actor: session.user.id });
   if (!result.ok && result.code === "hostKeyMismatch") {
-    return { ok: false, message: t("hostKeyMismatch") };
+    return {
+      ok: false,
+      code: "hostKeyMismatch",
+      message: t("hostKeyMismatch"),
+    };
   }
   return result;
 }

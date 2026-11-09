@@ -50,10 +50,13 @@ async function open(
     return { ok: false as const, message: t("invalidInput") };
   }
   // Authorize by the resolved target kind, before any credential load or I/O.
-  await requireOrgPermission(
+  const session = await requireOrgPermission(
     parsed.data.kind === "s3" ? { storage: ["files"] } : { server: ["files"] }
   );
-  const backend = await resolveBackend(parsed.data as ExplorerSource);
+  const backend = await resolveBackend(
+    parsed.data as ExplorerSource,
+    session.user.id
+  );
   if (!backend) {
     return { ok: false as const, message: t("sourceNotFound") };
   }
