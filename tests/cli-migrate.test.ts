@@ -141,6 +141,25 @@ describe("schema dump normalisation", () => {
     ]);
   });
 
+  it("keeps dollar-quoted bodies whole", () => {
+    const a = dump(
+      [
+        "CREATE FUNCTION public.f() RETURNS trigger",
+        "    LANGUAGE plpgsql",
+        "    AS $_$",
+        "BEGIN",
+        "-- a comment inside the body",
+        "SET x = 1;",
+        "RETURN NEW;",
+        "END;",
+        "$_$;",
+      ].join("\n")
+    );
+    expect(normaliseSchemaDump(a)).toEqual([
+      "CREATE FUNCTION public.f() RETURNS trigger LANGUAGE plpgsql AS $_$ BEGIN -- a comment inside the body SET x = 1; RETURN NEW; END; $_$;",
+    ]);
+  });
+
   it("reports nothing for equal schemas", () => {
     const a = dump("CREATE INDEX i ON public.t USING btree (a);");
     expect(diffSchemaDumps(a, a)).toEqual([]);

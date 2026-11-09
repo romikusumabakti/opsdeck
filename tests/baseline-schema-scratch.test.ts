@@ -3,7 +3,6 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -22,19 +21,27 @@ import {
   postgresMigrationsTable,
 } from "@/scripts/cli/migrate";
 
-// The squashed baseline against the legacy migrations it replaces, on the
-// local opsdeck-postgres container (postgres 18), reached through its
-// published port with the container's own superuser password, read from the
-// container and never printed. BASELINE_SCRATCH_DB names a prefix; the test
-// (re)creates and drops <prefix>_legacy and <prefix>_baseline.
+// The squashed baseline against production's schema, on the local
+// opsdeck-postgres container (postgres 18), reached through its published port
+// with the container's own superuser password, read from the container and
+// never printed. BASELINE_SCRATCH_DB names a prefix; the test (re)creates and
+// drops <prefix>_prod and <prefix>_baseline.
 //
-//   A (<prefix>_legacy):   every drizzle-legacy/*/migration.sql in order, via
-//                          psql -v ON_ERROR_STOP=1, as production applied them.
+//   reference:             tests/fixtures/prod-schema-20261109.sql, production's
+//                          pg_dump --schema-only --no-owner --no-privileges of
+//                          2026-11-09 with the drizzle schema left out.
+//   A (<prefix>_prod):     that fixture loaded with psql: a stand-in for
+//                          production to adopt.
 //   B (<prefix>_baseline): `opsdeck migrate` (scripts/cli.ts).
+//
+// The legacy migrations (drizzle-legacy/) are not replayed: production evolved
+// partly outside them, so their replay is known to drift from production
+// (constraint names, index NULLS order, column order, a stray foreign key).
 //
 //   BASELINE_SCRATCH_DB=baseline_scratch env -u SECRETS_KEY bun --bun vitest run tests/baseline-schema-scratch.test.ts
 const prefix = process.env.BASELINE_SCRATCH_DB;
 const CONTAINER = "opsdeck-postgres";
+const PROD_SCHEMA = "tests/fixtures/prod-schema-20261109.sql";
 
 function psql(db: string, args: string[], input?: string) {
   return execFileSync(
@@ -79,7 +86,7 @@ async function podmanDump(url: string): Promise<string> {
 }
 
 describe.skipIf(!prefix)("baseline on scratch", () => {
-  const legacyDb = `${prefix}_legacy`;
+  const prodDb = `${prefix}_prod`;
   const baselineDb = `${prefix}_baseline`;
   let urlFor: (db: string) => string;
 
@@ -106,16 +113,8 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
     urlFor = (db) =>
       `postgres://postgres:${password}@127.0.0.1:5432/${encodeURIComponent(db)}`;
 
-    recreate(legacyDb);
-    const folders = readdirSync("drizzle-legacy").sort();
-    expect(folders).toHaveLength(53);
-    for (const folder of folders) {
-      psql(
-        legacyDb,
-        [],
-        readFileSync(`drizzle-legacy/${folder}/migration.sql`, "utf8")
-      );
-    }
+    recreate(prodDb);
+    psql(prodDb, [], readFileSync(PROD_SCHEMA, "utf8"));
 
     recreate(baselineDb);
     const result = spawnSync("bun", ["scripts/cli.ts", "migrate"], {
@@ -131,48 +130,48 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
 
   afterAll(() => {
     if (!urlFor) return;
-    for (const db of [legacyDb, baselineDb]) {
+    for (const db of [prodDb, baselineDb]) {
       psql("postgres", ["-c", `DROP DATABASE IF EXISTS "${db}" WITH (FORCE)`]);
     }
   });
 
-  it("baseline reproduces the legacy schema", async () => {
-    const a = await podmanDump(urlFor(legacyDb));
+  it("baseline reproduces the production schema", async () => {
+    const prod = readFileSync(PROD_SCHEMA, "utf8");
     const b = await podmanDump(urlFor(baselineDb));
-    expect(normaliseSchemaDump(a).length).toBeGreaterThan(100);
-    expect(diffSchemaDumps(a, b)).toEqual([]);
+    expect(normaliseSchemaDump(prod).length).toBeGreaterThan(100);
+    expect(diffSchemaDumps(prod, b)).toEqual([]);
 
     const client = postgres(urlFor(baselineDb), { max: 1 });
     try {
       const rows = await client`select name from drizzle.__drizzle_migrations`;
       expect(rows.map((r) => r.name)).toEqual(["00000000000000_baseline"]);
-      // The generic seed the legacy migrations left: the default labels.
+      // The one generic seed: the default labels of 20260711050000_labels.
       const labels = await client`select name, color from labels order by name`;
-      const legacy = postgres(urlFor(legacyDb), { max: 1 });
-      try {
-        expect(labels).toEqual(
-          await legacy`select name, color from labels order by name`
-        );
-      } finally {
-        await legacy.end();
-      }
+      expect(labels.map((l) => `${l.name} ${l.color}`)).toEqual([
+        "blocked #f97316",
+        "bug #ef4444",
+        "duplicate #94a3b8",
+        "enhancement #22c55e",
+        "feature #3b82f6",
+        "question #a855f7",
+      ]);
     } finally {
       await client.end();
     }
   });
 
-  it("adopt's own check accepts the legacy schema", async () => {
-    const client = postgres(urlFor(legacyDb), { max: 1, onnotice: () => {} });
+  it("adopt's own check accepts the production schema", async () => {
+    const client = postgres(urlFor(prodDb), { max: 1, onnotice: () => {} });
     try {
       const diff = await baselineSchemaDiff({
         client,
-        url: urlFor(legacyDb),
+        url: urlFor(prodDb),
         dump: podmanDump,
       });
       expect(diff).toEqual([]);
       // The throwaway comparison database is gone again.
       const left = await client`
-        select datname from pg_database where datname like ${`${legacyDb}_adopt_%`}`;
+        select datname from pg_database where datname like ${`${prodDb}_adopt_%`}`;
       expect(left).toEqual([]);
     } finally {
       await client.end();
@@ -180,12 +179,12 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
   });
 
   it("adopt's own check reports a drifted schema", async () => {
-    psql(legacyDb, ["-c", "DROP INDEX issues_updated_at_idx"]);
-    const client = postgres(urlFor(legacyDb), { max: 1, onnotice: () => {} });
+    psql(prodDb, ["-c", "DROP INDEX issues_updated_at_idx"]);
+    const client = postgres(urlFor(prodDb), { max: 1, onnotice: () => {} });
     try {
       const diff = await baselineSchemaDiff({
         client,
-        url: urlFor(legacyDb),
+        url: urlFor(prodDb),
         dump: podmanDump,
       });
       expect(diff).toEqual([
@@ -193,7 +192,7 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
       ]);
     } finally {
       await client.end();
-      psql(legacyDb, [
+      psql(prodDb, [
         "-c",
         "CREATE INDEX issues_updated_at_idx ON issues (updated_at DESC)",
       ]);
@@ -201,9 +200,10 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
   });
 
   it("an adopted database runs only the migrations after the baseline", async () => {
-    // Production's state: the migrator's table exists but is empty. The
-    // oldest, name-less shape is used so the upgrade path is covered too.
-    psql(legacyDb, [
+    // Production's state: the migrator's table exists but is empty
+    // (production's has the current columns; the oldest, name-less shape is
+    // used here so the upgrade path is covered too).
+    psql(prodDb, [
       "-c",
       "CREATE SCHEMA drizzle",
       "-c",
@@ -217,14 +217,14 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
       "SET LOCAL lock_timeout = '5s';--> statement-breakpoint\nCREATE TABLE adopt_probe (id int);"
     );
 
-    const client = postgres(urlFor(legacyDb), { max: 1, onnotice: () => {} });
+    const client = postgres(urlFor(prodDb), { max: 1, onnotice: () => {} });
     try {
       const code = await adoptBaseline({
         table: postgresMigrationsTable(client),
         schemaDiff: () =>
           baselineSchemaDiff({
             client,
-            url: urlFor(legacyDb),
+            url: urlFor(prodDb),
             dump: podmanDump,
           }),
         out: () => {},
