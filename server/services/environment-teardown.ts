@@ -1,0 +1,161 @@
+import { z } from "zod";
+import { requireProjectPermission } from "@/lib/authz";
+import { canOrg } from "@/lib/permissions";
+import { enqueue } from "@/lib/queue";
+import { failRun } from "@/lib/run-progress";
+import { TEARDOWN_ERRORS, type TeardownErrorCode } from "@/lib/teardown/errors";
+import { buildTeardownPlan } from "@/lib/teardown/plan";
+import {
+  environmentBusy,
+  latestTeardownRunId,
+  listTeardownSteps,
+  loadTeardownSubject,
+  saveTeardownSteps,
+  startTeardownRun,
+  teardownState,
+} from "@/lib/teardown/repository";
+import { CodedHTTPException, notFound } from "@/server/errors";
+import { escrowRefusal } from "@/server/services/environments";
+
+// Deleting an environment for good (lib/teardown, lib/jobs/teardown): who
+// may, the confirmations, and the refusals that come before any step is
+// planned. A refusal is coded (TEARDOWN_ERRORS); the client shows its own
+// text for the code.
+//
+// - Project environment:delete: engineers of the project, and org admins
+//   (their implicit engineer role).
+// - Production (`kind = 'prod'`): only an org admin (server:manage), who must
+//   also send `confirmProduction: true`.
+// - Escrowed variables: the guard of the row-only delete
+//   (integration:manage + confirmEscrowedDeletion).
+// - Busy or running: refused before the plan is built, since saving steps
+//   replaces every step that is not done, a running one too.
+
+export const startTeardownSchema = z.object({
+  confirmName: z.string().max(200),
+  confirmProduction: z.boolean().optional(),
+  confirmEscrowedDeletion: z.boolean().optional(),
+});
+export type StartTeardownInput = z.infer<typeof startTeardownSchema>;
+
+type Status = 403 | 409 | 422;
+
+function refusal(status: Status, code: TeardownErrorCode): never {
+  throw new CodedHTTPException(status, code, TEARDOWN_ERRORS[code]);
+}
+
+/** Who acts for the teardown, given the environment's kind. */
+async function subjectFor(
+  environmentId: string,
+  orgRole: string | null | undefined
+) {
+  const subject = (await loadTeardownSubject(environmentId)) ?? notFound();
+  const admin = canOrg(orgRole, { server: ["manage"] });
+  const production = subject.kind === "prod";
+  if (production && !admin) refusal(403, "environmentIsProduction");
+  return { subject, production };
+}
+
+/** Opens the run and queues the job; a job that cannot be queued closes it. */
+async function queueRun(
+  environmentId: string,
+  userId: string,
+  beforeQueue?: () => Promise<void>
+): Promise<{ runId: string }> {
+  const started = await startTeardownRun(environmentId, userId);
+  if ("refusal" in started) refusal(409, started.refusal);
+  try {
+    await beforeQueue?.();
+    await enqueue("environment/teardown.requested", {
+      environmentId,
+      runId: started.runId,
+    });
+  } catch (error) {
+    // Without a job the run would stay `started` and refuse every retry.
+    await failRun(started.runId, "The teardown could not be started", {
+      onlyIfStarted: true,
+    });
+    throw error;
+  }
+  return { runId: started.runId };
+}
+
+/**
+ * Starts a full teardown: checks the confirmations, plans the steps and
+ * queues the job. A teardown that already got somewhere (a step is done) is
+ * not planned again: the client resumes it with retryTeardown.
+ */
+export async function startTeardown(
+  environmentId: string,
+  input: StartTeardownInput
+): Promise<{ runId: string }> {
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { environment: ["delete"] }
+  );
+  const orgRole = session.user.role;
+  const { subject, production } = await subjectFor(environmentId, orgRole);
+  if (input.confirmName !== subject.name) {
+    refusal(422, "confirmNameMismatch");
+  }
+  if (production && input.confirmProduction !== true) {
+    refusal(422, "productionConfirmRequired");
+  }
+  if (
+    subject.hasEscrowedVariables &&
+    !(
+      input.confirmEscrowedDeletion === true &&
+      canOrg(orgRole, { integration: ["manage"] })
+    )
+  ) {
+    throw await escrowRefusal();
+  }
+
+  const state = await teardownState(environmentId);
+  if (state.running || state.progressed) refusal(409, "teardownRunning");
+  if (await environmentBusy(environmentId)) refusal(409, "environmentBusy");
+
+  const plan = (await buildTeardownPlan(environmentId)) ?? notFound();
+  if ("refusal" in plan) refusal(409, plan.refusal);
+  return queueRun(environmentId, session.user.id, () =>
+    saveTeardownSteps(environmentId, plan.steps)
+  );
+}
+
+/** Resumes a stopped teardown at its first step not done; no re-plan. */
+export async function retryTeardown(
+  environmentId: string
+): Promise<{ runId: string }> {
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { environment: ["delete"] }
+  );
+  await subjectFor(environmentId, session.user.role);
+  const state = await teardownState(environmentId);
+  if (!state.planned) notFound();
+  if (state.running) refusal(409, "teardownRunning");
+  if (await environmentBusy(environmentId)) refusal(409, "environmentBusy");
+  return queueRun(environmentId, session.user.id);
+}
+
+export type TeardownStatus = {
+  runId: string | null;
+  steps: { kind: string; status: string; lastError: string | null }[];
+} | null;
+
+/** The teardown's steps (no params) and its newest run; null before any. */
+export async function getTeardown(
+  environmentId: string
+): Promise<TeardownStatus> {
+  await requireProjectPermission({ environmentId }, { project: ["read"] });
+  const steps = await listTeardownSteps(environmentId);
+  if (steps.length === 0) return null;
+  return {
+    runId: await latestTeardownRunId(environmentId),
+    steps: steps.map((step) => ({
+      kind: step.kind,
+      status: step.status,
+      lastError: step.lastError,
+    })),
+  };
+}

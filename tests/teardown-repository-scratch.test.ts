@@ -42,6 +42,16 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     loadTeardownDbService,
     loadTeardownEnvironment,
     saveTeardownSteps,
+    deleteArchiveRow,
+    environmentBusy,
+    failStaleTeardownRuns,
+    getArchive,
+    latestTeardownRunId,
+    listArchives,
+    listPrunableArchives,
+    loadTeardownSubject,
+    startTeardownRun,
+    teardownState,
   } = await import("@/lib/teardown/repository");
 
   const ids = {
@@ -577,5 +587,339 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     expect(runs).toEqual([]);
     await expect(deleteTeardownEnvironment(gone, null)).resolves.toBe(null);
     await db.delete(s.activityLog).where(eq(s.activityLog.entityId, gone));
+  });
+
+  async function startedRun(
+    environmentId: string,
+    kind:
+      | "deploy"
+      | "provision"
+      | "backup"
+      | "restore"
+      | "mock_time"
+      | "teardown",
+    status: "started" | "failed" | "success" = "started"
+  ) {
+    return (
+      await one(
+        db
+          .insert(s.runs)
+          .values({
+            environmentId,
+            kind,
+            description: "td-it run",
+            status,
+            output: "",
+            runAt: new Date(),
+          })
+          .returning({ id: s.runs.id })
+      )
+    ).id;
+  }
+
+  it("loads what the delete API checks: name, kind and escrowed variables", async () => {
+    const env = await environment("TD Subject");
+    try {
+      await expect(loadTeardownSubject(env)).resolves.toEqual({
+        name: "TD Subject",
+        kind: null,
+        hasEscrowedVariables: false,
+      });
+      await db
+        .update(s.environments)
+        .set({ kind: "prod" })
+        .where(eq(s.environments.id, env));
+      await db.insert(s.environmentVariables).values([
+        { environmentId: env, name: "PLAIN", kind: "plain", value: "a" },
+        {
+          environmentId: env,
+          name: "KEY",
+          kind: "secret",
+          value: encryptSecret("b"),
+          escrow: true,
+        },
+      ]);
+      await expect(loadTeardownSubject(env)).resolves.toMatchObject({
+        kind: "prod",
+        hasEscrowedVariables: true,
+      });
+      await expect(loadTeardownSubject(crypto.randomUUID())).resolves.toBe(
+        null
+      );
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, env));
+    }
+  });
+
+  it("is busy for a started deploy, provision, backup or restore run, or an active deploy lock", async () => {
+    const env = await environment("TD Busy");
+    try {
+      await expect(environmentBusy(env)).resolves.toBe(false);
+      // Not busy: other kinds, and finished runs.
+      await startedRun(env, "mock_time");
+      await startedRun(env, "deploy", "failed");
+      await startedRun(env, "teardown");
+      await expect(environmentBusy(env)).resolves.toBe(false);
+      for (const kind of [
+        "deploy",
+        "provision",
+        "backup",
+        "restore",
+      ] as const) {
+        const id = await startedRun(env, kind);
+        await expect(environmentBusy(env)).resolves.toBe(true);
+        await db.delete(s.runs).where(eq(s.runs.id, id));
+      }
+      await db.insert(s.environmentDeployLocks).values({
+        environmentId: env,
+        reason: "td-it",
+        expiresAt: new Date(Date.now() - 60_000),
+      });
+      await expect(environmentBusy(env)).resolves.toBe(false);
+      await db
+        .update(s.environmentDeployLocks)
+        .set({ expiresAt: new Date(Date.now() + 60_000) })
+        .where(eq(s.environmentDeployLocks.environmentId, env));
+      await expect(environmentBusy(env)).resolves.toBe(true);
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, env));
+    }
+  });
+
+  it("reports the teardown state and opens one teardown run at a time", async () => {
+    const env = await environment("TD Run");
+    try {
+      await expect(teardownState(env)).resolves.toEqual({
+        planned: false,
+        running: false,
+        progressed: false,
+      });
+      await expect(latestTeardownRunId(env)).resolves.toBe(null);
+      await db.insert(s.teardownSteps).values([
+        { environmentId: env, position: 0, kind: "check_stack", params: {} },
+        {
+          environmentId: env,
+          position: 1,
+          kind: "delete_environment",
+          params: {},
+        },
+      ]);
+      await expect(teardownState(env)).resolves.toEqual({
+        planned: true,
+        running: false,
+        progressed: false,
+      });
+
+      const opened = await startTeardownRun(env, null);
+      if (!("runId" in opened)) throw new Error("expected a run");
+      const [run] = await db
+        .select()
+        .from(s.runs)
+        .where(eq(s.runs.id, opened.runId));
+      expect(run).toMatchObject({ kind: "teardown", status: "started" });
+      await expect(latestTeardownRunId(env)).resolves.toBe(opened.runId);
+      await expect(teardownState(env)).resolves.toMatchObject({
+        running: true,
+      });
+      // Two at once: the second waits on the lock, then sees the first.
+      const [a, b] = await Promise.all([
+        startTeardownRun(env, null),
+        startTeardownRun(env, null),
+      ]);
+      expect(a).toEqual({ refusal: "teardownRunning" });
+      expect(b).toEqual({ refusal: "teardownRunning" });
+
+      await db
+        .update(s.runs)
+        .set({ status: "failed" })
+        .where(eq(s.runs.id, opened.runId));
+      await db
+        .update(s.teardownSteps)
+        .set({ status: "running" })
+        .where(eq(s.teardownSteps.position, 0));
+      // A step left running counts as running too.
+      await expect(startTeardownRun(env, null)).resolves.toEqual({
+        refusal: "teardownRunning",
+      });
+      await db
+        .update(s.teardownSteps)
+        .set({ status: "done" })
+        .where(eq(s.teardownSteps.environmentId, env));
+      await expect(teardownState(env)).resolves.toEqual({
+        planned: true,
+        running: false,
+        progressed: true,
+      });
+
+      const busy = await startedRun(env, "deploy");
+      await expect(startTeardownRun(env, null)).resolves.toEqual({
+        refusal: "environmentBusy",
+      });
+      await db.delete(s.runs).where(eq(s.runs.id, busy));
+      const second = await startTeardownRun(env, null);
+      expect("runId" in second && second.runId).not.toBe(opened.runId);
+      await expect(latestTeardownRunId(env)).resolves.toBe(
+        "runId" in second ? second.runId : null
+      );
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, env));
+    }
+  });
+
+  it("fails teardown runs left started at boot, and their running steps", async () => {
+    const env = await environment("TD Stale");
+    try {
+      const stale = await startedRun(env, "teardown");
+      const other = await startedRun(env, "deploy");
+      await db.insert(s.teardownSteps).values([
+        {
+          environmentId: env,
+          position: 0,
+          kind: "check_stack",
+          params: {},
+          status: "done",
+        },
+        {
+          environmentId: env,
+          position: 1,
+          kind: "archive_deploy_dir",
+          params: {},
+          status: "running",
+        },
+        {
+          environmentId: env,
+          position: 2,
+          kind: "delete_environment",
+          params: {},
+        },
+      ]);
+      expect(await failStaleTeardownRuns()).toBeGreaterThanOrEqual(1);
+      const runRows = await db
+        .select({ id: s.runs.id, status: s.runs.status })
+        .from(s.runs)
+        .where(inArray(s.runs.id, [stale, other]));
+      expect(Object.fromEntries(runRows.map((r) => [r.id, r.status]))).toEqual({
+        [stale]: "failed",
+        [other]: "started",
+      });
+      const steps = await listTeardownSteps(env);
+      expect(
+        steps.map((st) => ({ status: st.status, lastError: st.lastError }))
+      ).toEqual([
+        { status: "done", lastError: null },
+        { status: "failed", lastError: "stepFailed" },
+        { status: "pending", lastError: null },
+      ]);
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, env));
+    }
+  });
+
+  it("lists archives newest first and selects only prunable ones", async () => {
+    const day = 86_400_000;
+    const now = new Date("2026-11-10T03:00:00Z");
+    const cutoff = new Date(now.getTime() - 30 * day);
+    const live = await environment("TD Archive Live");
+    try {
+      await db.insert(s.teardownSteps).values({
+        environmentId: live,
+        position: 0,
+        kind: "delete_environment",
+        params: {},
+        status: "failed",
+      });
+      const base = {
+        projectName: "Teardown IT",
+        environmentSlug: "td",
+        location: "local" as const,
+        keyPrefix: "/tmp/td-it/",
+      };
+      const rows = await db
+        .insert(s.environmentArchives)
+        .values([
+          {
+            // Completed, expired: pruned.
+            ...base,
+            environmentName: "expired",
+            environmentId: crypto.randomUUID(),
+            createdAt: new Date(now.getTime() - 31 * day),
+            expiresAt: new Date(now.getTime() - day),
+            completedAt: new Date(now.getTime() - 31 * day),
+          },
+          {
+            // Completed, not expired: kept.
+            ...base,
+            environmentName: "kept",
+            environmentId: crypto.randomUUID(),
+            createdAt: new Date(now.getTime() - 2 * day),
+            expiresAt: new Date(now.getTime() + 28 * day),
+            completedAt: new Date(now.getTime() - 2 * day),
+          },
+          {
+            // Open, old, environment has no teardown steps left: pruned.
+            ...base,
+            environmentName: "abandoned",
+            environmentId: crypto.randomUUID(),
+            createdAt: new Date(now.getTime() - 31 * day),
+            expiresAt: new Date(now.getTime() - day),
+          },
+          {
+            // Open, old, but its teardown still has steps: kept, even
+            // past expiry (a retry resumes after the archive steps).
+            ...base,
+            environmentName: "in progress",
+            environmentId: live,
+            createdAt: new Date(now.getTime() - 31 * day),
+            expiresAt: new Date(now.getTime() - day),
+          },
+          {
+            // Open, young, no steps: kept.
+            ...base,
+            environmentName: "young",
+            environmentId: crypto.randomUUID(),
+            createdAt: new Date(now.getTime() - 3 * day),
+            expiresAt: new Date(now.getTime() + 27 * day),
+          },
+        ])
+        .returning({
+          id: s.environmentArchives.id,
+          name: s.environmentArchives.environmentName,
+        });
+      const byName = Object.fromEntries(rows.map((r) => [r.name, r.id]));
+
+      const ours = (a: { id: string }) => Object.values(byName).includes(a.id);
+      const prunable = await listPrunableArchives(now, cutoff);
+      expect(
+        prunable
+          .filter(ours)
+          .map((a) => a.environmentName)
+          .sort()
+      ).toEqual(["abandoned", "expired"]);
+
+      const listed = (await listArchives()).filter(ours);
+      // Newest first; the three 31-day-old rows follow in any order.
+      expect(listed.map((a) => a.environmentName).sort()).toEqual([
+        "abandoned",
+        "expired",
+        "in progress",
+        "kept",
+        "young",
+      ]);
+      // kept is 2 days old, young 3.
+      expect(listed.slice(0, 2).map((a) => a.environmentName)).toEqual([
+        "kept",
+        "young",
+      ]);
+
+      const expired = byName.expired as string;
+      await expect(getArchive(expired)).resolves.toMatchObject({
+        id: expired,
+        environmentName: "expired",
+      });
+      await deleteArchiveRow(expired);
+      await expect(getArchive(expired)).resolves.toBe(null);
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, live));
+    }
   });
 });

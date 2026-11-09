@@ -23,6 +23,8 @@ export interface ObjectStore {
   list(prefix: string): Promise<{ key: string; size: number }[]>;
   /** Streams an object into `filePath`; returns its size in bytes. */
   download(key: string, filePath: string): Promise<number>;
+  /** An object's bytes as a stream, read as it is consumed. */
+  read(key: string): Promise<Readable>;
   /** Streams `filePath` into an object. */
   upload(key: string, filePath: string): Promise<void>;
   delete(keys: string[]): Promise<void>;
@@ -96,6 +98,14 @@ export function s3ObjectStore(client: S3Client, Bucket: string): ObjectStore {
         createWriteStream(filePath)
       );
       return (await stat(filePath)).size;
+    },
+    async read(Key) {
+      const res = await client.send(new GetObjectCommand({ Bucket, Key }));
+      if (!res.Body) throw new Error("empty object body");
+      const body = (
+        res.Body as { transformToWebStream(): ReadableStream }
+      ).transformToWebStream();
+      return Readable.fromWeb(body as never);
     },
     async upload(Key, filePath) {
       // Multipart above one part, so dumps over 5 GiB work. Each part is a

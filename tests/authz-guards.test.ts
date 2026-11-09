@@ -144,7 +144,12 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     // checked by validateNewEnvironment (below).
     createEnvironment: /validateNewEnvironment\(/,
     updateEnvironment: /environment: \["update"\]/,
-    deleteEnvironment: /environment: \["delete"\]/,
+    deleteEnvironment: /environment: \["delete"\][\s\S]*server: \["manage"\]/,
+  },
+  "server/services/environment-teardown.ts": {
+    startTeardown: /environment: \["delete"\]/,
+    retryTeardown: /environment: \["delete"\]/,
+    getTeardown: /project: \["read"\]/,
   },
   "server/services/project-members.ts": {
     listProjectMembers: /member: \["manage"\]/,

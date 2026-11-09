@@ -48,6 +48,11 @@ function memoryStore(initial: Record<string, string> = {}) {
       await writeFile(filePath, body);
       return body.length;
     },
+    async read(key) {
+      const body = objects.get(key);
+      if (!body) throw new Error(`no such key ${key}`);
+      return Readable.from([body]);
+    },
     async upload(key, filePath) {
       objects.set(key, await readFile(filePath));
       uploads.push(key);

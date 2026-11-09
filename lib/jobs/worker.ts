@@ -9,10 +9,12 @@ import { failStaleProvisionRuns } from "@/lib/provisioning/repository";
 import {
   createRedisConnection,
   scheduleDeployLockSweep,
+  scheduleEnvironmentArchivePrune,
   scheduleInstanceUpdateCheck,
   scheduleJiraSweep,
   TASKS_QUEUE,
 } from "@/lib/queue";
+import { failStaleTeardownRuns } from "@/lib/teardown/repository";
 
 // Concurrency cap. Handlers mostly wait on remote SSH/SQL round-trips, so a
 // handful can run in parallel without straining the app container. The old
@@ -78,6 +80,12 @@ export function startWorker(): Worker | null {
     console.error("Failed to sweep stale provision runs:", error);
   });
 
+  // Likewise a teardown run: fail it and its running steps (stepFailed), so
+  // the teardown can be retried from the step it stopped at.
+  failStaleTeardownRuns().catch((error) => {
+    console.error("Failed to sweep stale teardown runs:", error);
+  });
+
   // Expired deploy locks are released every 60 s by a repeatable job. Its
   // scheduler lives in Redis like the Jira ones, so re-register it on boot,
   // and release right away what expired while the worker was down.
@@ -91,6 +99,12 @@ export function startWorker(): Worker | null {
   // The hourly release check (and auto-update); its scheduler lives in Redis.
   scheduleInstanceUpdateCheck().catch((error) => {
     console.error("Failed to schedule the instance update check:", error);
+  });
+
+  // The daily prune of deleted environments' archives; its scheduler lives
+  // in Redis.
+  scheduleEnvironmentArchivePrune().catch((error) => {
+    console.error("Failed to schedule the environment archive prune:", error);
   });
 
   globalForWorker.__tasksWorker = worker;

@@ -1,5 +1,21 @@
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  notExists,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   activityLog,
   databaseHosts,
@@ -7,9 +23,11 @@ import {
   type EnvironmentArchive,
   type EnvironmentArchiveFile,
   environmentArchives,
+  environmentDeployLocks,
   environmentDomains,
   environmentServices,
   environments,
+  environmentVariables,
   projects,
   type Run,
   runs,
@@ -447,4 +465,272 @@ export async function environmentExists(
     .from(environments)
     .where(eq(environments.id, environmentId));
   return row !== undefined;
+}
+
+// --- The delete API's rows ---
+
+/** What the delete API checks of an environment, or null when it is gone. */
+export async function loadTeardownSubject(environmentId: string): Promise<{
+  name: string;
+  kind: (typeof environments.$inferSelect)["kind"];
+  hasEscrowedVariables: boolean;
+} | null> {
+  const [row] = await db
+    .select({
+      name: environments.name,
+      kind: environments.kind,
+      hasEscrowedVariables: exists(
+        db
+          .select({ id: environmentVariables.id })
+          .from(environmentVariables)
+          .where(
+            and(
+              eq(environmentVariables.environmentId, environments.id),
+              eq(environmentVariables.escrow, true)
+            )
+          )
+      ).mapWith(Boolean),
+    })
+    .from(environments)
+    .where(eq(environments.id, environmentId));
+  return row ?? null;
+}
+
+/** Run kinds that act on an environment's stack or data while they run. */
+const BUSY_RUN_KINDS = ["deploy", "provision", "backup", "restore"] as const;
+
+/**
+ * Whether a teardown must wait: a deploy, provisioning, backup or restore run
+ * is `started` on the environment, or its deploy lock is active.
+ */
+export async function environmentBusy(
+  environmentId: string,
+  executor: Pick<typeof db, "select"> = db
+): Promise<boolean> {
+  const [run] = await executor
+    .select({ id: runs.id })
+    .from(runs)
+    .where(
+      and(
+        eq(runs.environmentId, environmentId),
+        eq(runs.status, "started"),
+        inArray(runs.kind, [...BUSY_RUN_KINDS])
+      )
+    )
+    .limit(1);
+  if (run) return true;
+  const [lock] = await executor
+    .select({ id: environmentDeployLocks.environmentId })
+    .from(environmentDeployLocks)
+    .where(
+      and(
+        eq(environmentDeployLocks.environmentId, environmentId),
+        gt(environmentDeployLocks.expiresAt, new Date())
+      )
+    )
+    .limit(1);
+  return lock !== undefined;
+}
+
+export type TeardownState = {
+  /** The environment has teardown steps. */
+  planned: boolean;
+  /** A teardown run is `started`, or a step is `running`. */
+  running: boolean;
+  /** A step is `done`: the teardown is part way through. */
+  progressed: boolean;
+};
+
+async function readTeardownState(
+  executor: Pick<typeof db, "select">,
+  environmentId: string
+): Promise<TeardownState> {
+  const steps = await executor
+    .select({ status: teardownSteps.status })
+    .from(teardownSteps)
+    .where(eq(teardownSteps.environmentId, environmentId));
+  const [run] = await executor
+    .select({ id: runs.id })
+    .from(runs)
+    .where(
+      and(
+        eq(runs.environmentId, environmentId),
+        eq(runs.kind, "teardown"),
+        eq(runs.status, "started")
+      )
+    )
+    .limit(1);
+  return {
+    planned: steps.length > 0,
+    running:
+      run !== undefined || steps.some((step) => step.status === "running"),
+    progressed: steps.some((step) => step.status === "done"),
+  };
+}
+
+export async function teardownState(
+  environmentId: string
+): Promise<TeardownState> {
+  return readTeardownState(db, environmentId);
+}
+
+/**
+ * Opens the environment's `teardown` run, unless a teardown is running
+ * (teardownRunning) or the environment is busy (environmentBusy). The checks
+ * and the insert share the transaction-scoped advisory lock on the
+ * environment id that provisioning takes, so two requests cannot both pass.
+ */
+export async function startTeardownRun(
+  environmentId: string,
+  userId: string | null
+): Promise<
+  { runId: string } | { refusal: "teardownRunning" | "environmentBusy" }
+> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${environmentId}::text, 0))`
+    );
+    if ((await readTeardownState(tx, environmentId)).running) {
+      return { refusal: "teardownRunning" as const };
+    }
+    if (await environmentBusy(environmentId, tx)) {
+      return { refusal: "environmentBusy" as const };
+    }
+    const run = one(
+      await tx
+        .insert(runs)
+        .values({
+          environmentId,
+          userId,
+          kind: "teardown",
+          description: "Delete environment",
+          runAt: new Date(),
+          status: "started",
+          output: "",
+        })
+        .returning({ id: runs.id }),
+      "run"
+    );
+    return { runId: run.id };
+  });
+}
+
+/** The environment's newest teardown run, or null. */
+export async function latestTeardownRunId(
+  environmentId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: runs.id })
+    .from(runs)
+    .where(
+      and(eq(runs.environmentId, environmentId), eq(runs.kind, "teardown"))
+    )
+    .orderBy(desc(runs.runAt), desc(runs.id))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** The message of a teardown run the worker restart closed. */
+export const TEARDOWN_WORKER_RESTART_MESSAGE =
+  "Worker restarted during the teardown; retry";
+
+/**
+ * Worker boot: there is a single worker, so a `teardown` run still `started`
+ * has no live job behind it. Fails them, and marks their environments'
+ * `running` steps failed (stepFailed), so a retry resumes there.
+ */
+export async function failStaleTeardownRuns(): Promise<number> {
+  return db.transaction(async (tx) => {
+    const failed = await tx
+      .update(runs)
+      .set({
+        status: "failed",
+        errorMessage: TEARDOWN_WORKER_RESTART_MESSAGE,
+        completedAt: new Date(),
+      })
+      .where(and(eq(runs.kind, "teardown"), eq(runs.status, "started")))
+      .returning({ environmentId: runs.environmentId });
+    const envIds = [...new Set(failed.map((r) => r.environmentId))];
+    if (envIds.length > 0) {
+      await tx
+        .update(teardownSteps)
+        .set({
+          status: "failed",
+          lastError: "stepFailed",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            inArray(teardownSteps.environmentId, envIds),
+            eq(teardownSteps.status, "running")
+          )
+        );
+    }
+    return failed.length;
+  });
+}
+
+// --- Archive listing and retention ---
+
+/** Every environment archive, newest first. */
+export async function listArchives(): Promise<EnvironmentArchive[]> {
+  return db
+    .select()
+    .from(environmentArchives)
+    .orderBy(desc(environmentArchives.createdAt), desc(environmentArchives.id));
+}
+
+export async function getArchive(
+  id: string
+): Promise<EnvironmentArchive | null> {
+  const [row] = await db
+    .select()
+    .from(environmentArchives)
+    .where(eq(environmentArchives.id, id));
+  return row ?? null;
+}
+
+/**
+ * The archives the daily prune deletes: completed ones past `expires_at`,
+ * and open ones created before `incompleteBefore` whose environment has no
+ * teardown steps left (the teardown was abandoned, or the row removed from
+ * the Panel). An open archive whose teardown still has steps is kept even
+ * past expiry: its finished archive steps are not taken again, so a retry
+ * would go on to the destructive steps with the files gone.
+ */
+export async function listPrunableArchives(
+  now: Date,
+  incompleteBefore: Date
+): Promise<EnvironmentArchive[]> {
+  return db
+    .select()
+    .from(environmentArchives)
+    .where(
+      or(
+        and(
+          isNotNull(environmentArchives.completedAt),
+          lt(environmentArchives.expiresAt, now)
+        ),
+        and(
+          isNull(environmentArchives.completedAt),
+          lt(environmentArchives.createdAt, incompleteBefore),
+          notExists(
+            db
+              .select({ id: teardownSteps.id })
+              .from(teardownSteps)
+              .where(
+                eq(
+                  teardownSteps.environmentId,
+                  environmentArchives.environmentId
+                )
+              )
+          )
+        )
+      )
+    )
+    .orderBy(asc(environmentArchives.createdAt), asc(environmentArchives.id));
+}
+
+export async function deleteArchiveRow(id: string): Promise<void> {
+  await db.delete(environmentArchives).where(eq(environmentArchives.id, id));
 }

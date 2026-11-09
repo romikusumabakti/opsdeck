@@ -68,6 +68,7 @@ import {
   uploadRemoteFile,
 } from "@/lib/ssh";
 import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
+import { pruneEnvironmentArchives } from "@/server/services/environment-archives";
 import { runInstanceUpdateCheck } from "@/server/services/instance-updates";
 import { runKeyJob } from "@/server/services/server-key-jobs";
 
@@ -1292,6 +1293,9 @@ export async function processJob(job: Job): Promise<unknown> {
       return runProvisioning(parseJobPayload(name, raw));
     case "environment/teardown.requested":
       return runTeardown(parseJobPayload(name, raw));
+    case "environment/archives.prune":
+      parseJobPayload(name, raw);
+      return pruneEnvironmentArchives();
     case "deploy/lock-sweep":
       parseJobPayload(name, raw);
       return sweepExpiredLocks();
