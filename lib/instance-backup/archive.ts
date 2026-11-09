@@ -23,7 +23,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { and, eq, gte, lt } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, pgClient } from "@/lib/db";
 import { instanceBackups, instanceSettings } from "@/lib/db/schema";
 import { OPSDECK_VERSION } from "@/lib/version";
 import {
@@ -65,6 +65,7 @@ export type BackupErrorCode =
   | "backupUploadFailed"
   | "backupRecordFailed"
   | "backupInterrupted"
+  | "backupAlreadyRunning"
   | "backupFailed";
 
 export class BackupError extends Error {
@@ -89,14 +90,37 @@ export class BackupRecordError extends Error {
   }
 }
 
-export type BackupResult = {
-  id: string;
-  status: "succeeded" | "failed";
-  location: "s3" | "local";
-  /** S3 key prefix, or the folder under the local root; null when nothing was kept. */
-  objectKey: string | null;
-  errorCode: string | null;
+export type BackupResult =
+  | {
+      id: string;
+      status: "succeeded" | "failed";
+      location: "s3" | "local";
+      /** S3 key prefix, or the folder under the local root; null when nothing was kept. */
+      objectKey: string | null;
+      errorCode: string | null;
+    }
+  // Another backup holds the lock: nothing was recorded or written.
+  | {
+      id: null;
+      status: "alreadyRunning";
+      location: null;
+      objectKey: null;
+      errorCode: "backupAlreadyRunning";
+    };
+
+export const ALREADY_RUNNING: BackupResult = {
+  id: null,
+  status: "alreadyRunning",
+  location: null,
+  objectKey: null,
+  errorCode: "backupAlreadyRunning",
 };
+
+/**
+ * Takes the "one backup at a time" lock. Resolves to its release, or to null
+ * when another backup (in any process) holds it.
+ */
+export type BackupLock = () => Promise<(() => Promise<void>) | null>;
 
 export interface BackupRecorder {
   start(row: {
@@ -122,6 +146,7 @@ export interface BackupRecorder {
 
 export interface BackupDeps {
   recorder: BackupRecorder;
+  lock: BackupLock;
   destination: () => Promise<BackupDestination | null>;
   /** The Garage bucket to mirror; null when Garage is not provisioned. */
   garage: ObjectStore | null;
@@ -268,7 +293,8 @@ export const dbBackupRecorder: BackupRecorder = {
 /**
  * True while another backup is in progress: a `running` row younger than
  * INTERRUPTED_AFTER_MS (an older one belongs to a crashed process). The
- * worker and the "Back up now" route check it so two backups never overlap.
+ * "Back up now" route checks it to refuse early; the lock in
+ * runInstanceBackup is what keeps two backups from overlapping.
  */
 export async function isBackupRunning(
   now: Date = new Date()
@@ -289,9 +315,40 @@ export async function isBackupRunning(
   return rows.length > 0;
 }
 
+/**
+ * The advisory lock key of instance backups ("opsdbak1" as a big-endian
+ * int64). Session-level, on a reserved connection held for the whole run:
+ * the worker, a manual run and `opsdeck backup run` in another container all
+ * contend for it, and a crashed process releases it when its connection dies.
+ */
+export const BACKUP_LOCK_KEY = "8030045010586069809";
+
+export const pgBackupLock: BackupLock = async () => {
+  const conn = await pgClient().reserve();
+  try {
+    const [row] = await conn<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(${BACKUP_LOCK_KEY}::bigint) as locked`;
+    if (!row?.locked) {
+      conn.release();
+      return null;
+    }
+  } catch (error) {
+    conn.release();
+    throw error;
+  }
+  return async () => {
+    try {
+      await conn`select pg_advisory_unlock(${BACKUP_LOCK_KEY}::bigint)`;
+    } finally {
+      conn.release();
+    }
+  };
+};
+
 function defaultDeps(): BackupDeps {
   return {
     recorder: dbBackupRecorder,
+    lock: pgBackupLock,
     destination: loadBackupDestination,
     garage: garageSource(),
     dumpDatabase: (filePath) => {
@@ -438,17 +495,42 @@ type Outcome = {
 };
 
 /**
- * Runs one backup and records it. Every failure after the row is created is
- * returned as a `failed` result; only a failure to create the row throws, as
- * a BackupRecordError carrying the location the run would have used.
+ * Runs one backup and records it, holding the backup lock throughout. When
+ * another backup holds the lock, nothing is recorded and the result is
+ * `alreadyRunning`. Every failure after the row is created is returned as a
+ * `failed` result; only a failure to take the lock or create the row throws,
+ * as a BackupRecordError carrying the location the run would have used.
  */
 export async function runInstanceBackup(
   trigger: BackupTrigger,
   overrides: Partial<BackupDeps> = {}
 ): Promise<BackupResult> {
   const deps: BackupDeps = { ...defaultDeps(), ...overrides };
+  let release: (() => Promise<void>) | null;
+  try {
+    release = await deps.lock();
+  } catch (error) {
+    throw new BackupRecordError("local", `backup lock: ${describe(error)}`);
+  }
+  if (!release) return ALREADY_RUNNING;
+  try {
+    return await runLocked(trigger, deps);
+  } finally {
+    await release().catch((e) =>
+      deps.log(`backupUnlockFailed: ${describe(e)}`)
+    );
+  }
+}
+
+async function runLocked(
+  trigger: BackupTrigger,
+  deps: BackupDeps
+): Promise<BackupResult> {
   const { recorder, log } = deps;
   const startedAt = deps.now();
+
+  // Swept only under the lock, so a live run's row is never marked; the 6 h
+  // age stays as a second guard.
 
   await recorder
     .markInterrupted(new Date(startedAt.getTime() - INTERRUPTED_AFTER_MS))

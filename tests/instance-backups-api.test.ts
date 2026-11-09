@@ -175,6 +175,20 @@ describe("permissions", () => {
     expect(state.scheduled).toEqual([]);
     expect(state.enqueued).toEqual([]);
   });
+  it("answers a non-admin 403 forbidden before validating the body", async () => {
+    state.role = "member";
+    const calls: [string, string, unknown?][] = [
+      ["PUT", "/api/instance/backups/settings", { time: "nope" }],
+      ["PUT", "/api/instance/backups/settings", "not json"],
+      ["POST", "/api/instance/backups/verify-key", { key: "" }],
+      ["POST", "/api/instance/backups/not-a-uuid/acknowledge"],
+    ];
+    for (const [method, path, body] of calls) {
+      const res = await send(method, path, body);
+      expect(res.status, `${method} ${path}`).toBe(403);
+      expect(await res.json()).toMatchObject({ code: "forbidden" });
+    }
+  });
 });
 
 describe("GET /api/instance/backups", () => {
@@ -349,6 +363,21 @@ describe("POST /api/instance/backups/verify-key", () => {
     expect(state.writes).toEqual([]);
   });
 
+  it("ignores surrounding whitespace, the same way on both sides", async () => {
+    // The stored fingerprint was taken from a key with a trailing newline (an
+    // .env line); the admin pastes it without one, and with one.
+    state.results[`select:${T.settings}`] = [
+      settingsRow({ secretsKeyFingerprint: secretsKeyFingerprint(`${KEY}\n`) }),
+    ];
+    for (const key of [KEY, `${KEY}\n`, `  ${KEY}  `]) {
+      const res = await send("POST", "/api/instance/backups/verify-key", {
+        key,
+      });
+      expect(await res.json()).toEqual({ match: true });
+    }
+    expect(secretsKeyFingerprint(`${KEY}\n`)).toBe(secretsKeyFingerprint(KEY));
+  });
+
   it("rejects an empty key", async () => {
     const res = await send("POST", "/api/instance/backups/verify-key", {
       key: "",
@@ -468,19 +497,24 @@ describe("the backup job", async () => {
   const { handleInstanceBackup } = await import("@/lib/jobs/processor");
   const { instanceBackupCron } = await import("@/lib/queue");
 
-  it("runs when no backup is running", async () => {
-    state.results[`select:${T.backups}`] = [];
+  it("runs the backup", async () => {
     archive.run.mockResolvedValue({ id: BACKUP_ID, status: "succeeded" });
     await handleInstanceBackup("schedule");
     expect(archive.run).toHaveBeenCalledWith("schedule");
   });
 
-  it("skips while another backup is running", async () => {
-    archive.run.mockClear();
-    state.results[`select:${T.backups}`] = [{ id: BACKUP_ID }];
+  it("logs and skips when another backup holds the lock", async () => {
+    const result = {
+      id: null,
+      status: "alreadyRunning",
+      location: null,
+      objectKey: null,
+      errorCode: "backupAlreadyRunning",
+    };
+    archive.run.mockResolvedValue(result);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await handleInstanceBackup("manual")).toEqual({ skipped: true });
-    expect(archive.run).not.toHaveBeenCalled();
+    expect(await handleInstanceBackup("manual")).toEqual(result);
+    expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
 

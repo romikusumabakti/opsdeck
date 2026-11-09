@@ -9,8 +9,10 @@ export const BACKUP_USAGE = `Usage: opsdeck backup run [--trigger schedule|manua
 Dumps DATABASE_URL, mirrors the Garage bucket and uploads both with a
 manifest to the backup destination chosen in Admin → Backups, or keeps them in
 /var/lib/opsdeck/backups when none is chosen. The trigger defaults to manual.
-Prints one JSON line {id,status,location,objectKey,errorCode}; exit 1 on failure
-(id is null only when the run could not be recorded at all).`;
+Prints one JSON line {id,status,location,objectKey,errorCode}; exit 1 on failure.
+While another backup runs, nothing is done: status "alreadyRunning", errorCode
+"backupAlreadyRunning", exit 1. id is null then, and when the run could not be
+recorded at all.`;
 
 const TRIGGERS: readonly BackupTrigger[] = ["schedule", "manual", "update"];
 
