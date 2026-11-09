@@ -506,6 +506,20 @@ describe("archiveDatabase", () => {
     expect(message).toContain("already archived");
   });
 
+  it("starts a new archive, and dumps again, once a cancel detached the open one", async () => {
+    await archiveDatabase(ctx(), { serviceId: "svc" });
+    const first = state.archives[0] as Archive;
+    // What cancelTeardownSteps does: the row stays open, without its env.
+    first.environmentId = null;
+    await archiveDatabase(ctx(), { serviceId: "svc" });
+    expect(state.archives).toHaveLength(2);
+    expect(state.archives[1]?.id).not.toBe(first.id);
+    expect(state.archives[1]?.files.map((f) => f.name)).toEqual([DB_FILE]);
+    expect(
+      state.streams.filter((s) => s.command.includes("pg_dump"))
+    ).toHaveLength(2);
+  });
+
   it("starts a new archive once the previous one is completed", async () => {
     await archiveDatabase(ctx(), { serviceId: "svc" });
     const first = state.archives[0] as Archive;
