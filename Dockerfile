@@ -34,14 +34,30 @@ ENV NODE_ENV=production
 ARG OPSDECK_VERSION=0.0.0-dev
 ENV OPSDECK_VERSION=$OPSDECK_VERSION
 
+# `opsdeck backup run` needs pg_dump (and restore pg_restore) of the server's
+# major, 18, which Debian does not ship: client only, from the PGDG apt repo.
+# The repo key is pinned by checksum.
+ADD --checksum=sha256:0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76 \
+    https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+RUN chmod 644 /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Debian's useradd/groupadd — oven/bun:slim has no busybox addgroup/adduser.
 # The home directory is needed: Bun writes to $HOME when it loads the native
 # .node addon bundled with the server (ssh2's cpufeatures) and fails with EACCES
 # if $HOME does not exist. `opsdeck` on PATH runs the CLI (bun dist/cli.js).
+# /var/lib/opsdeck/backups holds local backups (bind-mounted from ${dir}/backups).
 RUN groupadd --system --gid 1001 app \
     && useradd --system --create-home --uid 1001 --gid app app \
     && printf '#!/bin/sh\nexec bun /app/dist/cli.js "$@"\n' > /usr/local/bin/opsdeck \
-    && chmod 755 /usr/local/bin/opsdeck
+    && chmod 755 /usr/local/bin/opsdeck \
+    && install -d -o app -g app /var/lib/opsdeck/backups
 
 # The server resolves ./dist/client and ./public against the working directory.
 COPY --from=builder --chown=app:app /app/dist ./dist
