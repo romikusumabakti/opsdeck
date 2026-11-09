@@ -2,6 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
 import {
+  type AccessApp,
   accessAppDomains,
   CloudflareConflictError,
   type CloudflareCreds,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/domains/errors";
 import {
   adoptDomain,
+  type DomainSaveResult,
   deleteDomain,
   getDomain,
   getDomainView,
@@ -45,6 +47,8 @@ import {
 import { canOrg } from "@/lib/permissions";
 import { ENTRY_PORT_RANGE } from "@/lib/provisioning/ports";
 import { withAdvisoryXactLock } from "@/lib/provisioning/repository";
+import { TEARDOWN_ERRORS } from "@/lib/teardown/errors";
+import { teardownBlocks } from "@/lib/teardown/guard";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { callCloudflare } from "@/server/services/cloudflare-account";
 import { listEntryPortsOnServer } from "@/server/services/preflight-repository";
@@ -78,23 +82,33 @@ async function isProvisioned(
   return hasProvisioningProgress(environmentId);
 }
 
-// Writes the binding; maps the guarded no-row result and a hostname race.
+/** 409 `teardownRunning`: the environment is being deleted. */
+function failTearingDown(): never {
+  throw new CodedHTTPException(
+    409,
+    "teardownRunning",
+    TEARDOWN_ERRORS.teardownRunning
+  );
+}
+
+// Writes the binding; maps the guarded results and a hostname race.
 async function store(
   environmentId: string,
   ...args: Parameters<typeof saveDomain> extends [string, ...infer R]
     ? R
     : never
 ) {
+  let result: DomainSaveResult;
   try {
-    if (!(await saveDomain(environmentId, ...args))) {
-      fail(409, DOMAIN_ERRORS.domainProvisioned);
-    }
+    result = await saveDomain(environmentId, ...args);
   } catch (error) {
     if (pgErrorCode(error) === "23505") {
       fail(409, DOMAIN_ERRORS.domainHostnameTaken);
     }
     throw error;
   }
+  if (result === "tearingDown") failTearingDown();
+  if (result === "provisioned") fail(409, DOMAIN_ERRORS.domainProvisioned);
 }
 
 // Policies that let anyone in count as public: only an org server:manage
@@ -355,6 +369,9 @@ export async function adoptEnvironmentDomain(
   if (await getDomain(environmentId)) {
     return failDomain(409, "domainProvisioned");
   }
+  // Checked again inside the write; this one keeps a teardown's environment
+  // from getting a tunnel route the teardown would not remove.
+  if (await teardownBlocks(environmentId)) failTearingDown();
   const { hostname, service } = input;
   if (await hostnameTakenByOther(hostname, environmentId)) {
     return failDomain(409, "domainHostnameTaken");
@@ -376,8 +393,9 @@ export async function adoptEnvironmentDomain(
     return found;
   });
 
+  let result: DomainSaveResult;
   try {
-    const stored = await adoptDomain(environmentId, {
+    result = await adoptDomain(environmentId, {
       kind: "tunnel",
       hostname,
       zoneId: zone.id,
@@ -386,13 +404,14 @@ export async function adoptEnvironmentDomain(
       accessAppId,
       dnsRecordId,
     });
-    if (!stored) return failDomain(409, "domainProvisioned");
   } catch (error) {
     if (pgErrorCode(error) === "23505") {
       return failDomain(409, "domainHostnameTaken");
     }
     throw error;
   }
+  if (result === "tearingDown") failTearingDown();
+  if (result === "provisioned") failDomain(409, "domainProvisioned");
   await recordActivity({
     actorId: session.user.id,
     action: "environment.domain.adopted",
@@ -425,15 +444,18 @@ async function findAdoptable(
   const apps = await listAccessAppsByDomain(creds, hostname);
   if (apps.length > 1) return failDomain(409, "domainAccessAppAmbiguous");
   const app = apps[0];
-  if (
-    app &&
-    accessAppDomains(app).some(
-      (domain) => domain.toLowerCase() !== hostname.toLowerCase()
-    )
-  ) {
+  if (app && accessAppHostnames(app).some((name) => name !== hostname)) {
     return failDomain(409, "domainAccessAppShared");
   }
   return { dnsRecordId: record.id, accessAppId: app?.id ?? null };
+}
+
+// The hostnames an Access app covers, lowercased: a destination's path
+// (`host/path`) is dropped, and an absent domain skipped.
+function accessAppHostnames(app: AccessApp): string[] {
+  return accessAppDomains(app).map(
+    (domain) => domain.split("/")[0]?.toLowerCase() ?? ""
+  );
 }
 
 // The same lock as the provisioning tunnel_route step, so concurrent edits of

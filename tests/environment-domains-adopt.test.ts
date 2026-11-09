@@ -42,7 +42,8 @@ const state = vi.hoisted(() => ({
   existing: undefined as Record<string, unknown> | undefined,
   takenHostnames: [] as string[],
   adopted: null as null | { environmentId: string; row: unknown },
-  adoptResult: true,
+  adoptResult: "saved" as string,
+  tearingDown: false,
   adoptError: null as unknown,
   lockKeys: [] as string[],
 }));
@@ -81,6 +82,11 @@ vi.mock("@/lib/provisioning/repository", async (importOriginal) => ({
   }),
 }));
 
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  teardownBlocks: vi.fn(async () => state.tearingDown),
+}));
+
 vi.mock("@/lib/domains/repository", () => ({
   getEnvironmentRow: vi.fn(async (id: string) =>
     id === ENV_ID ? { id, name: "Portal Dev", entryPort: null } : undefined
@@ -103,9 +109,9 @@ vi.mock("@/lib/domains/repository", () => ({
   ),
   adoptDomain: vi.fn(async (environmentId: string, row: unknown) => {
     if (state.adoptError) throw state.adoptError;
-    if (!state.adoptResult) return false;
+    if (state.adoptResult !== "saved") return state.adoptResult;
     state.adopted = { environmentId, row };
-    return true;
+    return "saved";
   }),
 }));
 
@@ -186,7 +192,8 @@ beforeEach(() => {
   state.existing = undefined;
   state.takenHostnames = [];
   state.adopted = null;
-  state.adoptResult = true;
+  state.adoptResult = "saved";
+  state.tearingDown = false;
   state.adoptError = null;
   state.lockKeys = [];
   cf.records = [tunnelRecord()];
@@ -314,10 +321,56 @@ describe("POST /domain/adopt", () => {
   });
 
   it("refuses when a row appeared meanwhile", async () => {
-    state.adoptResult = false;
+    state.adoptResult = "provisioned";
     const res = await send(body());
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("domainProvisioned");
+  });
+
+  it("refuses with teardownRunning before any Cloudflare call while a teardown is under way", async () => {
+    state.tearingDown = true;
+    const res = await send(body());
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("teardownRunning");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(state.adopted).toBeNull();
+  });
+
+  it("refuses with teardownRunning when a teardown started before the write", async () => {
+    state.adoptResult = "tearingDown";
+    const res = await send(body());
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("teardownRunning");
+  });
+
+  it("adopts an app matched only through a destination, without a domain", async () => {
+    cf.apps = [
+      {
+        id: "app-d",
+        name: "Portal",
+        destinations: [{ type: "public", uri: HOST }],
+      } as unknown as App,
+    ];
+    const res = await send(body());
+    expect(res.status).toBe(200);
+    expect(state.adopted?.row).toMatchObject({ accessAppId: "app-d" });
+  });
+
+  it("does not count a path on the same hostname as another hostname", async () => {
+    cf.apps = [
+      {
+        id: "app-1",
+        name: "Portal",
+        domain: HOST,
+        destinations: [
+          { type: "public", uri: HOST },
+          { type: "public", uri: `${HOST}/admin` },
+        ],
+      } as unknown as App,
+    ];
+    const res = await send(body());
+    expect(res.status).toBe(200);
+    expect(state.adopted?.row).toMatchObject({ accessAppId: "app-1" });
   });
 
   it("refuses an engineer (no org server:manage)", async () => {
