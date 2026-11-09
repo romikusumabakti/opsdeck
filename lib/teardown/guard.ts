@@ -80,6 +80,19 @@ export async function teardownBlocks(
 }
 
 /**
+ * Inside the caller's transaction: holds the environment's lock shared and
+ * says whether a teardown blocks the change (an edit of the environment's
+ * services or deploy targets the teardown would not undo).
+ */
+export async function tearingDownIn(
+  tx: Pick<Tx, "execute" | "select">,
+  environmentId: string
+): Promise<boolean> {
+  await holdEnvironmentShared(tx, environmentId);
+  return teardownBlocks(environmentId, tx);
+}
+
+/**
  * createRun for work a teardown blocks (a backup, a restore, a database or
  * service operation): under the
  * shared environment lock, null instead of a run while a teardown is under

@@ -343,6 +343,44 @@ describe("POST /domain/adopt", () => {
     expect((await res.json()).code).toBe("teardownRunning");
   });
 
+  it("removes the route it added when the write is refused or races", async () => {
+    const before = structuredClone(cf.config);
+    for (const refuse of [
+      () => {
+        state.adoptResult = "tearingDown";
+      },
+      () => {
+        state.adoptResult = "provisioned";
+      },
+      () => {
+        state.adoptError = Object.assign(new Error("duplicate"), {
+          code: "23505",
+        });
+      },
+    ]) {
+      state.adoptResult = "saved";
+      state.adoptError = null;
+      cf.puts = [];
+      refuse();
+      const res = await send(body());
+      expect(res.status).toBe(409);
+      // Added, then taken out again: the config is as it was.
+      expect(cf.puts).toHaveLength(2);
+      expect(cf.config).toEqual(before);
+    }
+  });
+
+  it("leaves a route that was already there when the write is refused", async () => {
+    cf.config = { ingress: [{ hostname: HOST, service: SERVICE }, catchAll] };
+    state.adoptResult = "tearingDown";
+    const res = await send(body());
+    expect(res.status).toBe(409);
+    expect(cf.writes).toEqual([]);
+    expect(cf.config).toEqual({
+      ingress: [{ hostname: HOST, service: SERVICE }, catchAll],
+    });
+  });
+
   it("adopts an app matched only through a destination, without a domain", async () => {
     cf.apps = [
       {

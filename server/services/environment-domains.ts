@@ -12,6 +12,7 @@ import {
   putTunnelConfig,
   UnsafeTunnelConfigError,
   withIngressRoute,
+  withoutIngressRoute,
 } from "@/lib/cloudflare/api";
 import {
   DOMAIN_ERRORS,
@@ -381,6 +382,7 @@ export async function adoptEnvironmentDomain(
   const tunnel = await getRemoteTunnel(input.remoteTunnelId);
   if (!tunnel) return failDomain(422, "tunnelUnknown");
 
+  let routeAdded = false;
   const { dnsRecordId, accessAppId } = await callCloudflare(async (creds) => {
     const found = await findAdoptable(
       creds,
@@ -388,9 +390,28 @@ export async function adoptEnvironmentDomain(
       hostname,
       tunnel.tunnelId
     );
-    await addRouteIfMissing(creds, tunnel.tunnelId, hostname, service);
+    routeAdded = await addRouteIfMissing(
+      creds,
+      tunnel.tunnelId,
+      hostname,
+      service
+    );
     return found;
   });
+  // A refused write leaves nothing recorded: the route this call added would
+  // be an orphan no teardown removes. Best-effort; a route that was already
+  // there is left alone.
+  const undoRoute = async () => {
+    if (!routeAdded) return;
+    await callCloudflare((creds) =>
+      removeRouteIfPresent(creds, tunnel.tunnelId, hostname)
+    ).catch((error: unknown) => {
+      console.error(
+        `Adopt ${hostname}: removing the route it added failed:`,
+        error
+      );
+    });
+  };
 
   let result: DomainSaveResult;
   try {
@@ -404,11 +425,13 @@ export async function adoptEnvironmentDomain(
       dnsRecordId,
     });
   } catch (error) {
+    await undoRoute();
     if (pgErrorCode(error) === "23505") {
       return failDomain(409, "domainHostnameTaken");
     }
     throw error;
   }
+  if (result !== "saved") await undoRoute();
   if (result === "tearingDown") failTearingDown();
   if (result === "provisioned") failDomain(409, "domainProvisioned");
   await recordActivity({
@@ -450,14 +473,14 @@ async function findAdoptable(
 }
 
 // The same lock as the provisioning tunnel_route step, so concurrent edits of
-// one tunnel's config cannot drop each other's route.
+// one tunnel's config cannot drop each other's route. True when it added it.
 async function addRouteIfMissing(
   creds: CloudflareCreds,
   tunnelId: string,
   hostname: string,
   service: string
-): Promise<void> {
-  await withAdvisoryXactLock(`cf-tunnel:${tunnelId}`, async () => {
+): Promise<boolean> {
+  return withAdvisoryXactLock(`cf-tunnel:${tunnelId}`, async () => {
     const current = await getTunnelConfig(creds, tunnelId);
     let next: ReturnType<typeof withIngressRoute>;
     try {
@@ -472,6 +495,22 @@ async function addRouteIfMissing(
       throw error;
     }
     if (next.changed) await putTunnelConfig(creds, tunnelId, next.config);
+    return next.changed;
+  });
+}
+
+/** Takes the hostname's rule out of the tunnel config, under the same lock. */
+async function removeRouteIfPresent(
+  creds: CloudflareCreds,
+  tunnelId: string,
+  hostname: string
+): Promise<void> {
+  await withAdvisoryXactLock(`cf-tunnel:${tunnelId}`, async () => {
+    const next = withoutIngressRoute(
+      await getTunnelConfig(creds, tunnelId),
+      hostname
+    );
+    if (next.removed) await putTunnelConfig(creds, tunnelId, next.config);
   });
 }
 

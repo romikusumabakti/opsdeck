@@ -133,10 +133,16 @@ export async function startTeardown(
   );
 }
 
-/** Resumes a stopped teardown at the step it stopped at. */
-export async function retryTeardown(environmentId: string) {
+/**
+ * Resumes a stopped teardown at the step it stopped at. An admin with
+ * integration:manage may confirm deleting escrowed variables with it.
+ */
+export async function retryTeardown(
+  environmentId: string,
+  json: { confirmEscrowedDeletion?: boolean } = {}
+) {
   return parseResponse(
-    routes[":id"].teardown.retry.$post({ param: { id: environmentId } })
+    routes[":id"].teardown.retry.$post({ param: { id: environmentId }, json })
   );
 }
 

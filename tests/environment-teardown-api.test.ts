@@ -60,6 +60,7 @@ const repo = vi.hoisted(() => ({
   listTeardownSteps: vi.fn(),
   latestTeardownRunId: vi.fn(),
   cancelTeardownSteps: vi.fn(),
+  confirmTeardownEscrowedDeletion: vi.fn(),
 }));
 vi.mock("@/lib/teardown/repository", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -89,6 +90,14 @@ vi.mock("@/lib/queue", async (importOriginal) => ({
 vi.mock("@/lib/activity", () => ({ recordActivity: async () => {} }));
 
 // The row-only delete reads the variables and deletes the row.
+// No teardown under way (lib/teardown/guard has its own tests).
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  tearingDownIn: async () => teardown.blocks,
+  holdEnvironmentExclusive: async () => {},
+}));
+const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
+
 vi.mock("@/lib/db", async () => {
   const { getTableName: name } = await import("drizzle-orm");
   function chain(op: string, table?: Table): unknown {
@@ -116,14 +125,14 @@ vi.mock("@/lib/db", async () => {
     );
     return proxy;
   }
-  return {
-    db: {
-      select: () => chain("select"),
-      delete: (table: Table) => chain("delete", table),
-      update: (table: Table) => chain("update", table),
-      insert: (table: Table) => chain("insert", table),
-    },
+  const db = {
+    select: () => chain("select"),
+    delete: (table: Table) => chain("delete", table),
+    update: (table: Table) => chain("update", table),
+    insert: (table: Table) => chain("insert", table),
+    transaction: async (fn: (tx: unknown) => unknown) => fn(db),
   };
+  return { db };
 });
 
 const { app } = await import("@/server/app");
@@ -156,7 +165,8 @@ function send(method: string, path: string, body?: unknown) {
 
 const start = (body: unknown = { confirmName: "TD Dev" }) =>
   send("POST", `/api/environments/${ENV_ID}/teardown`, body);
-const retry = () => send("POST", `/api/environments/${ENV_ID}/teardown/retry`);
+const retry = (body: unknown = {}) =>
+  send("POST", `/api/environments/${ENV_ID}/teardown/retry`, body);
 
 /** A coded refusal: status, then a body of exactly the code and its text. */
 async function expectRefusal(
@@ -441,6 +451,27 @@ describe("POST /api/environments/:id/teardown/retry", () => {
     expect(repo.startTeardownRun).not.toHaveBeenCalled();
   });
 
+  it("lets an integration:manage caller confirm escrowed deletion on the delete step", async () => {
+    expect((await retry()).status).toBe(202);
+    expect(repo.confirmTeardownEscrowedDeletion).not.toHaveBeenCalled();
+
+    // An engineer (and infra) may not: refused before any run opens.
+    for (const orgRole of ["member", "infra"]) {
+      state.orgRole = orgRole;
+      const res = await retry({ confirmEscrowedDeletion: true });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({
+        code: "environmentHasEscrowedVariables",
+      });
+    }
+    expect(repo.startTeardownRun).toHaveBeenCalledTimes(1);
+
+    state.orgRole = "admin";
+    expect((await retry({ confirmEscrowedDeletion: true })).status).toBe(202);
+    expect(repo.confirmTeardownEscrowedDeletion).toHaveBeenCalledWith(ENV_ID);
+    expect(state.enqueued).toHaveLength(2);
+  });
+
   it("refuses an engineer on a production environment", async () => {
     repo.loadTeardownSubject.mockResolvedValue(subject({ kind: "prod" }));
     await expectRefusal(await retry(), 403, "environmentIsProduction");
@@ -594,5 +625,16 @@ describe("DELETE /api/environments/:id (Remove from Panel only)", () => {
       confirmEscrowedDeletion: true,
     });
     expect(res.status).toBe(200);
+  });
+
+  it("is 409 teardownRunning while a teardown runs", async () => {
+    state.orgRole = "admin";
+    repo.teardownState.mockResolvedValue({
+      planned: true,
+      running: true,
+      progressed: true,
+    });
+    const res = await send("DELETE", `/api/environments/${ENV_ID}`, {});
+    await expectRefusal(res, 409, "teardownRunning");
   });
 });

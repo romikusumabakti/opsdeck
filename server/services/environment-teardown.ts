@@ -8,6 +8,7 @@ import { buildTeardownPlan } from "@/lib/teardown/plan";
 import {
   CANCELLABLE_DONE_KINDS,
   cancelTeardownSteps,
+  confirmTeardownEscrowedDeletion,
   environmentBusy,
   latestTeardownRunId,
   listTeardownSteps,
@@ -39,6 +40,11 @@ export const startTeardownSchema = z.object({
   confirmEscrowedDeletion: z.boolean().optional(),
 });
 export type StartTeardownInput = z.infer<typeof startTeardownSchema>;
+
+export const retryTeardownSchema = z.object({
+  confirmEscrowedDeletion: z.boolean().optional(),
+});
+export type RetryTeardownInput = z.infer<typeof retryTeardownSchema>;
 
 type Status = 403 | 409 | 422;
 
@@ -132,20 +138,40 @@ export async function startTeardown(
   );
 }
 
-/** Resumes a stopped teardown at its first step not done; no re-plan. */
+/**
+ * Resumes a stopped teardown at its first step not done; no re-plan. With
+ * `confirmEscrowedDeletion` from an integration:manage caller, the delete
+ * step may then delete escrowed variables too (one escrowed after the
+ * start stops it); anyone else asking for that is refused as the start is.
+ */
 export async function retryTeardown(
-  environmentId: string
+  environmentId: string,
+  input: RetryTeardownInput = {}
 ): Promise<{ runId: string }> {
   const { session } = await requireProjectPermission(
     { environmentId },
     { environment: ["delete"] }
   );
   await subjectFor(environmentId, session.user.role);
+  const confirmEscrow = input.confirmEscrowedDeletion === true;
+  if (
+    confirmEscrow &&
+    !canOrg(session.user.role, { integration: ["manage"] })
+  ) {
+    throw await escrowRefusal();
+  }
   const state = await teardownState(environmentId);
   if (!state.planned) notFound();
   if (state.running) refusal(409, "teardownRunning");
   if (await environmentBusy(environmentId)) refusal(409, "environmentBusy");
-  return queueRun(environmentId, session.user.id, "retry");
+  return queueRun(
+    environmentId,
+    session.user.id,
+    "retry",
+    confirmEscrow
+      ? () => confirmTeardownEscrowedDeletion(environmentId)
+      : undefined
+  );
 }
 
 /**

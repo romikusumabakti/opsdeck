@@ -176,6 +176,14 @@ vi.mock("@/lib/environments", async (importOriginal) => ({
   loadEnvironmentWithServers: async () => state.stored,
 }));
 
+// No teardown under way (lib/teardown/guard has its own tests).
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  tearingDownIn: async () => teardown.blocks,
+  holdEnvironmentExclusive: async () => {},
+}));
+const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
+
 vi.mock("@/lib/db", async () => {
   const schema = await import("@/lib/db/schema");
   const rowsFor = (table: unknown): unknown[] => {
