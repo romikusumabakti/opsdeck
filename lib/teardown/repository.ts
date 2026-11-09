@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  databaseHosts,
   deployTargets,
   environmentDomains,
   environmentServices,
@@ -10,7 +11,7 @@ import {
   teardownSteps,
 } from "@/lib/db/schema";
 import { replaceSteps } from "@/lib/steps/replace-steps";
-import type { TeardownStepSpec } from "@/lib/teardown/plan";
+import { normaliseHost, type TeardownStepSpec } from "@/lib/teardown/plan";
 
 /** What planTeardown needs of an environment. Dirs and hosts as stored. */
 export type TeardownEnvironment = {
@@ -149,4 +150,102 @@ export async function saveTeardownSteps(
   specs: TeardownStepSpec[]
 ): Promise<void> {
   await replaceSteps(teardownSteps, environmentId, specs);
+}
+
+/** What the server steps re-check at run time on one machine. */
+export type StackGuard = {
+  /** Other environments' deploy dirs on the machine, as stored. */
+  otherDeployDirs: string[];
+  /**
+   * Containers a stack of this environment must never take down: every
+   * registered database host's container on the machine, and every other
+   * environment's docker db service there.
+   */
+  databaseContainers: string[];
+  /** Whether this environment has a db service registered. */
+  hasDbService: boolean;
+};
+
+/**
+ * The current rows a server step checks against (another environment may
+ * have been created since the plan), for the machine behind `serverId`:
+ * matched by normalised host, as planTeardown does. Null when the server row
+ * is gone.
+ */
+export async function loadStackGuard(
+  environmentId: string,
+  serverId: string
+): Promise<StackGuard | null> {
+  const all = await db
+    .select({ id: servers.id, host: servers.host })
+    .from(servers);
+  const ours = all.find((server) => server.id === serverId);
+  if (!ours) return null;
+  const host = normaliseHost(ours.host);
+  const machine = all
+    .filter((server) => normaliseHost(server.host) === host)
+    .map((server) => server.id);
+
+  const otherTargets = await db
+    .select({ deployDir: deployTargets.deployDir })
+    .from(deployTargets)
+    .where(
+      and(
+        inArray(deployTargets.serverId, machine),
+        ne(deployTargets.environmentId, environmentId)
+      )
+    )
+    .orderBy(asc(deployTargets.id));
+  const hosts = await db
+    .select({ containerName: databaseHosts.containerName })
+    .from(databaseHosts)
+    .where(inArray(databaseHosts.serverId, machine))
+    .orderBy(asc(databaseHosts.id));
+  const otherDbServices = await db
+    .select({ serviceName: environmentServices.serviceName })
+    .from(environmentServices)
+    .where(
+      and(
+        inArray(environmentServices.serverId, machine),
+        ne(environmentServices.environmentId, environmentId),
+        eq(environmentServices.role, "db"),
+        eq(environmentServices.serviceType, "docker")
+      )
+    )
+    .orderBy(asc(environmentServices.id));
+  const [ownDb] = await db
+    .select({ id: environmentServices.id })
+    .from(environmentServices)
+    .where(
+      and(
+        eq(environmentServices.environmentId, environmentId),
+        eq(environmentServices.role, "db")
+      )
+    );
+
+  return {
+    otherDeployDirs: otherTargets.map((t) => t.deployDir),
+    databaseContainers: [
+      ...new Set([
+        ...hosts.map((h) => h.containerName),
+        ...otherDbServices.map((s) => s.serviceName),
+      ]),
+    ],
+    hasDbService: ownDb !== undefined,
+  };
+}
+
+/** The db binding a drop_database step names, or null when it is gone. */
+export async function loadTeardownDbService(serviceId: string) {
+  const [row] = await db
+    .select({
+      environmentId: environmentServices.environmentId,
+      role: environmentServices.role,
+      dbKind: environmentServices.dbKind,
+      dbName: environmentServices.dbName,
+      databaseHostId: environmentServices.databaseHostId,
+    })
+    .from(environmentServices)
+    .where(eq(environmentServices.id, serviceId));
+  return row ?? null;
 }

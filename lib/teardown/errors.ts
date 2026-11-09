@@ -11,7 +11,11 @@ export const TEARDOWN_ERRORS = {
   unsafeDeployDir: "The deploy directory is not a safe path to delete",
   environmentBusy: "A deploy or provisioning run is active on the environment",
   teardownRunning: "The environment is already being deleted",
-  databaseNotRegistered: "The database service is not registered",
+  databaseNotRegistered:
+    "The stack's data is not covered by a registered database service",
+  stackHostsSharedDatabase:
+    "The stack runs a database container another environment uses",
+  serverCommandFailed: "A command on the server failed",
   archiveFailed: "The archive could not be completed",
   confirmNameMismatch: "The confirmation does not match the environment name",
   environmentIsProduction: "Only an admin can delete a production environment",
@@ -31,3 +35,20 @@ export type TeardownRefusal = Extract<
   | "environmentBusy"
   | "teardownRunning"
 >;
+
+/**
+ * A teardown step's expected failure: `code` is what the step's `last_error`
+ * stores, `message` the English text plus an optional detail for the run log.
+ * A detail must already be free of secrets (redactSecrets).
+ */
+export class StepFailed extends Error {
+  constructor(
+    readonly code: TeardownErrorCode,
+    detail?: string
+  ) {
+    super(
+      detail ? `${TEARDOWN_ERRORS[code]}: ${detail}` : TEARDOWN_ERRORS[code]
+    );
+    this.name = "StepFailed";
+  }
+}

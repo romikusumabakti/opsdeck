@@ -2909,11 +2909,13 @@
       "unsafeDeployDir": "The deploy directory is not a safe path to delete",
       "environmentBusy": "A deploy or provisioning run is active on this environment. Try again when it finishes",
       "teardownRunning": "This environment is already being deleted",
-      "databaseNotRegistered": "The database service is no longer registered",
+      "databaseNotRegistered": "The stack keeps data in named volumes but no database service is registered, so the archive would miss it. Register the database first, or use Remove from Panel only",
       "archiveFailed": "The archive could not be completed, so nothing was deleted. Retry to continue",
       "confirmNameMismatch": "Type the environment name exactly to confirm",
       "environmentIsProduction": "Only an admin can delete a production environment",
-      "productionConfirmRequired": "Confirm that you are deleting a production environment"
+      "productionConfirmRequired": "Confirm that you are deleting a production environment",
+      "stackHostsSharedDatabase": "The stack runs a database container that a shared database host or another environment uses",
+      "serverCommandFailed": "A command on the server failed. Check the run log, then retry"
     }
   },
   "environmentSetup": {

@@ -2909,11 +2909,13 @@
       "unsafeDeployDir": "Direktori deploy ini bukan path yang aman untuk dihapus",
       "environmentBusy": "Ada deploy atau provisioning yang sedang berjalan di environment ini. Coba lagi setelah selesai",
       "teardownRunning": "Environment ini sedang dihapus",
-      "databaseNotRegistered": "Layanan database ini sudah tidak terdaftar",
+      "databaseNotRegistered": "Stack ini menyimpan data di named volume tetapi tidak ada layanan database yang terdaftar, sehingga arsip akan melewatkannya. Daftarkan database terlebih dahulu, atau gunakan Hapus dari Panel saja",
       "archiveFailed": "Arsip tidak dapat diselesaikan, jadi tidak ada yang dihapus. Coba lagi untuk melanjutkan",
       "confirmNameMismatch": "Ketik nama environment persis untuk mengonfirmasi",
       "environmentIsProduction": "Hanya admin yang dapat menghapus environment production",
-      "productionConfirmRequired": "Konfirmasi bahwa Anda menghapus environment production"
+      "productionConfirmRequired": "Konfirmasi bahwa Anda menghapus environment production",
+      "stackHostsSharedDatabase": "Stack ini menjalankan container database yang dipakai oleh database host bersama atau environment lain",
+      "serverCommandFailed": "Perintah di server gagal. Periksa log run, lalu coba lagi"
     }
   },
   "environmentSetup": {

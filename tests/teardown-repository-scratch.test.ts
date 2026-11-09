@@ -30,8 +30,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
   const s = await import("@/lib/db/schema");
   const { encryptSecret } = await import("@/lib/secrets");
   const { buildTeardownPlan } = await import("@/lib/teardown/plan");
-  const { listTeardownSteps, loadTeardownEnvironment, saveTeardownSteps } =
-    await import("@/lib/teardown/repository");
+  const {
+    listTeardownSteps,
+    loadStackGuard,
+    loadTeardownDbService,
+    loadTeardownEnvironment,
+    saveTeardownSteps,
+  } = await import("@/lib/teardown/repository");
 
   const ids = {
     project: "",
@@ -283,6 +288,83 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       });
     } finally {
       await db.delete(s.environments).where(eq(s.environments.id, third));
+    }
+  });
+
+  it("loads the run-time guard of one machine from current rows", async () => {
+    const third = await environment("TD Third");
+    const [dbHost] = await db
+      .insert(s.databaseHosts)
+      .values({
+        serverId: ids.serverAlias,
+        containerName: "td-it-shared-pg",
+        backupPath: "/backups",
+        label: "td-it shared",
+      })
+      .returning({ id: s.databaseHosts.id });
+    await db.insert(s.deployTargets).values({
+      environmentId: third,
+      componentKey: "td-it",
+      serverId: ids.serverAlias,
+      sourceBranch: "main",
+      deployDir: "/",
+      services: ["backend"],
+    });
+    await db.insert(s.environmentServices).values([
+      {
+        // Same machine through the alias row: guarded.
+        environmentId: third,
+        role: "db",
+        serverId: ids.serverAlias,
+        serviceType: "docker",
+        serviceName: "td-it-third-db",
+        dbType: "postgres",
+        dbKind: "container",
+      },
+      {
+        // Another machine: not guarded.
+        environmentId: ids.other,
+        role: "db",
+        serverId: ids.server2,
+        serviceType: "docker",
+        serviceName: "td-it-other-db",
+        dbType: "postgres",
+        dbKind: "container",
+      },
+    ]);
+    try {
+      const guard = await loadStackGuard(ids.env, ids.server);
+      expect(guard).toEqual({
+        otherDeployDirs: ["/"],
+        databaseContainers: ["td-it-shared-pg", "td-it-third-db"],
+        hasDbService: true,
+      });
+      expect((await loadStackGuard(ids.other, ids.server2))?.hasDbService).toBe(
+        true
+      );
+      await expect(loadStackGuard(ids.env, crypto.randomUUID())).resolves.toBe(
+        null
+      );
+      await expect(loadTeardownDbService(ids.dbService)).resolves.toEqual({
+        environmentId: ids.env,
+        role: "db",
+        dbKind: "container",
+        dbName: null,
+        databaseHostId: null,
+      });
+      await expect(loadTeardownDbService(crypto.randomUUID())).resolves.toBe(
+        null
+      );
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, third));
+      await db
+        .delete(s.environmentServices)
+        .where(eq(s.environmentServices.serviceName, "td-it-other-db"));
+      if (dbHost) {
+        await db
+          .delete(s.databaseHosts)
+          .where(eq(s.databaseHosts.id, dbHost.id));
+      }
     }
   });
 
