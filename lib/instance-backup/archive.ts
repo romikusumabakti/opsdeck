@@ -53,7 +53,7 @@ export const LOCAL_KEEP = 3;
 /** A row still `running` after this long belongs to a crashed process. */
 export const INTERRUPTED_AFTER_MS = 6 * 60 * 60 * 1000;
 
-export type BackupTrigger = "schedule" | "manual" | "update";
+export type BackupTrigger = "schedule" | "manual" | "update" | "restore";
 
 /** Stable codes recorded in instance_backups.error_code. */
 export type BackupErrorCode =

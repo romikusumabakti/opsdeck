@@ -471,6 +471,7 @@ describe("opsdeck backup run arguments", () => {
     const { parseBackupArgs } = await import("@/scripts/cli/backup");
     expect(parseBackupArgs(["run"])).toBe("manual");
     expect(parseBackupArgs(["run", "--trigger", "update"])).toBe("update");
+    expect(parseBackupArgs(["run", "--trigger", "restore"])).toBe("restore");
     expect(parseBackupArgs(["run", "--trigger", "nightly"])).toBeNull();
     expect(parseBackupArgs(["list"])).toBeNull();
     expect(parseBackupArgs([])).toBeNull();

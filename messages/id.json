@@ -3035,7 +3035,8 @@
     "trigger": {
       "schedule": "Terjadwal",
       "manual": "Manual",
-      "update": "Sebelum pembaruan"
+      "update": "Sebelum pembaruan",
+      "restore": "Sebelum pemulihan"
     },
     "status": {
       "running": "Berjalan",

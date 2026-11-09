@@ -2169,6 +2169,7 @@ export const instanceBackupTriggerEnum = pgEnum("instance_backup_trigger", [
   "schedule",
   "manual",
   "update",
+  "restore",
 ]);
 
 export const instanceBackups = pgTable(

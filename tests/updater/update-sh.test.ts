@@ -35,7 +35,7 @@ const STUB_DOCKER = `#!/bin/sh
 v=$(sed -n 's/^OPSDECK_VERSION=//p' ./.env)
 printf 'docker %s [%s]\\n' "$*" "$v" >> "$STUB_LOG"
 case "$*" in
-  "compose run --rm app opsdeck backup run --trigger update") step=backup ;;
+  "compose run --rm app opsdeck backup run --trigger "*) step=backup ;;
   "compose pull") step=pull ;;
   "compose run --rm migrate") step=migrate ;;
   "compose up -d --wait --wait-timeout 180") step=up ;;
@@ -44,6 +44,21 @@ case "$*" in
   *) echo "unexpected docker call" >&2; exit 99 ;;
 esac
 if [ "$step" = "\${STUB_SNAPSHOT:-}" ]; then cp updates/status.json "$STUB_STATE/snapshot.json"; fi
+# A request written while this run is busy.
+if [ "$step" = up ] && [ -n "\${STUB_NEW_REQUEST:-}" ] && [ ! -e "$STUB_STATE/new-request" ]; then
+  : > "$STUB_STATE/new-request"
+  cp "$STUB_NEW_REQUEST" updates/request.json
+fi
+if [ "$step" = "\${STUB_NOISY:-}" ]; then
+  printf '\\033[1;31mred alert\\033[0m \\033]0;title\\007done\\n'
+  printf 'x%0200d\\n' 0 | sed 's/0/é/g'
+fi
+# What systemd does on stop or timeout: TERM while a step is running.
+if [ "$step" = "\${STUB_KILL:-}" ]; then
+  kill -TERM "$PPID"
+  sleep 1
+  exit 1
+fi
 if [ "$step" = "\${STUB_FAIL:-}" ] && [ ! -e "$STUB_STATE/failed-$step" ]; then
   : > "$STUB_STATE/failed-$step"
   if [ "$step" = backup ]; then
@@ -53,7 +68,7 @@ if [ "$step" = "\${STUB_FAIL:-}" ] && [ ! -e "$STUB_STATE/failed-$step" ]; then
   exit 1
 fi
 case $step in
-  backup) echo '{"id":"b1","status":"succeeded","location":"local","objectKey":"opsdeck/x/","errorCode":null}' ;;
+  backup) echo '{"id":"0195f0c2-0000-7abc-8def-0123456789ab","status":"succeeded","location":"s3","objectKey":"opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-'"$v"'/","errorCode":null}' ;;
   up) printf '%s' "$v" > "$STUB_STATE/deployed" ;;
 esac
 exit 0
@@ -166,7 +181,8 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
   for (const [name, body] of [
     ["docker", STUB_DOCKER],
     ["curl", STUB_CURL],
-    ["sleep", "#!/bin/sh\nexit 0\n"],
+    // Health retries need no real wait; the TERM stub's own `sleep 1` is real.
+    ["sleep", '#!/bin/sh\n[ "$1" = 1 ] && exec /bin/sleep 1\nexit 0\n'],
   ] as const) {
     writeFileSync(join(bin, name), body, { mode: 0o755 });
   }
@@ -237,6 +253,13 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
 
 const by = { requestedBy: "0195f0c2-7d1e-7abc-8def-0123456789ab" };
 const at = { requestedAt: "2026-11-09T10:00:00.000Z" };
+const restoreOf = (version: string): UpdateRequest => ({
+  action: "restore",
+  objectKey: `local:opsdeck/2026-11-08T023000.000Z-a1b2c3-${version}/`,
+  version,
+  ...by,
+  ...at,
+});
 const updateTo = (version: string): UpdateRequest => ({
   action: "update",
   version,
@@ -490,6 +513,7 @@ describe("update.sh", () => {
     const result = t.run();
     expect(result.status, result.stderr).toBe(0);
     expect(t.dockerCalls()).toEqual([
+      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
       "docker compose pull [1.2.0]",
       "docker compose stop app terminal [1.2.0]",
       "docker compose run --rm app opsdeck restore opsdeck-backups/opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0/ [1.2.0]",
@@ -504,10 +528,40 @@ describe("update.sh", () => {
     expect(t.status()).toMatchObject({
       action: "restore",
       version: "1.2.0",
-      from: "1.3.0",
+      // The update phase started from the restored version.
+      from: "1.2.0",
       step: "done",
       state: "succeeded",
+      safetyBackup: {
+        id: "0195f0c2-0000-7abc-8def-0123456789ab",
+        location: "s3",
+        objectKey:
+          "opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/",
+      },
     });
+    expect(t.readEnv()).toBe(t.env);
+  });
+
+  it("a failed update after a restore rolls back to the restored version", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_HEALTH_FAIL_VERSION: "1.3.0" }).status).toBe(1);
+    expect(t.status()).toMatchObject({
+      state: "rolled_back",
+      code: "healthFailed",
+      from: "1.2.0",
+    });
+    expect(t.readEnv()).toBe(envFile("1.2.0"));
+  });
+
+  it("a failed safety backup aborts the restore", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_FAIL: "backup" }).status).toBe(1);
+    expect(t.status()).toMatchObject({ state: "failed", code: "backupFailed" });
+    expect(t.dockerCalls()).toEqual([
+      "docker compose run --rm app opsdeck backup run --trigger restore [1.3.0]",
+    ]);
     expect(t.readEnv()).toBe(t.env);
   });
 
@@ -522,6 +576,7 @@ describe("update.sh", () => {
     });
     expect(t.run().status).toBe(0);
     expect(t.dockerCalls().map((c) => c.split(" ")[2])).toEqual([
+      "run",
       "pull",
       "stop",
       "run",
@@ -529,24 +584,110 @@ describe("update.sh", () => {
     ]);
   });
 
-  it("rolls back a failed restore to the running images", () => {
+  it("a failed restore stays on the restore version and offers the safety backup", () => {
     const t = setup({ current: "1.3.0" });
-    t.request({
-      action: "restore",
-      objectKey: "local:opsdeck/x/",
-      version: "1.2.0",
-      ...by,
-      ...at,
-    });
+    t.request(restoreOf("1.2.0"));
     expect(t.run({ STUB_FAIL: "restore" }).status).toBe(1);
+    const status = t.status();
+    expect(status).toMatchObject({ state: "failed", code: "restoreFailed" });
+    expect(status.safetyBackup?.objectKey).toBe(
+      "opsdeck-backups/opsdeck/2026-11-09T100000.000Z-abcdef-1.3.0/"
+    );
+    expect(t.readEnv()).toBe(envFile("1.2.0"));
+    expect(t.dockerCalls().at(-1)).toBe(
+      "docker compose up -d --wait --wait-timeout 180 [1.2.0]"
+    );
+  });
+
+  it("a stop failure before the restore rolls back", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_FAIL: "stop" }).status).toBe(1);
     expect(t.status()).toMatchObject({
       state: "rolled_back",
-      code: "restoreFailed",
+      code: "stopFailed",
+    });
+    expect(t.readEnv()).toBe(t.env);
+  });
+
+  it("TERM mid-migrate rolls back", () => {
+    const t = setup();
+    t.request(updateTo("1.3.0"));
+    expect(t.run({ STUB_KILL: "migrate" }).status).not.toBe(0);
+    expect(t.status()).toMatchObject({
+      step: "rollback",
+      state: "rolled_back",
+      code: "interrupted",
+    });
+    expect(t.readEnv()).toBe(t.env);
+    expect(t.dockerCalls().slice(-2)).toEqual([
+      "docker compose run --rm migrate [1.3.0]",
+      "docker compose up -d --wait --wait-timeout 180 [1.2.0]",
+    ]);
+  });
+
+  it("TERM between stop and the restore brings the panel back", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_KILL: "stop" }).status).not.toBe(0);
+    expect(t.status()).toMatchObject({
+      state: "rolled_back",
+      code: "interrupted",
     });
     expect(t.readEnv()).toBe(t.env);
     expect(t.dockerCalls().at(-1)).toBe(
       "docker compose up -d --wait --wait-timeout 180 [1.3.0]"
     );
+  });
+
+  it("TERM mid-restore starts the restore version again", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_KILL: "restore" }).status).not.toBe(0);
+    expect(t.status()).toMatchObject({
+      state: "failed",
+      code: "restoreFailed",
+    });
+    expect(t.readEnv()).toBe(envFile("1.2.0"));
+    expect(t.dockerCalls().at(-1)).toBe(
+      "docker compose up -d --wait --wait-timeout 180 [1.2.0]"
+    );
+  });
+
+  it("processes a request written during a run", () => {
+    const t = setup();
+    const next = join(t.root, "next.json");
+    writeFileSync(next, serializeUpdateRequest(updateTo("1.3.0")));
+    t.request(updateTo("1.3.0"));
+    const first = t.run({ STUB_NEW_REQUEST: next });
+    expect(first.status, first.stderr).toBe(0);
+    const runLogs = readdirSync(join(t.updates, "logs"))
+      .filter((f) => f.endsWith(".log"))
+      .sort();
+    expect(runLogs).toHaveLength(2);
+    const status = t.status();
+    expect(runLogs).toContain(`${status.runId}.log`);
+    expect(status.state).toBe("succeeded");
+    expect(
+      t.dockerCalls().filter((c) => c.includes("backup run"))
+    ).toHaveLength(2);
+    expect(existsSync(join(t.updates, "request.json"))).toBe(false);
+  });
+
+  it("log tail drops ANSI escapes and never splits UTF-8", () => {
+    const t = setup();
+    t.request(updateTo("1.3.0"));
+    t.run({ STUB_NOISY: "pull", STUB_FAIL: "pull" });
+    const raw = readFileSync(t.statusPath);
+    // Throws on any invalid UTF-8 sequence.
+    new TextDecoder("utf-8", { fatal: true }).decode(raw);
+    const tail = t.status().logTail;
+    expect(tail).toContain("red alert done");
+    expect(tail.join("\n")).not.toMatch(/\[[0-9;]*m|title/);
+    const long = tail.find((l) => l.startsWith("xé"));
+    expect(long).toBeDefined();
+    expect(Buffer.byteLength(long ?? "")).toBeLessThanOrEqual(300);
+    expect(long).toMatch(/^xé+$/);
   });
 
   it("refuses newer backup", () => {
