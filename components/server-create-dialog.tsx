@@ -7,8 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { SafeServer } from "@/lib/db/schema";
-import type { Serialized } from "@/web/api/client";
+import type { ServerRow } from "@/web/api/servers";
 
 export function ServerCreateDialog({
   open,
@@ -17,7 +16,7 @@ export function ServerCreateDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (server: Serialized<SafeServer>) => void;
+  onCreated: (server: ServerRow) => void;
 }) {
   const t = useTranslations("newServer");
 

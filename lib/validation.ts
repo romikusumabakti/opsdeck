@@ -84,7 +84,7 @@ export const isoDateTimeSchema = z.iso.datetime({ offset: true });
 const serviceTypeSchema = z.enum(["docker", "systemd", "kubernetes"]);
 const databaseTypeSchema = z.enum(["postgres", "mssql", "mysql"]);
 
-export const serverInputSchema = z.object({
+const serverFields = {
   name: z.string().trim().min(1).max(200),
   host: z.string().trim().min(1).max(255),
   username: z.string().trim().min(1).max(255),
@@ -102,6 +102,17 @@ export const serverInputSchema = z.object({
   // #canPlaceEnvironment). Optional on input: the column defaults to
   // "restricted".
   placement: z.enum(["restricted", "open"]).optional(),
+};
+
+// A new server signs in with the instance key installed by hand (`auth: key`
+// and the `from=` address its line was written with), or with a password:
+// stored, or none when it is typed once afterwards to install the key. The
+// service checks the combination.
+export const serverInputSchema = z.object({
+  ...serverFields,
+  password: serverFields.password.optional(),
+  auth: z.enum(["password", "key"]).optional(),
+  sshFrom: z.string().trim().min(1).max(64).optional(),
 });
 
 // The logical project (parent). `key` is the uppercase issue-prefix used to
@@ -282,7 +293,8 @@ export const environmentUpdateSchema = environmentFields
     hasFrontend: z.boolean().optional(),
   })
   .superRefine(checkSharedDbNames);
-export const serverUpdateSchema = serverInputSchema.partial();
+// An edit never switches a server's sign-in: that is the key actions' job.
+export const serverUpdateSchema = z.object(serverFields).partial();
 
 // =========================
 // Issue tracker

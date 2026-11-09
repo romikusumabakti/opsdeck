@@ -1,0 +1,595 @@
+import { createHash } from "node:crypto";
+import { BlockList, isIP } from "node:net";
+import { and, eq, ne, notExists } from "drizzle-orm";
+import { utils } from "ssh2";
+import { db, lockConnection, pgClient } from "@/lib/db";
+import { servers, sshKeys } from "@/lib/db/schema";
+import { decryptSecret, encryptSecret } from "@/lib/secrets";
+
+// The instance's own ed25519 key and the helpers that edit a server's
+// authorized_keys without touching lines that are not ours. Server-only: the
+// private key never leaves this module except through loadPrivateKey.
+
+export function generateInstanceKey(): {
+  publicKey: string;
+  privateKeyPem: string;
+  fingerprint: string;
+} {
+  const pair = parseableKeyPair();
+  const publicKey = pair.public.trim();
+  const parsed = utils.parseKey(publicKey);
+  if (parsed instanceof Error) throw parsed;
+  const blob = Array.isArray(parsed)
+    ? parsed[0].getPublicSSH()
+    : parsed.getPublicSSH();
+  return {
+    publicKey,
+    privateKeyPem: pair.private,
+    fingerprint: sshFingerprint(blob),
+  };
+}
+
+// ssh2's generator now and then (about 1 in 250, measured under Bun and Node)
+// emits an ed25519 private key its own parser rejects as malformed; such a key
+// could never sign in, and a rotation to it would fail on every server.
+const KEYGEN_ATTEMPTS = 20;
+
+function parseableKeyPair(): { public: string; private: string } {
+  for (let attempt = 0; attempt < KEYGEN_ATTEMPTS; attempt++) {
+    const pair = utils.generateKeyPairSync("ed25519");
+    if (!(utils.parseKey(pair.private) instanceof Error)) return pair;
+  }
+  throw new Error("could not generate a usable ed25519 key");
+}
+
+/** OpenSSH's `SHA256:<base64, unpadded>` fingerprint of a public key blob. */
+export function sshFingerprint(blob: Buffer): string {
+  const digest = createHash("sha256")
+    .update(blob)
+    .digest("base64")
+    .replace(/=+$/, "");
+  return `SHA256:${digest}`;
+}
+
+export async function ensureCurrentKey(): Promise<{
+  id: string;
+  publicKey: string;
+  fingerprint: string;
+}> {
+  const pick = (r: { id: string; publicKey: string; fingerprint: string }) => ({
+    id: r.id,
+    publicKey: r.publicKey,
+    fingerprint: r.fingerprint,
+  });
+  const find = async () =>
+    (
+      await db
+        .select()
+        .from(sshKeys)
+        .where(eq(sshKeys.status, "current"))
+        .limit(1)
+    )[0];
+
+  const existing = await find();
+  if (existing) return pick(existing);
+
+  const key = generateInstanceKey();
+  // The partial unique index on status = 'current' makes a concurrent insert a
+  // no-op; the loser then reads the winner's row.
+  const [created] = await db
+    .insert(sshKeys)
+    .values({
+      publicKey: key.publicKey,
+      privateKey: encryptSecret(key.privateKeyPem),
+      fingerprint: key.fingerprint,
+      status: "current",
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (created) return pick(created);
+
+  const winner = await find();
+  if (!winner)
+    throw new Error("ssh key creation raced and no current key exists");
+  return pick(winner);
+}
+
+/** The public half of one of this instance's keys, or null. */
+export async function instanceKey(keyId: string): Promise<{
+  id: string;
+  publicKey: string;
+  fingerprint: string;
+} | null> {
+  const [row] = await db
+    .select({
+      id: sshKeys.id,
+      publicKey: sshKeys.publicKey,
+      fingerprint: sshKeys.fingerprint,
+    })
+    .from(sshKeys)
+    .where(eq(sshKeys.id, keyId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function loadPrivateKey(keyId: string): Promise<string> {
+  const [row] = await db
+    .select()
+    .from(sshKeys)
+    .where(eq(sshKeys.id, keyId))
+    .limit(1);
+  if (!row) throw new Error("ssh key not found");
+  return decryptSecret(row.privateKey);
+}
+
+/** `opsdeck:<instance>:`, the start of every marker this instance writes. */
+function instanceMarkerPrefix(): string {
+  const configured = process.env.COMPOSE_PROJECT_NAME;
+  const instance =
+    configured && /^[A-Za-z0-9_.-]+$/.test(configured) ? configured : "opsdeck";
+  return `opsdeck:${instance}:`;
+}
+
+export function keyMarker(keyId: string): string {
+  const marker = `${instanceMarkerPrefix()}${keyId}`;
+  if (!/^opsdeck:[A-Za-z0-9_.-]+:[A-Za-z0-9-]+$/.test(marker)) {
+    throw new Error("invalid ssh key marker");
+  }
+  return marker;
+}
+
+/**
+ * The narrowest prefix from= may widen to: /8 for IPv4, /32 for IPv6 (as
+ * normaliseSubnet). Anything wider, up to 0.0.0.0/0, is no restriction.
+ */
+export const MIN_FROM_PREFIX = { 4: 8, 6: 32 } as const;
+
+/** The key_error of a key server whose key login has never succeeded. */
+export const KEY_NOT_VERIFIED = "keyNotVerified";
+
+/**
+ * Whether `from` is an IP or IP/prefix (not wider than /8, /32) for from="…".
+ * No zone ids, no IPv4-mapped or embedded IPv6 (as normaliseSubnet).
+ */
+export function isValidFrom(from: string): boolean {
+  // isIP accepts IPv6 zone ids ("fe80::1%eth0"), which sshd does not match.
+  if (from.includes("%")) return false;
+  const [addr = "", prefix, ...rest] = from.split("/");
+  if (rest.length > 0) return false;
+  const family = isIP(addr);
+  if (family !== 4 && family !== 6) return false;
+  // IPv4-mapped or embedded IPv6 ("::ffff:10.0.0.1"): sshd matches IPv4
+  // clients by their IPv4 form, and the /32 floor means nothing for them.
+  if (family === 6 && addr.includes(".")) return false;
+  if (prefix === undefined) return true;
+  return (
+    validPrefix(prefix, family) && Number(prefix) >= MIN_FROM_PREFIX[family]
+  );
+}
+
+/**
+ * The from= address of a line we wrote (authorizedKeysLine's format), or null
+ * when the line has none or a value we would not write.
+ */
+export function fromOfLine(line: string): string | null {
+  const match = /^from="([^"]*)",/.exec(line.trim());
+  const from = match?.[1];
+  return from !== undefined && isValidFrom(from) ? from : null;
+}
+
+function validPrefix(prefix: string, family: number): boolean {
+  return (
+    /^\d{1,3}$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128)
+  );
+}
+
+/**
+ * The public key restricted to `from`, with the marker as its only comment.
+ * Throws on anything that is not a plain key, an IP or IP/prefix, or a marker,
+ * so no option can be injected into the line.
+ */
+export function authorizedKeysLine(
+  publicKey: string,
+  from: string,
+  marker: string
+): string {
+  const [type, base64] = publicKey.trim().split(/\s+/);
+  if (type !== "ssh-ed25519" || !base64 || !/^[A-Za-z0-9+/=]+$/.test(base64)) {
+    throw new Error("invalid public key");
+  }
+  if (!isValidFrom(from)) throw new Error("invalid from address");
+  if (!/^opsdeck:[A-Za-z0-9_.-]+:[A-Za-z0-9-]+$/.test(marker)) {
+    throw new Error("invalid ssh key marker");
+  }
+  return `from="${from}",no-agent-forwarding,no-X11-forwarding ${type} ${base64} ${marker}`;
+}
+
+/**
+ * A shell command that installs `line` (from authorizedKeysLine) as the login
+ * user: ~/.ssh 0700 and authorized_keys 0600 before anything is written, then
+ * the line appended only when that exact line is absent (after a newline, in
+ * case the file does not end with one; sshd skips blank lines). The line holds
+ * no single quote, so it is safe inside one.
+ */
+export function installCommand(line: string): string {
+  if (line.includes("'") || line.includes("\n")) {
+    throw new Error("invalid authorized_keys line");
+  }
+  const file = "~/.ssh/authorized_keys";
+  return `mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ${file} && chmod 600 ${file} && { grep -qxF -- '${line}' ${file} || printf '\\n%s\\n' '${line}' >> ${file}; }`;
+}
+
+/** Whether an authorized_keys line is ours: its last field is `marker`. */
+export function isOurs(line: string, marker: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("#")) return false;
+  return trimmed.split(/\s+/).at(-1) === marker;
+}
+
+// Foreign lines are kept byte for byte (including a trailing \r); only the
+// line we write ends in a plain \n.
+function splitLines(text: string): string[] {
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
+export function mergeAuthorizedKeys(
+  existing: string,
+  line: string,
+  marker: string
+): string {
+  const lines = splitLines(existing);
+  const at = lines.findIndex((l) => isOurs(l, marker));
+  if (at === -1) lines.push(line);
+  else {
+    lines[at] = line;
+    // Drop any further duplicates of our marker.
+    for (let i = lines.length - 1; i > at; i--) {
+      if (isOurs(lines[i] ?? "", marker)) lines.splice(i, 1);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+export function removeAuthorizedKey(existing: string, marker: string): string {
+  const lines = splitLines(existing).filter((l) => !isOurs(l, marker));
+  return lines.length ? `${lines.join("\n")}\n` : "";
+}
+
+/** The last field of a non-comment line, where our marker sits. */
+function markerOf(line: string): string | null {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("#")) return null;
+  return trimmed.split(/\s+/).at(-1) ?? null;
+}
+
+/**
+ * The markers of our keys that a write to `server`'s authorized_keys may
+ * drop: every key in this database's ssh_keys (any status), less the keys
+ * another key row on the same host and login signs in with (one machine
+ * entered twice, by IP and by name: one file, and dropping that line would
+ * lock the other row out). Another Panel deployment can share the instance
+ * name (the default "opsdeck"), so a marker counts as ours only for a key id
+ * we hold.
+ */
+export async function ownKeyMarkers(server: {
+  id: string;
+  host: string;
+  username: string;
+}): Promise<string[]> {
+  const [keys, sameLogin] = await Promise.all([
+    db.select({ id: sshKeys.id }).from(sshKeys),
+    db
+      .select({ sshKeyId: servers.sshKeyId })
+      .from(servers)
+      .where(
+        and(
+          eq(servers.auth, "key"),
+          eq(servers.host, server.host),
+          eq(servers.username, server.username),
+          ne(servers.id, server.id)
+        )
+      ),
+  ]);
+  const inUse = new Set(sameLogin.map((r) => r.sshKeyId));
+  return keys.filter((k) => !inUse.has(k.id)).map((k) => keyMarker(k.id));
+}
+
+/**
+ * Drop the lines of our own keys (`ours`, from ownKeyMarkers) other than
+ * `keep` (a retired or leaked key must not keep signing in), and return them
+ * so a failed step can put them back. Lines of keys we do not hold (another
+ * Panel's, foreign) are untouched.
+ */
+export function dropOtherInstanceKeys(
+  existing: string,
+  keep: readonly string[],
+  ours: readonly string[]
+): { content: string; dropped: { marker: string; line: string }[] } {
+  const dropped: { marker: string; line: string }[] = [];
+  const lines = splitLines(existing).filter((l) => {
+    const marker = markerOf(l);
+    if (marker === null || keep.includes(marker) || !ours.includes(marker)) {
+      return true;
+    }
+    dropped.push({ marker, line: l.replace(/\r$/, "") });
+    return false;
+  });
+  return {
+    content: lines.length ? `${lines.join("\n")}\n` : "",
+    dropped,
+  };
+}
+
+/**
+ * The address to put in from=: the client address of $SSH_CLIENT, or the
+ * instance's own subnet (CIDR) when that address lies inside it, so a
+ * container restart that changes the IP does not lock the key out. Returns
+ * null when $SSH_CLIENT does not start with an IP address (empty under sudo
+ * env_reset, or noise); callers must treat that as a failed install.
+ */
+export function fromAddress(
+  sshClient: string,
+  ownSubnet: string | null
+): string | null {
+  const address = sshClient.trim().split(/\s+/)[0] ?? "";
+  const addressFamily = isIP(address);
+  if (!addressFamily) return null;
+  if (!ownSubnet) return address;
+  const [net = "", prefix = "", ...rest] = ownSubnet.split("/");
+  const family = isIP(net);
+  if (rest.length > 0 || !family || !validPrefix(prefix, family))
+    return address;
+  const list = new BlockList();
+  list.addSubnet(net, Number(prefix), family === 4 ? "ipv4" : "ipv6");
+  return list.check(address, addressFamily === 4 ? "ipv4" : "ipv6")
+    ? ownSubnet
+    : address;
+}
+
+/**
+ * Class of the per-server key-operation advisory locks: "sshk" as a
+ * big-endian int32, in the two-int4 key space (apart from the instance backup
+ * lock's "opsd" class and the single-bigint provisioning locks). The object id
+ * is Postgres' hashtext of the server id; two servers sharing a hash only
+ * serialise, never corrupt.
+ */
+export const SERVER_KEY_LOCK_CLASS = 1936943211;
+
+/**
+ * The lock of the instance's key jobs (move all, rotate): class "sshj", object
+ * 0. One lock for both kinds, so a move-all never runs during a rotation.
+ */
+export const KEY_JOB_LOCK = { classId: 1936943210, objId: 0 };
+
+type LockConnection = ReturnType<typeof lockConnection>;
+
+// Lock sessions open at once, across every key operation of this process: a
+// small fixed number of connections next to the app's pool. A lock that finds
+// none free waits this long, then is refused like a held lock.
+const LOCK_SESSIONS = 4;
+const LOCK_SESSION_WAIT_MS = 5_000;
+// How long a release waits for its unlock before it ends the session anyway.
+const LOCK_RELEASE_TIMEOUT_MS = 5_000;
+
+const lockSessions = { open: 0, waiting: [] as (() => void)[] };
+
+function takeLockSession(): Promise<boolean> {
+  if (lockSessions.open < LOCK_SESSIONS) {
+    lockSessions.open += 1;
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const grant = () => {
+      clearTimeout(timer);
+      lockSessions.open += 1;
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      lockSessions.waiting.splice(lockSessions.waiting.indexOf(grant), 1);
+      resolve(false);
+    }, LOCK_SESSION_WAIT_MS);
+    lockSessions.waiting.push(grant);
+  });
+}
+
+function freeLockSession() {
+  lockSessions.open -= 1;
+  lockSessions.waiting.shift()?.();
+}
+
+function within<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * A session-level advisory lock on a connection of its own held for the run,
+ * so a crashed process releases it with its connection. Resolves to its
+ * release, or to null when another session holds it or no lock session frees
+ * up in time. A connection whose lock or unlock query failed is never asked
+ * anything again (the reply may be what was lost, and postgres.js can hang on
+ * a dead one): it is ended, which drops every lock its session held. One
+ * already closed is ended without a query: its locks went with the session.
+ */
+async function sessionLock(
+  take: (conn: LockConnection) => Promise<{ locked: boolean }[]>,
+  drop: (conn: LockConnection) => Promise<unknown>
+): Promise<(() => Promise<void>) | null> {
+  if (!(await takeLockSession())) return null;
+  let closed = false;
+  let conn: LockConnection;
+  try {
+    conn = lockConnection(() => {
+      closed = true;
+    });
+  } catch (error) {
+    freeLockSession();
+    throw error;
+  }
+  let ended: Promise<void> | undefined;
+  const end = () => {
+    ended ??= conn
+      .end({ timeout: 0 })
+      .catch(() => {})
+      .finally(freeLockSession);
+    return ended;
+  };
+  try {
+    const [row] = await take(conn);
+    if (!row?.locked) {
+      await end();
+      return null;
+    }
+  } catch (error) {
+    await end();
+    throw error;
+  }
+  return async () => {
+    if (ended) return ended;
+    try {
+      if (!closed) {
+        await within(drop(conn), LOCK_RELEASE_TIMEOUT_MS, "lock release");
+      }
+    } finally {
+      await end();
+    }
+  };
+}
+
+/**
+ * Takes the lock that serialises key operations on one server (move,
+ * reinstall, move-all, rotate) across every process. Resolves to its release,
+ * or to null when another operation holds it.
+ */
+export function serverKeyLock(
+  serverId: string
+): Promise<(() => Promise<void>) | null> {
+  return sessionLock(
+    (conn) => conn<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(
+        ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
+      ) as locked`,
+    (conn) => conn`select pg_advisory_unlock(
+      ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
+    )`
+  );
+}
+
+/**
+ * Takes the instance's key-job lock, held by the worker for a whole move-all
+ * or rotation. Resolves to its release, or to null when a job holds it.
+ */
+export function keyJobLock(): Promise<(() => Promise<void>) | null> {
+  return sessionLock(
+    (conn) => conn<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(
+        ${KEY_JOB_LOCK.classId}::int, ${KEY_JOB_LOCK.objId}::int
+      ) as locked`,
+    (conn) => conn`select pg_advisory_unlock(
+      ${KEY_JOB_LOCK.classId}::int, ${KEY_JOB_LOCK.objId}::int
+    )`
+  );
+}
+
+/** Whether any session holds the key-job lock (a job is running). */
+export async function keyJobLockHeld(): Promise<boolean> {
+  const [row] = await pgClient()<{ held: boolean }[]>`
+    select exists(
+      select 1 from pg_locks
+      where locktype = 'advisory' and granted and objsubid = 2
+        and database = (
+          select oid from pg_database where datname = current_database()
+        )
+        and classid = ${KEY_JOB_LOCK.classId}::oid
+        and objid = ${KEY_JOB_LOCK.objId}::oid
+    ) as held`;
+  return row?.held === true;
+}
+
+// --- Rotation ----------------------------------------------------------------
+
+export type InstanceKey = {
+  id: string;
+  publicKey: string;
+  fingerprint: string;
+};
+
+/**
+ * The keys a rotation works with. With a `previous` key already there (an
+ * earlier rotation left servers on it) that rotation is resumed and no key is
+ * generated; otherwise a new key becomes `current` and the old one `previous`,
+ * in one transaction (the partial unique index allows one current key).
+ */
+export async function beginRotation(): Promise<{
+  current: InstanceKey;
+  previous: InstanceKey;
+}> {
+  const pick = (r: InstanceKey) => ({
+    id: r.id,
+    publicKey: r.publicKey,
+    fingerprint: r.fingerprint,
+  });
+  const [unfinished] = await db
+    .select()
+    .from(sshKeys)
+    .where(eq(sshKeys.status, "previous"))
+    .limit(1);
+  if (unfinished) {
+    return { current: await ensureCurrentKey(), previous: pick(unfinished) };
+  }
+
+  const old = await ensureCurrentKey();
+  const key = generateInstanceKey();
+  const created = await db.transaction(async (tx) => {
+    const demoted = await tx
+      .update(sshKeys)
+      .set({ status: "previous" })
+      .where(and(eq(sshKeys.id, old.id), eq(sshKeys.status, "current")))
+      .returning({ id: sshKeys.id });
+    if (demoted.length === 0) throw new Error("the current ssh key changed");
+    const [row] = await tx
+      .insert(sshKeys)
+      .values({
+        publicKey: key.publicKey,
+        privateKey: encryptSecret(key.privateKeyPem),
+        fingerprint: key.fingerprint,
+        status: "current",
+      })
+      .returning();
+    if (!row) throw new Error("ssh key insert returned nothing");
+    return row;
+  });
+  return { current: pick(created), previous: old };
+}
+
+/**
+ * Marks a `previous` key `retired`, in one statement that checks no key
+ * server still signs in with it. Whether every server's file is free of its
+ * line is the caller's to check. Resolves to whether it was retired.
+ */
+export async function retireKey(keyId: string): Promise<boolean> {
+  const retired = await db
+    .update(sshKeys)
+    .set({ status: "retired" })
+    .where(
+      and(
+        eq(sshKeys.id, keyId),
+        eq(sshKeys.status, "previous"),
+        notExists(
+          db
+            .select({ id: servers.id })
+            .from(servers)
+            .where(and(eq(servers.auth, "key"), eq(servers.sshKeyId, keyId)))
+        )
+      )
+    )
+    .returning({ id: sshKeys.id });
+  return retired.length > 0;
+}

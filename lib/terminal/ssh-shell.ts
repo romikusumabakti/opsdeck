@@ -1,16 +1,17 @@
 import { Client, type ClientChannel } from "ssh2";
+import {
+  connectConfig,
+  connectError,
+  connectSucceeded,
+  type SshTarget,
+} from "@/lib/ssh-connect";
 import type { ShellHandle } from "@/lib/terminal/session";
 
 // Adapts an ssh2 shell channel to the ShellHandle the session registry expects.
 // Kept separate from server.ts so the registry, the message loop, and the SSH
 // mechanics can each be reasoned about (and swapped in tests) on their own.
 
-export type ShellTarget = {
-  host: string;
-  port?: number;
-  username: string;
-  password: string;
-};
+export type ShellTarget = SshTarget;
 
 export type ShellOptions = {
   cols: number;
@@ -18,6 +19,8 @@ export type ShellOptions = {
   // Written as `cd '<cwd>'` on open. Already confined and metacharacter-checked
   // by lib/terminal/authorize — never accept an unvalidated value here.
   cwd?: string;
+  // The user opening the shell, recorded if this connection pins the host key.
+  actor?: string;
 };
 
 export type ShellSession = ShellHandle & {
@@ -27,10 +30,11 @@ export type ShellSession = ShellHandle & {
   ): void;
 };
 
-export function openSshShell(
+export async function openSshShell(
   target: ShellTarget,
   options: ShellOptions
 ): Promise<ShellSession> {
+  const config = await connectConfig(target, { actor: options.actor });
   return new Promise((resolve, reject) => {
     const client = new Client();
     let settled = false;
@@ -39,12 +43,13 @@ export function openSshShell(
       if (settled) return;
       settled = true;
       client.end();
-      reject(error);
+      reject(connectError(config, error));
     };
 
     client.on("error", fail);
 
     client.on("ready", () => {
+      connectSucceeded(config);
       client.shell(
         {
           term: "xterm-256color",
@@ -135,10 +140,7 @@ export function openSshShell(
     });
 
     client.connect({
-      host: target.host,
-      port: target.port ?? 22,
-      username: target.username,
-      password: target.password,
+      ...config,
       // Fail fast on an unreachable host rather than hanging the browser's
       // "connecting…" state for 20s.
       readyTimeout: 8000,

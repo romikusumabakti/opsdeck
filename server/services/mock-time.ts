@@ -9,6 +9,7 @@ import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { backendService } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { sshTarget } from "@/lib/ssh-connect";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import {
   isoDateTimeSchema,
@@ -357,11 +358,7 @@ export async function mockProjectTimeLegacy(
 
 function legacyCredentials(environment: EnvironmentWithServers) {
   const backendSvc = backendService(environment);
-  return {
-    host: backendSvc.server.host,
-    username: backendSvc.server.username,
-    password: backendSvc.server.password,
-  };
+  return sshTarget(backendSvc.server);
 }
 
 // Parse the ISO 8601 duration subset the UI emits: optional `-`, P[n]D, then

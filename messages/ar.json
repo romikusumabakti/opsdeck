@@ -1009,7 +1009,17 @@
     "searchPlaceholder": "بحث بالاسم…",
     "colName": "الاسم",
     "colHost": "المضيف",
-    "colUsername": "اسم المستخدم"
+    "colUsername": "اسم المستخدم",
+    "colAccess": "الوصول",
+    "accessKey": "مفتاح",
+    "accessPassword": "كلمة مرور",
+    "accessHostKeyChanged": "تغيّر مفتاح المضيف",
+    "hostKeyHint": "مفتاح المضيف {fingerprint}",
+    "hostKeyNotPinnedHint": "لم يُثبَّت مفتاح المضيف بعد",
+    "deleteKeyNote": "يبقى مفتاح اللوحة في ~/.ssh/authorized_keys على هذا الخادم. احذف يدويًا السطر الذي ينتهي بـ {marker}.",
+    "bulkDeleteKeyNote": "تحتفظ الخوادم التي تستخدم مفتاح SSH بمفتاح اللوحة في ~/.ssh/authorized_keys. احذف سطره يدويًا.",
+    "accessKeyNotVerified": "لم يُتحقَّق من المفتاح بعد",
+    "accessNeedsSetup": "يحتاج إلى إعداد"
   },
   "serverForm": {
     "name": "الاسم",
@@ -1035,19 +1045,32 @@
     "placementRestricted": "مقيّد: المسؤولون وفريق البنية التحتية فقط، بالإضافة إلى Engineers على الخادم الافتراضي للمشروع",
     "placementOpen": "مفتوح: Engineers المشروع",
     "placementDescription": "من يمكنه إنشاء بيئات جديدة على هذا الخادم. على الخادم المفتوح، يمكن لـ Engineers المشروع إنشاء بيئات على هذا الخادم دون صلاحيات الخادم؛ لا تجعل مفتوحًا إلا خوادم التطوير أو التجريب القابلة للاستغناء عنها. لا تتأثر البيئات الموجودة.",
-    "sftpRootInvalid": "يجب أن يكون مسارًا مطلقًا (يبدأ بـ /)"
+    "sftpRootInvalid": "يجب أن يكون مسارًا مطلقًا (يبدأ بـ /)",
+    "accessMethod": "كيف تسجّل اللوحة الدخول",
+    "methodKey": "ثبّت المفتاح بنفسك",
+    "methodKeyDescription": "شغّل أمرًا واحدًا على الخادم. لا تُحفظ أي كلمة مرور.",
+    "methodPassword": "استخدم كلمة مرور root مرة واحدة",
+    "methodPasswordDescription": "تثبّت اللوحة المفتاح بها ولا تحتفظ بها.",
+    "publicKey": "المفتاح العام للوحة",
+    "sshFrom": "عنوان اللوحة كما يراه الخادم",
+    "sshFromDescription": "عنوان IP أو الشبكة الفرعية التي تتصل منها اللوحة. يعمل المفتاح من هناك فقط.",
+    "sshFromPlaceholder": "مثال: 192.168.1.10",
+    "installCommand": "شغّله على الخادم بصفة مستخدم SSH",
+    "installCommandEmpty": "أدخل العنوان للحصول على الأمر.",
+    "passwordOnce": "كلمة المرور (تُستخدم مرة واحدة ولا تُحفظ)",
+    "keyNotInstalled": "أُضيف الخادم، لكن لم يُثبَّت المفتاح: {message}"
   },
   "newServer": {
     "title": "إضافة خادم",
-    "description": "سجّل بيانات SSH لخادم جديد. يمكن إعادة استخدام الخوادم في عدة بيئات.",
-    "formTitle": "بيانات اعتماد SSH",
-    "formDescription": "قدم المضيف واسم المستخدم وكلمة المرور. استخدم اختبار الاتصال للتحقق قبل الحفظ."
+    "description": "سجّل خادمًا تصل إليه اللوحة عبر SSH. يمكن إعادة استخدام الخوادم في عدة بيئات.",
+    "formTitle": "الخادم",
+    "formDescription": "أدخل المضيف ومستخدم SSH، ثم اختر كيف تسجّل اللوحة الدخول."
   },
   "editServer": {
     "title": "تعديل الخادم: {name}",
-    "description": "تحديث بيانات اعتماد SSH ومراجعة أماكن استخدام هذا الخادم.",
-    "formTitle": "بيانات اعتماد SSH",
-    "formDescription": "اترك كلمة المرور فارغة للإبقاء عليها.",
+    "description": "حدّث الخادم وراجع أين يُستخدم.",
+    "formTitle": "الخادم",
+    "formDescription": "المضيف ومستخدم SSH وإعدادات مستكشف الملفات.",
     "backToServers": "العودة إلى الخوادم",
     "viewTitle": "الخادم: {name}"
   },
@@ -1337,6 +1360,20 @@
     "serverInUse": "لا يمكن حذف الخادم أثناء استخدامه من قبل بيئة",
     "hostAndUsernameRequired": "المضيف واسم المستخدم مطلوبان",
     "passwordRequiredForTest": "أدخل كلمة المرور لاختبار الاتصال",
+    "hostKeyMismatch": "مفتاح المضيف للخادم لا يطابق المفتاح المثبّت. يجب أن يراجعه مسؤول قبل الاتصال.",
+    "passwordRequired": "أدخل كلمة المرور: لا تُرسل كلمة المرور المحفوظة أبدًا إلى مضيف جديد.",
+    "hostKeyChanged": "عرض الخادم مفتاح مضيف آخر منذ أن راجعته. راجع البصمة الجديدة.",
+    "keyInstallFailed": "تعذر تثبيت مفتاح SSH على الخادم. تم الاحتفاظ بكلمة المرور.",
+    "keyLoginFailed": "لم يقبل الخادم تسجيل الدخول بمفتاح SSH. تم الاحتفاظ بكلمة المرور.",
+    "keyTypeUnsupported": "إصدار OpenSSH على الخادم قديم جدًا لمفتاح SSH (يتطلب ed25519 الإصدار OpenSSH 6.5 أو أحدث). لم يتم تغيير شيء، وتم الاحتفاظ بكلمة المرور.",
+    "unreachable": "تعذر الوصول إلى الخادم عبر SSH.",
+    "sudoNeedsPassword": "يحتاج هذا المستخدم إلى كلمة مرور لـ sudo، لذا لا يمكنه الانتقال إلى مفتاح SSH. استخدم root أو قاعدة sudo بخيار NOPASSWD.",
+    "noPassword": "لا توجد كلمة مرور محفوظة لهذا الخادم. أعد تثبيت المفتاح باستخدام كلمة المرور.",
+    "passwordRejected": "رفض الخادم كلمة المرور.",
+    "keyJobRunning": "هناك عملية أخرى على مفتاح SSH قيد التشغيل. حاول مرة أخرى بعد انتهائها.",
+    "keyJobInterrupted": "توقفت مهمة مفتاح SSH قبل اكتمالها، مثلاً بسبب إعادة تشغيل اللوحة. شغّلها مرة أخرى.",
+    "oldKeyNotRemoved": "يعمل مفتاح SSH الجديد، لكن تعذّرت إزالة سطر المفتاح القديم من الخادم. نفّذ التدوير مرة أخرى لإكماله.",
+    "sshDirUnsafe": "المجلد ‎~/.ssh على الخادم مملوك لمستخدم آخر أو قابل للكتابة من الآخرين، لذا سيتجاهل SSH المفتاح. أصلح المالك والصلاحيات (chmod 700) أولاً.",
     "invalidInput": "إدخال غير صالح",
     "errorGeneric": "حدث خطأ ما",
     "sourceNotFound": "مصدر التخزين غير موجود",
@@ -1434,7 +1471,12 @@
     "sharedDatabaseConfined": "مضيف قاعدة بيانات هذه البيئة مشترك؛ يمكنك استخدام قواعد بيانات هذه البيئة فقط. اطلب المساعدة من مسؤول للقواعد الأخرى.",
     "sharedDatabaseServiceConfined": "حاوية قاعدة البيانات هذه مشتركة مع بيئات أخرى؛ لا يمكن إلا للمسؤول التحكم فيها أو قراءة سجلاتها.",
     "databaseHostVersion": "تشغّل تلك الحاوية إصدار Postgres أقدم من 15؛ سجّل فقط Postgres 15 أو أحدث.",
-    "defaultServerForbidden": "يمكن للمسؤولين وفريق البنية التحتية فقط تغيير الخادم الافتراضي للمشروع."
+    "defaultServerForbidden": "يمكن للمسؤولين وفريق البنية التحتية فقط تغيير الخادم الافتراضي للمشروع.",
+    "invalidFrom": "أدخل عنوان IP أو شبكة فرعية، مثل 192.168.1.10 أو 172.29.0.0/16.",
+    "keyNotVerified": "لم يسجّل مفتاح SSH الدخول بعد. شغّل أمر التثبيت على الخادم، ثم تحقّق من الدخول بالمفتاح.",
+    "notKeyServer": "لا يسجّل هذا الخادم الدخول بمفتاح SSH.",
+    "keyServerNoPassword": "يسجّل هذا الخادم الدخول بمفتاح SSH، لذا لا يحفظ كلمة مرور.",
+    "keyLineNotFound": "يسجّل المفتاح الدخول، لكن سطر اللوحة غير موجود في ~/.ssh/authorized_keys على الخادم. شغّل أمر التثبيت المعروض هنا."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -1608,7 +1650,8 @@
     "serverFilesTitle": "الملفات — {name}",
     "serverFilesSubtitle": "تصفح {root} عبر SFTP",
     "storageFilesTitle": "الملفات — {name}",
-    "storageFilesSubtitle": "تصفح الحاوية {bucket}"
+    "storageFilesSubtitle": "تصفح الحاوية {bucket}",
+    "reviewHostKey": "مراجعة مفتاح المضيف"
   },
   "storage": {
     "title": "التخزين",
@@ -2039,6 +2082,12 @@
     "deployTargetUpdated": "غيّر {actor} هدف نشر {component} في {environment} ({changes})",
     "deployTargetDeleted": "أزال {actor} هدف نشر {component} من {environment}",
     "serverPreflight": "{actor} شغّل فحصًا مسبقًا على {server}",
+    "serverHostKeyPinned": "تم تثبيت مفتاح المضيف لـ {server} ({fingerprint})",
+    "serverHostKeyPinnedBy": "{actor} ثبّت مفتاح المضيف لـ {server} ({fingerprint})",
+    "serverHostKeyMismatch": "{server} عرض مفتاح مضيف مختلفًا ({fingerprint}، المثبّت {pinned})",
+    "serverHostKeyTrusted": "{actor} وثق بمفتاح المضيف الجديد لـ {server} ({fingerprint})",
+    "serverKeyInstalled": "{actor} نقل {server} إلى مفتاح SSH (من {from})",
+    "serverKeyReinstalled": "{actor} أعاد تثبيت مفتاح SSH على {server} (من {from})",
     "databaseHostCreated": "سجّل {actor} مضيف قاعدة البيانات {label} ({container}) على {server}",
     "databaseHostUpdated": "عيّن {actor} شبكة مضيف قاعدة البيانات {label} ({container}) على {server} إلى {network}",
     "databaseHostDeleted": "أزال {actor} مضيف قاعدة البيانات {label} ({container}) من {server}",
@@ -2046,7 +2095,9 @@
     "environmentDomainUpdated": "{actor} عيّن نطاق {environment} إلى {hostname}",
     "environmentDomainDeleted": "{actor} أزال النطاق {hostname} من {environment}",
     "projectDefaultServerSet": "عيّن {actor} الخادم الافتراضي لـ {project} إلى {server}",
-    "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}"
+    "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}",
+    "serverKeyRotated": "{actor} بدّل مفتاح SSH على {server} (من {from})",
+    "serverKeyFromChanged": "{actor} حدّث عنوان مفتاح SSH لـ {server} (من {before} إلى {after})"
   },
   "jira": {
     "title": "Jira",
@@ -2140,7 +2191,8 @@
       "connected": "متصل",
       "reconnecting": "جارٍ إعادة الاتصال…",
       "closed": "غير متصل"
-    }
+    },
+    "reviewHostKey": "مراجعة مفتاح المضيف"
   },
   "tunnels": {
     "title": "أنفاق Cloudflare",
@@ -3001,9 +3053,10 @@
   },
   "instance": {
     "title": "المثيل",
-    "subtitle": "النسخ الاحتياطية والتحديثات الخاصة بهذه اللوحة.",
+    "subtitle": "النسخ الاحتياطية والتحديثات ومفتاح SSH الخاصة بهذه اللوحة.",
     "tabBackups": "النسخ الاحتياطية",
-    "tabUpdates": "التحديثات"
+    "tabUpdates": "التحديثات",
+    "tabSshKey": "مفتاح SSH"
   },
   "instanceBackups": {
     "settingsTitle": "الجدول والوجهة",
@@ -3183,5 +3236,60 @@
       "updateCheckFailed": "تعذّر الوصول إلى GitHub للتحقق من التحديثات."
     },
     "autoUpdateSkipped": "يتخطى التحديث التلقائي الإصدار {version}: لم ينجح تشغيله الأخير. حدّث يدويًا عندما تكون جاهزًا."
+  },
+  "serverAccess": {
+    "title": "الوصول عبر SSH",
+    "description": "كيف تسجّل اللوحة الدخول إلى هذا الخادم.",
+    "signIn": "تسجيل الدخول",
+    "key": "مفتاح SSH",
+    "password": "كلمة مرور",
+    "hostKey": "مفتاح المضيف",
+    "notPinned": "لم يُثبَّت بعد. يُثبَّت عند أول اتصال.",
+    "pinnedAt": "ثُبّت في {date}",
+    "from": "مسموح من",
+    "lastError": "آخر خطأ",
+    "moveToKey": "الانتقال إلى مفتاح SSH",
+    "moveToKeyDone": "يسجّل الخادم الدخول الآن بمفتاح SSH.",
+    "reinstallKey": "إعادة تثبيت المفتاح",
+    "passwordOnceDescription": "أدخل كلمة مرور {username} مرة واحدة. تسجّل اللوحة الدخول بها وتثبّت المفتاح ولا تحتفظ بها.",
+    "passwordLabel": "كلمة المرور",
+    "install": "تثبيت المفتاح",
+    "mismatchTitle": "تغيّر مفتاح المضيف",
+    "mismatchDescription": "عرض الخادم مفتاح مضيف مختلفًا، لذا لا تتصل به اللوحة. تحقّق من المفتاح الجديد على الخادم نفسه قبل الوثوق به.",
+    "pinnedFingerprint": "المثبّت",
+    "offeredFingerprint": "المعروض الآن",
+    "trustNewKey": "الوثوق بالمفتاح الجديد",
+    "trustTitle": "الوثوق بمفتاح المضيف الجديد؟",
+    "trustDescription": "لا تثق بـ {fingerprint} إلا إذا تحققت منه على الخادم نفسه.",
+    "trustDone": "تم الوثوق بمفتاح المضيف الجديد.",
+    "reviewHostKey": "مراجعة مفتاح المضيف",
+    "keyNotVerified": "مفتاح SSH، لم يُتحقَّق منه بعد",
+    "needsSetup": "يحتاج إلى إعداد: لا كلمة مرور ولا مفتاح",
+    "showInstallCommand": "إظهار أمر التثبيت",
+    "checkKeyLogin": "التحقق من الدخول بالمفتاح",
+    "checkKeyLoginDone": "يسجّل مفتاح SSH الدخول بنجاح."
+  },
+  "instanceSshKey": {
+    "title": "مفتاح SSH",
+    "description": "تسجّل اللوحة الدخول إلى الخوادم بهذا المفتاح. لا يغادر المفتاح الخاص اللوحة أبدًا.",
+    "publicKey": "المفتاح العام",
+    "fingerprint": "البصمة",
+    "moveAll": "نقل كل الخوادم إلى مفتاح SSH",
+    "moveAllTitle": "نقل كل الخوادم إلى مفتاح SSH؟",
+    "moveAllDescription": "يحصل كل خادم بكلمة مرور على المفتاح وتُحذف كلمة مروره المحفوظة. الخادم الذي يفشل يحتفظ بكلمة مروره ويُدرج في القائمة.",
+    "rotate": "تبديل",
+    "rotateTitle": "تبديل مفتاح SSH؟",
+    "rotateDescription": "يُثبَّت مفتاح جديد على كل خادم يستخدم المفتاح ويُزال القديم. الخوادم التي تفشل تحتفظ بالمفتاح القديم وتُدرج في القائمة.",
+    "started": "بدأ. يظهر التقدّم أدناه.",
+    "runningMoveAll": "جارٍ نقل الخوادم إلى المفتاح… اكتمل {count}",
+    "runningRotate": "جارٍ تبديل المفتاح… اكتمل {count}",
+    "lastMoveAll": "آخر نقل إلى المفتاح",
+    "lastRotate": "آخر تبديل",
+    "noServers": "لم يحتجه أي خادم.",
+    "colServer": "الخادم",
+    "colResult": "النتيجة",
+    "ok": "تم",
+    "failed": "فشل",
+    "previousKey": "لم يكتمل التبديل: ما زالت بعض الخوادم تستخدم {fingerprint}. شغّل التبديل مجددًا لإعادة المحاولة."
   }
 }

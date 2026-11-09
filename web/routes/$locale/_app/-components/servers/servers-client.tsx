@@ -1,9 +1,11 @@
 import {
   Eye,
   FolderOpen,
+  KeyRound,
   Pencil,
   Plus,
   Server as ServerIcon,
+  ShieldAlert,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
@@ -12,6 +14,7 @@ import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DataTable,
@@ -20,12 +23,14 @@ import {
 } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { type RowAction, RowActions } from "@/components/ui/row-actions";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
 import {
   bulkDeleteServers,
   deleteServer,
   type ServerRow as Server,
 } from "@/web/api/servers";
+import { accessState } from "./access-state";
 
 // What the caller may do beyond listing (server:read), from the page.
 export type ServerCapabilities = {
@@ -60,10 +65,22 @@ export function ServersClient({
     async (server: Server) => {
       const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
-        description: t("deleteDescription", {
-          name: server.name,
-          host: server.host,
-        }),
+        // The Panel cannot reach a deleted server, so its key line there is
+        // the admin's to remove.
+        description:
+          server.auth === "key" ? (
+            <>
+              {t("deleteDescription", {
+                name: server.name,
+                host: server.host,
+              })}{" "}
+              {t("deleteKeyNote", {
+                marker: server.keyMarker ?? "opsdeck:…",
+              })}
+            </>
+          ) : (
+            t("deleteDescription", { name: server.name, host: server.host })
+          ),
         phrase: server.name,
         phraseLabel: tCommon("confirmTypingLabel"),
         placeholder: tCommon("confirmTypingPlaceholder"),
@@ -88,7 +105,9 @@ export function ServersClient({
     async (ids: string[], clearSelection: () => void) => {
       const ok = await dialog.confirm({
         title: t("bulkDeleteTitle", { count: ids.length }),
-        description: t("bulkDeleteDescription"),
+        description: servers.some((s) => ids.includes(s.id) && s.auth === "key")
+          ? `${t("bulkDeleteDescription")} ${t("bulkDeleteKeyNote")}`
+          : t("bulkDeleteDescription"),
         confirmText: tCommon("delete"),
         cancelText: tCommon("cancel"),
         destructive: true,
@@ -157,6 +176,12 @@ export function ServersClient({
         ),
       },
       {
+        id: "access",
+        meta: { label: t("colAccess") },
+        header: t("colAccess"),
+        cell: ({ row }) => <AccessBadge server={row.original} />,
+      },
+      {
         id: "actions",
         enableHiding: false,
         meta: {
@@ -192,6 +217,7 @@ export function ServersClient({
           <span className="font-mono text-xs text-muted-foreground truncate">
             {server.username}
           </span>
+          <AccessBadge server={server} />
         </div>
         <ServerActions
           server={server}
@@ -259,6 +285,50 @@ export function ServersClient({
       }
     />
   );
+}
+
+/**
+ * How the Panel signs in (accessState): Key (the host key fingerprint on
+ * hover), Key not verified yet, Password, Needs setup, or a warning when the
+ * server offered another host key (nothing connects).
+ */
+function AccessBadge({ server }: { server: Server }) {
+  const t = useTranslations("servers");
+  switch (accessState(server)) {
+    case "hostKeyChanged":
+      return (
+        <Badge variant="destructive">
+          <ShieldAlert data-icon="inline-start" />
+          {t("accessHostKeyChanged")}
+        </Badge>
+      );
+    case "needsSetup":
+      return <Badge variant="outline">{t("accessNeedsSetup")}</Badge>;
+    case "password":
+      return <Badge variant="outline">{t("accessPassword")}</Badge>;
+    case "keyNotVerified":
+      return (
+        <Badge variant="outline">
+          <KeyRound data-icon="inline-start" />
+          {t("accessKeyNotVerified")}
+        </Badge>
+      );
+    case "key":
+      return (
+        <TooltipHint
+          label={
+            server.hostKeyFingerprint
+              ? t("hostKeyHint", { fingerprint: server.hostKeyFingerprint })
+              : t("hostKeyNotPinnedHint")
+          }
+        >
+          <Badge variant="secondary" tabIndex={0}>
+            <KeyRound data-icon="inline-start" />
+            {t("accessKey")}
+          </Badge>
+        </TooltipHint>
+      );
+  }
 }
 
 // Browsing is the row's primary action, so it stays a button; edit and delete

@@ -3,6 +3,7 @@ import type { Server } from "@/lib/db/schema";
 import { pgQuoteId, pgQuoteLiteral } from "@/lib/jobs/commands";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand, redactSecrets } from "@/lib/ssh";
+import { sshTarget } from "@/lib/ssh-connect";
 
 // Re-exported so the provisioning code has one import site.
 export { redactSecrets } from "@/lib/ssh";
@@ -158,7 +159,7 @@ const PROVISION_TIMEOUT_MS = 60_000;
  */
 export async function provisionSharedDatabase(
   host: {
-    server: Pick<Server, "host" | "username" | "password">;
+    server: Pick<Server, "id" | "host" | "username" | "password" | "auth">;
     containerName: string;
   },
   input: {
@@ -166,6 +167,8 @@ export async function provisionSharedDatabase(
     role: string;
     password: string;
     environmentId: string;
+    // The provisioning run, recorded with a host key its connection pins.
+    runId: string;
   }
 ): Promise<void> {
   if (!/^[\x20-\x7e]+$/.test(input.password)) {
@@ -180,11 +183,7 @@ export async function provisionSharedDatabase(
     verifier,
     environmentId: input.environmentId,
   });
-  const creds = {
-    host: host.server.host,
-    username: host.server.username,
-    password: host.server.password,
-  };
+  const creds = { ...sshTarget(host.server), run: input.runId };
   const container = shq(host.containerName);
   const secrets = [input.password, verifier];
   try {

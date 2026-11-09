@@ -29,7 +29,11 @@ import {
   failRun,
 } from "@/lib/run-progress";
 import { shq } from "@/lib/sh";
-import { executeRemoteCommand, uploadRemoteContent } from "@/lib/ssh";
+import {
+  executeRemoteCommand,
+  type SshTarget,
+  uploadRemoteContent,
+} from "@/lib/ssh";
 import {
   COMPOSE_OVERLAY_FILE,
   renderComposeOverlay,
@@ -248,8 +252,9 @@ async function runClaimedDeployment(
   if (!component) {
     throw new Error(`Component ${target.componentKey} not found`);
   }
-  const credentials = await loadServerCredentials(target.serverId);
-  if (!credentials) throw new Error(`Server ${target.serverId} not found`);
+  const loaded = await loadServerCredentials(target.serverId);
+  if (!loaded) throw new Error(`Server ${target.serverId} not found`);
+  const credentials = { ...loaded, run: runId };
 
   // A managed environment gets its whole .env rendered from the Panel's
   // variables; null leaves the deploy exactly as it was before (tag line only).
@@ -494,7 +499,7 @@ function renderManagedEnvFile(
  * last line wins; one pair of surrounding quotes is dropped.
  */
 async function readServerTags(
-  credentials: { host: string; username: string; password: string },
+  credentials: SshTarget,
   deployDir: string,
   names: string[]
 ): Promise<Record<string, string>> {

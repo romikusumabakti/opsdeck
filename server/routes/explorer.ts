@@ -160,7 +160,7 @@ export const explorerRouter = sessionRouter()
     const first = targets[0] ?? "";
     const flat = targets.length === 1 && (first === "" || first.endsWith("/"));
 
-    const backend = await resolveBackend(src);
+    const backend = await resolveBackend(src, guard.session.user.id);
     if (!backend) return new Response("Not found", { status: 404 });
 
     let tree: Tree;
@@ -221,7 +221,7 @@ export const explorerRouter = sessionRouter()
       return new Response("Invalid path", { status: 400 });
     }
 
-    const backend = await resolveBackend(src);
+    const backend = await resolveBackend(src, guard.session.user.id);
     if (!backend) return new Response("Not found", { status: 404 });
 
     try {
@@ -283,7 +283,7 @@ export const explorerRouter = sessionRouter()
       return new Response("Invalid path", { status: 400 });
     }
 
-    const backend = await resolveBackend(src);
+    const backend = await resolveBackend(src, guard.session.user.id);
     if (!backend) return new Response("Not found", { status: 404 });
 
     const dest = joinPath(parsedDir.data, parsedRelative.data);

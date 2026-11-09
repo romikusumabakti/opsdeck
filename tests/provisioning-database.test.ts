@@ -27,6 +27,16 @@ const ssh = vi.hoisted(() => ({
   onExec: null as null | ((call: ExecCall) => void),
 }));
 
+// node-ssh is faked, so no host key is ever offered: skip the factory's
+// server-row lookup (covered in ssh-connect.test).
+vi.mock("@/lib/ssh-connect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ssh-connect")>()),
+  connectConfig: async (target: { host: string; username: string }) => ({
+    host: target.host,
+    username: target.username,
+  }),
+}));
+
 vi.mock("node-ssh", () => ({
   NodeSSH: class {
     async connect() {}
@@ -185,12 +195,19 @@ describe("pgProvisionDatabaseSql", () => {
 });
 
 describe("provisionSharedDatabase", () => {
-  const server = { host: "10.0.0.5", username: "ops", password: "ssh-pw" };
+  const server = {
+    id: "0197f3a0-1b2c-7def-8000-0123456789c4",
+    host: "10.0.0.5",
+    username: "ops",
+    password: "ssh-pw",
+    auth: "password" as const,
+  };
   const input = {
     database: "pcan_sandbox1",
     role: "pcan_sandbox1",
     password: "Very$ecret-pw",
     environmentId: ENV_ID,
+    runId: "01a157b8-794f-7f5c-8a72-59f1cdc68099",
   };
   let logged: unknown[][];
 
@@ -301,7 +318,13 @@ describe("executeRemoteCommand options", () => {
   });
 
   it("keeps the positional timeout and sends no stdin by default", async () => {
-    const creds = { host: "h", username: "u", password: "p" };
+    const creds = {
+      serverId: null,
+      host: "h",
+      username: "u",
+      password: "p",
+      auth: "password" as const,
+    };
     expect(await executeRemoteCommand(creds, "true", 30_000)).toBe("ok");
     expect(await executeRemoteCommand(creds, "true")).toBe("ok");
     expect(ssh.calls.map((c) => c.stdin)).toEqual([undefined, undefined]);

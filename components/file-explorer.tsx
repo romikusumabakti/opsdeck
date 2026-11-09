@@ -31,6 +31,10 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useFormatter, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import {
+  isHostKeyMismatchFailure,
+  serverPageHref,
+} from "@/components/host-key-mismatch";
 import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
@@ -192,6 +196,9 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const [entries, setEntries] = React.useState<ExplorerEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  // The listing was refused on a changed host key: link to the server page,
+  // where an admin reviews it.
+  const [hostKeyMismatch, setHostKeyMismatch] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   // The file currently open in the editor; null when the editor is closed.
   const [editing, setEditing] = React.useState<ExplorerEntry | null>(null);
@@ -242,11 +249,13 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const refresh = React.useCallback(async () => {
     setLoading(true);
     setError(null);
+    setHostKeyMismatch(false);
     const result = await listEntries(source, path);
     if (result.success) {
       setEntries(result.data);
     } else {
       setError(result.message);
+      setHostKeyMismatch(isHostKeyMismatchFailure(result));
       setEntries([]);
     }
     setLoading(false);
@@ -1568,6 +1577,17 @@ export function FileExplorer({ source, rootLabel }: Props) {
             icon={Folder}
             title={t("loadFailed")}
             description={error}
+            action={
+              hostKeyMismatch && source.kind === "sftp" ? (
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={serverPageHref(source.serverId)} />}
+                >
+                  {t("reviewHostKey")}
+                </Button>
+              ) : undefined
+            }
           />
         </div>
       ) : loading ? (

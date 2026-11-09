@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SafeServer, Server } from "@/lib/db/schema";
+import { serverView } from "@/lib/server-view";
 import {
   serverInputSchema,
   serverUpdateSchema,
@@ -12,6 +12,13 @@ import {
   suggestEntryPort,
 } from "@/server/services/preflight";
 import {
+  checkKeyLoginAction,
+  moveToKeyAction,
+  reinstallKeyAction,
+  serverAuthorizedLineAction,
+  trustHostKeyAction,
+} from "@/server/services/server-keys";
+import {
   bulkDeleteServers,
   createServer,
   deleteServer,
@@ -23,12 +30,11 @@ import {
 } from "@/server/services/servers";
 import { json, param, query } from "@/server/validation";
 
-// The services return whole rows, encrypted SSH password included; under Next
-// the pages projected it away before rendering. No client form reads it (edit
-// forms send a new password or none), so it never leaves the server.
-function toSafe({ password: _password, ...rest }: Server): SafeServer {
-  return rest;
-}
+const fromSchema = z.string().trim().min(1).max(64);
+
+// The services return whole rows, encrypted SSH password and host key blobs
+// included; serverView keeps the password and the blobs on the server (edit
+// forms send a new password or none).
 
 // Bulk delete acts on what the servers table shows; the cap keeps a crafted
 // request from naming the whole table.
@@ -37,10 +43,12 @@ const idParam = param(z.object({ id: uuidSchema }));
 const serverIds = z.array(uuidSchema).max(500);
 
 export const serversRouter = sessionRouter()
-  .get("/get-servers", async (c) => c.json((await getServers()).map(toSafe)))
+  .get("/get-servers", async (c) =>
+    c.json((await getServers()).map(serverView))
+  )
   .get("/get-server-by-id", query(z.object({ id: uuidSchema })), async (c) => {
     const server = await getServerById(c.req.valid("query").id);
-    return c.json(server ? toSafe(server) : null);
+    return c.json(server ? serverView(server) : null);
   })
   .get(
     "/get-server-usage",
@@ -53,7 +61,7 @@ export const serversRouter = sessionRouter()
     async (c) => {
       const result = await createServer(c.req.valid("json").data);
       return c.json(
-        result.success ? { ...result, data: toSafe(result.data) } : result
+        result.success ? { ...result, data: serverView(result.data) } : result
       );
     }
   )
@@ -75,6 +83,7 @@ export const serversRouter = sessionRouter()
           username: z.string().max(255),
           password: z.string().max(1024).optional(),
           serverId: uuidSchema.optional(),
+          auth: z.literal("key").optional(),
         }),
       })
     ),
@@ -95,4 +104,50 @@ export const serversRouter = sessionRouter()
   )
   .get("/:id/free-port", idParam, async (c) =>
     c.json(await suggestEntryPort(c.req.valid("param").id))
+  )
+  // Moving to the instance SSH key; the services check server:manage. The
+  // reinstall password signs in once and is never stored.
+  .post("/:id/move-to-key", idParam, async (c) =>
+    c.json(await moveToKeyAction(c.req.valid("param").id))
+  )
+  .post(
+    "/:id/reinstall-key",
+    idParam,
+    json(z.object({ password: z.string().min(1).max(1024) })),
+    async (c) =>
+      c.json(
+        await reinstallKeyAction(
+          c.req.valid("param").id,
+          c.req.valid("json").password
+        )
+      )
+  )
+  // A key installed by hand: its command, and a key-only login check that
+  // records the from= its line on the host carries.
+  .get(
+    "/:id/authorized-line",
+    idParam,
+    query(z.object({ from: fromSchema })),
+    async (c) =>
+      c.json(
+        await serverAuthorizedLineAction(
+          c.req.valid("param").id,
+          c.req.valid("query").from
+        )
+      )
+  )
+  .post("/:id/check-key-login", idParam, async (c) =>
+    c.json(await checkKeyLoginAction(c.req.valid("param").id))
+  )
+  .post(
+    "/:id/trust-host-key",
+    idParam,
+    json(z.object({ expectedFingerprint: z.string().min(1).max(100) })),
+    async (c) =>
+      c.json(
+        await trustHostKeyAction(
+          c.req.valid("param").id,
+          c.req.valid("json").expectedFingerprint
+        )
+      )
   );

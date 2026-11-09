@@ -505,10 +505,12 @@ describe("handleDeploy", () => {
     expect(ssh.executeRemoteCommand).toHaveBeenCalledTimes(1);
     const [creds, script, timeoutMs] =
       ssh.executeRemoteCommand.mock.calls[0] ?? [];
+    // The run rides along, so a host key it pins is recorded with it.
     expect(creds).toEqual({
       host: "10.0.0.5",
       username: "ops",
       password: "pw",
+      run: RUN_ID,
     });
     expect(script).toContain(
       `192.168.56.113:5000/dplk-accounting-deploy:${TAG}`
@@ -621,6 +623,7 @@ describe("handleDeploy with a managed .env", () => {
       host: "10.0.0.5",
       username: "ops",
       password: "pw",
+      run: RUN_ID,
     });
     expect(path).toBe(STAGED_PATH);
     expect(mode).toBe(0o600);
