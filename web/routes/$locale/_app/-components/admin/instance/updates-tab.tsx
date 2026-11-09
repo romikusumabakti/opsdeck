@@ -79,7 +79,17 @@ type Status = NonNullable<InstanceUpdatesData["status"]>;
 /** How often the tab re-reads the status while a run is underway. */
 const POLL_MS = 2000;
 
-export function updateStatusMessage(t: T, code: string): string {
+export function updateStatusMessage(
+  t: T,
+  code: string,
+  state?: Status["state"]
+): string {
+  // Failed (not rolled back) after an interruption: nothing says the Panel
+  // is back on its version (a run cut off by a reboot, or older than the
+  // updater's timeout).
+  if (code === "interrupted" && state === "failed") {
+    return t("interruptedFailed");
+  }
   return (UPDATE_STATUS_CODES as readonly string[]).includes(code)
     ? t(`statusCodes.${code as UpdateStatusCode}`)
     : t("statusCodes.unknown", { code });
@@ -358,15 +368,26 @@ function StatusCard({ data }: { data: InstanceUpdatesData }) {
           </p>
         )}
         {status && <StepList status={status} />}
-        {status?.state === "rolled_back" && (
-          <Alert>
-            <RotateCcw />
-            <AlertTitle>{t("rolledBackTitle")}</AlertTitle>
-            <AlertDescription>
-              {status.code ? updateStatusMessage(t, status.code) : null}
-            </AlertDescription>
-          </Alert>
-        )}
+        {status?.state === "rolled_back" &&
+          (status.action === "restore" && status.restored ? (
+            // The restore itself succeeded; only the update after it, to the
+            // version that ran before, was rolled back.
+            <Alert>
+              <RotateCcw />
+              <AlertTitle>{t("restoredRolledBackTitle")}</AlertTitle>
+              <AlertDescription>
+                {t("restoredRolledBack", { version: status.version ?? "" })}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert>
+              <RotateCcw />
+              <AlertTitle>{t("rolledBackTitle")}</AlertTitle>
+              <AlertDescription>
+                {status.code ? updateStatusMessage(t, status.code) : null}
+              </AlertDescription>
+            </Alert>
+          ))}
         {status &&
           status.state !== "rolled_back" &&
           status.state !== "running" &&
@@ -377,7 +398,7 @@ function StatusCard({ data }: { data: InstanceUpdatesData }) {
               <CircleAlert />
               <AlertTitle>{t(`states.${status.state}`)}</AlertTitle>
               <AlertDescription>
-                {updateStatusMessage(t, status.code)}
+                {updateStatusMessage(t, status.code, status.state)}
               </AlertDescription>
             </Alert>
           )}

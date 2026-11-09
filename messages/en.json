@@ -3124,6 +3124,9 @@
       "refused": "Refused"
     },
     "rolledBackTitle": "The previous version runs again",
+    "restoredRolledBackTitle": "The backup is restored",
+    "restoredRolledBack": "The backup is restored and runs on its version, {version}. The update to the version that ran before did not finish and was rolled back; update again when ready.",
+    "interruptedFailed": "The run stopped before it finished (the server restarted or the updater was stopped). Check that the Panel runs the version you expect.",
     "safetyTitle": "Undo the restore",
     "safetyDescription": "A safety backup was taken just before the restore. Restoring it puts the data back as it was.",
     "restoreSafety": "Restore the safety backup",
