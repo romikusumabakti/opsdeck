@@ -11,8 +11,9 @@ import {
   type Server,
   servers,
 } from "@/lib/db/schema";
-import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { decryptNullable, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
+import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
 import type { ActionResponse } from "@/lib/types";
 import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
@@ -134,11 +135,30 @@ export async function updateServer(
   const patch = { ...parsed.data };
   if (patch.password) patch.password = encryptSecret(patch.password);
   try {
-    const [updated] = await db
-      .update(servers)
-      .set({ ...patch, updatedAt: new Date() })
-      .where(eq(servers.id, id))
-      .returning();
+    const write = (
+      tx: Pick<typeof db, "update">,
+      reset: Partial<typeof HOST_KEY_CLEARED> = {}
+    ) =>
+      tx
+        .update(servers)
+        .set({ ...patch, ...reset, updatedAt: new Date() })
+        .where(eq(servers.id, id))
+        .returning();
+    const newHost = patch.host;
+    // A new address never inherits the old pin. The row is locked so a
+    // connection pinning the old host's key cannot land in between.
+    const [updated] =
+      newHost === undefined
+        ? await write(db)
+        : await db.transaction(async (tx) => {
+            const [current] = await tx
+              .select({ host: servers.host })
+              .from(servers)
+              .where(eq(servers.id, id))
+              .for("update");
+            const moved = current !== undefined && current.host !== newHost;
+            return write(tx, moved ? HOST_KEY_CLEARED : {});
+          });
     if (!updated) {
       return { success: false, message: t("serverNotFound") };
     }
@@ -150,9 +170,11 @@ export async function updateServer(
 }
 
 /**
- * Probe an SSH connection without persisting anything. Used by the "Test
+ * Probe an SSH connection; nothing is persisted except a first-use host key
+ * pin for a saved server. Used by the "Test
  * connection" button on server forms. In edit mode, the password may be
- * omitted — we then load the stored password by `serverId`.
+ * omitted — the server is then tested with its stored password or its key,
+ * and its host key is verified (or pinned) like any other connection.
  */
 export async function testServerConnection(input: {
   host: string;
@@ -160,7 +182,7 @@ export async function testServerConnection(input: {
   password?: string;
   serverId?: string;
 }): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireOrgPermission({ server: ["manage"] });
+  const session = await requireOrgPermission({ server: ["manage"] });
   const t = await getServerTranslator("actionErrors");
 
   const host = input.host.trim();
@@ -170,22 +192,47 @@ export async function testServerConnection(input: {
     return { ok: false, message: t("hostAndUsernameRequired") };
   }
 
-  let password = input.password;
-  if (!password && input.serverId != null) {
+  // A typed password is tested as a password login. Otherwise an existing
+  // server is tested the way it signs in (its stored password, or the key).
+  let target: SshTarget = {
+    serverId: null,
+    host,
+    username,
+    password: input.password || null,
+    auth: "password",
+  };
+  if (input.serverId != null) {
     const [row] = await db
-      .select({ password: servers.password })
+      .select({
+        id: servers.id,
+        host: servers.host,
+        password: servers.password,
+        auth: servers.auth,
+      })
       .from(servers)
       .where(eq(servers.id, input.serverId))
       .limit(1);
     if (!row) return { ok: false, message: t("serverNotFound") };
-    password = decryptSecret(row.password ?? "");
+    target = {
+      // A host typed over the stored one is another machine: it is checked
+      // against nothing and pins nothing.
+      serverId: row.host === host ? row.id : null,
+      host,
+      username,
+      password: input.password || decryptNullable(row.password),
+      auth: input.password ? "password" : row.auth,
+    };
   }
 
-  if (!password) {
+  if (target.auth === "password" && !target.password) {
     return { ok: false, message: t("passwordRequiredForTest") };
   }
 
-  return testSshConnection({ host, username, password });
+  const result = await testSshConnection(target, { actor: session.user.id });
+  if (!result.ok && result.code === "hostKeyMismatch") {
+    return { ok: false, message: t("hostKeyMismatch") };
+  }
+  return result;
 }
 
 export type BulkDeleteServersResult =

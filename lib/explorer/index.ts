@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { s3Connections, servers } from "@/lib/db/schema";
-import { decryptSecret } from "@/lib/secrets";
+import { decryptNullable, decryptSecret } from "@/lib/secrets";
+import { sshTarget } from "@/lib/ssh-connect";
 import { createS3Backend } from "./s3";
 import { createSftpBackend } from "./sftp";
 import type { StorageBackend } from "./types";
@@ -41,11 +42,7 @@ export async function resolveBackend(
     .limit(1);
   if (!server) return null;
   return createSftpBackend(
-    {
-      host: server.host,
-      username: server.username,
-      password: decryptSecret(server.password ?? ""),
-    },
+    sshTarget({ ...server, password: decryptNullable(server.password) }),
     server.sftpRoot
   );
 }

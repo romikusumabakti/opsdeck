@@ -12,6 +12,7 @@ import {
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { sshTarget } from "@/lib/ssh-connect";
 import { databaseNameSchema, uuidSchema } from "@/lib/validation";
 import {
   filterAllowedDatabaseNames,
@@ -38,14 +39,7 @@ async function probeDatabaseList(
   const dbSvc = dbConfig(environment);
   const cmd = buildDatabaseListCommand(environment);
 
-  const output = await executeRemoteCommand(
-    {
-      host: dbSvc.server.host,
-      username: dbSvc.server.username,
-      password: dbSvc.server.password ?? "",
-    },
-    cmd
-  );
+  const output = await executeRemoteCommand(sshTarget(dbSvc.server), cmd);
   return parseDatabaseList(output, dbSvc.dbName);
 }
 

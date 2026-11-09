@@ -1,5 +1,5 @@
 import { shq } from "@/lib/sh";
-import { executeRemoteCommand } from "@/lib/ssh";
+import { executeRemoteCommand, type SshTarget } from "@/lib/ssh";
 
 // Everything this feature does on the tunnel's host: reading and replacing the
 // config, asking cloudflared to judge it, recreating the container, and the
@@ -8,7 +8,7 @@ import { executeRemoteCommand } from "@/lib/ssh";
 // The pure editing lives in ./ingress and ./compose; this module only moves
 // bytes and runs commands, so the risky part stays unit-testable.
 
-export type SshCreds = { host: string; username: string; password: string };
+export type SshCreds = SshTarget;
 
 export class TunnelRemoteError extends Error {}
 

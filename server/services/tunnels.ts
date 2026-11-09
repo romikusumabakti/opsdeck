@@ -16,7 +16,8 @@ import {
 } from "@/lib/db/schema";
 import { DOMAIN_ERRORS } from "@/lib/domains/errors";
 import { getAccountRowId } from "@/lib/domains/repository";
-import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { decryptNullable, decryptSecret, encryptSecret } from "@/lib/secrets";
+import { sshTarget } from "@/lib/ssh-connect";
 import {
   checkDnsRecord,
   cnameTarget,
@@ -367,11 +368,10 @@ async function loadTunnel(id: string): Promise<LoadedTunnel | null> {
   if (!row) return null;
   return {
     tunnel: row.tunnels,
-    creds: {
-      host: row.servers.host,
-      username: row.servers.username,
-      password: decryptSecret(row.servers.password ?? ""),
-    },
+    creds: sshTarget({
+      ...row.servers,
+      password: decryptNullable(row.servers.password),
+    }),
     zone: {
       zoneId: row.cloudflare_zones.zoneId,
       apiToken: await zoneApiToken(row.cloudflare_zones.apiToken),

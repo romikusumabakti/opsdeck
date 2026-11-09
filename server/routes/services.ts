@@ -10,6 +10,7 @@ import {
   type ServiceRole,
 } from "@/lib/services";
 import { type SshStreamHandle, streamRemoteCommand } from "@/lib/ssh";
+import { sshTarget } from "@/lib/ssh-connect";
 import {
   serviceActionSchema,
   serviceRoleSchema,
@@ -121,40 +122,32 @@ export const serviceLogsRouter = sessionRouter().get(
       const send = channel.send;
 
       try {
-        stopHandle = await streamRemoteCommand(
-          {
-            host: cfg.server.host,
-            username: cfg.server.username,
-            password: cfg.server.password ?? "",
+        stopHandle = await streamRemoteCommand(sshTarget(cfg.server), command, {
+          onChunk(chunk) {
+            if (channel.closed) return;
+            const text = partial + chunk.toString("utf8");
+            const parts = text.split("\n");
+            partial = parts.pop() ?? "";
+            if (parts.length === 0) return;
+            // Batch all complete lines in this chunk into one event to keep
+            // SSE overhead low when output is bursty.
+            send("lines", parts);
           },
-          command,
-          {
-            onChunk(chunk) {
-              if (channel.closed) return;
-              const text = partial + chunk.toString("utf8");
-              const parts = text.split("\n");
-              partial = parts.pop() ?? "";
-              if (parts.length === 0) return;
-              // Batch all complete lines in this chunk into one event to keep
-              // SSE overhead low when output is bursty.
-              send("lines", parts);
-            },
-            onClose(info) {
-              if (channel.closed) return;
-              if (partial.length > 0) {
-                send("lines", [partial]);
-                partial = "";
-              }
-              send("close", info);
-              channel.close();
-            },
-            onError(err) {
-              if (channel.closed) return;
-              send("stream-error", { message: err.message });
-              channel.close();
-            },
-          }
-        );
+          onClose(info) {
+            if (channel.closed) return;
+            if (partial.length > 0) {
+              send("lines", [partial]);
+              partial = "";
+            }
+            send("close", info);
+            channel.close();
+          },
+          onError(err) {
+            if (channel.closed) return;
+            send("stream-error", { message: err.message });
+            channel.close();
+          },
+        });
         // The client may have left while the SSH channel was opening.
         if (channel.closed) stopHandle.stop();
         // SSH channel is open at this point — safe to tell the client we're

@@ -10,6 +10,7 @@ import { enqueue } from "@/lib/queue";
 import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, dbConfig } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { sshTarget } from "@/lib/ssh-connect";
 import type { Backup } from "@/lib/types";
 import {
   backupFilenameSchema,
@@ -63,14 +64,7 @@ async function probeBackupList(
     runAsUser: dbOsUser(dbSvc.dbType),
     sudoPassword: dbSvc.server.password ?? undefined,
   });
-  const output = await executeRemoteCommand(
-    {
-      host: dbSvc.server.host,
-      username: dbSvc.server.username,
-      password: dbSvc.server.password ?? "",
-    },
-    cmd
-  );
+  const output = await executeRemoteCommand(sshTarget(dbSvc.server), cmd);
 
   return parseBackupListing(output, extensionPattern);
 }

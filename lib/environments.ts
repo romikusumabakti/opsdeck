@@ -11,6 +11,7 @@ import type {
 import { environments, projects } from "@/lib/db/schema";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { decryptNullable, decryptSecret } from "@/lib/secrets";
+import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import type { EnvironmentInput } from "@/lib/validation";
 
 /**
@@ -45,11 +46,10 @@ export async function loadEnvironmentWithServers(
  */
 export async function loadServerCredentials(
   serverId: string
-): Promise<{ host: string; username: string; password: string } | null> {
+): Promise<SshTarget | null> {
   const server = await db.query.servers.findFirst({ where: { id: serverId } });
   if (!server) return null;
-  const { host, username, password } = decryptServer(server);
-  return { host, username, password: password ?? "" };
+  return sshTarget({ ...server, password: decryptNullable(server.password) });
 }
 
 // The owner fields every environment view reads (see EnvironmentOwner).

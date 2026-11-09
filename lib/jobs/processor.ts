@@ -64,7 +64,11 @@ import {
   executeRemoteCommand,
   uploadRemoteFile,
 } from "@/lib/ssh";
+import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import { runInstanceUpdateCheck } from "@/server/services/instance-updates";
+
+// The login password doubles as the sudo password in these commands.
+type SshCreds = SshTarget & { password: string };
 
 // Bound for worker steps that move a whole database: dump, recreate, load, and
 // staging a dump file across hosts. Their run time grows with the data, so the
@@ -138,8 +142,7 @@ export async function handleCreateDatabaseBackup(
   const dbName = database ?? db.dbName;
 
   const credentials = {
-    host: db.server.host,
-    username: db.server.username,
+    ...sshTarget(db.server),
     password: db.server.password ?? "",
   };
 
@@ -222,7 +225,7 @@ export async function handleCreateDatabaseBackup(
 // failed inspect must not fail the backup itself.
 async function warnIfBackupPathUnmounted(
   runId: string,
-  credentials: { host: string; username: string; password: string },
+  credentials: SshCreds,
   container: string,
   backupPath: string
 ): Promise<void> {
@@ -251,7 +254,7 @@ async function runPostgresBackup(
   environment: EnvironmentWithServers,
   database: string,
   ts: string,
-  credentials: { host: string; username: string; password: string },
+  credentials: SshCreds,
   compress: boolean
 ): Promise<string> {
   const db = dbConfig(environment);
@@ -278,7 +281,7 @@ async function runMssqlBackup(
   environment: EnvironmentWithServers,
   database: string,
   ts: string,
-  credentials: { host: string; username: string; password: string },
+  credentials: SshCreds,
   compress: boolean
 ): Promise<string> {
   const db = dbConfig(environment);
@@ -306,7 +309,7 @@ async function runMysqlBackup(
   environment: EnvironmentWithServers,
   database: string,
   ts: string,
-  credentials: { host: string; username: string; password: string },
+  credentials: SshCreds,
   compress: boolean
 ): Promise<string> {
   const db = dbConfig(environment);
@@ -341,8 +344,7 @@ async function handleMockEnvironmentTimeLegacy(
   const backend = backendService(environment);
 
   const credentials = {
-    host: backend.server.host,
-    username: backend.server.username,
+    ...sshTarget(backend.server),
     password: backend.server.password ?? "",
   };
 
@@ -431,8 +433,7 @@ async function handleMockEnvironmentTimeResetLegacy(
   const backend = backendService(environment);
 
   const credentials = {
-    host: backend.server.host,
-    username: backend.server.username,
+    ...sshTarget(backend.server),
     password: backend.server.password ?? "",
   };
 
@@ -503,18 +504,8 @@ async function handleMockEnvironmentTimeResetLegacy(
 // host-to-host directly isn't possible (SFTP is per-connection), and passing
 // the bytes through a shell would collide with `sudo -S`'s stdin.
 
-type SshCreds = { host: string; username: string; password: string };
-
-function credsOf(server: {
-  host: string;
-  username: string;
-  password: string | null;
-}): SshCreds {
-  return {
-    host: server.host,
-    username: server.username,
-    password: server.password ?? "",
-  };
+function credsOf(server: Parameters<typeof sshTarget>[0]): SshCreds {
+  return { ...sshTarget(server), password: server.password ?? "" };
 }
 
 // Best-effort side effect (temp cleanup) — logs and swallows so a failed
@@ -613,8 +604,7 @@ async function handleRestoreDatabaseBackup(
   // one (already validated by the action layer).
   const dbName = database ?? db.dbName;
   const credentials = {
-    host: db.server.host,
-    username: db.server.username,
+    ...sshTarget(db.server),
     password: db.server.password ?? "",
   };
 
@@ -721,8 +711,7 @@ async function handleRestoreDatabaseBackup(
         `Restarting backend ${backend.serviceName}`,
         async () => {
           const backendCreds = {
-            host: backend.server.host,
-            username: backend.server.username,
+            ...sshTarget(backend.server),
             password: backend.server.password ?? "",
           };
           const cmd = buildControlCommand(
@@ -757,7 +746,7 @@ async function handleRestoreDatabaseBackup(
 async function runPostgresRecreateDatabase(
   data: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   // `runAsUser: "postgres"` is a no-op for docker/kubernetes.
@@ -781,7 +770,7 @@ async function runPostgresSharedRestore(
   database: string,
   filename: string,
   source: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   const inner = pgSharedRestorePipeline(
@@ -799,7 +788,7 @@ async function runPostgresRestore(
   database: string,
   filename: string,
   source: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   const inner = pgRestorePipeline(database, source, filename.endsWith(".gz"));
@@ -813,7 +802,7 @@ async function runPostgresRestore(
 async function runMysqlRecreateDatabase(
   data: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   const auth = dbAuth(dbSvc, "restores");
@@ -832,7 +821,7 @@ async function runMysqlRestore(
   database: string,
   filename: string,
   source: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   const auth = dbAuth(dbSvc, "restores");
@@ -860,8 +849,7 @@ async function handleControlService(
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const cfg = getServiceConfig(environment, role);
   const credentials = {
-    host: cfg.server.host,
-    username: cfg.server.username,
+    ...sshTarget(cfg.server),
     password: cfg.server.password ?? "",
   };
 
@@ -901,7 +889,7 @@ async function handleControlService(
 async function getMssqlBackupFileList(
   data: EnvironmentWithServers,
   source: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<MssqlBackupFile[]> {
   const dbSvc = dbConfig(data);
   const auth = dbAuth(dbSvc, "restores (sqlcmd needs it)");
@@ -926,7 +914,7 @@ async function runMssqlRestore(
   data: EnvironmentWithServers,
   database: string,
   source: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const dbSvc = dbConfig(data);
   const auth = dbAuth(dbSvc, "restores (sqlcmd needs it)");
@@ -957,8 +945,7 @@ async function handleCreateDatabase(
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const db = dbConfig(environment);
   const credentials = {
-    host: db.server.host,
-    username: db.server.username,
+    ...sshTarget(db.server),
     password: db.server.password ?? "",
   };
 
@@ -989,7 +976,7 @@ async function handleCreateDatabase(
 async function runPostgresCreateDatabase(
   environment: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const inner = pgPsqlPipeline(pgCreateDatabaseQuery(database));
@@ -1003,7 +990,7 @@ async function runPostgresCreateDatabase(
 async function runMssqlCreateDatabase(
   environment: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const auth = dbAuth(db, "database creation (sqlcmd needs it)");
@@ -1020,7 +1007,7 @@ async function runMssqlCreateDatabase(
 async function runMysqlCreateDatabase(
   environment: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const auth = dbAuth(db, "database creation");
@@ -1042,8 +1029,7 @@ async function handleDropDatabase(
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const db = dbConfig(environment);
   const credentials = {
-    host: db.server.host,
-    username: db.server.username,
+    ...sshTarget(db.server),
     password: db.server.password ?? "",
   };
 
@@ -1080,7 +1066,7 @@ async function handleDropDatabase(
 async function runPostgresDropDatabase(
   environment: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   // `WITH (FORCE)` (Postgres 13+) terminates active connections so the DROP
@@ -1096,7 +1082,7 @@ async function runPostgresDropDatabase(
 async function runMssqlDropDatabase(
   environment: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const auth = dbAuth(db, "database drop (sqlcmd needs it)");
@@ -1113,7 +1099,7 @@ async function runMssqlDropDatabase(
 async function runMysqlDropDatabase(
   environment: EnvironmentWithServers,
   database: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const auth = dbAuth(db, "database drop");
@@ -1135,8 +1121,7 @@ async function handleRenameDatabase(
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const db = dbConfig(environment);
   const credentials = {
-    host: db.server.host,
-    username: db.server.username,
+    ...sshTarget(db.server),
     password: db.server.password ?? "",
   };
 
@@ -1184,7 +1169,7 @@ async function runPostgresRenameDatabase(
   environment: EnvironmentWithServers,
   from: string,
   to: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const inner = pgPsqlPipeline(pgRenameDatabaseQuery(from, to));
@@ -1199,7 +1184,7 @@ async function runMssqlRenameDatabase(
   environment: EnvironmentWithServers,
   from: string,
   to: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const auth = dbAuth(db, "database rename (sqlcmd needs it)");
@@ -1217,7 +1202,7 @@ async function runMysqlRenameDatabase(
   environment: EnvironmentWithServers,
   from: string,
   to: string,
-  credentials: { host: string; username: string; password: string }
+  credentials: SshCreds
 ): Promise<void> {
   const db = dbConfig(environment);
   const auth = dbAuth(db, "database rename");

@@ -61,7 +61,13 @@ vi.mock("node-ssh", () => ({ NodeSSH: FakeSSH }));
 
 const { uploadRemoteContent } = await import("@/lib/ssh");
 
-const creds = { host: "10.0.0.5", username: "ops", password: "pw" };
+const creds = {
+  serverId: null,
+  host: "10.0.0.5",
+  username: "ops",
+  password: "pw",
+  auth: "password" as const,
+};
 
 beforeEach(() => {
   calls.length = 0;

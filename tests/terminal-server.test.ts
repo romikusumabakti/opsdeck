@@ -82,6 +82,9 @@ function handlers(
       id === "server-1"
         ? {
             id: "server-1",
+            // Unsaved target: the pinning itself is covered in ssh-connect.test.
+            serverId: null,
+            auth: "password" as const,
             name: "Test",
             host: "127.0.0.1",
             port: sshdPort,
@@ -502,6 +505,9 @@ describe("terminal sidecar", () => {
         return id === "server-1"
           ? {
               id: "server-1",
+              // Unsaved target: the pinning itself is covered in ssh-connect.test.
+              serverId: null,
+              auth: "password" as const,
               name: "Test",
               host: "127.0.0.1",
               port: sshdPort,
