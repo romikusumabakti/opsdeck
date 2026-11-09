@@ -149,6 +149,56 @@ export function garageSource(
   return s3ObjectStore(client, S3_BUCKET);
 }
 
+/** The env a fresh install restores from (install.sh --restore s3://…). */
+export const RESTORE_S3_ENV = {
+  endpoint: "OPSDECK_RESTORE_S3_ENDPOINT",
+  region: "OPSDECK_RESTORE_S3_REGION",
+  bucket: "OPSDECK_RESTORE_S3_BUCKET",
+  accessKeyId: "OPSDECK_RESTORE_S3_ACCESS_KEY_ID",
+  secretAccessKey: "OPSDECK_RESTORE_S3_SECRET_ACCESS_KEY",
+  forcePathStyle: "OPSDECK_RESTORE_S3_FORCE_PATH_STYLE",
+} as const;
+
+/**
+ * The S3 store named by OPSDECK_RESTORE_S3_*, or null when none of them is
+ * set. A fresh install has no destination in its database, so its restore
+ * reads the backup from here. Throws when only some are set or a value is
+ * malformed; the message names keys, never values.
+ */
+export function restoreS3Source(
+  env: NodeJS.ProcessEnv = process.env,
+  extra: Pick<S3ClientConfig, "requestHandler"> = {}
+): ObjectStore | null {
+  const v = (k: keyof typeof RESTORE_S3_ENV) => env[RESTORE_S3_ENV[k]] ?? "";
+  if (Object.values(RESTORE_S3_ENV).every((k) => !env[k])) return null;
+  const missing = (
+    ["endpoint", "bucket", "accessKeyId", "secretAccessKey"] as const
+  )
+    .filter((k) => !v(k))
+    .map((k) => RESTORE_S3_ENV[k]);
+  if (missing.length > 0) {
+    throw new Error(`${missing.join(", ")} not set`);
+  }
+  if (!/^https?:\/\/[^\s/]+(\/|$)/.test(v("endpoint"))) {
+    throw new Error(`${RESTORE_S3_ENV.endpoint} is not an http(s) URL`);
+  }
+  const pathStyle = v("forcePathStyle") || "true";
+  if (pathStyle !== "true" && pathStyle !== "false") {
+    throw new Error(`${RESTORE_S3_ENV.forcePathStyle} must be true or false`);
+  }
+  const client = backupS3Client(
+    {
+      endpoint: v("endpoint"),
+      region: v("region") || "auto",
+      forcePathStyle: pathStyle === "true",
+      accessKeyId: v("accessKeyId"),
+      secretAccessKey: v("secretAccessKey"),
+    },
+    extra
+  );
+  return s3ObjectStore(client, v("bucket"));
+}
+
 /**
  * The destination chosen in instance_settings with its retention, built from
  * the s3_connections row (secret key decrypted with SECRETS_KEY), or null

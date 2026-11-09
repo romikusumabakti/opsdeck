@@ -13,7 +13,10 @@ export const RESTORE_USAGE = `Usage: opsdeck restore <objectKey>
 
 Restores an instance backup: an S3 key prefix on the backup destination
 (opsdeck-backups/<instance>/<name>/) or local:<instance>/<name>/ in
-/var/lib/opsdeck/backups. Stop the app and terminal first. The backup's
+/var/lib/opsdeck/backups. On a fresh install (no destination in the
+database yet) an S3 key is read from OPSDECK_RESTORE_S3_ENDPOINT, _REGION,
+_BUCKET, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY and _FORCE_PATH_STYLE when set
+(install.sh --restore s3://...). Stop the app and terminal first. The backup's
 version must be the running one and SECRETS_KEY must be the one it was taken
 with. Prints one JSON line {status,errorCode,version}.
 Exit 0: restored. Exit ${RESTORE_REFUSED_EXIT}: refused, nothing was changed. Exit 1: failed
