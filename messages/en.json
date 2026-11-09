@@ -1009,7 +1009,15 @@
     "searchPlaceholder": "Search by name…",
     "colName": "Name",
     "colHost": "Host",
-    "colUsername": "Username"
+    "colUsername": "Username",
+    "colAccess": "Access",
+    "accessKey": "Key",
+    "accessPassword": "Password",
+    "accessHostKeyChanged": "Host key changed",
+    "hostKeyHint": "Host key {fingerprint}",
+    "hostKeyNotPinnedHint": "Host key not pinned yet",
+    "deleteKeyNote": "The Panel's key stays in this server's ~/.ssh/authorized_keys. Remove the line ending in {marker} by hand.",
+    "bulkDeleteKeyNote": "Servers that use the SSH key keep the Panel's key in ~/.ssh/authorized_keys. Remove its line by hand."
   },
   "serverForm": {
     "name": "Name",
@@ -1035,19 +1043,32 @@
     "placementRestricted": "Restricted: admins and infra only, plus engineers on the project's default server",
     "placementOpen": "Open: project engineers",
     "placementDescription": "Who may create new environments on this server. On an open server, project engineers can create environments on this server without server permissions; only mark disposable dev/sandbox servers open. Existing environments are not affected.",
-    "sftpRootInvalid": "Must be an absolute path (start with /)"
+    "sftpRootInvalid": "Must be an absolute path (start with /)",
+    "accessMethod": "How the Panel signs in",
+    "methodKey": "Install the key yourself",
+    "methodKeyDescription": "Run one command on the server. No password is stored.",
+    "methodPassword": "Use the root password once",
+    "methodPasswordDescription": "The Panel installs the key with it and does not keep it.",
+    "publicKey": "Panel public key",
+    "sshFrom": "Panel address seen by the server",
+    "sshFromDescription": "The IP or subnet the Panel connects from. The key works only from there.",
+    "sshFromPlaceholder": "e.g. 192.168.1.10",
+    "installCommand": "Run on the server as the SSH user",
+    "installCommandEmpty": "Enter the address to get the command.",
+    "passwordOnce": "Password (used once, not stored)",
+    "keyNotInstalled": "The server was added, but the key was not installed: {message}"
   },
   "newServer": {
     "title": "Add server",
-    "description": "Register a new server's SSH credentials. Servers can be reused across multiple environments.",
-    "formTitle": "SSH credentials",
-    "formDescription": "Provide host, username, and password. Use Test connection to verify before saving."
+    "description": "Register a server the Panel reaches over SSH. Servers can be reused across environments.",
+    "formTitle": "Server",
+    "formDescription": "Enter the host and SSH user, then choose how the Panel signs in."
   },
   "editServer": {
     "title": "Edit server: {name}",
-    "description": "Update SSH credentials and review where this server is used.",
-    "formTitle": "SSH credentials",
-    "formDescription": "Leave the password blank to keep it unchanged.",
+    "description": "Update the server and review where it is used.",
+    "formTitle": "Server",
+    "formDescription": "Host, SSH user and file explorer settings.",
     "backToServers": "Back to servers",
     "viewTitle": "Server: {name}"
   },
@@ -1447,7 +1468,8 @@
     "sharedDatabaseConfined": "This environment's database host is shared; you can only use this environment's own databases. Ask an admin for others.",
     "sharedDatabaseServiceConfined": "This database container is shared with other environments; only an admin can control it or read its logs.",
     "databaseHostVersion": "That container runs a Postgres older than 15; register only Postgres 15 or newer.",
-    "defaultServerForbidden": "Only admins and infra can change the project's default server."
+    "defaultServerForbidden": "Only admins and infra can change the project's default server.",
+    "invalidFrom": "Enter an IP address or subnet, like 192.168.1.10 or 172.29.0.0/16."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -1621,7 +1643,8 @@
     "serverFilesTitle": "Files — {name}",
     "serverFilesSubtitle": "Browsing {root} over SFTP",
     "storageFilesTitle": "Files — {name}",
-    "storageFilesSubtitle": "Browsing bucket {bucket}"
+    "storageFilesSubtitle": "Browsing bucket {bucket}",
+    "reviewHostKey": "Review the host key"
   },
   "storage": {
     "title": "Storage",
@@ -2065,7 +2088,8 @@
     "environmentDomainUpdated": "{actor} set the domain of {environment} to {hostname}",
     "environmentDomainDeleted": "{actor} removed the domain {hostname} from {environment}",
     "projectDefaultServerSet": "{actor} set the default server of {project} to {server}",
-    "projectDefaultServerCleared": "{actor} cleared the default server of {project}"
+    "projectDefaultServerCleared": "{actor} cleared the default server of {project}",
+    "serverKeyRotated": "{actor} rotated the SSH key on {server} (from {from})"
   },
   "jira": {
     "title": "Jira",
@@ -2159,7 +2183,8 @@
       "connected": "Connected",
       "reconnecting": "Reconnecting…",
       "closed": "Disconnected"
-    }
+    },
+    "reviewHostKey": "Review the host key"
   },
   "tunnels": {
     "title": "Cloudflare Tunnels",
@@ -3020,9 +3045,10 @@
   },
   "instance": {
     "title": "Instance",
-    "subtitle": "This Panel's own backups and updates.",
+    "subtitle": "This Panel's own backups, updates and SSH key.",
     "tabBackups": "Backups",
-    "tabUpdates": "Updates"
+    "tabUpdates": "Updates",
+    "tabSshKey": "SSH key"
   },
   "instanceBackups": {
     "settingsTitle": "Schedule and destination",
@@ -3202,5 +3228,54 @@
       "updateCheckFailed": "GitHub could not be reached to check for updates."
     },
     "autoUpdateSkipped": "Auto-update skips {version}: its last run did not succeed. Update by hand when ready."
+  },
+  "serverAccess": {
+    "title": "SSH access",
+    "description": "How the Panel signs in to this server.",
+    "signIn": "Sign-in",
+    "key": "SSH key",
+    "password": "Password",
+    "hostKey": "Host key",
+    "notPinned": "Not pinned yet. It is pinned on the first connection.",
+    "pinnedAt": "Pinned {date}",
+    "from": "Allowed from",
+    "lastError": "Last error",
+    "moveToKey": "Move to SSH key",
+    "moveToKeyDone": "The server now signs in with the SSH key.",
+    "reinstallKey": "Reinstall key",
+    "passwordOnceDescription": "Enter the {username} password once. The Panel signs in with it, installs the key and does not keep it.",
+    "passwordLabel": "Password",
+    "install": "Install key",
+    "mismatchTitle": "The host key changed",
+    "mismatchDescription": "The server offered a different host key, so the Panel does not connect to it. Check the new key on the server itself before you trust it.",
+    "pinnedFingerprint": "Pinned",
+    "offeredFingerprint": "Offered now",
+    "trustNewKey": "Trust new key",
+    "trustTitle": "Trust the new host key?",
+    "trustDescription": "Only trust {fingerprint} if you checked it on the server itself.",
+    "trustDone": "New host key trusted.",
+    "reviewHostKey": "Review the host key"
+  },
+  "instanceSshKey": {
+    "title": "SSH key",
+    "description": "The Panel signs in to servers with this key. The private key never leaves the Panel.",
+    "publicKey": "Public key",
+    "fingerprint": "Fingerprint",
+    "moveAll": "Move all servers to the SSH key",
+    "moveAllTitle": "Move all servers to the SSH key?",
+    "moveAllDescription": "Each password server gets the key and its stored password is deleted. A server that fails keeps its password and is listed.",
+    "rotate": "Rotate",
+    "rotateTitle": "Rotate the SSH key?",
+    "rotateDescription": "A new key is installed on every key server and the old one removed. Servers that fail keep the old key and are listed.",
+    "started": "Started. Progress shows below.",
+    "runningMoveAll": "Moving servers to the key… {count, plural, one {# server} other {# servers}} done",
+    "runningRotate": "Rotating the key… {count, plural, one {# server} other {# servers}} done",
+    "lastMoveAll": "Last move to the key",
+    "lastRotate": "Last rotation",
+    "noServers": "No server needed it.",
+    "colServer": "Server",
+    "colResult": "Result",
+    "ok": "Done",
+    "failed": "Failed"
   }
 }

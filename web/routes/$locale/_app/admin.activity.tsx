@@ -318,6 +318,12 @@ function message(
         server: String(d.server),
         from: String(d.from),
       });
+    case "server.keyRotated":
+      return t("serverKeyRotated", {
+        actor,
+        server: String(d.server),
+        from: String(d.from),
+      });
     case "database_host.create":
       return t("databaseHostCreated", {
         actor,

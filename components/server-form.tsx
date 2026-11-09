@@ -1,11 +1,21 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { AdvancedOptions } from "@/components/advanced-options";
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import {
   Form,
   FormControl,
@@ -17,6 +27,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -26,17 +37,26 @@ import {
 } from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
-import type { SafeServer } from "@/lib/db/schema";
-import type { Serialized } from "@/web/api/client";
+import { ApiError } from "@/web/api/client";
+import {
+  getAuthorizedKeysLineQuery,
+  getInstanceSshKeyQuery,
+} from "@/web/api/instance";
 import {
   createServer,
+  reinstallServerKey,
+  type ServerRow as Server,
   testServerConnection,
   updateServer,
 } from "@/web/api/servers";
 
-type Server = Serialized<SafeServer>;
-
 const PLACEMENTS = ["restricted", "open"] as const;
+
+// How a new server gets the instance key: the admin runs the command shown
+// (nothing secret is sent), or types the password once and the Panel installs
+// it (the password is never stored).
+const METHODS = ["key", "passwordOnce"] as const;
+type Method = (typeof METHODS)[number];
 
 type Mode = { type: "create" } | { type: "edit"; server: Server };
 
@@ -70,20 +90,38 @@ export function ServerForm({
   const router = useRouter();
   const initial = mode.type === "edit" ? mode.server : null;
 
-  const schema = z.object({
-    name: z.string().min(1, tCommon("required")),
-    host: z.string().min(1, tCommon("required")),
-    username: z.string().min(1, tCommon("required")),
-    password:
-      mode.type === "create"
-        ? z.string().min(1, tCommon("required"))
-        : z.string(),
-    sftpRoot: z
-      .string()
-      .min(1, tCommon("required"))
-      .regex(/^\//, t("sftpRootInvalid")),
-    placement: z.enum(PLACEMENTS),
-  });
+  const creating = mode.type === "create";
+  const schema = z
+    .object({
+      name: z.string().min(1, tCommon("required")),
+      host: z.string().min(1, tCommon("required")),
+      username: z.string().min(1, tCommon("required")),
+      method: z.enum(METHODS),
+      sshFrom: z.string(),
+      password: z.string(),
+      sftpRoot: z
+        .string()
+        .min(1, tCommon("required"))
+        .regex(/^\//, t("sftpRootInvalid")),
+      placement: z.enum(PLACEMENTS),
+    })
+    .superRefine((values, ctx) => {
+      if (!creating) return;
+      if (values.method === "key" && !values.sshFrom.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["sshFrom"],
+          message: tCommon("required"),
+        });
+      }
+      if (values.method === "passwordOnce" && !values.password) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["password"],
+          message: tCommon("required"),
+        });
+      }
+    });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -91,6 +129,8 @@ export function ServerForm({
       name: initial?.name ?? "",
       host: initial?.host ?? "",
       username: initial?.username ?? "",
+      method: "key",
+      sshFrom: "",
       password: "",
       sftpRoot: initial?.sftpRoot ?? "/",
       placement: initial?.placement ?? "restricted",
@@ -112,11 +152,13 @@ export function ServerForm({
       username: string;
       password?: string;
       serverId?: string;
+      auth?: "key";
     } = {
       host: watched.host.trim(),
       username: watched.username.trim(),
     };
-    if (watched.password.length > 0) payload.password = watched.password;
+    if (creating && watched.method === "key") payload.auth = "key";
+    else if (watched.password.length > 0) payload.password = watched.password;
     if (mode.type === "edit") payload.serverId = mode.server.id;
 
     const result = await testServerConnection(payload);
@@ -129,21 +171,40 @@ export function ServerForm({
 
   async function onSubmit(values: z.infer<typeof schema>) {
     if (mode.type === "create") {
-      const result = await createServer({
+      const fields = {
         name: values.name.trim(),
         host: values.host.trim(),
         username: values.username.trim(),
-        password: values.password,
         sftpRoot: values.sftpRoot.trim(),
         placement: values.placement,
-      });
+      };
+      // The password of the passwordOnce method never goes into the row: the
+      // server is created without one, then the key is installed with it.
+      const result = await createServer(
+        values.method === "key"
+          ? { ...fields, auth: "key", sshFrom: values.sshFrom.trim() }
+          : fields
+      );
       if (!result.success) {
         toast.error(result.message);
         return;
       }
+      const created = result.data;
+      if (values.method === "passwordOnce") {
+        try {
+          await reinstallServerKey(created.id, values.password);
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status === 401) throw error;
+          // Created, but still on no password: its page offers the move again.
+          toast.error(t("keyNotInstalled", { message: error.message }));
+          if (onSuccess) onSuccess(created);
+          else router.push(`/servers/${created.id}`);
+          return;
+        }
+      }
       toast.success(result.message ?? "");
       if (onSuccess) {
-        onSuccess(result.data);
+        onSuccess(created);
         return;
       }
       router.push("/servers");
@@ -187,14 +248,45 @@ export function ServerForm({
 
   useUnsavedChanges(form.formState.isDirty && !loading);
 
-  // Test button is enabled when host & username are filled, AND either a
-  // password is typed or we're in edit mode (we can fall back to stored).
+  // Test button is enabled when host & username are filled and there is a way
+  // to sign in: the key (new server installed by hand, or a saved server's
+  // stored password or key) or a typed password.
   const canTest =
     watched.host.trim().length > 0 &&
     watched.username.trim().length > 0 &&
-    (watched.password.length > 0 || mode.type === "edit") &&
+    (mode.type === "edit" ||
+      watched.method === "key" ||
+      watched.password.length > 0) &&
     testState.kind !== "testing" &&
     !loading;
+
+  // A saved server's password is an advanced setting, and only exists while
+  // it signs in with one; a key server has none.
+  const passwordField = (
+    <FormField
+      control={form.control}
+      name="password"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            {creating ? t("passwordOnce") : t("passwordEdit")}
+          </FormLabel>
+          <FormControl>
+            <PasswordInput
+              autoComplete="new-password"
+              placeholder={creating ? undefined : t("passwordEditPlaceholder")}
+              {...field}
+              onChange={(e) => {
+                resetTest();
+                field.onChange(e);
+              }}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
 
   return (
     <Form {...form}>
@@ -258,33 +350,80 @@ export function ServerForm({
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {mode.type === "edit" ? t("passwordEdit") : t("password")}
-                </FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    autoComplete="new-password"
-                    placeholder={
-                      mode.type === "edit"
-                        ? t("passwordEditPlaceholder")
-                        : undefined
-                    }
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {creating ? (
+            <>
+              <FormField
+                control={form.control}
+                name="method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("accessMethod")}</FormLabel>
+                    <RadioGroup
+                      value={field.value}
+                      onValueChange={(v) => {
+                        resetTest();
+                        // A password typed for the other method is dropped.
+                        form.setValue("password", "");
+                        field.onChange(v as Method);
+                      }}
+                    >
+                      {METHODS.map((method) => (
+                        <FieldLabel key={method} htmlFor={`method-${method}`}>
+                          <Field orientation="horizontal">
+                            <RadioGroupItem
+                              value={method}
+                              id={`method-${method}`}
+                            />
+                            <FieldContent>
+                              <FieldTitle>
+                                {method === "key"
+                                  ? t("methodKey")
+                                  : t("methodPassword")}
+                              </FieldTitle>
+                              <FieldDescription>
+                                {method === "key"
+                                  ? t("methodKeyDescription")
+                                  : t("methodPasswordDescription")}
+                              </FieldDescription>
+                            </FieldContent>
+                          </Field>
+                        </FieldLabel>
+                      ))}
+                    </RadioGroup>
+                  </FormItem>
+                )}
+              />
+              {watched.method === "key" ? (
+                <KeyInstall
+                  sshFrom={
+                    <FormField
+                      control={form.control}
+                      name="sshFrom"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("sshFrom")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              autoComplete="off"
+                              placeholder={t("sshFromPlaceholder")}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t("sshFromDescription")}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  }
+                  from={watched.sshFrom.trim()}
+                />
+              ) : (
+                passwordField
+              )}
+            </>
+          ) : null}
           <FormField
             control={form.control}
             name="sftpRoot"
@@ -327,6 +466,9 @@ export function ServerForm({
               </FormItem>
             )}
           />
+          {!creating && initial?.auth === "password" ? (
+            <AdvancedOptions>{passwordField}</AdvancedOptions>
+          ) : null}
         </fieldset>
 
         {readOnly ? null : (
@@ -394,5 +536,68 @@ function TestStatus({
         {t("testFailed")}: {state.message}
       </span>
     </span>
+  );
+}
+
+/**
+ * The "install the key yourself" panel: the instance public key and, once the
+ * from= address is typed, the one command that installs its authorized_keys
+ * line (built by the server, so the line format lives in one place).
+ */
+function KeyInstall({
+  sshFrom,
+  from,
+}: {
+  sshFrom: React.ReactNode;
+  from: string;
+}) {
+  const t = useTranslations("serverForm");
+  const key = useQuery(getInstanceSshKeyQuery());
+  const line = useQuery({
+    ...getAuthorizedKeysLineQuery(from),
+    enabled: from.length > 0,
+    placeholderData: keepPreviousData,
+  });
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4">
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">{t("publicKey")}</span>
+        {key.data ? (
+          <div className="flex items-start gap-2">
+            <code className="min-w-0 flex-1 break-all font-mono text-xs">
+              {key.data.publicKey}
+            </code>
+            <CopyButton value={key.data.publicKey} />
+          </div>
+        ) : (
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        )}
+      </div>
+      {sshFrom}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">{t("installCommand")}</span>
+        {from.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("installCommandEmpty")}
+          </p>
+        ) : line.isError ? (
+          <p className="text-sm text-destructive">
+            {line.error instanceof ApiError
+              ? line.error.message
+              : String(line.error)}
+          </p>
+        ) : line.data ? (
+          <div className="flex items-start gap-2">
+            <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-xs">
+              {line.data.command}
+            </code>
+            <CopyButton value={line.data.command} />
+          </div>
+        ) : (
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        )}
+      </div>
+    </div>
   );
 }

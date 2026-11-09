@@ -1009,7 +1009,15 @@
     "searchPlaceholder": "Cari berdasarkan nama…",
     "colName": "Nama",
     "colHost": "Host",
-    "colUsername": "Username"
+    "colUsername": "Username",
+    "colAccess": "Akses",
+    "accessKey": "Key",
+    "accessPassword": "Password",
+    "accessHostKeyChanged": "Host key berubah",
+    "hostKeyHint": "Host key {fingerprint}",
+    "hostKeyNotPinnedHint": "Host key belum disimpan",
+    "deleteKeyNote": "Key Panel tetap ada di ~/.ssh/authorized_keys server ini. Hapus sendiri baris yang berakhiran {marker}.",
+    "bulkDeleteKeyNote": "Server yang memakai SSH key tetap menyimpan key Panel di ~/.ssh/authorized_keys. Hapus barisnya sendiri."
   },
   "serverForm": {
     "name": "Nama",
@@ -1035,19 +1043,32 @@
     "placementRestricted": "Terbatas: hanya admin dan infra, serta engineer di server default proyek",
     "placementOpen": "Terbuka: engineer proyek",
     "placementDescription": "Siapa yang boleh membuat environment baru di server ini. Di server terbuka, engineer proyek bisa membuat environment di server ini tanpa izin server; tandai terbuka hanya server dev/sandbox yang datanya boleh hilang. Environment yang sudah ada tidak terpengaruh.",
-    "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)"
+    "sftpRootInvalid": "Harus berupa jalur absolut (diawali /)",
+    "accessMethod": "Cara Panel masuk",
+    "methodKey": "Pasang key sendiri",
+    "methodKeyDescription": "Jalankan satu perintah di server. Tidak ada password yang disimpan.",
+    "methodPassword": "Pakai password root sekali",
+    "methodPasswordDescription": "Panel memasang key dengannya lalu tidak menyimpannya.",
+    "publicKey": "Public key Panel",
+    "sshFrom": "Alamat Panel yang dilihat server",
+    "sshFromDescription": "IP atau subnet asal koneksi Panel. Key hanya berlaku dari situ.",
+    "sshFromPlaceholder": "mis. 192.168.1.10",
+    "installCommand": "Jalankan di server sebagai user SSH",
+    "installCommandEmpty": "Isi alamatnya untuk mendapatkan perintah.",
+    "passwordOnce": "Password (dipakai sekali, tidak disimpan)",
+    "keyNotInstalled": "Server sudah ditambahkan, tetapi key belum terpasang: {message}"
   },
   "newServer": {
     "title": "Tambah server",
-    "description": "Daftarkan kredensial SSH server baru. Server dapat dipakai ulang oleh beberapa environment.",
-    "formTitle": "Kredensial SSH",
-    "formDescription": "Isi host, username, dan password. Gunakan Tes koneksi untuk memverifikasi sebelum menyimpan."
+    "description": "Daftarkan server yang diakses Panel lewat SSH. Server dapat dipakai ulang oleh beberapa environment.",
+    "formTitle": "Server",
+    "formDescription": "Isi host dan user SSH, lalu pilih cara Panel masuk."
   },
   "editServer": {
     "title": "Edit server: {name}",
-    "description": "Ubah kredensial SSH dan lihat proyek yang menggunakan server ini.",
-    "formTitle": "Kredensial SSH",
-    "formDescription": "Kosongkan password jika tidak ingin mengubahnya.",
+    "description": "Ubah server dan lihat di mana server ini dipakai.",
+    "formTitle": "Server",
+    "formDescription": "Host, user SSH, dan pengaturan file explorer.",
     "backToServers": "Kembali ke server",
     "viewTitle": "Server: {name}"
   },
@@ -1447,7 +1468,8 @@
     "sharedDatabaseConfined": "Host database environment ini dipakai bersama; kamu hanya bisa memakai database milik environment ini. Minta bantuan admin untuk yang lain.",
     "sharedDatabaseServiceConfined": "Container database ini dipakai bersama environment lain; hanya admin yang bisa mengendalikannya atau membaca log-nya.",
     "databaseHostVersion": "Container itu menjalankan Postgres lebih lama dari 15; daftarkan hanya Postgres 15 atau lebih baru.",
-    "defaultServerForbidden": "Hanya admin dan infra yang bisa mengubah server default proyek."
+    "defaultServerForbidden": "Hanya admin dan infra yang bisa mengubah server default proyek.",
+    "invalidFrom": "Isi alamat IP atau subnet, misalnya 192.168.1.10 atau 172.29.0.0/16."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -1621,7 +1643,8 @@
     "serverFilesTitle": "Berkas — {name}",
     "serverFilesSubtitle": "Menjelajahi {root} melalui SFTP",
     "storageFilesTitle": "Berkas — {name}",
-    "storageFilesSubtitle": "Menjelajahi bucket {bucket}"
+    "storageFilesSubtitle": "Menjelajahi bucket {bucket}",
+    "reviewHostKey": "Tinjau host key"
   },
   "storage": {
     "title": "Penyimpanan",
@@ -2065,7 +2088,8 @@
     "environmentDomainUpdated": "{actor} mengatur domain {environment} menjadi {hostname}",
     "environmentDomainDeleted": "{actor} menghapus domain {hostname} dari {environment}",
     "projectDefaultServerSet": "{actor} mengatur server default {project} ke {server}",
-    "projectDefaultServerCleared": "{actor} menghapus server default {project}"
+    "projectDefaultServerCleared": "{actor} menghapus server default {project}",
+    "serverKeyRotated": "{actor} mengganti SSH key di {server} (dari {from})"
   },
   "jira": {
     "title": "Jira",
@@ -2159,7 +2183,8 @@
       "connected": "Tersambung",
       "reconnecting": "Menyambungkan ulang…",
       "closed": "Terputus"
-    }
+    },
+    "reviewHostKey": "Tinjau host key"
   },
   "tunnels": {
     "title": "Cloudflare Tunnel",
@@ -3020,9 +3045,10 @@
   },
   "instance": {
     "title": "Instans",
-    "subtitle": "Cadangan dan pembaruan milik Panel ini sendiri.",
+    "subtitle": "Backup, update, dan SSH key milik Panel ini.",
     "tabBackups": "Cadangan",
-    "tabUpdates": "Pembaruan"
+    "tabUpdates": "Pembaruan",
+    "tabSshKey": "SSH key"
   },
   "instanceBackups": {
     "settingsTitle": "Jadwal dan tujuan",
@@ -3202,5 +3228,54 @@
       "updateCheckFailed": "GitHub tidak dapat dihubungi untuk memeriksa pembaruan."
     },
     "autoUpdateSkipped": "Pembaruan otomatis melewati {version}: proses terakhirnya tidak berhasil. Perbarui secara manual bila sudah siap."
+  },
+  "serverAccess": {
+    "title": "Akses SSH",
+    "description": "Cara Panel masuk ke server ini.",
+    "signIn": "Masuk dengan",
+    "key": "SSH key",
+    "password": "Password",
+    "hostKey": "Host key",
+    "notPinned": "Belum disimpan. Akan disimpan saat koneksi pertama.",
+    "pinnedAt": "Disimpan {date}",
+    "from": "Diizinkan dari",
+    "lastError": "Error terakhir",
+    "moveToKey": "Pindah ke SSH key",
+    "moveToKeyDone": "Server sekarang masuk dengan SSH key.",
+    "reinstallKey": "Pasang ulang key",
+    "passwordOnceDescription": "Masukkan password {username} sekali. Panel masuk dengannya, memasang key, lalu tidak menyimpannya.",
+    "passwordLabel": "Password",
+    "install": "Pasang key",
+    "mismatchTitle": "Host key berubah",
+    "mismatchDescription": "Server menawarkan host key yang berbeda, jadi Panel tidak terhubung. Cek key baru langsung di server sebelum memercayainya.",
+    "pinnedFingerprint": "Tersimpan",
+    "offeredFingerprint": "Ditawarkan sekarang",
+    "trustNewKey": "Percayai key baru",
+    "trustTitle": "Percayai host key baru?",
+    "trustDescription": "Percayai {fingerprint} hanya jika sudah Anda cek langsung di server.",
+    "trustDone": "Host key baru dipercayai.",
+    "reviewHostKey": "Tinjau host key"
+  },
+  "instanceSshKey": {
+    "title": "SSH key",
+    "description": "Panel masuk ke server dengan key ini. Private key tidak pernah keluar dari Panel.",
+    "publicKey": "Public key",
+    "fingerprint": "Fingerprint",
+    "moveAll": "Pindahkan semua server ke SSH key",
+    "moveAllTitle": "Pindahkan semua server ke SSH key?",
+    "moveAllDescription": "Setiap server berpassword dipasangi key dan password tersimpannya dihapus. Server yang gagal tetap memakai password-nya dan ditampilkan di daftar.",
+    "rotate": "Ganti key",
+    "rotateTitle": "Ganti SSH key?",
+    "rotateDescription": "Key baru dipasang di setiap server yang memakai key, lalu key lama dihapus. Server yang gagal tetap memakai key lama dan ditampilkan di daftar.",
+    "started": "Dimulai. Progresnya tampil di bawah.",
+    "runningMoveAll": "Memindahkan server ke key… {count} server selesai",
+    "runningRotate": "Mengganti key… {count} server selesai",
+    "lastMoveAll": "Pemindahan ke key terakhir",
+    "lastRotate": "Penggantian key terakhir",
+    "noServers": "Tidak ada server yang perlu.",
+    "colServer": "Server",
+    "colResult": "Hasil",
+    "ok": "Berhasil",
+    "failed": "Gagal"
   }
 }

@@ -10,12 +10,17 @@ import {
 } from "@/lib/db/schema";
 import { enqueue, type JobName, jobExists } from "@/lib/queue";
 import {
+  authorizedKeysLine,
   beginRotation,
   ensureCurrentKey,
+  isValidFrom,
   keyJobLock,
   keyJobLockHeld,
+  keyMarker,
   retireKey,
 } from "@/lib/ssh-keys";
+import { CodedHTTPException } from "@/server/errors";
+import { getServerTranslator } from "@/server/i18n";
 import {
   type KeyMoveResult,
   moveServerToKey,
@@ -274,4 +279,25 @@ export async function getInstanceSshKey(): Promise<InstanceSshKey> {
         }
       : null,
   };
+}
+
+/**
+ * The current key's authorized_keys line restricted to `from`, and a command
+ * that installs it as the login user: ~/.ssh 0700, the line appended (after a
+ * newline, in case the file does not end with one; sshd skips blank lines),
+ * the file 0600. The line holds no single quote (authorizedKeysLine allows
+ * none), so it is safe inside one.
+ */
+export async function getAuthorizedKeysLine(
+  from: string
+): Promise<{ line: string; command: string }> {
+  await requireOrgPermission({ server: ["manage"] });
+  if (!isValidFrom(from)) {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(400, "invalidFrom", t("invalidFrom"));
+  }
+  const key = await ensureCurrentKey();
+  const line = authorizedKeysLine(key.publicKey, from, keyMarker(key.id));
+  const command = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && printf '\\n%s\\n' '${line}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`;
+  return { line, command };
 }

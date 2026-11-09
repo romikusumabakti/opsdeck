@@ -1009,7 +1009,15 @@
     "searchPlaceholder": "Buscar por nombre…",
     "colName": "Nombre",
     "colHost": "Host",
-    "colUsername": "Usuario"
+    "colUsername": "Usuario",
+    "colAccess": "Acceso",
+    "accessKey": "Clave",
+    "accessPassword": "Contraseña",
+    "accessHostKeyChanged": "La clave de host cambió",
+    "hostKeyHint": "Clave de host {fingerprint}",
+    "hostKeyNotPinnedHint": "Clave de host aún no fijada",
+    "deleteKeyNote": "La clave del Panel sigue en ~/.ssh/authorized_keys de este servidor. Quita a mano la línea que termina en {marker}.",
+    "bulkDeleteKeyNote": "Los servidores que usan la clave SSH conservan la clave del Panel en ~/.ssh/authorized_keys. Quita su línea a mano."
   },
   "serverForm": {
     "name": "Nombre",
@@ -1035,19 +1043,32 @@
     "placementRestricted": "Restringida: solo administradores e infra, y los engineers en el servidor predeterminado del proyecto",
     "placementOpen": "Abierta: engineers del proyecto",
     "placementDescription": "Quién puede crear entornos nuevos en este servidor. En un servidor abierto, los engineers del proyecto pueden crear entornos en este servidor sin permisos de servidor; marca como abiertos solo servidores de desarrollo o sandbox desechables. Los entornos existentes no se ven afectados.",
-    "sftpRootInvalid": "Debe ser una ruta absoluta (empezar por /)"
+    "sftpRootInvalid": "Debe ser una ruta absoluta (empezar por /)",
+    "accessMethod": "Cómo inicia sesión el Panel",
+    "methodKey": "Instala la clave tú mismo",
+    "methodKeyDescription": "Ejecuta un comando en el servidor. No se guarda ninguna contraseña.",
+    "methodPassword": "Usa la contraseña de root una vez",
+    "methodPasswordDescription": "El Panel instala la clave con ella y no la guarda.",
+    "publicKey": "Clave pública del Panel",
+    "sshFrom": "Dirección del Panel que ve el servidor",
+    "sshFromDescription": "La IP o subred desde la que se conecta el Panel. La clave solo funciona desde ahí.",
+    "sshFromPlaceholder": "p. ej. 192.168.1.10",
+    "installCommand": "Ejecútalo en el servidor como el usuario SSH",
+    "installCommandEmpty": "Introduce la dirección para obtener el comando.",
+    "passwordOnce": "Contraseña (se usa una vez, no se guarda)",
+    "keyNotInstalled": "Se añadió el servidor, pero la clave no se instaló: {message}"
   },
   "newServer": {
     "title": "Añadir servidor",
-    "description": "Registra las credenciales SSH de un servidor nuevo. Los servidores se pueden reutilizar en varios entornos.",
-    "formTitle": "Credenciales SSH",
-    "formDescription": "Indica el host, el usuario y la contraseña. Usa Probar conexión para verificarlas antes de guardar."
+    "description": "Registra un servidor al que el Panel accede por SSH. Los servidores se pueden reutilizar en varios entornos.",
+    "formTitle": "Servidor",
+    "formDescription": "Introduce el host y el usuario SSH y elige cómo inicia sesión el Panel."
   },
   "editServer": {
     "title": "Editar servidor: {name}",
-    "description": "Actualiza las credenciales SSH y revisa dónde se usa este servidor.",
-    "formTitle": "Credenciales SSH",
-    "formDescription": "Deja la contraseña en blanco para no cambiarla.",
+    "description": "Actualiza el servidor y revisa dónde se usa.",
+    "formTitle": "Servidor",
+    "formDescription": "Host, usuario SSH y ajustes del explorador de archivos.",
     "backToServers": "Volver a servidores",
     "viewTitle": "Servidor: {name}"
   },
@@ -1447,7 +1468,8 @@
     "sharedDatabaseConfined": "El host de base de datos de este entorno es compartido; solo puedes usar las bases de datos propias de este entorno. Pide ayuda a un administrador para otras.",
     "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros.",
     "databaseHostVersion": "Ese contenedor ejecuta un Postgres anterior a la 15; registra solo Postgres 15 o posterior.",
-    "defaultServerForbidden": "Solo los administradores e infra pueden cambiar el servidor predeterminado del proyecto."
+    "defaultServerForbidden": "Solo los administradores e infra pueden cambiar el servidor predeterminado del proyecto.",
+    "invalidFrom": "Introduce una dirección IP o una subred, como 192.168.1.10 o 172.29.0.0/16."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -1621,7 +1643,8 @@
     "serverFilesTitle": "Archivos — {name}",
     "serverFilesSubtitle": "Explorando {root} por SFTP",
     "storageFilesTitle": "Archivos — {name}",
-    "storageFilesSubtitle": "Explorando el bucket {bucket}"
+    "storageFilesSubtitle": "Explorando el bucket {bucket}",
+    "reviewHostKey": "Revisar la clave de host"
   },
   "storage": {
     "title": "Almacenamiento",
@@ -2065,7 +2088,8 @@
     "environmentDomainUpdated": "{actor} estableció el dominio de {environment} en {hostname}",
     "environmentDomainDeleted": "{actor} quitó el dominio {hostname} de {environment}",
     "projectDefaultServerSet": "{actor} fijó el servidor predeterminado de {project} en {server}",
-    "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}"
+    "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}",
+    "serverKeyRotated": "{actor} rotó la clave SSH en {server} (desde {from})"
   },
   "jira": {
     "title": "Jira",
@@ -2159,7 +2183,8 @@
       "connected": "Conectado",
       "reconnecting": "Reconectando…",
       "closed": "Desconectado"
-    }
+    },
+    "reviewHostKey": "Revisar la clave de host"
   },
   "tunnels": {
     "title": "Túneles de Cloudflare",
@@ -3020,9 +3045,10 @@
   },
   "instance": {
     "title": "Instancia",
-    "subtitle": "Las copias de seguridad y actualizaciones de este Panel.",
+    "subtitle": "Las copias de seguridad, actualizaciones y clave SSH de este Panel.",
     "tabBackups": "Copias de seguridad",
-    "tabUpdates": "Actualizaciones"
+    "tabUpdates": "Actualizaciones",
+    "tabSshKey": "Clave SSH"
   },
   "instanceBackups": {
     "settingsTitle": "Programación y destino",
@@ -3202,5 +3228,54 @@
       "updateCheckFailed": "No se pudo contactar con GitHub para buscar actualizaciones."
     },
     "autoUpdateSkipped": "La actualización automática omite {version}: su última ejecución no tuvo éxito. Actualice a mano cuando esté listo."
+  },
+  "serverAccess": {
+    "title": "Acceso SSH",
+    "description": "Cómo inicia sesión el Panel en este servidor.",
+    "signIn": "Inicio de sesión",
+    "key": "Clave SSH",
+    "password": "Contraseña",
+    "hostKey": "Clave de host",
+    "notPinned": "Aún no fijada. Se fija en la primera conexión.",
+    "pinnedAt": "Fijada el {date}",
+    "from": "Permitido desde",
+    "lastError": "Último error",
+    "moveToKey": "Pasar a clave SSH",
+    "moveToKeyDone": "El servidor ya inicia sesión con la clave SSH.",
+    "reinstallKey": "Reinstalar clave",
+    "passwordOnceDescription": "Introduce la contraseña de {username} una vez. El Panel inicia sesión con ella, instala la clave y no la guarda.",
+    "passwordLabel": "Contraseña",
+    "install": "Instalar clave",
+    "mismatchTitle": "La clave de host cambió",
+    "mismatchDescription": "El servidor ofreció otra clave de host, así que el Panel no se conecta. Comprueba la clave nueva en el propio servidor antes de confiar en ella.",
+    "pinnedFingerprint": "Fijada",
+    "offeredFingerprint": "Ofrecida ahora",
+    "trustNewKey": "Confiar en la clave nueva",
+    "trustTitle": "¿Confiar en la nueva clave de host?",
+    "trustDescription": "Confía en {fingerprint} solo si lo comprobaste en el propio servidor.",
+    "trustDone": "Nueva clave de host de confianza.",
+    "reviewHostKey": "Revisar la clave de host"
+  },
+  "instanceSshKey": {
+    "title": "Clave SSH",
+    "description": "El Panel inicia sesión en los servidores con esta clave. La clave privada nunca sale del Panel.",
+    "publicKey": "Clave pública",
+    "fingerprint": "Huella",
+    "moveAll": "Pasar todos los servidores a la clave SSH",
+    "moveAllTitle": "¿Pasar todos los servidores a la clave SSH?",
+    "moveAllDescription": "Cada servidor con contraseña recibe la clave y se borra su contraseña guardada. Un servidor que falle conserva su contraseña y aparece en la lista.",
+    "rotate": "Rotar",
+    "rotateTitle": "¿Rotar la clave SSH?",
+    "rotateDescription": "Se instala una clave nueva en cada servidor con clave y se quita la antigua. Los servidores que fallen conservan la clave antigua y aparecen en la lista.",
+    "started": "Iniciado. El progreso aparece abajo.",
+    "runningMoveAll": "Pasando servidores a la clave… {count, plural, one {# servidor listo} other {# servidores listos}}",
+    "runningRotate": "Rotando la clave… {count, plural, one {# servidor listo} other {# servidores listos}}",
+    "lastMoveAll": "Último paso a la clave",
+    "lastRotate": "Última rotación",
+    "noServers": "Ningún servidor lo necesitaba.",
+    "colServer": "Servidor",
+    "colResult": "Resultado",
+    "ok": "Hecho",
+    "failed": "Falló"
   }
 }

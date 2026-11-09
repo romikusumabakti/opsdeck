@@ -22,11 +22,12 @@ import {
   updateSettingsSchema,
 } from "@/server/services/instance-updates";
 import {
+  getAuthorizedKeysLine,
   getInstanceSshKey,
   requestMoveAll,
   requestRotate,
 } from "@/server/services/server-key-jobs";
-import { json, param } from "@/server/validation";
+import { json, param, query } from "@/server/validation";
 
 const idParam = param(z.object({ id: uuidSchema }));
 
@@ -37,6 +38,12 @@ const idParam = param(z.object({ id: uuidSchema }));
  */
 export const instanceSshKeyRouter = sessionRouter()
   .get("/", async (c) => c.json(await getInstanceSshKey()))
+  // The line a new server's admin installs by hand, restricted to `from`.
+  .get(
+    "/authorized-line",
+    query(z.object({ from: z.string().trim().min(1).max(64) })),
+    async (c) => c.json(await getAuthorizedKeysLine(c.req.valid("query").from))
+  )
   .post("/move-all", async (c) => c.json(await requestMoveAll(), 202))
   .post("/rotate", async (c) => c.json(await requestRotate(), 202));
 

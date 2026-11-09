@@ -101,3 +101,34 @@ export const getServerPreflightQuery = (
     queryKey: ["servers", "getServerPreflight", args],
     queryFn: () => getServerPreflight(...args),
   });
+
+// SSH access (org server:manage). A refusal rejects with an ApiError whose
+// `code` is stable (keyJobRunning, hostKeyChanged, …) and message translated.
+
+/** Moves a password server to the instance key with its stored password. */
+export async function moveServerToKey(id: string) {
+  return parseResponse(routes[":id"]["move-to-key"].$post({ param: { id } }));
+}
+
+/** Installs the key with a password typed once; the Panel never stores it. */
+export async function reinstallServerKey(id: string, password: string) {
+  return parseResponse(
+    routes[":id"]["reinstall-key"].$post({ param: { id }, json: { password } })
+  );
+}
+
+/**
+ * Pins the host key the server offered. `expectedFingerprint` is the one the
+ * admin was shown: a key that changed again since is refused.
+ */
+export async function trustServerHostKey(
+  id: string,
+  expectedFingerprint: string
+) {
+  return parseResponse(
+    routes[":id"]["trust-host-key"].$post({
+      param: { id },
+      json: { expectedFingerprint },
+    })
+  );
+}

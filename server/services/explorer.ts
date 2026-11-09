@@ -21,6 +21,7 @@ import {
   PathError,
 } from "@/lib/explorer/path";
 import { type Eol, readTextFile, writeTextFile } from "@/lib/explorer/text";
+import { HostKeyMismatchError } from "@/lib/ssh-connect";
 import type { ActionResponse } from "@/lib/types";
 import {
   explorerEolSchema,
@@ -37,7 +38,11 @@ import { getServerTranslator } from "@/server/i18n";
 // never in a payload: the client sends a source descriptor of ids, and
 // resolveBackend loads creds server-side.
 
-type ListResult = ActionResponse<ExplorerEntry[]>;
+// A listing refused on a changed host key says so by code, so the explorer can
+// link to the server page where an admin reviews the key.
+type ListResult =
+  | ActionResponse<ExplorerEntry[]>
+  | { success: false; message: string; code: "hostKeyMismatch" };
 
 // Parse+authorize the common preamble. Returns the resolved backend or a
 // typed error so each action can early-return.
@@ -73,6 +78,7 @@ function explain(
   if (error instanceof PathError) return t("invalidPath");
   if (error instanceof MissingEntryError) return t("entryGone");
   if (error instanceof TreeTooLargeError) return t("treeTooLarge");
+  if (error instanceof HostKeyMismatchError) return t("hostKeyMismatch");
   console.error("Explorer operation failed:", error);
   return t("explorerFailed");
 }
@@ -92,6 +98,13 @@ export async function listEntries(
     const data = await opened.backend.list(parsedPath.data);
     return { success: true, data };
   } catch (error) {
+    if (error instanceof HostKeyMismatchError) {
+      return {
+        success: false,
+        message: t("hostKeyMismatch"),
+        code: "hostKeyMismatch",
+      };
+    }
     return { success: false, message: explain(error, t) };
   }
 }

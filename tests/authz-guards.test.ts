@@ -780,7 +780,8 @@ describe("API routers reach a guard", () => {
     expect(guard).toBeLessThan(configured.indexOf("loadMailpitConfig("));
   });
 
-  // Server rows carry the encrypted SSH password; the API never returns it.
+  // Server rows carry the encrypted SSH password and host key blobs; the API
+  // returns serverView's projection (tests/servers-ssh-api checks its fields).
   it("server reads strip the password", () => {
     const source = readFileSync("server/routes/servers.ts", "utf8");
     for (const route of [
@@ -791,7 +792,7 @@ describe("API routers reach a guard", () => {
       const handler = source
         .slice(source.indexOf(`"${route}"`))
         .split(/\n {2}\./)[0];
-      expect(handler).toMatch(/\btoSafe\b/);
+      expect(handler).toMatch(/\bserverView\b/);
     }
   });
 });
