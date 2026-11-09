@@ -199,25 +199,30 @@ async function load(
 }
 
 // Shell helpers every step script starts with. `under A B`: A is B or lies
-// inside it (B = / covers every absolute path). `resolved P`: P with every
-// symlink resolved, or a non-zero status; never P unresolved, since an
-// unresolved path would hide an overlap. `realpath -m` (GNU and uutils
-// coreutils) first; where it has no -m (busybox), the deepest existing
-// ancestor is resolved with `realpath`/`readlink -f` and the rest appended.
-// Callers exit unresolvablePath on failure.
+// inside it (B = / covers every absolute path). `one_abs S`: S is a single
+// absolute path (one line). `resolved P`: P with every symlink resolved, or
+// a non-zero status; never P unresolved, since an unresolved path would hide
+// an overlap. A tool's output is used only when the tool succeeds and gives
+// one absolute line: busybox `realpath` takes `-m` and `--` for file names,
+// prints the path anyway and exits 1. `realpath -m` (GNU, uutils) first;
+// else the deepest existing ancestor is resolved with `realpath`, then
+// `readlink -f`, and the rest appended. Callers exit unresolvablePath on
+// failure.
 const SHELL_HELPERS = [
   'under() { if [ "$2" = / ]; then return 0; fi; case "$1/" in "$2"/*) return 0;; esac; return 1; }',
   'overlap() { under "$1" "$2" || under "$2" "$1"; }',
+  `one_abs() { case "$1" in /*) ;; *) return 1;; esac; [ "$(printf '%s\\n' "$1" | wc -l)" -eq 1 ]; }`,
   [
     "resolved() {",
-    '  realpath -m -- "$1" 2>/dev/null && return 0',
+    '  if r_m=$(realpath -m -- "$1" 2>/dev/null); then one_abs "$r_m" || return 1; printf \'%s\\n\' "$r_m"; return 0; fi',
     '  case "$1" in /*) ;; *) return 1;; esac',
     "  r_p=$1; r_rest=",
     '  while [ ! -e "$r_p" ] && [ ! -L "$r_p" ]; do',
     `    r_rest=/\${r_p##*/}$r_rest; r_p=\${r_p%/*}; [ -n "$r_p" ] || r_p=/`,
     "  done",
-    '  r_real=$(realpath -- "$r_p" 2>/dev/null) || r_real=$(readlink -f -- "$r_p" 2>/dev/null) || return 1',
-    '  case "$r_real" in /*) ;; *) return 1;; esac',
+    '  if r_real=$(realpath -- "$r_p" 2>/dev/null) && one_abs "$r_real"; then :',
+    '  elif r_real=$(readlink -f -- "$r_p" 2>/dev/null) && one_abs "$r_real"; then :',
+    "  else return 1; fi",
     `  if [ "$r_real" = / ]; then printf '%s\\n' "\${r_rest:-/}"; else printf '%s%s\\n' "$r_real" "$r_rest"; fi`,
     "}",
   ].join("\n"),
@@ -228,6 +233,7 @@ const SHELL_HELPERS = [
  * Prints `state absent`/`state nofile` and exits 0 when there is no stack;
  * otherwise sets $name, $cs (containers) and $vs (volumes) and prints
  * `project`, `containers` and `volume` lines. Refuses (exit code):
+ * - unsafeDeployDir: the dir itself is a symlink;
  * - deployDirShared: another environment's dir overlaps ours once both are
  *   resolved (symlinks), or its compose project, as compose resolves it
  *   there (`name:`, COMPOSE_PROJECT_NAME; the dir name when it has no
@@ -258,6 +264,8 @@ function stackGuardLines(
     'valid() { case "$1" in ""|[!a-z0-9]*|*[!a-z0-9_-]*) return 1;; esac; return 0; }',
     // The project compose resolves in dir $1, quotes stripped.
     `project_in() { cfg=$(cd "$1" && docker compose config 2>/dev/null) || return 1; printf '%s\\n' "$cfg" | sed -n 's/^name: //p' | head -n 1 | sed -e "s/^[\\"']//" -e "s/[\\"']\\$//"; }`,
+    // The dir itself a symlink: its target is someone else's to keep.
+    `if [ -L "$D" ]; then exit ${EXIT.unsafeRealDir}; fi`,
     `if [ ! -d "$D" ]; then echo 'state absent'; exit 0; fi`,
     `cd "$D" || exit ${EXIT.dockerListFailed}`,
     `if ! ${hasCompose('"$D"')}; then echo 'state nofile'; exit 0; fi`,
@@ -438,10 +446,11 @@ export async function stackDown(
 /**
  * remove_deploy_dir: `rm -rf --` on the canonical dir, once it is still a
  * safe path and no other environment's dir overlaps it, as stored and,
- * within the same script, once resolved on the server. What is removed is
- * the resolved real dir (re-checked as isSafeDeployDir does: two segments,
- * no system tree, not a parent of real data), plus the stored path when it
- * is itself a symlink. Tried as the SSH user first, then elevated
+ * within the same script, once resolved on the server. A dir that is itself
+ * a symlink is refused (unsafeDeployDir): its target is never deleted.
+ * Symlinked parents are fine: what is removed is the resolved real dir,
+ * re-checked as isSafeDeployDir does (two segments, no system tree, not a
+ * parent of real data). Tried as the SSH user first, then elevated
  * (container-owned files in bind mounts). Ok when already absent.
  */
 export async function removeDeployDir(
@@ -454,7 +463,7 @@ export async function removeDeployDir(
   if (others.some((other) => dirsOverlap(dir, other))) {
     throw new StepFailed("deployDirShared");
   }
-  const rm = 'rm -rf -- "$real" "$D"';
+  const rm = 'rm -rf -- "$real"';
   const elevated = privilegedViaStdin(rm, target);
   const remove =
     elevated.command === rm ? rm : `${rm} 2>/dev/null || ${elevated.command}`;
@@ -462,7 +471,8 @@ export async function removeDeployDir(
   const body = [
     `D=${shq(dir)}`,
     ...SHELL_HELPERS,
-    `if [ ! -e "$D" ] && [ ! -L "$D" ]; then echo 'state absent'; exit 0; fi`,
+    `if [ -L "$D" ]; then exit ${EXIT.unsafeRealDir}; fi`,
+    `if [ ! -e "$D" ]; then echo 'state absent'; exit 0; fi`,
     `real=$(resolved "$D") || exit ${EXIT.unresolvablePath}`,
     ...others.flatMap((other) => [
       `o_real=$(resolved ${shq(other)}) || exit ${EXIT.unresolvablePath}`,
