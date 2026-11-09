@@ -9,8 +9,11 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/usr/local/lib/opsdeck/update.sh /opt/%i
 # Backup, pull, migrate and two `up --wait` runs; a hung step must not keep
-# the status "running" forever (the script records updaterError on TERM).
+# the status "running" forever (on TERM the script rolls back: interrupted).
 TimeoutStartSec=1h
+# On stop or that timeout the script rolls back (up --wait, up to 180 s plus
+# health); give it the time before SIGKILL.
+TimeoutStopSec=5min
 PrivateTmp=yes
 NoNewPrivileges=yes
 UMask=0077
