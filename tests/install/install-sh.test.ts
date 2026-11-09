@@ -42,7 +42,7 @@ case "$1 $2" in
       echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" >&2
       exit 1
     fi
-    echo " Server Version: 29.5.3" ;;
+    echo " Server Version: 29.5.3"; echo " Name: \${STUB_DOCKER_INFO_NAME:-docker-host}" ;;
   "volume inspect")
     if [ -n "\${STUB_DOCKER_DOWN:-}" ]; then
       echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" >&2
@@ -1317,6 +1317,13 @@ describe("install.sh on another systemd distribution (Rocky Linux 9)", () => {
       "Docker Engine is required, podman is not supported"
     );
     expect(r.stdout).not.toContain("==> Install dir");
+  });
+
+  it("accepts Docker Engine on a host whose name says podman", () => {
+    const ctx = rocky();
+    const r = install(ctx, args(ctx), { STUB_DOCKER_INFO_NAME: "podman-box" });
+    expect(r.status, r.all).toBe(0);
+    expect(r.stdout).not.toContain("a real run would stop here");
   });
 
   it.each([

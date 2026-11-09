@@ -210,9 +210,10 @@ require_compose() {
 # The docker command must be Docker Engine, and its daemon running.
 require_engine() {
   engine=$(docker version 2>&1 </dev/null || :)
-  if info=$(docker info 2>&1 </dev/null); then running=1; else running=0; fi
-  case "$engine$NL$info" in
-    *[Pp]odman*) die "docker here is Podman (podman-docker or a podman wrapper): Docker Engine is required, podman is not supported. Install Docker Engine ($DOCKER_DOCS), then run install.sh again" ;;
+  if docker info >/dev/null 2>&1 </dev/null; then running=1; else running=0; fi
+  # Only the component name: docker info's Name (the hostname) may say podman.
+  case $engine in
+    *"Podman Engine"*) die "docker here is Podman (podman-docker or a podman wrapper): Docker Engine is required, podman is not supported. Install Docker Engine ($DOCKER_DOCS), then run install.sh again" ;;
   esac
   if [ "$running" = 0 ]; then
     host_problem "the Docker Engine daemon is not running: start docker.service (systemctl enable --now docker.service), then run install.sh again"
