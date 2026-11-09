@@ -125,6 +125,16 @@ function isoDay(offsetDays: number): string {
 }
 
 describe("dss-panel-backup.sh", () => {
+  it("refuses a malformed EXTRA_DUMPS entry", () => {
+    const ctx = setup();
+    const r = run(BACKUP_SCRIPT, ctx, {
+      EXTRA_DUMPS: "shared-postgres:bad;db",
+    });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain("EXTRA_DUMPS entry must be container:database");
+    expect(r.log).not.toContain("pg_dump -U postgres -Fc bad");
+  });
+
   it("happy path writes both dumps, globals, garage dir and SHA256SUMS, then rsyncs", () => {
     const ctx = setup();
     const r = run(BACKUP_SCRIPT, ctx);
@@ -173,7 +183,10 @@ describe("dss-panel-backup.sh", () => {
     expect(rclone).toBeGreaterThan(pgDump);
     expect(rsync).toBeGreaterThan(rclone);
     expect(r.log).toContain(
-      "docker exec opsdeck-postgres pg_dump -U postgres -Fc sonarqube_db\n"
+      "docker exec shared-postgres pg_dump -U postgres -Fc sonarqube_db\n"
+    );
+    expect(r.log).not.toContain(
+      "docker exec opsdeck-postgres pg_dump -U postgres -Fc sonarqube_db"
     );
     expect(r.log).toContain(
       "docker exec opsdeck-postgres pg_dumpall -U postgres --globals-only\n"
