@@ -14,6 +14,8 @@ export type ShellOptions = {
   // Written as `cd '<cwd>'` on open. Already confined and metacharacter-checked
   // by lib/terminal/authorize — never accept an unvalidated value here.
   cwd?: string;
+  // The user opening the shell, recorded if this connection pins the host key.
+  actor?: string;
 };
 
 export type ShellSession = ShellHandle & {
@@ -27,7 +29,7 @@ export async function openSshShell(
   target: ShellTarget,
   options: ShellOptions
 ): Promise<ShellSession> {
-  const config = await connectConfig(target);
+  const config = await connectConfig(target, { actor: options.actor });
   return new Promise((resolve, reject) => {
     const client = new Client();
     let settled = false;

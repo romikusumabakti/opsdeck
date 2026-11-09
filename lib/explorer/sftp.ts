@@ -1,5 +1,6 @@
 import type { Readable } from "node:stream";
 import type { FileEntryWithStats, SFTPWrapper, Stats } from "ssh2";
+import type { ConnectOptions } from "@/lib/ssh-connect";
 import { basename, confineSftpPath } from "./path";
 import { openSftp, type SshCreds, withPooledSftp } from "./sftp-pool";
 import type { DownloadTarget, ExplorerEntry, StorageBackend } from "./types";
@@ -15,9 +16,14 @@ export type { SshCreds };
 // connection (see ./sftp-pool — the SSH handshake dominated their latency).
 // Bulk transfers dial their own, because a multi-GB stream saturates the SSH
 // channel window and would stall every listing sharing it.
-export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
+export function createSftpBackend(
+  creds: SshCreds,
+  root = "/",
+  // The signed-in user, recorded if a connection pins the host key.
+  options: ConnectOptions = {}
+): StorageBackend {
   const withSftp = <T>(fn: (sftp: SFTPWrapper) => Promise<T>) =>
-    withPooledSftp(creds, fn);
+    withPooledSftp(creds, fn, options);
 
   const abs = (p: string) => confineSftpPath(root, p);
 
@@ -90,7 +96,7 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
       const p = abs(pathInput);
       // The connection must outlive the stream. Open it, hand back the read
       // stream, and dispose once the stream closes/errors.
-      const conn = await openSftp(creds);
+      const conn = await openSftp(creds, options);
       try {
         const stream = conn.sftp.createReadStream(p);
         stream.once("close", conn.dispose);
@@ -106,7 +112,7 @@ export function createSftpBackend(creds: SshCreds, root = "/"): StorageBackend {
 
     async writeStream(pathInput, body) {
       const p = abs(pathInput);
-      const conn = await openSftp(creds);
+      const conn = await openSftp(creds, options);
       try {
         await new Promise<void>((resolve, reject) => {
           const out = conn.sftp.createWriteStream(p);

@@ -24,6 +24,8 @@ function makeServer(name: string): Server {
     hostKey: null,
     hostKeyFingerprint: null,
     hostKeyPinnedAt: null,
+    hostKeyOfferedType: null,
+    hostKeyOffered: null,
     hostKeyOfferedFingerprint: null,
     sshKeyId: null,
     sshFrom: null,

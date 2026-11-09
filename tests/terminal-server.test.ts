@@ -2,6 +2,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import ssh2 from "ssh2";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { HostKeyMismatchError } from "@/lib/ssh-connect";
 import { mintTicket } from "@/lib/terminal/protocol";
 import { createTerminalHandlers } from "@/lib/terminal/server";
 import { DEFAULT_LIMITS, SessionRegistry } from "@/lib/terminal/session";
@@ -150,6 +151,79 @@ function connect(url: string) {
 }
 
 describe("terminal sidecar", () => {
+  // The ticket's user reaches connectConfig as the actor of a first-use pin,
+  // and a host key mismatch reaches the browser as its stable code.
+  async function withOpenShell(
+    openShell: Parameters<typeof createTerminalHandlers>[0]["openShell"],
+    run: (url: string) => Promise<void>
+  ) {
+    const { fetch, websocket, registry } = createTerminalHandlers({
+      allowedOrigin: null,
+      loadServer: async () => ({
+        id: "server-1",
+        name: "Test",
+        serverId: null,
+        auth: "password" as const,
+        host: "127.0.0.1",
+        port: sshdPort,
+        username: "tester",
+        password: "correct-horse",
+      }),
+      openShell,
+      audit: () => {},
+    });
+    const server = Bun.serve({ port: 0, fetch, websocket });
+    try {
+      await run(`ws://127.0.0.1:${server.port}/ws/terminal`);
+    } finally {
+      registry.destroyAll();
+      server.stop(true);
+    }
+  }
+
+  const hello = (uid: string) =>
+    JSON.stringify({
+      t: "hello",
+      ticket: mintTicket({ uid, sid: "server-1", cwd: "" }),
+      cols: 80,
+      rows: 24,
+    });
+
+  it("opens the shell as the ticket's user", async () => {
+    const actors: (string | undefined)[] = [];
+    await withOpenShell(
+      (target, opts) => {
+        actors.push(opts.actor);
+        return openSshShell(target, opts);
+      },
+      async (url) => {
+        const client = connect(url);
+        await client.open;
+        client.ws.send(hello("user-42"));
+        await client.until(() => client.control.some((m) => m.t === "ready"));
+        client.ws.close();
+      }
+    );
+    expect(actors).toEqual(["user-42"]);
+  });
+
+  it("sends a host key mismatch as its code", async () => {
+    await withOpenShell(
+      async () => {
+        throw new HostKeyMismatchError("SHA256:new", "SHA256:old");
+      },
+      async (url) => {
+        const client = connect(url);
+        await client.open;
+        client.ws.send(hello("user-42"));
+        await client.until(() => client.control.some((m) => m.t === "error"));
+        expect(client.control.find((m) => m.t === "error")).toMatchObject({
+          message: "hostKeyMismatch",
+        });
+      }
+    );
+  });
+
   it("opens a shell, echoes stdin, and reports the session id", async () => {
     await withServer(async (url) => {
       const client = connect(url);

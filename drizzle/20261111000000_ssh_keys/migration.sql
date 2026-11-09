@@ -15,6 +15,8 @@ ALTER TABLE "servers" ADD COLUMN "host_key_type" text;--> statement-breakpoint
 ALTER TABLE "servers" ADD COLUMN "host_key" text;--> statement-breakpoint
 ALTER TABLE "servers" ADD COLUMN "host_key_fingerprint" text;--> statement-breakpoint
 ALTER TABLE "servers" ADD COLUMN "host_key_pinned_at" timestamp;--> statement-breakpoint
+ALTER TABLE "servers" ADD COLUMN "host_key_offered_type" text;--> statement-breakpoint
+ALTER TABLE "servers" ADD COLUMN "host_key_offered" text;--> statement-breakpoint
 ALTER TABLE "servers" ADD COLUMN "host_key_offered_fingerprint" text;--> statement-breakpoint
 ALTER TABLE "servers" ADD COLUMN "ssh_key_id" uuid;--> statement-breakpoint
 ALTER TABLE "servers" ADD COLUMN "ssh_from" text;--> statement-breakpoint

@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
 import type { ConnectConfig, ServerHostKeyAlgorithm } from "ssh2";
 import { recordActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
@@ -94,6 +94,21 @@ export function connectError(config: ConnectConfig, error: unknown): unknown {
   const verifier = config.hostVerifier as HostVerifier | undefined;
   return (verifier && mismatches.get(verifier)) ?? error;
 }
+
+const OFFERED_CLEARED = {
+  hostKeyOfferedType: null,
+  hostKeyOffered: null,
+  hostKeyOfferedFingerprint: null,
+} as const;
+
+/** Every pin column cleared: the next connection trusts on first use. */
+export const HOST_KEY_CLEARED = {
+  hostKeyType: null,
+  hostKey: null,
+  hostKeyFingerprint: null,
+  hostKeyPinnedAt: null,
+  ...OFFERED_CLEARED,
+} as const;
 
 // Host key algorithms that produce a key blob of each type. Once a server is
 // pinned, only its pinned type is negotiated (as OpenSSH prefers the types in
@@ -221,7 +236,7 @@ async function checkHostKey(
         hostKey: observed.key,
         hostKeyFingerprint: observed.fingerprint,
         hostKeyPinnedAt: new Date(),
-        hostKeyOfferedFingerprint: null,
+        ...OFFERED_CLEARED,
       })
       .where(
         and(
@@ -232,9 +247,8 @@ async function checkHostKey(
       )
       .returning({ id: servers.id });
     if (won.length > 0) {
-      const actor = opts.actor ?? "system";
       await recordActivity({
-        actorId: actor === "system" ? null : actor,
+        actorId: actorId(opts),
         action: "server.hostKeyPinned",
         entityType: "server",
         entityId: serverId,
@@ -250,52 +264,102 @@ async function checkHostKey(
 
   if (Buffer.from(pin.hostKey, "base64").equals(blob)) return;
 
-  await db
+  // Keep exactly the key offered, so trusting it pins this key and no other.
+  // Only a newly offered key is recorded in the activity log, not every
+  // refused connection.
+  const recorded = await db
     .update(servers)
-    .set({ hostKeyOfferedFingerprint: observed.fingerprint })
-    .where(eq(servers.id, serverId));
+    .set({
+      hostKeyOfferedType: observed.type,
+      hostKeyOffered: observed.key,
+      hostKeyOfferedFingerprint: observed.fingerprint,
+    })
+    .where(
+      and(
+        eq(servers.id, serverId),
+        or(
+          isNull(servers.hostKeyOfferedFingerprint),
+          ne(servers.hostKeyOfferedFingerprint, observed.fingerprint)
+        )
+      )
+    )
+    .returning({ id: servers.id });
+  if (recorded.length > 0) {
+    await recordActivity({
+      actorId: actorId(opts),
+      action: "server.hostKeyMismatch",
+      entityType: "server",
+      entityId: serverId,
+      data: {
+        server: pin.name,
+        fingerprint: observed.fingerprint,
+        pinned: pin.hostKeyFingerprint ?? "",
+      },
+    });
+  }
   throw new HostKeyMismatchError(observed.fingerprint, pin.hostKeyFingerprint);
 }
 
-/** Every pin column cleared: the next connection trusts on first use. */
-export const HOST_KEY_CLEARED = {
-  hostKeyType: null,
-  hostKey: null,
-  hostKeyFingerprint: null,
-  hostKeyPinnedAt: null,
-  hostKeyOfferedFingerprint: null,
-} as const;
+function actorId(opts: ConnectOptions): string | null {
+  return !opts.actor || opts.actor === "system" ? null : opts.actor;
+}
 
 /**
- * Trust the key a server offered after a mismatch: the pin and the offered
- * value are cleared, so the next connection pins whatever the server offers.
- * The caller checks `server:manage`.
+ * Trust the key a server offered after a mismatch: exactly that key becomes
+ * the pin. `expectedFingerprint` is the offered fingerprint the admin checked;
+ * if the server has offered another key since, nothing changes and the result
+ * is `hostKeyChanged`. The caller checks `server:manage`.
  */
 export async function trustOfferedHostKey(
   serverId: string,
-  actorId: string
-): Promise<void> {
-  const [before] = await db
+  actorId: string,
+  expectedFingerprint: string
+): Promise<{ ok: true } | { ok: false; code: "hostKeyChanged" }> {
+  const [row] = await db
     .select({
       name: servers.name,
+      hostKeyOfferedType: servers.hostKeyOfferedType,
+      hostKeyOffered: servers.hostKeyOffered,
       hostKeyOfferedFingerprint: servers.hostKeyOfferedFingerprint,
     })
     .from(servers)
     .where(eq(servers.id, serverId))
     .limit(1);
-  if (!before) throw new Error("server not found");
-  await db
+  if (!row) throw new Error("server not found");
+  const { hostKeyOffered: key, hostKeyOfferedType: type } = row;
+  if (
+    !key ||
+    !type ||
+    row.hostKeyOfferedFingerprint !== expectedFingerprint ||
+    sshFingerprint(Buffer.from(key, "base64")) !== expectedFingerprint
+  ) {
+    return { ok: false, code: "hostKeyChanged" };
+  }
+  // Conditional on the fingerprint still being the one checked: a key offered
+  // in between wins nothing.
+  const trusted = await db
     .update(servers)
-    .set(HOST_KEY_CLEARED)
-    .where(eq(servers.id, serverId));
+    .set({
+      hostKeyType: type,
+      hostKey: key,
+      hostKeyFingerprint: expectedFingerprint,
+      hostKeyPinnedAt: new Date(),
+      ...OFFERED_CLEARED,
+    })
+    .where(
+      and(
+        eq(servers.id, serverId),
+        eq(servers.hostKeyOfferedFingerprint, expectedFingerprint)
+      )
+    )
+    .returning({ id: servers.id });
+  if (trusted.length === 0) return { ok: false, code: "hostKeyChanged" };
   await recordActivity({
     actorId,
     action: "server.hostKeyTrusted",
     entityType: "server",
     entityId: serverId,
-    data: {
-      server: before.name,
-      fingerprint: before.hostKeyOfferedFingerprint ?? "",
-    },
+    data: { server: row.name, fingerprint: expectedFingerprint },
   });
+  return { ok: true };
 }

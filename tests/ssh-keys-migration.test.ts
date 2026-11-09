@@ -40,6 +40,8 @@ describe("ssh keys migration", () => {
       "host_key",
       "host_key_fingerprint",
       "host_key_pinned_at",
+      "host_key_offered_type",
+      "host_key_offered",
       "host_key_offered_fingerprint",
       "ssh_key_id",
       "ssh_from",
