@@ -5,14 +5,14 @@
 export const TEARDOWN_ERRORS = {
   deployDirShared: "Another environment uses this deploy directory",
   domainShared:
-    "Another environment records the same Cloudflare Access app or DNS record",
+    "The Cloudflare Access app or DNS record is shared with another environment or hostname",
   databaseBackupUnsupported:
     "Only PostgreSQL databases can be archived before deletion",
   unsafeDeployDir: "The deploy directory is not a safe path to delete",
   environmentBusy: "A deploy or provisioning run is active on the environment",
   teardownRunning: "The environment is already being deleted",
   databaseNotRegistered:
-    "The stack's data is not covered by a registered database service",
+    "The database service or its database host is missing or incomplete",
   stackHostsSharedDatabase:
     "The stack runs a database container another environment uses",
   serverCommandFailed: "A command on the server failed",

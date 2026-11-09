@@ -1,7 +1,10 @@
 import {
+  accessAppHostnames,
   type CloudflareCreds,
   deleteAccessApp,
   deleteDnsRecord,
+  getAccessApp,
+  getDnsRecord,
   getTunnelConfig,
   putTunnelConfig,
   withoutIngressRoute,
@@ -117,6 +120,11 @@ async function zoneId(zoneRowId: string): Promise<string> {
   return id;
 }
 
+/**
+ * Deletes the DNS record by id, but only while it is still named after the
+ * environment's hostname: a record someone renamed since is refused
+ * (domainShared) and left alone. Gone is ok.
+ */
 function removeDnsRecord(
   ctx: ArchiveContext,
   params: Params<"remove_dns_record">
@@ -124,6 +132,14 @@ function removeDnsRecord(
   return onCloudflare(ctx, async () => {
     const creds = await cloudflare(ctx);
     const zone = await zoneId(params.zoneId);
+    const record = await getDnsRecord(creds, zone, params.recordId);
+    if (!record) return `DNS record ${params.recordId} already gone`;
+    if (record.name.toLowerCase() !== params.hostname.toLowerCase()) {
+      throw new StepFailed(
+        "domainShared",
+        `DNS record ${params.recordId} is now named ${record.name}, not ${params.hostname}; left in place`
+      );
+    }
     const result = await deleteDnsRecord(creds, zone, params.recordId);
     return result === "deleted"
       ? `DNS record ${params.recordId} deleted`
@@ -166,13 +182,29 @@ function removeTunnelRoute(
   });
 }
 
-/** The Access app, in the Cloudflare account the Panel uses for the zone. */
+/**
+ * The Access app, in the Cloudflare account the Panel uses for the zone, but
+ * only while it covers no hostname but ours (domain, self-hosted domains,
+ * destinations; paths ignored): deleting an app someone extended since would
+ * expose the other hostnames, so that is refused (domainShared) and nothing
+ * changes. Gone is ok.
+ */
 function removeAccessApp(
   ctx: ArchiveContext,
   params: Params<"remove_access_app">
 ): Promise<string> {
   return onCloudflare(ctx, async () => {
     const creds = await cloudflare(ctx);
+    const app = await getAccessApp(creds, creds.accountId, params.appId);
+    if (!app) return `Access app ${params.appId} already gone`;
+    const ours = params.hostname.toLowerCase();
+    const others = accessAppHostnames(app).filter((name) => name !== ours);
+    if (others.length > 0) {
+      throw new StepFailed(
+        "domainShared",
+        `Access app ${params.appId} also covers ${others.join(", ")}; left in place`
+      );
+    }
     const result = await deleteAccessApp(creds, creds.accountId, params.appId);
     return result === "deleted"
       ? `Access app ${params.appId} deleted`

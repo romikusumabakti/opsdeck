@@ -2,8 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
 import {
-  type AccessApp,
-  accessAppDomains,
+  accessAppHostnames,
   CloudflareConflictError,
   type CloudflareCreds,
   findDnsRecord,
@@ -448,14 +447,6 @@ async function findAdoptable(
     return failDomain(409, "domainAccessAppShared");
   }
   return { dnsRecordId: record.id, accessAppId: app?.id ?? null };
-}
-
-// The hostnames an Access app covers, lowercased: a destination's path
-// (`host/path`) is dropped, and an absent domain skipped.
-function accessAppHostnames(app: AccessApp): string[] {
-  return accessAppDomains(app).map(
-    (domain) => domain.split("/")[0]?.toLowerCase() ?? ""
-  );
 }
 
 // The same lock as the provisioning tunnel_route step, so concurrent edits of

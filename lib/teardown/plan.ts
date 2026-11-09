@@ -34,8 +34,16 @@ export type TeardownStepSpec =
       kind: "remove_tunnel_route";
       params: { remoteTunnelId: string; hostname: string };
     }
-  | { kind: "remove_access_app"; params: { zoneId: string; appId: string } }
-  | { kind: "remove_dns_record"; params: { zoneId: string; recordId: string } }
+  // `hostname`: the step deletes the object only while it covers nothing
+  // else (an Access app) or is still named so (a DNS record).
+  | {
+      kind: "remove_access_app";
+      params: { zoneId: string; appId: string; hostname: string };
+    }
+  | {
+      kind: "remove_dns_record";
+      params: { zoneId: string; recordId: string; hostname: string };
+    }
   | { kind: "remove_deploy_dir"; params: DirParams }
   | {
       kind: "delete_environment";
@@ -77,6 +85,7 @@ export const teardownStepSpecSchema: z.ZodType<TeardownStepSpec> =
       params: z.object({
         zoneId: z.string().min(1),
         appId: z.string().min(1),
+        hostname: z.string().min(1),
       }),
     }),
     z.object({
@@ -84,6 +93,7 @@ export const teardownStepSpecSchema: z.ZodType<TeardownStepSpec> =
       params: z.object({
         zoneId: z.string().min(1),
         recordId: z.string().min(1),
+        hostname: z.string().min(1),
       }),
     }),
     z.object({ kind: z.literal("remove_deploy_dir"), params: dirParams }),
@@ -174,7 +184,11 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   if (domain?.zoneId && domain.dnsRecordId) {
     steps.push({
       kind: "remove_dns_record",
-      params: { zoneId: domain.zoneId, recordId: domain.dnsRecordId },
+      params: {
+        zoneId: domain.zoneId,
+        recordId: domain.dnsRecordId,
+        hostname: domain.hostname,
+      },
     });
   }
   if (domain?.remoteTunnelId) {
@@ -189,7 +203,11 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   if (domain?.zoneId && domain.accessAppId) {
     steps.push({
       kind: "remove_access_app",
-      params: { zoneId: domain.zoneId, appId: domain.accessAppId },
+      params: {
+        zoneId: domain.zoneId,
+        appId: domain.accessAppId,
+        hostname: domain.hostname,
+      },
     });
   }
 

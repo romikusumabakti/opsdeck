@@ -36,6 +36,16 @@ const state = vi.hoisted(() => ({
   cf: {
     dns: "deleted" as "deleted" | "absent",
     app: "deleted" as "deleted" | "absent",
+    // What a GET returns; null is gone (404).
+    record: { id: "rec-1", name: "hris-staging.example.com" } as null | {
+      id: string;
+      name: string;
+    },
+    accessApp: {
+      id: "app-1",
+      name: "hris-staging",
+      domain: "HRIS-staging.example.com",
+    } as null | Record<string, unknown>,
     config: { ingress: [] as { hostname?: string; service: string }[] },
     puts: [] as unknown[],
     error: null as null | Error,
@@ -176,6 +186,17 @@ vi.mock("@/lib/cloudflare/api", async (importOriginal) => {
   };
   return {
     withoutIngressRoute: real.withoutIngressRoute,
+    accessAppHostnames: real.accessAppHostnames,
+    getDnsRecord: async (_creds: unknown, zoneId: string, recordId: string) => {
+      fail();
+      state.cf.calls.push(`get dns ${zoneId} ${recordId}`);
+      return structuredClone(state.cf.record);
+    },
+    getAccessApp: async (_creds: unknown, accountId: string, appId: string) => {
+      fail();
+      state.cf.calls.push(`get app ${accountId} ${appId}`);
+      return structuredClone(state.cf.accessApp);
+    },
     deleteDnsRecord: async (
       creds: { apiToken: string },
       zoneId: string,
@@ -218,12 +239,20 @@ const PARAMS: Record<string, Record<string, unknown>> = {
   archive_volumes: DIR,
   stack_down: DIR,
   drop_database: { serviceId: "svc" },
-  remove_dns_record: { zoneId: "zone-row", recordId: "rec-1" },
+  remove_dns_record: {
+    zoneId: "zone-row",
+    recordId: "rec-1",
+    hostname: "hris-staging.example.com",
+  },
   remove_tunnel_route: {
     remoteTunnelId: "tunnel-row",
     hostname: "hris-staging.example.com",
   },
-  remove_access_app: { zoneId: "zone-row", appId: "app-1" },
+  remove_access_app: {
+    zoneId: "zone-row",
+    appId: "app-1",
+    hostname: "hris-staging.example.com",
+  },
   remove_deploy_dir: DIR,
   delete_environment: {},
 };
@@ -259,6 +288,12 @@ beforeEach(() => {
   state.cf = {
     dns: "deleted",
     app: "deleted",
+    record: { id: "rec-1", name: "hris-staging.example.com" },
+    accessApp: {
+      id: "app-1",
+      name: "hris-staging",
+      domain: "HRIS-staging.example.com",
+    },
     config: {
       ingress: [
         { hostname: "hris-staging.example.com", service: "http://app:80" },
@@ -449,7 +484,68 @@ describe("Cloudflare removals", () => {
     seed(["remove_access_app"]);
     state.cf.app = "absent";
     expect(await run()).toEqual({ status: "success" });
+    expect(state.cf.calls).toEqual(["get app acc-1 app-1", "app acc-1 app-1"]);
+  });
+
+  it("is ok without a DELETE when the Access app or DNS record is already gone", async () => {
+    state.cf.accessApp = null;
+    state.cf.record = null;
+    seed(["remove_dns_record", "remove_access_app"]);
+    expect(await run()).toEqual({ status: "success" });
+    expect(state.cf.calls).toEqual([
+      "get dns cf-zone rec-1",
+      "get app acc-1 app-1",
+    ]);
+  });
+
+  it("refuses an Access app that now covers another hostname too; nothing deleted", async () => {
+    for (const app of [
+      {
+        domain: "hris-staging.example.com",
+        self_hosted_domains: [
+          "hris-staging.example.com",
+          "demo-other.example.com",
+        ],
+      },
+      {
+        domain: "hris-staging.example.com",
+        destinations: [
+          { type: "public", uri: "hris-staging.example.com/admin" },
+          { type: "public", uri: "demo-other.example.com" },
+        ],
+      },
+      { domain: "demo-other.example.com" },
+    ]) {
+      state.cf.calls = [];
+      state.cf.accessApp = { id: "app-1", name: "x", ...app };
+      state.run = { status: "started" };
+      seed(["remove_access_app", "delete_environment"]);
+      expect(await run()).toEqual({ status: "failed" });
+      expect(state.steps[0]?.lastError).toBe("domainShared");
+      expect(state.cf.calls).toEqual(["get app acc-1 app-1"]);
+      expect(state.run?.error).toContain("demo-other.example.com");
+      expect(state.executed).not.toContain("delete_environment");
+    }
+  });
+
+  it("deletes an Access app whose only other entries are paths of our hostname", async () => {
+    state.cf.accessApp = {
+      id: "app-1",
+      name: "x",
+      domain: "hris-staging.example.com",
+      destinations: [{ type: "public", uri: "hris-staging.example.com/api" }],
+    };
+    seed(["remove_access_app"]);
+    expect(await run()).toEqual({ status: "success" });
     expect(state.cf.calls).toContain("app acc-1 app-1");
+  });
+
+  it("refuses a DNS record renamed since; nothing deleted", async () => {
+    state.cf.record = { id: "rec-1", name: "demo-other.example.com" };
+    seed(["remove_dns_record"]);
+    expect(await run()).toEqual({ status: "failed" });
+    expect(state.steps[0]?.lastError).toBe("domainShared");
+    expect(state.cf.calls).toEqual(["get dns cf-zone rec-1"]);
   });
 
   it("removes the tunnel route under the tunnel lock, keeping the rest", async () => {

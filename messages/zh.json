@@ -2939,13 +2939,13 @@
   "teardown": {
     "errors": {
       "deployDirShared": "同一服务器上的另一个环境正在使用此部署目录",
-      "domainShared": "另一个环境记录了相同的 Cloudflare Access 应用或 DNS 记录",
+      "domainShared": "该 Cloudflare Access 应用或 DNS 记录是共享的：另一个环境记录了它，或者它之后被改为覆盖其他主机名",
       "databaseBackupUnsupported": "只有 PostgreSQL 数据库可以在删除前归档。请改用“仅从面板移除”",
       "unsafeDeployDir": "该部署目录不是可安全删除的路径",
       "environmentBusy": "此环境有正在进行的部署或预配。请在完成后重试",
       "teardownRunning": "此环境正在删除中",
       "teardownCannotCancel": "此删除已开始移除环境，无法再取消。请重试以完成删除",
-      "databaseNotRegistered": "该堆栈在命名卷中保存数据，但未注册任何数据库服务，因此归档会遗漏这些数据。请先注册数据库，或使用“仅从面板移除”",
+      "databaseNotRegistered": "该环境的数据库服务或其数据库主机已不再是计划删除时的注册状态。请检查数据库服务后重试，或使用“仅从面板移除”",
       "archiveFailed": "归档未能完成，因此未删除任何内容。重试以继续",
       "confirmNameMismatch": "请准确输入环境名称以确认",
       "environmentIsProduction": "只有管理员可以删除生产环境",

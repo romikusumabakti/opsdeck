@@ -9,7 +9,9 @@ import { type CreateRunInput, insertRun } from "@/lib/run-progress";
 // backup or a restore would act on a stack the teardown is taking apart:
 // bring it back up after stack_down, create objects no step removes. Steps
 // that are only pending, or failed with none done, are still re-plannable
-// and do not block (there is no "cancel teardown").
+// and do not block. Cancelling a teardown (cancelTeardownSteps, only while
+// just checks, archives and the stop are done) deletes its steps, which
+// lifts the block.
 //
 // Atomic with startTeardownRun: it holds the transaction-scoped advisory
 // lock on the environment id exclusively; the paths here hold the same key
