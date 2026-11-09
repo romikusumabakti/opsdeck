@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   updateEnvironment: vi.fn(),
   updateDeployTarget: vi.fn(),
   createDeployTarget: vi.fn(),
+  listApps: vi.fn(),
   orgRole: "admin" as string,
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
@@ -45,16 +46,7 @@ vi.mock("@/web/api/deploys", () => ({
 vi.mock("@/web/api/apps", () => ({
   listAppsQuery: () => ({
     queryKey: ["apps", "listApps"],
-    queryFn: async () => [
-      {
-        id: APP,
-        appKey: "kmem",
-        components: [
-          { componentKey: "kmem-api", repoFullName: "dss/kmem-api" },
-          { componentKey: "kmem-web", repoFullName: "dss/kmem-web" },
-        ],
-      },
-    ],
+    queryFn: () => api.listApps(),
   }),
 }));
 vi.mock("@/web/api/variables", () => ({
@@ -327,7 +319,16 @@ function type(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+const COMPONENTS = [
+  { componentKey: "kmem-api", repoFullName: "dss/kmem-api" },
+  { componentKey: "kmem-web", repoFullName: "dss/kmem-web" },
+];
+const appsWith = (components: typeof COMPONENTS) => [
+  { id: APP, appKey: "kmem", components },
+];
+
 beforeEach(() => {
+  api.listApps.mockImplementation(async () => appsWith(COMPONENTS));
   api.orgRole = "admin";
   api.updateEnvironment.mockResolvedValue({
     success: true,
@@ -729,6 +730,63 @@ describe("adding a deploy target from Source & Deploy", () => {
     expect(options).toHaveLength(2);
     expect(options[0]).toContain("kmem-api");
     expect(options[0]).toContain("dss/kmem-api");
+  });
+
+  const submit = () =>
+    [...(dialog()?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find(
+      (b) => b.textContent?.trim() === tDeploys.form.create
+    );
+  const openDialog = async (props: Partial<Props>) => {
+    await mount({ environment: withApp, ...props });
+    await openTab(t.tabSourceDeploy);
+    await click(addButtons()[0]);
+  };
+
+  it("says the app has no repositories instead of an empty Select", async () => {
+    api.listApps.mockImplementation(async () => appsWith([]));
+    await openDialog({ targets: [] });
+    expect(dialog()?.textContent).toContain(tDeploys.form.noComponents);
+    expect(dialog()?.querySelector("#target-component")).toBeNull();
+    expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
+    expect(submit()?.disabled).toBe(true);
+  });
+
+  it("says every repository already has a target", async () => {
+    api.listApps.mockImplementation(async () => appsWith([COMPONENTS[0]!]));
+    await openDialog({});
+    expect(dialog()?.textContent).toContain(
+      tDeploys.form.allComponentsTargeted
+    );
+    expect(dialog()?.querySelector("#target-component")).toBeNull();
+    expect(submit()?.disabled).toBe(true);
+  });
+
+  it("shows a disabled Select, not free text, while the app's components load", async () => {
+    api.listApps.mockImplementation(() => new Promise(() => {}));
+    await openDialog({ targets: [] });
+    const trigger = dialog()?.querySelector<HTMLElement>("#target-component");
+    expect(trigger).not.toBeNull();
+    expect(trigger?.hasAttribute("data-disabled")).toBe(true);
+    expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
+    expect(submit()?.disabled).toBe(true);
+  });
+
+  it("shows a load error with Retry instead of falling back to free text", async () => {
+    api.listApps.mockImplementation(async () => {
+      throw new Error("boom");
+    });
+    await openDialog({ targets: [] });
+    expect(dialog()?.textContent).toContain(tDeploys.form.componentsLoadFailed);
+    expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
+    expect(submit()?.disabled).toBe(true);
+    api.listApps.mockImplementation(async () => appsWith(COMPONENTS));
+    await click(
+      [...(dialog()?.querySelectorAll<HTMLElement>("button") ?? [])].find(
+        (b) => b.textContent?.trim() === tDeploys.form.componentsRetry
+      )
+    );
+    expect(dialog()?.querySelector("#target-component")).not.toBeNull();
+    expect(submit()?.disabled).toBe(false);
   });
 
   it("preselects nothing when more than one component is free", async () => {
