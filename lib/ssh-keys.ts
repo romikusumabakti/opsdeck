@@ -22,15 +22,20 @@ export function generateInstanceKey(): {
   const blob = Array.isArray(parsed)
     ? parsed[0].getPublicSSH()
     : parsed.getPublicSSH();
+  return {
+    publicKey,
+    privateKeyPem: pair.private,
+    fingerprint: sshFingerprint(blob),
+  };
+}
+
+/** OpenSSH's `SHA256:<base64, unpadded>` fingerprint of a public key blob. */
+export function sshFingerprint(blob: Buffer): string {
   const digest = createHash("sha256")
     .update(blob)
     .digest("base64")
     .replace(/=+$/, "");
-  return {
-    publicKey,
-    privateKeyPem: pair.private,
-    fingerprint: `SHA256:${digest}`,
-  };
+  return `SHA256:${digest}`;
 }
 
 export async function ensureCurrentKey(): Promise<{

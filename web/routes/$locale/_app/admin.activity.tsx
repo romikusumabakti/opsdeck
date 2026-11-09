@@ -281,6 +281,19 @@ function message(
       return t("mailCleared", { actor, environment: String(d.environment) });
     case "server.preflight":
       return t("serverPreflight", { actor, server: String(d.server) });
+    // Pinned by whichever connection reached the server first, often a job
+    // (no actor), so the sentence is about the server.
+    case "server.hostKeyPinned":
+      return t("serverHostKeyPinned", {
+        server: String(d.server),
+        fingerprint: String(d.fingerprint),
+      });
+    case "server.hostKeyTrusted":
+      return t("serverHostKeyTrusted", {
+        actor,
+        server: String(d.server),
+        fingerprint: String(d.fingerprint),
+      });
     case "database_host.create":
       return t("databaseHostCreated", {
         actor,

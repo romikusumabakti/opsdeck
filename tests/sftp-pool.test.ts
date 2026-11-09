@@ -58,7 +58,13 @@ class FakeSSH {
 
 vi.mock("node-ssh", () => ({ NodeSSH: FakeSSH }));
 
-const creds = { host: "10.0.0.1", username: "root", password: "s3cret" };
+const creds = {
+  serverId: null,
+  host: "10.0.0.1",
+  username: "root",
+  password: "s3cret",
+  auth: "password" as const,
+};
 
 let leaseSftp: typeof import("@/lib/explorer/sftp-pool").leaseSftp;
 let withPooledSftp: typeof import("@/lib/explorer/sftp-pool").withPooledSftp;

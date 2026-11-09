@@ -1,5 +1,14 @@
-import { NodeSSH } from "node-ssh";
+import { type Config, NodeSSH } from "node-ssh";
 import type { ClientChannel } from "ssh2";
+import {
+  type ConnectOptions,
+  connectConfig,
+  connectError,
+  HostKeyMismatchError,
+  type SshTarget,
+} from "@/lib/ssh-connect";
+
+export type { SshTarget };
 
 /**
  * Replaces every occurrence of each non-empty secret with `[redacted]`, and
@@ -17,6 +26,33 @@ export function redactSecrets(message: string, secrets: string[]): string {
   return out;
 }
 
+export type SshTuning = Pick<
+  Config,
+  "readyTimeout" | "keepaliveInterval" | "keepaliveCountMax"
+>;
+
+/**
+ * A NodeSSH client connected to `target` with the factory's config (host key
+ * verified or pinned, key or password). The caller owns it and must dispose
+ * it. The only place a NodeSSH client is connected.
+ */
+export async function openSsh(
+  target: SshTarget,
+  tuning: SshTuning = {},
+  options: ConnectOptions = {}
+): Promise<NodeSSH> {
+  const config = await connectConfig(target, options);
+  const ssh = new NodeSSH();
+  try {
+    // connectConfig sets privateKey as a string, as node-ssh's Config wants.
+    await ssh.connect({ ...config, ...tuning } as Config);
+  } catch (error) {
+    ssh.dispose();
+    throw connectError(config, error);
+  }
+  return ssh;
+}
+
 export type RemoteCommandOptions = {
   timeoutMs?: number;
   stdin?: string;
@@ -24,11 +60,7 @@ export type RemoteCommandOptions = {
 };
 
 export async function executeRemoteCommand(
-  {
-    host,
-    username,
-    password,
-  }: { host: string; username: string; password: string },
+  target: SshTarget,
   command: string,
   // Wall-clock bound on the remote command (a number, or `timeoutMs` in the
   // options form). Defaults to 10s to fail fast on page-render paths
@@ -48,11 +80,11 @@ export async function executeRemoteCommand(
   // Fresh client per call: a shared singleton races when concurrent callers
   // (e.g. parallel worker jobs, overlapping backup/restore requests) all
   // connect/dispose the same instance and tear down each other's session.
-  const ssh = new NodeSSH();
+  let ssh: NodeSSH | undefined;
   try {
     // Bound the SSH handshake so an unreachable/overloaded DB host fails fast
     // (node-ssh defaults to ~20s) instead of hanging a page render on it.
-    await ssh.connect({ host, username, password, readyTimeout: 5000 });
+    ssh = await openSsh(target, { readyTimeout: 5000 });
 
     // ssh2's exec has no command timeout, so race the command against a wall
     // clock and tear the connection down if it overruns — otherwise a stuck
@@ -84,6 +116,8 @@ export async function executeRemoteCommand(
 
     return result.stdout;
   } catch (error) {
+    // Carries no secret, and its code must reach the caller.
+    if (error instanceof HostKeyMismatchError) throw error;
     if (secrets.length > 0) {
       const message = error instanceof Error ? error.message : String(error);
       const redacted = new Error(redactSecrets(message, secrets));
@@ -93,7 +127,7 @@ export async function executeRemoteCommand(
     console.error("SSH Error:", error);
     throw error;
   } finally {
-    ssh.dispose();
+    ssh?.dispose();
   }
 }
 
@@ -102,17 +136,12 @@ export async function executeRemoteCommand(
 // SSH user — callers stage container/root-owned files into an SSH-owned temp
 // first (see the restore transfer path in lib/jobs/processor).
 export async function downloadRemoteFile(
-  {
-    host,
-    username,
-    password,
-  }: { host: string; username: string; password: string },
+  target: SshTarget,
   remotePath: string,
   localPath: string
 ): Promise<void> {
-  const ssh = new NodeSSH();
+  const ssh = await openSsh(target);
   try {
-    await ssh.connect({ host, username, password });
     await ssh.getFile(localPath, remotePath);
   } finally {
     ssh.dispose();
@@ -123,17 +152,12 @@ export async function downloadRemoteFile(
 // writable by the SSH user; callers land the file in a temp dir and then move
 // it into place with the correct ownership via a follow-up command.
 export async function uploadRemoteFile(
-  {
-    host,
-    username,
-    password,
-  }: { host: string; username: string; password: string },
+  target: SshTarget,
   localPath: string,
   remotePath: string
 ): Promise<void> {
-  const ssh = new NodeSSH();
+  const ssh = await openSsh(target);
   try {
-    await ssh.connect({ host, username, password });
     await ssh.putFile(localPath, remotePath);
   } finally {
     ssh.dispose();
@@ -149,11 +173,7 @@ export async function uploadRemoteFile(
  * new content.
  */
 export async function uploadRemoteContent(
-  {
-    host,
-    username,
-    password,
-  }: { host: string; username: string; password: string },
+  target: SshTarget,
   content: string,
   remotePath: string,
   mode: number,
@@ -161,11 +181,18 @@ export async function uploadRemoteContent(
   // executeRemoteCommand's: a stuck SFTP server must not hang the deploy.
   timeoutMs = 30_000
 ): Promise<void> {
-  const ssh = new NodeSSH();
+  let ssh: NodeSSH | undefined;
+  let finished = false;
 
   const transfer = async () => {
-    await ssh.connect({ host, username, password, readyTimeout: 5000 });
-    const sftp = await ssh.requestSFTP();
+    const client = await openSsh(target, { readyTimeout: 5000 });
+    // Timed out while connecting: the finally below already ran.
+    if (finished) {
+      client.dispose();
+      return;
+    }
+    ssh = client;
+    const sftp = await client.requestSFTP();
     try {
       const handle = await new Promise<Buffer>((resolve, reject) =>
         sftp.open(remotePath, "w", { mode }, (err, h) =>
@@ -212,8 +239,9 @@ export async function uploadRemoteContent(
       }),
     ]);
   } finally {
+    finished = true;
     clearTimeout(timer);
-    ssh.dispose();
+    ssh?.dispose();
   }
 }
 
@@ -233,15 +261,11 @@ export type SshStreamHandle = {
 // Closing the channel triggers SIGHUP on the remote side, which terminates the
 // follow process; the underlying SSH client is disposed in the same path.
 export async function streamRemoteCommand(
-  {
-    host,
-    username,
-    password,
-  }: { host: string; username: string; password: string },
+  target: SshTarget,
   command: string,
   handlers: SshStreamHandlers
 ): Promise<SshStreamHandle> {
-  const ssh = new NodeSSH();
+  const ssh = await openSsh(target);
   let channel: ClientChannel | undefined;
   let stopped = false;
 
@@ -259,8 +283,6 @@ export async function streamRemoteCommand(
       // already disposed
     }
   };
-
-  await ssh.connect({ host, username, password });
 
   // Wait for the channel to open before returning. `execCommand` resolves only
   // when the remote process exits, so we use `onChannel` as the "ready"
@@ -312,30 +334,23 @@ export async function streamRemoteCommand(
 
 /**
  * Attempt to connect to an SSH server and return whether the credentials work.
- * Uses a fresh NodeSSH instance so it doesn't conflict with the singleton used
- * for `executeRemoteCommand`. Times out after 5s instead of hanging.
+ * A mismatched host key comes back with code `hostKeyMismatch`. Times out after
+ * 5s instead of hanging.
  */
-export async function testSshConnection({
-  host,
-  username,
-  password,
-}: {
-  host: string;
-  username: string;
-  password: string;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
-  const client = new NodeSSH();
+export async function testSshConnection(
+  target: SshTarget,
+  options: ConnectOptions = {}
+): Promise<
+  { ok: true } | { ok: false; message: string; code?: "hostKeyMismatch" }
+> {
   try {
-    await client.connect({
-      host,
-      username,
-      password,
-      readyTimeout: 5000,
-    });
+    const client = await openSsh(target, { readyTimeout: 5000 }, options);
+    client.dispose();
     return { ok: true };
   } catch (error) {
+    if (error instanceof HostKeyMismatchError) {
+      return { ok: false, message: error.message, code: error.code };
+    }
     return { ok: false, message: (error as Error).message ?? String(error) };
-  } finally {
-    client.dispose();
   }
 }

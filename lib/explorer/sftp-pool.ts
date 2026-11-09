@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { NodeSSH } from "node-ssh";
+import type { NodeSSH } from "node-ssh";
 import type { SFTPWrapper } from "ssh2";
+import { openSsh, type SshTarget } from "@/lib/ssh";
 
-export type SshCreds = { host: string; username: string; password: string };
+export type SshCreds = SshTarget;
 
 // An SSH handshake is ~8-10 round trips (version banner, KEXINIT, key exchange,
 // NEWKEYS, service request, password auth, channel open, subsystem request)
@@ -56,12 +57,22 @@ if (process.env.NODE_ENV !== "production") {
   globalForSftp.__sftpPool = pool;
 }
 
-// The password is part of the key so rotating a server's credentials can never
-// hand back a connection authenticated with the old one — the new creds simply
-// miss the cache. Hashed to keep plaintext secrets out of map keys.
+// The password and auth mode are part of the key so changing a server's
+// credentials (or moving it to the instance key) can never hand back a
+// connection authenticated the old way — the new creds simply miss the cache.
+// Hashed to keep plaintext secrets out of map keys.
 function poolKey(creds: SshCreds): string {
   return createHash("sha256")
-    .update(`${creds.host}\0${creds.username}\0${creds.password}`)
+    .update(
+      [
+        creds.serverId ?? "",
+        creds.host,
+        creds.port ?? 22,
+        creds.username,
+        creds.auth,
+        creds.password ?? "",
+      ].join("\0")
+    )
     .digest("hex");
 }
 
@@ -101,8 +112,7 @@ function acquire(key: string, creds: SshCreds): Promise<PooledConnection> {
   if (cached) return cached;
 
   const pending: Promise<PooledConnection> = (async () => {
-    const ssh = new NodeSSH();
-    await ssh.connect({ ...creds, ...CONNECT_OPTIONS });
+    const ssh = await openSsh(creds, CONNECT_OPTIONS);
     const sftp = await ssh.requestSFTP();
     const conn: PooledConnection = { ssh, sftp, leases: 0 };
     // A connection that dies (server restart, network drop) must not linger in
@@ -182,8 +192,7 @@ export async function withPooledSftp<T>(
 export async function openSftp(
   creds: SshCreds
 ): Promise<{ sftp: SFTPWrapper; dispose: () => void }> {
-  const ssh = new NodeSSH();
-  await ssh.connect({ ...creds, ...CONNECT_OPTIONS });
+  const ssh = await openSsh(creds, CONNECT_OPTIONS);
   const sftp = await ssh.requestSFTP();
   let disposed = false;
   return {

@@ -29,7 +29,11 @@ import {
   failRun,
 } from "@/lib/run-progress";
 import { shq } from "@/lib/sh";
-import { executeRemoteCommand, uploadRemoteContent } from "@/lib/ssh";
+import {
+  executeRemoteCommand,
+  type SshTarget,
+  uploadRemoteContent,
+} from "@/lib/ssh";
 import {
   COMPOSE_OVERLAY_FILE,
   renderComposeOverlay,
@@ -494,7 +498,7 @@ function renderManagedEnvFile(
  * last line wins; one pair of surrounding quotes is dropped.
  */
 async function readServerTags(
-  credentials: { host: string; username: string; password: string },
+  credentials: SshTarget,
   deployDir: string,
   names: string[]
 ): Promise<Record<string, string>> {
