@@ -713,6 +713,20 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
         await expect(environmentBusy(env)).resolves.toBe(true);
         await db.delete(s.runs).where(eq(s.runs.id, id));
       }
+      // A database or service run (no kind) a dead worker left started:
+      // busy only while it is recent.
+      const stale = await startedRun(env, null);
+      await db
+        .update(s.runs)
+        .set({ runAt: new Date(Date.now() - 7 * 3_600_000) })
+        .where(eq(s.runs.id, stale));
+      await expect(environmentBusy(env)).resolves.toBe(false);
+      await db
+        .update(s.runs)
+        .set({ runAt: new Date(Date.now() - 5 * 3_600_000) })
+        .where(eq(s.runs.id, stale));
+      await expect(environmentBusy(env)).resolves.toBe(true);
+      await db.delete(s.runs).where(eq(s.runs.id, stale));
       await db.insert(s.environmentDeployLocks).values({
         environmentId: env,
         reason: "td-it",
