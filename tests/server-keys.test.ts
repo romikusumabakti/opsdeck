@@ -100,13 +100,22 @@ vi.mock("@/lib/db", () => {
       run().then(ok, fail),
   });
   const db = {
+    // The key a move installs is current here (ensureCurrentKey is faked).
     select: () => ({
-      from: () => ({
-        where: (cond: Cond) =>
-          query(async () =>
-            state.servers.filter((r) => matches(r, cond)).map((r) => ({ ...r }))
-          ),
-      }),
+      from: (table: { [k: symbol]: unknown }) =>
+        String(table[Symbol.for("drizzle:Name")] ?? "") === "ssh_keys"
+          ? {
+              where: () =>
+                query(async () => [{ id: KEY_ID, status: "current" }]),
+            }
+          : {
+              where: (cond: Cond) =>
+                query(async () =>
+                  state.servers
+                    .filter((r) => matches(r, cond))
+                    .map((r) => ({ ...r }))
+                ),
+            },
     }),
     update: () => ({
       set: (values: Row) => ({
@@ -119,6 +128,9 @@ vi.mock("@/lib/db", () => {
       }),
     }),
   };
+  Object.assign(db, {
+    transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
+  });
   // A reserved connection that understands the two advisory lock queries.
   const pgClient = () => ({
     reserve: async () => {

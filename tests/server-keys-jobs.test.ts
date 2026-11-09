@@ -33,6 +33,8 @@ type Cond =
   | { op: "eq"; key: string; value: unknown }
   | { op: "ne"; key: string; value: unknown }
   | { op: "isNull"; key: string }
+  | { op: "exists"; sub: { rowsNow: () => Row[] } }
+  | { op: "notExists"; sub: { rowsNow: () => Row[] } }
   | { op: "and" | "or"; conds: (Cond | undefined)[] };
 type Order = { op: "asc" | "desc"; key: string };
 
@@ -58,6 +60,8 @@ const state = vi.hoisted(() => ({
   locks: new Set<string>(),
   ports: {} as Record<string, number>,
   orgRole: "admin",
+  // Text of every raw query sent through pgClient.
+  rawQueries: [] as string[],
 }));
 
 const camel = (name: string) =>
@@ -82,6 +86,8 @@ vi.mock("drizzle-orm", async (importOriginal) => {
     desc: wrap("desc", actual.desc as never),
     and: (...conds: unknown[]) => ({ op: "and", conds }),
     or: (...conds: unknown[]) => ({ op: "or", conds }),
+    exists: (sub: unknown) => ({ op: "exists", sub }),
+    notExists: (sub: unknown) => ({ op: "notExists", sub }),
   };
 });
 
@@ -103,6 +109,8 @@ vi.mock("@/lib/db", async () => {
       return row[cond.key] != null && row[cond.key] !== cond.value;
     }
     if (cond.op === "isNull") return row[cond.key] == null;
+    if (cond.op === "exists") return cond.sub.rowsNow().length > 0;
+    if (cond.op === "notExists") return cond.sub.rowsNow().length === 0;
     if (cond.op === "or") return cond.conds.some((c) => matches(row, c));
     return cond.conds.every((c) => matches(row, c));
   };
@@ -110,7 +118,7 @@ vi.mock("@/lib/db", async () => {
   const selectFrom = (table: unknown) => {
     let cond: Cond | undefined;
     let order: Order | undefined;
-    const run = async () => {
+    const rowsNow = () => {
       const rows = rowsOf(table).filter((r) => matches(r, cond));
       if (order) {
         const { key, op } = order;
@@ -123,7 +131,10 @@ vi.mock("@/lib/db", async () => {
       }
       return rows.map(copy);
     };
+    const run = async () => rowsNow();
     const q = {
+      rowsNow,
+      for: () => q,
       where: (c: Cond) => {
         cond = c;
         return q;
@@ -209,6 +220,7 @@ vi.mock("@/lib/db", async () => {
     ...values: unknown[]
   ) => {
     const text = strings.join("?");
+    state.rawQueries.push(text);
     const key = values.join(":");
     if (text.includes("pg_try_advisory_lock")) {
       if (state.locks.has(key)) return [{ locked: false }];
@@ -280,8 +292,10 @@ vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 
-const { KEY_JOB_LOCK, keyJobLock, serverKeyLock, sshFingerprint } =
-  await import("@/lib/ssh-keys");
+const { keyJobLock, retireKey, serverKeyLock, sshFingerprint } = await import(
+  "@/lib/ssh-keys"
+);
+const { moveServerToKey } = await import("@/server/services/server-keys");
 const { processJob } = await import("@/lib/jobs/processor");
 const { app } = await import("@/server/app");
 
@@ -307,6 +321,10 @@ type Sshd = {
   // Accept only the old key (the new one is "not accepted" by this server).
   oldKeyOnly: boolean;
   keysOffered: string[];
+  // authorized_keys writes allowed before they start failing (null: all).
+  writesAllowed: number | null;
+  // Runs on every publickey attempt, to interleave a concurrent change.
+  onKeyAuth: (() => void) | null;
 };
 
 let root: string;
@@ -327,6 +345,7 @@ function startSshd(d: Sshd): Promise<ssh2.Server> {
       if (ctx.method === "publickey") {
         const offered = ctx.key.data.toString("base64");
         d.keysOffered.push(offered);
+        d.onKeyAuth?.();
         const file = authorizedKeys(d);
         const listed =
           existsSync(file) &&
@@ -345,6 +364,13 @@ function startSshd(d: Sshd): Promise<ssh2.Server> {
         const session = accept();
         session.on("exec", (acceptExec, _reject, info) => {
           const stream = acceptExec();
+          if (info.command.includes(".authorized_keys.opsdeck.")) {
+            if (d.writesAllowed !== null && d.writesAllowed-- <= 0) {
+              stream.exit(23);
+              stream.end();
+              return;
+            }
+          }
           const child = spawn("/bin/sh", ["-c", info.command], {
             env: {
               HOME: d.home,
@@ -457,6 +483,7 @@ beforeEach(() => {
   state.enqueued = [];
   state.queued = new Set();
   state.locks = new Set();
+  state.rawQueries = [];
   state.orgRole = "admin";
   for (const [i, d] of sshds.entries()) {
     homeCount += 1;
@@ -465,6 +492,8 @@ beforeEach(() => {
     d.passwords = new Set(["pw"]);
     d.oldKeyOnly = false;
     d.keysOffered = [];
+    d.writesAllowed = null;
+    d.onKeyAuth = null;
     state.ports[IDS[i] as string] = d.port;
   }
   delete process.env.OPSDECK_NETWORK_SUBNET;
@@ -630,8 +659,9 @@ describe("rotate", () => {
       lastJob: { kind: "rotate" },
     });
 
-    // Rotating again resumes: no new key, only the server left over is
-    // retried, and the old key is retired once none uses it.
+    // Rotating again resumes: no new key, the server left over is rotated,
+    // the others are checked with the new key for a leftover old line, and
+    // the old key is retired once no server holds it.
     (sshds[1] as Sshd).oldKeyOnly = false;
     for (const d of sshds) d.keysOffered = [];
     await request("POST", "/api/instance/ssh-key/rotate");
@@ -644,13 +674,135 @@ describe("rotate", () => {
       "retired"
     );
     expect(lastJob().results).toEqual([
+      { serverId: IDS[0], name: "web-1", ok: true, code: null },
       { serverId: IDS[1], name: "web-2", ok: true, code: null },
+      { serverId: IDS[2], name: "web-3", ok: true, code: null },
     ]);
     expect(fileOf(1)).toBe(`${FOREIGN}\n${newLine}\n`);
-    expect((sshds[0] as Sshd).keysOffered).toEqual([]);
+    // A server already on the new key is reached with it, not the old one.
+    expect([...new Set((sshds[0] as Sshd).keysOffered)]).toEqual([newBase64]);
     expect(
       (await (await request("GET", "/api/instance/ssh-key")).json()).previous
     ).toBeUndefined();
+  });
+
+  it("a failed rotate, a reinstall, then rotate: retired only when no old line remains", async () => {
+    seedKeyServers();
+    (sshds[1] as Sshd).oldKeyOnly = true;
+    await request("POST", "/api/instance/ssh-key/rotate");
+    await runQueued();
+    const current = keyRow("current") as Row;
+    const newLine = `from="127.0.0.1",no-agent-forwarding,no-X11-forwarding ssh-ed25519 ${String(current.publicKey).split(" ")[1]} ${markerOf(current.id)}`;
+
+    // The documented recovery: reinstall with the password typed once. Our
+    // other instance lines (the old key's) go with it.
+    (sshds[1] as Sshd).oldKeyOnly = false;
+    expect(
+      await moveServerToKey(IDS[1] as string, USER_ID, { passwordOnce: "pw" })
+    ).toEqual({ ok: true });
+    expect(fileOf(1)).toBe(`${FOREIGN}\n${newLine}\n`);
+
+    await request("POST", "/api/instance/ssh-key/rotate");
+    await runQueued();
+    expect(state.tables.ssh_keys.find((k) => k.id === OLD_KEY_ID)?.status).toBe(
+      "retired"
+    );
+    for (const i of [0, 1, 2]) expect(fileOf(i)).not.toContain(OLD_MARKER);
+  });
+
+  it("an old line that cannot be removed fails the server and keeps previous", async () => {
+    seedKeyServers();
+    // web-3: the write adding the new line lands, the one removing the old
+    // line fails.
+    (sshds[2] as Sshd).writesAllowed = 1;
+    await request("POST", "/api/instance/ssh-key/rotate");
+    await runQueued();
+    const current = keyRow("current") as Row;
+    expect(lastJob().results[2]).toEqual({
+      serverId: IDS[2],
+      name: "web-3",
+      ok: false,
+      code: "oldKeyNotRemoved",
+    });
+    // It signs in with the new key; the old line is still there.
+    expect(serverById(2)).toMatchObject({ sshKeyId: current.id });
+    expect(fileOf(2)).toContain(OLD_MARKER);
+    expect(keyRow("previous")?.id).toBe(OLD_KEY_ID);
+
+    // The next rotation finds the leftover line and removes it.
+    (sshds[2] as Sshd).writesAllowed = null;
+    await request("POST", "/api/instance/ssh-key/rotate");
+    await runQueued();
+    expect(lastJob().results.map((r: Row) => r.ok)).toEqual([true, true, true]);
+    expect(fileOf(2)).not.toContain(OLD_MARKER);
+    expect(state.tables.ssh_keys.find((k) => k.id === OLD_KEY_ID)?.status).toBe(
+      "retired"
+    );
+  });
+
+  it("a move drops a stale line of this instance's other keys", async () => {
+    mkdirSync(join((sshds[0] as Sshd).home, ".ssh"), { mode: 0o700 });
+    const stale = `from="127.0.0.1",no-agent-forwarding,no-X11-forwarding ssh-ed25519 ${oldBase64} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-00000000dead`;
+    const otherInstance = `ssh-ed25519 ${oldBase64} opsdeck:beta:0197f3a0-1b2c-7def-8000-00000000beef`;
+    writeFileSync(
+      authorizedKeys(sshds[0] as Sshd),
+      `${FOREIGN}\n${stale}\n${otherInstance}\n`
+    );
+    expect(await moveServerToKey(IDS[0] as string, USER_ID)).toEqual({
+      ok: true,
+    });
+    expect(fileOf(0)).toBe(`${FOREIGN}\n${otherInstance}\n${oldLine}\n`);
+  });
+
+  it("a failed move puts back the stale lines it dropped", async () => {
+    mkdirSync(join((sshds[0] as Sshd).home, ".ssh"), { mode: 0o700 });
+    const stale = `ssh-ed25519 ${oldBase64} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-00000000dead`;
+    writeFileSync(authorizedKeys(sshds[0] as Sshd), `${FOREIGN}\n${stale}\n`);
+    // The proof signs in with a private key that does not match the line.
+    state.tables.ssh_keys[0] = {
+      ...(state.tables.ssh_keys[0] as Row),
+      privateKey: keyPair().private,
+    };
+    expect(await moveServerToKey(IDS[0] as string, USER_ID)).toEqual({
+      ok: false,
+      code: "keyLoginFailed",
+    });
+    expect(fileOf(0)).toBe(`${FOREIGN}\n${stale}\n`);
+  });
+
+  it("a move whose key stops being current before it commits is undone", async () => {
+    // A rotation demotes the key while the move proves it.
+    (sshds[0] as Sshd).onKeyAuth = () => {
+      (sshds[0] as Sshd).onKeyAuth = null;
+      (state.tables.ssh_keys[0] as Row).status = "previous";
+      state.tables.ssh_keys.push({
+        id: "0197f3a0-1b2c-7def-8000-0000000000bb",
+        publicKey: keyPair().public,
+        privateKey: "",
+        fingerprint: "SHA256:new",
+        status: "current",
+      });
+    };
+    expect(await moveServerToKey(IDS[0] as string, USER_ID)).toEqual({
+      ok: false,
+      code: "keyJobRunning",
+    });
+    expect(serverById(0)).toMatchObject({ auth: "password", password: "pw" });
+    expect(fileOf(0)).not.toContain(OLD_MARKER);
+  });
+
+  it("retireKey leaves a key that a server still uses", async () => {
+    (state.tables.ssh_keys[0] as Row).status = "previous";
+    state.tables.servers[0] = serverRow(0, {
+      auth: "key",
+      password: null,
+      sshKeyId: OLD_KEY_ID,
+    });
+    await retireKey(OLD_KEY_ID);
+    expect(keyRow("previous")?.id).toBe(OLD_KEY_ID);
+    state.tables.servers[0] = serverRow(0);
+    await retireKey(OLD_KEY_ID);
+    expect(keyRow("previous")).toBeUndefined();
   });
 
   it("retires the old key at once when every server succeeds", async () => {
@@ -752,18 +904,84 @@ describe("one key job at a time", () => {
     });
   });
 
-  it("a worker that finds the lock taken records keyJobRunning", async () => {
+  it("a duplicate delivery that finds the job lock taken leaves the row alone", async () => {
     await request("POST", "/api/instance/ssh-key/move-all");
+    Object.assign(lastJob(), { startedAt: new Date("2026-11-09T01:00:00Z") });
+    const before = structuredClone(lastJob());
     const release = await keyJobLock();
     expect(await runQueued()).toEqual({ status: "keyJobRunning" });
     await release?.();
-    expect(lastJob()).toMatchObject({ errorCode: "keyJobRunning" });
-    expect(lastJob().finishedAt).toBeInstanceOf(Date);
+    expect(lastJob()).toEqual(before);
     expect(serverById(0)).toMatchObject({ auth: "password" });
   });
 
-  it("the job lock is apart from the per-server locks", () => {
-    expect(KEY_JOB_LOCK.classId).not.toBe(1936943211);
+  it("a redelivered job keeps the results already recorded", async () => {
+    // The first delivery moved web-1, then its worker died.
+    state.tables.servers[0] = serverRow(0, { auth: "key", password: null });
+    await request("POST", "/api/instance/ssh-key/move-all");
+    const first = { serverId: IDS[0], name: "web-1", ok: true, code: null };
+    Object.assign(lastJob(), { startedAt: new Date(), results: [first] });
+    await runQueued();
+    expect(lastJob().results).toEqual([
+      first,
+      { serverId: IDS[1], name: "web-2", ok: true, code: null },
+      { serverId: IDS[2], name: "web-3", ok: true, code: null },
+    ]);
+  });
+
+  it("GET closes an abandoned job", async () => {
+    await request("POST", "/api/instance/ssh-key/move-all");
+    Object.assign(lastJob(), { startedAt: new Date() });
+    const got = await (await request("GET", "/api/instance/ssh-key")).json();
+    expect(got.lastJob).toMatchObject({ errorCode: "keyJobInterrupted" });
+    expect(got.lastJob.finishedAt).not.toBeNull();
+  });
+
+  it("the running-job check only sees this database's locks", async () => {
+    await request("POST", "/api/instance/ssh-key/move-all");
+    Object.assign(lastJob(), { startedAt: new Date() });
+    await request("GET", "/api/instance/ssh-key");
+    const check = state.rawQueries.find((q) => q.includes("pg_locks"));
+    expect(check).toMatch(
+      /database = \(\s*select oid from pg_database where datname = current_database\(\)\s*\)/
+    );
+  });
+
+  it("the job lock does not block a server's key lock, and only one job holds it", async () => {
+    const release = await keyJobLock();
+    expect(release).not.toBeNull();
+    expect(await keyJobLock()).toBeNull();
+    const server = await serverKeyLock(IDS[0] as string);
+    expect(server).not.toBeNull();
+    await server?.();
+    await release?.();
+  });
+
+  it("host keys pinned by a job are recorded for system and the job", async () => {
+    state.tables.servers = [
+      serverRow(0, {
+        hostKeyType: null,
+        hostKey: null,
+        hostKeyFingerprint: null,
+        hostKeyPinnedAt: null,
+      }),
+    ];
+    await request("POST", "/api/instance/ssh-key/move-all");
+    await runQueued();
+    const keyJobId = lastJob().id;
+    expect(state.activity).toContainEqual(
+      expect.objectContaining({
+        action: "server.hostKeyPinned",
+        actorId: null,
+        data: expect.objectContaining({ job: keyJobId }),
+      })
+    );
+    expect(state.activity).toContainEqual(
+      expect.objectContaining({
+        action: "server.keyInstalled",
+        actorId: USER_ID,
+      })
+    );
   });
 });
 

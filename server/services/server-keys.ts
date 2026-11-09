@@ -5,7 +5,7 @@ import type { NodeSSH } from "node-ssh";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { servers } from "@/lib/db/schema";
+import { type Server, servers, sshKeys } from "@/lib/db/schema";
 import { decryptNullable } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
 import { openSsh } from "@/lib/ssh";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/ssh-connect";
 import {
   authorizedKeysLine,
+  dropOtherInstanceKeys,
   ensureCurrentKey,
   fromAddress,
   type InstanceKey,
@@ -52,7 +53,8 @@ export type KeyMoveCode =
   | "sudoNeedsPassword"
   | "sshDirUnsafe"
   | "keyInstallFailed"
-  | "keyLoginFailed";
+  | "keyLoginFailed"
+  | "oldKeyNotRemoved";
 
 export type KeyMoveResult = { ok: true } | { ok: false; code: KeyMoveCode };
 
@@ -193,32 +195,54 @@ function previousLine(existing: string, marker: string): string | null {
   return line === undefined ? null : line.replace(/\r$/, "");
 }
 
+type DroppedLine = { marker: string; line: string };
+
 /**
- * Put back what was there before our write: the previous line with our marker,
- * or none. Re-reads the file so a concurrent edit to other lines survives.
+ * Put back what was there before our write: the previous line with our marker
+ * (or none), and the lines of our other keys the write dropped (a server whose
+ * row still names such a key signs in with it). Re-reads the file so a
+ * concurrent edit to other lines survives.
  */
-async function rollback(ssh: NodeSSH, marker: string, previous: string | null) {
+async function rollback(
+  ssh: NodeSSH,
+  marker: string,
+  previous: string | null,
+  dropped: readonly DroppedLine[]
+) {
   try {
-    const current = await readAuthorizedKeys(ssh);
-    await writeAuthorizedKeys(
-      ssh,
+    let content = await readAuthorizedKeys(ssh);
+    content =
       previous === null
-        ? removeAuthorizedKey(current, marker)
-        : mergeAuthorizedKeys(current, previous, marker)
-    );
+        ? removeAuthorizedKey(content, marker)
+        : mergeAuthorizedKeys(content, previous, marker);
+    for (const d of dropped) {
+      content = mergeAuthorizedKeys(content, d.line, d.marker);
+    }
+    await writeAuthorizedKeys(ssh, content);
   } catch {
     console.error("authorized_keys rollback failed; the password is kept");
   }
 }
 
+/**
+ * Who connections are made as: the admin for their own action; "system" and
+ * the job for a background job, so a host key pinned on the way is recorded
+ * for that run (the admin stays the actor of the key activity itself).
+ */
+type ConnectAs = { actor: string; job?: string };
+
+function connectAs(actorId: string, job: string | undefined): ConnectAs {
+  return job === undefined ? { actor: actorId } : { actor: "system", job };
+}
+
 async function proveKeyLogin(
   target: SshTarget,
   keyId: string,
-  actor: string
+  as: ConnectAs
 ): Promise<KeyMoveCode | null> {
   let ssh: NodeSSH | undefined;
   try {
-    ssh = await openSsh(target, SSH_TUNING, { keyOnly: true, keyId, actor });
+    ssh = await openSsh(target, SSH_TUNING, { keyOnly: true, keyId, ...as });
     const result = await exec(ssh, "true");
     return result.code === 0 ? null : "keyLoginFailed";
   } catch (error) {
@@ -231,6 +255,25 @@ async function proveKeyLogin(
 /** The activity actor for a user id or "system" (a job whose admin is gone). */
 function activityActor(actorId: string): string | null {
   return actorId === "system" ? null : actorId;
+}
+
+/**
+ * Write our line with `marker`, dropping this instance's lines for any key
+ * not in `keep` (besides `marker`). Returns what an undo puts back.
+ */
+async function installLine(
+  ssh: NodeSSH,
+  existing: string,
+  line: string,
+  marker: string,
+  keep: readonly string[]
+): Promise<DroppedLine[]> {
+  const { content, dropped } = dropOtherInstanceKeys(
+    mergeAuthorizedKeys(existing, line, marker),
+    [marker, ...keep]
+  );
+  await writeAuthorizedKeys(ssh, content);
+  return dropped;
 }
 
 /** Whether the row already signs in with `keyId` and holds no password. */
@@ -251,13 +294,14 @@ async function committedTo(serverId: string, keyId: string): Promise<boolean> {
  * Install the instance key on a server and switch it to key login. With
  * `passwordOnce` (reinstall), that password signs in instead of the stored one
  * and is never stored. Answers `keyJobRunning` while another key operation on
- * the server holds its lock. The caller checks `server:manage`; jobs call this
- * too.
+ * the server holds its lock, or when a rotation replaced the key it installed
+ * before the move committed. The caller checks `server:manage`; jobs call
+ * this too, with `job` (their ssh_key_jobs id).
  */
 export async function moveServerToKey(
   serverId: string,
   actorId: string,
-  opts: { passwordOnce?: string } = {}
+  opts: { passwordOnce?: string; job?: string } = {}
 ): Promise<KeyMoveResult> {
   const release = await serverKeyLock(serverId);
   if (!release) return { ok: false, code: "keyJobRunning" };
@@ -273,7 +317,7 @@ export async function moveServerToKey(
 async function moveLocked(
   serverId: string,
   actorId: string,
-  opts: { passwordOnce?: string }
+  opts: { passwordOnce?: string; job?: string }
 ): Promise<KeyMoveResult> {
   const [server] = await db
     .select()
@@ -298,13 +342,11 @@ async function moveLocked(
   const marker = keyMarker(key.id);
   // A key server being reinstalled still signs in with the typed password.
   const target = sshTarget({ ...server, password, auth: "password" });
+  const as = connectAs(actorId, opts.job);
 
   let ssh: NodeSSH;
   try {
-    ssh = await openSsh(target, SSH_TUNING, {
-      passwordOnce: password,
-      actor: actorId,
-    });
+    ssh = await openSsh(target, SSH_TUNING, { passwordOnce: password, ...as });
   } catch (error) {
     return fail(connectFailure(error, "password"));
   }
@@ -333,6 +375,11 @@ async function moveLocked(
 
     const existing = await readAuthorizedKeys(ssh);
     const previous = previousLine(existing, marker);
+    // A write drops this instance's lines for other keys (a key retired or
+    // leaked must not keep signing in); an undo puts them back.
+    let dropped: DroppedLine[] = dropOtherInstanceKeys(existing, [
+      marker,
+    ]).dropped;
     // Removing our line is only safe while no run has committed the server to
     // this key: then the line is the only way in.
     const undo = async () => {
@@ -342,13 +389,10 @@ async function moveLocked(
         );
         return;
       }
-      await rollback(ssh, marker, previous);
+      await rollback(ssh, marker, previous, dropped);
     };
     try {
-      await writeAuthorizedKeys(
-        ssh,
-        mergeAuthorizedKeys(existing, line, marker)
-      );
+      dropped = await installLine(ssh, existing, line, marker, []);
     } catch (error) {
       // A write cut off by the timeout may still have landed.
       await undo();
@@ -358,37 +402,17 @@ async function moveLocked(
     const loginFailure = await proveKeyLogin(
       sshTarget({ ...server, password: null }),
       key.id,
-      actorId
+      as
     );
     if (loginFailure) {
       await undo();
       return fail(loginFailure);
     }
 
-    // Conditional on the address and login: a server edited meanwhile is
-    // another machine or account, and the key proven here says nothing about
-    // it. (Servers have no port column; every server is reached on 22.)
-    const switched = await db
-      .update(servers)
-      .set({
-        auth: "key",
-        sshKeyId: key.id,
-        sshFrom: from,
-        password: null,
-        keyError: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(servers.id, serverId),
-          eq(servers.host, server.host),
-          eq(servers.username, server.username)
-        )
-      )
-      .returning({ id: servers.id });
-    if (switched.length === 0) {
+    const committed = await commitMove(server, key.id, from);
+    if (committed !== null) {
       await undo();
-      return fail("keyInstallFailed");
+      return fail(committed);
     }
   } catch (error) {
     if (error instanceof StepFailed) return fail(error.code);
@@ -419,26 +443,78 @@ async function moveLocked(
   return { ok: true };
 }
 
+/**
+ * Switch the row to key login, or answer why not. In one transaction that
+ * holds the key row (FOR SHARE), so a rotation cannot demote the key between
+ * the check and the update: a key no longer current means a rotation took
+ * over (keyJobRunning), and installing it would leave the server on a key
+ * being retired. Conditional on the address and login too: a server edited
+ * meanwhile is another machine or account, and the key proven here says
+ * nothing about it. (Servers have no port column; every server is on 22.)
+ */
+async function commitMove(
+  server: { id: string; host: string; username: string },
+  keyId: string,
+  from: string
+): Promise<KeyMoveCode | null> {
+  return db.transaction(async (tx) => {
+    const [key] = await tx
+      .select({ status: sshKeys.status })
+      .from(sshKeys)
+      .where(eq(sshKeys.id, keyId))
+      .for("share");
+    if (key?.status !== "current") return "keyJobRunning";
+    const switched = await tx
+      .update(servers)
+      .set({
+        auth: "key",
+        sshKeyId: keyId,
+        sshFrom: from,
+        password: null,
+        keyError: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(servers.id, server.id),
+          eq(servers.host, server.host),
+          eq(servers.username, server.username)
+        )
+      )
+      .returning({ id: servers.id });
+    return switched.length === 0 ? "keyInstallFailed" : null;
+  });
+}
+
 // --- Rotation, one server ---------------------------------------------------
 
 /**
  * Move a key server from the key it signs in with to `key`: add the new line
  * next to the old one, prove a login with the new key alone, point the row at
- * it, then remove the old line. A failed proof removes the new line and keeps
- * the old one. Failures are answered, not kept in key_error: the server still
- * signs in with its old key. Null when there is nothing to rotate (the server
- * is gone, on a password, or already on `key`).
+ * it, then remove every other line of this instance. A failed proof removes
+ * the new line and keeps the old one. A server already on `key` is signed in
+ * with it and only cleaned of other lines. Until the old line is gone the
+ * server is not done (`oldKeyNotRemoved`), so its key is not retired.
+ * Failures are answered, not kept in key_error: the server still signs in.
+ * Null when there is nothing to rotate (the server is gone or on a password).
  */
 export async function rotateServerKey(
   serverId: string,
   actorId: string,
   key: InstanceKey,
-  previousKeyId: string
+  previousKeyId: string,
+  job?: string
 ): Promise<KeyMoveResult | null> {
   const release = await serverKeyLock(serverId);
   if (!release) return { ok: false, code: "keyJobRunning" };
   try {
-    return await rotateLocked(serverId, actorId, key, previousKeyId);
+    return await rotateLocked(
+      serverId,
+      key,
+      previousKeyId,
+      actorId,
+      connectAs(actorId, job)
+    );
   } finally {
     await release().catch(() =>
       console.error(`server key lock release failed for ${serverId}`)
@@ -446,20 +522,57 @@ export async function rotateServerKey(
   }
 }
 
+/** Drop every line of this instance but `marker`'s; false if that failed. */
+async function keepOnly(ssh: NodeSSH, marker: string): Promise<boolean> {
+  try {
+    const current = await readAuthorizedKeys(ssh);
+    const { content, dropped } = dropOtherInstanceKeys(current, [marker]);
+    if (dropped.length > 0) await writeAuthorizedKeys(ssh, content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A server already on `key`: sign in with it and drop any other line. */
+async function cleanLocked(
+  server: Server,
+  key: InstanceKey,
+  as: ConnectAs
+): Promise<KeyMoveResult> {
+  let ssh: NodeSSH;
+  try {
+    ssh = await openSsh(sshTarget({ ...server, password: null }), SSH_TUNING, {
+      keyOnly: true,
+      keyId: key.id,
+      ...as,
+    });
+  } catch (error) {
+    return { ok: false, code: connectFailure(error, "key", false) };
+  }
+  try {
+    if (await keepOnly(ssh, keyMarker(key.id))) return { ok: true };
+    console.error(`rotate key: old lines kept on server ${server.id}`);
+    return { ok: false, code: "oldKeyNotRemoved" };
+  } finally {
+    ssh.dispose();
+  }
+}
+
 async function rotateLocked(
   serverId: string,
-  actorId: string,
   key: InstanceKey,
-  previousKeyId: string
+  previousKeyId: string,
+  actorId: string,
+  as: ConnectAs
 ): Promise<KeyMoveResult | null> {
   const [server] = await db
     .select()
     .from(servers)
     .where(eq(servers.id, serverId))
     .limit(1);
-  if (server?.auth !== "key" || server.sshKeyId === key.id) {
-    return null;
-  }
+  if (server?.auth !== "key") return null;
+  if (server.sshKeyId === key.id) return cleanLocked(server, key, as);
   const fail = (code: KeyMoveCode): KeyMoveResult => ({ ok: false, code });
   // The key the server has; a row that lost it (never expected) most likely
   // still has the previous one.
@@ -473,13 +586,14 @@ async function rotateLocked(
     ssh = await openSsh(target, SSH_TUNING, {
       keyOnly: true,
       keyId: oldKeyId,
-      actor: actorId,
+      ...as,
     });
   } catch (error) {
     return fail(connectFailure(error, "key", false));
   }
 
   let from: string;
+  let oldLineKept = false;
   try {
     // The restriction the old line has; a row without one (never expected)
     // gets the address this session comes from, as a move would.
@@ -504,6 +618,12 @@ async function rotateLocked(
 
     const existing = await readAuthorizedKeys(ssh);
     const previous = previousLine(existing, marker);
+    // The old line stays as the proven way in until the new one is proven;
+    // lines of any other key of ours go now (and come back on an undo).
+    let dropped: DroppedLine[] = dropOtherInstanceKeys(existing, [
+      marker,
+      oldMarker,
+    ]).dropped;
     const undo = async () => {
       if (previous === null && (await committedTo(serverId, key.id))) {
         console.error(
@@ -511,19 +631,16 @@ async function rotateLocked(
         );
         return;
       }
-      await rollback(ssh, marker, previous);
+      await rollback(ssh, marker, previous, dropped);
     };
     try {
-      await writeAuthorizedKeys(
-        ssh,
-        mergeAuthorizedKeys(existing, line, marker)
-      );
+      dropped = await installLine(ssh, existing, line, marker, [oldMarker]);
     } catch (error) {
       await undo();
       throw error;
     }
 
-    const loginFailure = await proveKeyLogin(target, key.id, actorId);
+    const loginFailure = await proveKeyLogin(target, key.id, as);
     if (loginFailure) {
       await undo();
       return fail(loginFailure);
@@ -556,13 +673,11 @@ async function rotateLocked(
       return fail("keyInstallFailed");
     }
 
-    // Committed. A leftover old line still names a key nobody uses: logged,
-    // not a failure.
-    try {
-      const current = await readAuthorizedKeys(ssh);
-      await writeAuthorizedKeys(ssh, removeAuthorizedKey(current, oldMarker));
-    } catch {
+    // Committed. A leftover old line would still let the old key in, so
+    // the server is not done (and the key not retired) until it is gone.
+    if (!(await keepOnly(ssh, marker))) {
       console.error(`rotate key: old line kept on server ${serverId}`);
+      oldLineKept = true;
     }
   } catch (error) {
     if (error instanceof StepFailed) return fail(error.code);
@@ -586,7 +701,7 @@ async function rotateLocked(
   } catch {
     console.error(`rotate key: activity not recorded for server ${serverId}`);
   }
-  return { ok: true };
+  return oldLineKept ? fail("oldKeyNotRemoved") : { ok: true };
 }
 
 // --- The instance's own network --------------------------------------------

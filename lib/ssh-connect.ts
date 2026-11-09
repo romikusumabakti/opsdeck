@@ -64,6 +64,9 @@ export type ConnectOptions = {
   passwordOnce?: string;
   // Who a trust-on-first-use pin is recorded for: a user id, or "system".
   actor?: string;
+  // The background job that connects (an ssh_key_jobs id), recorded with a
+  // pin or a mismatch it runs into.
+  job?: string;
   // Called with the key an unsaved target offered (nothing is pinned for it).
   onHostKey?: (hostKey: ObservedHostKey) => void;
 };
@@ -256,7 +259,11 @@ async function checkHostKey(
         action: "server.hostKeyPinned",
         entityType: "server",
         entityId: serverId,
-        data: { server: pin.name, fingerprint: observed.fingerprint },
+        data: {
+          server: pin.name,
+          fingerprint: observed.fingerprint,
+          ...(opts.job ? { job: opts.job } : {}),
+        },
       });
       return;
     }
@@ -300,6 +307,7 @@ async function checkHostKey(
         server: pin.name,
         fingerprint: observed.fingerprint,
         pinned: pin.hostKeyFingerprint ?? "",
+        ...(opts.job ? { job: opts.job } : {}),
       },
     });
   }
