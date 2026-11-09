@@ -67,7 +67,7 @@ import {
 } from "@/lib/ssh";
 import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import { runInstanceUpdateCheck } from "@/server/services/instance-updates";
-import { runKeyJob } from "@/server/services/server-keys";
+import { runKeyJob } from "@/server/services/server-key-jobs";
 
 // Bound for worker steps that move a whole database: dump, recreate, load, and
 // staging a dump file across hosts. Their run time grows with the data, so the
