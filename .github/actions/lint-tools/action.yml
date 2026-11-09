@@ -25,14 +25,14 @@ runs:
         mkdir -p "$bin" "$dl"
 
         sc="shellcheck-v$SHELLCHECK_VERSION.linux.x86_64.tar.xz"
-        curl -fsSL --proto '=https' --retry 5 --retry-delay 3 -o "$dl/$sc" \
+        curl -fsSL --proto '=https' --proto-redir '=https' --retry 5 --retry-delay 3 -o "$dl/$sc" \
           "https://github.com/koalaman/shellcheck/releases/download/v$SHELLCHECK_VERSION/$sc"
         echo "$SHELLCHECK_SHA256  $dl/$sc" | sha256sum -c -
         tar -xJf "$dl/$sc" -C "$dl"
         install -m 0755 "$dl/shellcheck-v$SHELLCHECK_VERSION/shellcheck" "$bin/shellcheck"
 
         al="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-        curl -fsSL --proto '=https' --retry 5 --retry-delay 3 -o "$dl/$al" \
+        curl -fsSL --proto '=https' --proto-redir '=https' --retry 5 --retry-delay 3 -o "$dl/$al" \
           "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/$al"
         echo "$ACTIONLINT_SHA256  $dl/$al" | sha256sum -c -
         tar -xzf "$dl/$al" -C "$dl" actionlint
