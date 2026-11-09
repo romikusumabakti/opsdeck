@@ -1,5 +1,8 @@
 // The opsdeck CLI. In the image: `opsdeck <command>` (a wrapper for
 // `bun dist/cli.js <command>`). Local dev: bun scripts/cli.ts <command>.
+// First: better-auth's passkey plugin (loaded by `seed`) pulls in tsyringe,
+// which needs the polyfill before anything else, as in server/index.ts.
+import "reflect-metadata";
 import { runBackup } from "./cli/backup";
 import { runMigrate } from "./cli/migrate";
 import { runRestoreCommand } from "./cli/restore";

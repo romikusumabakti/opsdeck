@@ -50,6 +50,45 @@ describe("build:ops", () => {
   );
 });
 
+describe("build:ops cli.js loads the auth module", () => {
+  let outDir: string;
+
+  beforeAll(() => {
+    outDir = mkdtempSync(join(tmpdir(), "ops-build-auth-"));
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    const command = String(pkg.scripts["build:ops"]);
+    const result = spawnSync(
+      "sh",
+      ["-c", command.replace("--outdir dist", `--outdir ${outDir}`)],
+      { encoding: "utf8" }
+    );
+    expect(result.status, result.stderr).toBe(0);
+  }, 60_000);
+
+  afterAll(() => rmSync(outDir, { recursive: true, force: true }));
+
+  // `seed demo` imports lib/auth (better-auth's passkey plugin pulls in
+  // tsyringe), which needs the reflect-metadata polyfill loaded first, as
+  // server/index.ts does. Without a database the run must fail on the
+  // database, never on the missing polyfill.
+  it("seed demo fails on the database, not on a missing reflect polyfill", () => {
+    const result = spawnSync("bun", [join(outDir, "cli.js"), "seed", "demo"], {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+        DATABASE_URL: "postgres://nobody:nothing@127.0.0.1:1/none",
+        BETTER_AUTH_SECRET: "test-secret-not-used-anywhere-000000",
+        BETTER_AUTH_URL: "http://localhost:3000",
+        SECRETS_KEY: Buffer.alloc(32, 1).toString("base64"),
+      },
+      timeout: 60_000,
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).not.toContain("reflect polyfill");
+  }, 90_000);
+});
+
 describe("deploy-app database failures", () => {
   it.each([
     [
