@@ -128,6 +128,34 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
     ]);
   });
 
+  it("prints passwords only once the transaction commits", async () => {
+    await sql`delete from users where email in ('demo-qa@example.invalid', 'demo-viewer@example.invalid')`;
+    lines.length = 0;
+    let hashed = 0;
+    await expect(
+      seedDemo(
+        db,
+        options({
+          printPasswords: true,
+          hashPassword: async (p) => {
+            hashed += 1;
+            if (hashed === 2) throw new Error("hash failed");
+            return `hash:${p}`;
+          },
+        })
+      )
+    ).rejects.toThrow("hash failed");
+    // The first account was created inside the rolled-back transaction: its
+    // password was never printed, and the account does not exist.
+    expect(lines).toEqual([]);
+    const [{ n }] =
+      (await sql`select count(*)::int as n from users where email in ('demo-qa@example.invalid', 'demo-viewer@example.invalid')`) as unknown as [
+        { n: number },
+      ];
+    expect(n).toBe(0);
+    await seedDemo(db, options());
+  });
+
   it("keeps the roles and memberships exactly as specified", async () => {
     const roles = await sql`select email, role from users order by email`;
     expect(Object.fromEntries(roles.map((r) => [r.email, r.role]))).toEqual({
