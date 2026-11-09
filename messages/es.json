@@ -920,14 +920,14 @@
     "deleteRemovesDatabase": "Su base de datos",
     "deleteRemovesFolder": "Su carpeta en el servidor",
     "deleteRemovesAddress": "Su dirección pública",
-    "deleteBackupKept": "Se guarda una copia de seguridad durante 30 días. Los administradores pueden descargarla en Administración → Instancia → Copias de seguridad.",
+    "deleteBackupKept": "Se guarda una copia de seguridad durante {days, plural, one {# día} other {# días}}. Los administradores pueden descargarla en Administración → Instancia → Copias de seguridad.",
     "deleteConfirmLabel": "Escribe {name} para confirmar",
     "deleteConfirm": "Eliminar",
     "deleteProductionEngineer": "Este es un entorno de producción. Solo un administrador puede eliminarlo.",
     "deleteProductionConfirm": "Es producción. Quiero eliminarlo.",
     "deleteStarted": "Eliminando {name}. El progreso se muestra en la parte superior de la página.",
     "removeFromPanel": "Quitar solo del Panel",
-    "removeFromPanelDescription": "Quita el entorno solo del Panel. No se toca nada en el servidor ni en Cloudflare.",
+    "removeFromPanelDescription": "Quita el entorno solo del Panel. No se toca nada en el servidor ni en Cloudflare. Escribe arriba el nombre del entorno para activarlo.",
     "removedFromPanel": "{name} se quitó del Panel"
   },
   "userMenu": {
@@ -2933,7 +2933,8 @@
       "serviceInvalid": "Introduce un origen como http://app:80",
       "submit": "Adoptar hostname",
       "adopting": "Adoptando…",
-      "adopted": "{hostname} adoptado"
+      "adopted": "{hostname} adoptado",
+      "failed": "No se pudo adoptar el nombre de host"
     }
   },
   "teardown": {

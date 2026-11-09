@@ -3,6 +3,7 @@ import { CircleAlert, Loader2, RotateCw, ScrollText } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import type { TeardownStep } from "@/lib/db/schema";
-import { TEARDOWN_ERRORS, type TeardownErrorCode } from "@/lib/teardown/errors";
+import { canOrg } from "@/lib/permissions";
 import { ApiError } from "@/web/api/client";
 import {
   cancelTeardown,
@@ -27,27 +28,11 @@ import {
   retryTeardown,
   type TeardownStatus,
 } from "@/web/api/environments";
+import { useMe } from "@/web/api/session";
+import { useTeardownErrorText } from "./use-teardown-error-text";
 
 // While a teardown runs, poll so the current step moves on without a reload.
 const RUNNING_POLL_MS = 3000;
-
-const isTeardownErrorCode = (code: string): code is TeardownErrorCode =>
-  Object.hasOwn(TEARDOWN_ERRORS, code);
-
-/**
- * The localized text of a teardown refusal or step failure: by its code
- * (`teardown.errors.<code>`), else the API's message.
- */
-export function useTeardownErrorText() {
-  const t = useTranslations("teardown");
-  return React.useCallback(
-    (code: string | null | undefined, fallback?: string): string =>
-      code && isTeardownErrorCode(code)
-        ? t(`errors.${code}`)
-        : (fallback ?? t("errors.stepFailed")),
-    [t]
-  );
-}
 
 type Step = TeardownStatus["steps"][number];
 
@@ -66,6 +51,8 @@ function currentStep(steps: Step[]): Step | undefined {
  * (or its deletion stopped): the current step, the run log, and once stopped
  * the failure's message with Retry, and Cancel deletion while the backend
  * still allows it. Once the environment is gone, goes to the project page.
+ * A stop for escrowed variables lets an admin with integration:manage
+ * confirm their deletion with the retry.
  */
 export function TeardownBanner({
   environmentId,
@@ -76,8 +63,13 @@ export function TeardownBanner({
 }) {
   const t = useTranslations("teardown");
   const tCommon = useTranslations("common");
+  const tSettings = useTranslations("environmentSettings");
   const router = useRouter();
+  const dialog = useDialog();
   const canDelete = useProjectCan({ environment: ["delete"] });
+  const canDeleteEscrowed = canOrg(useMe()?.orgRole, {
+    integration: ["manage"],
+  });
   const errorText = useTeardownErrorText();
   const [logRunId, setLogRunId] = React.useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
@@ -87,7 +79,13 @@ export function TeardownBanner({
     ...getTeardownQuery(environmentId),
     refetchInterval: (q) => (q.state.data?.running ? RUNNING_POLL_MS : false),
   });
-  const gone = query.error instanceof ApiError && query.error.status === 404;
+  // Only the 404 that ends a teardown this page saw running is "deleted":
+  // the data of the last successful poll stays while the error is shown. A
+  // 404 without one (Remove from Panel only, lost access) is not ours.
+  const gone =
+    query.error instanceof ApiError &&
+    query.error.status === 404 &&
+    query.data?.running === true;
 
   React.useEffect(() => {
     if (!gone) return;
@@ -109,13 +107,33 @@ export function TeardownBanner({
       if (success) toast.success(success);
     } catch (error) {
       if (error instanceof ApiError && error.status !== 401) {
-        toast.error(errorText(error.code, error.message));
+        toast.error(errorText(error.code));
         return;
       }
       throw error;
     } finally {
       setBusy(false);
     }
+  }
+
+  const escrowStop = step.lastError === "environmentHasEscrowedVariables";
+
+  async function retry() {
+    if (escrowStop && canDeleteEscrowed) {
+      const confirmed = await dialog.confirm({
+        title: tSettings("deleteEscrowedTitle"),
+        description: tSettings("deleteEscrowedDescription"),
+        confirmText: tCommon("delete"),
+        cancelText: tCommon("cancel"),
+        destructive: true,
+      });
+      if (!confirmed) return;
+      await run(() =>
+        retryTeardown(environmentId, { confirmEscrowedDeletion: true })
+      );
+      return;
+    }
+    await run(() => retryTeardown(environmentId));
   }
 
   return (
@@ -144,11 +162,7 @@ export function TeardownBanner({
               </Button>
             )}
             {!running && canDelete && (
-              <Button
-                size="sm"
-                disabled={busy}
-                onClick={() => void run(() => retryTeardown(environmentId))}
-              >
+              <Button size="sm" disabled={busy} onClick={() => void retry()}>
                 <RotateCw data-icon="inline-start" />
                 {t("banner.retry")}
               </Button>

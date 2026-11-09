@@ -920,14 +920,14 @@
     "deleteRemovesDatabase": "قاعدة بياناتها",
     "deleteRemovesFolder": "مجلدها على الخادم",
     "deleteRemovesAddress": "عنوانها العام",
-    "deleteBackupKept": "تُحفظ نسخة احتياطية لمدة 30 يومًا. يمكن للمسؤولين تنزيلها من المشرف → المثيل → النسخ الاحتياطية.",
+    "deleteBackupKept": "تُحفظ نسخة احتياطية لمدة {days} يومًا. يمكن للمسؤولين تنزيلها من المشرف → المثيل → النسخ الاحتياطية.",
     "deleteConfirmLabel": "اكتب {name} للتأكيد",
     "deleteConfirm": "حذف",
     "deleteProductionEngineer": "هذه بيئة إنتاج. لا يمكن حذفها إلا لمسؤول.",
     "deleteProductionConfirm": "هذه بيئة إنتاج. أريد حذفها.",
     "deleteStarted": "جارٍ حذف {name}. يظهر التقدم أعلى الصفحة.",
     "removeFromPanel": "الإزالة من اللوحة فقط",
-    "removeFromPanelDescription": "يزيل البيئة من اللوحة فقط. لا يُمس أي شيء على الخادم أو في Cloudflare.",
+    "removeFromPanelDescription": "يزيل البيئة من اللوحة فقط. لا يُمس أي شيء على الخادم أو في Cloudflare. اكتب اسم البيئة أعلاه لتفعيله.",
     "removedFromPanel": "أُزيلت {name} من اللوحة"
   },
   "userMenu": {
@@ -2933,7 +2933,8 @@
       "serviceInvalid": "أدخل مصدرًا مثل http://app:80",
       "submit": "اعتماد اسم المضيف",
       "adopting": "جارٍ الاعتماد…",
-      "adopted": "اعتُمد {hostname}"
+      "adopted": "اعتُمد {hostname}",
+      "failed": "تعذّر اعتماد اسم المضيف"
     }
   },
   "teardown": {

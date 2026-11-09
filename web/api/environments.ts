@@ -82,7 +82,12 @@ export async function updateEnvironment(
 export async function deleteEnvironment(
   id: string,
   confirmEscrowedDeletion?: boolean
-): Promise<{ success: boolean; message?: string; escrowed?: boolean }> {
+): Promise<{
+  success: boolean;
+  message?: string;
+  escrowed?: boolean;
+  code?: string;
+}> {
   try {
     return await parseResponse(
       routes[":id"].$delete({
@@ -96,6 +101,7 @@ export async function deleteEnvironment(
         success: false,
         message: error.message,
         escrowed: error.code === "environmentHasEscrowedVariables",
+        ...(error.code ? { code: error.code } : {}),
       };
     }
     throw error;

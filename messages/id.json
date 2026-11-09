@@ -920,14 +920,14 @@
     "deleteRemovesDatabase": "Database-nya",
     "deleteRemovesFolder": "Folder-nya di server",
     "deleteRemovesAddress": "Alamat publiknya",
-    "deleteBackupKept": "Cadangan disimpan selama 30 hari. Admin dapat mengunduhnya dari Admin → Instans → Cadangan.",
+    "deleteBackupKept": "Cadangan disimpan selama {days} hari. Admin dapat mengunduhnya dari Admin → Instans → Cadangan.",
     "deleteConfirmLabel": "Ketik {name} untuk konfirmasi",
     "deleteConfirm": "Hapus",
     "deleteProductionEngineer": "Ini environment produksi. Hanya admin yang dapat menghapusnya.",
     "deleteProductionConfirm": "Ini produksi. Saya ingin menghapusnya.",
     "deleteStarted": "Menghapus {name}. Progresnya tampil di bagian atas halaman.",
     "removeFromPanel": "Hapus dari Panel saja",
-    "removeFromPanelDescription": "Hanya menghapus environment dari Panel. Tidak ada yang diubah di server maupun di Cloudflare.",
+    "removeFromPanelDescription": "Hanya menghapus environment dari Panel. Tidak ada yang diubah di server maupun di Cloudflare. Ketik nama environment di atas untuk mengaktifkannya.",
     "removedFromPanel": "{name} dihapus dari Panel"
   },
   "userMenu": {
@@ -2933,7 +2933,8 @@
       "serviceInvalid": "Masukkan origin seperti http://app:80",
       "submit": "Adopsi hostname",
       "adopting": "Mengadopsi…",
-      "adopted": "{hostname} diadopsi"
+      "adopted": "{hostname} diadopsi",
+      "failed": "Hostname tidak dapat diadopsi"
     }
   },
   "teardown": {

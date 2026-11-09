@@ -920,14 +920,14 @@
     "deleteRemovesDatabase": "Its database",
     "deleteRemovesFolder": "Its folder on the server",
     "deleteRemovesAddress": "Its public address",
-    "deleteBackupKept": "A backup is kept for 30 days. Admins can download it from Admin → Instance → Backups.",
+    "deleteBackupKept": "A backup is kept for {days, plural, one {# day} other {# days}}. Admins can download it from Admin → Instance → Backups.",
     "deleteConfirmLabel": "Type {name} to confirm",
     "deleteConfirm": "Delete",
     "deleteProductionEngineer": "This is a production environment. Only an admin can delete it.",
     "deleteProductionConfirm": "This is production. I want to delete it.",
     "deleteStarted": "Deleting {name}. Progress shows at the top of the page.",
     "removeFromPanel": "Remove from Panel only",
-    "removeFromPanelDescription": "Removes the environment from the Panel only. Nothing on the server or in Cloudflare is touched.",
+    "removeFromPanelDescription": "Removes the environment from the Panel only. Nothing on the server or in Cloudflare is touched. Type the environment name above to enable it.",
     "removedFromPanel": "{name} removed from the Panel"
   },
   "userMenu": {
@@ -2933,7 +2933,8 @@
       "serviceInvalid": "Enter an origin such as http://app:80",
       "submit": "Adopt hostname",
       "adopting": "Adopting…",
-      "adopted": "{hostname} adopted"
+      "adopted": "{hostname} adopted",
+      "failed": "The hostname could not be adopted"
     }
   },
   "teardown": {
