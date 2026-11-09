@@ -50,7 +50,7 @@ const SCRIPT_TOOLS = [
   "xargs",
 ];
 
-function which(tool: string) {
+function which(tool: string): string | undefined {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (!dir) continue;
     const path = join(dir, tool);
@@ -59,13 +59,19 @@ function which(tool: string) {
       return path;
     } catch {}
   }
-  throw new Error(`${tool} is not on PATH; the ops/install tests need it`);
+  return undefined;
 }
 
-const resolved = new Map(SCRIPT_TOOLS.map((tool) => [tool, which(tool)]));
+// Resolved on first use. A tool this host lacks is left out: a script that
+// needs it then fails with "not found" in the test that uses it.
+let resolved: [string, string][] | undefined;
 
 /** Links the plain host tools into <dir> (created) and returns it, for PATH. */
 export function hostTools(dir: string) {
+  resolved ??= SCRIPT_TOOLS.flatMap((tool) => {
+    const path = which(tool);
+    return path ? [[tool, path] as [string, string]] : [];
+  });
   mkdirSync(dir, { recursive: true });
   for (const [tool, path] of resolved) symlinkSync(path, join(dir, tool));
   return dir;
