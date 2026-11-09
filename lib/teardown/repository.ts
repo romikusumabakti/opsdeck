@@ -663,6 +663,54 @@ export async function startTeardownRun(
   });
 }
 
+/** The steps a cancelled teardown may have finished: checks and archives. */
+const CANCELLABLE_DONE_KINDS = new Set<TeardownStep["kind"]>([
+  "check_stack",
+  "archive_database",
+  "archive_deploy_dir",
+  "archive_volumes",
+]);
+
+/**
+ * Cancels a teardown that has changed nothing yet: deletes its steps, which
+ * lets deploys, backups and provisioning act on the environment again
+ * (lib/teardown/guard). Only while no teardown run is started and no step
+ * is running (teardownRunning), and only checks and archives are done
+ * (teardownCannotCancel). The open archive is left to the prune of
+ * incomplete archives. Under the environment's advisory lock, exclusively,
+ * so no run starts in between. `nothing` without steps.
+ */
+export async function cancelTeardownSteps(
+  environmentId: string
+): Promise<
+  | { cancelled: true }
+  | { nothing: true }
+  | { refusal: "teardownRunning" | "teardownCannotCancel" }
+> {
+  return db.transaction(async (tx) => {
+    await holdEnvironmentExclusive(tx, environmentId);
+    const state = await readTeardownState(tx, environmentId);
+    if (!state.planned) return { nothing: true as const };
+    if (state.running) return { refusal: "teardownRunning" as const };
+    const done = await tx
+      .select({ kind: teardownSteps.kind })
+      .from(teardownSteps)
+      .where(
+        and(
+          eq(teardownSteps.environmentId, environmentId),
+          eq(teardownSteps.status, "done")
+        )
+      );
+    if (done.some((step) => !CANCELLABLE_DONE_KINDS.has(step.kind))) {
+      return { refusal: "teardownCannotCancel" as const };
+    }
+    await tx
+      .delete(teardownSteps)
+      .where(eq(teardownSteps.environmentId, environmentId));
+    return { cancelled: true as const };
+  });
+}
+
 /** The environment's newest teardown run, or null. */
 export async function latestTeardownRunId(
   environmentId: string

@@ -59,6 +59,7 @@ const repo = vi.hoisted(() => ({
   saveTeardownSteps: vi.fn(),
   listTeardownSteps: vi.fn(),
   latestTeardownRunId: vi.fn(),
+  cancelTeardownSteps: vi.fn(),
 }));
 vi.mock("@/lib/teardown/repository", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -192,6 +193,7 @@ beforeEach(() => {
   repo.saveTeardownSteps.mockResolvedValue(undefined);
   repo.listTeardownSteps.mockResolvedValue([]);
   repo.latestTeardownRunId.mockResolvedValue(null);
+  repo.cancelTeardownSteps.mockResolvedValue({ cancelled: true });
   plan.buildTeardownPlan.mockResolvedValue({ steps: STEPS });
 });
 
@@ -444,6 +446,42 @@ describe("POST /api/environments/:id/teardown/retry", () => {
     await expectRefusal(await retry(), 403, "environmentIsProduction");
     state.orgRole = "admin";
     expect((await retry()).status).toBe(202);
+  });
+});
+
+describe("POST /api/environments/:id/teardown/cancel", () => {
+  const cancel = () =>
+    send("POST", `/api/environments/${ENV_ID}/teardown/cancel`);
+
+  it("drops the steps of a teardown that has not got past its archives", async () => {
+    const res = await cancel();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cancelled: true });
+    expect(repo.cancelTeardownSteps).toHaveBeenCalledWith(ENV_ID);
+  });
+
+  it("refuses a running teardown, or one past its archives, and 404s with none", async () => {
+    repo.cancelTeardownSteps.mockResolvedValueOnce({
+      refusal: "teardownRunning",
+    });
+    await expectRefusal(await cancel(), 409, "teardownRunning");
+    repo.cancelTeardownSteps.mockResolvedValueOnce({
+      refusal: "teardownCannotCancel",
+    });
+    await expectRefusal(await cancel(), 409, "teardownCannotCancel");
+    repo.cancelTeardownSteps.mockResolvedValueOnce({ nothing: true });
+    expect((await cancel()).status).toBe(404);
+  });
+
+  it("needs the start's permission: 403 for viewer and QA, and for an engineer on prod", async () => {
+    for (const role of ["viewer", "qa"]) {
+      state.projectRole = role;
+      expect((await cancel()).status).toBe(403);
+    }
+    state.projectRole = "engineer";
+    repo.loadTeardownSubject.mockResolvedValue(subject({ kind: "prod" }));
+    await expectRefusal(await cancel(), 403, "environmentIsProduction");
+    expect(repo.cancelTeardownSteps).not.toHaveBeenCalled();
   });
 });
 

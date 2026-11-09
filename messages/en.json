@@ -2910,6 +2910,7 @@
       "unsafeDeployDir": "The deploy directory is not a safe path to delete",
       "environmentBusy": "A deploy or provisioning run is active on this environment. Try again when it finishes",
       "teardownRunning": "This environment is already being deleted",
+      "teardownCannotCancel": "This deletion has already started removing the environment, so it can no longer be cancelled. Retry to finish it",
       "databaseNotRegistered": "The stack keeps data in named volumes but no database service is registered, so the archive would miss it. Register the database first, or use Remove from Panel only",
       "archiveFailed": "The archive could not be completed, so nothing was deleted. Retry to continue",
       "confirmNameMismatch": "Type the environment name exactly to confirm",

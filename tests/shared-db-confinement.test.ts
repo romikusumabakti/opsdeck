@@ -90,11 +90,16 @@ vi.mock("@/lib/environments", async (importOriginal) => ({
   loadEnvironmentWithServers: async (id: string) => environment(id),
 }));
 
-const jobs = vi.hoisted(() => ({ enqueue: vi.fn(), createRun: vi.fn() }));
+const jobs = vi.hoisted(() => ({
+  enqueue: vi.fn(),
+  createRun: vi.fn(),
+  // createRunUnlessTearingDown: null while a teardown is under way.
+  guardedRun: vi.fn(),
+}));
 vi.mock("@/lib/queue", () => ({ enqueue: jobs.enqueue }));
 vi.mock("@/lib/run-progress", () => ({ createRun: jobs.createRun }));
 vi.mock("@/lib/teardown/guard", () => ({
-  createRunUnlessTearingDown: jobs.createRun,
+  createRunUnlessTearingDown: jobs.guardedRun,
 }));
 
 const ssh = vi.hoisted(() => ({
@@ -134,6 +139,7 @@ beforeEach(() => {
   state.dbKind = "shared";
   state.sourceDbKind = undefined;
   jobs.createRun.mockResolvedValue("run-1");
+  jobs.guardedRun.mockResolvedValue("run-1");
   ssh.executeRemoteCommand.mockImplementation(
     async (_creds: unknown, cmd: string) =>
       cmd.includes("pg_database") ? DATABASES : BACKUPS
@@ -232,8 +238,7 @@ describe("database operations on a shared binding (maintainer)", () => {
   });
 
   it("refuses a backup or restore with 409 teardownRunning while the environment is being deleted", async () => {
-    // createRunUnlessTearingDown: no run while a teardown is under way.
-    jobs.createRun.mockResolvedValue(null);
+    jobs.guardedRun.mockResolvedValue(null);
     await expect(createDatabaseBackup(ENV_ID)).rejects.toMatchObject({
       status: 409,
       code: "teardownRunning",
@@ -253,6 +258,16 @@ describe("database operations on a shared binding (maintainer)", () => {
     await expect(controlService(ENV_ID, "backend", "restart")).resolves.toEqual(
       { runId: "run-1" }
     );
+  });
+
+  it("refuses service start, stop and restart with 409 teardownRunning while the environment is being deleted", async () => {
+    jobs.guardedRun.mockResolvedValue(null);
+    for (const action of ["start", "stop", "restart"] as const) {
+      await expect(
+        controlService(ENV_ID, "backend", action)
+      ).rejects.toMatchObject({ status: 409, code: "teardownRunning" });
+    }
+    expect(jobs.enqueue).not.toHaveBeenCalled();
   });
 
   it("refuses the shared container's log stream", async () => {
@@ -308,6 +323,22 @@ describe("the same calls by an admin, or on other bindings", () => {
     ["a maintainer on a legacy binding", () => (state.dbKind = null)],
     ["a maintainer on a container binding", () => (state.dbKind = "container")],
   ] as const) {
+    it(`are refused for ${label} while the environment is being deleted`, async () => {
+      setup();
+      jobs.guardedRun.mockResolvedValue(null);
+      const teardown = { status: 409, code: "teardownRunning" };
+      await expect(
+        dropDatabase(ENV_ID, { database: "hris_dss" })
+      ).rejects.toMatchObject(teardown);
+      await expect(
+        createDatabase(ENV_ID, { database: "pcan_sandbox1_copy" })
+      ).rejects.toMatchObject(teardown);
+      await expect(
+        renameDatabase(ENV_ID, { from: "hris_dss", to: "hris_old" })
+      ).rejects.toMatchObject(teardown);
+      expect(jobs.enqueue).not.toHaveBeenCalled();
+    });
+
     it(`are allowed for ${label}`, async () => {
       setup();
       await expect(

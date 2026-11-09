@@ -2910,6 +2910,7 @@
       "unsafeDeployDir": "该部署目录不是可安全删除的路径",
       "environmentBusy": "此环境有正在进行的部署或预配。请在完成后重试",
       "teardownRunning": "此环境正在删除中",
+      "teardownCannotCancel": "此删除已开始移除环境，无法再取消。请重试以完成删除",
       "databaseNotRegistered": "该堆栈在命名卷中保存数据，但未注册任何数据库服务，因此归档会遗漏这些数据。请先注册数据库，或使用“仅从面板移除”",
       "archiveFailed": "归档未能完成，因此未删除任何内容。重试以继续",
       "confirmNameMismatch": "请准确输入环境名称以确认",

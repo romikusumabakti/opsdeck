@@ -6,6 +6,7 @@ import { failRun } from "@/lib/run-progress";
 import { TEARDOWN_ERRORS, type TeardownErrorCode } from "@/lib/teardown/errors";
 import { buildTeardownPlan } from "@/lib/teardown/plan";
 import {
+  cancelTeardownSteps,
   environmentBusy,
   latestTeardownRunId,
   listTeardownSteps,
@@ -144,6 +145,25 @@ export async function retryTeardown(
   if (state.running) refusal(409, "teardownRunning");
   if (await environmentBusy(environmentId)) refusal(409, "environmentBusy");
   return queueRun(environmentId, session.user.id, "retry");
+}
+
+/**
+ * Cancels a teardown that has only checked and archived: its steps go, and
+ * the environment takes deploys again. A stack an archive_volumes step
+ * stopped stays stopped. The open archive is pruned as incomplete later.
+ */
+export async function cancelTeardown(
+  environmentId: string
+): Promise<{ cancelled: true }> {
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { environment: ["delete"] }
+  );
+  await subjectFor(environmentId, session.user.role);
+  const result = await cancelTeardownSteps(environmentId);
+  if ("nothing" in result) notFound();
+  if ("refusal" in result) refusal(409, result.refusal);
+  return { cancelled: true };
 }
 
 export type TeardownStatus = {

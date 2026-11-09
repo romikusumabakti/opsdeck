@@ -53,6 +53,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     startTeardownRun,
     teardownState,
   } = await import("@/lib/teardown/repository");
+  const { cancelTeardownSteps } = await import("@/lib/teardown/repository");
   const { createRunUnlessTearingDown, teardownBlocks } = await import(
     "@/lib/teardown/guard"
   );
@@ -1080,6 +1081,76 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
           and(eq(s.runs.environmentId, env), eq(s.runs.status, "started"))
         );
       expect(started).toEqual([]);
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, env));
+    }
+  });
+
+  it("cancels a teardown only before anything past the archive steps is done", async () => {
+    const env = await environment("TD Cancel");
+    try {
+      await expect(cancelTeardownSteps(env)).resolves.toEqual({
+        nothing: true,
+      });
+      const kinds = [
+        "check_stack",
+        "archive_database",
+        "archive_deploy_dir",
+        "archive_volumes",
+        "stack_down",
+        "delete_environment",
+      ] as const;
+      const seed = async (done: number) => {
+        await db
+          .delete(s.teardownSteps)
+          .where(eq(s.teardownSteps.environmentId, env));
+        await db.insert(s.teardownSteps).values(
+          kinds.map((kind, position) => ({
+            environmentId: env,
+            position,
+            kind,
+            params: {},
+            status: position < done ? ("done" as const) : ("pending" as const),
+          }))
+        );
+      };
+
+      // stack_down done: past the archives.
+      await seed(5);
+      await expect(cancelTeardownSteps(env)).resolves.toEqual({
+        refusal: "teardownCannotCancel",
+      });
+      await expect(listTeardownSteps(env)).resolves.toHaveLength(6);
+
+      // A started teardown run: still running.
+      await seed(4);
+      const running = await startedRun(env, "teardown");
+      await expect(cancelTeardownSteps(env)).resolves.toEqual({
+        refusal: "teardownRunning",
+      });
+      await db.delete(s.runs).where(eq(s.runs.id, running));
+      // A running step.
+      await db
+        .update(s.teardownSteps)
+        .set({ status: "running" })
+        .where(
+          and(
+            eq(s.teardownSteps.environmentId, env),
+            eq(s.teardownSteps.position, 4)
+          )
+        );
+      await expect(cancelTeardownSteps(env)).resolves.toEqual({
+        refusal: "teardownRunning",
+      });
+
+      // Every archive step done, nothing else: cancelled, unfrozen.
+      await seed(4);
+      await expect(teardownBlocks(env)).resolves.toBe(true);
+      await expect(cancelTeardownSteps(env)).resolves.toEqual({
+        cancelled: true,
+      });
+      await expect(listTeardownSteps(env)).resolves.toEqual([]);
+      await expect(teardownBlocks(env)).resolves.toBe(false);
     } finally {
       await db.delete(s.environments).where(eq(s.environments.id, env));
     }
