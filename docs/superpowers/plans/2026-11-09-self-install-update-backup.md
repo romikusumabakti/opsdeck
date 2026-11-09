@@ -56,7 +56,7 @@
 ## File Structure
 
 - `lib/version.ts`: `OPSDECK_VERSION`, `compareVersions`, `parseVersion`, channel of a version.
-- `drizzle/00000000000000_baseline/migration.sql` and `drizzle/legacy/…`: the squashed baseline; the old 53 folders are kept for reference and never run.
+- `drizzle/00000000000000_baseline/migration.sql` and `drizzle-legacy/…`: the squashed baseline; the old 53 folders are kept for reference and never run.
 - `scripts/cli.ts`: the `opsdeck` CLI, with subcommands in `scripts/cli/{migrate,backup,restore,seed}.ts`.
 - `lib/instance-backup/{manifest,retention,archive,destination}.ts`: the backup core (pure parts testable).
 - `server/services/instance-backups.ts`, `server/routes/instance.ts`: Backups and Updates API.
@@ -97,14 +97,14 @@
 ### Task 2: Squash migrations into a baseline and run them with the migrator
 
 **Files:**
-- Move: `drizzle/2026*` → `drizzle/legacy/` (kept, never run).
+- Move: `drizzle/2026*` → `drizzle-legacy/` (kept, never run).
 - Create:
   - `drizzle/00000000000000_baseline/migration.sql` (and the `snapshot.json` drizzle-kit writes);
   - `scripts/cli.ts`;
   - `scripts/cli/migrate.ts`;
   - `tests/baseline-schema-scratch.test.ts` (opt-in via `BASELINE_SCRATCH_DB`, like `tests/environment-setup-scratch.test.ts`);
   - `tests/cli-migrate.test.ts`.
-- Modify: `package.json` (`build:ops` also bundles `scripts/cli.ts` to `dist/cli.js`); `drizzle.config.ts` (out stays `./drizzle`; legacy is excluded).
+- Modify: `package.json` (`build:ops` also bundles `scripts/cli.ts` to `dist/cli.js`); `drizzle.config.ts` (out stays `./drizzle`; the migrator reads every folder under `drizzle/`, so legacy lives outside it in `drizzle-legacy/`).
 
 **Interfaces:**
 - Produces:
@@ -123,7 +123,7 @@
   - `adopt records baseline`: inserts the hash drizzle computes for the baseline folder;
   - `adopt is a no-op when already recorded`.
 - [ ] **Step 4: Run** `env -u SECRETS_KEY bun --bun vitest run tests/cli-migrate.test.ts` and `BASELINE_SCRATCH_DB=baseline_scratch env -u SECRETS_KEY bun --bun vitest run tests/baseline-schema-scratch.test.ts`. Expected: FAIL first, then PASS after implementing. The scratch DB lives in the local podman `opsdeck-postgres`.
-- [ ] **Step 5: Update the docs.** In `README.md` "Database migrations", explain the migrator rules (Global Constraints) and that `drizzle/legacy` is history only.
+- [ ] **Step 5: Update the docs.** In `README.md` "Database migrations", explain the migrator rules (Global Constraints) and that `drizzle-legacy` is history only.
 - [ ] **Step 6: Commit:** `feat(db): squash migrations into a baseline run by the migrator`.
 
 ### Task 3: Instance settings and backup history schema
@@ -465,5 +465,5 @@
    - Verify health and version.
    - Romi disables the Jenkins job `DSS/dss-panel`.
 7. **Retire the old timer:**
-   - After 7 days of successful prod backups and one restore drill of a prod backup into beta (with beta's own `SECRETS_KEY` swapped temporarily, or a dedicated scratch instance), disable `dss-panel-backup.timer`.
+   - After 7 days of successful prod backups and one restore drill (a prod backup restored into a throwaway instance `/opt/opsdeck-drill` installed with `--adopt` from a copy of the prod `.env`, so `SECRETS_KEY` matches, on a spare port with no tunnel, then removed), disable `dss-panel-backup.timer`.
    - Update the memory files `opsdeck-prod-deploy.md`, `dss-panel-no-routine-backup.md` and `db-migrations.md` (procedure retired).
