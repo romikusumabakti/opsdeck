@@ -45,9 +45,10 @@ type TextField =
   | "healthTimeoutSeconds";
 
 /**
- * Per repo its branch and auto-deploy, and the environment's one server.
- * Advanced options hold the rest of each deploy target, the services'
- * own servers, types and names, and the managed `.env` switch.
+ * Per repo its branch and auto-deploy, Add target, and the environment's one
+ * server. Advanced options hold the rest of each deploy target, the services'
+ * own servers, types and names, and the managed `.env` switch. The add-target
+ * dialog is controlled by the caller when `adding` is given (`?add=target`).
  *
  * The server can be changed by an engineer only before the first deploy
  * (server/services/environments#updateEnvironment); org server:manage may
@@ -58,6 +59,8 @@ export function SourceDeployTab({
   servers,
   canManageServers,
   deployed,
+  adding: controlledAdding,
+  onAddingChange,
   onSave,
 }: {
   environment: SettingsEnvironment;
@@ -65,6 +68,8 @@ export function SourceDeployTab({
   canManageServers: boolean;
   // The environment has a deployment (any target, any status).
   deployed: boolean;
+  adding?: boolean;
+  onAddingChange?: (open: boolean) => void;
   onSave: () => Promise<void>;
 }) {
   const t = useTranslations("environmentSettings");
@@ -75,7 +80,12 @@ export function SourceDeployTab({
   const form = useSettingsFormContext();
   const { errors } = form.formState;
   const canConfigure = useProjectCan({ deploy: ["configure"] });
-  const [adding, setAdding] = useState(false);
+  const [ownAdding, setOwnAdding] = useState(false);
+  const adding = canConfigure && (controlledAdding ?? ownAdding);
+  function setAdding(open: boolean) {
+    setOwnAdding(open);
+    onAddingChange?.(open);
+  }
 
   const targets = useWatch({ control: form.control, name: "targets" });
   const [backendServerId, frontendServerId, dbServerId] = useWatch({
@@ -251,6 +261,22 @@ export function SourceDeployTab({
               ))
             )}
 
+            {canConfigure && (
+              <div className="flex flex-col items-start gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setAdding(true)}
+                >
+                  <Plus data-icon="inline-start" />
+                  {tDeploys("addTarget")}
+                </Button>
+                {targets.length > 0 && (
+                  <Hint>{tTarget("createDescription")}</Hint>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
               <Label htmlFor="env-server">{tForm("server")}</Label>
               <ServerSelect
@@ -362,20 +388,6 @@ export function SourceDeployTab({
               </section>
 
               <EnvFileManagedSwitch environment={environment} />
-
-              {canConfigure && (
-                <div className="flex flex-col items-start gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setAdding(true)}
-                  >
-                    <Plus data-icon="inline-start" />
-                    {tDeploys("addTarget")}
-                  </Button>
-                  <Hint>{tTarget("createDescription")}</Hint>
-                </div>
-              )}
             </AdvancedOptions>
 
             <SaveButton disabled={sharedDbElsewhere} />
@@ -388,6 +400,7 @@ export function SourceDeployTab({
         onOpenChange={setAdding}
         environment={environment}
         servers={targetServers}
+        targetedKeys={targets.map((target) => target.componentKey)}
       />
     </div>
   );

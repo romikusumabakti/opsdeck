@@ -109,8 +109,9 @@ const STATUS_ICON = {
 
 /**
  * The provisioning panel for the deploys page. Hidden without deploy:run: the
- * API refuses the plan to anyone else. Without targets it is only the hint;
- * otherwise it shows when the API says so (`showPanel`: steps exist, the
+ * API refuses the plan to anyone else. Without targets it is hidden unless
+ * provisioning has steps or an active run, and then only the hint (the
+ * Deploys empty state offers adding a target); otherwise it shows when the API says so (`showPanel`: steps exist, the
  * environment never deployed successfully, its database is shared, or its
  * tunnel domain is not provisioned yet), so a running legacy environment gets
  * none.
@@ -177,7 +178,12 @@ export function ProvisioningPanel({
   }
 
   const noTargets = targets.length === 0;
-  if (!canRun || !(noTargets || provisioning?.showPanel)) return null;
+  // Without targets there is nothing to provision: the panel only stays to
+  // show a run that exists (steps or an active run), with the hint.
+  const hasRun =
+    (provisioning?.steps.length ?? 0) > 0 || !!provisioning?.activeRunId;
+  const show = noTargets ? hasRun : provisioning?.showPanel;
+  if (!canRun || !show) return null;
 
   return (
     <>

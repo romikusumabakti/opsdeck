@@ -377,15 +377,43 @@ describe("ProvisioningPanel", () => {
     });
   });
 
-  it("shows the no-targets hint to a maintainer with no targets", () => {
-    const queryClient = new QueryClient();
-    const html = renderToString(
+  function noTargetsPanel(data?: object) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    if (data) {
+      queryClient.setQueryData(["provisioning", "getProvisioning", "e1"], {
+        steps: [],
+        plan: [],
+        activeRunId: null,
+        showPanel: true,
+        domain: null,
+        ...data,
+      });
+    }
+    return renderToString(
       <QueryClientProvider client={queryClient}>
         {wrap(<ProvisioningPanel environment={environment} targets={[]} />)}
       </QueryClientProvider>
     );
+  }
+
+  it("is hidden with no targets and no provisioning steps (nothing to do)", () => {
+    expect(noTargetsPanel({})).toBe("");
+    expect(noTargetsPanel({ showPanel: false })).toBe("");
+    // Still loading: nothing, rather than a hint that may vanish.
+    expect(noTargetsPanel()).toBe("");
+  });
+
+  it("keeps the no-targets hint when provisioning has run before", () => {
+    const html = noTargetsPanel({ steps: [step(0, "done")] });
     expect(html).toContain("Add a deploy target first");
     expect(html).not.toContain(">Provision<");
+  });
+
+  it("keeps the no-targets hint while a run is active", () => {
+    const html = noTargetsPanel({ activeRunId: "run-1" });
+    expect(html).toContain("Add a deploy target first");
   });
 
   it("is hidden from a user who cannot run deploys", () => {

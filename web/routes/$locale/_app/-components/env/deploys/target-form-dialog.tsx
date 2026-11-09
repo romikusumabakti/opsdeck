@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -46,6 +47,7 @@ import {
   servicesSchema,
 } from "@/lib/deploy/validation";
 import { hasReservedPrefix } from "@/lib/variables/validation";
+import { listAppsQuery } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 import { createDeployTarget, type DeployTargetState } from "@/web/api/deploys";
 import type { EnvironmentWithServers } from "@/web/api/environments";
@@ -176,22 +178,36 @@ export function useTargetSchema() {
 
 /**
  * Adds a deploy target. Existing targets are edited on the environment's
- * Settings → Source & Deploy tab.
+ * Settings → Source & Deploy tab. With an app on the environment the
+ * component is picked from the app's components (the one not yet targeted
+ * preselected when it is the only one); a legacy environment without an app
+ * types the component key.
  */
 export function TargetFormDialog({
   open,
   onOpenChange,
   environment,
   servers,
+  targetedKeys = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  environment: Pick<EnvironmentWithServers, "id">;
+  environment: Pick<EnvironmentWithServers, "id" | "appId">;
   // The servers the environment's services run on (environmentServers).
   servers: { id: string; name: string }[];
+  // The component keys that already have a target in this environment.
+  targetedKeys?: string[];
 }) {
   const t = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
+  const appId = environment.appId ?? null;
+  // Apps and their public components are listed for every signed-in user.
+  const apps = useQuery({ ...listAppsQuery(), enabled: appId !== null }).data;
+  const components = appId
+    ? apps?.find((app) => app.id === appId)?.components
+    : undefined;
+  const taken = new Set(targetedKeys);
+  const free = components?.filter((c) => !taken.has(c.componentKey)) ?? [];
 
   const invalid = t("invalid");
   const schema = useTargetSchema().extend({
@@ -202,7 +218,7 @@ export function TargetFormDialog({
       .refine((value) => componentKeySchema.safeParse(value).success, invalid),
   });
   const defaults = (): Values => ({
-    componentKey: "",
+    componentKey: free.length === 1 ? (free[0]?.componentKey ?? "") : "",
     ...targetFormValues(null, servers),
   });
 
@@ -211,11 +227,13 @@ export function TargetFormDialog({
     defaultValues: defaults(),
   });
 
-  // Start from a blank form on every open.
+  // Start from a blank form on every open (and once the app's components
+  // arrive, to preselect).
+  const loaded = components !== undefined;
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on open only
   React.useEffect(() => {
     if (open) form.reset(defaults());
-  }, [open]);
+  }, [open, loaded]);
 
   async function onSubmit(values: Values) {
     try {
@@ -304,7 +322,55 @@ export function TargetFormDialog({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
-            {text("componentKey", { placeholder: "dplk-accounting" })}
+            {components ? (
+              <FormField
+                control={form.control}
+                name="componentKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor="target-component">
+                      {t("component")}
+                    </FormLabel>
+                    <Select
+                      value={field.value || null}
+                      items={Object.fromEntries(
+                        components.map((c) => [
+                          c.componentKey,
+                          `${c.componentKey} (${c.repoFullName})`,
+                        ])
+                      )}
+                      onValueChange={(value) => field.onChange(value ?? "")}
+                    >
+                      <FormControl>
+                        <SelectTrigger id="target-component" className="w-full">
+                          <SelectValue
+                            placeholder={t("componentPlaceholder")}
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {components.map((c) => (
+                          <SelectItem
+                            key={c.componentKey}
+                            value={c.componentKey}
+                            disabled={taken.has(c.componentKey)}
+                          >
+                            <span className="font-mono">{c.componentKey}</span>
+                            <span className="text-muted-foreground">
+                              {c.repoFullName}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>{t("componentHint")}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              text("componentKey", { placeholder: "dplk-accounting" })
+            )}
             <FormField
               control={form.control}
               name="serverId"
