@@ -44,16 +44,33 @@ describe.skipIf(!scratchDb)("instance backup advisory lock", async () => {
   const tryOther = async () =>
     (
       await other<{ locked: boolean }[]>`
-        select pg_try_advisory_lock(${BACKUP_LOCK_KEY}::bigint) as locked`
+        select pg_try_advisory_lock(
+          ${BACKUP_LOCK_KEY.classId}::int, ${BACKUP_LOCK_KEY.objId}::int
+        ) as locked`
     )[0]?.locked;
   const unlockOther = () =>
-    other`select pg_advisory_unlock(${BACKUP_LOCK_KEY}::bigint)`;
+    other`select pg_advisory_unlock(
+      ${BACKUP_LOCK_KEY.classId}::int, ${BACKUP_LOCK_KEY.objId}::int
+    )`;
 
   it("is held across connections until released", async () => {
     const release = await pgBackupLock();
     expect(release).not.toBeNull();
     expect(await tryOther()).toBe(false);
     expect(await pgBackupLock()).toBeNull();
+    // The two-int4 form, not the bigint space the provisioning locks use.
+    const [held] = await other<
+      { classid: string; objid: string; objsubid: number }[]
+    >`
+      select classid::text, objid::text, objsubid from pg_locks
+      where locktype = 'advisory' and granted
+        and classid = ${BACKUP_LOCK_KEY.classId}::oid
+        and objid = ${BACKUP_LOCK_KEY.objId}::oid`;
+    expect(held).toEqual({
+      classid: String(BACKUP_LOCK_KEY.classId),
+      objid: String(BACKUP_LOCK_KEY.objId),
+      objsubid: 2,
+    });
     await release?.();
     expect(await tryOther()).toBe(true);
     await unlockOther();

@@ -617,6 +617,23 @@ describe("one backup at a time", () => {
     expect(lock.isHeld()).toBe(false);
   });
 
+  it("a lock failure names the location the run would use", async () => {
+    const down = async () => {
+      throw new Error("connection refused");
+    };
+    const remote = memoryStore();
+    await expect(
+      runInstanceBackup(
+        "manual",
+        deps({ lock: down, destination: destination(remote.store) })
+      )
+    ).rejects.toMatchObject({ name: "BackupRecordError", location: "s3" });
+    await expect(
+      runInstanceBackup("manual", deps({ lock: down }))
+    ).rejects.toMatchObject({ name: "BackupRecordError", location: "local" });
+    expect(recorded.rows).toEqual({});
+  });
+
   it("releases the lock after a failed run", async () => {
     const lock = memoryLock();
     const result = await runInstanceBackup(

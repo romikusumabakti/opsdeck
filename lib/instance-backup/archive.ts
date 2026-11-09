@@ -316,18 +316,23 @@ export async function isBackupRunning(
 }
 
 /**
- * The advisory lock key of instance backups ("opsdbak1" as a big-endian
- * int64). Session-level, on a reserved connection held for the whole run:
- * the worker, a manual run and `opsdeck backup run` in another container all
- * contend for it, and a crashed process releases it when its connection dies.
+ * The advisory lock of instance backups, in the two-int4 form ("opsd",
+ * "bak1" as big-endian int32s). Postgres keeps that key space apart from the
+ * single-bigint one the provisioning locks (hashtextextended) use, so the two
+ * can never collide. Session-level, on a reserved connection held for the
+ * whole run: the worker, a manual run and `opsdeck backup run` in another
+ * container all contend for it, and a crashed process releases it when its
+ * connection dies.
  */
-export const BACKUP_LOCK_KEY = "8030045010586069809";
+export const BACKUP_LOCK_KEY = { classId: 1869640548, objId: 1650551601 };
 
 export const pgBackupLock: BackupLock = async () => {
   const conn = await pgClient().reserve();
   try {
     const [row] = await conn<{ locked: boolean }[]>`
-      select pg_try_advisory_lock(${BACKUP_LOCK_KEY}::bigint) as locked`;
+      select pg_try_advisory_lock(
+        ${BACKUP_LOCK_KEY.classId}::int, ${BACKUP_LOCK_KEY.objId}::int
+      ) as locked`;
     if (!row?.locked) {
       conn.release();
       return null;
@@ -338,7 +343,9 @@ export const pgBackupLock: BackupLock = async () => {
   }
   return async () => {
     try {
-      await conn`select pg_advisory_unlock(${BACKUP_LOCK_KEY}::bigint)`;
+      await conn`select pg_advisory_unlock(
+        ${BACKUP_LOCK_KEY.classId}::int, ${BACKUP_LOCK_KEY.objId}::int
+      )`;
     } finally {
       conn.release();
     }
@@ -510,7 +517,10 @@ export async function runInstanceBackup(
   try {
     release = await deps.lock();
   } catch (error) {
-    throw new BackupRecordError("local", `backup lock: ${describe(error)}`);
+    throw new BackupRecordError(
+      await declaredLocation(deps),
+      `backup lock: ${describe(error)}`
+    );
   }
   if (!release) return ALREADY_RUNNING;
   try {
@@ -519,6 +529,18 @@ export async function runInstanceBackup(
     await release().catch((e) =>
       deps.log(`backupUnlockFailed: ${describe(e)}`)
     );
+  }
+}
+
+/**
+ * Where a run would go, for a BackupRecordError: "s3" when a destination is
+ * configured (or failed to load), "local" when none is, as in runLocked.
+ */
+async function declaredLocation(deps: BackupDeps): Promise<"s3" | "local"> {
+  try {
+    return (await deps.destination()) ? "s3" : "local";
+  } catch {
+    return "s3";
   }
 }
 
