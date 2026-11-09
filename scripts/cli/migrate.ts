@@ -96,24 +96,32 @@ export async function adoptBaseline({
  * A `pg_dump --schema-only` as sorted statements: comments, SET lines, the
  * per-dump \restrict keys and blank lines removed, each statement on one line.
  * Statement order is not significant (pg_dump orders by dependency and name);
- * the order inside a statement (e.g. columns) is.
+ * the order inside a statement (e.g. columns) is. Inside a dollar-quoted body
+ * ($$ … $$ or $tag$ … $tag$, e.g. a function) nothing is dropped and a line
+ * ending in ";" does not end the statement.
  */
 export function normaliseSchemaDump(dump: string): string[] {
   const statements: string[] = [];
   let current: string[] = [];
+  let openTag: string | null = null;
   for (const raw of dump.split("\n")) {
     const line = raw.trim();
     if (
-      line === "" ||
-      line.startsWith("--") ||
-      line.startsWith("SET ") ||
-      line.startsWith("SELECT pg_catalog.set_config(") ||
-      line.startsWith("\\")
+      openTag === null &&
+      (line === "" ||
+        line.startsWith("--") ||
+        line.startsWith("SET ") ||
+        line.startsWith("SELECT pg_catalog.set_config(") ||
+        line.startsWith("\\"))
     ) {
       continue;
     }
+    for (const [tag] of line.matchAll(/\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$/g)) {
+      if (openTag === null) openTag = tag;
+      else if (tag === openTag) openTag = null;
+    }
     current.push(line);
-    if (line.endsWith(";")) {
+    if (openTag === null && line.endsWith(";")) {
       statements.push(current.join(" "));
       current = [];
     }
@@ -202,7 +210,7 @@ export async function baselineSchemaDiff({
 
   const live = new URL(url);
   const liveDb = decodeURIComponent(live.pathname.slice(1));
-  // Safe to quote as an identifier: only [a-z0-9_], within the 63-byte limit.
+  // Only [a-z0-9_] and within the 63-byte identifier limit.
   const scratchDb = `${liveDb
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, "_")
@@ -210,7 +218,20 @@ export async function baselineSchemaDiff({
   const scratch = new URL(url);
   scratch.pathname = `/${encodeURIComponent(scratchDb)}`;
 
-  await client.unsafe(`CREATE DATABASE "${scratchDb}"`);
+  // From template0 with the live database's encoding and locale, so neither
+  // template1's extras nor a different default collation leak into the diff.
+  const [create] = await client`
+    select format(
+      'CREATE DATABASE %I TEMPLATE template0 ENCODING %L LC_COLLATE %L LC_CTYPE %L',
+      ${scratchDb}::text, pg_encoding_to_char(encoding), datcollate, datctype
+    ) || case datlocprovider
+      when 'i' then format(' LOCALE_PROVIDER icu ICU_LOCALE %L', datlocale)
+      when 'b' then format(' LOCALE_PROVIDER builtin BUILTIN_LOCALE %L', datlocale)
+      else ' LOCALE_PROVIDER libc'
+    end as statement
+    from pg_database where datname = current_database()`;
+  if (!create) throw new Error("Current database not found in pg_database");
+  await client.unsafe(create.statement as string);
   try {
     const scratchClient = postgres(scratch.toString(), {
       max: 1,

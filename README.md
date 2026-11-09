@@ -188,8 +188,8 @@ CI (`.github/workflows/ci.yml`) runs `biome ci`, the typecheck, the tests and a 
 
 Migrations live in `drizzle/<timestamp>_<name>/migration.sql` and run only through Drizzle's migrator: `opsdeck migrate` in the image (`bun dist/cli.js migrate`), `bun run db:migrate` locally. It applies every folder not yet recorded in `drizzle.__drizzle_migrations`, in folder-name order, all in one transaction.
 
-- `drizzle/00000000000000_baseline` is the whole schema up to November 2026 plus the default labels. A fresh database starts from it.
-- `drizzle-legacy/` holds the 53 migrations the baseline replaced. It is history only: nothing runs it, and the image does not include it.
+- `drizzle/00000000000000_baseline` equals the production schema as of 2026-11-09, plus the default labels. A fresh database starts from it. `tests/fixtures/prod-schema-20261109.sql` is that production schema, and the scratch test `tests/baseline-schema-scratch.test.ts` checks the baseline against it.
+- `drizzle-legacy/` holds the 53 migrations the baseline replaced. It is history only: nothing runs it, and the image does not include it. Production evolved partly outside these files, so replaying them does not give the production schema.
 - A database that was built by the legacy migrations is taken over with `opsdeck migrate --adopt`. It builds the baseline in a throwaway database, compares both `pg_dump --schema-only` outputs, and then records the baseline as applied without running it. If the schemas differ, it exits with code 2 and prints the first 20 differing statements. It needs `pg_dump` and permission to create databases.
 
 Rules for every new migration:
