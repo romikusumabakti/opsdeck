@@ -413,6 +413,11 @@ type Outcome = {
   error: unknown;
 };
 
+/**
+ * Runs one backup and records it. Every failure after the row is created is
+ * returned as a `failed` result; only a failure to create the row throws, as
+ * a BackupRecordError carrying the location the run would have used.
+ */
 export async function runInstanceBackup(
   trigger: BackupTrigger,
   overrides: Partial<BackupDeps> = {}
