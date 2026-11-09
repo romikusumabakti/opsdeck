@@ -64,6 +64,8 @@ const state = vi.hoisted(() => ({
   rawQueries: [] as string[],
   // Make db.transaction throw (a database error during a commit).
   txFails: false,
+  // Replaces the lock connection lockConnection opens (null: the fake below).
+  lockConnection: null as null | ((onclose: () => void) => unknown),
 }));
 
 const camel = (name: string) =>
@@ -236,19 +238,16 @@ vi.mock("@/lib/db", async () => {
     if (text.includes("pg_locks")) return [{ held: state.locks.has(key) }];
     return [];
   };
-  const client = Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) =>
-      lockQuery(strings, ...values),
-    {
-      reserve: async () =>
-        Object.assign(
-          (strings: TemplateStringsArray, ...values: unknown[]) =>
-            lockQuery(strings, ...values),
-          { release: () => {} }
-        ),
-    }
-  );
-  return { db, pgClient: () => client };
+  const client = (strings: TemplateStringsArray, ...values: unknown[]) =>
+    lockQuery(strings, ...values);
+  const lockConnection = (onclose: () => void) =>
+    state.lockConnection?.(onclose) ??
+    Object.assign(
+      (strings: TemplateStringsArray, ...values: unknown[]) =>
+        lockQuery(strings, ...values),
+      { end: async () => {} }
+    );
+  return { db, pgClient: () => client, lockConnection };
 });
 
 vi.mock("@/lib/secrets", async (importOriginal) => ({
@@ -506,6 +505,7 @@ beforeEach(() => {
   state.locks = new Set();
   state.rawQueries = [];
   state.txFails = false;
+  state.lockConnection = null;
   state.orgRole = "admin";
   for (const [i, d] of sshds.entries()) {
     homeCount += 1;
@@ -1110,48 +1110,141 @@ describe("routes", () => {
   });
 });
 
-describe("serverKeyLock release", () => {
-  // A reserved connection whose unlock fails is ended, not handed back.
-  async function lockWithFailingUnlock() {
-    const { pgClient } = await import("@/lib/db");
-    const queries: string[] = [];
-    const release = vi.fn();
-    const conn = Object.assign(
-      async (strings: TemplateStringsArray) => {
-        const text = strings.join("?");
-        queries.push(text);
-        if (text.includes("pg_try_advisory_lock")) return [{ locked: true }];
-        if (text.includes("pg_advisory_unlock")) {
-          throw new Error("write CONNECTION_CLOSED");
+describe("serverKeyLock connection", () => {
+  // A lock connection the test drives: what it was asked, whether it was
+  // ended, and the close callback lockConnection was given.
+  function fakeLockConnection(
+    answer: (text: string) => Promise<unknown> = async () => [{ locked: true }]
+  ) {
+    const conn = {
+      queries: [] as string[],
+      ends: 0,
+      onclose: () => {},
+    };
+    state.lockConnection = (onclose) => {
+      conn.onclose = onclose;
+      return Object.assign(
+        async (strings: TemplateStringsArray) => {
+          const text = strings.join("?");
+          conn.queries.push(text);
+          return text.includes("pg_try_advisory_lock")
+            ? [{ locked: true }]
+            : answer(text);
+        },
+        {
+          end: async () => {
+            conn.ends += 1;
+          },
         }
-        if (text.includes("pg_terminate_backend")) {
-          throw new Error(
-            "terminating connection due to administrator command"
-          );
-        }
-        return [];
-      },
-      { release }
-    );
-    vi.spyOn(pgClient(), "reserve").mockResolvedValue(conn as never);
-    return { queries, release };
+      );
+    };
+    return conn;
   }
 
-  it("ends the connection when the unlock fails", async () => {
-    const { queries, release } = await lockWithFailingUnlock();
-    const unlock = await serverKeyLock(IDS[0] as string);
-    await expect(unlock?.()).rejects.toThrow("CONNECTION_CLOSED");
-    expect(queries.at(-1)).toContain("pg_terminate_backend(pg_backend_pid())");
-    expect(release).not.toHaveBeenCalled();
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("releases the connection after a clean unlock", async () => {
-    const { pgClient } = await import("@/lib/db");
-    const release = vi.fn();
-    const conn = Object.assign(async () => [{ locked: true }], { release });
-    vi.spyOn(pgClient(), "reserve").mockResolvedValue(conn as never);
+  it("ends the connection after a clean unlock", async () => {
+    const conn = fakeLockConnection(async () => []);
     const unlock = await serverKeyLock(IDS[0] as string);
     await unlock?.();
-    expect(release).toHaveBeenCalledOnce();
+    expect(conn.queries.at(-1)).toContain("pg_advisory_unlock");
+    expect(conn.ends).toBe(1);
+  });
+
+  it("after a failed unlock, ends the connection and sends nothing more", async () => {
+    const conn = fakeLockConnection(async () => {
+      throw new Error("write CONNECTION_CLOSED");
+    });
+    const unlock = await serverKeyLock(IDS[0] as string);
+    await expect(unlock?.()).rejects.toThrow("CONNECTION_CLOSED");
+    expect(conn.queries).toHaveLength(2);
+    expect(conn.queries.at(-1)).toContain("pg_advisory_unlock");
+    expect(conn.ends).toBe(1);
+  });
+
+  it("a connection that closed while held is released without a query", async () => {
+    const conn = fakeLockConnection(async () => {
+      throw new Error("must not be sent");
+    });
+    const unlock = await serverKeyLock(IDS[0] as string);
+    conn.onclose();
+    await unlock?.();
+    expect(conn.queries).toHaveLength(1);
+    expect(conn.ends).toBe(1);
+  });
+
+  it("an unlock that never answers is cut off and the connection ended", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const conn = fakeLockConnection(() => new Promise(() => {}));
+    const unlock = await serverKeyLock(IDS[0] as string);
+    const released = unlock?.();
+    const outcome = expect(released).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await outcome;
+    expect(conn.ends).toBe(1);
+  });
+
+  it("a lock whose take fails ends its connection", async () => {
+    const conn = { ends: 0 };
+    state.lockConnection = () =>
+      Object.assign(
+        async () => {
+          throw new Error("connection refused");
+        },
+        {
+          end: async () => {
+            conn.ends += 1;
+          },
+        }
+      );
+    await expect(serverKeyLock(IDS[0] as string)).rejects.toThrow(
+      "connection refused"
+    );
+    expect(conn.ends).toBe(1);
+    // Its session slot was given back.
+    state.lockConnection = null;
+    const releases = await Promise.all(
+      [0, 1, 2, 3].map((i) => serverKeyLock(`server-${i}`))
+    );
+    expect(releases.every((r) => r !== null)).toBe(true);
+    for (const r of releases) await r?.();
+  });
+
+  it("at most four lock sessions: a fifth waits a bounded time, then is refused", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const held = await Promise.all(
+      [0, 1, 2, 3].map((i) => serverKeyLock(`server-${i}`))
+    );
+    expect(held.every((r) => r !== null)).toBe(true);
+    let fifth: unknown = "pending";
+    const waiting = serverKeyLock("server-4").then((r) => {
+      fifth = r;
+      return r;
+    });
+    await vi.advanceTimersByTimeAsync(4_900);
+    expect(fifth).toBe("pending");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await waiting).toBeNull();
+    // A key operation refused this way answers keyJobRunning.
+    const move = moveServerToKey(IDS[0] as string, USER_ID);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(await move).toEqual({ ok: false, code: "keyJobRunning" });
+    for (const r of held) await r?.();
+  });
+
+  it("a waiting lock gets the session a release frees", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const held = await Promise.all(
+      [0, 1, 2, 3].map((i) => serverKeyLock(`server-${i}`))
+    );
+    const waiting = serverKeyLock("server-4");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await held[0]?.();
+    const fifth = await waiting;
+    expect(fifth).not.toBeNull();
+    await fifth?.();
+    for (const r of held.slice(1)) await r?.();
   });
 });
