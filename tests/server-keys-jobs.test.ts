@@ -20,6 +20,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { parseableKeyPair } from "@/lib/ssh-keypair";
 
 // Move all and rotate against three real in-process sshds (ssh2's Server),
 // one per server, each running commands with /bin/sh in its own temp home: the
@@ -304,16 +305,9 @@ const { moveServerToKey, rotateServerKey } = await import(
 const { processJob } = await import("@/lib/jobs/processor");
 const { app } = await import("@/server/app");
 
-// ssh2 now and then generates a private key it cannot parse; skip those.
-function keyPair() {
-  for (;;) {
-    const pair = ssh2.utils.generateKeyPairSync("ed25519");
-    if (!(ssh2.utils.parseKey(pair.private) instanceof Error)) return pair;
-  }
-}
-const hostKey = keyPair();
+const hostKey = parseableKeyPair();
 const hostBlob = Buffer.from(hostKey.public.split(" ")[1] ?? "", "base64");
-const oldKey = keyPair();
+const oldKey = parseableKeyPair();
 const oldBase64 = oldKey.public.split(" ")[1] ?? "";
 const OLD_MARKER = `opsdeck:opsdeck:${OLD_KEY_ID}`;
 const FOREIGN = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIRomi romi@bluefin-romi";
@@ -477,13 +471,13 @@ const NEW_KEY_ID = "0197f3a0-1b2c-7def-8000-0000000000bb";
 const DEAD_KEY_ID = "0197f3a0-1b2c-7def-8000-00000000dead";
 // Another Panel deployment with the same default instance name: its key id
 // is not in this database.
-const OTHER_PANEL = `ssh-ed25519 ${keyPair().public.split(" ")[1]} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-0000000f0e19`;
+const OTHER_PANEL = `ssh-ed25519 ${parseableKeyPair().public.split(" ")[1]} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-0000000f0e19`;
 
 /** A key this database once had, retired since. */
 function retiredKey() {
   state.tables.ssh_keys.push({
     id: DEAD_KEY_ID,
-    publicKey: keyPair().public,
+    publicKey: parseableKeyPair().public,
     privateKey: "",
     fingerprint: "SHA256:dead",
     status: "retired",
@@ -814,11 +808,11 @@ describe("rotate", () => {
     // new key's proof fails; the undo's write fails too.
     seedKeyServers();
     (state.tables.ssh_keys[0] as Row).status = "previous";
-    const unusable = keyPair();
+    const unusable = parseableKeyPair();
     state.tables.ssh_keys.push({
       id: NEW_KEY_ID,
       publicKey: unusable.public,
-      privateKey: keyPair().private,
+      privateKey: parseableKeyPair().private,
       fingerprint: "SHA256:new",
       status: "current",
     });
@@ -833,7 +827,7 @@ describe("rotate", () => {
   it("a move whose commit throws is undone", async () => {
     seedKeyServers();
     (state.tables.ssh_keys[0] as Row).status = "previous";
-    const fresh = keyPair();
+    const fresh = parseableKeyPair();
     state.tables.ssh_keys.push({
       id: NEW_KEY_ID,
       publicKey: fresh.public,
@@ -857,7 +851,7 @@ describe("rotate", () => {
     // The proof signs in with a private key that does not match the line.
     state.tables.ssh_keys[0] = {
       ...(state.tables.ssh_keys[0] as Row),
-      privateKey: keyPair().private,
+      privateKey: parseableKeyPair().private,
     };
     expect(await moveServerToKey(IDS[0] as string, USER_ID)).toEqual({
       ok: false,
@@ -873,7 +867,7 @@ describe("rotate", () => {
       (state.tables.ssh_keys[0] as Row).status = "previous";
       state.tables.ssh_keys.push({
         id: "0197f3a0-1b2c-7def-8000-0000000000bb",
-        publicKey: keyPair().public,
+        publicKey: parseableKeyPair().public,
         privateKey: "",
         fingerprint: "SHA256:new",
         status: "current",

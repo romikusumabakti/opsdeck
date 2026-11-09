@@ -11,6 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { parseableKeyPair } from "@/lib/ssh-keypair";
 
 // The connection factory against a real in-process sshd (ssh2's Server) with a
 // fixed host key, and an in-memory servers table that honours the conditional
@@ -160,9 +161,9 @@ const { leaseSftp, openSftp, __resetSftpPool } = await import(
 );
 const { openSshShell } = await import("@/lib/terminal/ssh-shell");
 
-const keyA = ssh2.utils.generateKeyPairSync("ed25519");
-const keyB = ssh2.utils.generateKeyPairSync("ed25519");
-const clientKey = ssh2.utils.generateKeyPairSync("ed25519");
+const keyA = parseableKeyPair();
+const keyB = parseableKeyPair();
+const clientKey = parseableKeyPair();
 const blobOf = (publicKey: string) =>
   Buffer.from(publicKey.split(" ")[1] ?? "", "base64");
 const blobA = blobOf(keyA.public);
