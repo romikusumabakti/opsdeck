@@ -68,6 +68,9 @@ export type ConnectOptions = {
   // The background job that connects (an ssh_key_jobs id), recorded with a
   // pin or a mismatch it runs into.
   job?: string;
+  // False: a key login with this config does not mark the server verified
+  // (connectSucceeded); Check key login decides that itself.
+  markVerified?: boolean;
   // Called with the key an unsaved target offered (nothing is pinned for it).
   onHostKey?: (hostKey: ObservedHostKey) => void;
 };
@@ -200,7 +203,7 @@ export async function connectConfig(
     const keyId =
       opts.keyId ?? stored?.sshKeyId ?? (await ensureCurrentKey()).id;
     config.privateKey = await loadPrivateKey(keyId);
-    if (target.serverId && config.hostVerifier) {
+    if (target.serverId && config.hostVerifier && opts.markVerified !== false) {
       keyLogins.set(config.hostVerifier as HostVerifier, {
         serverId: target.serverId,
         keyId,

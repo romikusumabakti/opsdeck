@@ -1055,7 +1055,10 @@ describe("a key server installed by hand", () => {
     const res = await post(`/api/servers/${SERVER_ID}/check-key-login`, {});
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("keyLineNotFound");
-    expect(row().sshFrom).toBe("127.0.0.9");
+    // Not even the connect factory's "a key login worked" clears it: the row
+    // stays exactly as it was.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(row()).toEqual(keyRow());
   });
 
   it("an unverified row is offered the current key, and a check moves it there", async () => {
