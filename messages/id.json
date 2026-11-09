@@ -2910,6 +2910,7 @@
       "unsafeDeployDir": "Direktori deploy ini bukan path yang aman untuk dihapus",
       "environmentBusy": "Ada deploy atau provisioning yang sedang berjalan di environment ini. Coba lagi setelah selesai",
       "teardownRunning": "Environment ini sedang dihapus",
+      "teardownCannotCancel": "Penghapusan ini sudah mulai menghapus environment, jadi tidak bisa dibatalkan lagi. Coba lagi untuk menyelesaikannya",
       "databaseNotRegistered": "Stack ini menyimpan data di named volume tetapi tidak ada layanan database yang terdaftar, sehingga arsip akan melewatkannya. Daftarkan database terlebih dahulu, atau gunakan Hapus dari Panel saja",
       "archiveFailed": "Arsip tidak dapat diselesaikan, jadi tidak ada yang dihapus. Coba lagi untuk melanjutkan",
       "confirmNameMismatch": "Ketik nama environment persis untuk mengonfirmasi",

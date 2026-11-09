@@ -149,6 +149,7 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
   "server/services/environment-teardown.ts": {
     startTeardown: /environment: \["delete"\]/,
     retryTeardown: /environment: \["delete"\]/,
+    cancelTeardown: /environment: \["delete"\]/,
     getTeardown: /project: \["read"\]/,
   },
   "server/services/project-members.ts": {

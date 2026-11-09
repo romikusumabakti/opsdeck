@@ -10,21 +10,19 @@ import { enqueue } from "@/lib/queue";
 import { buildDbShellCommand, dbConfig } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { sshTarget } from "@/lib/ssh-connect";
-import { TEARDOWN_ERRORS } from "@/lib/teardown/errors";
-import { createRunUnlessTearingDown } from "@/lib/teardown/guard";
 import type { Backup } from "@/lib/types";
 import {
   backupFilenameSchema,
   databaseNameSchema,
   uuidSchema,
 } from "@/lib/validation";
-import { CodedHTTPException } from "@/server/errors";
 import {
   filterAllowedBackups,
   requireAllowedBackup,
   requireAllowedDatabaseNames,
   requireUnconfined,
 } from "@/server/services/database-hosts";
+import { createRunOrRefuse } from "@/server/services/teardown-runs";
 
 type BackupListResult =
   | { success: true; data: Backup[] }
@@ -105,21 +103,6 @@ export async function getBackupList(
     );
     return { success: false, error: "Failed to fetch backups" };
   }
-}
-
-/** The run of a backup or restore; 409 teardownRunning while one is under way. */
-async function createRunOrRefuse(
-  input: Parameters<typeof createRunUnlessTearingDown>[0]
-): Promise<string> {
-  const runId = await createRunUnlessTearingDown(input);
-  if (runId === null) {
-    throw new CodedHTTPException(
-      409,
-      "teardownRunning",
-      TEARDOWN_ERRORS.teardownRunning
-    );
-  }
-  return runId;
 }
 
 export async function createDatabaseBackup(

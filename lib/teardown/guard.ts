@@ -1,8 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { one } from "@/lib/db/one";
 import { runs, teardownSteps } from "@/lib/db/schema";
-import type { CreateRunInput } from "@/lib/run-progress";
+import { type CreateRunInput, insertRun } from "@/lib/run-progress";
 
 // What keeps other work off an environment that is being deleted. Once a
 // teardown run is started, or a teardown step is running or done, a deploy
@@ -79,7 +78,8 @@ export async function teardownBlocks(
 }
 
 /**
- * createRun for work a teardown blocks (a backup, a restore): under the
+ * createRun for work a teardown blocks (a backup, a restore, a database or
+ * service operation): under the
  * shared environment lock, null instead of a run while a teardown is under
  * way.
  */
@@ -89,18 +89,6 @@ export async function createRunUnlessTearingDown(
   return db.transaction(async (tx) => {
     await holdEnvironmentShared(tx, input.environmentId);
     if (await teardownBlocks(input.environmentId, tx)) return null;
-    const row = one(
-      await tx
-        .insert(runs)
-        .values({
-          ...input,
-          runAt: input.runAt ?? new Date(),
-          status: "started",
-          output: "",
-        })
-        .returning({ id: runs.id }),
-      "run"
-    );
-    return row.id;
+    return insertRun(tx, input);
   });
 }

@@ -505,6 +505,7 @@ describe("teardown error messages", () => {
     "cloudflareFailed",
     "stepFailed",
     "environmentHasEscrowedVariables",
+    "teardownCannotCancel",
   ];
 
   it("defines every code", () => {

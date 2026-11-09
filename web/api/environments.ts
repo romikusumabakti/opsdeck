@@ -140,6 +140,13 @@ export async function retryTeardown(environmentId: string) {
   );
 }
 
+/** Cancels a teardown that has only checked and archived so far. */
+export async function cancelTeardown(environmentId: string) {
+  return parseResponse(
+    routes[":id"].teardown.cancel.$post({ param: { id: environmentId } })
+  );
+}
+
 export type TeardownStatus = NonNullable<
   Awaited<ReturnType<typeof getTeardown>>
 >;

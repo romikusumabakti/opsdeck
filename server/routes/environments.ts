@@ -8,6 +8,7 @@ import {
 } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
+  cancelTeardown,
   getTeardown,
   retryTeardown,
   startTeardown,
@@ -91,6 +92,9 @@ export const environmentsRouter = sessionRouter()
   )
   .post("/:id/teardown/retry", envParam, async (c) =>
     c.json(await retryTeardown(c.req.valid("param").id), 202)
+  )
+  .post("/:id/teardown/cancel", envParam, async (c) =>
+    c.json(await cancelTeardown(c.req.valid("param").id))
   )
   /** "Remove from Panel only": the rows, nothing on the servers. */
   .delete(
