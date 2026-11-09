@@ -20,8 +20,9 @@ import { hostTools, lintToolAvailable } from "../support/host-tools";
 // OPSDECK_INSTALL_ROOT and a fake host through OPSDECK_INSTALL_SYSROOT, both
 // honoured with --dry-run only), with stub `docker`, `curl`, `id`, `uname`,
 // `dpkg` and `dpkg-query` on PATH next to plain host tools only
-// (support/host-tools): the host running the tests is never probed. A dry run reads (release assets, the old .env,
-// volumes) but changes nothing; it prints every action it would take.
+// (support/host-tools): the host running the tests is never probed. A dry
+// run reads (release assets, the old .env, volumes) but changes nothing; it
+// prints every action it would take.
 
 const REPO = join(__dirname, "..", "..");
 const SCRIPT = join(REPO, "ops/install/install.sh");
@@ -486,6 +487,9 @@ describe("install.sh --dry-run", () => {
   });
 
   it("checks the host: root, Debian or Ubuntu, systemd (notices in a dry run)", () => {
+    // The fake host comes from OPSDECK_INSTALL_SYSROOT, which install.sh
+    // honours with --dry-run only (next to OPSDECK_INSTALL_ROOT in main()); a
+    // real run always reads /etc/os-release and /run/systemd/system.
     const ctx = setup();
     writeFileSync(join(ctx.sysroot, "etc/os-release"), "ID=fedora\n");
     rmSync(join(ctx.sysroot, "run/systemd"), { recursive: true });
