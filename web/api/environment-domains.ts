@@ -35,6 +35,20 @@ export async function putEnvironmentDomain(
   );
 }
 
+/**
+ * Binds a hostname Cloudflare already routes through a registered tunnel
+ * (org server:manage). Rejects with an ApiError whose `code` is a
+ * DOMAIN_ERRORS key (or teardownRunning) when refused.
+ */
+export async function adoptEnvironmentDomain(
+  environmentId: string,
+  body: Parameters<(typeof routes.adopt)["$post"]>[0]["json"]
+) {
+  return parseResponse(
+    routes.adopt.$post({ param: { id: environmentId }, json: body })
+  );
+}
+
 export async function deleteEnvironmentDomain(environmentId: string) {
   return parseResponse(routes.$delete({ param: { id: environmentId } }));
 }

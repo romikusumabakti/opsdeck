@@ -39,7 +39,13 @@ const FILE_NAME_RE = /^[a-z0-9][a-z0-9_.-]*$/;
 
 export type EnvironmentArchiveListItem = Pick<
   EnvironmentArchive,
-  "id" | "projectName" | "environmentName" | "createdAt" | "expiresAt" | "files"
+  | "id"
+  | "projectName"
+  | "environmentName"
+  | "createdAt"
+  | "expiresAt"
+  | "completedAt"
+  | "files"
 >;
 
 export async function listEnvironmentArchives(): Promise<
@@ -52,6 +58,8 @@ export async function listEnvironmentArchives(): Promise<
     environmentName: archive.environmentName,
     createdAt: archive.createdAt,
     expiresAt: archive.expiresAt,
+    // null while the teardown has not deleted the environment yet.
+    completedAt: archive.completedAt,
     files: archive.files,
   }));
 }

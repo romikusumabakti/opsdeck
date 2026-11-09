@@ -6,6 +6,7 @@ import { failRun } from "@/lib/run-progress";
 import { TEARDOWN_ERRORS, type TeardownErrorCode } from "@/lib/teardown/errors";
 import { buildTeardownPlan } from "@/lib/teardown/plan";
 import {
+  CANCELLABLE_DONE_KINDS,
   cancelTeardownSteps,
   environmentBusy,
   latestTeardownRunId,
@@ -169,6 +170,10 @@ export async function cancelTeardown(
 
 export type TeardownStatus = {
   runId: string | null;
+  /** A teardown run is active or a step is running: poll on. */
+  running: boolean;
+  /** cancelTeardown would succeed: stopped, and only checks/archives done. */
+  cancellable: boolean;
   steps: { kind: string; status: string; lastError: string | null }[];
 } | null;
 
@@ -179,8 +184,16 @@ export async function getTeardown(
   await requireProjectPermission({ environmentId }, { project: ["read"] });
   const steps = await listTeardownSteps(environmentId);
   if (steps.length === 0) return null;
+  const { running } = await teardownState(environmentId);
   return {
     runId: await latestTeardownRunId(environmentId),
+    running,
+    cancellable:
+      !running &&
+      steps.every(
+        (step) =>
+          step.status !== "done" || CANCELLABLE_DONE_KINDS.has(step.kind)
+      ),
     steps: steps.map((step) => ({
       kind: step.kind,
       status: step.status,

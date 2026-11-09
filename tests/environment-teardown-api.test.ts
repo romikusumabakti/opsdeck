@@ -512,6 +512,8 @@ describe("GET /api/environments/:id/teardown", () => {
     res = await send("GET", `/api/environments/${ENV_ID}/teardown`);
     expect(await res.json()).toEqual({
       runId: RUN_ID,
+      running: false,
+      cancellable: true,
       steps: [
         { kind: "check_stack", status: "done", lastError: null },
         {
@@ -520,6 +522,37 @@ describe("GET /api/environments/:id/teardown", () => {
           lastError: "archiveFailed",
         },
       ],
+    });
+  });
+
+  it("says whether it is running and whether it can still be cancelled", async () => {
+    const steps = (kinds: string[]) =>
+      kinds.map((kind, i) => ({
+        id: `x${i}`,
+        kind,
+        status: "done",
+        lastError: null,
+        params: {},
+      }));
+    repo.listTeardownSteps.mockResolvedValue(
+      steps(["check_stack", "archive_database", "stack_down"])
+    );
+    let res = await send("GET", `/api/environments/${ENV_ID}/teardown`);
+    expect(await res.json()).toMatchObject({
+      running: false,
+      cancellable: false,
+    });
+
+    repo.listTeardownSteps.mockResolvedValue(steps(["check_stack"]));
+    repo.teardownState.mockResolvedValue({
+      planned: true,
+      running: true,
+      progressed: true,
+    });
+    res = await send("GET", `/api/environments/${ENV_ID}/teardown`);
+    expect(await res.json()).toMatchObject({
+      running: true,
+      cancellable: false,
     });
   });
 });
