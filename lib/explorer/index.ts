@@ -44,7 +44,7 @@ export async function resolveBackend(
     {
       host: server.host,
       username: server.username,
-      password: decryptSecret(server.password),
+      password: decryptSecret(server.password ?? ""),
     },
     server.sftpRoot
   );

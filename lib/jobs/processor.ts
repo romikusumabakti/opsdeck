@@ -140,7 +140,7 @@ export async function handleCreateDatabaseBackup(
   const credentials = {
     host: db.server.host,
     username: db.server.username,
-    password: db.server.password,
+    password: db.server.password ?? "",
   };
 
   try {
@@ -343,7 +343,7 @@ async function handleMockEnvironmentTimeLegacy(
   const credentials = {
     host: backend.server.host,
     username: backend.server.username,
-    password: backend.server.password,
+    password: backend.server.password ?? "",
   };
 
   // `date -s` expects "YYYY-MM-DD HH:MM:SS"; convert from ISO so the shell
@@ -433,7 +433,7 @@ async function handleMockEnvironmentTimeResetLegacy(
   const credentials = {
     host: backend.server.host,
     username: backend.server.username,
-    password: backend.server.password,
+    password: backend.server.password ?? "",
   };
 
   const sudo = (cmd: string) =>
@@ -508,12 +508,12 @@ type SshCreds = { host: string; username: string; password: string };
 function credsOf(server: {
   host: string;
   username: string;
-  password: string;
+  password: string | null;
 }): SshCreds {
   return {
     host: server.host,
     username: server.username,
-    password: server.password,
+    password: server.password ?? "",
   };
 }
 
@@ -615,7 +615,7 @@ async function handleRestoreDatabaseBackup(
   const credentials = {
     host: db.server.host,
     username: db.server.username,
-    password: db.server.password,
+    password: db.server.password ?? "",
   };
 
   if (!filename) throw new Error("Filename is required");
@@ -723,7 +723,7 @@ async function handleRestoreDatabaseBackup(
           const backendCreds = {
             host: backend.server.host,
             username: backend.server.username,
-            password: backend.server.password,
+            password: backend.server.password ?? "",
           };
           const cmd = buildControlCommand(
             backend.serviceType,
@@ -862,7 +862,7 @@ async function handleControlService(
   const credentials = {
     host: cfg.server.host,
     username: cfg.server.username,
-    password: cfg.server.password,
+    password: cfg.server.password ?? "",
   };
 
   try {
@@ -959,7 +959,7 @@ async function handleCreateDatabase(
   const credentials = {
     host: db.server.host,
     username: db.server.username,
-    password: db.server.password,
+    password: db.server.password ?? "",
   };
 
   try {
@@ -1044,7 +1044,7 @@ async function handleDropDatabase(
   const credentials = {
     host: db.server.host,
     username: db.server.username,
-    password: db.server.password,
+    password: db.server.password ?? "",
   };
 
   try {
@@ -1137,7 +1137,7 @@ async function handleRenameDatabase(
   const credentials = {
     host: db.server.host,
     username: db.server.username,
-    password: db.server.password,
+    password: db.server.password ?? "",
   };
 
   try {

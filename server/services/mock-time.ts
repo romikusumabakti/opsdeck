@@ -360,7 +360,7 @@ function legacyCredentials(environment: EnvironmentWithServers) {
   return {
     host: backendSvc.server.host,
     username: backendSvc.server.username,
-    password: backendSvc.server.password,
+    password: backendSvc.server.password ?? "",
   };
 }
 

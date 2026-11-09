@@ -105,7 +105,10 @@ async function createDatabase(
   }
   await provisionSharedDatabase(
     {
-      server: { ...host.server, password: decryptSecret(host.server.password) },
+      server: {
+        ...host.server,
+        password: decryptSecret(host.server.password ?? ""),
+      },
       containerName: host.containerName,
     },
     {

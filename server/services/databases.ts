@@ -42,7 +42,7 @@ async function probeDatabaseList(
     {
       host: dbSvc.server.host,
       username: dbSvc.server.username,
-      password: dbSvc.server.password,
+      password: dbSvc.server.password ?? "",
     },
     cmd
   );
@@ -111,7 +111,7 @@ function buildDatabaseListCommand(environment: EnvironmentWithServers): string {
   const inner = `psql -U postgres -tAc ${shq(query)}`;
   return buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: "postgres",
-    sudoPassword: dbSvc.server.password,
+    sudoPassword: dbSvc.server.password ?? undefined,
   });
 }
 
