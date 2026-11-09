@@ -132,27 +132,25 @@ vi.mock("@/lib/db", () => {
   Object.assign(db, {
     transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
   });
-  // A reserved connection that understands the two advisory lock queries.
-  const pgClient = () => ({
-    reserve: async () => {
-      const conn = async (
-        strings: TemplateStringsArray,
-        ...values: unknown[]
-      ) => {
-        const text = strings.join("?");
-        const key = values.join(":");
-        if (text.includes("pg_try_advisory_lock")) {
-          if (state.locks.has(key)) return [{ locked: false }];
-          state.locks.add(key);
-          return [{ locked: true }];
-        }
-        if (text.includes("pg_advisory_unlock")) state.locks.delete(key);
-        return [];
-      };
-      return Object.assign(conn, { release: () => {} });
-    },
-  });
-  return { db, pgClient };
+  // A lock connection that understands the two advisory lock queries.
+  const lockConnection = () => {
+    const conn = async (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => {
+      const text = strings.join("?");
+      const key = values.join(":");
+      if (text.includes("pg_try_advisory_lock")) {
+        if (state.locks.has(key)) return [{ locked: false }];
+        state.locks.add(key);
+        return [{ locked: true }];
+      }
+      if (text.includes("pg_advisory_unlock")) state.locks.delete(key);
+      return [];
+    };
+    return Object.assign(conn, { end: async () => {} });
+  };
+  return { db, pgClient: () => ({}), lockConnection };
 });
 
 vi.mock("@/lib/activity", () => ({

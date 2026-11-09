@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { BlockList, isIP } from "node:net";
 import { and, eq, notExists } from "drizzle-orm";
 import { utils } from "ssh2";
-import { db, pgClient } from "@/lib/db";
+import { db, lockConnection, pgClient } from "@/lib/db";
 import { servers, sshKeys } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 
@@ -341,50 +341,103 @@ export const SERVER_KEY_LOCK_CLASS = 1936943211;
  */
 export const KEY_JOB_LOCK = { classId: 1936943210, objId: 0 };
 
-type Reserved = Awaited<ReturnType<ReturnType<typeof pgClient>["reserve"]>>;
+type LockConnection = ReturnType<typeof lockConnection>;
 
-/**
- * A connection whose lock query failed may still hold the lock (the reply may
- * be what was lost), and a dead one must not be handed out again: either way
- * it never goes back to the pool. Ending its session drops every lock with
- * it; postgres.js then reconnects that pool slot on its own.
- */
-async function discard(conn: Reserved) {
-  try {
-    await conn`select pg_terminate_backend(pg_backend_pid())`;
-  } catch {
-    // Expected: the server ends the session while answering, or it was gone.
+// Lock sessions open at once, across every key operation of this process: a
+// small fixed number of connections next to the app's pool. A lock that finds
+// none free waits this long, then is refused like a held lock.
+const LOCK_SESSIONS = 4;
+const LOCK_SESSION_WAIT_MS = 5_000;
+// How long a release waits for its unlock before it ends the session anyway.
+const LOCK_RELEASE_TIMEOUT_MS = 5_000;
+
+const lockSessions = { open: 0, waiting: [] as (() => void)[] };
+
+function takeLockSession(): Promise<boolean> {
+  if (lockSessions.open < LOCK_SESSIONS) {
+    lockSessions.open += 1;
+    return Promise.resolve(true);
   }
+  return new Promise((resolve) => {
+    const grant = () => {
+      clearTimeout(timer);
+      lockSessions.open += 1;
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      lockSessions.waiting.splice(lockSessions.waiting.indexOf(grant), 1);
+      resolve(false);
+    }, LOCK_SESSION_WAIT_MS);
+    lockSessions.waiting.push(grant);
+  });
+}
+
+function freeLockSession() {
+  lockSessions.open -= 1;
+  lockSessions.waiting.shift()?.();
+}
+
+function within<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 /**
- * A session-level advisory lock on a reserved connection held for the run, so
- * a crashed process releases it with its connection. Resolves to its release,
- * or to null when another session holds it.
+ * A session-level advisory lock on a connection of its own held for the run,
+ * so a crashed process releases it with its connection. Resolves to its
+ * release, or to null when another session holds it or no lock session frees
+ * up in time. A connection whose lock or unlock query failed is never asked
+ * anything again (the reply may be what was lost, and postgres.js can hang on
+ * a dead one): it is ended, which drops every lock its session held. One
+ * already closed is ended without a query: its locks went with the session.
  */
 async function sessionLock(
-  take: (conn: Reserved) => Promise<{ locked: boolean }[]>,
-  drop: (conn: Reserved) => Promise<unknown>
+  take: (conn: LockConnection) => Promise<{ locked: boolean }[]>,
+  drop: (conn: LockConnection) => Promise<unknown>
 ): Promise<(() => Promise<void>) | null> {
-  const conn = await pgClient().reserve();
+  if (!(await takeLockSession())) return null;
+  let closed = false;
+  let conn: LockConnection;
+  try {
+    conn = lockConnection(() => {
+      closed = true;
+    });
+  } catch (error) {
+    freeLockSession();
+    throw error;
+  }
+  let ended: Promise<void> | undefined;
+  const end = () => {
+    ended ??= conn
+      .end({ timeout: 0 })
+      .catch(() => {})
+      .finally(freeLockSession);
+    return ended;
+  };
   try {
     const [row] = await take(conn);
     if (!row?.locked) {
-      conn.release();
+      await end();
       return null;
     }
   } catch (error) {
-    await discard(conn);
+    await end();
     throw error;
   }
   return async () => {
+    if (ended) return ended;
     try {
-      await drop(conn);
-    } catch (error) {
-      await discard(conn);
-      throw error;
+      if (!closed) {
+        await within(drop(conn), LOCK_RELEASE_TIMEOUT_MS, "lock release");
+      }
+    } finally {
+      await end();
     }
-    conn.release();
   };
 }
 

@@ -65,6 +65,28 @@ export function pgClient() {
   return getDb().$client;
 }
 
+/**
+ * A connection of its own for one session-level advisory lock, outside `db`'s
+ * pool: a lock held for a whole SSH run must never take a query slot from the
+ * app (its holder still needs the pool, so held locks would starve or
+ * deadlock it). It never idles out or recycles, which would end the session
+ * and so drop the lock mid-run; the holder ends it. `onclose` runs when the
+ * session is gone, for whatever reason.
+ */
+export function lockConnection(onclose: () => void) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set");
+  }
+  return postgres(process.env.DATABASE_URL, {
+    max: 1,
+    idle_timeout: 0,
+    max_lifetime: null,
+    connect_timeout: 5,
+    connection: { TimeZone: "UTC" },
+    onclose,
+  });
+}
+
 /** The pool or a transaction handle: what a query helper can run against. */
 export type DbExecutor = Pick<typeof db, "select" | "update" | "insert">;
 
