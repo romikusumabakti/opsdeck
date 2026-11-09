@@ -180,8 +180,9 @@ export function useTargetSchema() {
  * Adds a deploy target. Existing targets are edited on the environment's
  * Settings → Source & Deploy tab. With an app on the environment the
  * component is picked from the app's components (the one not yet targeted
- * preselected when it is the only one); a legacy environment without an app
- * types the component key.
+ * preselected when it is the only one; a hint instead when nothing is left
+ * to pick, an error with Retry when the list fails to load); a legacy
+ * environment without an app types the component key.
  */
 export function TargetFormDialog({
   open,
@@ -201,13 +202,26 @@ export function TargetFormDialog({
   const t = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
   const appId = environment.appId ?? null;
+  const fromApp = appId !== null;
   // Apps and their public components are listed for every signed-in user.
-  const apps = useQuery({ ...listAppsQuery(), enabled: appId !== null }).data;
-  const components = appId
-    ? apps?.find((app) => app.id === appId)?.components
-    : undefined;
+  const apps = useQuery({ ...listAppsQuery(), enabled: fromApp });
+  const components =
+    fromApp && apps.data
+      ? (apps.data.find((app) => app.id === appId)?.components ?? [])
+      : undefined;
   const taken = new Set(targetedKeys);
   const free = components?.filter((c) => !taken.has(c.componentKey)) ?? [];
+  // Picking from the app: still loading, failed, or nothing left to pick.
+  const loading = fromApp && apps.isPending;
+  const failed = fromApp && !apps.data && apps.isError;
+  const nothingToPick = components
+    ? components.length === 0
+      ? t("noComponents")
+      : free.length === 0
+        ? t("allComponentsTargeted")
+        : null
+    : null;
+  const cannotAdd = loading || failed || nothingToPick !== null;
 
   const invalid = t("invalid");
   const schema = useTargetSchema().extend({
@@ -322,7 +336,25 @@ export function TargetFormDialog({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
-            {components ? (
+            {!fromApp ? (
+              text("componentKey", { placeholder: "dplk-accounting" })
+            ) : failed ? (
+              <div className="flex flex-col items-start gap-2">
+                <p role="alert" className="text-sm text-destructive">
+                  {t("componentsLoadFailed")}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void apps.refetch()}
+                >
+                  {t("componentsRetry")}
+                </Button>
+              </div>
+            ) : nothingToPick ? (
+              <p className="text-sm text-muted-foreground">{nothingToPick}</p>
+            ) : (
               <FormField
                 control={form.control}
                 name="componentKey"
@@ -333,8 +365,9 @@ export function TargetFormDialog({
                     </FormLabel>
                     <Select
                       value={field.value || null}
+                      disabled={loading}
                       items={Object.fromEntries(
-                        components.map((c) => [
+                        (components ?? []).map((c) => [
                           c.componentKey,
                           `${c.componentKey} (${c.repoFullName})`,
                         ])
@@ -349,7 +382,7 @@ export function TargetFormDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {components.map((c) => (
+                        {(components ?? []).map((c) => (
                           <SelectItem
                             key={c.componentKey}
                             value={c.componentKey}
@@ -368,8 +401,6 @@ export function TargetFormDialog({
                   </FormItem>
                 )}
               />
-            ) : (
-              text("componentKey", { placeholder: "dplk-accounting" })
             )}
             <FormField
               control={form.control}
@@ -419,7 +450,10 @@ export function TargetFormDialog({
               >
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button
+                type="submit"
+                disabled={cannotAdd || form.formState.isSubmitting}
+              >
                 {t("create")}
               </Button>
             </DialogFooter>
