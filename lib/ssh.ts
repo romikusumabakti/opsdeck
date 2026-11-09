@@ -4,6 +4,7 @@ import {
   type ConnectOptions,
   connectConfig,
   connectError,
+  connectSucceeded,
   HostKeyMismatchError,
   type SshTarget,
 } from "@/lib/ssh-connect";
@@ -50,6 +51,7 @@ export async function openSsh(
     ssh.dispose();
     throw connectError(config, error);
   }
+  connectSucceeded(config);
   return ssh;
 }
 

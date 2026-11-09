@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { servers } from "@/lib/db/schema";
 import {
   ensureCurrentKey,
+  KEY_NOT_VERIFIED,
   loadPrivateKey,
   sshFingerprint,
 } from "@/lib/ssh-keys";
@@ -92,6 +93,43 @@ type HostVerifier = (key: Buffer, verify: Verify) => void;
 // why, keyed by itself because callers spread the config into a new object.
 const mismatches = new WeakMap<HostVerifier, HostKeyMismatchError>();
 
+// The saved server and instance key a config signs in with, keyed like
+// `mismatches`, so connectSucceeded knows which key login it proved.
+const keyLogins = new WeakMap<
+  HostVerifier,
+  { serverId: string; keyId: string }
+>();
+
+/**
+ * To call once a connect made with `config` is signed in. A key login proves
+ * the key works there, so a server installed by hand stops showing "not
+ * verified" (only for the key its row names). One conditional UPDATE, not
+ * awaited: it never delays or fails the connection.
+ */
+export function connectSucceeded(config: ConnectConfig): void {
+  const verifier = config.hostVerifier as HostVerifier | undefined;
+  const login = verifier && keyLogins.get(verifier);
+  if (!login) return;
+  keyLogins.delete(verifier);
+  db.update(servers)
+    .set({ keyError: null })
+    .where(
+      and(
+        eq(servers.id, login.serverId),
+        eq(servers.keyError, KEY_NOT_VERIFIED),
+        eq(servers.sshKeyId, login.keyId)
+      )
+    )
+    .then(
+      () => {},
+      (error: unknown) =>
+        console.error(
+          `clearing keyNotVerified failed for server ${login.serverId}:`,
+          (error as Error).message
+        )
+    );
+}
+
 /**
  * The error to surface for a failed connect made with `config`: the
  * HostKeyMismatchError its verifier recorded, else `error` unchanged.
@@ -162,6 +200,12 @@ export async function connectConfig(
     const keyId =
       opts.keyId ?? stored?.sshKeyId ?? (await ensureCurrentKey()).id;
     config.privateKey = await loadPrivateKey(keyId);
+    if (target.serverId && config.hostVerifier) {
+      keyLogins.set(config.hostVerifier as HostVerifier, {
+        serverId: target.serverId,
+        keyId,
+      });
+    }
   } else {
     const password = opts.passwordOnce ?? target.password;
     if (password !== null) config.password = password;

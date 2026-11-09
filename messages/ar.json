@@ -1474,7 +1474,8 @@
     "invalidFrom": "أدخل عنوان IP أو شبكة فرعية، مثل 192.168.1.10 أو 172.29.0.0/16.",
     "keyNotVerified": "لم يسجّل مفتاح SSH الدخول بعد. شغّل أمر التثبيت على الخادم، ثم تحقّق من الدخول بالمفتاح.",
     "notKeyServer": "لا يسجّل هذا الخادم الدخول بمفتاح SSH.",
-    "keyServerNoPassword": "يسجّل هذا الخادم الدخول بمفتاح SSH، لذا لا يحفظ كلمة مرور."
+    "keyServerNoPassword": "يسجّل هذا الخادم الدخول بمفتاح SSH، لذا لا يحفظ كلمة مرور.",
+    "keyLineNotFound": "يسجّل المفتاح الدخول، لكن سطر اللوحة غير موجود في ~/.ssh/authorized_keys على الخادم. شغّل أمر التثبيت المعروض هنا."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -2094,7 +2095,8 @@
     "environmentDomainDeleted": "{actor} أزال النطاق {hostname} من {environment}",
     "projectDefaultServerSet": "عيّن {actor} الخادم الافتراضي لـ {project} إلى {server}",
     "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}",
-    "serverKeyRotated": "{actor} بدّل مفتاح SSH على {server} (من {from})"
+    "serverKeyRotated": "{actor} بدّل مفتاح SSH على {server} (من {from})",
+    "serverKeyFromChanged": "{actor} حدّث عنوان مفتاح SSH لـ {server} (من {before} إلى {after})"
   },
   "jira": {
     "title": "Jira",

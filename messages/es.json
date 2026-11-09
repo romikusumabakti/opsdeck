@@ -1474,7 +1474,8 @@
     "invalidFrom": "Introduce una dirección IP o una subred, como 192.168.1.10 o 172.29.0.0/16.",
     "keyNotVerified": "La clave SSH aún no ha iniciado sesión. Ejecuta el comando de instalación en el servidor y luego Comprobar inicio con clave.",
     "notKeyServer": "Este servidor no inicia sesión con la clave SSH.",
-    "keyServerNoPassword": "Este servidor inicia sesión con la clave SSH, así que no guarda contraseña."
+    "keyServerNoPassword": "Este servidor inicia sesión con la clave SSH, así que no guarda contraseña.",
+    "keyLineNotFound": "La clave inicia sesión, pero la línea del Panel no está en ~/.ssh/authorized_keys del servidor. Ejecuta el comando de instalación que se muestra aquí."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -2094,7 +2095,8 @@
     "environmentDomainDeleted": "{actor} quitó el dominio {hostname} de {environment}",
     "projectDefaultServerSet": "{actor} fijó el servidor predeterminado de {project} en {server}",
     "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}",
-    "serverKeyRotated": "{actor} rotó la clave SSH en {server} (desde {from})"
+    "serverKeyRotated": "{actor} rotó la clave SSH en {server} (desde {from})",
+    "serverKeyFromChanged": "{actor} actualizó la dirección de la clave SSH de {server} (de {before} a {after})"
   },
   "jira": {
     "title": "Jira",

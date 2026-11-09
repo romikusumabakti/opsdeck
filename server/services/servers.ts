@@ -14,7 +14,11 @@ import {
 import { decryptNullable, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
 import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
-import { ensureCurrentKey, isValidFrom } from "@/lib/ssh-keys";
+import {
+  ensureCurrentKey,
+  isValidFrom,
+  KEY_NOT_VERIFIED,
+} from "@/lib/ssh-keys";
 import type { ActionResponse } from "@/lib/types";
 import {
   type ServerInput,
@@ -22,7 +26,6 @@ import {
   serverUpdateSchema,
 } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
-import { KEY_NOT_VERIFIED } from "@/server/services/server-keys";
 
 export type ServerUsage = {
   // The environment that uses this server, with the parts needed to link to its

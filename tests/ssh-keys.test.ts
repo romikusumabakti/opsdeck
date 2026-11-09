@@ -61,7 +61,9 @@ import {
   authorizedKeysLine,
   ensureCurrentKey,
   fromAddress,
+  fromOfLine,
   generateInstanceKey,
+  isValidFrom,
   keyMarker,
   loadPrivateKey,
   mergeAuthorizedKeys,
@@ -198,6 +200,11 @@ describe("authorizedKeysLine validation", () => {
     "10.0.0.0/8/8",
     "fe80::1%eth0",
     "fe80::/64%eth0",
+    // Wider than normaliseSubnet allows: no restriction worth the name.
+    "0.0.0.0/0",
+    "10.0.0.0/7",
+    "::/0",
+    "fd00::/31",
   ])("rejects from=%j", (from) => {
     expect(() => authorizedKeysLine(KEY, from, MARKER)).toThrow();
   });
@@ -289,5 +296,27 @@ describe("loadPrivateKey", () => {
     expect(await loadPrivateKey("b")).toBe("PEM-B");
     expect(await loadPrivateKey("a")).toBe("PEM-A");
     await expect(loadPrivateKey("zzz")).rejects.toThrow();
+  });
+});
+
+describe("from= width", () => {
+  it("allows /8 to /32 for IPv4 and /32 to /128 for IPv6", () => {
+    for (const ok of ["10.0.0.0/8", "10.1.2.3/32", "fd00::/32", "::1/128"]) {
+      expect(isValidFrom(ok), ok).toBe(true);
+    }
+    for (const bad of ["0.0.0.0/0", "::/0", "10.0.0.0/7", "fd00::/31"]) {
+      expect(isValidFrom(bad), bad).toBe(false);
+    }
+  });
+});
+
+describe("fromOfLine", () => {
+  it("reads the from= of a line we wrote, and refuses anything else", () => {
+    expect(fromOfLine(OURS)).toBe("10.0.0.1");
+    expect(fromOfLine(`${OURS}\r`)).toBe("10.0.0.1");
+    expect(fromOfLine("ssh-ed25519 AAAA x")).toBeNull();
+    expect(
+      fromOfLine('from="0.0.0.0/0",no-agent-forwarding ssh-ed25519 AAAA x')
+    ).toBeNull();
   });
 });

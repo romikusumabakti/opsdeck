@@ -1474,7 +1474,8 @@
     "invalidFrom": "Enter an IP address or subnet, like 192.168.1.10 or 172.29.0.0/16.",
     "keyNotVerified": "The SSH key has not signed in yet. Run the install command on the server, then Check key login.",
     "notKeyServer": "This server does not sign in with the SSH key.",
-    "keyServerNoPassword": "This server signs in with the SSH key, so it stores no password."
+    "keyServerNoPassword": "This server signs in with the SSH key, so it stores no password.",
+    "keyLineNotFound": "The key signs in, but the Panel's line is not in the server's ~/.ssh/authorized_keys. Run the install command shown here."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -2094,7 +2095,8 @@
     "environmentDomainDeleted": "{actor} removed the domain {hostname} from {environment}",
     "projectDefaultServerSet": "{actor} set the default server of {project} to {server}",
     "projectDefaultServerCleared": "{actor} cleared the default server of {project}",
-    "serverKeyRotated": "{actor} rotated the SSH key on {server} (from {from})"
+    "serverKeyRotated": "{actor} rotated the SSH key on {server} (from {from})",
+    "serverKeyFromChanged": "{actor} updated the SSH key address of {server} (from {before} to {after})"
   },
   "jira": {
     "title": "Jira",

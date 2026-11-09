@@ -318,6 +318,13 @@ function message(
         server: String(d.server),
         from: String(d.from),
       });
+    case "server.keyFromChanged":
+      return t("serverKeyFromChanged", {
+        actor,
+        server: String(d.server),
+        before: String(d.before || "—"),
+        after: String(d.after),
+      });
     case "server.keyRotated":
       return t("serverKeyRotated", {
         actor,

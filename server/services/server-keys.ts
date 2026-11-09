@@ -20,12 +20,15 @@ import {
   dropOtherInstanceKeys,
   ensureCurrentKey,
   fromAddress,
+  fromOfLine,
   type InstanceKey,
   installCommand,
   instanceKey,
   isOurs,
   isValidFrom,
+  KEY_NOT_VERIFIED,
   keyMarker,
+  MIN_FROM_PREFIX,
   mergeAuthorizedKeys,
   ownKeyMarkers,
   removeAuthorizedKey,
@@ -582,7 +585,16 @@ async function cleanLocked(
     return { ok: false, code: connectFailure(error, "key", false) };
   }
   try {
-    if (await keepOnly(ssh, keyMarker(key.id))) return { ok: true };
+    if (await keepOnly(ssh, keyMarker(key.id))) {
+      // Signed in with the key: a server installed by hand is now verified.
+      await db
+        .update(servers)
+        .set({ keyError: null })
+        .where(
+          and(eq(servers.id, server.id), eq(servers.keyError, KEY_NOT_VERIFIED))
+        );
+      return { ok: true };
+    }
     console.error(`rotate key: old lines kept on server ${server.id}`);
     return { ok: false, code: "oldKeyNotRemoved" };
   } finally {
@@ -766,8 +778,8 @@ const systemNetwork: NetworkSource = {
   },
 };
 
-const V4_MIN_PREFIX = 8;
-const V6_MIN_PREFIX = 32;
+const V4_MIN_PREFIX = MIN_FROM_PREFIX[4];
+const V6_MIN_PREFIX = MIN_FROM_PREFIX[6];
 
 function ipv4ToInt(address: string): number {
   return address
@@ -1016,9 +1028,6 @@ export async function trustHostKeyAction(
 
 // --- A key installed by hand (org server:manage) -----------------------------
 
-/** The code a key server not proven yet carries in key_error. */
-export const KEY_NOT_VERIFIED = "keyNotVerified";
-
 async function requireKeyServer(serverId: string) {
   const [row] = await db
     .select()
@@ -1052,57 +1061,79 @@ export async function serverAuthorizedLineAction(
   await requireOrgPermission({ server: ["manage"] });
   const server = await requireKeyServer(serverId);
   await requireFrom(from);
-  const key = server.sshKeyId
-    ? await instanceKey(server.sshKeyId)
-    : await ensureCurrentKey();
+  const key = await keyToInstall(server);
   if (!key) return refuse("keyInstallFailed");
   const line = authorizedKeysLine(key.publicKey, from, keyMarker(key.id));
   return { line, command: installCommand(line) };
 }
 
 /**
- * Sign in to a key server with its key alone (never a password). Success
- * clears key_error (a key not verified yet, or a login that failed) and, with
- * `from`, records it as the address the line was installed with. A failure
- * changes nothing. Held under the server's key lock, so it never races a
- * move or a rotation of the same server.
+ * The key a key server's line should carry: the one its row names, or the
+ * current key while the row was never verified (a server added by hand during
+ * a rotation must not land on the key being retired).
+ */
+async function keyToInstall(server: Server): Promise<InstanceKey | null> {
+  if (server.sshKeyId && server.keyError !== KEY_NOT_VERIFIED) {
+    return instanceKey(server.sshKeyId);
+  }
+  return ensureCurrentKey();
+}
+
+/**
+ * Sign in to a key server with its key alone (never a password), then read
+ * our line for that key from its authorized_keys. Success clears key_error,
+ * points the row at that key, and saves the from= the line really carries
+ * (never an address the browser sends), recording a change in the activity
+ * log. A login without our line answers keyLineNotFound and saves nothing. A
+ * failure changes nothing. Held under the server's key lock, so it never
+ * races a move or a rotation of the same server.
  */
 export async function checkKeyLoginAction(
-  serverId: string,
-  from?: string
+  serverId: string
 ): Promise<{ ok: true }> {
   const session = await requireOrgPermission({ server: ["manage"] });
   const server = await requireKeyServer(serverId);
-  if (from !== undefined) await requireFrom(from);
   const release = await serverKeyLock(serverId);
   if (!release) return refuse("keyJobRunning");
-  let failure: KeyMoveCode | null = null;
+  let failure: KeyMoveCode | "keyLineNotFound" | null = null;
+  let from: string | null = null;
   try {
+    const key = await keyToInstall(server);
+    if (!key) return refuse("keyLoginFailed");
     let ssh: NodeSSH | undefined;
     try {
       ssh = await openSsh(
         sshTarget({ ...server, password: null }),
         SSH_TUNING,
-        {
-          keyOnly: true,
-          actor: session.user.id,
-        }
+        { keyOnly: true, keyId: key.id, actor: session.user.id }
       );
       const result = await exec(ssh, "true");
       if (result.code !== 0) failure = "keyLoginFailed";
+      else {
+        const line = previousLine(
+          await readAuthorizedKeys(ssh),
+          keyMarker(key.id)
+        );
+        from = line === null ? null : fromOfLine(line);
+        if (from === null) failure = "keyLineNotFound";
+      }
     } catch (error) {
-      failure = connectFailure(error, "key", false);
+      failure =
+        error instanceof StepFailed
+          ? error.code
+          : connectFailure(error, "key", false);
     } finally {
       ssh?.dispose();
     }
-    if (failure === null) {
+    if (failure === null && from !== null) {
       // Conditional on the login it proved: an edit meanwhile is another
       // machine or account.
-      await db
+      const updated = await db
         .update(servers)
         .set({
           keyError: null,
-          ...(from !== undefined ? { sshFrom: from } : {}),
+          sshKeyId: key.id,
+          sshFrom: from,
           updatedAt: new Date(),
         })
         .where(
@@ -1112,7 +1143,25 @@ export async function checkKeyLoginAction(
             eq(servers.host, server.host),
             eq(servers.username, server.username)
           )
-        );
+        )
+        .returning({ id: servers.id });
+      if (updated.length > 0 && from !== server.sshFrom) {
+        try {
+          await recordActivity({
+            actorId: session.user.id,
+            action: "server.keyFromChanged",
+            entityType: "server",
+            entityId: serverId,
+            data: {
+              server: server.name,
+              before: server.sshFrom ?? "",
+              after: from,
+            },
+          });
+        } catch {
+          console.error(`check key: activity not recorded for ${serverId}`);
+        }
+      }
     }
   } finally {
     await release().catch(() =>
