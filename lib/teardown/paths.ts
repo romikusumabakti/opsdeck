@@ -7,7 +7,7 @@ import { posix } from "node:path";
 const SAFE_SEGMENT = /^[A-Za-z0-9._@+-]+$/;
 
 // System trees: neither they nor anything under them is ever a deploy dir.
-const SYSTEM_TREES = [
+export const SYSTEM_TREES = [
   "/etc",
   "/usr",
   "/bin",
@@ -24,7 +24,12 @@ const SYSTEM_TREES = [
 ];
 
 // Parents of real data: refused themselves, their subdirectories are fine.
-const PARENT_DIRS = new Set(["/root", "/opt/stacks", "/srv", "/var/lib"]);
+export const PARENT_DIRS = new Set([
+  "/root",
+  "/opt/stacks",
+  "/srv",
+  "/var/lib",
+]);
 
 /**
  * The canonical form used for every comparison: `.`/`..`/`//` resolved
