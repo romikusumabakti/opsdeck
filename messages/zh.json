@@ -2909,11 +2909,13 @@
       "unsafeDeployDir": "该部署目录不是可安全删除的路径",
       "environmentBusy": "此环境有正在进行的部署或预配。请在完成后重试",
       "teardownRunning": "此环境正在删除中",
-      "databaseNotRegistered": "该数据库服务已不再注册",
+      "databaseNotRegistered": "该堆栈在命名卷中保存数据，但未注册任何数据库服务，因此归档会遗漏这些数据。请先注册数据库，或使用“仅从面板移除”",
       "archiveFailed": "归档未能完成，因此未删除任何内容。重试以继续",
       "confirmNameMismatch": "请准确输入环境名称以确认",
       "environmentIsProduction": "只有管理员可以删除生产环境",
-      "productionConfirmRequired": "请确认你正在删除生产环境"
+      "productionConfirmRequired": "请确认你正在删除生产环境",
+      "stackHostsSharedDatabase": "该堆栈运行着共享数据库主机或其他环境正在使用的数据库容器",
+      "serverCommandFailed": "服务器上的命令失败。请查看运行日志后重试"
     }
   },
   "environmentSetup": {

@@ -151,9 +151,19 @@ export type TeardownPlan =
   | { steps: TeardownStepSpec[] }
   | { refusal: TeardownRefusal };
 
-/** Whether one directory is the other or lies inside it (canonical dirs). */
-function dirsOverlap(a: string, b: string): boolean {
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+/** Whether `child` lies strictly inside `parent` (canonical dirs). */
+function isInside(child: string, parent: string): boolean {
+  return parent === "/"
+    ? child !== "/" && child.startsWith("/")
+    : child.startsWith(`${parent}/`);
+}
+
+/**
+ * Whether one directory is the other or lies inside it (canonical dirs).
+ * `/` is the ancestor of every absolute dir.
+ */
+export function dirsOverlap(a: string, b: string): boolean {
+  return a === b || isInside(a, b) || isInside(b, a);
 }
 
 /**
@@ -161,7 +171,7 @@ function dirsOverlap(a: string, b: string): boolean {
  * dirs overlap, or plain `docker compose` would give both the same project
  * (so `compose down --remove-orphans --volumes` in ours hits theirs).
  */
-function dirsCollide(ours: string, theirs: string): boolean {
+export function dirsCollide(ours: string, theirs: string): boolean {
   if (dirsOverlap(ours, theirs)) return true;
   const project = composeProjectName(ours);
   return project !== "" && project === composeProjectName(theirs);

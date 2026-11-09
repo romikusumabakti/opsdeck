@@ -208,7 +208,7 @@ describe("planTeardown", () => {
   });
 
   it("refuses a dir nested in or around another environment's dir", () => {
-    for (const other of ["/deployments/dms/worker", "/deployments"]) {
+    for (const other of ["/deployments/dms/worker", "/deployments", "/"]) {
       expect(
         planTeardown(
           env({
@@ -492,6 +492,8 @@ describe("teardown error messages", () => {
     "confirmNameMismatch",
     "environmentIsProduction",
     "productionConfirmRequired",
+    "stackHostsSharedDatabase",
+    "serverCommandFailed",
   ];
 
   it("defines every code", () => {
