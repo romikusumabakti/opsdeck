@@ -66,7 +66,7 @@ import {
   sharedDatabaseNameSchema,
   sharedDatabaseNamesOverlap,
 } from "@/lib/validation";
-import { badRequest } from "@/server/errors";
+import { badRequest, CodedHTTPException } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 // The form posts one flat payload (db*/backend*/frontend* fields); storage is
@@ -1198,8 +1198,21 @@ export async function updateEnvironment(
   }
 }
 
+/** The 409 of a delete refused because the environment has escrowed variables. */
+export async function escrowRefusal(): Promise<CodedHTTPException> {
+  const t = await getServerTranslator("actionErrors");
+  return new CodedHTTPException(
+    409,
+    "environmentHasEscrowedVariables",
+    t("environmentHasEscrowedVariables")
+  );
+}
+
 /**
- * Deletes an environment; its services, deploy targets and variables go with
+ * "Remove from Panel only": deletes the environment's rows and leaves its
+ * servers, databases and Cloudflare objects alone (a full delete is
+ * startTeardown). Org server:manage only, on top of project
+ * environment:delete. Its services, deploy targets and variables go with
  * it. Escrowed variables (e.g. a data encryption key) exist nowhere else, so
  * while the environment has any the delete is refused (409) unless an admin
  * with org integration:manage passes `confirmEscrowedDeletion`. The delete
@@ -1217,6 +1230,9 @@ export async function deleteEnvironment(
     { environmentId: id },
     { environment: ["delete"] }
   );
+  if (!canOrg(session.user.role, { server: ["manage"] })) {
+    throw new ForbiddenError();
+  }
   const variables = await db
     .select({
       name: environmentVariables.name,
@@ -1229,10 +1245,7 @@ export async function deleteEnvironment(
     confirmEscrowedDeletion &&
     canOrg(session.user.role, { integration: ["manage"] });
   const refuseEscrowed = async (): Promise<never> => {
-    const t = await getServerTranslator("actionErrors");
-    throw new HTTPException(409, {
-      message: t("environmentHasEscrowedVariables"),
-    });
+    throw await escrowRefusal();
   };
   if (!confirmed && variables.some((v) => v.escrow)) await refuseEscrowed();
 

@@ -19,6 +19,7 @@ import { databasesRouter } from "@/server/routes/databases";
 import { deployHooksRouter } from "@/server/routes/deploy-hooks";
 import { deployLocksRouter } from "@/server/routes/deploy-locks";
 import { deploysRouter } from "@/server/routes/deploys";
+import { environmentArchivesRouter } from "@/server/routes/environment-archives";
 import { environmentDomainsRouter } from "@/server/routes/environment-domains";
 import { environmentsRouter } from "@/server/routes/environments";
 import { explorerRouter } from "@/server/routes/explorer";
@@ -141,6 +142,7 @@ export const app = createBaseApp()
   .route("/api/cloudflare-account", cloudflareAccountRouter)
   // Before /api/instance: its instance:manage guard would answer first.
   .route("/api/instance/ssh-key", instanceSshKeyRouter)
+  .route("/api/instance/environment-archives", environmentArchivesRouter)
   .route("/api/instance", instanceRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);

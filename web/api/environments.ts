@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { parseResponse } from "hono/client";
+import { type InferRequestType, parseResponse } from "hono/client";
 import {
   ApiError,
   api,
@@ -74,18 +74,20 @@ export async function updateEnvironment(
 }
 
 /**
- * `escrowed` is true when the delete was refused because the environment has
- * escrowed variables (409); an admin may then repeat it with
+ * "Remove from Panel only" (org server:manage): deletes the rows, nothing on
+ * the servers. `escrowed` is true when it was refused because the
+ * environment has escrowed variables (409); an admin may then repeat it with
  * `confirmEscrowedDeletion`.
  */
 export async function deleteEnvironment(
-  id: Body<"delete-environment">["id"],
+  id: string,
   confirmEscrowedDeletion?: boolean
 ): Promise<{ success: boolean; message?: string; escrowed?: boolean }> {
   try {
     return await parseResponse(
-      routes["delete-environment"].$post({
-        json: { id, confirmEscrowedDeletion },
+      routes[":id"].$delete({
+        param: { id },
+        json: { confirmEscrowedDeletion },
       })
     );
   } catch (error) {
@@ -93,12 +95,54 @@ export async function deleteEnvironment(
       return {
         success: false,
         message: error.message,
-        escrowed: error.status === 409,
+        escrowed: error.code === "environmentHasEscrowedVariables",
       };
     }
     throw error;
   }
 }
+
+/** The teardown's steps and newest run, or null before any teardown. */
+export async function getTeardown(environmentId: string) {
+  return parseResponse(
+    routes[":id"].teardown.$get({ param: { id: environmentId } })
+  );
+}
+
+export const getTeardownQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", "getTeardown", environmentId],
+    queryFn: () => getTeardown(environmentId),
+  });
+
+export type StartTeardownBody = InferRequestType<
+  (typeof routes)[":id"]["teardown"]["$post"]
+>["json"];
+
+/**
+ * Deletes the environment for good (archive, bring down, remove). Rejects
+ * with an ApiError whose `code` is a teardown.errors key (or
+ * environmentHasEscrowedVariables) when refused.
+ */
+export async function startTeardown(
+  environmentId: string,
+  json: StartTeardownBody
+) {
+  return parseResponse(
+    routes[":id"].teardown.$post({ param: { id: environmentId }, json })
+  );
+}
+
+/** Resumes a stopped teardown at the step it stopped at. */
+export async function retryTeardown(environmentId: string) {
+  return parseResponse(
+    routes[":id"].teardown.retry.$post({ param: { id: environmentId } })
+  );
+}
+
+export type TeardownStatus = NonNullable<
+  Awaited<ReturnType<typeof getTeardown>>
+>;
 
 /**
  * Page data: the environment behind `/<KEY>/<envSlug>` and the caller's

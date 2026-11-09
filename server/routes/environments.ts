@@ -8,6 +8,12 @@ import {
 } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
+  getTeardown,
+  retryTeardown,
+  startTeardown,
+  startTeardownSchema,
+} from "@/server/services/environment-teardown";
+import {
   createEnvironment,
   deleteEnvironment,
   getEnvironmentById,
@@ -16,7 +22,9 @@ import {
   recordEnvironmentAccess,
   updateEnvironment,
 } from "@/server/services/environments";
-import { json, query } from "@/server/validation";
+import { json, param, query } from "@/server/validation";
+
+const envParam = param(z.object({ id: uuidSchema }));
 
 export const environmentsRouter = sessionRouter()
   .get("/list-environments", async (c) => c.json(await listEnvironments()))
@@ -71,17 +79,35 @@ export const environmentsRouter = sessionRouter()
       return c.json(await updateEnvironment(id, data));
     }
   )
-  .post(
-    "/delete-environment",
+  /** Delete for good: archive, bring down, remove (environment-teardown). */
+  .get("/:id/teardown", envParam, async (c) =>
+    c.json(await getTeardown(c.req.valid("param").id))
+  )
+  .post("/:id/teardown", envParam, json(startTeardownSchema), async (c) =>
+    c.json(
+      await startTeardown(c.req.valid("param").id, c.req.valid("json")),
+      202
+    )
+  )
+  .post("/:id/teardown/retry", envParam, async (c) =>
+    c.json(await retryTeardown(c.req.valid("param").id), 202)
+  )
+  /** "Remove from Panel only": the rows, nothing on the servers. */
+  .delete(
+    "/:id",
+    envParam,
     json(
       z.object({
-        id: uuidSchema,
         // Admins (integration:manage) only: also deletes escrowed variables.
         confirmEscrowedDeletion: z.boolean().optional(),
       })
     ),
     async (c) => {
-      const { id, confirmEscrowedDeletion } = c.req.valid("json");
-      return c.json(await deleteEnvironment(id, { confirmEscrowedDeletion }));
+      const { confirmEscrowedDeletion } = c.req.valid("json");
+      return c.json(
+        await deleteEnvironment(c.req.valid("param").id, {
+          confirmEscrowedDeletion,
+        })
+      );
     }
   );

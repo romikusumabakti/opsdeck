@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Deleting an environment cascades to its variables. Escrowed ones (e.g. the
+// The row-only delete ("Remove from Panel only") is for org server:manage
+// (admin, infra) only. Deleting an environment cascades to its variables. Escrowed ones (e.g. the
 // HRIS DATA_ENCRYPTION_KEY) exist nowhere else, so a delete is refused (409)
 // while the environment has any, unless an admin with org
 // integration:manage confirms it explicitly. Every delete that removes
@@ -91,7 +92,8 @@ vi.mock("@/lib/db", async () => {
 const { deleteEnvironment } = await import("@/server/services/environments");
 
 beforeEach(() => {
-  state.orgRole = "member";
+  // server:manage, but not integration:manage.
+  state.orgRole = "infra";
   state.variables = [];
   state.deleted = [{ name: "HRIS Dev" }];
   state.deletes = 0;
@@ -99,6 +101,16 @@ beforeEach(() => {
 });
 
 describe("deleteEnvironment and escrowed variables", () => {
+  it("refuses (403) a caller without org server:manage", async () => {
+    for (const role of ["member", "observer"]) {
+      state.orgRole = role;
+      await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
+        status: 403,
+      });
+    }
+    expect(state.deletes).toBe(0);
+  });
+
   it("deletes an environment without variables and records nothing", async () => {
     expect(await deleteEnvironment(ENV_ID)).toMatchObject({ success: true });
     expect(state.deletes).toBe(1);
@@ -122,12 +134,12 @@ describe("deleteEnvironment and escrowed variables", () => {
 
   it("refuses the confirmation from a caller without integration:manage", async () => {
     state.variables = [{ name: "DATA_ENCRYPTION_KEY", escrow: true }];
-    for (const role of ["member", "infra", "observer"]) {
-      state.orgRole = role;
-      await expect(
-        deleteEnvironment(ENV_ID, { confirmEscrowedDeletion: true })
-      ).rejects.toMatchObject({ status: 409 });
-    }
+    await expect(
+      deleteEnvironment(ENV_ID, { confirmEscrowedDeletion: true })
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "environmentHasEscrowedVariables",
+    });
     expect(state.deletes).toBe(0);
   });
 
