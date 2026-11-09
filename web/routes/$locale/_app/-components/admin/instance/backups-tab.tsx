@@ -61,10 +61,12 @@ import {
   getInstanceBackupsQuery,
   type InstanceBackupRow,
   type InstanceBackupsData,
+  restoreInstanceBackup,
   runInstanceBackupNow,
   saveInstanceBackupSettings,
   verifySecretsKey,
 } from "@/web/api/instance";
+import { RestoreDialog } from "./updates-tab";
 
 // The Select's value for "no destination" (Base UI items need a string).
 const LOCAL = "local";
@@ -125,7 +127,7 @@ export function BackupsTab() {
         </AlertDescription>
       </Alert>
       <SettingsCard data={data} />
-      <HistoryCard backups={data.backups} />
+      <HistoryCard backups={data.backups} instance={data.instance} />
     </div>
   );
 }
@@ -412,7 +414,13 @@ function StatusBadge({ status }: { status: InstanceBackupRow["status"] }) {
   return <Badge variant={variant}>{t(`status.${status}`)}</Badge>;
 }
 
-function HistoryCard({ backups }: { backups: InstanceBackupRow[] }) {
+function HistoryCard({
+  backups,
+  instance,
+}: {
+  backups: InstanceBackupRow[];
+  instance: string;
+}) {
   const t = useTranslations("instanceBackups");
   const [acking, setAcking] = useState<string | null>(null);
 
@@ -446,7 +454,9 @@ function HistoryCard({ backups }: { backups: InstanceBackupRow[] }) {
                 <TableHead>{t("colVersion")}</TableHead>
                 <TableHead className="text-right">{t("colSize")}</TableHead>
                 <TableHead>{t("colError")}</TableHead>
-                <TableHead className="w-32" />
+                <TableHead className="w-32">
+                  <span className="sr-only">{t("colActions")}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -470,6 +480,16 @@ function HistoryCard({ backups }: { backups: InstanceBackupRow[] }) {
                     {b.errorCode ? backupErrorMessage(t, b.errorCode) : null}
                   </TableCell>
                   <TableCell className="text-right">
+                    {b.status === "succeeded" && b.objectKey && (
+                      <RestoreDialog
+                        instance={instance}
+                        version={b.version}
+                        triggerLabel={t("restore")}
+                        onConfirm={(confirm) =>
+                          restoreInstanceBackup(b.id, confirm)
+                        }
+                      />
+                    )}
                     {b.status === "failed" &&
                       (b.acknowledgedAt ? (
                         <span className="text-xs text-muted-foreground">

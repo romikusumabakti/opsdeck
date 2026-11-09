@@ -6,11 +6,21 @@ import {
   getInstanceBackups,
   instanceBackupSettingsSchema,
   requestInstanceBackup,
+  requestInstanceRestore,
   requireInstanceManage,
+  restoreConfirmSchema,
   saveInstanceBackupSettings,
   verifyKeySchema,
   verifySecretsKey,
 } from "@/server/services/instance-backups";
+import {
+  applyInstanceUpdate,
+  applyUpdateSchema,
+  getInstanceUpdates,
+  restoreSafetyBackup,
+  saveInstanceUpdateSettings,
+  updateSettingsSchema,
+} from "@/server/services/instance-updates";
 import { json, param } from "@/server/validation";
 
 const idParam = param(z.object({ id: uuidSchema }));
@@ -36,4 +46,30 @@ export const instanceRouter = sessionRouter()
   )
   .post("/backups/:id/acknowledge", idParam, async (c) =>
     c.json(await acknowledgeInstanceBackup(c.req.valid("param").id))
+  )
+  .post(
+    "/backups/:id/restore",
+    idParam,
+    json(restoreConfirmSchema),
+    async (c) =>
+      c.json(
+        await requestInstanceRestore(
+          c.req.valid("param").id,
+          c.req.valid("json").confirm
+        ),
+        202
+      )
+  )
+  .get("/updates", async (c) => c.json(await getInstanceUpdates()))
+  .put("/updates/settings", json(updateSettingsSchema), async (c) =>
+    c.json(await saveInstanceUpdateSettings(c.req.valid("json")))
+  )
+  .post("/updates/apply", json(applyUpdateSchema), async (c) =>
+    c.json(await applyInstanceUpdate(c.req.valid("json").version), 202)
+  )
+  .post(
+    "/updates/restore-safety-backup",
+    json(restoreConfirmSchema),
+    async (c) =>
+      c.json(await restoreSafetyBackup(c.req.valid("json").confirm), 202)
   );

@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { ForbiddenError, requireOrgPermission } from "@/lib/authz";
@@ -8,14 +11,30 @@ import {
   instanceSettings,
   s3Connections,
 } from "@/lib/db/schema";
-import { isBackupRunning } from "@/lib/instance-backup/archive";
-import { secretsKeyFingerprint } from "@/lib/instance-backup/manifest";
+import { instanceName, isBackupRunning } from "@/lib/instance-backup/archive";
+import {
+  type BackupManifest,
+  parseManifest,
+  secretsKeyFingerprint,
+} from "@/lib/instance-backup/manifest";
+import { openBackupSource } from "@/lib/instance-backup/restore";
 import {
   enqueue,
   INSTANCE_BACKUP_MANUAL_JOB_ID,
   scheduleInstanceBackup,
 } from "@/lib/queue";
 import { APP_TIMEZONE } from "@/lib/timezone";
+import {
+  hasPendingRequest,
+  readUpdateStatus,
+  updaterInstalled,
+  writeUpdateRequest,
+} from "@/lib/updates/files";
+import {
+  BACKUP_OBJECT_KEY_RE,
+  RELEASE_VERSION_RE,
+  UPDATES_DIR,
+} from "@/lib/updates/request";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
@@ -50,6 +69,8 @@ export type InstanceBackupSettings = InstanceBackupSettingsInput & {
 };
 
 export type InstanceBackupsPage = {
+  /** What a restore's confirmation must be typed as. */
+  instance: string;
   settings: InstanceBackupSettings;
   backups: InstanceBackup[];
   /** The S3 connections a backup can go to (no credentials). */
@@ -72,6 +93,15 @@ async function coded(
   code: string
 ): Promise<CodedHTTPException> {
   const t = await getServerTranslator("instanceBackups.errors");
+  return new CodedHTTPException(status, code, t(code));
+}
+
+/** A refusal of an update or restore request (messages in instanceUpdates.errors). */
+export async function updateRefusal(
+  status: 400 | 409 | 503,
+  code: string
+): Promise<CodedHTTPException> {
+  const t = await getServerTranslator("instanceUpdates.errors");
   return new CodedHTTPException(status, code, t(code));
 }
 
@@ -111,6 +141,7 @@ export async function getInstanceBackups(): Promise<InstanceBackupsPage> {
       .orderBy(s3Connections.name),
   ]);
   return {
+    instance: instanceName(),
     settings: {
       destinationId: row.backupDestinationId,
       time: row.backupTime,
@@ -232,4 +263,103 @@ export async function syncInstanceBackupOnBoot(): Promise<void> {
       );
   }
   if (process.env.REDIS_URL) await scheduleInstanceBackup(row.backupTime);
+}
+
+// --- Restore requests --------------------------------------------------------
+
+export const restoreConfirmSchema = z.object({
+  confirm: z.string().max(200),
+});
+
+/**
+ * The host updater can take a request now: its dir is mounted
+ * (`updaterMissing`), no request is waiting and no run is in progress
+ * (`updateInProgress`).
+ */
+export async function assertUpdaterReady(): Promise<void> {
+  if (!(await updaterInstalled(UPDATES_DIR))) {
+    throw await updateRefusal(503, "updaterMissing");
+  }
+  const status = await readUpdateStatus(UPDATES_DIR);
+  if (status?.state === "running" || (await hasPendingRequest(UPDATES_DIR))) {
+    throw await updateRefusal(409, "updateInProgress");
+  }
+}
+
+/** The manifest of a backup by restore key; null when it cannot be read. */
+async function readBackupManifest(key: string): Promise<BackupManifest | null> {
+  const scratch = await mkdtemp(join(tmpdir(), "opsdeck-manifest-"));
+  try {
+    const source = await openBackupSource(key);
+    return parseManifest(await source.readManifest(scratch));
+  } catch {
+    return null;
+  } finally {
+    await rm(scratch, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * Asks the host updater to restore a backup, after the typed confirmation
+ * (the instance name) and the checks the restore itself would refuse on:
+ * the manifest can be read, its version can run, and it was taken with this
+ * SECRETS_KEY. The updater takes a safety backup first, then stops the app.
+ */
+export async function submitRestoreRequest(
+  backup: { location: "s3" | "local"; objectKey: string },
+  confirm: string
+): Promise<{ requested: true }> {
+  const session = await requireInstanceManage();
+  if (confirm !== instanceName()) {
+    throw await updateRefusal(400, "confirmMismatch");
+  }
+  await assertUpdaterReady();
+  const key =
+    backup.location === "local"
+      ? `local:${backup.objectKey}`
+      : backup.objectKey;
+  if (!BACKUP_OBJECT_KEY_RE.test(key)) {
+    throw await updateRefusal(409, "restoreNotFound");
+  }
+  const manifest = await readBackupManifest(key);
+  if (!manifest) throw await updateRefusal(409, "restoreNotFound");
+  if (!RELEASE_VERSION_RE.test(manifest.version)) {
+    throw await updateRefusal(409, "restoreVersionMismatch");
+  }
+  if (liveFingerprint() !== manifest.secretsKeyFingerprint) {
+    throw await updateRefusal(409, "restoreKeyMismatch");
+  }
+  await writeUpdateRequest(UPDATES_DIR, {
+    action: "restore",
+    objectKey: key,
+    version: manifest.version,
+    requestedBy: session.user.id,
+    requestedAt: new Date().toISOString(),
+  });
+  return { requested: true };
+}
+
+/** Restore from Admin → Instance → Backups: a succeeded backup in the history. */
+export async function requestInstanceRestore(
+  id: string,
+  confirm: string
+): Promise<{ requested: true }> {
+  await requireInstanceManage();
+  const [row] = await db
+    .select({
+      status: instanceBackups.status,
+      location: instanceBackups.location,
+      objectKey: instanceBackups.objectKey,
+    })
+    .from(instanceBackups)
+    .where(eq(instanceBackups.id, id))
+    .limit(1);
+  if (!row) notFound();
+  if (row.status !== "succeeded" || !row.objectKey) {
+    throw await updateRefusal(409, "restoreNotFound");
+  }
+  return submitRestoreRequest(
+    { location: row.location, objectKey: row.objectKey },
+    confirm
+  );
 }

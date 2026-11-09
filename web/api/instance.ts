@@ -43,3 +43,45 @@ export type InstanceBackupsData = Awaited<
   ReturnType<typeof getInstanceBackups>
 >;
 export type InstanceBackupRow = InstanceBackupsData["backups"][number];
+
+/** Restores a backup from the history; `confirm` is the instance name. */
+export async function restoreInstanceBackup(id: string, confirm: string) {
+  return parseResponse(
+    routes.backups[":id"].restore.$post({ param: { id }, json: { confirm } })
+  );
+}
+
+export async function getInstanceUpdates() {
+  return parseResponse(routes.updates.$get());
+}
+
+export const getInstanceUpdatesQuery = () =>
+  queryOptions({
+    queryKey: ["instance", "getInstanceUpdates"],
+    queryFn: getInstanceUpdates,
+  });
+
+export type InstanceUpdateSettingsBody = InferRequestType<
+  (typeof routes.updates.settings)["$put"]
+>["json"];
+
+export async function saveInstanceUpdateSettings(
+  json: InstanceUpdateSettingsBody
+) {
+  return parseResponse(routes.updates.settings.$put({ json }));
+}
+
+export async function applyInstanceUpdate(version: string) {
+  return parseResponse(routes.updates.apply.$post({ json: { version } }));
+}
+
+/** Undoes a failed restore with the safety backup named by the status. */
+export async function restoreSafetyBackup(confirm: string) {
+  return parseResponse(
+    routes.updates["restore-safety-backup"].$post({ json: { confirm } })
+  );
+}
+
+export type InstanceUpdatesData = Awaited<
+  ReturnType<typeof getInstanceUpdates>
+>;

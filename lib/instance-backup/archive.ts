@@ -191,7 +191,7 @@ export function instanceName(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /** libpq env for a connection URL, so no credential reaches argv. */
-function pgEnv(url: string): Record<string, string> {
+export function pgEnv(url: string): Record<string, string> {
   const u = new URL(url);
   const sslmode = u.searchParams.get("sslmode");
   return {
@@ -395,7 +395,7 @@ function describe(error: unknown): string {
 }
 
 /** Every file under `dir`, relative, "/"-separated. */
-async function filesUnder(dir: string): Promise<string[]> {
+export async function filesUnder(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true });
   return entries
     .filter((e) => e.isFile())

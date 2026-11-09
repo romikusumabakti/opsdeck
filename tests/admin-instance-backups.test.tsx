@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   run: vi.fn(),
   acknowledge: vi.fn(),
   verify: vi.fn(),
+  restore: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -39,6 +40,7 @@ vi.mock("@/web/api/instance", () => ({
   runInstanceBackupNow: api.run,
   acknowledgeInstanceBackup: api.acknowledge,
   verifySecretsKey: api.verify,
+  restoreInstanceBackup: api.restore,
 }));
 
 import { AttentionList } from "../web/routes/$locale/_app/-components/home/attention-list";
@@ -52,6 +54,7 @@ const DEST_ID = "0197f3a0-1b2c-7def-8000-0123456789d1";
 
 function data(extra: { destinationId?: string | null } = {}) {
   return {
+    instance: "opsdeck",
     settings: {
       destinationId: null as string | null,
       time: "02:30",
@@ -172,6 +175,37 @@ describe("Admin → Instance → Backups", () => {
     const ack = messages.instanceBackups.acknowledge;
     expect(rows[0]?.textContent).not.toContain(ack);
     expect(rows[1]?.textContent).toContain(ack);
+  });
+});
+
+describe("Restore from the history", () => {
+  it("offers Restore only on a succeeded backup, behind the typed instance name", async () => {
+    api.restore.mockResolvedValue({ requested: true });
+    await renderPage(data());
+    const label = messages.instanceBackups.restore;
+    const rows = container.querySelectorAll("tbody tr");
+    expect(rows[0]?.textContent).toContain(label);
+    expect(rows[1]?.textContent).not.toContain(label);
+
+    // The last match: the dialog's button comes after the row's trigger.
+    const byText = (text: string) =>
+      [...document.querySelectorAll("button")].findLast(
+        (b) => b.textContent?.trim() === text
+      );
+    await act(async () => byText(label)?.click());
+    const confirm = messages.instanceUpdates.restoreDialog.confirm;
+    expect(document.body.textContent).toContain("opsdeck");
+    expect(byText(confirm)?.disabled).toBe(true);
+    const field = document.querySelector<HTMLInputElement>("#restore-confirm");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(field, "opsdeck");
+      field?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => byText(confirm)?.click());
+    expect(api.restore).toHaveBeenCalledWith("b1", "opsdeck");
   });
 });
 
