@@ -29,9 +29,14 @@ const WORKFLOW = join(REPO, ".github/workflows/release.yml");
 const STUB_DOCKER = `#!/bin/sh
 printf 'docker %s\\n' "$*" >> "$STUB_LOG"
 case "$1 $2" in
-  "compose version") echo "Docker Compose version v2.40.0" ;;
+  "compose version") echo "Docker Compose version v\${STUB_COMPOSE_VERSION:-2.40.0}" ;;
   "volume inspect")
-    for v in \${STUB_VOLUMES:-}; do [ "$v" = "$3" ] && exit 0; done
+    if [ -n "\${STUB_DOCKER_DOWN:-}" ]; then
+      echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" >&2
+      exit 1
+    fi
+    for v in \${STUB_VOLUMES:-}; do [ "$v" = "$3" ] && { echo '[{}]'; exit 0; }; done
+    echo "Error response from daemon: get $3: no such volume" >&2
     exit 1 ;;
   "ps -aq")
     case "$*" in *"volume=\${STUB_BUSY_VOLUME:-none}") echo 0123abcd ;; esac ;;
@@ -89,6 +94,9 @@ function image(name: string, version: string) {
   return `${name}:${version}@sha256:${digest}`;
 }
 
+const fileSha256 = (path: string) =>
+  createHash("sha256").update(readFileSync(path)).digest("hex");
+
 function releaseJson(version: string) {
   return JSON.stringify({
     version,
@@ -96,6 +104,10 @@ function releaseJson(version: string) {
     images: Object.fromEntries(
       Object.entries(IMAGE_NAMES).map(([k, n]) => [k, image(n, version)])
     ),
+    assets: {
+      "compose.yaml": fileSha256(COMPOSE),
+      "update.sh": fileSha256(join(REPO, "ops/install/update.sh")),
+    },
     notesUrl: `https://github.com/romikusumabakti/opsdeck/releases/tag/v${version}`,
   });
 }
@@ -265,8 +277,10 @@ describe("install.sh --dry-run", () => {
       "==> .env",
       `${ctx.dir}/.env (0600)`,
       "==> Updater",
-      "+ install -m 0755",
-      "/usr/local/lib/opsdeck/update.sh",
+      `+ install -d -m 0700 -o 0 -g 0 ${ctx.dir}/.updater`,
+      `+ install -m 0700 -o 0 -g 0 `,
+      `${ctx.dir}/.updater/update.sh`,
+      "+ systemctl enable opsdeck-updater@opsdeck.service",
       "+ systemctl enable --now opsdeck-updater@opsdeck.path",
       "==> Start",
       `docker compose -f ${ctx.dir}/compose.yaml pull`,
@@ -291,6 +305,8 @@ describe("install.sh --dry-run", () => {
       expect(r.stdout).toContain(key);
     }
     expect(r.stdout).not.toMatch(/SECRETS_KEY=\S/);
+    // No updater shared between instances.
+    expect(r.stdout).not.toContain("/usr/local/lib/opsdeck");
     expect(r.stdout).not.toMatch(/[A-Za-z0-9+/]{43}=/);
     expect(existsSync(ctx.dir)).toBe(false);
     // Read-only calls only: the release assets and the Docker check.
@@ -351,6 +367,53 @@ describe("install.sh --dry-run", () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("volume opsdeck_postgres already exists");
   });
+
+  it("refuses when Docker cannot say whether the volume exists (daemon down)", () => {
+    const ctx = setup();
+    const r = install(
+      ctx,
+      ["--dry-run", "--version", "v1.2.0", "--dir", ctx.dir],
+      { STUB_DOCKER_DOWN: "1" }
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("cannot check Docker volume opsdeck_postgres");
+    expect(r.stdout).not.toContain("==> Install dir");
+  });
+
+  it("refuses Docker Compose older than 2.23.1 (configs.content)", () => {
+    const ctx = setup();
+    const r = install(
+      ctx,
+      ["--dry-run", "--version", "v1.2.0", "--dir", ctx.dir],
+      { STUB_COMPOSE_VERSION: "2.23.0" }
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("Docker Compose 2.23.0 is too old");
+    expect(r.stderr).toContain("2.23.1");
+    const ok = install(
+      ctx,
+      ["--dry-run", "--version", "v1.2.0", "--dir", ctx.dir],
+      { STUB_COMPOSE_VERSION: "2.23.1" }
+    );
+    expect(ok.status, ok.all).toBe(0);
+  });
+
+  it.each(["compose.yaml", "update.sh"])(
+    "refuses a release whose %s does not match release.json",
+    (asset) => {
+      const ctx = setup();
+      writeFileSync(join(ctx.releases, "1.2.0", asset), "# tampered\n");
+      const r = install(ctx, [
+        "--dry-run",
+        "--version",
+        "v1.2.0",
+        "--dir",
+        ctx.dir,
+      ]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(`${asset} does not match its sha256`);
+    }
+  );
 
   it("refuses to put docker-ce over the distribution's docker.io", () => {
     const ctx = setup({ docker: false });
@@ -770,6 +833,28 @@ describe("install.sh --restore --dry-run", () => {
     });
   });
 
+  it("refuses a restore over an existing <name>_postgres volume", () => {
+    const ctx = setup();
+    const { backup, keyFile } = writeBackup(ctx, "1.2.0", KEY);
+    const r = install(
+      ctx,
+      [
+        "--dry-run",
+        "--dir",
+        ctx.dir,
+        ...HOST,
+        "--restore",
+        backup,
+        "--secrets-key-file",
+        keyFile,
+      ],
+      { STUB_VOLUMES: "opsdeck_postgres" }
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("volume opsdeck_postgres already exists");
+    expect(r.stdout).not.toContain("==> Restore");
+  });
+
   it("refuses a restore without --hostname", () => {
     const ctx = setup();
     const { backup, keyFile } = writeBackup(ctx, "1.2.0", KEY);
@@ -964,6 +1049,65 @@ describe("product compose", () => {
     };
     expect(config.volumes.postgres?.name).toBe("opsdeck_postgres_data");
     expect(config.volumes.valkey?.name).toBe("beta_valkey");
+  });
+});
+
+describe("install.sh way_back", () => {
+  // way_back only runs after a real (root) run changed the host; here the
+  // function runs on its own with the variables main() sets.
+  function wayBack(vars: Record<string, string>) {
+    const text = readFileSync(SCRIPT, "utf8");
+    const start = text.indexOf("\nway_back() {");
+    const fn = text.slice(start, text.indexOf("\n}\n", start) + 3);
+    const assign = Object.entries(vars)
+      .map(([k, v]) => `${k}='${v}'`)
+      .join("; ");
+    return spawnSync("sh", ["-c", `${fn}\n${assign}; way_back`], {
+      encoding: "utf8",
+    }).stderr;
+  }
+
+  it("suggests down -v only when every volume is one this run created", () => {
+    const fresh = wayBack({
+      adopt: "",
+      preexisting: "",
+      dir: "/opt/opsdeck",
+      name: "opsdeck",
+    });
+    expect(fresh).toContain("down -v");
+
+    const leftover = wayBack({
+      adopt: "",
+      preexisting: " opsdeck_caddy_data opsdeck_valkey",
+      dir: "/opt/opsdeck",
+      name: "opsdeck",
+    });
+    expect(leftover).not.toContain("down -v");
+    expect(leftover).toContain("opsdeck_caddy_data opsdeck_valkey");
+
+    const adopted = wayBack({
+      adopt: "/srv/old/.env",
+      preexisting: "",
+      dir: "/opt/opsdeck",
+      name: "opsdeck",
+    });
+    expect(adopted).not.toContain("down -v");
+  });
+});
+
+describe("updater units", () => {
+  const unit = (name: string) =>
+    readFileSync(join(REPO, "ops/install", name), "utf8");
+
+  it("runs the instance's own update.sh, also once at boot", () => {
+    const service = unit("opsdeck-updater@.service");
+    expect(service).toContain("ExecStart=/opt/%i/.updater/update.sh /opt/%i");
+    expect(service).toMatch(/\[Install\]\nWantedBy=multi-user\.target/);
+    expect(service).toContain("TimeoutStartSec=1h");
+    expect(service).toContain("TimeoutStopSec=5min");
+    const path = unit("opsdeck-updater@.path");
+    expect(path).toContain("PathChanged=/opt/%i/updates/request.json");
+    expect(path).not.toMatch(/^PathExists=/m);
   });
 });
 

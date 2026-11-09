@@ -166,6 +166,11 @@ export const updateStatusSchema = z.object({
   code: z.string().nullable(),
   startedAt: isoSeconds,
   finishedAt: isoSeconds.nullable(),
+  /**
+   * A restore whose backup is in place and healthy under its version, before
+   * the update to the newer running version (which may still roll back).
+   */
+  restored: z.boolean().optional(),
   /** The backup a restore took first (trigger `restore`), to undo it. */
   safetyBackup: z
     .object({

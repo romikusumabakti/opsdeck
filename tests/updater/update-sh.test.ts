@@ -26,14 +26,21 @@ import {
 // user under `sh` against a temp install dir, with stub `docker`, `curl` and
 // `sleep` on PATH. The docker stub reads OPSDECK_VERSION from ./.env (compose's
 // working dir) on every call, so the log shows which release each step ran
-// under; `up` "deploys" that version, and the health stub reports it.
+// under; `up` "deploys" that version, and the health stub reports it. Each
+// release's compose.yaml starts with `# compose v<version>`: a call made with
+// a compose.yaml of another release than .env's is marked `compose=<v>`.
 
 const SCRIPT = join(__dirname, "..", "..", "ops/install/update.sh");
 const SECRET = "secrets-key-Zq9!do-not-log";
 
 const STUB_DOCKER = `#!/bin/sh
 v=$(sed -n 's/^OPSDECK_VERSION=//p' ./.env)
-printf 'docker %s [%s]\\n' "$*" "$v" >> "$STUB_LOG"
+c=$(sed -n 's/^# compose v//p' ./compose.yaml)
+if [ "$c" = "$v" ]; then
+  printf 'docker %s [%s]\\n' "$*" "$v" >> "$STUB_LOG"
+else
+  printf 'docker %s [%s] compose=%s\\n' "$*" "$v" "$c" >> "$STUB_LOG"
+fi
 case "$*" in
   "compose run --rm --no-deps app opsdeck backup run --trigger "*) step=backup ;;
   "compose pull") step=pull ;;
@@ -104,6 +111,13 @@ case $url in
     else
       printf 'Not Found' > "$out"; printf 404
     fi ;;
+  https://github.com/romikusumabakti/opsdeck/releases/download/v*/compose.yaml | https://github.com/romikusumabakti/opsdeck/releases/download/v*/update.sh)
+    rest=\${url#*/download/v}; ver=\${rest%%/*}; asset=\${rest#*/}
+    if [ -f "$STUB_RELEASES/$ver/$asset" ]; then
+      cp "$STUB_RELEASES/$ver/$asset" "$out"; printf 200
+    else
+      printf 'Not Found' > "$out"; printf 404
+    fi ;;
   http://127.0.0.1:8080/api/health)
     d=$(cat "$STUB_STATE/deployed")
     if [ "$host" != "Host: panel.example.test" ] || [ "$d" = "\${STUB_HEALTH_FAIL_VERSION:-}" ]; then
@@ -140,6 +154,14 @@ function imageLines(version: string) {
   ];
 }
 
+const sha256 = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
+
+/** The release's compose.yaml and update.sh (as published next to it). */
+const composeOf = (version: string) => `# compose v${version}\nservices: {}\n`;
+const updaterOf = (version: string) =>
+  `#!/bin/sh\n# update.sh of v${version}\nexit 0\n`;
+
 function releaseJson(version: string, minFrom: string) {
   const images = Object.fromEntries(
     Object.values(IMAGE_KEYS).map(([key, name]) => [key, image(name, version)])
@@ -148,6 +170,10 @@ function releaseJson(version: string, minFrom: string) {
     version,
     minFrom,
     images,
+    assets: {
+      "compose.yaml": sha256(composeOf(version)),
+      "update.sh": sha256(updaterOf(version)),
+    },
     notesUrl: `https://github.com/romikusumabakti/opsdeck/releases/tag/v${version}`,
   });
 }
@@ -203,9 +229,13 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
   };
   for (const [v, minFrom] of Object.entries({ ...defaults, ...releases })) {
     writeFileSync(join(rel, `${v}.json`), `${releaseJson(v, minFrom)}\n`);
+    mkdirSync(join(rel, v));
+    writeFileSync(join(rel, v, "compose.yaml"), composeOf(v));
+    writeFileSync(join(rel, v, "update.sh"), updaterOf(v));
   }
   const env = envFile(current);
   writeFileSync(join(dir, ".env"), env, { mode: 0o600 });
+  writeFileSync(join(dir, "compose.yaml"), composeOf(current));
   writeFileSync(join(state, "deployed"), current);
   const log = join(state, "calls.log");
   writeFileSync(log, "");
@@ -235,6 +265,8 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
   const status = () =>
     updateStatusSchema.parse(JSON.parse(readFileSync(statusPath, "utf8")));
   const readEnv = () => readFileSync(join(dir, ".env"), "utf8");
+  const readCompose = () => readFileSync(join(dir, "compose.yaml"), "utf8");
+  const updater = join(dir, ".updater");
   const logs = () => {
     const logsDir = join(updates, "logs");
     return existsSync(logsDir)
@@ -244,8 +276,11 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
 
   return {
     root,
+    bin,
     dir,
     updates,
+    updater,
+    rel,
     state,
     env,
     run,
@@ -256,6 +291,7 @@ function setup({ current = "1.2.0", releases = {} }: Setup = {}) {
     status,
     statusPath,
     readEnv,
+    readCompose,
     logs,
   };
 }
@@ -415,7 +451,7 @@ describe("update.sh", () => {
       code: "healthFailed",
     });
     expect(t.readEnv()).toBe(t.env);
-    const previous = readFileSync(join(t.updates, "previous.env"), "utf8");
+    const previous = readFileSync(join(t.updater, "previous.env"), "utf8");
     expect(previous).toBe(`${imageLines("1.2.0").join("\n")}\n`);
     const envLines = t.readEnv().split("\n");
     for (const line of previous.trim().split("\n")) {
@@ -452,6 +488,8 @@ describe("update.sh", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(t.calls()).toEqual([
       "curl https://github.com/romikusumabakti/opsdeck/releases/download/v1.3.0/release.json ",
+      "curl https://github.com/romikusumabakti/opsdeck/releases/download/v1.3.0/compose.yaml ",
+      "curl https://github.com/romikusumabakti/opsdeck/releases/download/v1.3.0/update.sh ",
       "docker compose run --rm --no-deps app opsdeck backup run --trigger update [1.2.0]",
       "docker compose pull [1.3.0]",
       "docker compose run --rm migrate [1.3.0]",
@@ -642,7 +680,7 @@ describe("update.sh", () => {
     expect(t.dockerCalls()).toEqual([
       "docker compose run --rm --no-deps app opsdeck backup run --trigger restore [1.3.0]",
     ]);
-    expect(existsSync(join(t.updates, "previous.env"))).toBe(false);
+    expect(existsSync(join(t.updater, "previous.env"))).toBe(false);
     expect(t.readEnv()).toBe(t.env);
   });
 
@@ -775,7 +813,8 @@ describe("update.sh", () => {
   it("lock prevents a second run", () => {
     const t = setup();
     t.request(updateTo("1.3.0"));
-    const lock = join(t.updates, ".lock");
+    mkdirSync(t.updater, { mode: 0o700 });
+    const lock = join(t.updater, ".lock");
     writeFileSync(lock, "");
     // flock(1) holds the lock while the script runs inside it.
     const result = t.run({}, ["flock", lock, "sh"]);
@@ -803,6 +842,291 @@ describe("update.sh", () => {
     });
     expect(result.stdout + result.stderr).toBe("");
     expect(result.status).toBe(0);
+  });
+});
+
+// awk on PATH that breaks only the program writing the new .env (like a full
+// disk under the write): STUB_AWK=fail every time, fail-once the first time,
+// truncate (output cut short, exit 0) the first time.
+const REAL_AWK = spawnSync("sh", ["-c", "command -v awk"], {
+  encoding: "utf8",
+}).stdout.trim();
+const STUB_AWK = `#!/bin/sh
+case "$*" in
+  *'line[$1] = $0'*)
+    n=$(cat "$STUB_STATE/awk-calls" 2>/dev/null || echo 0); n=$((n + 1))
+    echo "$n" > "$STUB_STATE/awk-calls"
+    if [ "$STUB_AWK" = fail ] || { [ "$STUB_AWK" = fail-once ] && [ "$n" = 1 ]; }; then
+      printf 'COMPOSE_PROJECT_NAME=opsdeck\\n'
+      echo "awk: write error: No space left on device" >&2
+      exit 2
+    fi
+    if [ "$STUB_AWK" = truncate ] && [ "$n" = 1 ]; then
+      ${REAL_AWK} "$@" | head -n 2
+      exit 0
+    fi ;;
+esac
+exec ${REAL_AWK} "$@"
+`;
+
+describe("update.sh writes .env, compose.yaml and its state safely", () => {
+  function withAwk(t: ReturnType<typeof setup>) {
+    writeFileSync(join(t.bin, "awk"), STUB_AWK, { mode: 0o755 });
+  }
+  const leftovers = (dir: string) =>
+    readdirSync(dir).filter((f) => /^\.(env|compose)\./.test(f));
+
+  it("a failing .env write leaves .env as it was (rollbackFailed when the rollback cannot write either)", () => {
+    const t = setup();
+    withAwk(t);
+    t.request(updateTo("1.3.0"));
+    expect(t.run({ STUB_AWK: "fail" }).status).not.toBe(0);
+    expect(t.readEnv()).toBe(t.env);
+    expect(t.status()).toMatchObject({
+      state: "failed",
+      code: "rollbackFailed",
+    });
+    expect(t.status().logTail.join("\n")).toContain(".env is unchanged");
+    expect(leftovers(t.dir)).toEqual([]);
+    // No container ever ran under a half-written .env.
+    expect(t.dockerCalls()).toEqual([
+      "docker compose run --rm --no-deps app opsdeck backup run --trigger update [1.2.0]",
+    ]);
+    expectNoSecrets(t);
+  });
+
+  it("a failing .env write rolls back and keeps the last good .env in .updater/.env.prev", () => {
+    const t = setup();
+    withAwk(t);
+    t.request(updateTo("1.3.0"));
+    expect(t.run({ STUB_AWK: "fail-once" }).status).not.toBe(0);
+    expect(t.readEnv()).toBe(t.env);
+    expect(t.readCompose()).toBe(composeOf("1.2.0"));
+    expect(t.status()).toMatchObject({
+      state: "rolled_back",
+      code: "updaterError",
+    });
+    const prev = join(t.updater, ".env.prev");
+    expect(readFileSync(prev, "utf8")).toBe(t.env);
+    expect(statSync(prev).mode & 0o777).toBe(0o600);
+    expect(statSync(t.updater).mode & 0o777).toBe(0o700);
+  });
+
+  it("refuses a truncated .env (awk exit 0, lines missing)", () => {
+    const t = setup();
+    withAwk(t);
+    t.request(updateTo("1.3.0"));
+    expect(t.run({ STUB_AWK: "truncate" }).status).not.toBe(0);
+    expect(t.readEnv()).toBe(t.env);
+    expect(t.readEnv()).toContain(`SECRETS_KEY=${SECRET}`);
+    expect(t.status()).toMatchObject({ state: "rolled_back" });
+    expect(t.status().logTail.join("\n")).toContain(
+      ".env: the new file is incomplete"
+    );
+  });
+
+  it("keeps duplicate pinned lines from counting as truncation", () => {
+    const t = setup();
+    writeFileSync(join(t.dir, ".env"), `${t.env}OPSDECK_VERSION=1.2.0\n`, {
+      mode: 0o600,
+    });
+    t.request(updateTo("1.3.0"));
+    const result = t.run();
+    expect(result.status, result.stderr).toBe(0);
+    expect(
+      t
+        .readEnv()
+        .split("\n")
+        .filter((l) => l.startsWith("OPSDECK_VERSION="))
+    ).toEqual(["OPSDECK_VERSION=1.3.0"]);
+  });
+
+  it("installs the release's compose.yaml with the images and keeps the previous one", () => {
+    const t = setup();
+    t.request(updateTo("1.3.0"));
+    expect(t.run().status).toBe(0);
+    expect(t.readCompose()).toBe(composeOf("1.3.0"));
+    expect(statSync(join(t.dir, "compose.yaml")).mode & 0o777).toBe(0o644);
+    expect(readFileSync(join(t.updater, "compose.yaml.prev"), "utf8")).toBe(
+      composeOf("1.2.0")
+    );
+    // Every step ran with the compose.yaml of its .env's release.
+    expect(t.dockerCalls().join("\n")).not.toContain("compose=");
+  });
+
+  it("rolls compose.yaml back together with .env", () => {
+    const t = setup();
+    t.request(updateTo("1.3.0"));
+    expect(t.run({ STUB_HEALTH_FAIL_VERSION: "1.3.0" }).status).toBe(1);
+    expect(t.status()).toMatchObject({ state: "rolled_back" });
+    expect(t.readEnv()).toBe(t.env);
+    expect(t.readCompose()).toBe(composeOf("1.2.0"));
+    expect(t.dockerCalls().join("\n")).not.toContain("compose=");
+  });
+
+  it("a restore runs under the backup's compose.yaml, then the current one", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run().status).toBe(0);
+    expect(t.readCompose()).toBe(composeOf("1.3.0"));
+    expect(t.dockerCalls()).toContain(
+      "docker compose run --rm --no-deps app opsdeck restore local:opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0/ [1.2.0]"
+    );
+    expect(t.dockerCalls().join("\n")).not.toContain("compose=");
+  });
+
+  it.each(["compose.yaml", "update.sh"])(
+    "refuses a release whose %s does not match its sha256 (invalidRelease)",
+    (asset) => {
+      const t = setup();
+      writeFileSync(join(t.rel, "1.3.0", asset), "# tampered\n");
+      t.request(updateTo("1.3.0"));
+      expect(t.run().status).toBe(1);
+      expect(t.status()).toMatchObject({
+        state: "refused",
+        code: "invalidRelease",
+      });
+      expect(t.dockerCalls()).toEqual([]);
+      expect(t.readEnv()).toBe(t.env);
+      expect(t.readCompose()).toBe(composeOf("1.2.0"));
+    }
+  );
+
+  it("refuses a release.json without the asset checksums", () => {
+    const t = setup();
+    const bad = JSON.parse(releaseJson("1.3.0", "1.0.0"));
+    delete bad.assets;
+    writeFileSync(join(t.rel, "1.3.0.json"), JSON.stringify(bad));
+    t.request(updateTo("1.3.0"));
+    expect(t.run().status).toBe(1);
+    expect(t.status()).toMatchObject({ code: "invalidRelease" });
+    expect(t.dockerCalls()).toEqual([]);
+  });
+
+  it("installs the release's update.sh for the next run only after a success", () => {
+    const failed = setup();
+    failed.request(updateTo("1.3.0"));
+    expect(failed.run({ STUB_HEALTH_FAIL_VERSION: "1.3.0" }).status).toBe(1);
+    expect(existsSync(join(failed.updater, "update.sh"))).toBe(false);
+
+    const ok = setup();
+    ok.request(updateTo("1.3.0"));
+    expect(ok.run().status).toBe(0);
+    const installed = join(ok.updater, "update.sh");
+    expect(readFileSync(installed, "utf8")).toBe(updaterOf("1.3.0"));
+    expect(statSync(installed).mode & 0o777).toBe(0o700);
+  });
+
+  it("after a restore that continues to the current version, installs that version's update.sh", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run().status).toBe(0);
+    expect(readFileSync(join(t.updater, "update.sh"), "utf8")).toBe(
+      updaterOf("1.3.0")
+    );
+  });
+
+  it("marks a restore that succeeded before its follow-up update rolled back", () => {
+    const t = setup({ current: "1.3.0" });
+    t.request(restoreOf("1.2.0"));
+    expect(t.run({ STUB_HEALTH_FAIL_VERSION: "1.3.0" }).status).toBe(1);
+    expect(t.status()).toMatchObject({
+      action: "restore",
+      state: "rolled_back",
+      restored: true,
+    });
+
+    const refused = setup({ current: "1.3.0" });
+    refused.request(restoreOf("1.2.0"));
+    refused.run({ STUB_RESTORE_REFUSE: "restoreKeyMismatch" });
+    expect(refused.status().state).toBe("rolled_back");
+    expect(refused.status().restored).toBeUndefined();
+  });
+
+  it("replaces a directory the app planted as status.json", () => {
+    const t = setup();
+    mkdirSync(join(t.updates, "status.json", "inner"), { recursive: true });
+    t.request(updateTo("1.3.0"));
+    expect(t.run().status).toBe(0);
+    expect(statSync(t.statusPath).isFile()).toBe(true);
+    expect(t.status()).toMatchObject({ state: "succeeded" });
+  });
+
+  it("keeps its private state out of updates/", () => {
+    const t = setup();
+    // The app can create entries in updates/; nothing there is read as state.
+    mkdirSync(join(t.updates, "previous.env"));
+    mkdirSync(join(t.updates, ".lock"));
+    t.request(updateTo("1.3.0"));
+    expect(t.run({ STUB_HEALTH_FAIL_VERSION: "1.3.0" }).status).toBe(1);
+    expect(t.status()).toMatchObject({ state: "rolled_back" });
+    expect(t.readEnv()).toBe(t.env);
+    expect(readdirSync(t.updater).sort()).toEqual(
+      [".env.prev", ".lock", "compose.yaml.prev", "previous.env"].sort()
+    );
+  });
+
+  it("refuses (and consumes) a request when .env is missing", () => {
+    const t = setup();
+    rmSync(join(t.dir, ".env"));
+    t.request(updateTo("1.3.0"));
+    expect(t.run().status).toBe(1);
+    expect(t.status()).toMatchObject({
+      state: "refused",
+      code: "invalidInstall",
+    });
+    expect(existsSync(join(t.updates, "request.json"))).toBe(false);
+    expect(t.calls()).toEqual([]);
+  });
+});
+
+describe("update.sh and a run that never finished", () => {
+  const stale = {
+    runId: "20261109T200000Z-0a0b0c0d",
+    action: "update",
+    version: "1.3.0",
+    from: "1.2.0",
+    step: "migrate",
+    state: "running",
+    code: null,
+    startedAt: "2026-11-09T20:00:00Z",
+    finishedAt: null,
+    logTail: ['step: migrate "state":"running","code":null,'],
+  };
+
+  it("records a status left running as failed/interrupted, without a request", () => {
+    const t = setup();
+    writeFileSync(t.statusPath, `${JSON.stringify(stale)}\n`);
+    expect(t.run().status).toBe(0);
+    const status = t.status();
+    expect(status).toMatchObject({
+      runId: stale.runId,
+      step: "migrate",
+      state: "failed",
+      code: "interrupted",
+      logTail: stale.logTail,
+    });
+    expect(status.finishedAt).not.toBeNull();
+    expect(statSync(t.statusPath).mode & 0o777).toBe(0o640);
+    expect(t.calls()).toEqual([]);
+  });
+
+  it("leaves a finished status alone", () => {
+    const t = setup();
+    const done = `${JSON.stringify({ ...stale, state: "succeeded", step: "done", finishedAt: "2026-11-09T20:05:00Z" })}\n`;
+    writeFileSync(t.statusPath, done);
+    expect(t.run().status).toBe(0);
+    expect(readFileSync(t.statusPath, "utf8")).toBe(done);
+  });
+
+  it("leaves a running status alone while another run holds the lock", () => {
+    const t = setup();
+    writeFileSync(t.statusPath, `${JSON.stringify(stale)}\n`);
+    mkdirSync(t.updater, { mode: 0o700 });
+    const lock = join(t.updater, ".lock");
+    writeFileSync(lock, "");
+    expect(t.run({}, ["flock", lock, "sh"]).status).toBe(0);
+    expect(t.status().state).toBe("running");
   });
 });
 
