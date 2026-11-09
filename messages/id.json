@@ -2904,6 +2904,7 @@
   "teardown": {
     "errors": {
       "deployDirShared": "Environment lain memakai direktori deploy ini di server yang sama",
+      "domainShared": "Environment lain mencatat Access app atau DNS record Cloudflare yang sama",
       "databaseBackupUnsupported": "Hanya database PostgreSQL yang dapat diarsipkan sebelum dihapus. Gunakan Hapus dari Panel saja",
       "unsafeDeployDir": "Direktori deploy ini bukan path yang aman untuk dihapus",
       "environmentBusy": "Ada deploy atau provisioning yang sedang berjalan di environment ini. Coba lagi setelah selesai",

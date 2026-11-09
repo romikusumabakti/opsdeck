@@ -2904,6 +2904,7 @@
   "teardown": {
     "errors": {
       "deployDirShared": "Otro entorno usa este directorio de despliegue en el mismo servidor",
+      "domainShared": "Otro entorno registra la misma aplicación de Access o el mismo registro DNS de Cloudflare",
       "databaseBackupUnsupported": "Solo las bases de datos PostgreSQL se pueden archivar antes de eliminarlas. Usa Quitar solo del Panel",
       "unsafeDeployDir": "El directorio de despliegue no es una ruta segura para eliminar",
       "environmentBusy": "Hay un despliegue o aprovisionamiento en curso en este entorno. Inténtalo de nuevo cuando termine",

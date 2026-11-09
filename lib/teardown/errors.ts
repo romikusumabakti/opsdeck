@@ -4,6 +4,8 @@
 
 export const TEARDOWN_ERRORS = {
   deployDirShared: "Another environment uses this deploy directory",
+  domainShared:
+    "Another environment records the same Cloudflare Access app or DNS record",
   databaseBackupUnsupported:
     "Only PostgreSQL databases can be archived before deletion",
   unsafeDeployDir: "The deploy directory is not a safe path to delete",
@@ -23,6 +25,7 @@ export type TeardownErrorCode = keyof typeof TEARDOWN_ERRORS;
 export type TeardownRefusal = Extract<
   TeardownErrorCode,
   | "deployDirShared"
+  | "domainShared"
   | "databaseBackupUnsupported"
   | "unsafeDeployDir"
   | "environmentBusy"

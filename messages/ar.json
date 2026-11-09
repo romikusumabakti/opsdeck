@@ -2904,6 +2904,7 @@
   "teardown": {
     "errors": {
       "deployDirShared": "بيئة أخرى تستخدم مجلد النشر هذا على الخادم نفسه",
+      "domainShared": "بيئة أخرى تسجّل تطبيق Cloudflare Access نفسه أو سجل DNS نفسه",
       "databaseBackupUnsupported": "يمكن أرشفة قواعد بيانات PostgreSQL فقط قبل الحذف. استخدم الإزالة من اللوحة فقط بدلاً من ذلك",
       "unsafeDeployDir": "مجلد النشر ليس مسارًا آمنًا للحذف",
       "environmentBusy": "توجد عملية نشر أو تجهيز نشطة على هذه البيئة. أعد المحاولة عند انتهائها",

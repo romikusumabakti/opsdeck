@@ -2904,6 +2904,7 @@
   "teardown": {
     "errors": {
       "deployDirShared": "同一服务器上的另一个环境正在使用此部署目录",
+      "domainShared": "另一个环境记录了相同的 Cloudflare Access 应用或 DNS 记录",
       "databaseBackupUnsupported": "只有 PostgreSQL 数据库可以在删除前归档。请改用“仅从面板移除”",
       "unsafeDeployDir": "该部署目录不是可安全删除的路径",
       "environmentBusy": "此环境有正在进行的部署或预配。请在完成后重试",
