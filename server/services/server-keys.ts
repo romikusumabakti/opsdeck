@@ -1105,7 +1105,14 @@ export async function checkKeyLoginAction(
       ssh = await openSsh(
         sshTarget({ ...server, password: null }),
         SSH_TUNING,
-        { keyOnly: true, keyId: key.id, actor: session.user.id }
+        // Verified only on this action's own success path below, once our
+        // line was found and its from= read.
+        {
+          keyOnly: true,
+          keyId: key.id,
+          actor: session.user.id,
+          markVerified: false,
+        }
       );
       const result = await exec(ssh, "true");
       if (result.code !== 0) failure = "keyLoginFailed";

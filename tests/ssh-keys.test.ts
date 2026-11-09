@@ -304,7 +304,18 @@ describe("from= width", () => {
     for (const ok of ["10.0.0.0/8", "10.1.2.3/32", "fd00::/32", "::1/128"]) {
       expect(isValidFrom(ok), ok).toBe(true);
     }
-    for (const bad of ["0.0.0.0/0", "::/0", "10.0.0.0/7", "fd00::/31"]) {
+    for (const bad of [
+      "0.0.0.0/0",
+      "::/0",
+      "10.0.0.0/7",
+      "fd00::/31",
+      // IPv4-mapped or embedded IPv6, and zone ids (normaliseSubnet refuses
+      // them too).
+      "::ffff:0.0.0.0/96",
+      "::ffff:10.0.0.1",
+      "::10.0.0.1/104",
+      "fe80::1%eth0",
+    ]) {
       expect(isValidFrom(bad), bad).toBe(false);
     }
   });

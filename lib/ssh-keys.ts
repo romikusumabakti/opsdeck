@@ -147,7 +147,10 @@ export const MIN_FROM_PREFIX = { 4: 8, 6: 32 } as const;
 /** The key_error of a key server whose key login has never succeeded. */
 export const KEY_NOT_VERIFIED = "keyNotVerified";
 
-/** Whether `from` is an IP or IP/prefix (not wider than /8, /32) for from="…". */
+/**
+ * Whether `from` is an IP or IP/prefix (not wider than /8, /32) for from="…".
+ * No zone ids, no IPv4-mapped or embedded IPv6 (as normaliseSubnet).
+ */
 export function isValidFrom(from: string): boolean {
   // isIP accepts IPv6 zone ids ("fe80::1%eth0"), which sshd does not match.
   if (from.includes("%")) return false;
@@ -155,6 +158,9 @@ export function isValidFrom(from: string): boolean {
   if (rest.length > 0) return false;
   const family = isIP(addr);
   if (family !== 4 && family !== 6) return false;
+  // IPv4-mapped or embedded IPv6 ("::ffff:10.0.0.1"): sshd matches IPv4
+  // clients by their IPv4 form, and the /32 floor means nothing for them.
+  if (family === 6 && addr.includes(".")) return false;
   if (prefix === undefined) return true;
   return (
     validPrefix(prefix, family) && Number(prefix) >= MIN_FROM_PREFIX[family]
