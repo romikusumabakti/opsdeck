@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type BackupDeps,
@@ -15,9 +16,11 @@ import {
   type BackupRecorder,
   runInstanceBackup,
 } from "@/lib/instance-backup/archive";
-import type {
-  BackupDestination,
-  ObjectStore,
+import {
+  type BackupDestination,
+  backupS3Client,
+  type ObjectStore,
+  s3ObjectStore,
 } from "@/lib/instance-backup/destination";
 import {
   parseManifest,
@@ -26,7 +29,7 @@ import {
 
 const SECRETS_KEY = "c2VjcmV0LWtleS1uZXZlci1pbi1hLWJhY2t1cC0xMjM0NTY=";
 const NOW = new Date(Date.UTC(2026, 10, 9, 19, 30, 5));
-const PREFIX = "opsdeck-backups/test/2026-11-09T193005Z-1.2.3/";
+const PREFIX = "opsdeck-backups/test/2026-11-09T193005.000Z-abc123-1.2.3/";
 
 function memoryStore(initial: Record<string, string> = {}) {
   const objects = new Map<string, Buffer>(
@@ -59,6 +62,7 @@ function memoryStore(initial: Record<string, string> = {}) {
 function memoryRecorder() {
   const rows: Record<string, Record<string, unknown>> = {};
   const fingerprints: string[] = [];
+  const sweeps: Date[] = [];
   const recorder: BackupRecorder = {
     async start(row) {
       const id = `run-${Object.keys(rows).length + 1}`;
@@ -71,8 +75,19 @@ function memoryRecorder() {
     async recordFingerprint(fingerprint) {
       fingerprints.push(fingerprint);
     },
+    async markInterrupted(before) {
+      sweeps.push(before);
+      for (const row of Object.values(rows)) {
+        if (row.status === "running" && (row.startedAt as Date) < before) {
+          Object.assign(row, {
+            status: "failed",
+            errorCode: "backupInterrupted",
+          });
+        }
+      }
+    },
   };
-  return { recorder, rows, fingerprints };
+  return { recorder, rows, fingerprints, sweeps };
 }
 
 async function filesUnder(dir: string): Promise<string[]> {
@@ -101,6 +116,7 @@ function deps(overrides: Partial<BackupDeps> = {}): Partial<BackupDeps> {
     version: "1.2.3",
     secretsKey: SECRETS_KEY,
     now: () => NOW,
+    runSuffix: () => "abc123",
     log: () => {},
     ...overrides,
   };
@@ -142,10 +158,10 @@ describe("runInstanceBackup", () => {
       id: "run-1",
       status: "failed",
       location: "local",
-      objectKey: "test/2026-11-09T193005Z-1.2.3/",
+      objectKey: "test/2026-11-09T193005.000Z-abc123-1.2.3/",
       errorCode: "backupUploadFailed",
     });
-    const local = join(root, "test/2026-11-09T193005Z-1.2.3");
+    const local = join(root, "test/2026-11-09T193005.000Z-abc123-1.2.3");
     expect(await filesUnder(local)).toEqual([
       "database.dump",
       "garage/attachments/a.png",
@@ -161,7 +177,8 @@ describe("runInstanceBackup", () => {
   });
 
   it("no destination writes local", async () => {
-    // Four older complete backups and one without a manifest (incomplete).
+    // Four older complete backups, a fresh incomplete one (a run that may
+    // still be going) and an incomplete one from a crash two days ago.
     for (const name of [
       "2026-11-05T193000Z-1.2.2",
       "2026-11-06T193000Z-1.2.2",
@@ -171,21 +188,24 @@ describe("runInstanceBackup", () => {
       await mkdir(join(root, "test", name), { recursive: true });
       await writeFile(join(root, "test", name, "manifest.json"), "{}");
     }
+    await mkdir(join(root, "test/2026-11-09T120000.000Z-f00001-1.2.3"));
+    await mkdir(join(root, "test/2026-11-07T120000.000Z-f00002-1.2.3"));
 
     const result = await runInstanceBackup("schedule", deps());
 
     expect(result).toMatchObject({
       status: "succeeded",
       location: "local",
-      objectKey: "test/2026-11-09T193005Z-1.2.3/",
+      objectKey: "test/2026-11-09T193005.000Z-abc123-1.2.3/",
       errorCode: null,
     });
     expect((await readdir(join(root, "test"))).sort()).toEqual([
       "2026-11-07T193000Z-1.2.3",
       "2026-11-08T193000Z-1.2.3",
-      "2026-11-09T193005Z-1.2.3",
+      "2026-11-09T120000.000Z-f00001-1.2.3",
+      "2026-11-09T193005.000Z-abc123-1.2.3",
     ]);
-    const dir = join(root, "test/2026-11-09T193005Z-1.2.3");
+    const dir = join(root, "test/2026-11-09T193005.000Z-abc123-1.2.3");
     const manifest = parseManifest(
       await readFile(join(dir, "manifest.json"), "utf8")
     );
@@ -212,6 +232,11 @@ describe("runInstanceBackup", () => {
       "opsdeck-backups/test/2026-11-09T010000Z-1.2.2/database.dump": "old",
       "opsdeck-backups/test/2026-11-08T010000Z-1.2.2/manifest.json": "{}",
       "opsdeck-backups/other/2026-11-09T010000Z-1.2.2/manifest.json": "{}",
+      // Incomplete: one fresh (kept), one from a crash two days ago (deleted).
+      "opsdeck-backups/test/2026-11-09T120000.000Z-f00001-1.2.3/database.dump":
+        "x",
+      "opsdeck-backups/test/2026-11-07T120000.000Z-f00002-1.2.3/database.dump":
+        "x",
     });
 
     const result = await runInstanceBackup(
@@ -235,6 +260,7 @@ describe("runInstanceBackup", () => {
     expect([...remote.objects.keys()].sort()).toEqual([
       "opsdeck-backups/other/2026-11-09T010000Z-1.2.2/manifest.json",
       "opsdeck-backups/test/2026-11-08T010000Z-1.2.2/manifest.json",
+      "opsdeck-backups/test/2026-11-09T120000.000Z-f00001-1.2.3/database.dump",
       `${PREFIX}database.dump`,
       `${PREFIX}garage/attachments/a.png`,
       `${PREFIX}garage/issues/b/c.txt`,
@@ -278,6 +304,139 @@ describe("runInstanceBackup", () => {
     expect(await filesUnder(root)).not.toContain("escape");
   });
 
+  it.each([
+    [0, 0],
+    [0, 1],
+  ])(
+    "retention (%i, %i) never deletes the backup just uploaded",
+    async (keepDaily, keepWeekly) => {
+      const remote = memoryStore({
+        "opsdeck-backups/test/2026-11-08T010000Z-1.2.2/manifest.json": "{}",
+        "opsdeck-backups/test/2026-11-01T010000Z-1.2.2/manifest.json": "{}",
+      });
+      const result = await runInstanceBackup(
+        "manual",
+        deps({
+          destination: destination(remote.store, { keepDaily, keepWeekly }),
+        })
+      );
+      expect(result.status).toBe("succeeded");
+      const keys = [...remote.objects.keys()];
+      expect(keys).toContain(`${PREFIX}manifest.json`);
+      expect(keys).toContain(`${PREFIX}database.dump`);
+      expect(keys).not.toContain(
+        "opsdeck-backups/test/2026-11-01T010000Z-1.2.2/manifest.json"
+      );
+    }
+  );
+
+  it("gives two runs in the same second their own folders", async () => {
+    const remote = memoryStore();
+    const suffixes = ["aaaaaa", "bbbbbb"];
+    const run = () =>
+      runInstanceBackup(
+        "manual",
+        deps({
+          destination: destination(remote.store),
+          runSuffix: () => suffixes.shift() ?? "",
+        })
+      );
+    const [a, b] = await Promise.all([run(), run()]);
+    expect(a?.status).toBe("succeeded");
+    expect(b?.status).toBe("succeeded");
+    expect(a?.objectKey).not.toBe(b?.objectKey);
+    // Both uploaded in full (retention may then keep only the day's newest).
+    for (const r of [a, b]) {
+      expect(remote.uploads).toContain(`${r?.objectKey}manifest.json`);
+      expect(remote.uploads).toContain(`${r?.objectKey}database.dump`);
+    }
+  });
+
+  it("fails a colliding folder name instead of sharing it", async () => {
+    const dir = join(root, "test/2026-11-09T193005.000Z-abc123-1.2.3");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "manifest.json"), "{}");
+
+    const result = await runInstanceBackup("manual", deps());
+
+    expect(result).toMatchObject({
+      status: "failed",
+      errorCode: "backupWriteFailed",
+      objectKey: null,
+    });
+    // The other run's folder is untouched.
+    expect(await filesUnder(dir)).toEqual(["manifest.json"]);
+  });
+
+  it("skips zero-byte Garage folder markers", async () => {
+    garage = memoryStore({ "attachments/": "", "attachments/a.png": "png" });
+    const result = await runInstanceBackup("manual", deps());
+    expect(result.status).toBe("succeeded");
+    const dir = join(root, "test/2026-11-09T193005.000Z-abc123-1.2.3");
+    expect(await filesUnder(join(dir, "garage"))).toEqual([
+      "attachments/a.png",
+    ]);
+  });
+
+  it("still returns the row id and location when recording the end fails", async () => {
+    recorded.recorder.finish = async () => {
+      throw new Error("connection reset");
+    };
+    const ok = await runInstanceBackup("manual", deps());
+    expect(ok).toMatchObject({
+      id: "run-1",
+      status: "failed",
+      location: "local",
+      errorCode: "backupRecordFailed",
+    });
+
+    const remote = memoryStore();
+    remote.store.upload = async () => {
+      throw new Error("PutObject rejected");
+    };
+    const failed = await runInstanceBackup(
+      "manual",
+      deps({
+        destination: destination(remote.store),
+        now: () => new Date(NOW.getTime() + 1000),
+      })
+    );
+    expect(failed).toMatchObject({
+      id: "run-2",
+      status: "failed",
+      location: "local",
+      errorCode: "backupUploadFailed",
+    });
+  });
+
+  it("reports the declared location when the run cannot be recorded", async () => {
+    recorded.recorder.start = async () => {
+      throw new Error("database is down");
+    };
+    const remote = memoryStore();
+    await expect(
+      runInstanceBackup(
+        "update",
+        deps({ destination: destination(remote.store) })
+      )
+    ).rejects.toMatchObject({ name: "BackupRecordError", location: "s3" });
+  });
+
+  it("marks rows left running for over 6 h as interrupted", async () => {
+    const hours = (h: number) => new Date(NOW.getTime() - h * 3_600_000);
+    recorded.rows.crashed = { status: "running", startedAt: hours(7) };
+    recorded.rows.busy = { status: "running", startedAt: hours(1) };
+
+    await runInstanceBackup("manual", deps());
+
+    expect(recorded.sweeps).toEqual([hours(6)]);
+    expect(recorded.rows.crashed).toMatchObject({
+      status: "failed",
+      errorCode: "backupInterrupted",
+    });
+    expect(recorded.rows.busy).toMatchObject({ status: "running" });
+  });
+
   it("never writes SECRETS_KEY", async () => {
     process.env.SECRETS_KEY = SECRETS_KEY;
     try {
@@ -314,5 +473,97 @@ describe("opsdeck backup run arguments", () => {
     expect(parseBackupArgs(["run", "--trigger", "nightly"])).toBeNull();
     expect(parseBackupArgs(["list"])).toBeNull();
     expect(parseBackupArgs([])).toBeNull();
+  });
+});
+
+describe("s3ObjectStore uploads", () => {
+  type Seen = { method: string; path: string; query: Record<string, unknown> };
+
+  // A fake S3 behind the real client: answers PutObject and the multipart
+  // calls, after `throttle` 429 SlowDown answers.
+  function fakeS3(throttle = 0) {
+    const seen: Seen[] = [];
+    let throttled = 0;
+    const requestHandler = {
+      async handle(request: {
+        method: string;
+        path: string;
+        query: Record<string, unknown>;
+        body?: unknown;
+      }) {
+        const body = request.body;
+        if (body && typeof (body as Readable).pipe === "function") {
+          for await (const _ of body as Readable) {
+            // drain
+          }
+        }
+        seen.push({
+          method: request.method,
+          path: request.path,
+          query: request.query,
+        });
+        const reply = (statusCode: number, text = "", headers = {}) => ({
+          response: {
+            statusCode,
+            headers: { "content-type": "application/xml", ...headers },
+            body: Readable.from([Buffer.from(text)]),
+          },
+        });
+        if (throttled < throttle) {
+          throttled += 1;
+          return reply(
+            429,
+            "<Error><Code>SlowDown</Code><Message>Slow down</Message></Error>"
+          );
+        }
+        if (request.method === "POST" && "uploads" in request.query) {
+          return reply(
+            200,
+            "<InitiateMultipartUploadResult><Bucket>b</Bucket><Key>k</Key><UploadId>u1</UploadId></InitiateMultipartUploadResult>"
+          );
+        }
+        if (request.method === "POST" && "uploadId" in request.query) {
+          return reply(
+            200,
+            '<CompleteMultipartUploadResult><Bucket>b</Bucket><Key>k</Key><ETag>"e"</ETag></CompleteMultipartUploadResult>'
+          );
+        }
+        return reply(200, "", { etag: '"e"' });
+      },
+      updateHttpClientConfig() {},
+      httpHandlerConfigs() {
+        return {};
+      },
+    };
+    const client = backupS3Client(
+      {
+        endpoint: "http://s3.test",
+        region: "us-east-1",
+        forcePathStyle: true,
+        accessKeyId: "test",
+        secretAccessKey: "test",
+      },
+      { requestHandler: requestHandler as never }
+    );
+    return { store: s3ObjectStore(client, "b"), seen };
+  }
+
+  it("retries a throttled (429) upload with backoff", async () => {
+    const file = join(root, "small");
+    await writeFile(file, "small body");
+    const s3 = fakeS3(2);
+    await s3.store.upload("k", file);
+    expect(s3.seen.map((r) => r.method)).toEqual(["PUT", "PUT", "PUT"]);
+  });
+
+  it("uploads a file larger than one part as multipart", async () => {
+    const file = join(root, "large");
+    await writeFile(file, Buffer.alloc(17 * 1024 * 1024, 1));
+    const s3 = fakeS3();
+    await s3.store.upload("k", file);
+    const parts = s3.seen.filter((r) => "partNumber" in r.query);
+    expect(parts).toHaveLength(2);
+    expect(s3.seen[0]?.query).toHaveProperty("uploads");
+    expect(s3.seen.at(-1)?.query).toHaveProperty("uploadId");
   });
 });

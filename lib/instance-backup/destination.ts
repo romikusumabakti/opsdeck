@@ -9,9 +9,10 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectsV2Command,
-  PutObjectCommand,
   S3Client,
+  type S3ClientConfig,
 } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { instanceSettings, s3Connections } from "@/lib/db/schema";
@@ -27,7 +28,38 @@ export interface ObjectStore {
   delete(keys: string[]): Promise<void>;
 }
 
-const UPLOAD_ATTEMPTS = 3;
+// 16 MiB parts: up to ~160 GiB within S3's 10 000-part limit.
+const PART_SIZE = 16 * 1024 * 1024;
+
+/**
+ * An S3 client for backups. The standard retry strategy retries 5xx,
+ * network errors and throttling (429, SlowDown) with jittered exponential
+ * backoff; five attempts give a busy destination a little more room.
+ */
+export function backupS3Client(
+  config: {
+    endpoint: string;
+    region: string;
+    forcePathStyle: boolean;
+    accessKeyId: string;
+    secretAccessKey: string;
+  },
+  /** Tests pass a fake requestHandler here. */
+  extra: Pick<S3ClientConfig, "requestHandler"> = {}
+): S3Client {
+  return new S3Client({
+    ...extra,
+    endpoint: config.endpoint,
+    region: config.region,
+    forcePathStyle: config.forcePathStyle,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+    retryMode: "standard",
+    maxAttempts: 5,
+  });
+}
 
 export type BackupDestination = {
   store: ObjectStore;
@@ -66,27 +98,15 @@ export function s3ObjectStore(client: S3Client, Bucket: string): ObjectStore {
       return (await stat(filePath)).size;
     },
     async upload(Key, filePath) {
-      const { size } = await stat(filePath);
-      // The SDK cannot retry a streamed body, so retry here with a fresh
-      // stream; a 4xx (bad bucket, bad credentials) will not get better.
-      for (let attempt = 1; ; attempt++) {
-        try {
-          await client.send(
-            new PutObjectCommand({
-              Bucket,
-              Key,
-              Body: createReadStream(filePath),
-              ContentLength: size,
-            })
-          );
-          return;
-        } catch (error) {
-          const status = (error as { $metadata?: { httpStatusCode?: number } })
-            .$metadata?.httpStatusCode;
-          const clientError = status !== undefined && status < 500;
-          if (clientError || attempt >= UPLOAD_ATTEMPTS) throw error;
-        }
-      }
+      // Multipart above one part, so dumps over 5 GiB work. Each part is a
+      // buffer, which the client's retry strategy can resend.
+      await new Upload({
+        client,
+        params: { Bucket, Key, Body: createReadStream(filePath) },
+        partSize: PART_SIZE,
+        queueSize: 4,
+        leavePartsOnError: false,
+      }).done();
     },
     async delete(keys) {
       // DeleteObjects takes at most 1000 keys per call.
@@ -119,11 +139,12 @@ export function garageSource(
   if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY || !S3_SECRET_KEY) {
     return null;
   }
-  const client = new S3Client({
+  const client = backupS3Client({
     endpoint: S3_ENDPOINT,
     region: env.S3_REGION || "garage",
     forcePathStyle: true,
-    credentials: { accessKeyId: S3_ACCESS_KEY, secretAccessKey: S3_SECRET_KEY },
+    accessKeyId: S3_ACCESS_KEY,
+    secretAccessKey: S3_SECRET_KEY,
   });
   return s3ObjectStore(client, S3_BUCKET);
 }
@@ -149,14 +170,12 @@ export async function loadBackupDestination(): Promise<BackupDestination | null>
     .limit(1);
   if (!row) return null;
   const conn = row.connection;
-  const client = new S3Client({
+  const client = backupS3Client({
     endpoint: conn.endpoint,
     region: conn.region,
     forcePathStyle: conn.forcePathStyle,
-    credentials: {
-      accessKeyId: conn.accessKeyId,
-      secretAccessKey: decryptSecret(conn.secretKey),
-    },
+    accessKeyId: conn.accessKeyId,
+    secretAccessKey: decryptSecret(conn.secretKey),
   });
   return {
     store: s3ObjectStore(client, conn.bucket),
