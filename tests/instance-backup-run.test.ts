@@ -132,7 +132,13 @@ function destination(
   store: ObjectStore,
   keep: Partial<BackupDestination> = {}
 ): BackupDeps["destination"] {
-  return async () => ({ store, keepDaily: 14, keepWeekly: 8, ...keep });
+  return async () => ({
+    connectionId: "conn-1",
+    store,
+    keepDaily: 14,
+    keepWeekly: 8,
+    ...keep,
+  });
 }
 
 beforeEach(async () => {

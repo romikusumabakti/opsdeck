@@ -1326,6 +1326,7 @@
     "noServerAvailable": "No server is available for this project. Ask an admin to set a default server or open one."
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "Only an admin can mark an environment as production or change a production environment's kind.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "Name and email are required",
     "domainNotAllowed": "Only @{domain} emails are allowed",
@@ -2917,7 +2918,8 @@
       "stackHostsSharedDatabase": "The stack runs a database container that a shared database host or another environment uses",
       "serverCommandFailed": "A command on the server failed. Check the run log, then retry",
       "cloudflareFailed": "A Cloudflare object could not be removed. Check the run log, then retry",
-      "stepFailed": "The step failed unexpectedly. Check the run log, then retry"
+      "stepFailed": "The step failed unexpectedly. Check the run log, then retry",
+      "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment."
     }
   },
   "environmentSetup": {

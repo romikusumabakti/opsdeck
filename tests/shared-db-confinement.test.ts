@@ -93,6 +93,9 @@ vi.mock("@/lib/environments", async (importOriginal) => ({
 const jobs = vi.hoisted(() => ({ enqueue: vi.fn(), createRun: vi.fn() }));
 vi.mock("@/lib/queue", () => ({ enqueue: jobs.enqueue }));
 vi.mock("@/lib/run-progress", () => ({ createRun: jobs.createRun }));
+vi.mock("@/lib/teardown/guard", () => ({
+  createRunUnlessTearingDown: jobs.createRun,
+}));
 
 const ssh = vi.hoisted(() => ({
   executeRemoteCommand: vi.fn(),
@@ -226,6 +229,21 @@ describe("database operations on a shared binding (maintainer)", () => {
     await expect(createDatabaseBackup(ENV_ID)).resolves.toEqual({
       runId: "run-1",
     });
+  });
+
+  it("refuses a backup or restore with 409 teardownRunning while the environment is being deleted", async () => {
+    // createRunUnlessTearingDown: no run while a teardown is under way.
+    jobs.createRun.mockResolvedValue(null);
+    await expect(createDatabaseBackup(ENV_ID)).rejects.toMatchObject({
+      status: 409,
+      code: "teardownRunning",
+    });
+    await expect(
+      restoreDatabaseBackup(ENV_ID, {
+        filename: "pcan_sandbox1_2026-11-05T02-00-00-000Z.sql.gz",
+      })
+    ).rejects.toMatchObject({ status: 409, code: "teardownRunning" });
+    expect(jobs.enqueue).not.toHaveBeenCalled();
   });
 
   it("refuses control of the shared container, not of the environment's own services", async () => {

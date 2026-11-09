@@ -325,8 +325,8 @@ function queuedRun(requested: RequestedDeployment): {
   deploymentId: string;
   runId: string;
 } {
-  if (requested.status === "held") {
-    throw new Error(`Deployment ${requested.deploymentId} was held`);
+  if (requested.status !== "queued") {
+    throw new Error(`Deployment was ${requested.status}, not queued`);
   }
   return { deploymentId: requested.deploymentId, runId: requested.runId };
 }

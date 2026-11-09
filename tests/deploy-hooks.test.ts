@@ -230,6 +230,24 @@ describe("POST /api/deploy-hooks/builds", () => {
     }
   });
 
+  it("202 and no deployment id for a target whose environment is being deleted", async () => {
+    const errors = vi.spyOn(console, "error");
+    deployments.requestDeployment.mockImplementation(
+      async (input: { targetId: string }) =>
+        input.targetId === TARGET_A
+          ? { deploymentId: null, runId: null, status: "skipped" }
+          : { deploymentId: `dep-${input.targetId}`, runId: "r" }
+    );
+    const body = JSON.stringify(notification);
+    const res = await deliver(body, sign(body));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({
+      deploymentIds: [`dep-${TARGET_B}`],
+    });
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
   describe("targets flagged to deploy the next build", () => {
     const FLAGGED = "0197f3a0-1b2c-7def-8000-0123456789a9";
     const flagged = () => {

@@ -34,6 +34,7 @@ export const environmentArchivesRouter = sessionRouter()
         {
           headers: {
             "Content-Type": "application/octet-stream",
+            "Content-Length": String(file.size),
             // RFC 5987 encoding so any name survives the header.
             "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,
             "Cache-Control": "private, no-store",

@@ -36,7 +36,12 @@ export type TeardownStepSpec =
   | { kind: "remove_access_app"; params: { zoneId: string; appId: string } }
   | { kind: "remove_dns_record"; params: { zoneId: string; recordId: string } }
   | { kind: "remove_deploy_dir"; params: DirParams }
-  | { kind: "delete_environment"; params: Record<string, never> };
+  | {
+      kind: "delete_environment";
+      // Set by the start when an integration:manage caller confirmed
+      // deleting escrowed variables; the step checks for them again.
+      params: { confirmEscrowedDeletion?: true };
+    };
 
 export type TeardownStepKind = TeardownStepSpec["kind"];
 
@@ -82,7 +87,9 @@ export const teardownStepSpecSchema: z.ZodType<TeardownStepSpec> =
     z.object({ kind: z.literal("remove_deploy_dir"), params: dirParams }),
     z.object({
       kind: z.literal("delete_environment"),
-      params: z.object({}).strict(),
+      params: z
+        .object({ confirmEscrowedDeletion: z.literal(true).optional() })
+        .strict(),
     }),
   ]) as z.ZodType<TeardownStepSpec>;
 

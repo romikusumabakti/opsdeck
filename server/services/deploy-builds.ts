@@ -137,14 +137,15 @@ export async function recordBuild(n: BuildNotification): Promise<{
   // deployments of its target, and the order should be deterministic.
   for (const target of await findAutoTargets(n.app, n.branch)) {
     try {
-      const { deploymentId } = await requestDeployment({
+      const requested = await requestDeployment({
         targetId: target.id,
         tag: n.tag,
         trigger: "auto",
         userId: null,
         buildId: build.id,
       });
-      deploymentIds.push(deploymentId);
+      // Skipped: the environment is being deleted.
+      if (requested.deploymentId) deploymentIds.push(requested.deploymentId);
     } catch (error) {
       console.error(
         `Failed to request auto deployment of ${n.app} ${n.tag} to target ${target.id}:`,
@@ -166,7 +167,7 @@ export async function recordBuild(n: BuildNotification): Promise<{
         userId: null,
         buildId: build.id,
       });
-      if (requested) deploymentIds.push(requested.deploymentId);
+      if (requested?.deploymentId) deploymentIds.push(requested.deploymentId);
     } catch (error) {
       console.error(
         `Failed to request first deployment of ${n.app} ${n.tag} to target ${target.id}:`,

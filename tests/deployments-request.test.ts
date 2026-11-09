@@ -223,3 +223,49 @@ describe("requestFlaggedDeployment", () => {
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 });
+
+describe("while the environment is being deleted", () => {
+  it("skips an auto deployment without an error, and enqueues nothing", async () => {
+    repo.placeDeployment.mockResolvedValue({
+      kind: "tearingDown",
+      released: null,
+    });
+    await expect(request("auto")).resolves.toEqual({
+      deploymentId: null,
+      runId: null,
+      status: "skipped",
+    });
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("refuses a manual deploy or a rollback with 409 teardownRunning", async () => {
+    repo.placeDeployment.mockResolvedValue({
+      kind: "tearingDown",
+      released: null,
+    });
+    for (const trigger of ["manual", "rollback"] as const) {
+      await expect(request(trigger)).rejects.toMatchObject({
+        status: 409,
+        code: "teardownRunning",
+      });
+    }
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("places no flagged deployment", async () => {
+    repo.placeDeploymentIfFlagged.mockResolvedValue({
+      kind: "tearingDown",
+      released: null,
+    });
+    await expect(
+      requestFlaggedDeployment({
+        targetId: TARGET_ID,
+        tag: TAG,
+        trigger: "manual",
+        userId: "user-1",
+        buildId: BUILD_ID,
+      })
+    ).resolves.toBeNull();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+});

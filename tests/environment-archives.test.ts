@@ -27,6 +27,7 @@ type Row = {
   createdAt: Date;
   expiresAt: Date;
   location: "local" | "s3";
+  s3ConnectionId: string | null;
   keyPrefix: string;
   files: { name: string; size: number }[];
   completedAt: Date | null;
@@ -38,7 +39,7 @@ const state = vi.hoisted(() => ({
   rows: [] as Row[],
   prunable: [] as Row[],
   removedRows: [] as string[],
-  destination: true,
+  connectionGone: false,
   objects: new Map<string, Buffer>(),
   listed: [] as string[],
   deletedKeys: [] as string[][],
@@ -59,33 +60,34 @@ vi.mock("@/lib/instance-backup/archive", async (importOriginal) => ({
   instanceName: () => "opsdeck-test",
 }));
 
+// The archive's own S3 connection "conn-1" (whatever today's backup
+// destination is), loadable unless `connectionGone`.
 vi.mock("@/lib/instance-backup/destination", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  loadBackupDestination: async () =>
-    state.destination
+  loadBackupDestination: async () => {
+    throw new Error("an archive never reads today's destination");
+  },
+  loadS3ConnectionStore: async (id: string) =>
+    id === "conn-1" && !state.connectionGone
       ? {
-          keepDaily: 7,
-          keepWeekly: 4,
-          store: {
-            list: async (prefix: string) => {
-              state.listed.push(prefix);
-              return [...state.objects.entries()]
-                .filter(([key]) => key.startsWith(prefix))
-                .map(([key, body]) => ({ key, size: body.length }));
-            },
-            read: async (key: string) => {
-              state.reads.push(key);
-              const body = state.objects.get(key);
-              if (!body) throw new Error("NoSuchKey");
-              return Readable.from([body]);
-            },
-            download: async () => 0,
-            upload: async () => {},
-            delete: async (keys: string[]) => {
-              if (state.deleteError) throw state.deleteError;
-              state.deletedKeys.push(keys);
-              for (const key of keys) state.objects.delete(key);
-            },
+          list: async (prefix: string) => {
+            state.listed.push(prefix);
+            return [...state.objects.entries()]
+              .filter(([key]) => key.startsWith(prefix))
+              .map(([key, body]) => ({ key, size: body.length }));
+          },
+          read: async (key: string) => {
+            state.reads.push(key);
+            const body = state.objects.get(key);
+            if (!body) throw new Error("NoSuchKey");
+            return Readable.from([body]);
+          },
+          download: async () => 0,
+          upload: async () => {},
+          delete: async (keys: string[]) => {
+            if (state.deleteError) throw state.deleteError;
+            state.deletedKeys.push(keys);
+            for (const key of keys) state.objects.delete(key);
           },
         }
       : null,
@@ -127,6 +129,7 @@ function row(extra: Partial<Row> = {}): Row {
     createdAt: new Date("2026-11-01T00:00:00Z"),
     expiresAt: new Date("2026-12-01T00:00:00Z"),
     location: "local",
+    s3ConnectionId: null,
     keyPrefix: `${localArchiveDir("opsdeck-test", id, state.root)}/`,
     files: [{ name: "db-hris-0123456789.dump", size: 10 }],
     completedAt: new Date("2026-11-01T00:05:00Z"),
@@ -138,6 +141,7 @@ function s3Row(extra: Partial<Row> = {}): Row {
   return row({
     id: S3_ARCHIVE_ID,
     location: "s3",
+    s3ConnectionId: "conn-1",
     keyPrefix: `opsdeck-env-archives/opsdeck-test/${S3_ARCHIVE_ID}/`,
     ...extra,
   });
@@ -158,7 +162,7 @@ beforeEach(() => {
   state.rows = [];
   state.prunable = [];
   state.removedRows = [];
-  state.destination = true;
+  state.connectionGone = false;
   state.objects = new Map();
   state.listed = [];
   state.deletedKeys = [];
@@ -221,6 +225,7 @@ describe("GET /api/instance/environment-archives/:id/files/:name", () => {
       "attachment; filename*=UTF-8''db-hris-0123456789.dump"
     );
     expect(res.headers.get("Content-Type")).toBe("application/octet-stream");
+    expect(res.headers.get("Content-Length")).toBe("10");
     expect(await res.text()).toBe("local dump");
   });
 
@@ -229,13 +234,15 @@ describe("GET /api/instance/environment-archives/:id/files/:name", () => {
     state.rows = [archive];
     state.objects.set(
       `${archive.keyPrefix}db-hris-0123456789.dump`,
-      Buffer.from("s3 dump")
+      Buffer.from("s3 dump 10")
     );
     const res = await app.request(
       `/api/instance/environment-archives/${S3_ARCHIVE_ID}/files/db-hris-0123456789.dump`
     );
     expect(res.status).toBe(200);
-    expect(await res.text()).toBe("s3 dump");
+    // The size the archive row lists.
+    expect(res.headers.get("Content-Length")).toBe("10");
+    expect(await res.text()).toBe("s3 dump 10");
     expect(state.reads).toEqual([
       `opsdeck-env-archives/opsdeck-test/${S3_ARCHIVE_ID}/db-hris-0123456789.dump`,
     ]);
@@ -274,13 +281,19 @@ describe("GET /api/instance/environment-archives/:id/files/:name", () => {
     expect(res.status).toBe(404);
   });
 
-  it("answers 404 for an S3 archive while no destination is set", async () => {
-    state.rows = [s3Row()];
-    state.destination = false;
-    const res = await app.request(
-      `/api/instance/environment-archives/${S3_ARCHIVE_ID}/files/db-hris-0123456789.dump`
-    );
-    expect(res.status).toBe(404);
+  it("answers 404 backupDestinationNotFound once the archive's S3 connection is gone", async () => {
+    for (const archive of [s3Row({ s3ConnectionId: null }), s3Row()]) {
+      state.rows = [archive];
+      state.connectionGone = true;
+      const res = await app.request(
+        `/api/instance/environment-archives/${S3_ARCHIVE_ID}/files/db-hris-0123456789.dump`
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        code: "backupDestinationNotFound",
+      });
+    }
+    expect(state.reads).toEqual([]);
   });
 });
 
@@ -338,13 +351,28 @@ describe("pruneEnvironmentArchives", () => {
     });
     expect(state.removedRows).toEqual([]);
 
-    state.deleteError = null;
-    state.destination = false;
+    errors.mockRestore();
+  });
+
+  it("keeps the rows of S3 archives whose connection is gone, logging once", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    state.connectionGone = true;
+    state.prunable = [
+      s3Row(),
+      s3Row({
+        id: ARCHIVE_ID,
+        s3ConnectionId: null,
+        keyPrefix: `opsdeck-env-archives/opsdeck-test/${ARCHIVE_ID}/`,
+      }),
+    ];
     expect(await pruneEnvironmentArchives(NOW)).toEqual({
       deleted: 0,
-      failed: 1,
+      failed: 2,
     });
     expect(state.removedRows).toEqual([]);
+    expect(state.listed).toEqual([]);
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(String(errors.mock.calls[0]?.[0])).toContain("2 ");
     errors.mockRestore();
   });
 

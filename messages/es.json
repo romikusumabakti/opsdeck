@@ -1326,6 +1326,7 @@
     "noServerAvailable": "No hay ningún servidor disponible para este proyecto. Pida a un administrador que defina un servidor predeterminado o abra uno."
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "Solo un administrador puede marcar un entorno como producción o cambiar el tipo de un entorno de producción.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "El nombre y el correo son obligatorios",
     "domainNotAllowed": "Solo se permiten correos @{domain}",
@@ -2917,7 +2918,8 @@
       "stackHostsSharedDatabase": "La pila ejecuta un contenedor de base de datos que usa un host de base de datos compartido u otro entorno",
       "serverCommandFailed": "Falló un comando en el servidor. Revisa el registro de la ejecución y vuelve a intentarlo",
       "cloudflareFailed": "No se pudo eliminar un objeto de Cloudflare. Revisa el registro de la ejecución y vuelve a intentarlo",
-      "stepFailed": "El paso falló de forma inesperada. Revisa el registro de la ejecución y vuelve a intentarlo"
+      "stepFailed": "El paso falló de forma inesperada. Revisa el registro de la ejecución y vuelve a intentarlo",
+      "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno."
     }
   },
   "environmentSetup": {

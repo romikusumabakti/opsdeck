@@ -179,15 +179,22 @@ function removeAccessApp(
 }
 
 /**
- * Closes the archive, deletes the environment row (its steps and runs go with
- * it) and records `environment.deleted`, in one transaction.
+ * Deletes the environment row (its steps and runs go with it), closes the
+ * archive and records `environment.deleted`, in one transaction. Refused
+ * (the escrow code) while the environment has escrowed variables the start
+ * did not confirm.
  */
-async function deleteEnvironment(ctx: ArchiveContext): Promise<string> {
+async function deleteEnvironment(
+  ctx: ArchiveContext,
+  params: Params<"delete_environment">
+): Promise<string> {
   const deleted = await deleteTeardownEnvironment(
     ctx.environmentId,
-    ctx.userId
+    ctx.userId,
+    { escrowConfirmed: params.confirmEscrowedDeletion === true }
   );
   if (!deleted) return "Environment already deleted";
+  if ("refusal" in deleted) throw new StepFailed(deleted.refusal);
   return `Environment ${deleted.environmentName} deleted`;
 }
 
@@ -217,7 +224,7 @@ function executeStep(
     case "remove_deploy_dir":
       return removeDeployDir(ctx, spec.params);
     case "delete_environment":
-      return deleteEnvironment(ctx);
+      return deleteEnvironment(ctx, spec.params);
   }
 }
 

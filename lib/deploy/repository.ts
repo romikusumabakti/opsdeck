@@ -36,6 +36,7 @@ import {
 import { isLockActive, placementFor, planHeldRelease } from "@/lib/deploy/lock";
 import { autoRunActor, PRE_DEPLOY_BACKUP_PREFIX } from "@/lib/deploy/run-actor";
 import { isUniqueViolation } from "@/lib/people/names";
+import { holdEnvironmentShared, teardownBlocks } from "@/lib/teardown/guard";
 import type { UserRef } from "@/lib/types";
 
 const RECENT_LIMIT = 20;
@@ -709,6 +710,8 @@ export type PlaceDeploymentResult = (
   | { kind: "queued"; deploymentId: string; runId: string }
   | { kind: "held"; deploymentId: string; runId: null }
   | { kind: "locked"; lock: DeployLockWithLocker }
+  // A teardown is under way (lib/teardown/guard): nothing was written.
+  | { kind: "tearingDown" }
 ) & { released: ReleasedLock | null };
 
 /**
@@ -752,6 +755,13 @@ async function placeIn(
 ): Promise<
   PlaceDeploymentResult | { kind: "skipped"; released: ReleasedLock | null }
 > {
+  // First, before any row lock (see the lock order note): the environment's
+  // advisory lock shared, so no teardown starts while this places, and no
+  // deployment once one is under way.
+  await holdEnvironmentShared(tx, input.environmentId);
+  if (await teardownBlocks(input.environmentId, tx)) {
+    return { kind: "tearingDown", released: null };
+  }
   // An expired lock still in place (the sweep has not run yet) is released
   // first, so its held builds are queued before this request. A
   // conditional DELETE rather than a check of the FOR SHARE read below: see
@@ -891,9 +901,11 @@ export async function releaseDeployLock(
   match: { createdAt?: Date; expiredAt?: Date } = {},
   actorId: string | null = null
 ): Promise<ReleasedLock | null> {
-  return db.transaction((tx) =>
-    releaseLockIn(tx, environmentId, match, actorId, new Date())
-  );
+  return db.transaction(async (tx) => {
+    // Before the lock row (lock order): see placeIn.
+    await holdEnvironmentShared(tx, environmentId);
+    return releaseLockIn(tx, environmentId, match, actorId, new Date());
+  });
 }
 
 /**
@@ -922,6 +934,11 @@ async function releaseLockIn(
     .where(and(...conditions))
     .returning();
   if (!lock) return null;
+  // The lock goes, but nothing it held deploys into an environment being
+  // deleted: the held deployments stay held.
+  if (await teardownBlocks(environmentId, tx)) {
+    return { lock, queued: [], superseded: [] };
+  }
 
   const heldRows = await tx
     .select({

@@ -21,6 +21,7 @@ import type {
   ProvisioningStepSpec,
 } from "@/lib/provisioning/plan";
 import { replaceSteps } from "@/lib/steps/replace-steps";
+import { holdEnvironmentExclusive, teardownBlocks } from "@/lib/teardown/guard";
 
 /** The domain as planned, plus what the GET shows and showPanel reads. */
 export type ProvisioningDomain = NonNullable<
@@ -229,17 +230,21 @@ export async function getActiveProvisionRunId(
 
 /**
  * Creates the `provision` run, unless one of this environment is already
- * `started`. The check and the insert share a transaction-scoped advisory lock
+ * `started` (conflict) or a teardown is under way (tearingDown,
+ * lib/teardown/guard). The checks and the insert share a transaction-scoped advisory lock
  * on the environment id, so two concurrent requests cannot both pass.
  */
 export async function startProvisioningRun(
   environmentId: string,
   userId: string
-): Promise<{ runId: string } | { conflict: true }> {
+): Promise<{ runId: string } | { conflict: true } | { tearingDown: true }> {
   return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${environmentId}::text, 0))`
-    );
+    await holdEnvironmentExclusive(tx, environmentId);
+    // Provisioning an environment being deleted would create objects no
+    // teardown step removes.
+    if (await teardownBlocks(environmentId, tx)) {
+      return { tearingDown: true as const };
+    }
     const [active] = await tx
       .select({ id: runs.id, runAt: runs.runAt })
       .from(runs)

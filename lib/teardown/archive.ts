@@ -8,6 +8,8 @@ import { instanceName, LOCAL_BACKUP_ROOT } from "@/lib/instance-backup/archive";
 import {
   type BackupDestination,
   loadBackupDestination,
+  loadS3ConnectionStore,
+  type ObjectStore,
 } from "@/lib/instance-backup/destination";
 import { sharedDbRole } from "@/lib/jobs/commands";
 import { privilegedViaStdin } from "@/lib/privileged";
@@ -48,7 +50,9 @@ import {
 // The temp file is always removed. No secret is part of a command: a sudo
 // password goes on stdin.
 
-export const ENV_ARCHIVE_RETENTION_DAYS = 30;
+import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
+
+export { ENV_ARCHIVE_RETENTION_DAYS };
 /** S3 keys: `opsdeck-env-archives/<instance>/<archiveId>/<file>`. */
 export const ENV_ARCHIVE_PREFIX = "opsdeck-env-archives/";
 
@@ -114,6 +118,31 @@ function errorMessage(ctx: TeardownContext, error: unknown): string {
   return redactSecrets(raw, ctx.secrets);
 }
 
+/** The store of an `s3` archive: the S3 connection it was created on. */
+async function archiveStore(
+  ctx: TeardownContext,
+  archive: EnvironmentArchive
+): Promise<ObjectStore> {
+  let store: ObjectStore | null = null;
+  try {
+    store = archive.s3ConnectionId
+      ? await loadS3ConnectionStore(archive.s3ConnectionId)
+      : null;
+  } catch (error) {
+    throw new StepFailed(
+      "archiveFailed",
+      `the archive's S3 connection could not be loaded: ${errorMessage(ctx, error)}`
+    );
+  }
+  if (!store) {
+    throw new StepFailed(
+      "archiveFailed",
+      "this archive goes to S3, but its S3 connection no longer exists"
+    );
+  }
+  return store;
+}
+
 async function loadDestination(
   ctx: TeardownContext
 ): Promise<BackupDestination | null> {
@@ -127,13 +156,16 @@ async function loadDestination(
   }
 }
 
-/** The environment's open archive, created on the first archive step. */
-async function openArchive(
-  ctx: ArchiveContext,
-  destination: BackupDestination | null
-): Promise<EnvironmentArchive> {
+/**
+ * The environment's open archive, created on the first archive step at
+ * today's backup destination (its S3 connection is recorded, so later
+ * steps, downloads and the prune use that bucket even after the setting
+ * changes).
+ */
+async function openArchive(ctx: ArchiveContext): Promise<EnvironmentArchive> {
   const existing = await findOpenArchive(ctx.environmentId);
   if (existing) return existing;
+  const destination = await loadDestination(ctx);
   const snapshot = await loadArchiveSnapshot(ctx.environmentId);
   if (!snapshot) {
     throw new StepFailed("archiveFailed", "the environment is gone");
@@ -147,6 +179,7 @@ async function openArchive(
     deletedById: ctx.userId,
     expiresAt: new Date(Date.now() + ENV_ARCHIVE_RETENTION_DAYS * DAY_MS),
     location: destination ? "s3" : "local",
+    s3ConnectionId: destination?.connectionId ?? null,
     keyPrefix: destination
       ? `${ENV_ARCHIVE_PREFIX}${instance}/${id}/`
       : `${localArchiveDir(instance, id)}/`,
@@ -169,15 +202,10 @@ async function storeFile(
   name: string,
   produce: (path: string) => Promise<"written" | "missing">
 ): Promise<"stored" | "already" | "missing"> {
-  const destination = await loadDestination(ctx);
-  const archive = await openArchive(ctx, destination);
+  const archive = await openArchive(ctx);
   if (archive.files.some((file) => file.name === name)) return "already";
-  if (archive.location === "s3" && !destination) {
-    throw new StepFailed(
-      "archiveFailed",
-      "this archive goes to S3, but no backup destination is set any more"
-    );
-  }
+  const store =
+    archive.location === "s3" ? await archiveStore(ctx, archive) : null;
 
   // S3 files are staged under the local root too, never in /tmp (which may
   // be memory). Local files are written beside their final name.
@@ -194,7 +222,7 @@ async function storeFile(
       await rename(partial, join(dir, name));
     } else {
       try {
-        await destination?.store.upload(`${archive.keyPrefix}${name}`, partial);
+        await store?.upload(`${archive.keyPrefix}${name}`, partial);
       } catch (error) {
         throw new StepFailed(
           "archiveFailed",

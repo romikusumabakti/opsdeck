@@ -13,6 +13,7 @@ CREATE TABLE "environment_archives" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"expires_at" timestamp NOT NULL,
 	"location" "environment_archive_location" NOT NULL,
+	"s3_connection_id" uuid,
 	"key_prefix" text NOT NULL,
 	"files" jsonb DEFAULT '[]' NOT NULL,
 	"completed_at" timestamp
@@ -35,8 +36,10 @@ CREATE INDEX "environment_archives_environment_idx" ON "environment_archives" ("
 CREATE UNIQUE INDEX "environment_archives_open_idx" ON "environment_archives" ("environment_id") WHERE "completed_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "environment_archives_expires_at_idx" ON "environment_archives" ("expires_at");--> statement-breakpoint
 CREATE INDEX "environment_archives_deleted_by_idx" ON "environment_archives" ("deleted_by");--> statement-breakpoint
+CREATE INDEX "environment_archives_s3_connection_idx" ON "environment_archives" ("s3_connection_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "teardown_steps_environment_position_idx" ON "teardown_steps" ("environment_id","position");--> statement-breakpoint
 CREATE INDEX "teardown_steps_last_run_idx" ON "teardown_steps" ("last_run_id");--> statement-breakpoint
 ALTER TABLE "environment_archives" ADD CONSTRAINT "environment_archives_deleted_by_fkey" FOREIGN KEY ("deleted_by") REFERENCES "users"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "environment_archives" ADD CONSTRAINT "environment_archives_s3_connection_id_fkey" FOREIGN KEY ("s3_connection_id") REFERENCES "s3_connections"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "teardown_steps" ADD CONSTRAINT "teardown_steps_environment_id_fkey" FOREIGN KEY ("environment_id") REFERENCES "environments"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "teardown_steps" ADD CONSTRAINT "teardown_steps_last_run_id_fkey" FOREIGN KEY ("last_run_id") REFERENCES "runs"("id") ON DELETE SET NULL;

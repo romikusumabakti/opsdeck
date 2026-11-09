@@ -60,9 +60,10 @@ async function subjectFor(
 async function queueRun(
   environmentId: string,
   userId: string,
+  mode: "start" | "retry",
   beforeQueue?: () => Promise<void>
 ): Promise<{ runId: string }> {
-  const started = await startTeardownRun(environmentId, userId);
+  const started = await startTeardownRun(environmentId, userId, mode);
   if ("refusal" in started) refusal(409, started.refusal);
   try {
     await beforeQueue?.();
@@ -101,13 +102,10 @@ export async function startTeardown(
   if (production && input.confirmProduction !== true) {
     refusal(422, "productionConfirmRequired");
   }
-  if (
-    subject.hasEscrowedVariables &&
-    !(
-      input.confirmEscrowedDeletion === true &&
-      canOrg(orgRole, { integration: ["manage"] })
-    )
-  ) {
+  const escrowConfirmed =
+    input.confirmEscrowedDeletion === true &&
+    canOrg(orgRole, { integration: ["manage"] });
+  if (subject.hasEscrowedVariables && !escrowConfirmed) {
     throw await escrowRefusal();
   }
 
@@ -117,8 +115,18 @@ export async function startTeardown(
 
   const plan = (await buildTeardownPlan(environmentId)) ?? notFound();
   if ("refusal" in plan) refusal(409, plan.refusal);
-  return queueRun(environmentId, session.user.id, () =>
-    saveTeardownSteps(environmentId, plan.steps)
+  // The delete step checks escrow again when it runs (a variable may be
+  // escrowed meanwhile); it deletes escrowed variables only on this
+  // confirmation.
+  const steps = escrowConfirmed
+    ? plan.steps.map((step) =>
+        step.kind === "delete_environment"
+          ? { ...step, params: { confirmEscrowedDeletion: true as const } }
+          : step
+      )
+    : plan.steps;
+  return queueRun(environmentId, session.user.id, "start", () =>
+    saveTeardownSteps(environmentId, steps)
   );
 }
 
@@ -135,7 +143,7 @@ export async function retryTeardown(
   if (!state.planned) notFound();
   if (state.running) refusal(409, "teardownRunning");
   if (await environmentBusy(environmentId)) refusal(409, "environmentBusy");
-  return queueRun(environmentId, session.user.id);
+  return queueRun(environmentId, session.user.id, "retry");
 }
 
 export type TeardownStatus = {

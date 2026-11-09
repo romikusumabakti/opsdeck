@@ -4,6 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 const transaction = vi.fn();
 const update = vi.fn();
 const select = vi.fn();
+// The teardown guard (its SQL is covered on scratch): `blocks` says whether
+// a teardown is under way; `held` records the shared lock being taken.
+const guard = vi.hoisted(() => ({ blocks: false, held: [] as string[] }));
+vi.mock("@/lib/teardown/guard", () => ({
+  holdEnvironmentShared: async (_tx: unknown, environmentId: string) => {
+    guard.held.push(environmentId);
+  },
+  holdEnvironmentExclusive: async () => {},
+  teardownBlocks: async () => guard.blocks,
+}));
 vi.mock("@/lib/db", () => ({ db: { transaction, update, select } }));
 
 const {
@@ -916,5 +926,49 @@ describe("listServicesInDeployDir", () => {
       "frontend",
       "worker",
     ]);
+  });
+});
+
+describe("placement and release while a teardown is under way", () => {
+  it("places nothing, after taking the environment lock shared", async () => {
+    guard.blocks = true;
+    guard.held = [];
+    try {
+      for (const trigger of ["auto", "manual"] as const) {
+        const ops = recordingTx(() => []);
+        await expect(
+          placeDeployment({ ...placeInput, trigger })
+        ).resolves.toEqual({ kind: "tearingDown", released: null });
+        expect(ops).toEqual([]);
+      }
+      const ops = recordingTx(() => []);
+      await expect(placeDeploymentIfFlagged(placeInput)).resolves.toEqual({
+        kind: "tearingDown",
+        released: null,
+      });
+      expect(ops).toEqual([]);
+      expect(guard.held).toEqual([
+        placeInput.environmentId,
+        placeInput.environmentId,
+        placeInput.environmentId,
+      ]);
+    } finally {
+      guard.blocks = false;
+    }
+  });
+
+  it("releases the lock but queues none of the held builds", async () => {
+    guard.blocks = true;
+    try {
+      const ops = recordingTx((r) => (r.op === "delete" ? [activeLock] : []));
+      await expect(releaseDeployLock(ENV)).resolves.toEqual({
+        lock: activeLock,
+        queued: [],
+        superseded: [],
+      });
+      expect(ops.map((o) => o.op)).toEqual(["delete"]);
+    } finally {
+      guard.blocks = false;
+    }
   });
 });

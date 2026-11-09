@@ -7,16 +7,18 @@ import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
 import { enqueue } from "@/lib/queue";
-import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, dbConfig } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { sshTarget } from "@/lib/ssh-connect";
+import { TEARDOWN_ERRORS } from "@/lib/teardown/errors";
+import { createRunUnlessTearingDown } from "@/lib/teardown/guard";
 import type { Backup } from "@/lib/types";
 import {
   backupFilenameSchema,
   databaseNameSchema,
   uuidSchema,
 } from "@/lib/validation";
+import { CodedHTTPException } from "@/server/errors";
 import {
   filterAllowedBackups,
   requireAllowedBackup,
@@ -105,6 +107,21 @@ export async function getBackupList(
   }
 }
 
+/** The run of a backup or restore; 409 teardownRunning while one is under way. */
+async function createRunOrRefuse(
+  input: Parameters<typeof createRunUnlessTearingDown>[0]
+): Promise<string> {
+  const runId = await createRunUnlessTearingDown(input);
+  if (runId === null) {
+    throw new CodedHTTPException(
+      409,
+      "teardownRunning",
+      TEARDOWN_ERRORS.teardownRunning
+    );
+  }
+  return runId;
+}
+
 export async function createDatabaseBackup(
   environmentId: string,
   options: { compress?: boolean; database?: string } = {}
@@ -125,7 +142,7 @@ export async function createDatabaseBackup(
   await requireAllowedDatabaseNames(environment, session.user.role, [database]);
 
   const compress = options.compress ?? true;
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: compress
@@ -214,7 +231,7 @@ export async function restoreDatabaseBackup(
   }
 
   const isDefault = database === dbSvc.dbName;
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: options.restartBackend

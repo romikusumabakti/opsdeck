@@ -1017,6 +1017,21 @@ export async function updateEnvironment(
   // A shared database binding's server, container, engine and backup path
   // come from its host, before anything compares them with the stored ones.
   const input = await withDerivedDbBinding(parsed.data, stored);
+  // Only an admin may delete a production environment
+  // (environment-teardown), so only one may mark an environment as
+  // production or un-mark it: else an engineer re-marks it and deletes it.
+  if (
+    input.kind !== undefined &&
+    (input.kind === "prod") !== (stored.kind === "prod") &&
+    !canOrg(session.user.role, { server: ["manage"] })
+  ) {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(
+      403,
+      "environmentKindProductionAdminOnly",
+      t("environmentKindProductionAdminOnly")
+    );
+  }
   const removesService =
     (input.hasDatabase === false && hasService(stored, "db")) ||
     (input.hasFrontend === false && hasService(stored, "frontend"));

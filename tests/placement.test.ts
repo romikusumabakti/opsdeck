@@ -109,6 +109,7 @@ const state = vi.hoisted(() => ({
     id: string;
     projectId: string;
     ownerId: string | null;
+    kind?: string | null;
     services: Service[];
   },
   // Every requireProjectPermission call: [scope, perms].
@@ -549,6 +550,56 @@ describe("updateEnvironment placement", () => {
     expect(
       state.calls.some((c) => c.op === "select" && c.table === schema.servers)
     ).toBe(true);
+  });
+});
+
+describe("updateEnvironment kind and production", () => {
+  const updates = () => state.calls.filter((c) => c.op === "update");
+  // Deleting a production environment is for admins (server:manage), so is
+  // marking one as production or un-marking it: else an engineer re-marks
+  // it `dev` and deletes it.
+  it("refuses an engineer a change to or from prod, with a code", async () => {
+    state.projectRole = "engineer";
+    for (const [from, to] of [
+      ["prod", "dev"],
+      ["prod", null],
+      ["dev", "prod"],
+      [null, "prod"],
+    ] as const) {
+      state.stored.kind = from;
+      await expect(
+        updateEnvironment(ENV_ID, { kind: to })
+      ).rejects.toMatchObject({
+        status: 403,
+        code: "environmentKindProductionAdminOnly",
+      });
+    }
+    expect(updates()).toEqual([]);
+  });
+
+  it("lets an engineer re-send prod unchanged, or change other kinds", async () => {
+    state.projectRole = "engineer";
+    state.stored.kind = "prod";
+    expect(await updateEnvironment(ENV_ID, { kind: "prod" })).toMatchObject({
+      success: true,
+    });
+    expect(await updateEnvironment(ENV_ID, { name: "X" })).toMatchObject({
+      success: true,
+    });
+    state.stored.kind = "dev";
+    expect(await updateEnvironment(ENV_ID, { kind: "qa" })).toMatchObject({
+      success: true,
+    });
+  });
+
+  it("lets server:manage change it", async () => {
+    for (const orgRole of ["admin", "infra"]) {
+      state.orgRole = orgRole;
+      state.stored.kind = "prod";
+      expect(await updateEnvironment(ENV_ID, { kind: "dev" })).toMatchObject({
+        success: true,
+      });
+    }
   });
 });
 

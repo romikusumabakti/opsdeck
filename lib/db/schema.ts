@@ -864,6 +864,17 @@ export const environmentArchives = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     expiresAt: timestamp("expires_at").notNull(),
     location: environmentArchiveLocationEnum("location").notNull(),
+    // The S3 connection an `s3` archive was written to (null for `local`),
+    // so download and prune read the bucket it is in, not today's backup
+    // destination. set null: an `s3` archive without one is unreachable,
+    // and the prune keeps its row.
+    s3ConnectionId: uuid("s3_connection_id").references(
+      () => s3Connections.id,
+      {
+        name: "environment_archives_s3_connection_id_fkey",
+        onDelete: "set null",
+      }
+    ),
     keyPrefix: text("key_prefix").notNull(),
     files: jsonb("files")
       .$type<EnvironmentArchiveFile[]>()
@@ -879,6 +890,8 @@ export const environmentArchives = pgTable(
       .where(sql`${t.completedAt} IS NULL`),
     index("environment_archives_expires_at_idx").on(t.expiresAt),
     index("environment_archives_deleted_by_idx").on(t.deletedById),
+    // FK index: "on delete set null" scans by connection.
+    index("environment_archives_s3_connection_idx").on(t.s3ConnectionId),
   ]
 );
 

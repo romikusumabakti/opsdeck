@@ -1326,6 +1326,7 @@
     "noServerAvailable": "Tidak ada server yang tersedia untuk proyek ini. Minta admin menetapkan server default atau membuka satu server."
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "Hanya admin yang bisa menandai environment sebagai produksi atau mengubah jenis environment produksi.",
     "backupTargetsBlockDatabaseRemoval": "Matikan cadangan sebelum deploy pada target deploy lingkungan ini terlebih dahulu.",
     "nameAndEmailRequired": "Nama dan email wajib diisi",
     "domainNotAllowed": "Hanya email @{domain} yang diizinkan",
@@ -2917,7 +2918,8 @@
       "stackHostsSharedDatabase": "Stack ini menjalankan container database yang dipakai oleh database host bersama atau environment lain",
       "serverCommandFailed": "Perintah di server gagal. Periksa log run, lalu coba lagi",
       "cloudflareFailed": "Objek Cloudflare tidak dapat dihapus. Periksa log run, lalu coba lagi",
-      "stepFailed": "Langkah ini gagal secara tak terduga. Periksa log run, lalu coba lagi"
+      "stepFailed": "Langkah ini gagal secara tak terduga. Periksa log run, lalu coba lagi",
+      "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini."
     }
   },
   "environmentSetup": {
