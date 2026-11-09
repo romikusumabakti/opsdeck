@@ -161,6 +161,35 @@ describe("Adopt an existing hostname", () => {
     );
   });
 
+  it("shows a generic localized line for an unknown code, never the API's text", async () => {
+    api.adopt.mockRejectedValue(
+      new ApiError(500, "internal prose from the API", "somethingUnknown")
+    );
+    await render(<AdoptDomainForm environmentId={ENV} />);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[role='combobox']")?.textContent
+      ).toContain(t.adopt.tunnelPlaceholder)
+    );
+    await type("hostname", "demo-dms.dssconsulting.id");
+    await type("service", "http://dms-web:80");
+    await act(async () =>
+      container.querySelector<HTMLElement>("[role='combobox']")?.click()
+    );
+    const option = await vi.waitFor(() => {
+      const found = [...document.querySelectorAll("[role='option']")].find(
+        (o) => o.textContent?.includes("dss-apps-136")
+      ) as HTMLElement | undefined;
+      expect(found).toBeDefined();
+      return found as HTMLElement;
+    });
+    await act(async () => option.click());
+    await act(async () => container.querySelector("form")?.requestSubmit());
+    await vi.waitFor(() =>
+      expect(api.toast.error).toHaveBeenCalledWith(t.adopt.failed)
+    );
+  });
+
   it("checks the service shape before sending", async () => {
     await render(<AdoptDomainForm environmentId={ENV} />);
     await type("hostname", "demo.dssconsulting.id");

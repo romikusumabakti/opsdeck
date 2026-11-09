@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "@/i18n/navigation";
 import type { Environment } from "@/lib/db/schema";
 import { canOrg } from "@/lib/permissions";
+import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 import { ApiError } from "@/web/api/client";
 import {
   deleteEnvironment,
@@ -28,7 +29,7 @@ import {
   startTeardown,
 } from "@/web/api/environments";
 import { useMe } from "@/web/api/session";
-import { useTeardownErrorText } from "./teardown-banner";
+import { useTeardownErrorText } from "./use-teardown-error-text";
 
 const REMOVES = [
   "deleteRemovesContainers",
@@ -121,7 +122,7 @@ export function DeleteEnvironmentCard({
       }
     } catch (failure) {
       if (failure instanceof ApiError && failure.status !== 401) {
-        const message = errorText(failure.code, failure.message);
+        const message = errorText(failure.code, t("deleteFailed"));
         if (closed) toast.error(message);
         else setError(message);
         return;
@@ -146,9 +147,7 @@ export function DeleteEnvironmentCard({
         result = await deleteEnvironment(environment.id, true);
       }
       if (!result.success) {
-        const message = result.escrowed
-          ? errorText("environmentHasEscrowedVariables")
-          : (result.message ?? t("deleteFailed"));
+        const message = errorText(result.code, t("deleteFailed"));
         if (closed) toast.error(message);
         else setError(message);
         return;
@@ -181,7 +180,7 @@ export function DeleteEnvironmentCard({
             ))}
           </ul>
           <p className="text-sm text-muted-foreground">
-            {t("deleteBackupKept")}
+            {t("deleteBackupKept", { days: ENV_ARCHIVE_RETENTION_DAYS })}
           </p>
 
           {blocked ? (

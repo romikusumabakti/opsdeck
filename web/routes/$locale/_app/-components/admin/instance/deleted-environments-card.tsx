@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -45,7 +46,12 @@ export function DeletedEnvironmentsCard() {
           <p role="alert" className="text-sm text-destructive">
             {t("loadFailed")}
           </p>
-        ) : !archives.data ? null : archives.data.length === 0 ? (
+        ) : !archives.data ? (
+          <div className="flex flex-col gap-2" aria-busy="true">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : archives.data.length === 0 ? (
           <EmptyState icon={Archive} title={t("empty")} />
         ) : (
           <Table>

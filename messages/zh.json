@@ -920,14 +920,14 @@
     "deleteRemovesDatabase": "它的数据库",
     "deleteRemovesFolder": "它在服务器上的文件夹",
     "deleteRemovesAddress": "它的公开地址",
-    "deleteBackupKept": "备份会保留 30 天。管理员可在 管理员 → 实例 → 备份 中下载。",
+    "deleteBackupKept": "备份会保留 {days} 天。管理员可在 管理员 → 实例 → 备份 中下载。",
     "deleteConfirmLabel": "输入 {name} 以确认",
     "deleteConfirm": "删除",
     "deleteProductionEngineer": "这是生产环境。只有管理员可以删除它。",
     "deleteProductionConfirm": "这是生产环境。我确定要删除它。",
     "deleteStarted": "正在删除 {name}。进度显示在页面顶部。",
     "removeFromPanel": "仅从面板中移除",
-    "removeFromPanelDescription": "仅从面板中移除该环境。不会改动服务器或 Cloudflare 上的任何内容。",
+    "removeFromPanelDescription": "仅从面板中移除该环境。不会改动服务器或 Cloudflare 上的任何内容。在上方输入环境名称即可启用。",
     "removedFromPanel": "已从面板中移除 {name}"
   },
   "userMenu": {
@@ -2933,7 +2933,8 @@
       "serviceInvalid": "请输入源地址，例如 http://app:80",
       "submit": "采用主机名",
       "adopting": "正在采用…",
-      "adopted": "已采用 {hostname}"
+      "adopted": "已采用 {hostname}",
+      "failed": "无法采用该主机名"
     }
   },
   "teardown": {

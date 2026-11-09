@@ -52,6 +52,7 @@ vi.mock("@/components/live-run-dialog", () => ({
 
 import { DialogProvider } from "@/components/dialog-provider";
 import { ProjectRoleProvider } from "@/components/project-role";
+import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 import { ApiError } from "@/web/api/client";
 import { DeleteEnvironmentCard } from "../web/routes/$locale/_app/-components/env/delete-environment-card";
 import { TeardownBanner } from "../web/routes/$locale/_app/-components/env/teardown-banner";
@@ -67,6 +68,10 @@ let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
 async function render(node: React.ReactNode) {
+  await renderWithClient(node);
+}
+
+async function renderWithClient(node: React.ReactNode): Promise<QueryClient> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -84,6 +89,7 @@ async function render(node: React.ReactNode) {
       </QueryClientProvider>
     );
   });
+  return queryClient;
 }
 
 beforeEach(() => {
@@ -125,18 +131,21 @@ async function openDialog(kind: "dev" | "prod" = "dev") {
 }
 
 describe("Delete environment dialog", () => {
-  it("says what will be removed and that a backup is kept for 30 days", async () => {
+  it("says what will be removed and that a backup is kept for the retention days", async () => {
     await openDialog();
     for (const text of [
       t.deleteRemovesContainers,
       t.deleteRemovesDatabase,
       t.deleteRemovesFolder,
       t.deleteRemovesAddress,
-      t.deleteBackupKept,
     ]) {
       expect(body()).toContain(text);
     }
-    expect(t.deleteBackupKept).toContain("30");
+    // The number comes from ENV_ARCHIVE_RETENTION_DAYS, not the catalog.
+    expect(t.deleteBackupKept).toContain("{days");
+    expect(body()).toContain(
+      `A backup is kept for ${ENV_ARCHIVE_RETENTION_DAYS} days.`
+    );
   });
 
   it("keeps Delete disabled until the typed name matches", async () => {
@@ -162,6 +171,32 @@ describe("Delete environment dialog", () => {
     await type("#delete-environment-confirm", "Dev 1");
     await act(async () => button(t.deleteConfirm)?.click());
     expect(body()).toContain(tt.errors.deployDirShared);
+  });
+
+  it("shows a generic localized line for an unknown code, never the API's text", async () => {
+    api.startTeardown.mockRejectedValue(
+      new ApiError(500, "internal prose from the API", "somethingUnknown")
+    );
+    await openDialog();
+    await type("#delete-environment-confirm", "Dev 1");
+    await act(async () => button(t.deleteConfirm)?.click());
+    expect(body()).toContain(t.deleteFailed);
+    expect(body()).not.toContain("internal prose from the API");
+  });
+
+  it("shows Remove from Panel only's refusal by its code", async () => {
+    api.orgRole = "admin";
+    api.deleteEnvironment.mockResolvedValue({
+      success: false,
+      message: "The environment is already being deleted",
+      code: "teardownRunning",
+    });
+    await openDialog();
+    await act(async () => button(messages.setup.advancedOptions)?.click());
+    await type("#delete-environment-confirm", "Dev 1");
+    await act(async () => button(t.removeFromPanel)?.click());
+    expect(body()).toContain(tt.errors.teardownRunning);
+    expect(api.push).not.toHaveBeenCalled();
   });
 
   it("offers Remove from Panel only to admins alone, under Advanced options", async () => {
@@ -298,10 +333,134 @@ describe("Teardown banner", () => {
     expect(api.cancelTeardown).toHaveBeenCalledWith(ENV);
   });
 
-  it("goes to the project page once the environment is gone", async () => {
+  it("asks an integration:manage admin to confirm escrowed deletion on retry", async () => {
+    api.orgRole = "admin";
+    api.getTeardown.mockResolvedValue({
+      runId: RUN,
+      running: false,
+      cancellable: false,
+      steps: [
+        step("remove_deploy_dir", "done"),
+        step("delete_environment", "failed", "environmentHasEscrowedVariables"),
+      ],
+    });
+    api.retryTeardown.mockResolvedValue({ runId: RUN });
+    await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
+    await vi.waitFor(() => expect(button(tt.banner.retry)).not.toBeUndefined());
+    await act(async () => button(tt.banner.retry)?.click());
+    await vi.waitFor(() => expect(body()).toContain(t.deleteEscrowedTitle));
+    await act(async () => button(messages.common.delete)?.click());
+    await vi.waitFor(() =>
+      expect(api.retryTeardown).toHaveBeenCalledWith(ENV, {
+        confirmEscrowedDeletion: true,
+      })
+    );
+  });
+
+  it("retries plainly for an engineer stopped by escrowed variables", async () => {
+    api.getTeardown.mockResolvedValue({
+      runId: RUN,
+      running: false,
+      cancellable: false,
+      steps: [
+        step("delete_environment", "failed", "environmentHasEscrowedVariables"),
+      ],
+    });
+    api.retryTeardown.mockResolvedValue({ runId: RUN });
+    await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
+    await vi.waitFor(() => expect(button(tt.banner.retry)).not.toBeUndefined());
+    await act(async () => button(tt.banner.retry)?.click());
+    expect(api.retryTeardown).toHaveBeenCalledWith(ENV);
+  });
+});
+
+describe("Teardown banner polling and the end of a teardown", () => {
+  const running = {
+    runId: RUN,
+    running: true,
+    cancellable: false,
+    steps: [step("delete_environment", "running")],
+  };
+  const stopped = {
+    ...running,
+    running: false,
+    steps: [step("delete_environment", "failed", "stepFailed")],
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("polls while running and stops once the teardown has stopped", async () => {
+    api.getTeardown
+      .mockResolvedValueOnce(running)
+      .mockResolvedValueOnce(running)
+      .mockResolvedValue(stopped);
+    await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain(tt.banner.runningTitle)
+    );
+    expect(api.getTeardown).toHaveBeenCalledTimes(1);
+    await advance(3000);
+    expect(api.getTeardown).toHaveBeenCalledTimes(2);
+    await advance(3000);
+    expect(api.getTeardown).toHaveBeenCalledTimes(3);
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain(tt.banner.failedTitle)
+    );
+    await advance(15_000);
+    expect(api.getTeardown).toHaveBeenCalledTimes(3);
+  });
+
+  it("says deleted and goes to the project page when a running teardown's environment is gone", async () => {
+    api.getTeardown
+      .mockResolvedValueOnce(running)
+      .mockRejectedValue(new ApiError(404, "Not found"));
+    await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain(tt.banner.runningTitle)
+    );
+    await advance(3000);
+    await vi.waitFor(() => expect(api.push).toHaveBeenCalledWith("/HRIS"));
+    expect(api.toast.success).toHaveBeenCalledTimes(1);
+    expect(api.toast.success).toHaveBeenCalledWith(tt.banner.deleted);
+  });
+
+  it("says nothing for a 404 without a running teardown (no access, or removed from the Panel)", async () => {
     api.getTeardown.mockRejectedValue(new ApiError(404, "Not found"));
     await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
-    await vi.waitFor(() => expect(api.push).toHaveBeenCalledWith("/HRIS"));
+    await advance(10_000);
+    expect(api.getTeardown).toHaveBeenCalled();
+    expect(api.push).not.toHaveBeenCalled();
+    expect(api.toast.success).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when a stopped teardown's environment is removed from the Panel", async () => {
+    api.getTeardown
+      .mockResolvedValueOnce(stopped)
+      .mockRejectedValue(new ApiError(404, "Not found"));
+    const client = await renderWithClient(
+      <TeardownBanner environmentId={ENV} projectKey="HRIS" />
+    );
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain(tt.banner.failedTitle)
+    );
+    // The card's mutation refetches the query; the environment is gone.
+    await act(async () => {
+      await client.refetchQueries();
+    });
+    await advance(1000);
+    expect(api.push).not.toHaveBeenCalled();
+    expect(api.toast.success).not.toHaveBeenCalled();
   });
 });
 

@@ -27,7 +27,7 @@ import { ingressServiceSchema, isFqdn } from "@/lib/domains/validation";
 import { ApiError } from "@/web/api/client";
 import { adoptEnvironmentDomain } from "@/web/api/environment-domains";
 import { remoteTunnelsQuery } from "@/web/api/remote-tunnels";
-import { useTeardownErrorText } from "../teardown-banner";
+import { useTeardownErrorText } from "../use-teardown-error-text";
 
 const isDomainErrorCode = (code: string): code is DomainErrorCode =>
   Object.hasOwn(DOMAIN_ERRORS, code);
@@ -65,7 +65,7 @@ export function AdoptDomainForm({ environmentId }: { environmentId: string }) {
     if (error.code && isDomainErrorCode(error.code)) {
       return t(`errors.${error.code}`);
     }
-    return teardownErrorText(error.code, error.message);
+    return teardownErrorText(error.code, t("adopt.failed"));
   }
 
   async function onSubmit(values: Values) {
