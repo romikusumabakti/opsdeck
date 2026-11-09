@@ -207,6 +207,7 @@ describe("provisionSharedDatabase", () => {
     role: "pcan_sandbox1",
     password: "Very$ecret-pw",
     environmentId: ENV_ID,
+    runId: "01a157b8-794f-7f5c-8a72-59f1cdc68099",
   };
   let logged: unknown[][];
 

@@ -167,6 +167,8 @@ export async function provisionSharedDatabase(
     role: string;
     password: string;
     environmentId: string;
+    // The provisioning run, recorded with a host key its connection pins.
+    runId: string;
   }
 ): Promise<void> {
   if (!/^[\x20-\x7e]+$/.test(input.password)) {
@@ -181,7 +183,7 @@ export async function provisionSharedDatabase(
     verifier,
     environmentId: input.environmentId,
   });
-  const creds = sshTarget(host.server);
+  const creds = { ...sshTarget(host.server), run: input.runId };
   const container = shq(host.containerName);
   const secrets = [input.password, verifier];
   try {

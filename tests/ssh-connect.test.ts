@@ -324,6 +324,29 @@ describe("host key pinning", () => {
     ]);
   });
 
+  it("a background run's pin and mismatch are recorded for system and the run", async () => {
+    await executeRemoteCommand(target(sshdA, { run: "run-9" }), "true");
+    await expect(
+      executeRemoteCommand(target(sshdB, { run: "run-10" }), "true")
+    ).rejects.toMatchObject({ code: "hostKeyMismatch" });
+    expect(state.activity).toEqual([
+      expect.objectContaining({
+        actorId: null,
+        action: "server.hostKeyPinned",
+        data: {
+          server: "web-1",
+          fingerprint: sshFingerprint(blobA),
+          run: "run-9",
+        },
+      }),
+      expect.objectContaining({
+        actorId: null,
+        action: "server.hostKeyMismatch",
+        data: expect.objectContaining({ run: "run-10" }),
+      }),
+    ]);
+  });
+
   it("accepts pinned key", async () => {
     state.servers = [serverRow(pinnedTo(blobA))];
 

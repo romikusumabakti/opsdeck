@@ -30,6 +30,7 @@ const state = vi.hoisted(() => ({
   hookTakesBuild: false,
   deployError: null as unknown,
   sshCommands: [] as string[],
+  sshRuns: [] as unknown[],
   listError: false,
   runMissing: false,
 }));
@@ -116,8 +117,9 @@ vi.mock("@/lib/environments", () => ({
   }),
 }));
 vi.mock("@/lib/ssh", () => ({
-  executeRemoteCommand: async (_c: unknown, command: string) => {
+  executeRemoteCommand: async (c: { run?: string }, command: string) => {
     state.sshCommands.push(command);
+    state.sshRuns.push(c.run);
     return "";
   },
   redactSecrets: (m: string, secrets: string[]) =>
@@ -189,6 +191,7 @@ beforeEach(() => {
   state.failures = [];
   state.run = null;
   state.sshCommands = [];
+  state.sshRuns = [];
   state.listError = false;
   state.runMissing = false;
   state.variable = { kind: "generated", value: PASSWORD };
@@ -213,6 +216,7 @@ describe("runProvisioning", () => {
     expect(state.sshCommands[0]).toBe(
       "[ -d '/opt/hris app' ] || install -d -m 0750 '/opt/hris app'"
     );
+    expect(new Set(state.sshRuns)).toEqual(new Set([RUN_ID]));
     expect(requestFlaggedDeployment).toHaveBeenCalledWith({
       targetId: "t1",
       tag: "main-abc",

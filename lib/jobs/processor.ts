@@ -140,7 +140,7 @@ export async function handleCreateDatabaseBackup(
   // validated any non-default `database` against databaseNameSchema.
   const dbName = database ?? db.dbName;
 
-  const credentials = sshTarget(db.server);
+  const credentials = { ...sshTarget(db.server), run: runId };
 
   try {
     await tracked(runId, "Ensuring backup directory exists", async () => {
@@ -339,7 +339,7 @@ async function handleMockEnvironmentTimeLegacy(
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const backend = backendService(environment);
 
-  const credentials = sshTarget(backend.server);
+  const credentials = { ...sshTarget(backend.server), run: runId };
 
   // `date -s` expects "YYYY-MM-DD HH:MM:SS"; convert from ISO so the shell
   // gets a clean argument and we don't depend on the remote host's locale.
@@ -424,7 +424,7 @@ async function handleMockEnvironmentTimeResetLegacy(
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const backend = backendService(environment);
 
-  const credentials = sshTarget(backend.server);
+  const credentials = { ...sshTarget(backend.server), run: runId };
 
   const sudo = (cmd: string) => privileged(cmd, credentials);
 
@@ -510,12 +510,15 @@ async function transferBackupToTarget(
   sourceEnvironment: EnvironmentWithServers,
   targetProject: EnvironmentWithServers,
   filename: string,
-  stamp: string
+  // The restore's run: its connections are made for it, and it names the
+  // temp files.
+  runId: string
 ): Promise<() => Promise<void>> {
+  const stamp = runId;
   const sourceDb = dbConfig(sourceEnvironment);
   const targetDb = dbConfig(targetProject);
-  const srcCreds = sshTarget(sourceDb.server);
-  const dstCreds = sshTarget(targetDb.server);
+  const srcCreds = { ...sshTarget(sourceDb.server), run: runId };
+  const dstCreds = { ...sshTarget(targetDb.server), run: runId };
   const srcHostTmp = `/tmp/opsdeck-restore-src-${stamp}`;
   const dstHostTmp = `/tmp/opsdeck-restore-dst-${stamp}`;
   const localTmp = join(tmpdir(), `opsdeck-restore-${stamp}`);
@@ -588,7 +591,7 @@ async function handleRestoreDatabaseBackup(
   // Restore target — the configured database unless the picker sent another
   // one (already validated by the action layer).
   const dbName = database ?? db.dbName;
-  const credentials = sshTarget(db.server);
+  const credentials = { ...sshTarget(db.server), run: runId };
 
   if (!filename) throw new Error("Filename is required");
 
@@ -692,7 +695,7 @@ async function handleRestoreDatabaseBackup(
         runId,
         `Restarting backend ${backend.serviceName}`,
         async () => {
-          const backendCreds = sshTarget(backend.server);
+          const backendCreds = { ...sshTarget(backend.server), run: runId };
           const cmd = buildControlCommand(
             backend.serviceType,
             backend.serviceName,
@@ -827,7 +830,7 @@ async function handleControlService(
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const cfg = getServiceConfig(environment, role);
-  const credentials = sshTarget(cfg.server);
+  const credentials = { ...sshTarget(cfg.server), run: runId };
 
   try {
     await tracked(
@@ -920,7 +923,7 @@ async function handleCreateDatabase(
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const db = dbConfig(environment);
-  const credentials = sshTarget(db.server);
+  const credentials = { ...sshTarget(db.server), run: runId };
 
   try {
     if (!database) throw new Error("Database name is required");
@@ -1001,7 +1004,7 @@ async function handleDropDatabase(
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const db = dbConfig(environment);
-  const credentials = sshTarget(db.server);
+  const credentials = { ...sshTarget(db.server), run: runId };
 
   try {
     if (!database) throw new Error("Database name is required");
@@ -1090,7 +1093,7 @@ async function handleRenameDatabase(
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error(`Environment ${environmentId} not found`);
   const db = dbConfig(environment);
-  const credentials = sshTarget(db.server);
+  const credentials = { ...sshTarget(db.server), run: runId };
 
   try {
     if (!from || !to) throw new Error("Source and target names are required");

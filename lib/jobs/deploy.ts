@@ -252,8 +252,9 @@ async function runClaimedDeployment(
   if (!component) {
     throw new Error(`Component ${target.componentKey} not found`);
   }
-  const credentials = await loadServerCredentials(target.serverId);
-  if (!credentials) throw new Error(`Server ${target.serverId} not found`);
+  const loaded = await loadServerCredentials(target.serverId);
+  if (!loaded) throw new Error(`Server ${target.serverId} not found`);
+  const credentials = { ...loaded, run: runId };
 
   // A managed environment gets its whole .env rendered from the Panel's
   // variables; null leaves the deploy exactly as it was before (tag line only).

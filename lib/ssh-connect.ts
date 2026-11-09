@@ -29,6 +29,9 @@ export type SshTarget = {
   username: string;
   password: string | null;
   auth: "password" | "key";
+  // The run (runs.id) a background job connects for: a host key it pins or
+  // runs into is recorded for "system" and this run.
+  run?: string;
 };
 
 /** The target for a server row; the password must already be decrypted. */
@@ -309,7 +312,7 @@ async function checkHostKey(
         data: {
           server: pin.name,
           fingerprint: observed.fingerprint,
-          ...(opts.job ? { job: opts.job } : {}),
+          ...ranBy(target, opts),
         },
       });
       return;
@@ -354,11 +357,19 @@ async function checkHostKey(
         server: pin.name,
         fingerprint: observed.fingerprint,
         pinned: pin.hostKeyFingerprint ?? "",
-        ...(opts.job ? { job: opts.job } : {}),
+        ...ranBy(target, opts),
       },
     });
   }
   throw new HostKeyMismatchError(observed.fingerprint, pin.hostKeyFingerprint);
+}
+
+/** The background job or run a pin or mismatch is recorded with. */
+function ranBy(target: SshTarget, opts: ConnectOptions) {
+  return {
+    ...(opts.job ? { job: opts.job } : {}),
+    ...(target.run ? { run: target.run } : {}),
+  };
 }
 
 function actorId(opts: ConnectOptions): string | null {
