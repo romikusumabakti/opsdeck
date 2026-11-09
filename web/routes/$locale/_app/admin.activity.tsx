@@ -306,6 +306,18 @@ function message(
         server: String(d.server),
         fingerprint: String(d.fingerprint),
       });
+    case "server.keyInstalled":
+      return t("serverKeyInstalled", {
+        actor,
+        server: String(d.server),
+        from: String(d.from),
+      });
+    case "server.keyReinstalled":
+      return t("serverKeyReinstalled", {
+        actor,
+        server: String(d.server),
+        from: String(d.from),
+      });
     case "database_host.create":
       return t("databaseHostCreated", {
         actor,
