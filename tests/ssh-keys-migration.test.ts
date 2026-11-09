@@ -51,3 +51,24 @@ describe("ssh keys migration", () => {
     }
   });
 });
+
+describe("ssh key jobs migration", () => {
+  const jobs = readFileSync(
+    "drizzle/20261112000000_ssh_key_jobs/migration.sql",
+    "utf8"
+  );
+
+  it("follows the migrator rules and is expand only", () => {
+    expect(jobs).not.toMatch(/\b(BEGIN|COMMIT)\b/);
+    expect(jobs).toMatch(/^(--.*\n)*SET LOCAL lock_timeout = '5s';/);
+    expect(jobs).not.toMatch(/\bDROP\b/);
+  });
+
+  it("allows one open job at most, of either kind", () => {
+    expect(jobs).toContain('CREATE TABLE "ssh_key_jobs"');
+    expect(jobs).toContain(
+      `CREATE UNIQUE INDEX "ssh_key_jobs_one_open_idx" ON "ssh_key_jobs" ((true)) WHERE finished_at is null`
+    );
+    expect(jobs).toContain(`CHECK ("kind" in ('moveAll', 'rotate'))`);
+  });
+});

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { BlockList, isIP } from "node:net";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { utils } from "ssh2";
 import { db, pgClient } from "@/lib/db";
 import { sshKeys } from "@/lib/db/schema";
@@ -15,7 +15,7 @@ export function generateInstanceKey(): {
   privateKeyPem: string;
   fingerprint: string;
 } {
-  const pair = utils.generateKeyPairSync("ed25519");
+  const pair = parseableKeyPair();
   const publicKey = pair.public.trim();
   const parsed = utils.parseKey(publicKey);
   if (parsed instanceof Error) throw parsed;
@@ -27,6 +27,19 @@ export function generateInstanceKey(): {
     privateKeyPem: pair.private,
     fingerprint: sshFingerprint(blob),
   };
+}
+
+// ssh2's generator now and then (about 1 in 250, measured under Bun and Node)
+// emits an ed25519 private key its own parser rejects as malformed; such a key
+// could never sign in, and a rotation to it would fail on every server.
+const KEYGEN_ATTEMPTS = 20;
+
+function parseableKeyPair(): { public: string; private: string } {
+  for (let attempt = 0; attempt < KEYGEN_ATTEMPTS; attempt++) {
+    const pair = utils.generateKeyPairSync("ed25519");
+    if (!(utils.parseKey(pair.private) instanceof Error)) return pair;
+  }
+  throw new Error("could not generate a usable ed25519 key");
 }
 
 /** OpenSSH's `SHA256:<base64, unpadded>` fingerprint of a public key blob. */
@@ -214,36 +227,165 @@ export function fromAddress(
 export const SERVER_KEY_LOCK_CLASS = 1936943211;
 
 /**
- * Takes the lock that serialises key operations on one server (move,
- * reinstall, move-all, rotate) across every process. Resolves to its release,
- * or to null when another operation holds it. Session-level, on a reserved
- * connection held for the run, so a crashed process releases it with its
- * connection.
+ * The lock of the instance's key jobs (move all, rotate): class "sshj", object
+ * 0. One lock for both kinds, so a move-all never runs during a rotation.
  */
-export async function serverKeyLock(
-  serverId: string
+export const KEY_JOB_LOCK = { classId: 1936943210, objId: 0 };
+
+type Reserved = Awaited<ReturnType<ReturnType<typeof pgClient>["reserve"]>>;
+
+/**
+ * A connection whose lock query failed may still hold the lock (the reply may
+ * be what was lost), and a dead one must not be handed out again: either way
+ * it never goes back to the pool. Ending its session drops every lock with
+ * it; postgres.js then reconnects that pool slot on its own.
+ */
+async function discard(conn: Reserved) {
+  try {
+    await conn`select pg_terminate_backend(pg_backend_pid())`;
+  } catch {
+    // Expected: the server ends the session while answering, or it was gone.
+  }
+}
+
+/**
+ * A session-level advisory lock on a reserved connection held for the run, so
+ * a crashed process releases it with its connection. Resolves to its release,
+ * or to null when another session holds it.
+ */
+async function sessionLock(
+  take: (conn: Reserved) => Promise<{ locked: boolean }[]>,
+  drop: (conn: Reserved) => Promise<unknown>
 ): Promise<(() => Promise<void>) | null> {
   const conn = await pgClient().reserve();
   try {
-    const [row] = await conn<{ locked: boolean }[]>`
-      select pg_try_advisory_lock(
-        ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
-      ) as locked`;
+    const [row] = await take(conn);
     if (!row?.locked) {
       conn.release();
       return null;
     }
   } catch (error) {
-    conn.release();
+    await discard(conn);
     throw error;
   }
   return async () => {
     try {
-      await conn`select pg_advisory_unlock(
-        ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
-      )`;
-    } finally {
-      conn.release();
+      await drop(conn);
+    } catch (error) {
+      await discard(conn);
+      throw error;
     }
+    conn.release();
   };
+}
+
+/**
+ * Takes the lock that serialises key operations on one server (move,
+ * reinstall, move-all, rotate) across every process. Resolves to its release,
+ * or to null when another operation holds it.
+ */
+export function serverKeyLock(
+  serverId: string
+): Promise<(() => Promise<void>) | null> {
+  return sessionLock(
+    (conn) => conn<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(
+        ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
+      ) as locked`,
+    (conn) => conn`select pg_advisory_unlock(
+      ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
+    )`
+  );
+}
+
+/**
+ * Takes the instance's key-job lock, held by the worker for a whole move-all
+ * or rotation. Resolves to its release, or to null when a job holds it.
+ */
+export function keyJobLock(): Promise<(() => Promise<void>) | null> {
+  return sessionLock(
+    (conn) => conn<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(
+        ${KEY_JOB_LOCK.classId}::int, ${KEY_JOB_LOCK.objId}::int
+      ) as locked`,
+    (conn) => conn`select pg_advisory_unlock(
+      ${KEY_JOB_LOCK.classId}::int, ${KEY_JOB_LOCK.objId}::int
+    )`
+  );
+}
+
+/** Whether any session holds the key-job lock (a job is running). */
+export async function keyJobLockHeld(): Promise<boolean> {
+  const [row] = await pgClient()<{ held: boolean }[]>`
+    select exists(
+      select 1 from pg_locks
+      where locktype = 'advisory' and granted and objsubid = 2
+        and classid = ${KEY_JOB_LOCK.classId}::oid
+        and objid = ${KEY_JOB_LOCK.objId}::oid
+    ) as held`;
+  return row?.held === true;
+}
+
+// --- Rotation ----------------------------------------------------------------
+
+export type InstanceKey = {
+  id: string;
+  publicKey: string;
+  fingerprint: string;
+};
+
+/**
+ * The keys a rotation works with. With a `previous` key already there (an
+ * earlier rotation left servers on it) that rotation is resumed and no key is
+ * generated; otherwise a new key becomes `current` and the old one `previous`,
+ * in one transaction (the partial unique index allows one current key).
+ */
+export async function beginRotation(): Promise<{
+  current: InstanceKey;
+  previous: InstanceKey;
+}> {
+  const pick = (r: InstanceKey) => ({
+    id: r.id,
+    publicKey: r.publicKey,
+    fingerprint: r.fingerprint,
+  });
+  const [unfinished] = await db
+    .select()
+    .from(sshKeys)
+    .where(eq(sshKeys.status, "previous"))
+    .limit(1);
+  if (unfinished) {
+    return { current: await ensureCurrentKey(), previous: pick(unfinished) };
+  }
+
+  const old = await ensureCurrentKey();
+  const key = generateInstanceKey();
+  const created = await db.transaction(async (tx) => {
+    const demoted = await tx
+      .update(sshKeys)
+      .set({ status: "previous" })
+      .where(and(eq(sshKeys.id, old.id), eq(sshKeys.status, "current")))
+      .returning({ id: sshKeys.id });
+    if (demoted.length === 0) throw new Error("the current ssh key changed");
+    const [row] = await tx
+      .insert(sshKeys)
+      .values({
+        publicKey: key.publicKey,
+        privateKey: encryptSecret(key.privateKeyPem),
+        fingerprint: key.fingerprint,
+        status: "current",
+      })
+      .returning();
+    if (!row) throw new Error("ssh key insert returned nothing");
+    return row;
+  });
+  return { current: pick(created), previous: old };
+}
+
+/** Marks a `previous` key `retired`: no server signs in with it any more. */
+export async function retireKey(keyId: string): Promise<void> {
+  await db
+    .update(sshKeys)
+    .set({ status: "retired" })
+    .where(and(eq(sshKeys.id, keyId), eq(sshKeys.status, "previous")));
 }

@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import ssh2 from "ssh2";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rows: Record<string, unknown>[] = [];
@@ -77,6 +78,25 @@ beforeEach(() => {
 });
 
 describe("generateInstanceKey", () => {
+  it("skips a generated private key that does not parse", () => {
+    const real = ssh2.utils.generateKeyPairSync;
+    const good = real("ed25519");
+    const spy = vi
+      .spyOn(ssh2.utils, "generateKeyPairSync")
+      .mockReturnValueOnce({
+        public: good.public,
+        private:
+          "-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----\n",
+      })
+      .mockReturnValueOnce(good);
+    try {
+      expect(generateInstanceKey().privateKeyPem).toBe(good.private);
+      expect(spy).toHaveBeenCalledTimes(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("generates an ed25519 key", () => {
     const k = generateInstanceKey();
     expect(k.publicKey.startsWith("ssh-ed25519 ")).toBe(true);
