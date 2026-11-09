@@ -179,10 +179,24 @@ Valkey publishes no host port, so background jobs only run in host dev if `REDIS
 | `bun run typecheck`          | `tsc --noEmit`                                    |
 | `bun run lint` / `format` / `check` | Biome                                       |
 | `bun run db:generate`        | Generate a migration from `lib/db/schema.ts`      |
-| `bun run db:migrate`         | Apply pending migrations in `drizzle/`            |
+| `bun run db:migrate`         | Apply pending migrations in `drizzle/` (`opsdeck migrate`) |
 | `bun run db:studio`          | Drizzle Studio                                    |
 
 CI (`.github/workflows/ci.yml`) runs `biome ci`, the typecheck, the tests and a production build on every push and pull request.
+
+### Database migrations
+
+Migrations live in `drizzle/<timestamp>_<name>/migration.sql` and run only through Drizzle's migrator: `opsdeck migrate` in the image (`bun dist/cli.js migrate`), `bun run db:migrate` locally. It applies every folder not yet recorded in `drizzle.__drizzle_migrations`, in folder-name order, all in one transaction.
+
+- `drizzle/00000000000000_baseline` is the whole schema up to November 2026 plus the default labels. A fresh database starts from it.
+- `drizzle-legacy/` holds the 53 migrations the baseline replaced. It is history only: nothing runs it, and the image does not include it.
+- A database that was built by the legacy migrations is taken over with `opsdeck migrate --adopt`. It builds the baseline in a throwaway database, compares both `pg_dump --schema-only` outputs, and then records the baseline as applied without running it. If the schemas differ, it exits with code 2 and prints the first 20 differing statements. It needs `pg_dump` and permission to create databases.
+
+Rules for every new migration:
+
+- Write the schema change in `lib/db/schema.ts` and run `bun run db:generate`. It diffs against the latest `snapshot.json`. Then edit the SQL as needed.
+- Start the file with `SET LOCAL lock_timeout = '5s';`. Never put `BEGIN`/`COMMIT` in a file, because the migrator already wraps the run in a transaction.
+- Expand/contract only: never drop or rename anything the previous release still reads. Drop it in a later release.
 
 ### Translations
 
@@ -195,7 +209,9 @@ web/              The SPA: TanStack Router file routes (web/routes), API client,
 server/           The Hono API: routes, services, middleware, static serving
 components/       UI components (shadcn/ui in components/ui)
 lib/              Domain logic: db schema, auth, jobs, jira, terminal, tunnels, mailpit, explorer
-drizzle/          SQL migrations
+drizzle/          SQL migrations (baseline + newer), run by `opsdeck migrate`
+drizzle-legacy/   The migrations squashed into the baseline (history only)
+scripts/          The opsdeck CLI (scripts/cli.ts) and one-off ops scripts
 messages/         i18n message catalogs
 tests/            Vitest suites + fixtures
 docs/             Design docs and guides

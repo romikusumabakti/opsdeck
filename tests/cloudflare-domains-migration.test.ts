@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  "drizzle/20261106000000_cloudflare_domains/migration.sql",
+  "drizzle-legacy/20261106000000_cloudflare_domains/migration.sql",
   "utf8"
 );
 

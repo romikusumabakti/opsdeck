@@ -19,5 +19,7 @@ dist
 tests
 # Source PNGs for scripts/build-motifs.mjs only; never needed by the image.
 design
+# Legacy migrations: history only, never run (the baseline replaces them).
+drizzle-legacy
 *.tsbuildinfo
 README.md

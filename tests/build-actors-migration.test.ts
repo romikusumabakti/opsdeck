@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  "drizzle/20261105040000_build_actors/migration.sql",
+  "drizzle-legacy/20261105040000_build_actors/migration.sql",
   "utf8"
 );
 // The statements only, without comments.
