@@ -178,7 +178,7 @@ export async function testServerConnection(input: {
       .where(eq(servers.id, input.serverId))
       .limit(1);
     if (!row) return { ok: false, message: t("serverNotFound") };
-    password = decryptSecret(row.password);
+    password = decryptSecret(row.password ?? "");
   }
 
   if (!password) {

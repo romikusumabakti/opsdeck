@@ -45,7 +45,7 @@ const { fetch, websocket, registry } = createTerminalHandlers({
       name: row.name,
       host: row.host,
       username: row.username,
-      password: decryptSecret(row.password),
+      password: decryptSecret(row.password ?? ""),
     };
   },
 

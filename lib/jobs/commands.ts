@@ -694,7 +694,7 @@ export type CommandTargetEnvironment = {
     dbType: DatabaseType | null;
     dbName: string | null;
     dbBackupPath: string | null;
-    server: { host: string; username: string; password: string };
+    server: { host: string; username: string; password: string | null };
   }[];
 };
 
@@ -716,7 +716,7 @@ export function buildExtractCommand(
     `cat ${shq(filePath)}`,
     {
       runAsUser: dbOsUser(db.dbType),
-      sudoPassword: db.server.password,
+      sudoPassword: db.server.password ?? "",
     }
   );
   return `${inner} > ${shq(hostTmp)}`;
@@ -755,7 +755,7 @@ export function buildPlaceCommand(
     `cp ${shq(hostTmp)} ${shq(dst)}; ` +
     `chown ${user}:${user} ${shq(dst)}; ` +
     `chmod 644 ${shq(dst)}`;
-  return `printf '%s\\n' ${shq(db.server.password)} | sudo -S bash -c ${shq(script)}`;
+  return `printf '%s\\n' ${shq(db.server.password ?? "")} | sudo -S bash -c ${shq(script)}`;
 }
 
 /**
@@ -774,5 +774,5 @@ export function buildRemovePlacedCommand(
   if (db.serviceType === "kubernetes") {
     return `kubectl exec deploy/${shq(name)} -- rm -f ${shq(dst)}`;
   }
-  return `printf '%s\\n' ${shq(db.server.password)} | sudo -S rm -f ${shq(dst)}`;
+  return `printf '%s\\n' ${shq(db.server.password ?? "")} | sudo -S rm -f ${shq(dst)}`;
 }

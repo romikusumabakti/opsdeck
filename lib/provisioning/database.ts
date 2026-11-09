@@ -183,7 +183,7 @@ export async function provisionSharedDatabase(
   const creds = {
     host: host.server.host,
     username: host.server.username,
-    password: host.server.password,
+    password: host.server.password ?? "",
   };
   const container = shq(host.containerName);
   const secrets = [input.password, verifier];

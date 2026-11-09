@@ -101,7 +101,7 @@ export const serviceLogsRouter = sessionRouter().get(
       cfg.serviceType,
       cfg.serviceName,
       lines,
-      cfg.server.password
+      cfg.server.password ?? ""
     );
     const startedAt = Date.now();
 
@@ -125,7 +125,7 @@ export const serviceLogsRouter = sessionRouter().get(
           {
             host: cfg.server.host,
             username: cfg.server.username,
-            password: cfg.server.password,
+            password: cfg.server.password ?? "",
           },
           command,
           {

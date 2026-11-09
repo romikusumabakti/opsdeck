@@ -41,7 +41,7 @@ async function probeServiceStatus(
       {
         host: cfg.server.host,
         username: cfg.server.username,
-        password: cfg.server.password,
+        password: cfg.server.password ?? "",
       },
       buildStatusCommand(cfg.serviceType, cfg.serviceName)
     );

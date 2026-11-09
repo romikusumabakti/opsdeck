@@ -49,7 +49,7 @@ export async function loadServerCredentials(
   const server = await db.query.servers.findFirst({ where: { id: serverId } });
   if (!server) return null;
   const { host, username, password } = decryptServer(server);
-  return { host, username, password };
+  return { host, username, password: password ?? "" };
 }
 
 // The owner fields every environment view reads (see EnvironmentOwner).
@@ -92,7 +92,7 @@ function decryptService(service: ServiceWithServer): ServiceWithServer {
 
 /** Decrypt a server's SSH password in place for server-side use. */
 function decryptServer(server: Server): Server {
-  return { ...server, password: decryptSecret(server.password) };
+  return { ...server, password: decryptSecret(server.password ?? "") };
 }
 
 function stripServer(server: Server): SafeServer {

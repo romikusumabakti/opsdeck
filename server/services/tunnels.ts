@@ -370,7 +370,7 @@ async function loadTunnel(id: string): Promise<LoadedTunnel | null> {
     creds: {
       host: row.servers.host,
       username: row.servers.username,
-      password: decryptSecret(row.servers.password),
+      password: decryptSecret(row.servers.password ?? ""),
     },
     zone: {
       zoneId: row.cloudflare_zones.zoneId,
