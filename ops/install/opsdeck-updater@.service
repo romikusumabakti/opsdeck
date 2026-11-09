@@ -1,5 +1,12 @@
 # Applies the update or restore request of the opsdeck instance at /opt/%i.
-# Started by opsdeck-updater@%i.path; the script takes its own lock.
+# Started by opsdeck-updater@%i.path, and once at boot (enabled through
+# multi-user.target): that run records a run cut off by the reboot as
+# interrupted and applies a request written before it, then exits at once
+# when there is none. The script takes its own lock and consumes the request,
+# so neither start repeats a run.
+#
+# The script is this instance's own copy (install.sh puts it there; each
+# successful run installs the one of the release it updated to).
 [Unit]
 Description=opsdeck updater for /opt/%i
 After=docker.service network-online.target
@@ -7,9 +14,11 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/lib/opsdeck/update.sh /opt/%i
+ExecStart=/opt/%i/.updater/update.sh /opt/%i
 # Backup, pull, migrate and two `up --wait` runs; a hung step must not keep
 # the status "running" forever (on TERM the script rolls back: interrupted).
+# The Panel treats a "running" status older than 70 min (this, the stop
+# timeout and a margin) as interrupted: keep lib/updates/files.ts in step.
 TimeoutStartSec=1h
 # On stop or that timeout the script rolls back (up --wait, up to 180 s plus
 # health); give it the time before SIGKILL.
@@ -17,3 +26,6 @@ TimeoutStopSec=5min
 PrivateTmp=yes
 NoNewPrivileges=yes
 UMask=0077
+
+[Install]
+WantedBy=multi-user.target

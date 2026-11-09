@@ -1,5 +1,10 @@
 # Watches the request the opsdeck app at /opt/<instance> writes, e.g.
 # opsdeck-updater@opsdeck-beta.path for /opt/opsdeck-beta.
+#
+# PathChanged=, not PathExists=: PathExists= starts the service again for as
+# long as the file exists, and a request the script leaves alone (another run
+# holds the lock) would hit the trigger limit and stop this unit. A request
+# already there at boot is picked up by the service's own boot run instead.
 [Unit]
 Description=opsdeck update requests for /opt/%i
 

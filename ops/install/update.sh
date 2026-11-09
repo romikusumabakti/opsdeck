@@ -1,9 +1,15 @@
 #!/bin/sh
 # opsdeck host updater. Runs as root from opsdeck-updater@<instance>.service
-# when the app writes <dir>/updates/request.json, and applies that update or
-# restore with docker compose in <dir>.
+# when the app writes <dir>/updates/request.json (and once at boot), and
+# applies that update or restore with docker compose in <dir>.
 #
-#   usage: update.sh <install dir>
+#   usage: <dir>/.updater/update.sh <install dir>
+#
+# Each instance has its own copy in <dir>/.updater (0700 root), with the
+# updater's private state: the lock, the previous pins (previous.env,
+# compose.yaml.prev) and the last good .env (.env.prev). After a successful
+# run it installs the update.sh of the release now running there, checked
+# against release.json's sha256, for the next run.
 #
 # Trust boundary: <dir>/updates is writable by the app (gid 1001), so the
 # request is untrusted. It is read once, accepted only as the exact canonical
@@ -11,6 +17,9 @@
 # only validated values are ever used or logged. Everything this script
 # creates there is root-owned in a sticky dir, so the app cannot swap it.
 # Nothing from .env except versions is logged, and there is no `set -x`.
+#
+# .env and compose.yaml are only ever replaced by a complete file (written
+# next to them and renamed); a failed write leaves them as they were.
 #
 # Progress goes to <dir>/updates/status.json (written atomically, 0640
 # root:1001, the app only reads it) and <dir>/updates/logs/<runId>.log.
@@ -32,6 +41,8 @@ OBJECT_KEY_RE='(local:)?[A-Za-z0-9_][A-Za-z0-9._/-]*'
 REQUESTED_RE='"requestedBy":"[A-Za-z0-9_-]{1,64}","requestedAt":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{3})?Z"'
 # .env key -> release.json images key. OPSDECK_VERSION is pinned with them.
 IMAGE_KEYS='OPSDECK_IMAGE:app POSTGRES_IMAGE:postgres VALKEY_IMAGE:valkey GARAGE_IMAGE:garage IMGPROXY_IMAGE:imgproxy CADDY_IMAGE:caddy'
+# The release assets pinned with the images, by sha256 in release.json.
+RELEASE_ASSETS='compose.yaml update.sh'
 NL='
 '
 ESC=$(printf '\033')
@@ -95,23 +106,41 @@ log_tail_json() {
     awk 'BEGIN { printf "[" } { printf "%s\"%s\"", (NR > 1 ? "," : ""), $0 } END { printf "]" }'
 }
 
+# Renames <tmp> to updates/status.json. The app can create entries in
+# updates/, so a directory (or anything else) planted under that name is
+# removed first, and GNU `mv -T` never moves the file into one planted since.
+replace_status() { # <tmp>
+  target=$updates/status.json
+  if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
+    rm -rf "$target"
+  fi
+  if mv -fT "$1" "$target" 2>/dev/null; then return 0; fi
+  rm -rf "$target"
+  mv -fT "$1" "$target" || { rm -f "$1"; return 1; }
+}
+
 # Every value here is either a constant or validated, so none needs escaping.
+# A write that fails (a full disk) leaves the previous status in place.
 write_status() { # <state> [code]
-  tmp=$(mktemp "$updates/.status.XXXXXX")
-  {
+  tmp=$(mktemp "$updates/.status.XXXXXX") || return 1
+  if ! {
     printf '{"runId":"%s","action":%s,"version":%s,"from":%s,' \
-      "$run_id" "$(json_or_null "$action")" "$(json_or_null "$version")" "$(json_or_null "$from")"
-    printf '"step":"%s","state":"%s","code":%s,"startedAt":"%s","finishedAt":%s,' \
-      "$step" "$1" "$(json_or_null "${2:-}")" "$started_at" "$(json_or_null "$finished_at")"
-    if [ -n "$safety_location" ]; then
-      printf '"safetyBackup":{"id":%s,"location":"%s","objectKey":"%s"},' \
-        "$(json_or_null "$safety_id")" "$safety_location" "$safety_key"
-    fi
-    printf '"logTail":%s}\n' "$(log_tail_json)"
-  } >"$tmp"
-  chmod 0640 "$tmp"
-  own "$tmp"
-  mv -f "$tmp" "$updates/status.json"
+      "$run_id" "$(json_or_null "$action")" "$(json_or_null "$version")" "$(json_or_null "$from")" &&
+      printf '"step":"%s","state":"%s","code":%s,"startedAt":"%s","finishedAt":%s,' \
+        "$step" "$1" "$(json_or_null "${2:-}")" "$started_at" "$(json_or_null "$finished_at")" &&
+      if [ -n "$safety_location" ]; then
+        printf '"safetyBackup":{"id":%s,"location":"%s","objectKey":"%s"},' \
+          "$(json_or_null "$safety_id")" "$safety_location" "$safety_key"
+      fi &&
+      if [ "$restored" = 1 ]; then printf '"restored":true,'; fi &&
+      printf '"logTail":%s}\n' "$(log_tail_json)"
+  } >"$tmp" || ! grep -q '"logTail":\[.*\]}$' "$tmp" ||
+    ! chmod 0640 "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  own "$tmp" || { rm -f "$tmp"; return 1; }
+  replace_status "$tmp"
 }
 
 set_step() {
@@ -191,25 +220,77 @@ env_value() {
 }
 
 # Replaces the KEY= lines of .env with the lines in <file>; every other line
-# is kept as is. Written next to .env and renamed, so .env is never partial.
+# is kept as is. Written next to .env and renamed, so .env is never partial:
+# 1 with .env untouched when the new file cannot be written in full. Runs
+# with `set -e` suspended too (in && lists and the EXIT trap), so every step
+# checks itself. The .env it replaces stays in .updater/.env.prev (0600).
 apply_env_lines() { # <file of KEY=... lines>
-  tmp=$(mktemp "$dir/.env.XXXXXX")
-  awk -F= 'NR == FNR { line[$1] = $0; next }
+  tmp=$(mktemp "$dir/.env.XXXXXX") || return 1
+  if ! awk -F= 'NR == FNR { line[$1] = $0; next }
     ($1 in line) { if (!seen[$1]++) print line[$1]; next }
     { print }
-    END { for (k in line) if (!seen[k]) print line[k] }' "$1" "$env_file" >"$tmp"
-  chmod 0600 "$tmp"
-  mv -f "$tmp" "$env_file"
+    END { for (k in line) if (!seen[k]) print line[k] }' "$1" "$env_file" >"$tmp"; then
+    rm -f "$tmp"
+    log ".env: the new file could not be written; .env is unchanged"
+    return 1
+  fi
+  # Only a repeated pinned line may go (each pinned key ends up once), so a
+  # shorter file is a truncated one.
+  if ! dups=$(awk -F= 'NR == FNR { k[$1]; next } ($1 in k) && seen[$1]++ { n++ }
+    END { print n + 0 }' "$1" "$env_file") ||
+    ! old_lines=$(wc -l <"$env_file") || ! new_lines=$(wc -l <"$tmp") ||
+    [ ! -s "$tmp" ] || [ "$new_lines" -lt $((old_lines - dups)) ] ||
+    ! chmod 0600 "$tmp"; then
+    rm -f "$tmp"
+    log ".env: the new file is incomplete; .env is unchanged"
+    return 1
+  fi
+  if ! keep_copy "$env_file" "$updater/.env.prev"; then
+    rm -f "$tmp"
+    log ".env: .env.prev could not be written; .env is unchanged"
+    return 1
+  fi
+  mv -f "$tmp" "$env_file" || { rm -f "$tmp"; return 1; }
 }
 
-# The current version and image lines, exactly as they are in .env.
+# A complete copy of <file> at <dest> (0600 by the umask), or 1 with <dest>
+# as it was.
+keep_copy() { # <file> <dest>
+  copy=$(mktemp "$updater/.copy.XXXXXX") || return 1
+  if ! cp "$1" "$copy" || ! mv -f "$copy" "$2"; then
+    rm -f "$copy"
+    return 1
+  fi
+}
+
+# Installs <file> as compose.yaml (0644 root), complete or not at all.
+install_compose() { # <file>
+  tmp=$(mktemp "$dir/.compose.XXXXXX") || return 1
+  if ! cp "$1" "$tmp" || ! chmod 0644 "$tmp" ||
+    { [ "$euid" -eq 0 ] && ! chown 0:0 "$tmp"; } ||
+    ! mv -f "$tmp" "$dir/compose.yaml"; then
+    rm -f "$tmp"
+    log "compose.yaml: could not be replaced; it is unchanged"
+    return 1
+  fi
+}
+
+# The current version and image lines, exactly as they are in .env, and the
+# current compose.yaml: what a rollback puts back.
 record_previous() {
-  tmp=$(mktemp "$updates/.previous.XXXXXX")
-  {
-    env_line OPSDECK_VERSION
-    for pair in $IMAGE_KEYS; do env_line "${pair%%:*}"; done
-  } >"$tmp"
-  mv -f "$tmp" "$updates/previous.env"
+  tmp=$(mktemp "$updater/.previous.XXXXXX") || return 1
+  expected=1
+  for pair in $IMAGE_KEYS; do expected=$((expected + 1)); done
+  if ! (
+    env_line OPSDECK_VERSION &&
+      for pair in $IMAGE_KEYS; do env_line "${pair%%:*}" || exit 1; done
+  ) >"$tmp" || [ "$(wc -l <"$tmp")" -ne "$expected" ] ||
+    ! keep_copy "$dir/compose.yaml" "$compose_prev"; then
+    rm -f "$tmp"
+    log "the previous pins could not be recorded; nothing was changed"
+    return 1
+  fi
+  mv -f "$tmp" "$previous" || { rm -f "$tmp"; return 1; }
   pinned=1
 }
 
@@ -254,16 +335,37 @@ check_release() { # <file> <version> <pin file>
   [ "$(json_str version "$1")" = "$2" ] || return 1
   release_min_from=$(json_str minFrom "$1") || return 1
   matches "$release_min_from" "$VERSION_RE" || return 1
-  printf 'OPSDECK_VERSION=%s\n' "$2" >"$3"
+  for asset in $RELEASE_ASSETS; do
+    matches "$(json_str "$asset" "$1")" '[a-f0-9]{64}' || return 1
+  done
+  printf 'OPSDECK_VERSION=%s\n' "$2" >"$3" || return 1
   for pair in $IMAGE_KEYS; do
     img=$(json_str "${pair#*:}" "$1") || return 1
     matches "$img" "$IMAGE_RE" || return 1
-    printf '%s=%s\n' "${pair%%:*}" "$img" >>"$3"
+    printf '%s=%s\n' "${pair%%:*}" "$img" >>"$3" || return 1
   done
 }
 
-# 0: valid, pin file written, release_min_from set; 1: download failed;
-# 2: not published (HTTP 404); 3: invalid release.json.
+# Downloads a release asset to <file> and checks its sha256 from release.json.
+# 0: ok; 1: download failed; 3: missing (HTTP 404) or not the published file.
+fetch_asset() { # <version> <asset> <sha256> <file>
+  http=$(curl -sS -L --proto '=https' --proto-redir '=https' --max-time 60 \
+    -o "$4" -w '%{http_code}' "$RELEASE_BASE/v$1/$2" 2>>"$log_file") || http=000
+  case $http in
+    200) ;;
+    404) log "release v$1: $2 is missing"; return 3 ;;
+    *) log "release v$1: $2 download failed (HTTP $http)"; return 1 ;;
+  esac
+  sum=$(sha256sum <"$4") || return 1
+  if [ "${sum%% *}" != "$3" ]; then
+    log "release v$1: $2 does not match its sha256 in release.json"
+    return 3
+  fi
+}
+
+# 0: valid, pin file written, release_min_from set and the assets in
+# $work/v<version>/; 1: download failed; 2: not published (HTTP 404);
+# 3: invalid release.json or asset.
 load_release() { # <version> <pin file>
   file=$work/release-$1.json
   log "release v$1: downloading release.json"
@@ -278,6 +380,12 @@ load_release() { # <version> <pin file>
     log "release v$1: release.json is invalid"
     return 3
   fi
+  mkdir -p "$work/v$1"
+  for asset in $RELEASE_ASSETS; do
+    rc=0
+    fetch_asset "$1" "$asset" "$(json_str "$asset" "$file")" "$work/v$1/$asset" || rc=$?
+    if [ "$rc" -ne 0 ]; then return "$rc"; fi
+  done
 }
 
 # Loads a release or ends the run: <code when not published>.
@@ -314,12 +422,13 @@ healthy() { # <expected version>
 
 compose_up() { run_logged docker compose up -d --wait --wait-timeout "$WAIT_TIMEOUT"; }
 
-# Puts previous.env back and starts it; 0 when that version is healthy.
+# Puts previous.env and compose.yaml.prev back and starts them; 0 when that
+# version is healthy.
 restore_previous() {
-  log "putting the previous images back"
+  log "putting the previous images and compose.yaml back"
   step=rollback
   write_status running
-  apply_env_lines "$updates/previous.env" && compose_up &&
+  apply_env_lines "$previous" && install_compose "$compose_prev" && compose_up &&
     healthy "$(env_value OPSDECK_VERSION)"
 }
 
@@ -353,6 +462,20 @@ restore_failed() { # <failed step>
   finish failed restoreFailed
 }
 
+# Installs the update.sh of <version> (downloaded and checked with its
+# release) for the next run. The running script keeps its own file open, so
+# the rename does not disturb it. A failure only leaves the current one.
+refresh_updater() { # <version>
+  tmp=$(mktemp "$updater/.update.sh.XXXXXX") || tmp=
+  if [ -n "$tmp" ] && cp "$work/v$1/update.sh" "$tmp" && chmod 0700 "$tmp" &&
+    mv -f "$tmp" "$updater/update.sh"; then
+    log "updater: update.sh of v$1 installed for the next run"
+  else
+    if [ -n "$tmp" ]; then rm -f "$tmp"; fi
+    log "updater: update.sh of v$1 could not be installed; the current one stays"
+  fi
+}
+
 # Steps 5-10: record, pin, pull, migrate, up, health; rollback on failure.
 pin_and_start() { # <version> <pin file>
   record_previous
@@ -361,6 +484,7 @@ pin_and_start() { # <version> <pin file>
   restore_invoked=0
   set_step pull
   apply_env_lines "$2"
+  install_compose "$work/v$1/compose.yaml"
   run_logged docker compose pull || rollback pull
   set_step migrate
   run_logged docker compose run --rm migrate || rollback migrate
@@ -409,6 +533,7 @@ update() {
   if older "$version" "$from"; then refuse downgrade; fi
   backup update
   pin_and_start "$version" "$pin"
+  refresh_updater "$version"
   step="done"
   finish succeeded
 }
@@ -443,6 +568,7 @@ restore() {
   record_previous
   set_step pull
   apply_env_lines "$pin_backup"
+  install_compose "$work/v$version/compose.yaml"
   run_logged docker compose pull || rollback pull
   set_step restore
   run_logged docker compose stop app terminal || rollback stop
@@ -458,6 +584,7 @@ restore() {
   compose_up || restore_failed up
   set_step health
   healthy "$version" || restore_failed health
+  restored=1
 
   if [ -n "$continue_to" ]; then
     # From here on, a rollback returns to the restored version.
@@ -465,6 +592,7 @@ restore() {
     log "restored under $version; updating to $continue_to"
     pin_and_start "$continue_to" "$pin_current"
   fi
+  refresh_updater "${continue_to:-$version}"
   step="done"
   finish succeeded
 }
@@ -499,7 +627,6 @@ case $dir in /*) ;; *) die "the install dir must be an absolute path" ;; esac
 updates=$dir/updates
 env_file=$dir/.env
 if [ -L "$updates" ] || [ ! -d "$updates" ]; then die "$updates is not a directory"; fi
-[ -f "$env_file" ] || die "$env_file is missing"
 cd "$dir"
 umask 077
 euid=$(id -u)
@@ -507,9 +634,21 @@ running=0
 final=0
 pinned=0
 restore_invoked=0
+restored=0
 caught=
 work=
 request=$updates/request.json
+# Out of the app's reach ($dir is 0755 root; the app only mounts updates/
+# and backups/).
+updater=$dir/.updater
+previous=$updater/previous.env
+compose_prev=$updater/compose.yaml.prev
+
+if [ -L "$updater" ] || { [ -e "$updater" ] && [ ! -d "$updater" ]; }; then
+  die "$updater is not a directory"
+fi
+[ -d "$updater" ] || mkdir "$updater" || die "cannot create $updater"
+chmod 0700 "$updater"
 
 # Sticky: the app may create its request but not rename or delete what root
 # writes here.
@@ -517,14 +656,26 @@ chmod 1770 "$updates"
 own "$updates"
 
 # 1. One run at a time; a second one leaves everything alone.
-lock=$updates/.lock
-if ! owned f "$lock"; then
-  rm -rf "$lock"
-  mv -f "$(mktemp "$updates/.lock.XXXXXX")" "$lock"
-  owned f "$lock" || die "cannot create $lock"
-fi
+lock=$updater/.lock
+[ -f "$lock" ] || : >"$lock" || die "cannot create $lock"
 exec 9<"$lock"
 flock -n 9 || exit 0
+
+# A run that ended without its EXIT trap (SIGKILL, power loss) left its
+# status "running"; with the lock held nothing runs, so it is recorded as
+# interrupted. The boot run (opsdeck-updater@.service is wanted by
+# multi-user.target) does this even when no request waits.
+status_file=$updates/status.json
+if owned f "$status_file" && grep -q '"state":"running","code":null,' "$status_file"; then
+  stale=$(mktemp "$updates/.status.XXXXXX") || die "cannot write $status_file"
+  if sed -e 's/"state":"running","code":null,/"state":"failed","code":"interrupted",/' \
+    -e "s/\"finishedAt\":null,/\"finishedAt\":\"$(now)\",/" "$status_file" >"$stale" &&
+    grep -q '"logTail":\[.*\]}$' "$stale" && chmod 0640 "$stale" && own "$stale"; then
+    replace_status "$stale" || true
+  else
+    rm -f "$stale"
+  fi
+fi
 
 if [ ! -e "$request" ] && [ ! -L "$request" ]; then exit 0; fi
 
@@ -559,8 +710,10 @@ own "$log_file"
 
 # Consumed, so it cannot be replayed; kept next to the log.
 mv -f "$request" "$logs/$run_id.request.json"
-from=$(env_value OPSDECK_VERSION)
-matches "$from" "$VERSION_RE" || from=
+if [ -f "$env_file" ]; then
+  from=$(env_value OPSDECK_VERSION)
+  matches "$from" "$VERSION_RE" || from=
+fi
 running=1
 log "run $run_id started"
 write_status running
@@ -573,6 +726,8 @@ fi
 log "request: $action to $version${object_key:+ from $object_key}"
 
 # The instance: running version, pinned lines and the health endpoint.
+[ -f "$env_file" ] && [ ! -L "$env_file" ] || { log "instance: $env_file is missing"; refuse invalidInstall; }
+[ -f "$dir/compose.yaml" ] || { log "instance: $dir/compose.yaml is missing"; refuse invalidInstall; }
 [ -n "$from" ] || { log "instance: OPSDECK_VERSION in .env is not a release version"; refuse invalidInstall; }
 for pair in $IMAGE_KEYS; do
   matches "$(env_value "${pair%%:*}")" "$IMAGE_RE" ||

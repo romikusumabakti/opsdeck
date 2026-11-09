@@ -143,8 +143,11 @@ jobs:
             --app "$IMAGE:$VERSION@$DIGEST" \
             --images base-images.env \
             --min-from release/min-from.txt \
+            --assets ops/install \
             --out release.json
 
+      # The names update.sh downloads (by sha256 from release.json): each file
+      # is uploaded under its base name.
       - name: Publish the GitHub Release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
