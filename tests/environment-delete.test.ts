@@ -51,6 +51,23 @@ vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 
+// No teardown under way (lib/teardown/guard has its own tests).
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  tearingDownIn: async () => teardown.blocks,
+  holdEnvironmentExclusive: async () => {},
+}));
+const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
+
+vi.mock("@/lib/teardown/repository", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/repository")>()),
+  teardownState: async () => ({
+    planned: teardown.running,
+    running: teardown.running,
+    progressed: teardown.running,
+  }),
+}));
+
 vi.mock("@/lib/db", async () => {
   const schema = await import("@/lib/db/schema");
   const rowsFor = (table: unknown): unknown[] => {
@@ -76,17 +93,17 @@ vi.mock("@/lib/db", async () => {
     };
     return chain;
   };
-  return {
-    db: {
-      select,
-      delete: () => {
-        state.deletes++;
-        return {
-          where: () => ({ returning: async () => state.deleted }),
-        };
-      },
+  const db = {
+    select,
+    delete: () => {
+      state.deletes++;
+      return {
+        where: () => ({ returning: async () => state.deleted }),
+      };
     },
+    transaction: async (fn: (tx: unknown) => unknown) => fn(db),
   };
+  return { db };
 });
 
 const { deleteEnvironment } = await import("@/server/services/environments");
@@ -186,5 +203,18 @@ describe("deleteEnvironment and escrowed variables", () => {
       status: 409,
     });
     expect(state.activity).toEqual([]);
+  });
+
+  it("refuses (409 teardownRunning) while a teardown runs, deleting nothing", async () => {
+    teardown.running = true;
+    try {
+      await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
+        status: 409,
+        code: "teardownRunning",
+      });
+      expect(state.deletes).toBe(0);
+    } finally {
+      teardown.running = false;
+    }
   });
 });

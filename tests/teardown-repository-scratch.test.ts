@@ -637,7 +637,8 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       | "backup"
       | "restore"
       | "mock_time"
-      | "teardown",
+      | "teardown"
+      | null,
     status: "started" | "failed" | "success" = "started"
   ) {
     return (
@@ -691,7 +692,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     }
   });
 
-  it("is busy for a started deploy, provision, backup or restore run, or an active deploy lock", async () => {
+  it("is busy for a started deploy, provision, backup, restore, database or service run, or an active deploy lock", async () => {
     const env = await environment("TD Busy");
     try {
       await expect(environmentBusy(env)).resolves.toBe(false);
@@ -700,11 +701,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       await startedRun(env, "deploy", "failed");
       await startedRun(env, "teardown");
       await expect(environmentBusy(env)).resolves.toBe(false);
+      // null: a database (create, drop, rename) or service control run.
       for (const kind of [
         "deploy",
         "provision",
         "backup",
         "restore",
+        null,
       ] as const) {
         const id = await startedRun(env, kind);
         await expect(environmentBusy(env)).resolves.toBe(true);

@@ -11,6 +11,7 @@ import {
   cancelTeardown,
   getTeardown,
   retryTeardown,
+  retryTeardownSchema,
   startTeardown,
   startTeardownSchema,
 } from "@/server/services/environment-teardown";
@@ -90,8 +91,11 @@ export const environmentsRouter = sessionRouter()
       202
     )
   )
-  .post("/:id/teardown/retry", envParam, async (c) =>
-    c.json(await retryTeardown(c.req.valid("param").id), 202)
+  .post("/:id/teardown/retry", envParam, json(retryTeardownSchema), async (c) =>
+    c.json(
+      await retryTeardown(c.req.valid("param").id, c.req.valid("json")),
+      202
+    )
   )
   .post("/:id/teardown/cancel", envParam, async (c) =>
     c.json(await cancelTeardown(c.req.valid("param").id))

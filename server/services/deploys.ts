@@ -29,6 +29,7 @@ import {
   tagVariableSchema,
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
+import { tearingDownIn } from "@/lib/teardown/guard";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
 import { CodedHTTPException } from "@/server/errors";
@@ -37,6 +38,7 @@ import {
   type RequestedDeployment,
   requestDeployment,
 } from "@/server/services/deployments";
+import { teardownRunningError } from "@/server/services/teardown-runs";
 
 const fail = (status: 404 | 409 | 503, message: string): never => {
   throw new HTTPException(status, { message });
@@ -238,7 +240,13 @@ export async function createDeployTarget(
   await requireTagVariableFree(input.environmentId, input.tagVariable);
   let created: DeployTarget;
   try {
-    created = await db.transaction((tx) => insertDeployTargetIn(tx, input));
+    created = await db.transaction(async (tx) => {
+      // A target added while a teardown runs would never be brought down.
+      if (await tearingDownIn(tx, input.environmentId)) {
+        throw teardownRunningError();
+      }
+      return insertDeployTargetIn(tx, input);
+    });
   } catch (error) {
     if (isUniqueViolation(error)) return failTarget("targetDuplicate");
     throw error;
@@ -295,6 +303,10 @@ export async function updateDeployTarget(
     (changes.sourceBranch !== undefined &&
       changes.sourceBranch !== target.sourceBranch);
   const updated = await db.transaction(async (tx) => {
+    // A target moved while a teardown runs would leave its stack behind.
+    if (await tearingDownIn(tx, target.environmentId)) {
+      throw teardownRunningError();
+    }
     const row = await upsertTarget({ ...changes, id }, tx);
     if (dropHeld) await supersedeHeldDeployments(id, tx);
     return row;

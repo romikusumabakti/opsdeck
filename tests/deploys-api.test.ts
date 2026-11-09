@@ -61,6 +61,14 @@ const apps = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/apps", () => apps);
 
+// No teardown under way (lib/teardown/guard has its own tests).
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  tearingDownIn: async () => teardown.blocks,
+  holdEnvironmentExclusive: async () => {},
+}));
+const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
+
 // The app adoption and the target insert share one transaction.
 const txState = vi.hoisted(() => ({ tx: { marker: "tx" } }));
 vi.mock("@/lib/db", () => ({
@@ -437,6 +445,22 @@ describe("target configuration", () => {
       }),
       txState.tx
     );
+  });
+
+  it("refuses a target create or update with 409 while a teardown runs", async () => {
+    teardown.blocks = true;
+    try {
+      let res = await send("POST", "/api/deploys/targets", newTarget);
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "teardownRunning" });
+      res = await send("PATCH", `/api/deploys/targets/${TARGET_ID}`, {
+        serverId: SERVER_ID,
+      });
+      expect(res.status).toBe(409);
+      expect(repo.upsertTarget).not.toHaveBeenCalled();
+    } finally {
+      teardown.blocks = false;
+    }
   });
 
   it('target create rejects deployDir with ".."', async () => {

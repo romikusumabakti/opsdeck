@@ -180,6 +180,26 @@ export async function saveTeardownSteps(
   await replaceSteps(teardownSteps, environmentId, specs);
 }
 
+/**
+ * Lets the teardown's delete step delete escrowed variables too (a retry
+ * an integration:manage caller confirmed); the step still runs its own
+ * check. Only a step not yet done is changed.
+ */
+export async function confirmTeardownEscrowedDeletion(
+  environmentId: string
+): Promise<void> {
+  await db
+    .update(teardownSteps)
+    .set({ params: { confirmEscrowedDeletion: true } })
+    .where(
+      and(
+        eq(teardownSteps.environmentId, environmentId),
+        eq(teardownSteps.kind, "delete_environment"),
+        ne(teardownSteps.status, "done")
+      )
+    );
+}
+
 /** What the server steps re-check at run time on one machine. */
 export type StackGuard = {
   /** Other environments' deploy dirs on the machine, as stored. */
@@ -546,7 +566,9 @@ const BUSY_RUN_KINDS = ["deploy", "provision", "backup", "restore"] as const;
 
 /**
  * Whether a teardown must wait: a deploy, provisioning, backup or restore run
- * is `started` on the environment, or its deploy lock is active.
+ * is `started` on the environment, or a database (create, drop, rename) or
+ * service control (start, stop, restart) run, which carry no kind; or its
+ * deploy lock is active.
  */
 export async function environmentBusy(
   environmentId: string,
@@ -559,7 +581,7 @@ export async function environmentBusy(
       and(
         eq(runs.environmentId, environmentId),
         eq(runs.status, "started"),
-        inArray(runs.kind, [...BUSY_RUN_KINDS])
+        or(inArray(runs.kind, [...BUSY_RUN_KINDS]), isNull(runs.kind))
       )
     )
     .limit(1);
@@ -614,9 +636,10 @@ async function readTeardownState(
 }
 
 export async function teardownState(
-  environmentId: string
+  environmentId: string,
+  executor: Pick<typeof db, "select"> = db
 ): Promise<TeardownState> {
-  return readTeardownState(db, environmentId);
+  return readTeardownState(executor, environmentId);
 }
 
 /**
