@@ -37,9 +37,14 @@ const manifestSchema = z.object({
   secretsKeyFingerprint: z.string().regex(/^[0-9a-f]{16}$/),
 });
 
-/** sha256 of the key, truncated to 16 hex characters. Safe to store and show. */
+/**
+ * sha256 of the key, truncated to 16 hex characters. Safe to store and show.
+ * Surrounding whitespace is ignored (a pasted key or an .env line may carry a
+ * newline; the base64 key itself never contains whitespace), so every caller
+ * fingerprints the same key the same way.
+ */
 export function secretsKeyFingerprint(key: string): string {
-  return createHash("sha256").update(key).digest("hex").slice(0, 16);
+  return createHash("sha256").update(key.trim()).digest("hex").slice(0, 16);
 }
 
 export function serializeManifest(manifest: BackupManifest): string {

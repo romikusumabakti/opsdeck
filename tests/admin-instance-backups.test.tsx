@@ -175,6 +175,33 @@ describe("Admin → Instance → Backups", () => {
   });
 });
 
+describe("SECRETS_KEY check", () => {
+  it("shows the result and forgets the pasted key", async () => {
+    api.verify.mockResolvedValue({ match: false });
+    await renderPage(data());
+    const field = container.querySelector<HTMLInputElement>(
+      "#verify-secrets-key"
+    );
+    expect(field).not.toBeNull();
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(field, "pasted-secret-key");
+      field?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      field?.form?.requestSubmit();
+    });
+    expect(api.verify).toHaveBeenCalledWith("pasted-secret-key");
+    expect(container.textContent).toContain(
+      messages.instanceBackups.keyMismatch
+    );
+    expect(field?.value).toBe("");
+  });
+});
+
 describe("Home attention item", () => {
   it("shows a failed instance backup", async () => {
     await render(

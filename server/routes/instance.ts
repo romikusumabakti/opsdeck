@@ -6,6 +6,7 @@ import {
   getInstanceBackups,
   instanceBackupSettingsSchema,
   requestInstanceBackup,
+  requireInstanceManage,
   saveInstanceBackupSettings,
   verifyKeySchema,
   verifySecretsKey,
@@ -15,10 +16,16 @@ import { json, param } from "@/server/validation";
 const idParam = param(z.object({ id: uuidSchema }));
 
 /**
- * The Panel instance itself (Admin → Instance). Each service function checks
- * org instance:manage.
+ * The Panel instance itself (Admin → Instance). The router checks org
+ * instance:manage first; each service function checks it again.
  */
 export const instanceRouter = sessionRouter()
+  // Before any validator, so a non-admin always gets 403 `forbidden` and
+  // never learns the payload shape from a 400.
+  .use(async (_c, next) => {
+    await requireInstanceManage();
+    await next();
+  })
   .get("/backups", async (c) => c.json(await getInstanceBackups()))
   .put("/backups/settings", json(instanceBackupSettingsSchema), async (c) =>
     c.json(await saveInstanceBackupSettings(c.req.valid("json")))

@@ -56,6 +56,15 @@ export const db = new Proxy({} as ReturnType<typeof createDb>, {
   },
 });
 
+/**
+ * The postgres.js client behind `db`, for what drizzle does not cover (a
+ * reserved connection for a session-level advisory lock). Not through the
+ * proxy, which binds functions and so hides the client's own methods.
+ */
+export function pgClient() {
+  return getDb().$client;
+}
+
 /** The pool or a transaction handle: what a query helper can run against. */
 export type DbExecutor = Pick<typeof db, "select" | "update" | "insert">;
 
