@@ -101,18 +101,24 @@ export const UPDATE_STATUS_CODES = [
   "belowMinFrom",
   "downgrade",
   "backupTooNew",
-  // failed: nothing was changed (download) or the pre-update backup failed
+  // failed: nothing was changed (download) or the pre-update/restore backup failed
   "releaseUnavailable",
   "backupFailed",
   // rolled_back: the previous images run again
   "pullFailed",
-  "restoreFailed",
+  "stopFailed",
   "migrateFailed",
   "upFailed",
   "healthFailed",
+  // rolled_back after a signal (`interrupted`) or an updater bug (`updaterError`);
+  // failed with these when it stopped before anything changed
+  "interrupted",
+  "updaterError",
+  // failed: the restore ran but the panel is not healthy on its version;
+  // `safetyBackup` undoes it
+  "restoreFailed",
   // failed: needs an operator
   "rollbackFailed",
-  "updaterError",
 ] as const;
 
 export type UpdateStatusCode = (typeof UPDATE_STATUS_CODES)[number];
@@ -127,13 +133,24 @@ export const updateStatusSchema = z.object({
   action: z.enum(["update", "restore"]).nullable(),
   /** The requested version (restore: the backup's manifest version). */
   version: version.nullable(),
-  /** OPSDECK_VERSION running when the run started. */
+  /**
+   * OPSDECK_VERSION running before the current phase: when the run started,
+   * or the restored version once a restore continues into an update.
+   */
   from: version.nullable(),
   step: z.enum(UPDATE_STEPS),
   state: z.enum(UPDATE_STATES),
   code: z.string().nullable(),
   startedAt: isoSeconds,
   finishedAt: isoSeconds.nullable(),
+  /** The backup a restore took first (trigger `restore`), to undo it. */
+  safetyBackup: z
+    .object({
+      id: z.string().nullable(),
+      location: z.enum(["local", "s3"]),
+      objectKey: z.string(),
+    })
+    .optional(),
   /** The last lines of updates/logs/<runId>.log. */
   logTail: z.array(z.string()),
 });

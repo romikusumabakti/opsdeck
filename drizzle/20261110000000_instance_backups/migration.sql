@@ -1,6 +1,6 @@
 SET LOCAL lock_timeout = '5s';--> statement-breakpoint
 CREATE TYPE "instance_backup_status" AS ENUM('running', 'succeeded', 'failed');--> statement-breakpoint
-CREATE TYPE "instance_backup_trigger" AS ENUM('schedule', 'manual', 'update');--> statement-breakpoint
+CREATE TYPE "instance_backup_trigger" AS ENUM('schedule', 'manual', 'update', 'restore');--> statement-breakpoint
 CREATE TABLE "instance_backups" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"started_at" timestamp DEFAULT now() NOT NULL,
