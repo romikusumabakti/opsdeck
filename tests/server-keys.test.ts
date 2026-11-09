@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -165,6 +165,10 @@ vi.mock("@/lib/activity", () => ({
 vi.mock("@/lib/ssh-keys", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ssh-keys")>()),
   loadPrivateKey: async () => state.clientPrivateKey,
+  instanceKey: async (id: string) =>
+    id === KEY_ID
+      ? { id, publicKey: state.clientPublicKey, fingerprint: "SHA256:client" }
+      : null,
   ensureCurrentKey: async () => ({
     id: KEY_ID,
     publicKey: state.clientPublicKey,
@@ -947,5 +951,122 @@ describe("routes", () => {
 
     // The re-pinned key is accepted: the move now goes through.
     expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({ ok: true });
+  });
+});
+
+const get = (path: string) => app.request(path);
+
+/** Runs a shown install command as the login user would, in the sshd home. */
+function runAsUser(command: string) {
+  const result = spawnSync("/bin/sh", ["-c", command], {
+    env: { HOME: sshd.home, PATH: "/usr/bin:/bin" },
+    encoding: "utf8",
+  });
+  expect(result.status, result.stderr).toBe(0);
+}
+
+describe("a key server installed by hand", () => {
+  const keyRow = (overrides: Row = {}) =>
+    serverRow({
+      auth: "key",
+      password: null,
+      sshKeyId: KEY_ID,
+      sshFrom: "127.0.0.9",
+      keyError: "keyNotVerified",
+      ...overrides,
+    });
+
+  it("its command installs the row's key once, ~/.ssh 0700 and the file 0600", async () => {
+    state.servers = [keyRow()];
+    const res = await get(
+      `/api/servers/${SERVER_ID}/authorized-line?from=127.0.0.1`
+    );
+    expect(res.status).toBe(200);
+    const { line, command } = await res.json();
+    expect(line).toBe(ourLine("127.0.0.1"));
+    seedAuthorizedKeys(`${FOREIGN}\n`);
+    runAsUser(command);
+    runAsUser(command);
+    // Foreign lines untouched; ours appended once, after a blank line.
+    expect(readFileSync(authorizedKeys(), "utf8")).toBe(
+      `${FOREIGN}\n\n${ourLine("127.0.0.1")}\n`
+    );
+    expect(statSync(join(sshd.home, ".ssh")).mode & 0o777).toBe(0o700);
+    expect(statSync(authorizedKeys()).mode & 0o777).toBe(0o600);
+  });
+
+  it("the command also creates a missing ~/.ssh", async () => {
+    state.servers = [keyRow()];
+    const { command } = await (
+      await get(`/api/servers/${SERVER_ID}/authorized-line?from=127.0.0.1`)
+    ).json();
+    runAsUser(command);
+    expect(readFileSync(authorizedKeys(), "utf8")).toContain(
+      ourLine("127.0.0.1")
+    );
+    expect(statSync(authorizedKeys()).mode & 0o777).toBe(0o600);
+  });
+
+  it("check key login fails before the line is there and changes nothing", async () => {
+    state.servers = [keyRow()];
+    const res = await post(`/api/servers/${SERVER_ID}/check-key-login`, {
+      from: "127.0.0.1",
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("keyLoginFailed");
+    expect(row()).toMatchObject({
+      sshFrom: "127.0.0.9",
+      keyError: "keyNotVerified",
+    });
+    expect(sshd.authMethods).not.toContain("password");
+  });
+
+  it("a successful check saves the new from and clears not verified", async () => {
+    state.servers = [keyRow()];
+    const { command } = await (
+      await get(`/api/servers/${SERVER_ID}/authorized-line?from=127.0.0.1`)
+    ).json();
+    runAsUser(command);
+    const res = await post(`/api/servers/${SERVER_ID}/check-key-login`, {
+      from: "127.0.0.1",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(row()).toMatchObject({ sshFrom: "127.0.0.1", keyError: null });
+  });
+
+  it("refuses a password server, a bad from and a non-admin", async () => {
+    const pw = await post(`/api/servers/${SERVER_ID}/check-key-login`, {});
+    expect(pw.status).toBe(409);
+    expect((await pw.json()).code).toBe("notKeyServer");
+    const pwLine = await get(
+      `/api/servers/${SERVER_ID}/authorized-line?from=127.0.0.1`
+    );
+    expect((await pwLine.json()).code).toBe("notKeyServer");
+
+    state.servers = [keyRow()];
+    const bad = await post(`/api/servers/${SERVER_ID}/check-key-login`, {
+      from: '1.2.3.4",command="id',
+    });
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).code).toBe("invalidFrom");
+
+    state.orgRole = "member";
+    expect(
+      (await post(`/api/servers/${SERVER_ID}/check-key-login`, {})).status
+    ).toBe(403);
+    expect(
+      (await get(`/api/servers/${SERVER_ID}/authorized-line?from=127.0.0.1`))
+        .status
+    ).toBe(403);
+    expect(sshd.authMethods).toEqual([]);
+  });
+
+  it("check is refused while another key operation runs", async () => {
+    state.servers = [keyRow()];
+    const release = await serverKeyLock(SERVER_ID);
+    const res = await post(`/api/servers/${SERVER_ID}/check-key-login`, {});
+    expect((await res.json()).code).toBe("keyJobRunning");
+    await release?.();
   });
 });

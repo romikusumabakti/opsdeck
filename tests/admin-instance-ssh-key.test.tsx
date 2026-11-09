@@ -13,7 +13,8 @@ const api = vi.hoisted(() => ({
   confirm: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 vi.mock("@/components/dialog-provider", () => ({
   useDialog: () => ({ confirm: api.confirm }),
 }));
@@ -26,7 +27,11 @@ vi.mock("@/web/api/instance", () => ({
   rotateInstanceSshKey: api.rotate,
 }));
 
-import { SshKeyTab } from "../web/routes/$locale/_app/-components/admin/instance/ssh-key-tab";
+import { ApiError } from "../web/api/client";
+import {
+  keyJobPollInterval,
+  SshKeyTab,
+} from "../web/routes/$locale/_app/-components/admin/instance/ssh-key-tab";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -60,9 +65,10 @@ function job(extra: Record<string, unknown> = {}) {
 
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
+let queryClient: QueryClient;
 
 async function render(cached: ReturnType<typeof data>) {
-  const queryClient = new QueryClient({
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   api.get.mockResolvedValue(cached);
@@ -158,5 +164,58 @@ describe("Admin → Instance → SSH key", () => {
     expect(rows[1]).toContain(t.failed);
     expect(rows[1]).toContain(messages.actionErrors.sudoNeedsPassword);
     expect(button(t.moveAll)?.disabled).toBe(false);
+  });
+});
+
+describe("Admin → Instance → SSH key, edge paths", () => {
+  it("a refused request (another key job runs) shows the server's message", async () => {
+    api.confirm.mockResolvedValue(true);
+    api.moveAll.mockRejectedValue(
+      new ApiError(
+        409,
+        "Another SSH key operation is running.",
+        "keyJobRunning"
+      )
+    );
+    await render(data());
+    await act(async () => button(t.moveAll)?.click());
+    expect(toast.error).toHaveBeenCalledWith(
+      "Another SSH key operation is running."
+    );
+  });
+
+  it("polls only while the last job runs", () => {
+    expect(keyJobPollInterval(undefined)).toBe(false);
+    expect(keyJobPollInterval({ lastJob: null })).toBe(false);
+    expect(
+      keyJobPollInterval({ lastJob: job({ finishedAt: null }) as never })
+    ).toBeGreaterThan(0);
+    expect(keyJobPollInterval({ lastJob: job() as never })).toBe(false);
+  });
+
+  it("when the job finishes, the servers list is refetched", async () => {
+    await render(data(job({ finishedAt: null })));
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    // The next poll finds the job finished.
+    api.get.mockResolvedValue(data(job()));
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["instance", "getInstanceSshKey"],
+      });
+    });
+    await vi.waitFor(() =>
+      expect(text()).not.toContain("Moving servers to the key")
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["servers"] });
+  });
+
+  it("an unfinished rotation shows the old key's fingerprint", async () => {
+    await render({
+      ...data(),
+      previous: { fingerprint: "SHA256:oldFp" },
+    } as never);
+    expect(text()).toContain(
+      t.previousKey.replace("{fingerprint}", "SHA256:oldFp")
+    );
   });
 });

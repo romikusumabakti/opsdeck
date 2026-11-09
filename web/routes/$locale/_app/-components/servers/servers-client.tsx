@@ -30,6 +30,7 @@ import {
   deleteServer,
   type ServerRow as Server,
 } from "@/web/api/servers";
+import { accessState } from "./access-state";
 
 // What the caller may do beyond listing (server:read), from the page.
 export type ServerCapabilities = {
@@ -287,36 +288,47 @@ export function ServersClient({
 }
 
 /**
- * How the Panel signs in: Key (the host key fingerprint on hover), Password,
- * or a warning when the server offered another host key (nothing connects).
+ * How the Panel signs in (accessState): Key (the host key fingerprint on
+ * hover), Key not verified yet, Password, Needs setup, or a warning when the
+ * server offered another host key (nothing connects).
  */
 function AccessBadge({ server }: { server: Server }) {
   const t = useTranslations("servers");
-  if (server.hostKeyMismatch) {
-    return (
-      <Badge variant="destructive">
-        <ShieldAlert data-icon="inline-start" />
-        {t("accessHostKeyChanged")}
-      </Badge>
-    );
+  switch (accessState(server)) {
+    case "hostKeyChanged":
+      return (
+        <Badge variant="destructive">
+          <ShieldAlert data-icon="inline-start" />
+          {t("accessHostKeyChanged")}
+        </Badge>
+      );
+    case "needsSetup":
+      return <Badge variant="outline">{t("accessNeedsSetup")}</Badge>;
+    case "password":
+      return <Badge variant="outline">{t("accessPassword")}</Badge>;
+    case "keyNotVerified":
+      return (
+        <Badge variant="outline">
+          <KeyRound data-icon="inline-start" />
+          {t("accessKeyNotVerified")}
+        </Badge>
+      );
+    case "key":
+      return (
+        <TooltipHint
+          label={
+            server.hostKeyFingerprint
+              ? t("hostKeyHint", { fingerprint: server.hostKeyFingerprint })
+              : t("hostKeyNotPinnedHint")
+          }
+        >
+          <Badge variant="secondary" tabIndex={0}>
+            <KeyRound data-icon="inline-start" />
+            {t("accessKey")}
+          </Badge>
+        </TooltipHint>
+      );
   }
-  if (server.auth === "password") {
-    return <Badge variant="outline">{t("accessPassword")}</Badge>;
-  }
-  return (
-    <TooltipHint
-      label={
-        server.hostKeyFingerprint
-          ? t("hostKeyHint", { fingerprint: server.hostKeyFingerprint })
-          : t("hostKeyNotPinnedHint")
-      }
-    >
-      <Badge variant="secondary" tabIndex={0}>
-        <KeyRound data-icon="inline-start" />
-        {t("accessKey")}
-      </Badge>
-    </TooltipHint>
-  );
 }
 
 // Browsing is the row's primary action, so it stays a button; edit and delete

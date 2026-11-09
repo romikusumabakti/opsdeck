@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import type {
   EnvironmentWithServers,
   SafeEnvironmentWithServers,
-  SafeServer,
   SafeServiceWithServer,
   Server,
   ServiceWithServer,
@@ -11,6 +10,7 @@ import type {
 import { environments, projects } from "@/lib/db/schema";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { decryptNullable } from "@/lib/secrets";
+import { toSafeServer } from "@/lib/server-view";
 import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import type { EnvironmentInput } from "@/lib/validation";
 
@@ -95,17 +95,12 @@ function decryptServer(server: Server): Server {
   return { ...server, password: decryptNullable(server.password) };
 }
 
-function stripServer(server: Server): SafeServer {
-  const { password: _password, ...safe } = server;
-  return safe;
-}
-
 /** Drop a service's secrets, keeping presence flags for the edit forms. */
 function stripService(service: ServiceWithServer): SafeServiceWithServer {
   const { dbPassword, mockTimeApiKey, server, ...rest } = service;
   return {
     ...rest,
-    server: stripServer(server),
+    server: toSafeServer(server),
     hasDbPassword: Boolean(dbPassword),
     hasMockTimeApiKey: Boolean(mockTimeApiKey),
   };

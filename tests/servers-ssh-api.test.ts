@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   inserted: [] as Record<string, unknown>[],
   role: "admin",
   tested: [] as unknown[],
+  updated: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/lib/db", () => {
@@ -30,6 +31,17 @@ vi.mock("@/lib/db", () => {
   return {
     db: {
       select: () => query(),
+      // Answers as if the update's conditions matched every row in `rows`.
+      update: () => ({
+        set: (values: Record<string, unknown>) => ({
+          where: () => ({
+            returning: async () => {
+              state.updated.push(values);
+              return state.rows;
+            },
+          }),
+        }),
+      }),
       insert: () => ({
         values: (values: Record<string, unknown>) => ({
           returning: async () => {
@@ -136,6 +148,7 @@ beforeEach(() => {
   state.rows = [row()];
   state.inserted = [];
   state.tested = [];
+  state.updated = [];
   state.role = "admin";
   delete process.env.COMPOSE_PROJECT_NAME;
 });
@@ -207,6 +220,9 @@ describe("creating a server", () => {
       password: null,
       sshKeyId: KEY_ID,
       sshFrom: "192.0.2.1",
+      // Not proven until a key login succeeds (Check key login, a move or a
+      // rotation clears it).
+      keyError: "keyNotVerified",
     });
     expect(body.data).not.toHaveProperty("password");
   });
@@ -270,6 +286,10 @@ describe("GET /api/instance/ssh-key/authorized-line", () => {
     expect(body.command).toContain(`'${line}'`);
     expect(body.command).toContain("chmod 700 ~/.ssh");
     expect(body.command).toContain(">> ~/.ssh/authorized_keys");
+    // Idempotent: appended only when that exact line is absent.
+    expect(body.command).toContain(
+      `grep -qxF -- '${line}' ~/.ssh/authorized_keys ||`
+    );
     expect(body.command).toContain("chmod 600 ~/.ssh/authorized_keys");
     expect(JSON.stringify(body)).not.toContain("PRIVATE");
   });
@@ -352,5 +372,66 @@ describe("activity labels for SSH key events", () => {
         expect(activity[key], `${locale} ${key}`).toContain("{server}");
       }
     }
+  });
+});
+
+describe("editing a server's password", () => {
+  it("a key server stores none", async () => {
+    state.rows = [row({ auth: "key", password: null })];
+    const body = await (
+      await post("/api/servers/update-server", {
+        id: SERVER_ID,
+        data: { password: "s3cret" },
+      })
+    ).json();
+    expect(body.success).toBe(false);
+    expect(body.message).toBe("keyServerNoPassword");
+    expect(JSON.stringify(state.updated)).not.toContain("s3cret");
+  });
+
+  it("a password server stores it encrypted", async () => {
+    state.rows = [row({ auth: "password" })];
+    const body = await (
+      await post("/api/servers/update-server", {
+        id: SERVER_ID,
+        data: { password: "s3cret" },
+      })
+    ).json();
+    expect(body.success).toBe(true);
+    expect(state.updated[0]).toMatchObject({ password: "enc:s3cret" });
+  });
+});
+
+describe("servers in environment payloads (project members)", () => {
+  it("carry where the server is, not how the Panel signs in", async () => {
+    const { sanitizeEnvironment } = await import("@/lib/environments");
+    const environment = {
+      id: "e",
+      services: [
+        {
+          id: "s",
+          role: "backend",
+          dbPassword: "db-secret",
+          mockTimeApiKey: null,
+          server: row(),
+        },
+      ],
+      owner: null,
+    };
+    const [service] = sanitizeEnvironment(environment as never).services;
+    const server = service?.server as Record<string, unknown>;
+    expect(server).toMatchObject({ id: SERVER_ID, host: "192.0.2.10" });
+    for (const field of [
+      ...SECRET_FIELDS,
+      "hostKeyFingerprint",
+      "hostKeyPinnedAt",
+      "hostKeyOfferedFingerprint",
+      "sshKeyId",
+      "sshFrom",
+      "keyError",
+    ]) {
+      expect(server).not.toHaveProperty(field);
+    }
+    expect(JSON.stringify(server)).not.toContain("hunter2");
   });
 });

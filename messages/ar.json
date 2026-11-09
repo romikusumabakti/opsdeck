@@ -1017,7 +1017,9 @@
     "hostKeyHint": "مفتاح المضيف {fingerprint}",
     "hostKeyNotPinnedHint": "لم يُثبَّت مفتاح المضيف بعد",
     "deleteKeyNote": "يبقى مفتاح اللوحة في ~/.ssh/authorized_keys على هذا الخادم. احذف يدويًا السطر الذي ينتهي بـ {marker}.",
-    "bulkDeleteKeyNote": "تحتفظ الخوادم التي تستخدم مفتاح SSH بمفتاح اللوحة في ~/.ssh/authorized_keys. احذف سطره يدويًا."
+    "bulkDeleteKeyNote": "تحتفظ الخوادم التي تستخدم مفتاح SSH بمفتاح اللوحة في ~/.ssh/authorized_keys. احذف سطره يدويًا.",
+    "accessKeyNotVerified": "لم يُتحقَّق من المفتاح بعد",
+    "accessNeedsSetup": "يحتاج إلى إعداد"
   },
   "serverForm": {
     "name": "الاسم",
@@ -1469,7 +1471,10 @@
     "sharedDatabaseServiceConfined": "حاوية قاعدة البيانات هذه مشتركة مع بيئات أخرى؛ لا يمكن إلا للمسؤول التحكم فيها أو قراءة سجلاتها.",
     "databaseHostVersion": "تشغّل تلك الحاوية إصدار Postgres أقدم من 15؛ سجّل فقط Postgres 15 أو أحدث.",
     "defaultServerForbidden": "يمكن للمسؤولين وفريق البنية التحتية فقط تغيير الخادم الافتراضي للمشروع.",
-    "invalidFrom": "أدخل عنوان IP أو شبكة فرعية، مثل 192.168.1.10 أو 172.29.0.0/16."
+    "invalidFrom": "أدخل عنوان IP أو شبكة فرعية، مثل 192.168.1.10 أو 172.29.0.0/16.",
+    "keyNotVerified": "لم يسجّل مفتاح SSH الدخول بعد. شغّل أمر التثبيت على الخادم، ثم تحقّق من الدخول بالمفتاح.",
+    "notKeyServer": "لا يسجّل هذا الخادم الدخول بمفتاح SSH.",
+    "keyServerNoPassword": "يسجّل هذا الخادم الدخول بمفتاح SSH، لذا لا يحفظ كلمة مرور."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -3254,7 +3259,12 @@
     "trustTitle": "الوثوق بمفتاح المضيف الجديد؟",
     "trustDescription": "لا تثق بـ {fingerprint} إلا إذا تحققت منه على الخادم نفسه.",
     "trustDone": "تم الوثوق بمفتاح المضيف الجديد.",
-    "reviewHostKey": "مراجعة مفتاح المضيف"
+    "reviewHostKey": "مراجعة مفتاح المضيف",
+    "keyNotVerified": "مفتاح SSH، لم يُتحقَّق منه بعد",
+    "needsSetup": "يحتاج إلى إعداد: لا كلمة مرور ولا مفتاح",
+    "showInstallCommand": "إظهار أمر التثبيت",
+    "checkKeyLogin": "التحقق من الدخول بالمفتاح",
+    "checkKeyLoginDone": "يسجّل مفتاح SSH الدخول بنجاح."
   },
   "instanceSshKey": {
     "title": "مفتاح SSH",
@@ -3276,6 +3286,7 @@
     "colServer": "الخادم",
     "colResult": "النتيجة",
     "ok": "تم",
-    "failed": "فشل"
+    "failed": "فشل",
+    "previousKey": "لم يكتمل التبديل: ما زالت بعض الخوادم تستخدم {fingerprint}. شغّل التبديل مجددًا لإعادة المحاولة."
   }
 }

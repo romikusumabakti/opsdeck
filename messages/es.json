@@ -1017,7 +1017,9 @@
     "hostKeyHint": "Clave de host {fingerprint}",
     "hostKeyNotPinnedHint": "Clave de host aún no fijada",
     "deleteKeyNote": "La clave del Panel sigue en ~/.ssh/authorized_keys de este servidor. Quita a mano la línea que termina en {marker}.",
-    "bulkDeleteKeyNote": "Los servidores que usan la clave SSH conservan la clave del Panel en ~/.ssh/authorized_keys. Quita su línea a mano."
+    "bulkDeleteKeyNote": "Los servidores que usan la clave SSH conservan la clave del Panel en ~/.ssh/authorized_keys. Quita su línea a mano.",
+    "accessKeyNotVerified": "Clave aún sin verificar",
+    "accessNeedsSetup": "Falta configurar"
   },
   "serverForm": {
     "name": "Nombre",
@@ -1469,7 +1471,10 @@
     "sharedDatabaseServiceConfined": "Este contenedor de base de datos se comparte con otros entornos; solo un administrador puede controlarlo o leer sus registros.",
     "databaseHostVersion": "Ese contenedor ejecuta un Postgres anterior a la 15; registra solo Postgres 15 o posterior.",
     "defaultServerForbidden": "Solo los administradores e infra pueden cambiar el servidor predeterminado del proyecto.",
-    "invalidFrom": "Introduce una dirección IP o una subred, como 192.168.1.10 o 172.29.0.0/16."
+    "invalidFrom": "Introduce una dirección IP o una subred, como 192.168.1.10 o 172.29.0.0/16.",
+    "keyNotVerified": "La clave SSH aún no ha iniciado sesión. Ejecuta el comando de instalación en el servidor y luego Comprobar inicio con clave.",
+    "notKeyServer": "Este servidor no inicia sesión con la clave SSH.",
+    "keyServerNoPassword": "Este servidor inicia sesión con la clave SSH, así que no guarda contraseña."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -3254,7 +3259,12 @@
     "trustTitle": "¿Confiar en la nueva clave de host?",
     "trustDescription": "Confía en {fingerprint} solo si lo comprobaste en el propio servidor.",
     "trustDone": "Nueva clave de host de confianza.",
-    "reviewHostKey": "Revisar la clave de host"
+    "reviewHostKey": "Revisar la clave de host",
+    "keyNotVerified": "Clave SSH, aún sin verificar",
+    "needsSetup": "Falta configurar: sin contraseña ni clave",
+    "showInstallCommand": "Mostrar comando de instalación",
+    "checkKeyLogin": "Comprobar inicio con clave",
+    "checkKeyLoginDone": "La clave SSH inicia sesión."
   },
   "instanceSshKey": {
     "title": "Clave SSH",
@@ -3276,6 +3286,7 @@
     "colServer": "Servidor",
     "colResult": "Resultado",
     "ok": "Hecho",
-    "failed": "Falló"
+    "failed": "Falló",
+    "previousKey": "La rotación no terminó: algunos servidores aún usan {fingerprint}. Vuelve a Rotar para reintentarlo."
   }
 }

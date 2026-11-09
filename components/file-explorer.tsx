@@ -31,6 +31,10 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useFormatter, useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import {
+  isHostKeyMismatchFailure,
+  serverPageHref,
+} from "@/components/host-key-mismatch";
 import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
@@ -251,7 +255,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
       setEntries(result.data);
     } else {
       setError(result.message);
-      setHostKeyMismatch("code" in result && result.code === "hostKeyMismatch");
+      setHostKeyMismatch(isHostKeyMismatchFailure(result));
       setEntries([]);
     }
     setLoading(false);
@@ -1578,7 +1582,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
                 <Button
                   variant="outline"
                   nativeButton={false}
-                  render={<Link href={`/servers/${source.serverId}`} />}
+                  render={<Link href={serverPageHref(source.serverId)} />}
                 >
                   {t("reviewHostKey")}
                 </Button>

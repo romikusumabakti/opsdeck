@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -14,7 +14,7 @@ import {
 import { decryptNullable, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
 import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
-import { ensureCurrentKey, isValidFrom, keyMarker } from "@/lib/ssh-keys";
+import { ensureCurrentKey, isValidFrom } from "@/lib/ssh-keys";
 import type { ActionResponse } from "@/lib/types";
 import {
   type ServerInput,
@@ -22,46 +22,7 @@ import {
   serverUpdateSchema,
 } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
-
-/**
- * A server as the browser sees it: no password, no host key blobs (only their
- * fingerprints), and what the access UI needs — whether a password is stored,
- * whether the server offered another host key, and the marker of the Panel's
- * authorized_keys line on it.
- */
-export type ServerView = Omit<
-  Server,
-  | "password"
-  | "hostKeyType"
-  | "hostKey"
-  | "hostKeyOfferedType"
-  | "hostKeyOffered"
-  | "hostKeyOfferedFingerprint"
-> & {
-  hasPassword: boolean;
-  hostKeyMismatch: boolean;
-  offeredFingerprint: string | null;
-  keyMarker: string | null;
-};
-
-export function serverView({
-  password,
-  hostKeyType: _hostKeyType,
-  hostKey: _hostKey,
-  hostKeyOfferedType: _hostKeyOfferedType,
-  hostKeyOffered: _hostKeyOffered,
-  hostKeyOfferedFingerprint,
-  ...rest
-}: Server): ServerView {
-  return {
-    ...rest,
-    hasPassword: password !== null,
-    hostKeyMismatch: hostKeyOfferedFingerprint !== null,
-    offeredFingerprint: hostKeyOfferedFingerprint,
-    keyMarker:
-      rest.auth === "key" && rest.sshKeyId ? keyMarker(rest.sshKeyId) : null,
-  };
-}
+import { KEY_NOT_VERIFIED } from "@/server/services/server-keys";
 
 export type ServerUsage = {
   // The environment that uses this server, with the parts needed to link to its
@@ -165,6 +126,9 @@ export async function createServer(
       password: null,
       sshKeyId: key.id,
       sshFrom,
+      // Not proven until a key login succeeds: Check key login on the server
+      // page (or a move or rotation) clears it.
+      keyError: KEY_NOT_VERIFIED,
     };
   } else {
     if (sshFrom !== undefined) {
@@ -201,7 +165,18 @@ export async function updateServer(
   // Encrypt the password only when the edit actually supplies one; an omitted
   // password means "keep the stored (already-encrypted) value".
   const patch = { ...parsed.data };
+  const settingPassword = Boolean(patch.password);
   if (patch.password) patch.password = encryptSecret(patch.password);
+  if (settingPassword) {
+    const [current] = await db
+      .select({ auth: servers.auth })
+      .from(servers)
+      .where(eq(servers.id, id))
+      .limit(1);
+    if (current?.auth === "key") {
+      return { success: false, message: t("keyServerNoPassword") };
+    }
+  }
   try {
     const write = (
       tx: Pick<typeof db, "update">,
@@ -210,7 +185,13 @@ export async function updateServer(
       tx
         .update(servers)
         .set({ ...patch, ...reset, updatedAt: new Date() })
-        .where(eq(servers.id, id))
+        // A key server stores no password: one sent for it is refused, also
+        // when the server moved to the key since it was read.
+        .where(
+          settingPassword
+            ? and(eq(servers.id, id), eq(servers.auth, "password"))
+            : eq(servers.id, id)
+        )
         .returning();
     const newHost = patch.host;
     // A new address never inherits the old pin. The row is locked so a

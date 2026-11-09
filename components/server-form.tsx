@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/web/api/client";
@@ -57,6 +58,9 @@ const PLACEMENTS = ["restricted", "open"] as const;
 // it (the password is never stored).
 const METHODS = ["key", "passwordOnce"] as const;
 type Method = (typeof METHODS)[number];
+
+// How long the from= field must rest before its command is fetched.
+const FROM_DEBOUNCE_MS = 400;
 
 type Mode = { type: "create" } | { type: "edit"; server: Server };
 
@@ -190,13 +194,18 @@ export function ServerForm({
         return;
       }
       const created = result.data;
+      // Created: from here on the form never creates again. What is left is
+      // done on the new server's page (its saved key and from=, or the move).
       if (values.method === "passwordOnce") {
         try {
           await reinstallServerKey(created.id, values.password);
         } catch (error) {
-          if (!(error instanceof ApiError) || error.status === 401) throw error;
-          // Created, but still on no password: its page offers the move again.
-          toast.error(t("keyNotInstalled", { message: error.message }));
+          if (error instanceof ApiError && error.status === 401) throw error;
+          const message =
+            error instanceof ApiError ? error.message : tCommon("errorGeneric");
+          // Still on no password: its page shows Needs setup and offers the
+          // move again.
+          toast.error(t("keyNotInstalled", { message }));
           if (onSuccess) onSuccess(created);
           else router.push(`/servers/${created.id}`);
           return;
@@ -207,7 +216,11 @@ export function ServerForm({
         onSuccess(created);
         return;
       }
-      router.push("/servers");
+      // A key installed by hand is not verified yet: its page shows the
+      // command for the saved row and Check key login.
+      router.push(
+        values.method === "key" ? `/servers/${created.id}` : "/servers"
+      );
       return;
     }
 
@@ -553,10 +566,12 @@ function KeyInstall({
 }) {
   const t = useTranslations("serverForm");
   const key = useQuery(getInstanceSshKeyQuery());
+  const settled = useDebouncedValue(from, FROM_DEBOUNCE_MS);
+  // Only the command for the address in the field is ever shown.
+  const current = settled === from && from.length > 0;
   const line = useQuery({
-    ...getAuthorizedKeysLineQuery(from),
-    enabled: from.length > 0,
-    placeholderData: keepPreviousData,
+    ...getAuthorizedKeysLineQuery(settled),
+    enabled: current,
   });
 
   return (
@@ -581,13 +596,13 @@ function KeyInstall({
           <p className="text-sm text-muted-foreground">
             {t("installCommandEmpty")}
           </p>
-        ) : line.isError ? (
+        ) : current && line.isError ? (
           <p className="text-sm text-destructive">
             {line.error instanceof ApiError
               ? line.error.message
               : String(line.error)}
           </p>
-        ) : line.data ? (
+        ) : current && line.data ? (
           <div className="flex items-start gap-2">
             <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-xs">
               {line.data.command}

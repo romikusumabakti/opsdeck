@@ -94,6 +94,24 @@ export async function ensureCurrentKey(): Promise<{
   return pick(winner);
 }
 
+/** The public half of one of this instance's keys, or null. */
+export async function instanceKey(keyId: string): Promise<{
+  id: string;
+  publicKey: string;
+  fingerprint: string;
+} | null> {
+  const [row] = await db
+    .select({
+      id: sshKeys.id,
+      publicKey: sshKeys.publicKey,
+      fingerprint: sshKeys.fingerprint,
+    })
+    .from(sshKeys)
+    .where(eq(sshKeys.id, keyId))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function loadPrivateKey(keyId: string): Promise<string> {
   const [row] = await db
     .select()
@@ -157,6 +175,21 @@ export function authorizedKeysLine(
     throw new Error("invalid ssh key marker");
   }
   return `from="${from}",no-agent-forwarding,no-X11-forwarding ${type} ${base64} ${marker}`;
+}
+
+/**
+ * A shell command that installs `line` (from authorizedKeysLine) as the login
+ * user: ~/.ssh 0700 and authorized_keys 0600 before anything is written, then
+ * the line appended only when that exact line is absent (after a newline, in
+ * case the file does not end with one; sshd skips blank lines). The line holds
+ * no single quote, so it is safe inside one.
+ */
+export function installCommand(line: string): string {
+  if (line.includes("'") || line.includes("\n")) {
+    throw new Error("invalid authorized_keys line");
+  }
+  const file = "~/.ssh/authorized_keys";
+  return `mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ${file} && chmod 600 ${file} && { grep -qxF -- '${line}' ${file} || printf '\\n%s\\n' '${line}' >> ${file}; }`;
 }
 
 /** Whether an authorized_keys line is ours: its last field is `marker`. */

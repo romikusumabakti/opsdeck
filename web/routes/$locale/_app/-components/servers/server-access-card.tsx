@@ -1,8 +1,10 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Loader2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useFormatter, useTranslations } from "use-intl";
+import { AdvancedOptions } from "@/components/advanced-options";
+import { CopyButton } from "@/components/copy-button";
 import { useDialog } from "@/components/dialog-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -22,15 +24,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useKeyErrorMessage } from "@/hooks/use-key-error-message";
 import { ApiError } from "@/web/api/client";
 import {
+  checkServerKeyLogin,
+  getServerAuthorizedLineQuery,
   moveServerToKey,
   reinstallServerKey,
   type ServerRow,
   trustServerHostKey,
 } from "@/web/api/servers";
+import { accessState } from "./access-state";
+
+// How long the from= field must rest before its command is fetched.
+const FROM_DEBOUNCE_MS = 400;
 
 /**
  * Shows a refused key action's message (translated by the server from its
@@ -44,16 +55,12 @@ function reportError(error: unknown): void {
   throw error;
 }
 
-/** The message of a stored key error code, or the code when it is unknown. */
-export function useKeyErrorMessage(): (code: string) => string {
-  const t = useTranslations("actionErrors");
-  return (code) => (t.has(code as never) ? t(code as never) : code);
-}
-
 /**
  * The server page's SSH access: how the Panel signs in, the pinned host key
  * and the from= address, with Move to SSH key or Reinstall key, and a banner
- * when the server offered another host key. Actions need server:manage.
+ * when the server offered another host key. A key server also has its install
+ * command and Check key login, so one installed by hand that never signed in
+ * (or whose from= changed) is never a dead end. Actions need server:manage.
  */
 export function ServerAccessCard({
   server,
@@ -106,6 +113,7 @@ export function ServerAccessCard({
     await run(() => trustServerHostKey(server.id, fingerprint), t("trustDone"));
   }
 
+  const state = accessState(server);
   const pinnedAt = server.hostKeyPinnedAt
     ? format.dateTime(new Date(server.hostKeyPinnedAt), {
         dateStyle: "medium",
@@ -161,8 +169,14 @@ export function ServerAccessCard({
         <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-sm">
           <dt className="text-muted-foreground">{t("signIn")}</dt>
           <dd>
-            <Badge variant={server.auth === "key" ? "secondary" : "outline"}>
-              {server.auth === "key" ? t("key") : t("password")}
+            <Badge variant={state === "key" ? "secondary" : "outline"}>
+              {state === "keyNotVerified"
+                ? t("keyNotVerified")
+                : state === "needsSetup"
+                  ? t("needsSetup")
+                  : server.auth === "key"
+                    ? t("key")
+                    : t("password")}
             </Badge>
           </dd>
           <dt className="text-muted-foreground">{t("hostKey")}</dt>
@@ -188,7 +202,7 @@ export function ServerAccessCard({
               <dd className="font-mono text-xs">{server.sshFrom}</dd>
             </>
           ) : null}
-          {server.keyError ? (
+          {server.keyError && state !== "keyNotVerified" ? (
             <>
               <dt className="text-muted-foreground">{t("lastError")}</dt>
               <dd className="text-destructive">
@@ -197,6 +211,17 @@ export function ServerAccessCard({
             </>
           ) : null}
         </dl>
+
+        {canManage && server.auth === "key" ? (
+          // Open at once while the key never signed in: right after a server
+          // is added this way, its command (for the saved row) is the next step.
+          <AdvancedOptions
+            label={t("showInstallCommand")}
+            defaultOpen={state === "keyNotVerified"}
+          >
+            <KeyInstallCheck server={server} />
+          </AdvancedOptions>
+        ) : null}
 
         {canManage ? (
           <div>
@@ -315,5 +340,95 @@ function PasswordOnceDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A key server's install command for its own key, with an editable from=
+ * (prefilled from the row), and Check key login: a key-only sign-in that, on
+ * success, marks the key verified and saves a changed from.
+ */
+function KeyInstallCheck({ server }: { server: ServerRow }) {
+  const t = useTranslations("serverAccess");
+  const tForm = useTranslations("serverForm");
+  const queryClient = useQueryClient();
+  const [from, setFrom] = useState(server.sshFrom ?? "");
+  const [checking, setChecking] = useState(false);
+  const typed = from.trim();
+  const settled = useDebouncedValue(typed, FROM_DEBOUNCE_MS);
+  // Only the command for the address in the field is ever shown.
+  const current = settled === typed && typed.length > 0;
+  const line = useQuery({
+    ...getServerAuthorizedLineQuery(server.id, settled),
+    enabled: current,
+  });
+
+  async function check() {
+    setChecking(true);
+    try {
+      await checkServerKeyLogin(
+        server.id,
+        typed && typed !== server.sshFrom ? typed : undefined
+      );
+      toast.success(t("checkKeyLoginDone"));
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setChecking(false);
+      await queryClient.invalidateQueries({ queryKey: ["servers"] });
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="server-ssh-from">{tForm("sshFrom")}</Label>
+        <Input
+          id="server-ssh-from"
+          name="sshFrom"
+          autoComplete="off"
+          placeholder={tForm("sshFromPlaceholder")}
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <p className="text-sm text-muted-foreground">
+          {tForm("sshFromDescription")}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">{tForm("installCommand")}</span>
+        {typed.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {tForm("installCommandEmpty")}
+          </p>
+        ) : current && line.isError ? (
+          <p className="text-sm text-destructive">
+            {line.error instanceof ApiError
+              ? line.error.message
+              : String(line.error)}
+          </p>
+        ) : current && line.data ? (
+          <div className="flex items-start gap-2">
+            <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-xs">
+              {line.data.command}
+            </code>
+            <CopyButton value={line.data.command} />
+          </div>
+        ) : (
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        )}
+      </div>
+      <Button
+        variant="outline"
+        className="w-fit"
+        disabled={checking}
+        onClick={() => void check()}
+      >
+        {checking ? (
+          <Loader2 data-icon="inline-start" className="animate-spin" />
+        ) : null}
+        {t("checkKeyLogin")}
+      </Button>
+    </div>
   );
 }
