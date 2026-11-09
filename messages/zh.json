@@ -1346,6 +1346,8 @@
     "sudoNeedsPassword": "该登录用户执行 sudo 需要密码，因此无法切换到 SSH 密钥。请使用 root 或 NOPASSWD sudo 规则。",
     "noPassword": "此服务器没有保存密码。请使用密码重新安装密钥。",
     "passwordRejected": "服务器拒绝了该密码。",
+    "keyJobRunning": "此服务器正在进行另一个 SSH 密钥操作。请在其完成后重试。",
+    "sshDirUnsafe": "服务器上的 ~/.ssh 属于其他用户或可被他人写入，SSH 会忽略该密钥。请先修正其所有者和权限（chmod 700）。",
     "invalidInput": "输入无效",
     "errorGeneric": "出现错误",
     "sourceNotFound": "未找到存储源",

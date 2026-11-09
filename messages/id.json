@@ -1346,6 +1346,8 @@
     "sudoNeedsPassword": "Login ini butuh password untuk sudo, jadi tidak bisa pindah ke SSH key. Gunakan root atau aturan sudo NOPASSWD.",
     "noPassword": "Tidak ada password tersimpan untuk server ini. Pasang ulang key dengan password.",
     "passwordRejected": "Server menolak password tersebut.",
+    "keyJobRunning": "Operasi SSH key lain sedang berjalan untuk server ini. Coba lagi setelah selesai.",
+    "sshDirUnsafe": "~/.ssh di server dimiliki user lain atau bisa ditulis pihak lain, jadi SSH akan mengabaikan key-nya. Perbaiki owner dan mode-nya (chmod 700) dulu.",
     "invalidInput": "Input tidak valid",
     "errorGeneric": "Terjadi kesalahan",
     "sourceNotFound": "Sumber penyimpanan tidak ditemukan",

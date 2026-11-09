@@ -48,6 +48,9 @@ const state = vi.hoisted(() => ({
   clientPrivateKey: "",
   port: 0,
   orgRole: "admin",
+  // Advisory locks held, keyed by their two int4 halves.
+  locks: new Set<string>(),
+  activityFails: false,
 }));
 
 const camel = (name: string) =>
@@ -116,11 +119,32 @@ vi.mock("@/lib/db", () => {
       }),
     }),
   };
-  return { db };
+  // A reserved connection that understands the two advisory lock queries.
+  const pgClient = () => ({
+    reserve: async () => {
+      const conn = async (
+        strings: TemplateStringsArray,
+        ...values: unknown[]
+      ) => {
+        const text = strings.join("?");
+        const key = values.join(":");
+        if (text.includes("pg_try_advisory_lock")) {
+          if (state.locks.has(key)) return [{ locked: false }];
+          state.locks.add(key);
+          return [{ locked: true }];
+        }
+        if (text.includes("pg_advisory_unlock")) state.locks.delete(key);
+        return [];
+      };
+      return Object.assign(conn, { release: () => {} });
+    },
+  });
+  return { db, pgClient };
 });
 
 vi.mock("@/lib/activity", () => ({
   recordActivity: async (input: Record<string, unknown>) => {
+    if (state.activityFails) throw new Error("activity insert failed");
     state.activity.push(input);
   },
 }));
@@ -171,10 +195,10 @@ vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 
-const { moveServerToKey, ownSubnet } = await import(
+const { moveServerToKey, normaliseSubnet, ownSubnet } = await import(
   "@/server/services/server-keys"
 );
-const { sshFingerprint } = await import("@/lib/ssh-keys");
+const { serverKeyLock, sshFingerprint } = await import("@/lib/ssh-keys");
 const { app } = await import("@/server/app");
 
 const hostKey = ssh2.utils.generateKeyPairSync("ed25519");
@@ -200,6 +224,8 @@ type Sshd = {
   rejectKey: boolean;
   passwords: Set<string>;
   authMethods: string[];
+  // Runs on every publickey attempt, to interleave a concurrent change.
+  onKeyAuth: (() => void) | null;
 };
 
 let sshd: Sshd;
@@ -224,6 +250,7 @@ function startSshd(privateHostKey: string): Promise<ssh2.Server> {
     client.on("error", () => {});
     client.on("authentication", (ctx) => {
       sshd.authMethods.push(ctx.method);
+      if (ctx.method === "publickey") sshd.onKeyAuth?.();
       if (ctx.method === "password" && sshd.passwords.has(ctx.password)) {
         ctx.accept();
         return;
@@ -279,6 +306,7 @@ beforeAll(async () => {
     rejectKey: false,
     passwords: new Set(),
     authMethods: [],
+    onKeyAuth: null,
   };
   sshd.port = (sshd.server.address() as { port: number }).port;
   mkdirSync(sshd.bin);
@@ -339,6 +367,9 @@ beforeEach(() => {
   sshd.rejectKey = false;
   sshd.passwords = new Set(["pw"]);
   sshd.authMethods = [];
+  sshd.onKeyAuth = null;
+  state.locks = new Set();
+  state.activityFails = false;
   fakeSudo(false);
   delete process.env.OPSDECK_NETWORK_SUBNET;
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -520,16 +551,15 @@ describe("moveServerToKey", () => {
       code: "noPassword",
     });
     expect(sshd.authMethods).toEqual([]);
+    expect(row().keyError).toBeNull();
   });
 
   it("a wrong password is reported as such", async () => {
     expect(
       await moveServerToKey(SERVER_ID, USER_ID, { passwordOnce: "wrong" })
     ).toEqual({ ok: false, code: "passwordRejected" });
-    expect(row()).toMatchObject({
-      password: "pw",
-      keyError: "passwordRejected",
-    });
+    // The admin's typo, not the server's state: key_error is left alone.
+    expect(row()).toMatchObject({ password: "pw", keyError: null });
   });
 
   it("an unreachable server keeps its password", async () => {
@@ -592,6 +622,121 @@ describe("moveServerToKey", () => {
     expect(logged).not.toContain(once);
     expect(logged).not.toContain("BEGIN OPENSSH");
   });
+
+  it("a second concurrent key operation is refused", async () => {
+    const results = await Promise.all([
+      moveServerToKey(SERVER_ID, USER_ID),
+      moveServerToKey(SERVER_ID, USER_ID),
+    ]);
+    expect(results).toContainEqual({ ok: true });
+    expect(results).toContainEqual({ ok: false, code: "keyJobRunning" });
+    expect(state.locks.size).toBe(0);
+  });
+
+  it("is refused while another process holds the lock", async () => {
+    const release = await serverKeyLock(SERVER_ID);
+    expect(release).not.toBeNull();
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({
+      ok: false,
+      code: "keyJobRunning",
+    });
+    expect(sshd.authMethods).toEqual([]);
+    expect(row().keyError).toBeNull();
+    await release?.();
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({ ok: true });
+  });
+
+  it("rollback skips removal when the row already committed", async () => {
+    seedAuthorizedKeys(FOREIGN);
+    sshd.rejectKey = true;
+    // Another run commits the server to this key while ours is proving it.
+    sshd.onKeyAuth = () => {
+      Object.assign(row(), { auth: "key", sshKeyId: KEY_ID, password: null });
+    };
+
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({
+      ok: false,
+      code: "keyLoginFailed",
+    });
+    expect(readFileSync(authorizedKeys(), "utf8")).toBe(
+      `${FOREIGN}\n${ourLine("127.0.0.1")}\n`
+    );
+  });
+
+  it("a login edited meanwhile is not switched", async () => {
+    seedAuthorizedKeys(FOREIGN);
+    sshd.onKeyAuth = () => {
+      row().username = "admin";
+    };
+
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({
+      ok: false,
+      code: "keyInstallFailed",
+    });
+    expect(row()).toMatchObject({ auth: "password", password: "pw" });
+    expect(readFileSync(authorizedKeys(), "utf8")).toBe(`${FOREIGN}\n`);
+  });
+
+  it("a failure after the commit still answers ok", async () => {
+    state.activityFails = true;
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({ ok: true });
+    expect(row()).toMatchObject({ auth: "key", keyError: null });
+  });
+
+  it("keeps foreign bytes that are not UTF-8", async () => {
+    // Latin-1 "é", a lone UTF-8 lead byte before CRLF, and a cut-off
+    // multibyte sequence at the end of the file.
+    const foreign = Buffer.concat([
+      Buffer.from("ssh-ed25519 AAAAC3Nza caf"),
+      Buffer.from([0xe9, 0x0a]),
+      Buffer.from("ssh-rsa AAAAB3 x"),
+      Buffer.from([0xc3, 0x0d, 0x0a, 0xe2, 0x82]),
+    ]);
+    mkdirSync(join(sshd.home, ".ssh"), { mode: 0o700 });
+    writeFileSync(authorizedKeys(), foreign);
+
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({ ok: true });
+
+    expect(readFileSync(authorizedKeys())).toEqual(
+      Buffer.concat([foreign, Buffer.from(`\n${ourLine("127.0.0.1")}\n`)])
+    );
+  });
+
+  it("refuses a ~/.ssh writable by others", async () => {
+    seedAuthorizedKeys(FOREIGN);
+    chmodSync(join(sshd.home, ".ssh"), 0o777);
+
+    expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({
+      ok: false,
+      code: "sshDirUnsafe",
+    });
+    expect(readFileSync(authorizedKeys(), "utf8")).toBe(FOREIGN);
+    expect(row()).toMatchObject({ password: "pw", keyError: "sshDirUnsafe" });
+  });
+});
+
+describe("normaliseSubnet", () => {
+  it("zeroes host bits", () => {
+    expect(normaliseSubnet("172.29.5.7/16")).toBe("172.29.0.0/16");
+    expect(normaliseSubnet(" 10.1.2.3/8 ")).toBe("10.0.0.0/8");
+    expect(normaliseSubnet("192.168.10.113/32")).toBe("192.168.10.113/32");
+    expect(normaliseSubnet("fd00:1::5/64")).toBe("fd00:1:0:0:0:0:0:0/64");
+  });
+
+  it("rejects subnets that are too wide or malformed", () => {
+    for (const bad of [
+      "10.0.0.0/7",
+      "0.0.0.0/0",
+      "fd00::/31",
+      "172.29.0.0",
+      "172.29.0.0/33",
+      "nope/16",
+      "fe80::1%eth0/64",
+      "1.2.3.4/16/1",
+    ]) {
+      expect(normaliseSubnet(bad), bad).toBeNull();
+    }
+  });
 });
 
 describe("ownSubnet", () => {
@@ -633,6 +778,59 @@ describe("ownSubnet", () => {
         routeTable: () => ROUTES,
       })
     ).toBeNull();
+  });
+
+  it("normalises the env subnet and refuses one that is too wide", () => {
+    const source = { inContainer: () => true, routeTable: () => ROUTES };
+    expect(
+      ownSubnet({ ...source, env: { OPSDECK_NETWORK_SUBNET: "10.5.0.9/24" } })
+    ).toBe("10.5.0.0/24");
+    // Too wide: no subnet at all (from= is the plain address), not the route.
+    expect(
+      ownSubnet({ ...source, env: { OPSDECK_NETWORK_SUBNET: "0.0.0.0/0" } })
+    ).toBeNull();
+  });
+
+  // One /proc/net/route line: interface, destination, gateway, flags, mask.
+  const route = (
+    iface: string,
+    dest: string,
+    gw: string,
+    flags: string,
+    mask: string
+  ) => `${iface}\t${dest}\t${gw}\t${flags}\t0\t0\t0\t${mask}\t0\t0\t0`;
+  const table = (...lines: string[]) =>
+    [ROUTES.split("\n")[0], ...lines, ""].join("\n");
+  const inContainer = { env: {}, inContainer: () => true };
+
+  it("refuses a host-network container (host bridges visible)", () => {
+    const hostNet = table(
+      route("eth0", "00000000", "0138A8C0", "0003", "00000000"),
+      route("eth0", "0038A8C0", "00000000", "0001", "00FFFFFF"),
+      route("docker0", "000011AC", "00000000", "0001", "0000FFFF")
+    );
+    expect(ownSubnet({ ...inContainer, routeTable: () => hostNet })).toBeNull();
+  });
+
+  it("refuses a public or oddly gated connected route", () => {
+    // 203.0.113.0/24, gateway .1: not private.
+    const publicNet = table(
+      route("eth0", "00000000", "017100CB", "0003", "00000000"),
+      route("eth0", "007100CB", "00000000", "0001", "00FFFFFF")
+    );
+    // 172.29.0.0/16 with the gateway at .254: not a bridge's numbering.
+    const oddGateway = table(
+      route("eth0", "00000000", "FE001DAC", "0003", "00000000"),
+      route("eth0", "00001DAC", "00000000", "0001", "0000FFFF")
+    );
+    // 10.0.0.0/8: wider than /12.
+    const tooWide = table(
+      route("eth0", "00000000", "0100000A", "0003", "00000000"),
+      route("eth0", "0000000A", "00000000", "0001", "000000FF")
+    );
+    for (const t of [publicNet, oddGateway, tooWide]) {
+      expect(ownSubnet({ ...inContainer, routeTable: () => t })).toBeNull();
+    }
   });
 
   it("ignores an unreadable or routeless table", () => {
@@ -681,6 +879,14 @@ describe("routes", () => {
       error: "keyLoginFailed",
       code: "keyLoginFailed",
     });
+  });
+
+  it("a key operation already running answers 409 keyJobRunning", async () => {
+    const release = await serverKeyLock(SERVER_ID);
+    const res = await post(`/api/servers/${SERVER_ID}/move-to-key`);
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("keyJobRunning");
+    await release?.();
   });
 
   it("reinstall-key requires a password", async () => {
