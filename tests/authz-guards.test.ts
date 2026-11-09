@@ -567,7 +567,7 @@ describe("ops runs record their kind", () => {
   // Each call's argument object runs to the first "});" after it.
   function runInserts(source: string): string[] {
     const calls: string[] = [];
-    const re = /createRun\(\{|\.insert\(runs\)\.values\(\{/g;
+    const re = /createRun(?:OrRefuse)?\(\{|\.insert\(runs\)\.values\(\{/g;
     for (const m of source.matchAll(re)) {
       const end = source.indexOf("});", m.index);
       calls.push(source.slice(m.index, end));

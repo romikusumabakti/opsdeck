@@ -36,8 +36,10 @@ import {
   teardownSteps,
 } from "@/lib/db/schema";
 import { replaceSteps } from "@/lib/steps/replace-steps";
+import { holdEnvironmentExclusive } from "@/lib/teardown/guard";
 import { normaliseHost } from "@/lib/teardown/paths";
 import type { TeardownStepSpec } from "@/lib/teardown/plan";
+import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 
 /** What planTeardown needs of an environment. Dirs and hosts as stored. */
 export type TeardownEnvironment = {
@@ -403,22 +405,70 @@ export async function addArchiveFile(
     .where(eq(environmentArchives.id, archiveId));
 }
 
+const DAY_MS = 86_400_000;
+
 /**
- * delete_environment: in one transaction, closes the environment's open
- * archive (completed_at), deletes the environment row (the cascade removes
- * its steps and runs) and records `environment.deleted` {environment,
- * archiveId}, so a crash can lose none of them. The archive id is the one
- * just closed, else the newest one already closed. Null when the environment
- * is gone already.
+ * delete_environment: in one transaction, deletes the environment row (the
+ * cascade removes its steps and runs), closes its open archive
+ * (completed_at, and expires_at ENV_ARCHIVE_RETENTION_DAYS from now) and
+ * records `environment.deleted` {environment, archiveId}, so a crash can
+ * lose none of them. The archive id is the one just closed, else the newest
+ * one already closed.
+ *
+ * Unless `escrowConfirmed`, the DELETE itself requires that the environment
+ * has no escrowed variable (as the row-only delete does), so one escrowed
+ * since the start still stops it: `refusal`, and nothing is written. Null
+ * when the environment is gone already.
  */
 export async function deleteTeardownEnvironment(
   environmentId: string,
-  actorId: string | null
-): Promise<{ environmentName: string; archiveId: string | null } | null> {
+  actorId: string | null,
+  { escrowConfirmed }: { escrowConfirmed: boolean }
+): Promise<
+  | { environmentName: string; archiveId: string | null }
+  | { refusal: "environmentHasEscrowedVariables" }
+  | null
+> {
   return db.transaction(async (tx) => {
+    const [deleted] = await tx
+      .delete(environments)
+      .where(
+        escrowConfirmed
+          ? eq(environments.id, environmentId)
+          : and(
+              eq(environments.id, environmentId),
+              notExists(
+                tx
+                  .select({ id: environmentVariables.id })
+                  .from(environmentVariables)
+                  .where(
+                    and(
+                      eq(environmentVariables.environmentId, environmentId),
+                      eq(environmentVariables.escrow, true)
+                    )
+                  )
+              )
+            )
+      )
+      .returning({ name: environments.name });
+    if (!deleted) {
+      const [still] = await tx
+        .select({ id: environments.id })
+        .from(environments)
+        .where(eq(environments.id, environmentId));
+      return still
+        ? { refusal: "environmentHasEscrowedVariables" as const }
+        : null;
+    }
+    const now = new Date();
     const [closed] = await tx
       .update(environmentArchives)
-      .set({ completedAt: new Date() })
+      .set({
+        completedAt: now,
+        expiresAt: new Date(
+          now.getTime() + ENV_ARCHIVE_RETENTION_DAYS * DAY_MS
+        ),
+      })
       .where(
         and(
           eq(environmentArchives.environmentId, environmentId),
@@ -437,11 +487,6 @@ export async function deleteTeardownEnvironment(
             desc(environmentArchives.id)
           )
           .limit(1);
-    const [deleted] = await tx
-      .delete(environments)
-      .where(eq(environments.id, environmentId))
-      .returning({ name: environments.name });
-    if (!deleted) return null;
     const archiveId = latest?.id ?? null;
     await tx.insert(activityLog).values({
       actorId,
@@ -576,21 +621,24 @@ export async function teardownState(
 
 /**
  * Opens the environment's `teardown` run, unless a teardown is running
- * (teardownRunning) or the environment is busy (environmentBusy). The checks
- * and the insert share the transaction-scoped advisory lock on the
- * environment id that provisioning takes, so two requests cannot both pass.
+ * (teardownRunning), or, for a fresh start, one already got somewhere (a
+ * step is done: the client resumes it with a retry instead), or the
+ * environment is busy (environmentBusy). The checks and the insert hold the
+ * environment's advisory lock exclusively (the key provisioning and, shared,
+ * deploys, backups and restores take: lib/teardown/guard), so two requests
+ * cannot both pass, and no deploy or backup is placed in between.
  */
 export async function startTeardownRun(
   environmentId: string,
-  userId: string | null
+  userId: string | null,
+  mode: "start" | "retry"
 ): Promise<
   { runId: string } | { refusal: "teardownRunning" | "environmentBusy" }
 > {
   return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${environmentId}::text, 0))`
-    );
-    if ((await readTeardownState(tx, environmentId)).running) {
+    await holdEnvironmentExclusive(tx, environmentId);
+    const state = await readTeardownState(tx, environmentId);
+    if (state.running || (mode === "start" && state.progressed)) {
       return { refusal: "teardownRunning" as const };
     }
     if (await environmentBusy(environmentId, tx)) {

@@ -200,7 +200,11 @@ describe("POST /api/environments/:id/teardown", () => {
     const res = await start();
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ runId: RUN_ID });
-    expect(repo.startTeardownRun).toHaveBeenCalledWith(ENV_ID, USER_ID);
+    expect(repo.startTeardownRun).toHaveBeenCalledWith(
+      ENV_ID,
+      USER_ID,
+      "start"
+    );
     expect(repo.saveTeardownSteps).toHaveBeenCalledWith(ENV_ID, STEPS);
     expect(state.enqueued).toEqual([
       {
@@ -356,6 +360,25 @@ describe("POST /api/environments/:id/teardown", () => {
       confirmEscrowedDeletion: true,
     });
     expect(res.status).toBe(202);
+    // The confirmation goes with the delete step, which checks again.
+    expect(repo.saveTeardownSteps).toHaveBeenCalledWith(ENV_ID, [
+      STEPS[0],
+      { kind: "delete_environment", params: { confirmEscrowedDeletion: true } },
+    ]);
+  });
+
+  it("records no escrow confirmation without integration:manage", async () => {
+    // infra: server:manage, not integration:manage; no escrowed variables yet.
+    for (const orgRole of ["infra", "member"]) {
+      state.orgRole = orgRole;
+      repo.saveTeardownSteps.mockClear();
+      const res = await start({
+        confirmName: "TD Dev",
+        confirmEscrowedDeletion: true,
+      });
+      expect(res.status).toBe(202);
+      expect(repo.saveTeardownSteps).toHaveBeenCalledWith(ENV_ID, STEPS);
+    }
   });
 
   it("closes the run when the job cannot be queued", async () => {

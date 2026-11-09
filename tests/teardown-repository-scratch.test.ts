@@ -25,7 +25,7 @@ if (scratchDb) {
 }
 
 describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
-  const { eq, inArray } = await import("drizzle-orm");
+  const { and, eq, inArray } = await import("drizzle-orm");
   const { db, pgClient } = await import("@/lib/db");
   const s = await import("@/lib/db/schema");
   const { encryptSecret } = await import("@/lib/secrets");
@@ -53,6 +53,9 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     startTeardownRun,
     teardownState,
   } = await import("@/lib/teardown/repository");
+  const { createRunUnlessTearingDown, teardownBlocks } = await import(
+    "@/lib/teardown/guard"
+  );
 
   const ids = {
     project: "",
@@ -555,7 +558,32 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       { name: "deploy-x.tar.gz", size: 20 },
     ]);
 
-    await expect(deleteTeardownEnvironment(gone, null)).resolves.toEqual({
+    // An escrowed variable, not confirmed: nothing is written.
+    const [escrowed] = await db
+      .insert(s.environmentVariables)
+      .values({
+        environmentId: gone,
+        name: "KEY",
+        kind: "secret",
+        value: encryptSecret("k"),
+        escrow: true,
+      })
+      .returning({ id: s.environmentVariables.id });
+    await expect(
+      deleteTeardownEnvironment(gone, null, { escrowConfirmed: false })
+    ).resolves.toEqual({ refusal: "environmentHasEscrowedVariables" });
+    await expect(environmentExists(gone)).resolves.toBe(true);
+    await expect(findOpenArchive(gone)).resolves.toMatchObject({
+      id: archive.id,
+    });
+    await db
+      .delete(s.environmentVariables)
+      .where(eq(s.environmentVariables.id, (escrowed as { id: string }).id));
+
+    const before = Date.now();
+    await expect(
+      deleteTeardownEnvironment(gone, null, { escrowConfirmed: false })
+    ).resolves.toEqual({
       environmentName: "TD Gone",
       archiveId: archive.id,
     });
@@ -577,6 +605,14 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       .where(eq(s.environmentArchives.id, archive.id));
     expect(kept?.completedAt).toBeInstanceOf(Date);
     expect(kept?.environmentId).toBe(gone);
+    // Kept 30 days from the delete, not from the archive's creation.
+    const day = 86_400_000;
+    expect(kept?.expiresAt.getTime()).toBeGreaterThanOrEqual(
+      before + 30 * day - 5_000
+    );
+    expect(kept?.expiresAt.getTime()).toBeLessThanOrEqual(
+      Date.now() + 30 * day + 5_000
+    );
     await expect(findOpenArchive(gone)).resolves.toBe(null);
     // The cascade took the steps and the run.
     await expect(listTeardownSteps(gone)).resolves.toEqual([]);
@@ -585,7 +621,9 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       .from(s.runs)
       .where(eq(s.runs.id, run.id));
     expect(runs).toEqual([]);
-    await expect(deleteTeardownEnvironment(gone, null)).resolves.toBe(null);
+    await expect(
+      deleteTeardownEnvironment(gone, null, { escrowConfirmed: true })
+    ).resolves.toBe(null);
     await db.delete(s.activityLog).where(eq(s.activityLog.entityId, gone));
   });
 
@@ -710,8 +748,19 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
         progressed: false,
       });
 
-      const opened = await startTeardownRun(env, null);
-      if (!("runId" in opened)) throw new Error("expected a run");
+      // From a clean state, two at once: exactly one opens the run; the
+      // other waits on the lock, then sees it.
+      const results = await Promise.all([
+        startTeardownRun(env, null, "start"),
+        startTeardownRun(env, null, "start"),
+      ]);
+      const won = results.filter((r) => "runId" in r);
+      expect(won).toHaveLength(1);
+      expect(results.filter((r) => !("runId" in r))).toEqual([
+        { refusal: "teardownRunning" },
+      ]);
+      const opened = won[0];
+      if (!opened || !("runId" in opened)) throw new Error("expected a run");
       const [run] = await db
         .select()
         .from(s.runs)
@@ -721,42 +770,54 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       await expect(teardownState(env)).resolves.toMatchObject({
         running: true,
       });
-      // Two at once: the second waits on the lock, then sees the first.
-      const [a, b] = await Promise.all([
-        startTeardownRun(env, null),
-        startTeardownRun(env, null),
-      ]);
-      expect(a).toEqual({ refusal: "teardownRunning" });
-      expect(b).toEqual({ refusal: "teardownRunning" });
+      await expect(teardownBlocks(env)).resolves.toBe(true);
 
       await db
         .update(s.runs)
         .set({ status: "failed" })
         .where(eq(s.runs.id, opened.runId));
+      await expect(teardownBlocks(env)).resolves.toBe(false);
       await db
         .update(s.teardownSteps)
         .set({ status: "running" })
-        .where(eq(s.teardownSteps.position, 0));
+        .where(
+          and(
+            eq(s.teardownSteps.environmentId, env),
+            eq(s.teardownSteps.position, 0)
+          )
+        );
       // A step left running counts as running too.
-      await expect(startTeardownRun(env, null)).resolves.toEqual({
-        refusal: "teardownRunning",
-      });
+      for (const mode of ["start", "retry"] as const) {
+        await expect(startTeardownRun(env, null, mode)).resolves.toEqual({
+          refusal: "teardownRunning",
+        });
+      }
       await db
         .update(s.teardownSteps)
         .set({ status: "done" })
-        .where(eq(s.teardownSteps.environmentId, env));
+        .where(
+          and(
+            eq(s.teardownSteps.environmentId, env),
+            eq(s.teardownSteps.position, 0)
+          )
+        );
       await expect(teardownState(env)).resolves.toEqual({
         planned: true,
         running: false,
         progressed: true,
       });
+      // A done step blocks other work, and a fresh start under the lock.
+      await expect(teardownBlocks(env)).resolves.toBe(true);
+      await expect(startTeardownRun(env, null, "start")).resolves.toEqual({
+        refusal: "teardownRunning",
+      });
 
       const busy = await startedRun(env, "deploy");
-      await expect(startTeardownRun(env, null)).resolves.toEqual({
+      await expect(startTeardownRun(env, null, "retry")).resolves.toEqual({
         refusal: "environmentBusy",
       });
       await db.delete(s.runs).where(eq(s.runs.id, busy));
-      const second = await startTeardownRun(env, null);
+      const second = await startTeardownRun(env, null, "retry");
       expect("runId" in second && second.runId).not.toBe(opened.runId);
       await expect(latestTeardownRunId(env)).resolves.toBe(
         "runId" in second ? second.runId : null
@@ -920,6 +981,107 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       await expect(getArchive(expired)).resolves.toBe(null);
     } finally {
       await db.delete(s.environments).where(eq(s.environments.id, live));
+    }
+  });
+
+  it("keeps deploys, provisioning, backups and lock releases off an environment being deleted", async () => {
+    const { placeDeployment, releaseDeployLock } = await import(
+      "@/lib/deploy/repository"
+    );
+    const { startProvisioningRun } = await import(
+      "@/lib/provisioning/repository"
+    );
+    const env = await environment("TD Guard");
+    try {
+      const target = await one(
+        db
+          .insert(s.deployTargets)
+          .values({
+            environmentId: env,
+            componentKey: "td-it",
+            serverId: ids.server2,
+            sourceBranch: "main",
+            deployDir: "/deployments/td-guard",
+            services: ["backend"],
+          })
+          .returning({ id: s.deployTargets.id })
+      );
+      const place = (trigger: "auto" | "manual") =>
+        placeDeployment({
+          targetId: target.id,
+          environmentId: env,
+          tag: "origin-main-abc1234",
+          trigger,
+          userId: null,
+          buildId: null,
+          description: "td-it deploy",
+          now: new Date(),
+        });
+      // A failed teardown with nothing done does not block.
+      await db.insert(s.teardownSteps).values({
+        environmentId: env,
+        position: 0,
+        kind: "check_stack",
+        params: {},
+        status: "failed",
+      });
+      await expect(teardownBlocks(env)).resolves.toBe(false);
+      const backup = await createRunUnlessTearingDown({
+        environmentId: env,
+        description: "td-it backup",
+        kind: "backup",
+      });
+      expect(backup).toEqual(expect.any(String));
+      await db.delete(s.runs).where(eq(s.runs.environmentId, env));
+
+      // A held auto build behind a lock, then a step is done.
+      await db.insert(s.environmentDeployLocks).values({
+        environmentId: env,
+        reason: "td-it",
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+      const held = await place("auto");
+      expect(held.kind).toBe("held");
+      await db
+        .update(s.teardownSteps)
+        .set({ status: "done" })
+        .where(eq(s.teardownSteps.environmentId, env));
+
+      for (const trigger of ["auto", "manual"] as const) {
+        await expect(place(trigger)).resolves.toEqual({
+          kind: "tearingDown",
+          released: null,
+        });
+      }
+      await expect(
+        createRunUnlessTearingDown({
+          environmentId: env,
+          description: "td-it backup",
+          kind: "backup",
+        })
+      ).resolves.toBe(null);
+      await expect(
+        startProvisioningRun(env, crypto.randomUUID())
+      ).resolves.toEqual({
+        tearingDown: true,
+      });
+      const released = await releaseDeployLock(env);
+      expect(released?.queued).toEqual([]);
+      const rows = await db
+        .select({ status: s.deployments.status })
+        .from(s.deployments)
+        .where(eq(s.deployments.environmentId, env));
+      expect(rows).toEqual([{ status: "held" }]);
+      // Nothing started on the environment.
+      const started = await db
+        .select({ id: s.runs.id })
+        .from(s.runs)
+        .where(
+          and(eq(s.runs.environmentId, env), eq(s.runs.status, "started"))
+        );
+      expect(started).toEqual([]);
+    } finally {
+      await db.delete(s.environments).where(eq(s.environments.id, env));
     }
   });
 });

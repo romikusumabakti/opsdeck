@@ -64,6 +64,8 @@ export function backupS3Client(
 }
 
 export type BackupDestination = {
+  /** The s3_connections row the store writes to. */
+  connectionId: string;
   store: ObjectStore;
   keepDaily: number;
   keepWeekly: number;
@@ -229,7 +231,15 @@ export async function loadBackupDestination(): Promise<BackupDestination | null>
     .where(eq(instanceSettings.id, 1))
     .limit(1);
   if (!row) return null;
-  const conn = row.connection;
+  return {
+    connectionId: row.connection.id,
+    store: connectionStore(row.connection),
+    keepDaily: row.keepDaily,
+    keepWeekly: row.keepWeekly,
+  };
+}
+
+function connectionStore(conn: typeof s3Connections.$inferSelect): ObjectStore {
   const client = backupS3Client({
     endpoint: conn.endpoint,
     region: conn.region,
@@ -237,9 +247,21 @@ export async function loadBackupDestination(): Promise<BackupDestination | null>
     accessKeyId: conn.accessKeyId,
     secretAccessKey: decryptSecret(conn.secretKey),
   });
-  return {
-    store: s3ObjectStore(client, conn.bucket),
-    keepDaily: row.keepDaily,
-    keepWeekly: row.keepWeekly,
-  };
+  return s3ObjectStore(client, conn.bucket);
+}
+
+/**
+ * The object store of one S3 connection (secret key decrypted with
+ * SECRETS_KEY), whether or not it is today's backup destination; null when
+ * the connection is gone. What an environment archive was written to.
+ */
+export async function loadS3ConnectionStore(
+  connectionId: string
+): Promise<ObjectStore | null> {
+  const [conn] = await db
+    .select()
+    .from(s3Connections)
+    .where(eq(s3Connections.id, connectionId))
+    .limit(1);
+  return conn ? connectionStore(conn) : null;
 }

@@ -7,8 +7,15 @@ const fake = vi.hoisted(() => ({
   updates: [] as { table: string; set: Record<string, unknown> }[],
   inserts: 0,
   swept: [] as { environmentId: string }[],
+  tearingDown: false,
 }));
 
+// The teardown guard's SQL is covered on scratch; here it answers `fake`.
+vi.mock("@/lib/teardown/guard", () => ({
+  holdEnvironmentShared: async () => {},
+  holdEnvironmentExclusive: async () => {},
+  teardownBlocks: async () => fake.tearingDown,
+}));
 vi.mock("@/lib/db", () => {
   const tableName = (t: unknown) =>
     (t as Record<symbol, string>)[Symbol.for("drizzle:Name")] ?? "?";
@@ -52,11 +59,21 @@ beforeEach(() => {
   fake.updates = [];
   fake.inserts = 0;
   fake.swept = [];
+  fake.tearingDown = false;
 });
 
 const ago = (ms: number) => new Date(Date.now() - ms);
 
 describe("startProvisioningRun", () => {
+  it("opens no run while the environment is being deleted", async () => {
+    fake.tearingDown = true;
+    await expect(startProvisioningRun("env", "u")).resolves.toEqual({
+      tearingDown: true,
+    });
+    expect(fake.inserts).toBe(0);
+    expect(fake.updates).toEqual([]);
+  });
+
   it("conflicts with a recent started run", async () => {
     fake.active = { id: "r1", runAt: ago(5 * 60_000) };
     await expect(startProvisioningRun("env", "u")).resolves.toEqual({

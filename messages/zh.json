@@ -1326,6 +1326,7 @@
     "noServerAvailable": "此项目没有可用的服务器。请让管理员设置默认服务器或开放一台服务器。"
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "只有管理员可以将环境标记为生产环境，或更改生产环境的类型。",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "姓名和邮箱为必填项",
     "domainNotAllowed": "只允许 @{domain} 邮箱",
@@ -2917,7 +2918,8 @@
       "stackHostsSharedDatabase": "该堆栈运行着共享数据库主机或其他环境正在使用的数据库容器",
       "serverCommandFailed": "服务器上的命令失败。请查看运行日志后重试",
       "cloudflareFailed": "无法删除 Cloudflare 对象。请查看运行日志后重试",
-      "stepFailed": "该步骤意外失败。请查看运行日志后重试"
+      "stepFailed": "该步骤意外失败。请查看运行日志后重试",
+      "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。"
     }
   },
   "environmentSetup": {

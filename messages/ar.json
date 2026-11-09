@@ -1326,6 +1326,7 @@
     "noServerAvailable": "لا يتوفر خادم لهذا المشروع. اطلب من المسؤول تعيين خادم افتراضي أو فتح خادم."
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "يمكن للمسؤول فقط تمييز بيئة على أنها بيئة إنتاج أو تغيير نوع بيئة إنتاج.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "الاسم والبريد الإلكتروني مطلوبان",
     "domainNotAllowed": "يُسمح فقط بالبريد الإلكتروني @{domain}",
@@ -2917,7 +2918,8 @@
       "stackHostsSharedDatabase": "يشغّل المكدس حاوية قاعدة بيانات يستخدمها مضيف قاعدة بيانات مشترك أو بيئة أخرى",
       "serverCommandFailed": "فشل أمر على الخادم. راجع سجل التشغيل ثم أعد المحاولة",
       "cloudflareFailed": "تعذر إزالة كائن Cloudflare. راجع سجل التشغيل ثم أعد المحاولة",
-      "stepFailed": "فشلت الخطوة بشكل غير متوقع. راجع سجل التشغيل ثم أعد المحاولة"
+      "stepFailed": "فشلت الخطوة بشكل غير متوقع. راجع سجل التشغيل ثم أعد المحاولة",
+      "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة."
     }
   },
   "environmentSetup": {

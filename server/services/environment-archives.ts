@@ -4,7 +4,10 @@ import { basename, dirname, resolve, sep } from "node:path";
 import type { Readable } from "node:stream";
 import type { EnvironmentArchive } from "@/lib/db/schema";
 import { LOCAL_BACKUP_ROOT } from "@/lib/instance-backup/archive";
-import { loadBackupDestination } from "@/lib/instance-backup/destination";
+import {
+  loadS3ConnectionStore,
+  type ObjectStore,
+} from "@/lib/instance-backup/destination";
 import {
   ENV_ARCHIVE_PREFIX,
   ENV_ARCHIVE_RETENTION_DAYS,
@@ -15,7 +18,8 @@ import {
   listArchives,
   listPrunableArchives,
 } from "@/lib/teardown/repository";
-import { notFound } from "@/server/errors";
+import { CodedHTTPException, notFound } from "@/server/errors";
+import { getServerTranslator } from "@/server/i18n";
 import { requireInstanceManage } from "@/server/services/instance-backups";
 
 // Admin → Instance → Backups, "Deleted environments": what a teardown kept
@@ -83,15 +87,35 @@ function s3PrefixOk(archive: EnvironmentArchive): boolean {
   );
 }
 
+/** The store of an `s3` archive's own connection, or null when it is gone. */
+async function archiveStore(
+  archive: EnvironmentArchive
+): Promise<ObjectStore | null> {
+  return archive.s3ConnectionId
+    ? loadS3ConnectionStore(archive.s3ConnectionId)
+    : null;
+}
+
+async function connectionGone(): Promise<never> {
+  const t = await getServerTranslator("instanceBackups.errors");
+  throw new CodedHTTPException(
+    404,
+    "backupDestinationNotFound",
+    t("backupDestinationNotFound")
+  );
+}
+
 /**
- * One listed file of an archive as a stream (local file or S3 object), read
- * as the response consumes it. 404 when the archive, the name in its list,
- * or the file is not there.
+ * One listed file of an archive as a stream (local file, or the object in
+ * the S3 connection the archive was written to), read as the response
+ * consumes it, with its size. 404 when the archive, the name in its list,
+ * or the file is not there; 404 `backupDestinationNotFound` when the
+ * archive's S3 connection was deleted.
  */
 export async function openArchiveFile(
   id: string,
   name: string
-): Promise<{ name: string; stream: Readable }> {
+): Promise<{ name: string; size: number; stream: Readable }> {
   await requireInstanceManage();
   const archive = (await getArchive(id)) ?? notFound();
   const file = archive.files.find((f) => f.name === name);
@@ -102,20 +126,24 @@ export async function openArchiveFile(
     const path = `${dir}${sep}${file.name}`;
     const info = await stat(path).catch(() => null);
     if (!info?.isFile()) notFound();
-    return { name: file.name, stream: createReadStream(path) };
+    return { name: file.name, size: info.size, stream: createReadStream(path) };
   }
   if (!s3PrefixOk(archive)) notFound();
-  const destination = (await loadBackupDestination()) ?? notFound();
+  const store = (await archiveStore(archive)) ?? (await connectionGone());
   try {
     return {
       name: file.name,
-      stream: await destination.store.read(`${archive.keyPrefix}${file.name}`),
+      // The size the archive step uploaded.
+      size: file.size,
+      stream: await store.read(`${archive.keyPrefix}${file.name}`),
     };
   } catch (error) {
     console.error(`Failed to read environment archive ${id}:`, error);
     notFound();
   }
 }
+
+class ConnectionGone extends Error {}
 
 /** Deletes an archive's files: the S3 objects under its prefix, or its dir. */
 async function deleteArchiveFiles(archive: EnvironmentArchive): Promise<void> {
@@ -128,18 +156,19 @@ async function deleteArchiveFiles(archive: EnvironmentArchive): Promise<void> {
   if (!s3PrefixOk(archive)) {
     throw new Error("the archive's S3 prefix is not an archive prefix");
   }
-  const destination = await loadBackupDestination();
-  if (!destination) throw new Error("no backup destination is set");
-  const objects = await destination.store.list(archive.keyPrefix);
-  if (objects.length > 0) {
-    await destination.store.delete(objects.map((o) => o.key));
-  }
+  const store = await archiveStore(archive);
+  if (!store) throw new ConnectionGone();
+  const objects = await store.list(archive.keyPrefix);
+  if (objects.length > 0) await store.delete(objects.map((o) => o.key));
 }
 
 /**
  * The daily prune (job `environment/archives.prune`): for each archive
  * listPrunableArchives selects, deletes its files, then its row. An archive
- * whose files cannot be deleted keeps its row, so the next prune tries again.
+ * whose files cannot be deleted keeps its row, so the next prune tries
+ * again; so does an S3 archive whose connection was deleted (its objects
+ * may still exist, and the row is the only record of them), reported in one
+ * log line per run.
  */
 export async function pruneEnvironmentArchives(
   now: Date = new Date()
@@ -149,6 +178,7 @@ export async function pruneEnvironmentArchives(
   );
   let deleted = 0;
   let failed = 0;
+  const orphaned: string[] = [];
   for (const archive of await listPrunableArchives(now, incompleteBefore)) {
     try {
       await deleteArchiveFiles(archive);
@@ -156,11 +186,20 @@ export async function pruneEnvironmentArchives(
       deleted++;
     } catch (error) {
       failed++;
+      if (error instanceof ConnectionGone) {
+        orphaned.push(archive.id);
+        continue;
+      }
       console.error(
         `Failed to prune environment archive ${archive.id}:`,
         error instanceof Error ? error.message : error
       );
     }
+  }
+  if (orphaned.length > 0) {
+    console.error(
+      `${orphaned.length} expired environment archives kept: their S3 connection no longer exists (${orphaned.join(", ")})`
+    );
   }
   return { deleted, failed };
 }

@@ -34,6 +34,7 @@ type Archive = {
   deletedById: string | null;
   expiresAt: Date;
   location: "local" | "s3";
+  s3ConnectionId: string | null;
   keyPrefix: string;
   files: { name: string; size: number }[];
   completedAt: Date | null;
@@ -63,6 +64,7 @@ const state = vi.hoisted(() => ({
   run: { status: "started" } as { status: string; error?: string },
   log: [] as string[],
   destination: true,
+  connectionGone: false,
   uploads: [] as { key: string; body: string }[],
   uploadError: null as null | string,
   streams: [] as StreamCall[],
@@ -85,25 +87,34 @@ vi.mock("@/lib/instance-backup/archive", () => ({
   instanceName: () => "opsdeck-test",
 }));
 
+// The fake connection "conn-1": today's backup destination while
+// `destination` is set, and loadable while `connectionGone` is not.
+const fakeStore = () => ({
+  upload: async (key: string, filePath: string) => {
+    if (state.uploadError) {
+      throw new Error(`${state.uploadError} (key ${S3_SECRET})`);
+    }
+    state.uploads.push({ key, body: readFileSync(filePath, "utf8") });
+  },
+  list: async () => [],
+  read: async () => {
+    throw new Error("not read here");
+  },
+  download: async () => 0,
+  delete: async () => {},
+});
 vi.mock("@/lib/instance-backup/destination", () => ({
   loadBackupDestination: async () =>
     state.destination
       ? {
+          connectionId: "conn-1",
           keepDaily: 7,
           keepWeekly: 4,
-          store: {
-            upload: async (key: string, filePath: string) => {
-              if (state.uploadError) {
-                throw new Error(`${state.uploadError} (key ${S3_SECRET})`);
-              }
-              state.uploads.push({ key, body: readFileSync(filePath, "utf8") });
-            },
-            list: async () => [],
-            download: async () => 0,
-            delete: async () => {},
-          },
+          store: fakeStore(),
         }
       : null,
+  loadS3ConnectionStore: async (id: string) =>
+    id === "conn-1" && !state.connectionGone ? fakeStore() : null,
 }));
 
 vi.mock("@/lib/ssh", () => ({
@@ -315,6 +326,7 @@ beforeEach(() => {
   state.run = { status: "started" };
   state.log = [];
   state.destination = true;
+  state.connectionGone = false;
   state.uploads = [];
   state.uploadError = null;
   state.streams = [];
@@ -528,9 +540,22 @@ describe("archiveDatabase", () => {
     expect(state.uploads).toEqual([]);
   });
 
-  it("keeps an S3 archive on S3: a destination removed since fails the step", async () => {
+  it("keeps an S3 archive on its own connection, whatever the destination setting says", async () => {
     await archiveDatabase(ctx(), { serviceId: "svc" });
+    expect(state.archives[0]?.s3ConnectionId).toBe("conn-1");
+    // The setting changed to local since: the archive still goes to conn-1.
     state.destination = false;
+    await archiveDeployDir(ctx(), DIR);
+    expect(state.uploads.map((u) => u.key)).toEqual([
+      expect.stringMatching(/db-/),
+      expect.stringMatching(/deploy-/),
+    ]);
+    expect(state.archives).toHaveLength(1);
+  });
+
+  it("fails the step once the archive's S3 connection is gone", async () => {
+    await archiveDatabase(ctx(), { serviceId: "svc" });
+    state.connectionGone = true;
     await expect(archiveDeployDir(ctx(), DIR)).rejects.toThrow(
       expect.objectContaining({ code: "archiveFailed" })
     );

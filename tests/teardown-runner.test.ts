@@ -31,6 +31,8 @@ const state = vi.hoisted(() => ({
   behaviour: {} as Record<string, () => Promise<string>>,
   activity: [] as Record<string, unknown>[],
   deleted: false,
+  escrowed: false,
+  deleteOptions: [] as unknown[],
   cf: {
     dns: "deleted" as "deleted" | "absent",
     app: "deleted" as "deleted" | "absent",
@@ -98,7 +100,15 @@ vi.mock("@/lib/teardown/repository", () => ({
     }
   },
   // The repository records the activity in the delete's transaction.
-  deleteTeardownEnvironment: async (environmentId: string, actorId: string) => {
+  deleteTeardownEnvironment: async (
+    environmentId: string,
+    actorId: string,
+    options: { escrowConfirmed: boolean }
+  ) => {
+    state.deleteOptions.push(options);
+    if (state.escrowed && !options.escrowConfirmed) {
+      return { refusal: "environmentHasEscrowedVariables" };
+    }
     state.executed.push("delete_environment");
     // The cascade takes the steps and the run with the environment.
     state.steps = [];
@@ -242,6 +252,8 @@ beforeEach(() => {
   state.behaviour = {};
   state.activity = [];
   state.deleted = false;
+  state.escrowed = false;
+  state.deleteOptions = [];
   state.cf = {
     dns: "deleted",
     app: "deleted",
@@ -261,6 +273,26 @@ beforeEach(() => {
 });
 
 describe("runTeardown", () => {
+  it("passes the start's escrow confirmation to the delete, and fails the step without it", async () => {
+    seed(["check_stack", "delete_environment"]);
+    state.escrowed = true;
+    expect(await run()).toEqual({ status: "failed" });
+    expect(state.deleteOptions).toEqual([{ escrowConfirmed: false }]);
+    expect(state.steps[1]).toMatchObject({
+      status: "failed",
+      lastError: "environmentHasEscrowedVariables",
+    });
+    expect(state.deleted).toBe(false);
+
+    seed(["check_stack", "delete_environment"], ["done"]);
+    (state.steps[1] as Step).params = { confirmEscrowedDeletion: true };
+    state.run = null;
+    state.deleteOptions = [];
+    expect(await run()).toEqual({ status: "success" });
+    expect(state.deleteOptions).toEqual([{ escrowConfirmed: true }]);
+    expect(state.deleted).toBe(true);
+  });
+
   it("runs every step in order and ends with the environment deleted", async () => {
     seed();
     expect(await run()).toEqual({ status: "success" });

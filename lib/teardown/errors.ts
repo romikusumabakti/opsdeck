@@ -23,6 +23,8 @@ export const TEARDOWN_ERRORS = {
   environmentIsProduction: "Only an admin can delete a production environment",
   productionConfirmRequired:
     "Deleting a production environment needs an explicit confirmation",
+  environmentHasEscrowedVariables:
+    "The environment has escrowed variables and their deletion was not confirmed by an admin",
 } as const;
 
 export type TeardownErrorCode = keyof typeof TEARDOWN_ERRORS;
