@@ -1063,11 +1063,9 @@ export const issueComments = pgTable(
     issueId: uuid("issue_id")
       .notNull()
       .references(() => issues.id, {
-        name: "issue_comments_issue_id_issues_id_fk",
         onDelete: "cascade",
       }),
     authorId: uuid("author_id").references(() => users.id, {
-      name: "issue_comments_author_id_users_id_fk",
       onDelete: "set null",
     }),
     body: text("body").notNull(),
@@ -1118,7 +1116,7 @@ export const issueAttachments = pgTable(
 // view can filter by one taxonomy). `color` is a hex string rendered as a chip.
 export const labels = pgTable("labels", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  name: text("name").notNull().unique("labels_name_unique"),
+  name: text("name").notNull().unique(),
   color: text("color").notNull().default("#64748b"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -1130,19 +1128,16 @@ export const issueLabels = pgTable(
     issueId: uuid("issue_id")
       .notNull()
       .references(() => issues.id, {
-        name: "issue_labels_issue_id_issues_id_fk",
         onDelete: "cascade",
       }),
     labelId: uuid("label_id")
       .notNull()
       .references(() => labels.id, {
-        name: "issue_labels_label_id_labels_id_fk",
         onDelete: "cascade",
       }),
   },
   (t) => [
     primaryKey({
-      name: "issue_labels_issue_id_label_id_pk",
       columns: [t.issueId, t.labelId],
     }),
     // "Which issues have label X" for the label filter.
@@ -1160,7 +1155,6 @@ export const savedViews = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, {
-        name: "saved_views_user_id_users_id_fk",
         onDelete: "cascade",
       }),
     name: text("name").notNull(),
@@ -1219,7 +1213,6 @@ export const notifications = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, {
-        name: "notifications_user_id_users_id_fk",
         onDelete: "cascade",
       }),
     type: notificationTypeEnum("type").notNull(),
@@ -1232,10 +1225,7 @@ export const notifications = pgTable(
   },
   (t) => [
     // The bell lists one user's notifications newest-first and counts unread.
-    index("notifications_user_created_idx").on(
-      t.userId,
-      t.createdAt.desc().nullsFirst()
-    ),
+    index("notifications_user_created_idx").on(t.userId, t.createdAt.desc()),
   ]
 );
 

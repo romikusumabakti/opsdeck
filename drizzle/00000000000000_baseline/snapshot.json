@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "1a120311-54bd-4533-87aa-d1945b253877",
+  "id": "55c3cb20-a5cc-43ec-957b-ed78a4eece00",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -7340,7 +7340,7 @@
           "value": "created_at",
           "isExpression": false,
           "asc": false,
-          "nullsFirst": true,
+          "nullsFirst": false,
           "opclass": null
         }
       ],
@@ -8308,7 +8308,7 @@
       "table": "issue_attachments"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "issue_id"
       ],
@@ -8319,13 +8319,13 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "issue_comments_issue_id_issues_id_fk",
+      "name": "issue_comments_issue_id_issues_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "issue_comments"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "author_id"
       ],
@@ -8336,13 +8336,13 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
-      "name": "issue_comments_author_id_users_id_fk",
+      "name": "issue_comments_author_id_users_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "issue_comments"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "issue_id"
       ],
@@ -8353,13 +8353,13 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "issue_labels_issue_id_issues_id_fk",
+      "name": "issue_labels_issue_id_issues_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "issue_labels"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "label_id"
       ],
@@ -8370,7 +8370,7 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "issue_labels_label_id_labels_id_fk",
+      "name": "issue_labels_label_id_labels_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "issue_labels"
@@ -8716,7 +8716,7 @@
       "table": "milestones"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "user_id"
       ],
@@ -8727,7 +8727,7 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "notifications_user_id_users_id_fk",
+      "name": "notifications_user_id_users_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "notifications"
@@ -8937,7 +8937,7 @@
       "table": "runs"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "user_id"
       ],
@@ -8948,7 +8948,7 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "saved_views_user_id_users_id_fk",
+      "name": "saved_views_user_id_users_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "saved_views"
@@ -9037,8 +9037,8 @@
         "issue_id",
         "label_id"
       ],
-      "nameExplicit": true,
-      "name": "issue_labels_issue_id_label_id_pk",
+      "nameExplicit": false,
+      "name": "issue_labels_pkey",
       "entityType": "pks",
       "schema": "public",
       "table": "issue_labels"
@@ -9562,12 +9562,12 @@
       "entityType": "uniques"
     },
     {
-      "nameExplicit": true,
+      "nameExplicit": false,
       "columns": [
         "name"
       ],
       "nullsNotDistinct": false,
-      "name": "labels_name_unique",
+      "name": "labels_name_key",
       "schema": "public",
       "table": "labels",
       "entityType": "uniques"
