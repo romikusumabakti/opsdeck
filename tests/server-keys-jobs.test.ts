@@ -296,10 +296,11 @@ vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 
-const { keyJobLock, retireKey, serverKeyLock, sshFingerprint } = await import(
-  "@/lib/ssh-keys"
+const { beginRotation, keyJobLock, retireKey, serverKeyLock, sshFingerprint } =
+  await import("@/lib/ssh-keys");
+const { moveServerToKey, rotateServerKey } = await import(
+  "@/server/services/server-keys"
 );
-const { moveServerToKey } = await import("@/server/services/server-keys");
 const { processJob } = await import("@/lib/jobs/processor");
 const { app } = await import("@/server/app");
 
@@ -319,6 +320,9 @@ const FOREIGN = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIRomi romi@bluefin-romi";
 
 type Sshd = {
   server: ssh2.Server;
+  // Each server its own loopback address: rows on one host and login share
+  // one authorized_keys, so the fixtures keep them apart.
+  host: string;
   port: number;
   home: string;
   passwords: Set<string>;
@@ -394,7 +398,7 @@ function startSshd(d: Sshd): Promise<ssh2.Server> {
     });
   });
   return new Promise((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve(server));
+    server.listen(0, d.host, () => resolve(server));
   });
 }
 
@@ -402,6 +406,7 @@ beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), "opsdeck-key-jobs-"));
   for (let i = 0; i < 3; i++) {
     const d = {
+      host: `127.0.0.${i + 1}`,
       port: 0,
       home: "",
       passwords: new Set<string>(),
@@ -423,7 +428,7 @@ function serverRow(i: number, overrides: Row = {}): Row {
   return {
     id: IDS[i],
     name: `web-${i + 1}`,
-    host: "127.0.0.1",
+    host: `127.0.0.${i + 1}`,
     username: "root",
     auth: "password",
     password: "pw",
@@ -932,6 +937,63 @@ describe("rotate", () => {
       code: "keyJobRunning",
     });
     expect(fileOf(0)).toBe(`${FOREIGN}\n${oldLine}\n`);
+  });
+});
+
+describe("rows sharing one host and login", () => {
+  // Two rows for one machine and login (one by IP, one by name, say): one
+  // authorized_keys, reached through web-1's sshd.
+  function twoRowsOneLogin() {
+    seedKeyServers();
+    state.tables.servers = [
+      serverById(0),
+      { ...serverById(1), host: (sshds[0] as Sshd).host },
+    ];
+    state.ports[IDS[1] as string] = (sshds[0] as Sshd).port;
+  }
+
+  it("rotating one keeps the line the other still signs in with", async () => {
+    twoRowsOneLogin();
+    const { current, previous } = await beginRotation();
+    expect(
+      await rotateServerKey(IDS[0] as string, USER_ID, current, previous.id)
+    ).toEqual({ ok: true });
+    expect(fileOf(0)).toContain(oldLine);
+    expect(fileOf(0)).toContain(markerOf(current.id));
+
+    // The other row still signs in with the old key, and rotates in turn;
+    // then no row names the old key and its line goes.
+    expect(
+      await rotateServerKey(IDS[1] as string, USER_ID, current, previous.id)
+    ).toEqual({ ok: true });
+    expect(serverById(1)).toMatchObject({ sshKeyId: current.id });
+    expect(fileOf(0)).not.toContain(OLD_MARKER);
+    expect(fileOf(0)).toContain(FOREIGN);
+  });
+
+  it("moving a password row keeps the line of a key row on the same login", async () => {
+    twoRowsOneLogin();
+    Object.assign(serverById(1), {
+      auth: "password",
+      password: "pw",
+      sshKeyId: null,
+    });
+    const { current } = await beginRotation();
+    expect(await moveServerToKey(IDS[1] as string, USER_ID)).toEqual({
+      ok: true,
+    });
+    expect(fileOf(0)).toContain(oldLine);
+    expect(fileOf(0)).toContain(markerOf(current.id));
+  });
+
+  it("a row on another login of the same host does not keep a line", async () => {
+    twoRowsOneLogin();
+    Object.assign(serverById(1), { username: "deploy" });
+    const { current, previous } = await beginRotation();
+    expect(
+      await rotateServerKey(IDS[0] as string, USER_ID, current, previous.id)
+    ).toEqual({ ok: true });
+    expect(fileOf(0)).not.toContain(OLD_MARKER);
   });
 });
 

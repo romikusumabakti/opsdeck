@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { BlockList, isIP } from "node:net";
-import { and, eq, notExists } from "drizzle-orm";
+import { and, eq, ne, notExists } from "drizzle-orm";
 import { utils } from "ssh2";
 import { db, lockConnection, pgClient } from "@/lib/db";
 import { servers, sshKeys } from "@/lib/db/schema";
@@ -265,13 +265,35 @@ function markerOf(line: string): string | null {
 }
 
 /**
- * The markers of every key in this database's ssh_keys (any status). Another
- * Panel deployment can share the instance name (the default "opsdeck"), so a
- * marker counts as ours only for a key id we hold.
+ * The markers of our keys that a write to `server`'s authorized_keys may
+ * drop: every key in this database's ssh_keys (any status), less the keys
+ * another key row on the same host and login signs in with (one machine
+ * entered twice, by IP and by name: one file, and dropping that line would
+ * lock the other row out). Another Panel deployment can share the instance
+ * name (the default "opsdeck"), so a marker counts as ours only for a key id
+ * we hold.
  */
-export async function ownKeyMarkers(): Promise<string[]> {
-  const rows = await db.select({ id: sshKeys.id }).from(sshKeys);
-  return rows.map((r) => keyMarker(r.id));
+export async function ownKeyMarkers(server: {
+  id: string;
+  host: string;
+  username: string;
+}): Promise<string[]> {
+  const [keys, sameLogin] = await Promise.all([
+    db.select({ id: sshKeys.id }).from(sshKeys),
+    db
+      .select({ sshKeyId: servers.sshKeyId })
+      .from(servers)
+      .where(
+        and(
+          eq(servers.auth, "key"),
+          eq(servers.host, server.host),
+          eq(servers.username, server.username),
+          ne(servers.id, server.id)
+        )
+      ),
+  ]);
+  const inUse = new Set(sameLogin.map((r) => r.sshKeyId));
+  return keys.filter((k) => !inUse.has(k.id)).map((k) => keyMarker(k.id));
 }
 
 /**
