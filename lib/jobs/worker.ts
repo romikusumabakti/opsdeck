@@ -9,6 +9,7 @@ import { failStaleProvisionRuns } from "@/lib/provisioning/repository";
 import {
   createRedisConnection,
   scheduleDeployLockSweep,
+  scheduleInstanceUpdateCheck,
   scheduleJiraSweep,
   TASKS_QUEUE,
 } from "@/lib/queue";
@@ -85,6 +86,11 @@ export function startWorker(): Worker | null {
   });
   sweepExpiredLocks().catch((error) => {
     console.error("Failed to sweep expired deploy locks:", error);
+  });
+
+  // The hourly release check (and auto-update); its scheduler lives in Redis.
+  scheduleInstanceUpdateCheck().catch((error) => {
+    console.error("Failed to schedule the instance update check:", error);
   });
 
   globalForWorker.__tasksWorker = worker;

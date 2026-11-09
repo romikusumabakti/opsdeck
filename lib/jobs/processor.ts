@@ -64,6 +64,7 @@ import {
   executeRemoteCommand,
   uploadRemoteFile,
 } from "@/lib/ssh";
+import { runInstanceUpdateCheck } from "@/server/services/instance-updates";
 
 // Bound for worker steps that move a whole database: dump, recreate, load, and
 // staging a dump file across hosts. Their run time grows with the data, so the
@@ -1342,6 +1343,9 @@ export async function processJob(job: Job): Promise<unknown> {
       return sweepExpiredLocks();
     case "instance/backup.run":
       return handleInstanceBackup(parseJobPayload(name, raw).trigger);
+    case "instance/update.check":
+      parseJobPayload(name, raw);
+      return runInstanceUpdateCheck();
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;

@@ -9,7 +9,9 @@ vi.mock("bullmq", () => ({
 }));
 
 process.env.REDIS_URL ??= "redis://test";
-const { scheduleInstanceBackup } = await import("@/lib/queue");
+const { scheduleInstanceBackup, scheduleInstanceUpdateCheck } = await import(
+  "@/lib/queue"
+);
 
 it("registers one daily scheduler in the instance time zone", async () => {
   await scheduleInstanceBackup("03:15", "Asia/Jakarta");
@@ -30,4 +32,22 @@ it("registers one daily scheduler in the instance time zone", async () => {
     { pattern: "0 4 * * *", tz: "Asia/Jakarta" },
     expect.anything()
   );
+});
+
+it("registers the hourly update check on the hour, under one id", async () => {
+  upsert.mockClear();
+  await scheduleInstanceUpdateCheck("Asia/Jakarta");
+  await scheduleInstanceUpdateCheck("Asia/Jakarta");
+  expect(upsert).toHaveBeenCalledTimes(2);
+  for (const call of upsert.mock.calls as unknown[][]) {
+    expect(call).toEqual([
+      "instance-update-check",
+      { pattern: "0 * * * *", tz: "Asia/Jakarta" },
+      expect.objectContaining({
+        name: "instance/update.check",
+        data: {},
+        opts: expect.objectContaining({ attempts: 1 }),
+      }),
+    ]);
+  }
 });

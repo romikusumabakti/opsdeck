@@ -105,6 +105,10 @@ export type JobMap = {
   // One backup of the Panel itself (lib/instance-backup/archive). The
   // destination and retention are read from instance_settings in the worker.
   "instance/backup.run": { trigger: "schedule" | "manual" };
+  // Hourly: check GitHub Releases and, with auto-update on, ask the host
+  // updater for the available version inside the window
+  // (server/services/instance-updates).
+  "instance/update.check": Record<string, never>;
 };
 
 export type JobName = keyof JobMap;
@@ -292,6 +296,33 @@ export async function scheduleInstanceBackup(
     {
       name: "instance/backup.run",
       data: { trigger: "schedule" },
+      opts: {
+        attempts: 1,
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 50 },
+      },
+    }
+  );
+}
+
+const INSTANCE_UPDATE_CHECK_SCHEDULER_ID = "instance-update-check";
+
+/** Hourly, on the hour in the instance time zone. */
+export const INSTANCE_UPDATE_CHECK_CRON = "0 * * * *";
+
+/**
+ * Register the hourly update check. Keyed like the other schedulers, so
+ * every worker boot replaces it instead of stacking a second one.
+ */
+export async function scheduleInstanceUpdateCheck(
+  tz: string = APP_TIMEZONE
+): Promise<void> {
+  await getQueue().upsertJobScheduler(
+    INSTANCE_UPDATE_CHECK_SCHEDULER_ID,
+    { pattern: INSTANCE_UPDATE_CHECK_CRON, tz },
+    {
+      name: "instance/update.check",
+      data: {},
       opts: {
         attempts: 1,
         removeOnComplete: { count: 20 },

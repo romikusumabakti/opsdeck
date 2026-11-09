@@ -14,6 +14,7 @@ const queue = vi.hoisted(() => ({
   createRedisConnection: vi.fn(),
   scheduleJiraSweep: vi.fn(),
   scheduleDeployLockSweep: vi.fn(async () => {}),
+  scheduleInstanceUpdateCheck: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/queue", () => queue);
 const locks = vi.hoisted(() => ({ sweepExpiredLocks: vi.fn(async () => 0) }));
@@ -70,6 +71,8 @@ describe("startWorker deploy lock sweep", () => {
     await vi.waitFor(() => {
       expect(queue.scheduleDeployLockSweep).toHaveBeenCalledTimes(1);
       expect(locks.sweepExpiredLocks).toHaveBeenCalledTimes(1);
+      // The hourly instance update check is registered on boot too.
+      expect(queue.scheduleInstanceUpdateCheck).toHaveBeenCalledTimes(1);
     });
 
     errors.mockRestore();
