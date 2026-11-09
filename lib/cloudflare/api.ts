@@ -219,6 +219,43 @@ export function withIngressRoute(
   return { config: next, changed: true };
 }
 
+/**
+ * The inverse of withIngressRoute: the config without the rule for `hostname`,
+ * without mutating `config`. `removed` is false (and the config unchanged) when
+ * no rule matches. The catch-all has no hostname, so it is never removed, and a
+ * config that is not safe to write back is refused like withIngressRoute does.
+ */
+export function withoutIngressRoute(
+  fetched: FetchedTunnelConfig,
+  hostname: string
+): { config: TunnelConfig; removed: boolean } {
+  const config = editableConfig(fetched);
+  if (!config.ingress.some((rule) => sameHostname(rule.hostname, hostname))) {
+    return { config, removed: false };
+  }
+  const next = structuredClone(config);
+  next.ingress = next.ingress.filter(
+    (rule) => !sameHostname(rule.hostname, hostname)
+  );
+  return { config: next, removed: true };
+}
+
+/** Run a DELETE, mapping Cloudflare's 404 (already gone) to "absent". */
+async function deleteResource(
+  creds: CloudflareCreds,
+  path: string
+): Promise<"deleted" | "absent"> {
+  try {
+    await request<unknown>(creds.apiToken, path, { method: "DELETE" });
+    return "deleted";
+  } catch (error) {
+    if (error instanceof CloudflareApiError && error.status === 404) {
+      return "absent";
+    }
+    throw error;
+  }
+}
+
 // --- DNS ---
 
 export type DnsRecord = {
@@ -268,6 +305,17 @@ export async function createProxiedCname(
         comment,
       }),
     }
+  );
+}
+
+export async function deleteDnsRecord(
+  creds: CloudflareCreds,
+  zoneId: string,
+  recordId: string
+): Promise<"deleted" | "absent"> {
+  return deleteResource(
+    creds,
+    `/zones/${encodeURIComponent(zoneId)}/dns_records/${encodeURIComponent(recordId)}`
   );
 }
 
@@ -363,4 +411,15 @@ export async function createAccessApp(
       policies: [{ id: app.policyId, precedence: 1 }],
     }),
   });
+}
+
+export async function deleteAccessApp(
+  creds: CloudflareCreds,
+  accountId: string,
+  appId: string
+): Promise<"deleted" | "absent"> {
+  return deleteResource(
+    creds,
+    `${account({ ...creds, accountId })}/access/apps/${encodeURIComponent(appId)}`
+  );
 }
