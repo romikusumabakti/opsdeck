@@ -9,7 +9,8 @@ export const BACKUP_USAGE = `Usage: opsdeck backup run [--trigger schedule|manua
 Dumps DATABASE_URL, mirrors the Garage bucket and uploads both with a
 manifest to the backup destination chosen in Admin → Backups, or keeps them in
 /var/lib/opsdeck/backups when none is chosen. The trigger defaults to manual.
-Prints one JSON line {id,status,location,objectKey,errorCode}; exit 1 on failure.`;
+Prints one JSON line {id,status,location,objectKey,errorCode}; exit 1 on failure
+(id is null only when the run could not be recorded at all).`;
 
 const TRIGGERS: readonly BackupTrigger[] = ["schedule", "manual", "update"];
 
@@ -34,19 +35,25 @@ export async function runBackup(args: string[]): Promise<number> {
     return 1;
   }
   // Loaded here so `--help` needs neither a database nor SECRETS_KEY.
-  const { runInstanceBackup } = await import("@/lib/instance-backup/archive");
+  const { BackupRecordError, runInstanceBackup } = await import(
+    "@/lib/instance-backup/archive"
+  );
   try {
     const result = await runInstanceBackup(trigger);
     console.log(JSON.stringify(result));
     return result.status === "succeeded" ? 0 : 1;
   } catch (error) {
     // The run could not even be recorded (e.g. the database is down).
-    console.error(`backupFailed: ${(error as Error)?.name ?? "Error"}`);
+    console.error(
+      error instanceof BackupRecordError
+        ? error.message
+        : `backupFailed: ${(error as Error)?.name ?? "Error"}`
+    );
     console.log(
       JSON.stringify({
         id: null,
         status: "failed",
-        location: null,
+        location: error instanceof BackupRecordError ? error.location : "local",
         objectKey: null,
         errorCode: "backupFailed",
       })

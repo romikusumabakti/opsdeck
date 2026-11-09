@@ -5,21 +5,24 @@
 //
 // Layout (manifest.json is written and uploaded last, so a folder without one
 // is incomplete):
-//   opsdeck-backups/<instance>/<YYYY-MM-DDTHHmmssZ>-<version>/   on the S3 destination
-//   /var/lib/opsdeck/backups/<instance>/<same>/                   locally
+//   opsdeck-backups/<instance>/<name>/        on the S3 destination
+//   /var/lib/opsdeck/backups/<instance>/<name>/   locally
+//   <name> = <YYYY-MM-DDTHHmmss.SSSZ>-<6 hex, random per run>-<version>
 //     database.dump   pg_dump -Fc of DATABASE_URL
 //     garage/<key>    every object of the app's Garage bucket
 //     manifest.json
 // Every backup is staged in the local folder first. After a successful upload
 // the local copy is removed; when the upload fails it is kept (and counted by
-// the local retention of 3).
-import { createHash } from "node:crypto";
+// the local retention of 3). Retention never deletes the newest complete
+// backup nor the current run's folder; incomplete folders (crashed runs) are
+// deleted once they are older than 24 hours.
+import { createHash, randomBytes } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { instanceBackups, instanceSettings } from "@/lib/db/schema";
 import { OPSDECK_VERSION } from "@/lib/version";
@@ -41,11 +44,14 @@ import {
   type RetentionKey,
   selectByCount,
   selectForDeletion,
+  selectStaleIncomplete,
 } from "./retention";
 
 export const LOCAL_BACKUP_ROOT = "/var/lib/opsdeck/backups";
 export const REMOTE_PREFIX = "opsdeck-backups/";
 export const LOCAL_KEEP = 3;
+/** A row still `running` after this long belongs to a crashed process. */
+export const INTERRUPTED_AFTER_MS = 6 * 60 * 60 * 1000;
 
 export type BackupTrigger = "schedule" | "manual" | "update";
 
@@ -57,6 +63,8 @@ export type BackupErrorCode =
   | "backupGarageFailed"
   | "backupWriteFailed"
   | "backupUploadFailed"
+  | "backupRecordFailed"
+  | "backupInterrupted"
   | "backupFailed";
 
 export class BackupError extends Error {
@@ -66,6 +74,18 @@ export class BackupError extends Error {
   ) {
     super(detail ? `${code}: ${detail}` : code);
     this.name = "BackupError";
+  }
+}
+
+/** The run could not be recorded at all (e.g. the database is down). */
+export class BackupRecordError extends Error {
+  constructor(
+    /** Where the run would have gone. */
+    readonly location: "s3" | "local",
+    detail: string
+  ) {
+    super(`backupFailed: ${detail}`);
+    this.name = "BackupRecordError";
   }
 }
 
@@ -96,6 +116,8 @@ export interface BackupRecorder {
   ): Promise<void>;
   /** Stores the key fingerprint the latest backup needs, for the admin to check. */
   recordFingerprint(fingerprint: string): Promise<void>;
+  /** Marks rows still `running` that started before `before` as interrupted. */
+  markInterrupted(before: Date): Promise<void>;
 }
 
 export interface BackupDeps {
@@ -112,27 +134,27 @@ export interface BackupDeps {
   version: string;
   secretsKey: string | undefined;
   now: () => Date;
+  /** Makes the folder name unique per run (6 hex characters). */
+  runSuffix: () => string;
   /** Diagnostics (stderr in the CLI). Never given a secret. */
   log: (line: string) => void;
 }
 
-/** Folder name of a backup: `<YYYY-MM-DDTHHmmssZ>-<version>`. */
-export function backupName(at: Date, version: string): string {
-  const stamp = at
-    .toISOString()
-    .replace(/[:]/g, "")
-    .replace(/\.\d{3}Z$/, "Z");
-  return `${stamp}-${version.replace(/[^A-Za-z0-9.-]/g, "-")}`;
+/** Folder name of a backup: `<YYYY-MM-DDTHHmmss.SSSZ>-<suffix>-<version>`. */
+export function backupName(at: Date, suffix: string, version: string): string {
+  const stamp = at.toISOString().replace(/[:]/g, "");
+  return `${stamp}-${suffix}-${version.replace(/[^A-Za-z0-9.-]/g, "-")}`;
 }
 
-const NAME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})Z-/;
+const NAME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})(?:\.(\d{3}))?Z-/;
 
 /** The time in a backup folder name, or null for anything else. */
 export function parseBackupName(name: string): Date | null {
   const m = NAME_RE.exec(name);
   if (!m) return null;
-  const [, y, mo, d, h, mi, s] = m.map(Number) as number[];
-  return new Date(Date.UTC(y ?? 0, (mo ?? 1) - 1, d, h, mi, s));
+  const [y, mo, d, h, mi, s, ms] = m.slice(1).map((v) => Number(v ?? 0));
+  return new Date(Date.UTC(y ?? 0, (mo ?? 1) - 1, d, h, mi, s, ms));
 }
 
 /** The instance name in backup paths: COMPOSE_PROJECT_NAME, else "opsdeck". */
@@ -226,6 +248,21 @@ export const dbBackupRecorder: BackupRecorder = {
       .set({ secretsKeyFingerprint: fingerprint })
       .where(eq(instanceSettings.id, 1));
   },
+  async markInterrupted(before) {
+    await db
+      .update(instanceBackups)
+      .set({
+        status: "failed",
+        errorCode: "backupInterrupted",
+        finishedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(instanceBackups.status, "running"),
+          lt(instanceBackups.startedAt, before)
+        )
+      );
+  },
 };
 
 function defaultDeps(): BackupDeps {
@@ -244,11 +281,12 @@ function defaultDeps(): BackupDeps {
     version: OPSDECK_VERSION,
     secretsKey: process.env.SECRETS_KEY,
     now: () => new Date(),
+    runSuffix: () => randomBytes(3).toString("hex"),
     log: (line) => console.error(line),
   };
 }
 
-/** Runs `step`, turning any error that is not already a BackupError into `code`. */
+/** Runs `fn`, turning any error that is not already a BackupError into `code`. */
 async function step<T>(
   code: BackupErrorCode,
   fn: () => Promise<T>
@@ -285,10 +323,12 @@ async function mirrorGarage(
   if (!garage) return { objects: 0, bytes: 0 };
   let objects = 0;
   let bytes = 0;
-  for (const { key } of await garage.list("")) {
+  for (const { key, size } of await garage.list("")) {
+    // A zero-byte "folder/" marker holds no data.
+    if (key.endsWith("/") && size === 0) continue;
     const target = resolve(garageDir, key);
     // Keys are app-generated uuid paths; refuse anything that would leave
-    // the folder or collide with a directory.
+    // the folder or cannot be a file.
     if (!target.startsWith(garageDir + sep) || key.endsWith("/")) {
       throw new BackupError("backupGarageFailed", "unsafe object key");
     }
@@ -299,49 +339,79 @@ async function mirrorGarage(
   return { objects, bytes };
 }
 
-/** Deletes complete local backups beyond the newest LOCAL_KEEP. */
-async function applyLocalRetention(instanceDir: string): Promise<void> {
-  const keys: RetentionKey[] = [];
+type Listed = { name: string; createdAt: Date; complete: boolean };
+
+/** What retention deletes: superseded complete backups and stale incomplete ones. */
+function doomedNames(
+  listed: Listed[],
+  current: string,
+  now: Date,
+  selectComplete: (keys: RetentionKey[]) => string[]
+): string[] {
+  const toKeys = (complete: boolean) =>
+    listed
+      .filter((l) => l.complete === complete)
+      .map((l) => ({ key: l.name, createdAt: l.createdAt }));
+  return [
+    ...selectComplete(toKeys(true)),
+    ...selectStaleIncomplete(toKeys(false), now),
+  ].filter((name) => name !== current);
+}
+
+/** Local retention: the newest LOCAL_KEEP complete backups stay. */
+async function applyLocalRetention(
+  instanceDir: string,
+  current: string,
+  now: Date
+): Promise<void> {
+  const listed: Listed[] = [];
   for (const entry of await readdir(instanceDir, { withFileTypes: true })) {
     const createdAt = parseBackupName(entry.name);
     if (!entry.isDirectory() || !createdAt) continue;
     const complete = await stat(join(instanceDir, entry.name, MANIFEST_FILE))
       .then(() => true)
       .catch(() => false);
-    if (complete) keys.push({ key: entry.name, createdAt });
+    listed.push({ name: entry.name, createdAt, complete });
   }
-  for (const name of selectByCount(keys, LOCAL_KEEP)) {
+  for (const name of doomedNames(listed, current, now, (keys) =>
+    selectByCount(keys, LOCAL_KEEP)
+  )) {
     await rm(join(instanceDir, name), { recursive: true, force: true });
   }
 }
 
-/** Deletes complete remote backups the destination's retention lets go. */
+/** Remote retention: the destination's daily and weekly counts. */
 async function applyRemoteRetention(
   destination: BackupDestination,
-  instancePrefix: string
+  instancePrefix: string,
+  current: string,
+  now: Date
 ): Promise<void> {
   const byName = new Map<string, string[]>();
   for (const { key } of await destination.store.list(instancePrefix)) {
     const name = key.slice(instancePrefix.length).split("/")[0] ?? "";
     byName.set(name, [...(byName.get(name) ?? []), key]);
   }
-  const complete: RetentionKey[] = [];
+  const listed: Listed[] = [];
   for (const [name, keys] of byName) {
     const createdAt = parseBackupName(name);
-    if (
-      createdAt &&
-      keys.includes(`${instancePrefix}${name}/${MANIFEST_FILE}`)
-    ) {
-      complete.push({ key: name, createdAt });
-    }
+    if (!createdAt) continue;
+    const complete = keys.includes(`${instancePrefix}${name}/${MANIFEST_FILE}`);
+    listed.push({ name, createdAt, complete });
   }
-  const doomed = selectForDeletion(
-    complete,
-    destination.keepDaily,
-    destination.keepWeekly
+  const doomed = doomedNames(listed, current, now, (keys) =>
+    selectForDeletion(keys, destination.keepDaily, destination.keepWeekly)
   ).flatMap((name) => byName.get(name) ?? []);
   if (doomed.length > 0) await destination.store.delete(doomed);
 }
+
+type Outcome = {
+  status: "succeeded" | "failed";
+  location: "s3" | "local";
+  objectKey: string | null;
+  sizeBytes: number | null;
+  error: unknown;
+};
 
 export async function runInstanceBackup(
   trigger: BackupTrigger,
@@ -349,6 +419,11 @@ export async function runInstanceBackup(
 ): Promise<BackupResult> {
   const deps: BackupDeps = { ...defaultDeps(), ...overrides };
   const { recorder, log } = deps;
+  const startedAt = deps.now();
+
+  await recorder
+    .markInterrupted(new Date(startedAt.getTime() - INTERRUPTED_AFTER_MS))
+    .catch((e) => log(`backupInterruptedSweepFailed: ${describe(e)}`));
 
   let destination: BackupDestination | null = null;
   let destinationError: BackupError | null = null;
@@ -360,51 +435,101 @@ export async function runInstanceBackup(
       describe(error)
     );
   }
+  const declared = destination || destinationError ? "s3" : "local";
 
-  const name = backupName(deps.now(), deps.version);
+  let id: string;
+  try {
+    id = await recorder.start({
+      trigger,
+      version: deps.version,
+      location: declared,
+    });
+  } catch (error) {
+    throw new BackupRecordError(declared, describe(error));
+  }
+
+  const outcome = await backUp(
+    deps,
+    startedAt,
+    destination,
+    destinationError
+  ).catch(
+    (error): Outcome => ({
+      status: "failed",
+      location: declared,
+      objectKey: null,
+      sizeBytes: null,
+      error,
+    })
+  );
+
+  let errorCode: string | null = null;
+  if (outcome.status === "failed") {
+    errorCode =
+      outcome.error instanceof BackupError
+        ? outcome.error.code
+        : "backupFailed";
+    log(
+      outcome.error instanceof BackupError
+        ? outcome.error.message
+        : `${errorCode}: ${describe(outcome.error)}`
+    );
+  }
+  let status = outcome.status;
+  try {
+    await recorder.finish(id, {
+      status,
+      location: outcome.location,
+      objectKey: outcome.objectKey,
+      sizeBytes: outcome.sizeBytes,
+      errorCode,
+    });
+  } catch (error) {
+    // The row stays `running`; the next run's sweep marks it interrupted.
+    log(`backupRecordFailed: ${describe(error)}`);
+    if (status === "succeeded") {
+      status = "failed";
+      errorCode = "backupRecordFailed";
+    }
+  }
+  return {
+    id,
+    status,
+    location: outcome.location,
+    objectKey: outcome.objectKey,
+    errorCode,
+  };
+}
+
+/** Stages, uploads and applies retention; never records the row itself. */
+async function backUp(
+  deps: BackupDeps,
+  startedAt: Date,
+  destination: BackupDestination | null,
+  destinationError: BackupError | null
+): Promise<Outcome> {
+  const { log } = deps;
+  const name = backupName(startedAt, deps.runSuffix(), deps.version);
   const localKey = `${deps.instance}/${name}/`;
   const instancePrefix = `${REMOTE_PREFIX}${deps.instance}/`;
   const remoteKey = `${instancePrefix}${name}/`;
   const instanceDir = resolve(deps.localRoot, deps.instance);
   const dir = join(instanceDir, name);
-
-  const id = await recorder.start({
-    trigger,
-    version: deps.version,
-    location: destination || destinationError ? "s3" : "local",
-  });
-
-  const fail = async (
-    error: unknown,
-    kept: {
-      location: "s3" | "local";
-      objectKey: string | null;
-      sizeBytes: number | null;
-    }
-  ): Promise<BackupResult> => {
-    const code = error instanceof BackupError ? error.code : "backupFailed";
-    log(
-      error instanceof BackupError
-        ? error.message
-        : `${code}: ${describe(error)}`
-    );
-    await recorder.finish(id, { status: "failed", errorCode: code, ...kept });
-    return {
-      id,
-      status: "failed",
-      location: kept.location,
-      objectKey: kept.objectKey,
-      errorCode: code,
-    };
-  };
+  const declared = destination || destinationError ? "s3" : "local";
 
   // 1. Stage the backup in the local folder.
+  let created = false;
   let sizeBytes: number;
   let fingerprint: string;
   try {
     if (!deps.secretsKey) throw new BackupError("backupSecretsKeyMissing");
     fingerprint = secretsKeyFingerprint(deps.secretsKey);
-    await step("backupWriteFailed", () => mkdir(dir, { recursive: true }));
+    await step("backupWriteFailed", async () => {
+      await mkdir(instanceDir, { recursive: true });
+      // Not recursive: a name collision fails instead of sharing a folder.
+      await mkdir(dir);
+      created = true;
+    });
     const database = await step("backupDumpFailed", () =>
       deps.dumpDatabase(join(dir, DATABASE_FILE))
     );
@@ -414,7 +539,7 @@ export async function runInstanceBackup(
     const manifest: BackupManifest = {
       format: 1,
       version: deps.version,
-      createdAt: deps.now().toISOString(),
+      createdAt: startedAt.toISOString(),
       database: {
         file: DATABASE_FILE,
         sha256: database.sha256,
@@ -429,62 +554,56 @@ export async function runInstanceBackup(
     );
     sizeBytes = database.bytes + garage.bytes + Buffer.byteLength(manifestText);
   } catch (error) {
-    // An incomplete folder is no use to anyone.
-    await rm(dir, { recursive: true, force: true }).catch(() => {});
-    return fail(error, {
-      location: destination || destinationError ? "s3" : "local",
+    // An incomplete folder is no use to anyone; never touch another run's.
+    if (created)
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    return {
+      status: "failed",
+      location: declared,
       objectKey: null,
       sizeBytes: null,
-    });
+      error,
+    };
   }
 
-  const keepLocal = async (error: unknown) => {
-    await applyLocalRetention(instanceDir).catch((e) =>
+  const localRetention = () =>
+    applyLocalRetention(instanceDir, name, deps.now()).catch((e) =>
       log(`backupRetentionFailed: ${describe(e)}`)
     );
-    return fail(error, { location: "local", objectKey: localKey, sizeBytes });
+  const keptLocal = async (error: unknown): Promise<Outcome> => {
+    await localRetention();
+    return {
+      status: "failed",
+      location: "local",
+      objectKey: localKey,
+      sizeBytes,
+      error,
+    };
   };
-
-  if (destinationError) return keepLocal(destinationError);
-
-  if (!destination) {
-    await recorder
+  const rememberFingerprint = () =>
+    deps.recorder
       .recordFingerprint(fingerprint)
       .catch((e) => log(`backupFingerprintFailed: ${describe(e)}`));
-    await applyLocalRetention(instanceDir).catch((e) =>
-      log(`backupRetentionFailed: ${describe(e)}`)
-    );
-    await recorder.finish(id, {
+
+  if (destinationError) return keptLocal(destinationError);
+
+  if (!destination) {
+    await rememberFingerprint();
+    await localRetention();
+    return {
       status: "succeeded",
       location: "local",
       objectKey: localKey,
       sizeBytes,
-      errorCode: null,
-    });
-    return {
-      id,
-      status: "succeeded",
-      location: "local",
-      objectKey: localKey,
-      errorCode: null,
+      error: null,
     };
   }
 
-  // 2. Upload, manifest last.
-  const files = (await filesUnder(dir))
-    .filter((f) => f !== MANIFEST_FILE)
-    .sort((a, b) =>
-      a === DATABASE_FILE
-        ? -1
-        : b === DATABASE_FILE
-          ? 1
-          : a < b
-            ? -1
-            : a > b
-              ? 1
-              : 0
-    );
-  files.push(MANIFEST_FILE);
+  // 2. Upload: database.dump, garage/*, manifest.json last.
+  const garageFiles = (await filesUnder(dir))
+    .filter((f) => f !== DATABASE_FILE && f !== MANIFEST_FILE)
+    .sort();
+  const files = [DATABASE_FILE, ...garageFiles, MANIFEST_FILE];
   const uploaded: string[] = [];
   try {
     for (const file of files) {
@@ -495,31 +614,25 @@ export async function runInstanceBackup(
   } catch (error) {
     // Best effort: a partial upload has no manifest and is never restored.
     await destination.store.delete(uploaded).catch(() => {});
-    return keepLocal(new BackupError("backupUploadFailed", describe(error)));
+    return keptLocal(new BackupError("backupUploadFailed", describe(error)));
   }
 
   // 3. The upload is complete: drop the local copy, then apply retention.
   await rm(dir, { recursive: true, force: true }).catch((e) =>
     log(`backupCleanupFailed: ${describe(e)}`)
   );
-  await recorder
-    .recordFingerprint(fingerprint)
-    .catch((e) => log(`backupFingerprintFailed: ${describe(e)}`));
-  await applyRemoteRetention(destination, instancePrefix).catch((e) =>
-    log(`backupRetentionFailed: ${describe(e)}`)
-  );
-  await recorder.finish(id, {
+  await rememberFingerprint();
+  await applyRemoteRetention(
+    destination,
+    instancePrefix,
+    name,
+    deps.now()
+  ).catch((e) => log(`backupRetentionFailed: ${describe(e)}`));
+  return {
     status: "succeeded",
     location: "s3",
     objectKey: remoteKey,
     sizeBytes,
-    errorCode: null,
-  });
-  return {
-    id,
-    status: "succeeded",
-    location: "s3",
-    objectKey: remoteKey,
-    errorCode: null,
+    error: null,
   };
 }

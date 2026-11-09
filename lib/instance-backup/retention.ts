@@ -4,6 +4,8 @@
 export type RetentionKey = { key: string; createdAt: Date };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** An incomplete backup (no manifest) older than this is a crashed run. */
+export const INCOMPLETE_MAX_AGE_MS = DAY_MS;
 
 /** UTC calendar day, YYYY-MM-DD. */
 function dayOf(d: Date): string {
@@ -29,7 +31,8 @@ const newestFirst = (keys: RetentionKey[]) =>
 /**
  * Keeps the newest backup of each of the `keepDaily` most recent days that
  * have one, then the newest of each of the `keepWeekly` most recent older ISO
- * weeks that have no kept daily. Returns the keys to delete, newest first.
+ * weeks that have no kept daily. The newest key is always kept, whatever the
+ * counts. Returns the keys to delete, newest first.
  */
 export function selectForDeletion(
   keys: RetentionKey[],
@@ -37,7 +40,7 @@ export function selectForDeletion(
   keepWeekly: number
 ): string[] {
   const sorted = newestFirst(keys);
-  const kept = new Set<string>();
+  const kept = new Set<string>(sorted.slice(0, 1).map((k) => k.key));
 
   const days = new Set<string>();
   const weeksWithDaily = new Set<string>();
@@ -65,9 +68,21 @@ export function selectForDeletion(
   return sorted.filter((k) => !kept.has(k.key)).map((k) => k.key);
 }
 
-/** Keeps the newest `keep`; returns the keys to delete, newest first. */
+/** Keeps the newest `keep` (at least one); returns the keys to delete, newest first. */
 export function selectByCount(keys: RetentionKey[], keep: number): string[] {
   return newestFirst(keys)
-    .slice(Math.max(keep, 0))
+    .slice(Math.max(keep, 1))
+    .map((k) => k.key);
+}
+
+/** Incomplete backups older than INCOMPLETE_MAX_AGE_MS: crashed runs. */
+export function selectStaleIncomplete(
+  keys: RetentionKey[],
+  now: Date
+): string[] {
+  return newestFirst(keys)
+    .filter(
+      (k) => now.getTime() - k.createdAt.getTime() > INCOMPLETE_MAX_AGE_MS
+    )
     .map((k) => k.key);
 }

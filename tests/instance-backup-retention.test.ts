@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   selectByCount,
   selectForDeletion,
+  selectStaleIncomplete,
 } from "@/lib/instance-backup/retention";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -44,6 +45,26 @@ describe("selectForDeletion", () => {
     const a = { key: "a", createdAt: new Date(NEWEST) };
     const b = { key: "b", createdAt: new Date(NEWEST - 60_000) };
     expect(selectForDeletion([b, a], 1, 0)).toEqual(["b"]);
+  });
+  it.each([
+    [0, 0],
+    [0, 1],
+  ])("always keeps the newest key with (%i, %i)", (keepDaily, keepWeekly) => {
+    const keys = dailyKeys(10);
+    const deleted = selectForDeletion(keys, keepDaily, keepWeekly);
+    expect(deleted).not.toContain(keys[0]?.key);
+    expect(deleted).toHaveLength(9);
+  });
+});
+
+describe("selectStaleIncomplete", () => {
+  it("returns incomplete backups older than 24 hours", () => {
+    const keys = dailyKeys(3);
+    const now = new Date(NEWEST + 60_000);
+    expect(selectStaleIncomplete(keys, now)).toEqual([
+      keys[1]?.key,
+      keys[2]?.key,
+    ]);
   });
 });
 
