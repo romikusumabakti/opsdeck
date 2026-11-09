@@ -56,7 +56,7 @@ export type InstanceBackupsPage = {
   destinations: { id: string; name: string; bucket: string }[];
 };
 
-async function requireInstanceManage() {
+export async function requireInstanceManage() {
   try {
     return await requireOrgPermission({ instance: ["manage"] });
   } catch (error) {
@@ -208,7 +208,7 @@ export async function verifySecretsKey(
   const row = await loadSettingsRow();
   const expected = row.secretsKeyFingerprint ?? liveFingerprint();
   return {
-    match: expected !== null && secretsKeyFingerprint(key.trim()) === expected,
+    match: expected !== null && secretsKeyFingerprint(key) === expected,
   };
 }
 

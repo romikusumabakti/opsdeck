@@ -6,10 +6,7 @@ import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
 import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
 import { loadEnvironmentWithServers } from "@/lib/environments";
-import {
-  isBackupRunning,
-  runInstanceBackup,
-} from "@/lib/instance-backup/archive";
+import { runInstanceBackup } from "@/lib/instance-backup/archive";
 import { pushComment, pushIssue } from "@/lib/jira/push";
 import { pullProject, syncIssueById } from "@/lib/jira/sync";
 import type { MssqlBackupFile } from "@/lib/jobs/commands";
@@ -1277,21 +1274,22 @@ function migrateLegacyPayload(name: JobName, data: unknown): unknown {
 }
 
 /**
- * One instance backup, unless another is still running (a manual run, the
- * schedule and an update's backup must never overlap). The outcome is
- * recorded in instance_backups by runInstanceBackup, so a failed backup is a
- * completed job.
+ * One instance backup. runInstanceBackup holds a Postgres advisory lock for
+ * the whole run, so a manual run, the schedule and an update's backup (in
+ * another container) never overlap: the loser records nothing and is
+ * skipped. The outcome is recorded in instance_backups, so a failed backup
+ * is a completed job.
  */
 export async function handleInstanceBackup(
   trigger: "schedule" | "manual"
 ): Promise<unknown> {
-  if (await isBackupRunning()) {
+  const result = await runInstanceBackup(trigger);
+  if (result.status === "alreadyRunning") {
     console.warn(
       `Instance backup (${trigger}) skipped: one is already running`
     );
-    return { skipped: true };
   }
-  return runInstanceBackup(trigger);
+  return result;
 }
 
 // Dispatches a job to its handler by name. The Worker calls this for every job;

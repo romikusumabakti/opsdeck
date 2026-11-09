@@ -141,7 +141,9 @@ function VerifyKey() {
     if (!key.trim()) return;
     setChecking(true);
     try {
-      setMatch((await verifySecretsKey(key.trim())).match);
+      setMatch((await verifySecretsKey(key)).match);
+      // Don't keep the pasted key in memory once it has been checked.
+      setKey("");
     } catch (error) {
       reportError(error);
     } finally {
@@ -166,7 +168,7 @@ function VerifyKey() {
             value={key}
             onChange={(e) => {
               setKey(e.target.value);
-              setMatch(null);
+              if (e.target.value) setMatch(null);
             }}
           />
         </div>

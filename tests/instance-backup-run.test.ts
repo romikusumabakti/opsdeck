@@ -105,6 +105,7 @@ let recorded: ReturnType<typeof memoryRecorder>;
 function deps(overrides: Partial<BackupDeps> = {}): Partial<BackupDeps> {
   return {
     recorder: recorded.recorder,
+    lock: async () => async () => {},
     destination: async () => null,
     garage: garage.store,
     dumpDatabase: async (filePath) => {
@@ -565,5 +566,69 @@ describe("s3ObjectStore uploads", () => {
     expect(parts).toHaveLength(2);
     expect(s3.seen[0]?.query).toHaveProperty("uploads");
     expect(s3.seen.at(-1)?.query).toHaveProperty("uploadId");
+  });
+});
+
+describe("one backup at a time", () => {
+  // An in-memory stand-in for the advisory lock.
+  function memoryLock() {
+    let held = false;
+    const releases: number[] = [];
+    const lock: BackupDeps["lock"] = async () => {
+      if (held) return null;
+      held = true;
+      return async () => {
+        held = false;
+        releases.push(Date.now());
+      };
+    };
+    return { lock, releases, isHeld: () => held };
+  }
+
+  it("records nothing and reports alreadyRunning when the lock is taken", async () => {
+    const result = await runInstanceBackup(
+      "manual",
+      deps({ lock: async () => null })
+    );
+    expect(result).toEqual({
+      id: null,
+      status: "alreadyRunning",
+      location: null,
+      objectKey: null,
+      errorCode: "backupAlreadyRunning",
+    });
+    expect(recorded.rows).toEqual({});
+    // The stale-row sweep only runs under the lock.
+    expect(recorded.sweeps).toEqual([]);
+  });
+
+  it("lets exactly one of two concurrent runs through", async () => {
+    const lock = memoryLock();
+    const [a, b] = await Promise.all([
+      runInstanceBackup("schedule", deps({ lock: lock.lock })),
+      runInstanceBackup("manual", deps({ lock: lock.lock })),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([
+      "alreadyRunning",
+      "succeeded",
+    ]);
+    expect(Object.keys(recorded.rows)).toHaveLength(1);
+    expect(lock.releases).toHaveLength(1);
+    expect(lock.isHeld()).toBe(false);
+  });
+
+  it("releases the lock after a failed run", async () => {
+    const lock = memoryLock();
+    const result = await runInstanceBackup(
+      "manual",
+      deps({
+        lock: lock.lock,
+        dumpDatabase: async () => {
+          throw new Error("boom");
+        },
+      })
+    );
+    expect(result.status).toBe("failed");
+    expect(lock.isHeld()).toBe(false);
   });
 });
