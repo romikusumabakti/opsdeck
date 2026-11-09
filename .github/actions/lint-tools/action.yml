@@ -1,0 +1,43 @@
+name: Lint tools
+description: >-
+  Installs pinned shellcheck and actionlint (official release tarballs,
+  checked by sha256) for the tests that lint ops/install and the workflows,
+  so the result does not depend on the runner image's versions.
+
+runs:
+  using: composite
+  steps:
+    - name: Install shellcheck and actionlint
+      shell: bash
+      env:
+        SHELLCHECK_VERSION: 0.11.0
+        SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+        ACTIONLINT_VERSION: 1.7.12
+        ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+      run: |
+        set -euo pipefail
+        if [ "$RUNNER_ARCH" != X64 ]; then
+          echo "::error::lint-tools pins the linux x86_64 tarballs only (runner: $RUNNER_ARCH)"
+          exit 1
+        fi
+        bin="$RUNNER_TEMP/lint-tools/bin"
+        dl="$RUNNER_TEMP/lint-tools/download"
+        mkdir -p "$bin" "$dl"
+
+        sc="shellcheck-v$SHELLCHECK_VERSION.linux.x86_64.tar.xz"
+        curl -fsSL --proto '=https' --retry 5 --retry-delay 3 -o "$dl/$sc" \
+          "https://github.com/koalaman/shellcheck/releases/download/v$SHELLCHECK_VERSION/$sc"
+        echo "$SHELLCHECK_SHA256  $dl/$sc" | sha256sum -c -
+        tar -xJf "$dl/$sc" -C "$dl"
+        install -m 0755 "$dl/shellcheck-v$SHELLCHECK_VERSION/shellcheck" "$bin/shellcheck"
+
+        al="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+        curl -fsSL --proto '=https' --retry 5 --retry-delay 3 -o "$dl/$al" \
+          "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/$al"
+        echo "$ACTIONLINT_SHA256  $dl/$al" | sha256sum -c -
+        tar -xzf "$dl/$al" -C "$dl" actionlint
+        install -m 0755 "$dl/actionlint" "$bin/actionlint"
+
+        echo "$bin" >> "$GITHUB_PATH"
+        "$bin/shellcheck" --version
+        "$bin/actionlint" --version
