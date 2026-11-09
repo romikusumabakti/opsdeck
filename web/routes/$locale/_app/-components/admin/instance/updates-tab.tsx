@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import {
   CircleAlert,
   CircleCheck,
@@ -63,7 +63,6 @@ import {
   type UpdateStatusCode,
 } from "@/lib/updates/request";
 import { compareVersions, parseVersion } from "@/lib/version";
-import { ApiError } from "@/web/api/client";
 import {
   applyInstanceUpdate,
   getInstanceUpdatesQuery,
@@ -71,6 +70,8 @@ import {
   restoreSafetyBackup,
   saveInstanceUpdateSettings,
 } from "@/web/api/instance";
+import { refreshInstance, reportError } from "./report-error";
+import { RestoreDialog } from "./restore-dialog";
 
 type T = ReturnType<typeof useTranslations<"instanceUpdates">>;
 type Status = NonNullable<InstanceUpdatesData["status"]>;
@@ -82,15 +83,6 @@ export function updateStatusMessage(t: T, code: string): string {
   return (UPDATE_STATUS_CODES as readonly string[]).includes(code)
     ? t(`statusCodes.${code as UpdateStatusCode}`)
     : t("statusCodes.unknown", { code });
-}
-
-/** Shows a refused request's message; rethrows a 401 (sign-in is underway). */
-function reportError(error: unknown): void {
-  if (error instanceof ApiError && error.status !== 401) {
-    toast.error(error.message);
-    return;
-  }
-  throw error;
 }
 
 export function UpdatesTab() {
@@ -128,6 +120,7 @@ function VersionCard({ data }: { data: InstanceUpdatesData }) {
   const tCommon = useTranslations("common");
   const [applying, setApplying] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const queryClient = useQueryClient();
   const { available } = data;
   const busy = data.pending || data.status?.state === "running";
   const tooOld =
@@ -141,6 +134,8 @@ function VersionCard({ data }: { data: InstanceUpdatesData }) {
     try {
       await applyInstanceUpdate(version);
       toast.success(t("updateRequested"));
+      // Picks up the pending request, which starts the live progress.
+      await refreshInstance(queryClient);
     } catch (error) {
       reportError(error);
     } finally {
@@ -232,6 +227,11 @@ function VersionCard({ data }: { data: InstanceUpdatesData }) {
               version: available.version,
               minFrom: available.minFrom,
             })}
+          </p>
+        )}
+        {available && data.autoUpdateSkipped && (
+          <p className="text-sm text-muted-foreground">
+            {t("autoUpdateSkipped", { version: available.version })}
           </p>
         )}
         {data.checkError && (
@@ -416,102 +416,9 @@ function StatusCard({ data }: { data: InstanceUpdatesData }) {
   );
 }
 
-/**
- * Restore with a typed confirmation: the button stays disabled until the
- * instance name is typed. Used by the Backups history and the safety backup.
- */
-export function RestoreDialog({
-  instance,
-  version,
-  disabled,
-  triggerLabel,
-  onConfirm,
-}: {
-  instance: string;
-  version: string;
-  disabled?: boolean;
-  triggerLabel: string;
-  onConfirm: (confirm: string) => Promise<unknown>;
-}) {
-  const t = useTranslations("instanceUpdates.restoreDialog");
-  const tCommon = useTranslations("common");
-  const [open, setOpen] = useState(false);
-  const [typed, setTyped] = useState("");
-  const [sending, setSending] = useState(false);
-
-  async function confirm() {
-    setSending(true);
-    try {
-      await onConfirm(typed);
-      toast.success(t("requested"));
-      setOpen(false);
-    } catch (error) {
-      reportError(error);
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <AlertDialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setTyped("");
-      }}
-    >
-      <AlertDialogTrigger
-        render={
-          <Button type="button" variant="outline" size="sm" disabled={disabled}>
-            <RotateCcw data-icon="inline-start" />
-            {triggerLabel}
-          </Button>
-        }
-      />
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t("title")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("body", { version })}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (typed === instance) void confirm();
-          }}
-        >
-          <label htmlFor="restore-confirm" className="text-sm font-medium">
-            {t("confirmLabel", { name: instance })}
-          </label>
-          <Input
-            id="restore-confirm"
-            autoComplete="off"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-          />
-          <AlertDialogFooter className="mt-2">
-            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={sending || typed !== instance}
-            >
-              {sending && (
-                <Loader2 data-icon="inline-start" className="animate-spin" />
-              )}
-              {t("confirm")}
-            </Button>
-          </AlertDialogFooter>
-        </form>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 function SettingsCard({ data }: { data: InstanceUpdatesData }) {
   const t = useTranslations("instanceUpdates");
+  const queryClient = useQueryClient();
   const tCommon = useTranslations("common");
   const schema = z.object({
     channel: z.enum(["stable", "beta"]),
@@ -539,6 +446,7 @@ function SettingsCard({ data }: { data: InstanceUpdatesData }) {
     }
     toast.success(t("saved"));
     form.reset(values);
+    await refreshInstance(queryClient);
   }
 
   return (

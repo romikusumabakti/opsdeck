@@ -3170,6 +3170,7 @@
       "restoreKeyMismatch": "That backup was taken with another SECRETS_KEY.",
       "restoreVersionMismatch": "That backup's version cannot be restored.",
       "updateCheckFailed": "GitHub could not be reached to check for updates."
-    }
+    },
+    "autoUpdateSkipped": "Auto-update skips {version}: its last run did not succeed. Update by hand when ready."
   }
 }

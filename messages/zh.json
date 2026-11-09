@@ -3170,6 +3170,7 @@
       "restoreKeyMismatch": "该备份使用了另一个 SECRETS_KEY。",
       "restoreVersionMismatch": "该备份的版本无法恢复。",
       "updateCheckFailed": "无法连接 GitHub 检查更新。"
-    }
+    },
+    "autoUpdateSkipped": "自动更新跳过 {version}：其上次运行未成功。准备好后请手动更新。"
   }
 }

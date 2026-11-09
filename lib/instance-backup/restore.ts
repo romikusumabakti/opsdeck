@@ -68,6 +68,47 @@ export class RestoreError extends Error {
   }
 }
 
+/**
+ * The swap's COMMIT was sent but its outcome could not be read back: the
+ * live database may already be the restored one, so the run is `failed`.
+ */
+export class SwapOutcomeUnknownError extends Error {
+  constructor(detail: string) {
+    super(`swap outcome unknown: ${detail}`);
+    this.name = "SwapOutcomeUnknownError";
+  }
+}
+
+/** Errors of the local disk (staging), as opposed to reading the source. */
+const DISK_ERRORS = new Set([
+  "ENOSPC",
+  "EDQUOT",
+  "EROFS",
+  "EACCES",
+  "EPERM",
+  "EIO",
+  "EMFILE",
+]);
+
+/** A failure reading the backup: the disk's own (restoreStagingFailed) or the source's. */
+function sourceError(error: unknown): RestoreError {
+  if (error instanceof RestoreError) return error;
+  const code = (error as { code?: string })?.code;
+  return new RestoreError(
+    code && DISK_ERRORS.has(code) ? "restoreStagingFailed" : "restoreNotFound",
+    describe(error)
+  );
+}
+
+/** Runs `fn`, classifying its failure with sourceError. */
+async function reading<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    throw sourceError(error);
+  }
+}
+
 export type RestoreResult = {
   status: "restored" | "refused" | "failed";
   errorCode: RestoreErrorCode | null;
@@ -256,9 +297,7 @@ export async function runRestore(
     const source = await step("restoreNotFound", () =>
       deps.openSource(objectKey)
     );
-    const text = await step("restoreNotFound", () =>
-      source.readManifest(staging)
-    );
+    const text = await reading(() => source.readManifest(staging));
     let manifest: BackupManifest;
     try {
       manifest = parseManifest(text);
@@ -281,14 +320,22 @@ export async function runRestore(
     if (manifest.garage.objects > 0 && !deps.garage) {
       throw new RestoreError("restoreGarageUnavailable");
     }
-    const dir = await step("restoreNotFound", () => source.stage(staging));
+    const dir = await reading(() => source.stage(staging));
     await verifyStaged(dir, manifest);
 
     // Nothing live has changed up to here.
     await step("restoreDatabaseFailed", () =>
       deps.database.prepare(join(dir, DATABASE_FILE))
     );
-    await step("restoreDatabaseFailed", () => deps.database.swap());
+    try {
+      await deps.database.swap();
+    } catch (error) {
+      if (error instanceof SwapOutcomeUnknownError) {
+        swapped = true;
+        throw new RestoreError("restoreFailed", error.message);
+      }
+      throw new RestoreError("restoreDatabaseFailed", describe(error));
+    }
     swapped = true;
     log("restore: database replaced");
     await deps.database
@@ -378,6 +425,7 @@ export function pgRestoreDatabase(
   const target = decodeURIComponent(new URL(url).pathname.slice(1));
   const scratch = suffixed(target, "_restore");
   const previous = suffixed(target, "_pre_restore");
+  const distinctNames = new Set([target, scratch, previous]).size === 3;
   const maintenance = new URL(url);
   maintenance.pathname = "/postgres";
   let admin: Sql | null = null;
@@ -386,8 +434,35 @@ export function pgRestoreDatabase(
     return admin;
   };
 
+  /**
+   * After a swap whose COMMIT outcome is unknown: returns when it happened,
+   * rethrows `cause` when it did not, SwapOutcomeUnknownError when even that
+   * cannot be read.
+   */
+  async function swapOutcome(cause: unknown): Promise<void> {
+    await admin?.end({ timeout: 0 }).catch(() => {});
+    admin = null;
+    let names: string[];
+    try {
+      names = (
+        await sql()<{ datname: string }[]>`select datname from pg_database
+          where datname in (${target}, ${scratch})`
+      ).map((r) => r.datname);
+    } catch (error) {
+      throw new SwapOutcomeUnknownError((error as Error).message);
+    }
+    if (names.includes(target) && !names.includes(scratch)) return;
+    if (names.includes(target) && names.includes(scratch)) throw cause;
+    throw new SwapOutcomeUnknownError(`databases present: ${names.join(", ")}`);
+  }
+
   return {
     async prepare(dumpPath) {
+      if (!distinctNames) {
+        throw new Error(
+          `database name ${target} leaves no room for distinct scratch names`
+        );
+      }
       const [props] = await sql()<
         {
           enc: string;
@@ -452,8 +527,15 @@ export function pgRestoreDatabase(
           });
           return;
         } catch (error) {
-          // 55006 object_in_use: someone connected again.
+          // A server error (SQLSTATE) means the transaction rolled back;
+          // anything else (the connection dropped, maybe after COMMIT was
+          // sent) leaves the outcome to be read back from pg_database.
           const code = (error as { code?: string }).code;
+          if (!(error instanceof postgres.PostgresError)) {
+            await swapOutcome(error);
+            return;
+          }
+          // 55006 object_in_use: someone connected again.
           if (code !== "55006" || attempt >= 10) throw error;
           await new Promise((r) => setTimeout(r, 1000));
         }

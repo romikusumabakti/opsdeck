@@ -3170,6 +3170,7 @@
       "restoreKeyMismatch": "Esa copia se hizo con otra SECRETS_KEY.",
       "restoreVersionMismatch": "La versión de esa copia no se puede restaurar.",
       "updateCheckFailed": "No se pudo contactar con GitHub para buscar actualizaciones."
-    }
+    },
+    "autoUpdateSkipped": "La actualización automática omite {version}: su última ejecución no tuvo éxito. Actualice a mano cuando esté listo."
   }
 }

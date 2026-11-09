@@ -9,7 +9,10 @@ export const BACKUP_USAGE = `Usage: opsdeck backup run [--trigger schedule|manua
 Dumps DATABASE_URL, mirrors the Garage bucket and uploads both with a
 manifest to the backup destination chosen in Admin → Backups, or keeps them in
 /var/lib/opsdeck/backups when none is chosen. The trigger defaults to manual.
-Prints one JSON line {id,status,location,objectKey,errorCode}; exit 1 on failure.
+Prints one JSON line {id,status,location,objectKey,localObjectKey,errorCode};
+exit 1 on failure. A restore-trigger backup always keeps a local copy too
+(localObjectKey, restorable as local:<localObjectKey>): the host updater undoes a
+failed restore from it.
 While another backup runs, nothing is done: status "alreadyRunning", errorCode
 "backupAlreadyRunning", exit 1. id is null then, and when the run could not be
 recorded at all.`;
@@ -67,6 +70,7 @@ export async function runBackup(args: string[]): Promise<number> {
         status: "failed",
         location: error instanceof BackupRecordError ? error.location : "local",
         objectKey: null,
+        localObjectKey: null,
         errorCode: "backupFailed",
       })
     );

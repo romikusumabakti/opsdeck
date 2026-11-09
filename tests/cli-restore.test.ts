@@ -17,6 +17,7 @@ import {
   type RestoreDatabase,
   type RestoreDeps,
   runRestore,
+  SwapOutcomeUnknownError,
   s3BackupSource,
 } from "@/lib/instance-backup/restore";
 import { RESTORE_REFUSED_EXIT } from "@/lib/updates/request";
@@ -407,6 +408,108 @@ describe("sources", () => {
     );
     expect(JSON.parse(await source.readManifest(root))).toMatchObject({
       version: "1.2.0",
+    });
+  });
+});
+
+describe("swap outcome and names", () => {
+  /** A fake admin connection whose begin() drops the connection. */
+  function droppingSql(after: () => unknown[]) {
+    let connections = 0;
+    const connect = () => {
+      connections += 1;
+      const first = connections === 1;
+      return Object.assign(async () => (first ? [] : after()), {
+        unsafe: async () => [],
+        begin: async () => {
+          throw Object.assign(new Error("write CONNECTION_CLOSED"), {
+            code: "CONNECTION_CLOSED",
+          });
+        },
+        end: async () => {},
+      }) as never;
+    };
+    return { connect, count: () => connections };
+  }
+
+  it("treats a dropped COMMIT as done when pg_database shows the swap", async () => {
+    const swapped = droppingSql(() => [{ datname: "opsdeck" }]);
+    const database = pgRestoreDatabase("postgres://u:p@h/opsdeck", {
+      connect: swapped.connect,
+    });
+    await expect(database.swap()).resolves.toBeUndefined();
+    expect(swapped.count()).toBe(2);
+  });
+
+  it("rethrows when pg_database shows the swap did not happen", async () => {
+    const notSwapped = droppingSql(() => [
+      { datname: "opsdeck" },
+      { datname: "opsdeck_restore" },
+    ]);
+    const database = pgRestoreDatabase("postgres://u:p@h/opsdeck", {
+      connect: notSwapped.connect,
+    });
+    await expect(database.swap()).rejects.toThrow(/CONNECTION_CLOSED/);
+  });
+
+  it("reports an unknown outcome when pg_database cannot be read", async () => {
+    const unreadable = droppingSql(() => {
+      throw new Error("still down");
+    });
+    const database = pgRestoreDatabase("postgres://u:p@h/opsdeck", {
+      connect: unreadable.connect,
+    });
+    await expect(database.swap()).rejects.toBeInstanceOf(
+      SwapOutcomeUnknownError
+    );
+  });
+
+  it("an unknown swap outcome makes the run failed (exit 1), not refused", async () => {
+    const key = await localBackup();
+    const database = fakeDatabase();
+    database.swap = vi.fn(async () => {
+      throw new SwapOutcomeUnknownError("connection lost");
+    });
+    expect(await runRestore(key, deps({ database }))).toMatchObject({
+      status: "failed",
+      errorCode: "restoreFailed",
+    });
+  });
+
+  it("refuses a database name that leaves no room for distinct scratch names", async () => {
+    const name = `${"a".repeat(55)}_restore`;
+    expect(name).toHaveLength(63);
+    const database = pgRestoreDatabase(`postgres://u:p@h/${name}`, {
+      connect: () => {
+        throw new Error("must not connect");
+      },
+    });
+    await expect(database.prepare("/x/database.dump")).rejects.toThrow(
+      /distinct scratch names/
+    );
+  });
+});
+
+describe("staging failures", () => {
+  it("a full disk while staging is restoreStagingFailed, not restoreNotFound", async () => {
+    const key = await localBackup();
+    const real = localBackupSource(
+      join(root, "backups"),
+      key.slice("local:".length)
+    );
+    const d = deps({
+      openSource: async () => ({
+        readManifest: real.readManifest,
+        stage: async () => {
+          throw Object.assign(new Error("no space left on device"), {
+            code: "ENOSPC",
+          });
+        },
+      }),
+    });
+    expect(await runRestore(key, d)).toMatchObject({
+      status: "refused",
+      errorCode: "restoreStagingFailed",
     });
   });
 });

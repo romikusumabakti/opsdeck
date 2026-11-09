@@ -160,6 +160,7 @@ describe("runInstanceBackup", () => {
       status: "failed",
       location: "local",
       objectKey: "test/2026-11-09T193005.000Z-abc123-1.2.3/",
+      localObjectKey: "test/2026-11-09T193005.000Z-abc123-1.2.3/",
       errorCode: "backupUploadFailed",
     });
     const local = join(root, "test/2026-11-09T193005.000Z-abc123-1.2.3");
@@ -250,6 +251,7 @@ describe("runInstanceBackup", () => {
       status: "succeeded",
       location: "s3",
       objectKey: PREFIX,
+      localObjectKey: null,
       errorCode: null,
     });
     expect(remote.uploads).toEqual([
@@ -269,6 +271,68 @@ describe("runInstanceBackup", () => {
     ]);
     // The local staging copy goes once the upload has succeeded.
     expect(await readdir(join(root, "test"))).toEqual([]);
+  });
+
+  it("a restore-trigger backup to S3 also keeps a marked local copy", async () => {
+    const remote = memoryStore();
+    const result = await runInstanceBackup(
+      "restore",
+      deps({ destination: destination(remote.store) })
+    );
+    const localKey = "test/2026-11-09T193005.000Z-abc123-1.2.3/";
+    expect(result).toEqual({
+      id: "run-1",
+      status: "succeeded",
+      location: "s3",
+      objectKey: PREFIX,
+      localObjectKey: localKey,
+      errorCode: null,
+    });
+    expect(await filesUnder(join(root, localKey.slice(0, -1)))).toEqual([
+      ".safety",
+      "database.dump",
+      "garage/attachments/a.png",
+      "garage/issues/b/c.txt",
+      "manifest.json",
+    ]);
+    // The marker stays local.
+    expect(remote.uploads).not.toContain(`${PREFIX}.safety`);
+  });
+
+  it("keeps the newest safety backup outside the local count of 3", async () => {
+    const complete = async (name: string, safety = false) => {
+      await mkdir(join(root, "test", name), { recursive: true });
+      await writeFile(join(root, "test", name, "manifest.json"), "{}");
+      if (safety) await writeFile(join(root, "test", name, ".safety"), "");
+    };
+    await complete("2026-11-01T193000Z-1.2.2", true); // older safety: counted
+    await complete("2026-11-02T193000Z-1.2.2", true); // newest safety: exempt
+    for (const d of ["05", "06", "07", "08"]) {
+      await complete(`2026-11-${d}T193000Z-1.2.3`);
+    }
+    await runInstanceBackup("schedule", deps());
+    expect((await readdir(join(root, "test"))).sort()).toEqual([
+      "2026-11-02T193000Z-1.2.2",
+      "2026-11-07T193000Z-1.2.3",
+      "2026-11-08T193000Z-1.2.3",
+      "2026-11-09T193005.000Z-abc123-1.2.3",
+    ]);
+
+    // A newer safety backup takes over the exemption; the older one counts
+    // like any other again (the newest 3 of the rest stay).
+    await runInstanceBackup(
+      "restore",
+      deps({
+        now: () => new Date(Date.UTC(2026, 10, 10)),
+        runSuffix: () => "def456",
+      })
+    );
+    expect((await readdir(join(root, "test"))).sort()).toEqual([
+      "2026-11-07T193000Z-1.2.3",
+      "2026-11-08T193000Z-1.2.3",
+      "2026-11-09T193005.000Z-abc123-1.2.3",
+      "2026-11-10T000000.000Z-def456-1.2.3",
+    ]);
   });
 
   it("records a dump failure", async () => {
@@ -596,6 +660,7 @@ describe("one backup at a time", () => {
       status: "alreadyRunning",
       location: null,
       objectKey: null,
+      localObjectKey: null,
       errorCode: "backupAlreadyRunning",
     });
     expect(recorded.rows).toEqual({});
