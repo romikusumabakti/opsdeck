@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { contextStorage } from "hono/context-storage";
 import { auth } from "@/lib/auth";
+import { OPSDECK_VERSION } from "@/lib/version";
 import type { AppEnv } from "@/server/context";
 import { onError } from "@/server/errors";
 import { csrfGuard } from "@/server/middleware/csrf";
@@ -79,7 +80,7 @@ export const app = createBaseApp()
   // better-auth owns everything under /api/auth and sets its cookies on the
   // Response it returns, so it gets the raw request and nothing else.
   .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
-  .get("/api/health", (c) => c.json({ ok: true }))
+  .get("/api/health", (c) => c.json({ ok: true, version: OPSDECK_VERSION }))
   // One chain, so AppType carries every route for the typed client. Each
   // module router is mounted at /api/<module>; the extra mounts keep the paths
   // of handlers ported from app/api (/api/issues/..., /api/avatars/...,
