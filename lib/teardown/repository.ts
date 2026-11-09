@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { one } from "@/lib/db/one";
 import {
+  activityLog,
   databaseHosts,
   deployTargets,
   type EnvironmentArchive,
@@ -242,6 +242,7 @@ export async function loadTeardownDbService(serviceId: string) {
       dbType: environmentServices.dbType,
       dbKind: environmentServices.dbKind,
       dbName: environmentServices.dbName,
+      dbRole: environmentServices.dbRole,
       databaseHostId: environmentServices.databaseHostId,
       serverId: environmentServices.serverId,
       serviceType: environmentServices.serviceType,
@@ -345,13 +346,28 @@ export async function findOpenArchive(
   return row ?? null;
 }
 
+/**
+ * Inserts the environment's open archive, or returns the one already open:
+ * the partial unique index allows one per environment, so two first archive
+ * steps at once (a redelivered job still alive) share a row.
+ */
 export async function createArchive(
   values: typeof environmentArchives.$inferInsert
 ): Promise<EnvironmentArchive> {
-  return one(
-    await db.insert(environmentArchives).values(values).returning(),
-    "environment archive"
-  );
+  const [created] = await db
+    .insert(environmentArchives)
+    .values(values)
+    .onConflictDoNothing({
+      target: environmentArchives.environmentId,
+      where: sql`${environmentArchives.completedAt} IS NULL`,
+    })
+    .returning();
+  if (created) return created;
+  const open = values.environmentId
+    ? await findOpenArchive(values.environmentId)
+    : null;
+  if (!open) throw new Error("The open environment archive vanished");
+  return open;
 }
 
 /** Appends a file to the archive's list, unless one of that name is listed. */
@@ -371,13 +387,15 @@ export async function addArchiveFile(
 
 /**
  * delete_environment: in one transaction, closes the environment's open
- * archive (completed_at), then deletes the environment row; the cascade
- * removes its steps and runs. The archive id is the one just closed, else
- * the newest one already closed (a retry after a crash in between). Null
- * when the environment is gone already.
+ * archive (completed_at), deletes the environment row (the cascade removes
+ * its steps and runs) and records `environment.deleted` {environment,
+ * archiveId}, so a crash can lose none of them. The archive id is the one
+ * just closed, else the newest one already closed. Null when the environment
+ * is gone already.
  */
 export async function deleteTeardownEnvironment(
-  environmentId: string
+  environmentId: string,
+  actorId: string | null
 ): Promise<{ environmentName: string; archiveId: string | null } | null> {
   return db.transaction(async (tx) => {
     const [closed] = await tx
@@ -406,6 +424,27 @@ export async function deleteTeardownEnvironment(
       .where(eq(environments.id, environmentId))
       .returning({ name: environments.name });
     if (!deleted) return null;
-    return { environmentName: deleted.name, archiveId: latest?.id ?? null };
+    const archiveId = latest?.id ?? null;
+    await tx.insert(activityLog).values({
+      actorId,
+      action: "environment.deleted",
+      entityType: "environment",
+      entityId: environmentId,
+      data: {
+        environment: deleted.name,
+        ...(archiveId ? { archiveId } : {}),
+      },
+    });
+    return { environmentName: deleted.name, archiveId };
   });
+}
+
+export async function environmentExists(
+  environmentId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: environments.id })
+    .from(environments)
+    .where(eq(environments.id, environmentId));
+  return row !== undefined;
 }

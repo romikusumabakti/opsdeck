@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdtempSync,
@@ -52,6 +53,7 @@ type StreamCall = {
   command: string;
   stdin?: string;
   path: string;
+  timeoutMs: number;
 };
 
 const state = vi.hoisted(() => ({
@@ -109,13 +111,14 @@ vi.mock("@/lib/ssh", () => ({
     target: { host: string },
     command: string,
     filePath: string,
-    options: { stdin?: string } = {}
+    options: { stdin?: string; timeoutMs: number }
   ) => {
     state.streams.push({
       host: target.host,
       command,
       stdin: options.stdin,
       path: filePath,
+      timeoutMs: options.timeoutMs,
     });
     const result = state.respond(command);
     writeFileSync(filePath, result.out, { mode: 0o600 });
@@ -255,9 +258,12 @@ vi.mock("@/server/services/cloudflare-account", () => ({
   loadCloudflareAccount: async () => null,
 }));
 
-const { archiveDatabase, archiveDeployDir, archiveVolumes } = await import(
-  "@/lib/teardown/archive"
-);
+const {
+  ARCHIVE_COMMAND_TIMEOUT_MS,
+  archiveDatabase,
+  archiveDeployDir,
+  archiveVolumes,
+} = await import("@/lib/teardown/archive");
 const { runTeardown } = await import("@/lib/jobs/teardown");
 const { StepFailed } = await import("@/lib/teardown/errors");
 
@@ -270,6 +276,7 @@ const ctx = () => ({
 
 const DOCKER_DB = {
   environmentId: ENV_ID,
+  dbRole: null as string | null,
   role: "db",
   dbType: "postgres",
   dbKind: "container",
@@ -281,6 +288,16 @@ const DOCKER_DB = {
 };
 
 const DIR = { serverId: "srv-app", deployDir: "/deployments/hris-staging" };
+
+// The names: a readable slug plus 10 hex of sha256 of the exact source.
+const h = (identity: string) =>
+  createHash("sha256").update(identity).digest("hex").slice(0, 10);
+const DB_FILE = `db-hris_staging-${h("svc")}.dump`;
+const deployFile = (dir: string, slug: string) =>
+  `deploy-10-0-0-5-${slug}-${h(`10.0.0.5\n${dir}`)}.tar.gz`;
+const DEPLOY_FILE = deployFile(DIR.deployDir, "deployments-hris-staging");
+const volumeFile = (volume: string) =>
+  `volume-10-0-0-5-${volume}-${h(`10.0.0.5\n${volume}`)}.tar.gz`;
 
 /** Every file left anywhere under the local root (temp files included). */
 function filesUnder(dir: string): string[] {
@@ -337,32 +354,71 @@ describe("archiveDatabase", () => {
     expect(days).toBeLessThan(30.1);
     expect(state.uploads).toEqual([
       {
-        key: `opsdeck-env-archives/opsdeck-test/${archive?.id}/db-hris_staging.dump`,
+        key: `opsdeck-env-archives/opsdeck-test/${archive?.id}/${DB_FILE}`,
         body: state.respond(state.streams[0]?.command ?? "").out,
       },
     ]);
     expect(archive?.files).toEqual([
       {
-        name: "db-hris_staging.dump",
+        name: DB_FILE,
         size: Buffer.byteLength(state.uploads[0]?.body ?? ""),
       },
     ]);
-    expect(message).toContain("db-hris_staging.dump");
+    expect(message).toContain(DB_FILE);
     // The temp file is gone once uploaded.
     expect(filesUnder(ROOT)).toEqual([]);
   });
 
-  it("dumps a shared database on its host's container", async () => {
+  it("dumps a shared database on its host's container as the binding's role", async () => {
     state.dbService = {
       ...DOCKER_DB,
       dbKind: "shared",
       databaseHostId: "host-1",
+      dbRole: "hris_staging_app",
       serverId: "srv-app",
     };
     await archiveDatabase(ctx(), { serviceId: "svc" });
     expect(state.streams[0]?.host).toBe("10.0.0.9");
+    // Never as postgres: the role's own objects must not run as superuser.
     expect(state.streams[0]?.command).toBe(
-      "docker exec 'shared-pg' pg_dump -Fc -U postgres 'hris_staging'"
+      "docker exec 'shared-pg' pg_dump -Fc -U 'hris_staging_app' 'hris_staging'"
+    );
+    expect(state.streams[0]?.command).not.toContain("-U postgres");
+  });
+
+  it("refuses a shared database without a role, before any SSH", async () => {
+    state.dbService = {
+      ...DOCKER_DB,
+      dbKind: "shared",
+      databaseHostId: "host-1",
+      dbRole: null,
+    };
+    await expect(archiveDatabase(ctx(), { serviceId: "svc" })).rejects.toThrow(
+      expect.objectContaining({ code: "databaseNotRegistered" })
+    );
+    expect(state.streams).toEqual([]);
+  });
+
+  it("keeps two databases of the same name apart", async () => {
+    await archiveDatabase(ctx(), { serviceId: "svc" });
+    state.dbService = {
+      ...DOCKER_DB,
+      dbKind: "shared",
+      databaseHostId: "host-1",
+      dbRole: "hris_staging",
+    };
+    await archiveDatabase(ctx(), { serviceId: "svc-2" });
+    expect(state.archives[0]?.files.map((f) => f.name)).toEqual([
+      DB_FILE,
+      `db-hris_staging-${h("svc-2")}.dump`,
+    ]);
+    expect(state.uploads).toHaveLength(2);
+  });
+
+  it("treats exit 44 of pg_dump as a failure, not as nothing to archive", async () => {
+    state.respond = () => ({ code: 44, out: "" });
+    await expect(archiveDatabase(ctx(), { serviceId: "svc" })).rejects.toThrow(
+      expect.objectContaining({ code: "archiveFailed" })
     );
   });
 
@@ -428,8 +484,8 @@ describe("archiveDatabase", () => {
 
     expect(state.archives).toHaveLength(1);
     expect(state.uploads.map((u) => u.key.split("/").pop())).toEqual([
-      "db-hris_staging.dump",
-      "deploy-10-0-0-5-deployments-hris-staging.tar.gz",
+      DB_FILE,
+      DEPLOY_FILE,
     ]);
     // The second dump is not even taken.
     expect(
@@ -455,7 +511,7 @@ describe("archiveDatabase", () => {
     const dir = join(state.root, "opsdeck-test", "env-archives", archive.id);
     expect(archive.location).toBe("local");
     expect(archive.keyPrefix).toBe(`${dir}/`);
-    const file = join(dir, "db-hris_staging.dump");
+    const file = join(dir, DB_FILE);
     expect(readFileSync(file, "utf8")).toBe(
       state.respond(state.streams[0]?.command ?? "").out
     );
@@ -467,7 +523,7 @@ describe("archiveDatabase", () => {
     // Only the finished file: no temp file left beside it.
     expect(filesUnder(ROOT)).toEqual([file]);
     expect(archive.files).toEqual([
-      { name: "db-hris_staging.dump", size: statSync(file).size },
+      { name: DB_FILE, size: statSync(file).size },
     ]);
     expect(state.uploads).toEqual([]);
   });
@@ -488,9 +544,7 @@ describe("archiveDeployDir", () => {
     const command = state.streams[0]?.command ?? "";
     expect(command).toContain("tar -C '/deployments' -czf - -- 'hris-staging'");
     expect(command).not.toContain(SSH_PASSWORD);
-    expect(state.archives[0]?.files.map((f) => f.name)).toEqual([
-      "deploy-10-0-0-5-deployments-hris-staging.tar.gz",
-    ]);
+    expect(state.archives[0]?.files.map((f) => f.name)).toEqual([DEPLOY_FILE]);
   });
 
   it("retries elevated when tar fails as the SSH user, the password on stdin", async () => {
@@ -506,6 +560,56 @@ describe("archiveDeployDir", () => {
       SSH_PASSWORD
     );
     expect(state.uploads[0]?.body).toBe("tarball");
+  });
+
+  it("keeps dirs whose slugs collide apart", async () => {
+    for (const deployDir of [
+      "/srv/app-x",
+      "/srv/app/x",
+      "/srv/App",
+      "/srv/app",
+    ]) {
+      await archiveDeployDir(ctx(), { serverId: "srv-app", deployDir });
+    }
+    expect(state.archives[0]?.files.map((f) => f.name)).toEqual([
+      deployFile("/srv/app-x", "srv-app-x"),
+      deployFile("/srv/app/x", "srv-app-x"),
+      deployFile("/srv/App", "srv-app"),
+      deployFile("/srv/app", "srv-app"),
+    ]);
+    expect(new Set(state.uploads.map((u) => u.key)).size).toBe(4);
+  });
+
+  it("shares one time budget between the plain and the elevated tar", async () => {
+    const budget = ARCHIVE_COMMAND_TIMEOUT_MS;
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      state.respond = (command) => {
+        if (command.includes("sudo")) return { code: 0, out: "tarball" };
+        now += budget / 2;
+        return { code: 2, out: "", err: "tar: Permission denied" };
+      };
+      await archiveDeployDir(ctx(), DIR);
+      expect(state.streams.map((s) => s.timeoutMs)).toEqual([
+        budget,
+        budget / 2,
+      ]);
+
+      // The plain attempt used it all (a timeout): no elevated retry.
+      state.streams = [];
+      state.archives = [];
+      state.respond = () => {
+        now += budget;
+        return { code: null as unknown as number, out: "", err: "" };
+      };
+      await expect(archiveDeployDir(ctx(), DIR)).rejects.toThrow(
+        expect.objectContaining({ code: "archiveFailed" })
+      );
+      expect(state.streams).toHaveLength(1);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("archives nothing when the dir is absent", async () => {
@@ -545,8 +649,8 @@ describe("archiveVolumes", () => {
     );
     expect(command).toContain("-v 'app_data:/v:ro'");
     expect(state.archives[0]?.files.map((f) => f.name)).toEqual([
-      "volume-10-0-0-5-app_data.tar.gz",
-      "volume-10-0-0-5-app_cache.tar.gz",
+      volumeFile("app_data"),
+      volumeFile("app_cache"),
     ]);
   });
 
@@ -566,8 +670,8 @@ describe("archiveVolumes", () => {
       expect.stringContaining("app_cache"),
     ]);
     expect(state.archives[0]?.files.map((f) => f.name)).toEqual([
-      "volume-10-0-0-5-app_data.tar.gz",
-      "volume-10-0-0-5-app_cache.tar.gz",
+      volumeFile("app_data"),
+      volumeFile("app_cache"),
     ]);
   });
 
@@ -580,6 +684,26 @@ describe("archiveVolumes", () => {
     expect(String((error as Error).message)).toContain("left stopped");
     expect(state.uploads).toEqual([]);
     expect(filesUnder(ROOT)).toEqual([]);
+  });
+
+  it("maps only docker's no-such-volume to a missing volume", async () => {
+    state.stopVolumes = ["app_data"];
+    state.respond = () => ({
+      code: 45,
+      out: "",
+      err: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock",
+    });
+    const error = await archiveVolumes(ctx(), DIR).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "archiveFailed" });
+    expect(String((error as Error).message)).toContain(
+      "Cannot connect to the Docker daemon"
+    );
+    expect(String((error as Error).message)).not.toContain("no longer exists");
+
+    // The script itself: no such volume (Docker or Podman wording) is 44.
+    const command = state.streams[0]?.command ?? "";
+    expect(command).toContain('*[Nn]"o such volume"*) exit 44');
+    expect(command).toContain("exit 45");
   });
 
   it("passes on a refusal before the stop as it is", async () => {

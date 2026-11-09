@@ -338,6 +338,14 @@ export function pgRestorePipeline(
 // postgres, and the restore never drops or recreates the database. These
 // builders must never contain `-U postgres`.
 
+/** The role a shared binding's dump and restore run as. */
+export function sharedDbRole(db: { dbRole: string | null }): string {
+  if (!db.dbRole) {
+    throw new Error("Shared database binding has no role configured");
+  }
+  return db.dbRole;
+}
+
 /** pg_dump as the binding's role (trusted local socket inside the container). */
 export function pgSharedBackupPipeline(
   database: string,

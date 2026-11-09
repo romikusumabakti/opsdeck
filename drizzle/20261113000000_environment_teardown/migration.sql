@@ -32,6 +32,7 @@ CREATE TABLE "teardown_steps" (
 );
 --> statement-breakpoint
 CREATE INDEX "environment_archives_environment_idx" ON "environment_archives" ("environment_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "environment_archives_open_idx" ON "environment_archives" ("environment_id") WHERE "completed_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "environment_archives_expires_at_idx" ON "environment_archives" ("expires_at");--> statement-breakpoint
 CREATE INDEX "environment_archives_deleted_by_idx" ON "environment_archives" ("deleted_by");--> statement-breakpoint
 CREATE UNIQUE INDEX "teardown_steps_environment_position_idx" ON "teardown_steps" ("environment_id","position");--> statement-breakpoint

@@ -1,4 +1,3 @@
-import { recordActivity } from "@/lib/activity";
 import {
   type CloudflareCreds,
   deleteAccessApp,
@@ -26,6 +25,7 @@ import {
 } from "@/lib/teardown/plan";
 import {
   deleteTeardownEnvironment,
+  environmentExists,
   failRunningTeardownSteps,
   getTeardownRun,
   listTeardownSteps,
@@ -180,21 +180,14 @@ function removeAccessApp(
 
 /**
  * Closes the archive, deletes the environment row (its steps and runs go with
- * it) and records `environment.deleted`.
+ * it) and records `environment.deleted`, in one transaction.
  */
 async function deleteEnvironment(ctx: ArchiveContext): Promise<string> {
-  const deleted = await deleteTeardownEnvironment(ctx.environmentId);
+  const deleted = await deleteTeardownEnvironment(
+    ctx.environmentId,
+    ctx.userId
+  );
   if (!deleted) return "Environment already deleted";
-  await recordActivity({
-    actorId: ctx.userId,
-    action: "environment.deleted",
-    entityType: "environment",
-    entityId: ctx.environmentId,
-    data: {
-      environment: deleted.environmentName,
-      ...(deleted.archiveId ? { archiveId: deleted.archiveId } : {}),
-    },
-  });
   return `Environment ${deleted.environmentName} deleted`;
 }
 
@@ -255,7 +248,17 @@ export async function runTeardown(
 async function runSteps(ctx: ArchiveContext): Promise<TeardownJobResult> {
   const { environmentId, runId } = ctx;
   const run = await getTeardownRun(runId);
-  if (!run) throw new Error(`Teardown run ${runId} not found`);
+  if (!run) {
+    // A job redelivered after its delete_environment committed: the run went
+    // with the environment, and the teardown is done.
+    if (!(await environmentExists(environmentId))) {
+      console.log(
+        `Teardown run ${runId} is gone with its environment; skipping redelivered job`
+      );
+      return { status: "success" };
+    }
+    throw new Error(`Teardown run ${runId} not found`);
+  }
   if (run.status !== "started") {
     // BullMQ stalled recovery can redeliver a job whose run was already
     // closed. Running its steps again would act outside any open run.

@@ -76,4 +76,10 @@ describe("environment teardown migration", () => {
       'CREATE INDEX "environment_archives_environment_idx" ON "environment_archives" ("environment_id")'
     );
   });
+
+  it("allows one open archive per environment", () => {
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "environment_archives_open_idx" ON "environment_archives" ("environment_id") WHERE "completed_at" IS NULL'
+    );
+  });
 });

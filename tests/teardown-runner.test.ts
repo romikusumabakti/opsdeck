@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   log: [] as string[],
   run: null as null | { status: string; error?: string },
   runMissing: false,
+  envGone: false,
   listError: false,
   executed: [] as string[],
   // kind -> what the fake step does instead of succeeding.
@@ -96,13 +97,16 @@ vi.mock("@/lib/teardown/repository", () => ({
       }
     }
   },
-  deleteTeardownEnvironment: async () => {
+  // The repository records the activity in the delete's transaction.
+  deleteTeardownEnvironment: async (environmentId: string, actorId: string) => {
     state.executed.push("delete_environment");
     // The cascade takes the steps and the run with the environment.
     state.steps = [];
     state.deleted = true;
+    state.activity.push({ environmentId, actorId });
     return { environmentName: "Staging", archiveId: "arch-1" };
   },
+  environmentExists: async () => !state.deleted && !state.envGone,
 }));
 
 vi.mock("@/lib/run-progress", () => ({
@@ -232,6 +236,7 @@ beforeEach(() => {
   state.log = [];
   state.run = null;
   state.runMissing = false;
+  state.envGone = false;
   state.listError = false;
   state.executed = [];
   state.behaviour = {};
@@ -269,14 +274,9 @@ describe("runTeardown", () => {
       "remove_deploy_dir",
       "delete_environment",
     ]);
+    // Recorded by deleteTeardownEnvironment, for the run's user.
     expect(state.activity).toEqual([
-      {
-        actorId: USER_ID,
-        action: "environment.deleted",
-        entityType: "environment",
-        entityId: ENV_ID,
-        data: { environment: "Staging", archiveId: "arch-1" },
-      },
+      { environmentId: ENV_ID, actorId: USER_ID },
     ]);
   });
 
@@ -364,9 +364,19 @@ describe("runTeardown", () => {
     expect(state.run).toEqual({ status: "failed", error: "db down" });
   });
 
-  it("throws when the run is missing", async () => {
+  it("throws when the run is missing but the environment is not", async () => {
     state.runMissing = true;
     await expect(run()).rejects.toThrow(/not found/);
+  });
+
+  it("succeeds quietly when a redelivered job finds its environment deleted", async () => {
+    seed();
+    expect(await run()).toEqual({ status: "success" });
+    state.executed = [];
+    // The worker died after the delete committed; the job comes back.
+    expect(await run()).toEqual({ status: "success" });
+    expect(state.executed).toEqual([]);
+    expect(state.activity).toHaveLength(1);
   });
 
   it("refuses an invalid stored step", async () => {
