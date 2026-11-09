@@ -3,6 +3,7 @@
 import { runBackup } from "./cli/backup";
 import { runMigrate } from "./cli/migrate";
 import { runRestoreCommand } from "./cli/restore";
+import { runSeed } from "./cli/seed";
 
 const USAGE = `Usage: bun dist/cli.js <command> [options]   (in the image: opsdeck <command>)
 
@@ -11,6 +12,8 @@ Commands:
   backup run [--trigger schedule|manual|update|restore]
                       Back up the instance to its S3 destination (or local)
   restore <objectKey> Restore an instance backup (the host updater runs it)
+  seed demo [--print-passwords] [--force]
+                      Sample projects and one test account per role (beta)
 
 Run a command with --help for its options.`;
 
@@ -18,6 +21,7 @@ const commands: Record<string, (args: string[]) => Promise<number>> = {
   migrate: runMigrate,
   backup: runBackup,
   restore: runRestoreCommand,
+  seed: runSeed,
 };
 
 const [command, ...args] = process.argv.slice(2);
