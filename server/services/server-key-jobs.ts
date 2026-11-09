@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
@@ -97,7 +97,7 @@ export function requestRotate(): Promise<{ queued: true }> {
 
 type Report = (result: SshKeyJobResult) => Promise<void>;
 
-async function moveAll(actorId: string, report: Report) {
+async function moveAll(actorId: string, job: string, report: Report) {
   const rows = await db
     .select({ id: servers.id, name: servers.name })
     .from(servers)
@@ -106,7 +106,7 @@ async function moveAll(actorId: string, report: Report) {
   for (const server of rows) {
     let result: KeyMoveResult;
     try {
-      result = await moveServerToKey(server.id, actorId);
+      result = await moveServerToKey(server.id, actorId, { job });
     } catch (error) {
       // Deleted meanwhile, or a database error: this server only.
       console.error(
@@ -124,25 +124,31 @@ async function moveAll(actorId: string, report: Report) {
   }
 }
 
-/** Key servers not on `currentKeyId` yet (a lost key id counts as not). */
-function notOnKey(currentKeyId: string) {
-  return and(
-    eq(servers.auth, "key"),
-    or(isNull(servers.sshKeyId), ne(servers.sshKeyId, currentKeyId))
-  );
-}
-
-async function rotate(actorId: string, report: Report) {
+/**
+ * Every key server, including those already on the new key: a server's row
+ * says which key it signs in with, not that the old key's line is gone from
+ * its file (a failed removal, or a reinstall), so each is checked. The old key
+ * is retired only when every server ended clean in this run and no row still
+ * names it.
+ */
+async function rotate(actorId: string, job: string, report: Report) {
   const { current, previous } = await beginRotation();
   const rows = await db
     .select({ id: servers.id, name: servers.name })
     .from(servers)
-    .where(notOnKey(current.id))
+    .where(eq(servers.auth, "key"))
     .orderBy(asc(servers.name));
+  let allClean = true;
   for (const server of rows) {
     let result: KeyMoveResult | null;
     try {
-      result = await rotateServerKey(server.id, actorId, current, previous.id);
+      result = await rotateServerKey(
+        server.id,
+        actorId,
+        current,
+        previous.id,
+        job
+      );
     } catch (error) {
       console.error(
         `rotate: server ${server.id} failed:`,
@@ -151,6 +157,7 @@ async function rotate(actorId: string, report: Report) {
       result = { ok: false, code: "keyInstallFailed" };
     }
     if (result === null) continue;
+    if (!result.ok) allClean = false;
     await report({
       serverId: server.id,
       name: server.name,
@@ -158,19 +165,16 @@ async function rotate(actorId: string, report: Report) {
       code: result.ok ? null : result.code,
     });
   }
-  // Re-read: a server moved or reinstalled meanwhile counts as it is now.
-  const [left] = await db
-    .select({ id: servers.id })
-    .from(servers)
-    .where(notOnKey(current.id))
-    .limit(1);
-  if (!left) await retireKey(previous.id);
+  if (allClean) await retireKey(previous.id);
 }
 
 /**
  * The worker side of a key job. Results are written after every server, so
  * GET /api/instance/ssh-key shows progress and, after a restart, the last
  * outcome. A job already closed (abandoned, then picked up late) is skipped.
+ * A redelivery (its worker died) keeps the results recorded so far; one that
+ * finds the job lock taken (the first delivery still runs) leaves the row to
+ * it.
  */
 export async function runKeyJob(
   kind: KeyJobKind,
@@ -185,21 +189,21 @@ export async function runKeyJob(
     return { status: "skipped" };
   }
   const release = await keyJobLock();
-  if (!release) {
-    await finishKeyJob(keyJobId, "keyJobRunning");
-    return { status: "keyJobRunning" };
-  }
+  if (!release) return { status: "keyJobRunning" };
   try {
     const started = await db
       .update(sshKeyJobs)
-      .set({ startedAt: new Date(), results: [] })
+      .set({ startedAt: job.startedAt ?? new Date() })
       .where(and(eq(sshKeyJobs.id, keyJobId), isNull(sshKeyJobs.finishedAt)))
-      .returning({ id: sshKeyJobs.id });
+      .returning({ results: sshKeyJobs.results });
     if (started.length === 0) return { status: "skipped" };
 
-    const results: SshKeyJobResult[] = [];
+    // One entry per server: a server handled again replaces its entry.
+    const results: SshKeyJobResult[] = [...(started[0]?.results ?? [])];
     const report: Report = async (result) => {
-      results.push(result);
+      const at = results.findIndex((r) => r.serverId === result.serverId);
+      if (at === -1) results.push(result);
+      else results[at] = result;
       await db
         .update(sshKeyJobs)
         .set({ results: [...results] })
@@ -208,7 +212,7 @@ export async function runKeyJob(
     const actorId = job.actorId ?? "system";
     let errorCode: string | null = null;
     try {
-      await (kind === "moveAll" ? moveAll : rotate)(actorId, report);
+      await (kind === "moveAll" ? moveAll : rotate)(actorId, keyJobId, report);
     } catch (error) {
       console.error(
         `ssh key job ${keyJobId} failed:`,
@@ -242,6 +246,8 @@ export type InstanceSshKey = {
 /** The instance key, a rotation left unfinished, and the last key job. */
 export async function getInstanceSshKey(): Promise<InstanceSshKey> {
   await requireOrgPermission({ server: ["manage"] });
+  // The page polls this: a job nothing runs any more must not show as running.
+  await closeAbandonedKeyJob();
   const current = await ensureCurrentKey();
   const [previous] = await db
     .select({ fingerprint: sshKeys.fingerprint })

@@ -1348,6 +1348,7 @@
     "passwordRejected": "El servidor rechazó la contraseña.",
     "keyJobRunning": "Hay otra operación de clave SSH en curso. Inténtalo de nuevo cuando termine.",
     "keyJobInterrupted": "El trabajo de clave SSH se detuvo antes de terminar, por ejemplo porque el Panel se reinició. Vuelve a ejecutarlo.",
+    "oldKeyNotRemoved": "La nueva clave SSH funciona, pero no se pudo quitar del servidor la línea de la clave anterior. Vuelve a rotar para terminar.",
     "sshDirUnsafe": "El ~/.ssh del servidor pertenece a otro usuario o pueden escribir en él otros, así que SSH ignoraría la clave. Corrige primero su propietario y modo (chmod 700).",
     "invalidInput": "Entrada no válida",
     "errorGeneric": "Algo salió mal",

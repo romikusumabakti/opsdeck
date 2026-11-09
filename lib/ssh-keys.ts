@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { BlockList, isIP } from "node:net";
-import { and, eq } from "drizzle-orm";
+import { and, eq, notExists } from "drizzle-orm";
 import { utils } from "ssh2";
 import { db, pgClient } from "@/lib/db";
-import { sshKeys } from "@/lib/db/schema";
+import { servers, sshKeys } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 
 // The instance's own ed25519 key and the helpers that edit a server's
@@ -104,11 +104,16 @@ export async function loadPrivateKey(keyId: string): Promise<string> {
   return decryptSecret(row.privateKey);
 }
 
-export function keyMarker(keyId: string): string {
+/** `opsdeck:<instance>:`, the start of every marker this instance writes. */
+export function instanceMarkerPrefix(): string {
   const configured = process.env.COMPOSE_PROJECT_NAME;
   const instance =
     configured && /^[A-Za-z0-9_.-]+$/.test(configured) ? configured : "opsdeck";
-  const marker = `opsdeck:${instance}:${keyId}`;
+  return `opsdeck:${instance}:`;
+}
+
+export function keyMarker(keyId: string): string {
+  const marker = `${instanceMarkerPrefix()}${keyId}`;
   if (!/^opsdeck:[A-Za-z0-9_.-]+:[A-Za-z0-9-]+$/.test(marker)) {
     throw new Error("invalid ssh key marker");
   }
@@ -189,6 +194,36 @@ export function mergeAuthorizedKeys(
 export function removeAuthorizedKey(existing: string, marker: string): string {
   const lines = splitLines(existing).filter((l) => !isOurs(l, marker));
   return lines.length ? `${lines.join("\n")}\n` : "";
+}
+
+/** The marker of a line this instance wrote (for any of its keys), or null. */
+function instanceMarkerOf(line: string): string | null {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("#")) return null;
+  const last = trimmed.split(/\s+/).at(-1) ?? "";
+  return last.startsWith(instanceMarkerPrefix()) ? last : null;
+}
+
+/**
+ * Drop this instance's lines for keys other than `keep` (a retired or leaked
+ * key must not keep signing in), and return them so a failed step can put
+ * them back. Other instances' and foreign lines are untouched.
+ */
+export function dropOtherInstanceKeys(
+  existing: string,
+  keep: readonly string[]
+): { content: string; dropped: { marker: string; line: string }[] } {
+  const dropped: { marker: string; line: string }[] = [];
+  const lines = splitLines(existing).filter((l) => {
+    const marker = instanceMarkerOf(l);
+    if (marker === null || keep.includes(marker)) return true;
+    dropped.push({ marker, line: l.replace(/\r$/, "") });
+    return false;
+  });
+  return {
+    content: lines.length ? `${lines.join("\n")}\n` : "",
+    dropped,
+  };
 }
 
 /**
@@ -320,6 +355,9 @@ export async function keyJobLockHeld(): Promise<boolean> {
     select exists(
       select 1 from pg_locks
       where locktype = 'advisory' and granted and objsubid = 2
+        and database = (
+          select oid from pg_database where datname = current_database()
+        )
         and classid = ${KEY_JOB_LOCK.classId}::oid
         and objid = ${KEY_JOB_LOCK.objId}::oid
     ) as held`;
@@ -383,9 +421,27 @@ export async function beginRotation(): Promise<{
 }
 
 /** Marks a `previous` key `retired`: no server signs in with it any more. */
-export async function retireKey(keyId: string): Promise<void> {
-  await db
+/**
+ * Marks a `previous` key `retired`, in one statement that checks no key
+ * server still signs in with it. Whether every server's file is free of its
+ * line is the caller's to check. Resolves to whether it was retired.
+ */
+export async function retireKey(keyId: string): Promise<boolean> {
+  const retired = await db
     .update(sshKeys)
     .set({ status: "retired" })
-    .where(and(eq(sshKeys.id, keyId), eq(sshKeys.status, "previous")));
+    .where(
+      and(
+        eq(sshKeys.id, keyId),
+        eq(sshKeys.status, "previous"),
+        notExists(
+          db
+            .select({ id: servers.id })
+            .from(servers)
+            .where(and(eq(servers.auth, "key"), eq(servers.sshKeyId, keyId)))
+        )
+      )
+    )
+    .returning({ id: sshKeys.id });
+  return retired.length > 0;
 }

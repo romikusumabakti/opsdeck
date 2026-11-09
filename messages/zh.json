@@ -1348,6 +1348,7 @@
     "passwordRejected": "服务器拒绝了该密码。",
     "keyJobRunning": "另一个 SSH 密钥操作正在进行。请在其完成后重试。",
     "keyJobInterrupted": "SSH 密钥任务在完成前已停止，例如因为面板重启。请重新运行。",
+    "oldKeyNotRemoved": "新的 SSH 密钥可以使用，但无法从服务器中删除旧密钥的那一行。请再次轮换以完成。",
     "sshDirUnsafe": "服务器上的 ~/.ssh 属于其他用户或可被他人写入，SSH 会忽略该密钥。请先修正其所有者和权限（chmod 700）。",
     "invalidInput": "输入无效",
     "errorGeneric": "出现错误",

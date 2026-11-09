@@ -1348,6 +1348,7 @@
     "passwordRejected": "Server menolak password tersebut.",
     "keyJobRunning": "Operasi SSH key lain sedang berjalan. Coba lagi setelah selesai.",
     "keyJobInterrupted": "Job SSH key berhenti sebelum selesai, misalnya karena Panel di-restart. Jalankan lagi.",
+    "oldKeyNotRemoved": "SSH key baru sudah berfungsi, tetapi baris key lama tidak bisa dihapus dari server. Jalankan rotate lagi untuk menyelesaikannya.",
     "sshDirUnsafe": "~/.ssh di server dimiliki user lain atau bisa ditulis pihak lain, jadi SSH akan mengabaikan key-nya. Perbaiki owner dan mode-nya (chmod 700) dulu.",
     "invalidInput": "Input tidak valid",
     "errorGeneric": "Terjadi kesalahan",

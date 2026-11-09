@@ -1348,6 +1348,7 @@
     "passwordRejected": "The server rejected the password.",
     "keyJobRunning": "Another SSH key operation is running. Try again when it has finished.",
     "keyJobInterrupted": "The SSH key job stopped before it finished, for example because the Panel restarted. Run it again.",
+    "oldKeyNotRemoved": "The new SSH key works, but the old key's line could not be removed from the server. Rotate again to finish.",
     "sshDirUnsafe": "The server's ~/.ssh is owned by another user or writable by others, so SSH would ignore the key. Fix its owner and mode (chmod 700) first.",
     "invalidInput": "Invalid input",
     "errorGeneric": "Something went wrong",
