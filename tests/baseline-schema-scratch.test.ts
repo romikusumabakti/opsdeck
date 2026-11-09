@@ -3,6 +3,7 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -89,6 +90,7 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
   const prodDb = `${prefix}_prod`;
   const baselineDb = `${prefix}_baseline`;
   let urlFor: (db: string) => string;
+  let baselineOnly: string | undefined;
 
   function recreate(db: string) {
     psql("postgres", [
@@ -116,19 +118,33 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
     recreate(prodDb);
     psql(prodDb, [], readFileSync(PROD_SCHEMA, "utf8"));
 
+    // The baseline alone: later migrations (20261110000000_instance_backups
+    // on) are not in production's schema of 2026-11-09.
     recreate(baselineDb);
-    const result = spawnSync("bun", ["scripts/cli.ts", "migrate"], {
-      encoding: "utf8",
-      env: {
-        PATH: process.env.PATH ?? "",
-        HOME: process.env.HOME ?? "",
-        DATABASE_URL: urlFor(baselineDb),
-      },
-    });
+    baselineOnly = mkdtempSync(join(tmpdir(), "opsdeck-baseline-"));
+    cpSync(
+      join("drizzle", "00000000000000_baseline"),
+      join(baselineOnly, "drizzle", "00000000000000_baseline"),
+      { recursive: true }
+    );
+    const result = spawnSync(
+      "bun",
+      [join(process.cwd(), "scripts/cli.ts"), "migrate"],
+      {
+        cwd: baselineOnly,
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: process.env.HOME ?? "",
+          DATABASE_URL: urlFor(baselineDb),
+        },
+      }
+    );
     expect(result.status, result.stderr).toBe(0);
   }, 120_000);
 
   afterAll(() => {
+    if (baselineOnly) rmSync(baselineOnly, { recursive: true, force: true });
     if (!urlFor) return;
     for (const db of [prodDb, baselineDb]) {
       psql("postgres", ["-c", `DROP DATABASE IF EXISTS "${db}" WITH (FORCE)`]);
@@ -199,6 +215,53 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
     }
   });
 
+  it("adopts production's current, empty migrations table", async () => {
+    // Production on 2026-11-09: drizzle.__drizzle_migrations already has the
+    // migrator's current columns (name, applied_at) and no rows.
+    const currentDb = `${prefix}_prod_current`;
+    recreate(currentDb);
+    psql(currentDb, [], readFileSync(PROD_SCHEMA, "utf8"));
+    psql(currentDb, [
+      "-c",
+      "CREATE SCHEMA drizzle",
+      "-c",
+      "CREATE TABLE drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint, name text, applied_at timestamp with time zone DEFAULT now())",
+    ]);
+    const client = postgres(urlFor(currentDb), { max: 1, onnotice: () => {} });
+    try {
+      const code = await adoptBaseline({
+        table: postgresMigrationsTable(client),
+        schemaDiff: () =>
+          baselineSchemaDiff({
+            client,
+            url: urlFor(currentDb),
+            dump: podmanDump,
+          }),
+        out: () => {},
+      });
+      expect(code).toBe(0);
+      // The shipped migrations after the baseline apply on top.
+      await migrate(drizzle({ client }), { migrationsFolder: "drizzle" });
+      const rows = await client`
+        select name, applied_at is not null as applied
+        from drizzle.__drizzle_migrations order by id`;
+      expect(rows[0]).toEqual({
+        name: "00000000000000_baseline",
+        applied: true,
+      });
+      expect(rows.length).toBeGreaterThan(1);
+      const [settings] = await client`
+        select update_channel from instance_settings where id = 1`;
+      expect(settings?.update_channel).toBe("stable");
+    } finally {
+      await client.end();
+      psql("postgres", [
+        "-c",
+        `DROP DATABASE IF EXISTS "${currentDb}" WITH (FORCE)`,
+      ]);
+    }
+  });
+
   it("an adopted database runs only the migrations after the baseline", async () => {
     // Production's state: the migrator's table exists but is empty
     // (production's has the current columns; the oldest, name-less shape is
@@ -236,7 +299,9 @@ describe.skipIf(!prefix)("baseline on scratch", () => {
       const rows = await client`
         select name from drizzle.__drizzle_migrations order by id`;
       expect(rows.map((r) => r.name)).toEqual([
-        "00000000000000_baseline",
+        ...readdirSync("drizzle")
+          .filter((n) => /^[0-9]{14}_/.test(n))
+          .sort(),
         "20990101000000_probe",
       ]);
       const [probe] = await client`select to_regclass('adopt_probe') as t`;
