@@ -25,7 +25,7 @@ import {
   getInstanceSshKey,
   requestMoveAll,
   requestRotate,
-} from "@/server/services/server-keys";
+} from "@/server/services/server-key-jobs";
 import { json, param } from "@/server/validation";
 
 const idParam = param(z.object({ id: uuidSchema }));
