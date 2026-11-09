@@ -2901,6 +2901,20 @@
       "domainExternalInZone": "Este hostname está bajo una zona registrada: usa el tipo túnel de Cloudflare"
     }
   },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "Otro entorno usa este directorio de despliegue en el mismo servidor",
+      "databaseBackupUnsupported": "Solo las bases de datos PostgreSQL se pueden archivar antes de eliminarlas. Usa Quitar solo del Panel",
+      "unsafeDeployDir": "El directorio de despliegue no es una ruta segura para eliminar",
+      "environmentBusy": "Hay un despliegue o aprovisionamiento en curso en este entorno. Inténtalo de nuevo cuando termine",
+      "teardownRunning": "Este entorno ya se está eliminando",
+      "databaseNotRegistered": "El servicio de base de datos ya no está registrado",
+      "archiveFailed": "No se pudo completar el archivo, así que no se eliminó nada. Reintenta para continuar",
+      "confirmNameMismatch": "Escribe exactamente el nombre del entorno para confirmar",
+      "environmentIsProduction": "Solo un administrador puede eliminar un entorno de producción",
+      "productionConfirmRequired": "Confirma que estás eliminando un entorno de producción"
+    }
+  },
   "environmentSetup": {
     "creates": {
       "environment": "Entorno {name} en {project}",

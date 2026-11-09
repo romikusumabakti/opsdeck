@@ -2901,6 +2901,20 @@
       "domainExternalInZone": "Hostname ini berada di bawah zona terdaftar: gunakan jenis tunnel Cloudflare"
     }
   },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "Environment lain memakai direktori deploy ini di server yang sama",
+      "databaseBackupUnsupported": "Hanya database PostgreSQL yang dapat diarsipkan sebelum dihapus. Gunakan Hapus dari Panel saja",
+      "unsafeDeployDir": "Direktori deploy ini bukan path yang aman untuk dihapus",
+      "environmentBusy": "Ada deploy atau provisioning yang sedang berjalan di environment ini. Coba lagi setelah selesai",
+      "teardownRunning": "Environment ini sedang dihapus",
+      "databaseNotRegistered": "Layanan database ini sudah tidak terdaftar",
+      "archiveFailed": "Arsip tidak dapat diselesaikan, jadi tidak ada yang dihapus. Coba lagi untuk melanjutkan",
+      "confirmNameMismatch": "Ketik nama environment persis untuk mengonfirmasi",
+      "environmentIsProduction": "Hanya admin yang dapat menghapus environment production",
+      "productionConfirmRequired": "Konfirmasi bahwa Anda menghapus environment production"
+    }
+  },
   "environmentSetup": {
     "creates": {
       "environment": "Environment {name} di {project}",

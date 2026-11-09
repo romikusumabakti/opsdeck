@@ -2901,6 +2901,20 @@
       "domainExternalInZone": "This hostname is under a registered zone: use the Cloudflare tunnel type"
     }
   },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "Another environment uses this deploy directory on the same server",
+      "databaseBackupUnsupported": "Only PostgreSQL databases can be archived before deletion. Use Remove from Panel only instead",
+      "unsafeDeployDir": "The deploy directory is not a safe path to delete",
+      "environmentBusy": "A deploy or provisioning run is active on this environment. Try again when it finishes",
+      "teardownRunning": "This environment is already being deleted",
+      "databaseNotRegistered": "The database service is no longer registered",
+      "archiveFailed": "The archive could not be completed, so nothing was deleted. Retry to continue",
+      "confirmNameMismatch": "Type the environment name exactly to confirm",
+      "environmentIsProduction": "Only an admin can delete a production environment",
+      "productionConfirmRequired": "Confirm that you are deleting a production environment"
+    }
+  },
   "environmentSetup": {
     "creates": {
       "environment": "Environment {name} in {project}",

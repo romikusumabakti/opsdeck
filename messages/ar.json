@@ -2901,6 +2901,20 @@
       "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare"
     }
   },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "بيئة أخرى تستخدم مجلد النشر هذا على الخادم نفسه",
+      "databaseBackupUnsupported": "يمكن أرشفة قواعد بيانات PostgreSQL فقط قبل الحذف. استخدم الإزالة من اللوحة فقط بدلاً من ذلك",
+      "unsafeDeployDir": "مجلد النشر ليس مسارًا آمنًا للحذف",
+      "environmentBusy": "توجد عملية نشر أو تجهيز نشطة على هذه البيئة. أعد المحاولة عند انتهائها",
+      "teardownRunning": "يجري حذف هذه البيئة بالفعل",
+      "databaseNotRegistered": "خدمة قاعدة البيانات لم تعد مسجلة",
+      "archiveFailed": "تعذر إكمال الأرشيف، لذلك لم يُحذف أي شيء. أعد المحاولة للمتابعة",
+      "confirmNameMismatch": "اكتب اسم البيئة تمامًا للتأكيد",
+      "environmentIsProduction": "يمكن للمسؤول فقط حذف بيئة إنتاج",
+      "productionConfirmRequired": "أكّد أنك تحذف بيئة إنتاج"
+    }
+  },
   "environmentSetup": {
     "creates": {
       "environment": "البيئة {name} في {project}",
