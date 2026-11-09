@@ -1,0 +1,16 @@
+# Applies the update or restore request of the opsdeck instance at /opt/%i.
+# Started by opsdeck-updater@%i.path; the script takes its own lock.
+[Unit]
+Description=opsdeck updater for /opt/%i
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/opsdeck/update.sh /opt/%i
+# Backup, pull, migrate and two `up --wait` runs; a hung step must not keep
+# the status "running" forever (the script records updaterError on TERM).
+TimeoutStartSec=1h
+PrivateTmp=yes
+NoNewPrivileges=yes
+UMask=0077
