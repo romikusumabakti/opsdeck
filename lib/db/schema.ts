@@ -2253,6 +2253,44 @@ export const instanceBackups = pgTable(
   ]
 );
 
+/** One server's outcome in an SSH key job; `code` is a stable error code. */
+export type SshKeyJobResult = {
+  serverId: string;
+  name: string;
+  ok: boolean;
+  code: string | null;
+};
+
+// "Move all servers to the key" and "Rotate the key" runs, newest last. At
+// most one is open (not finished) at a time, across both kinds: a move-all
+// during a rotation could install the old key.
+export const sshKeyJobs = pgTable(
+  "ssh_key_jobs",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    kind: text("kind", { enum: ["moveAll", "rotate"] }).notNull(),
+    // The admin who asked for it: the actor of its activity entries.
+    actorId: uuid("actor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    requestedAt: timestamp("requested_at").notNull().defaultNow(),
+    startedAt: timestamp("started_at"),
+    finishedAt: timestamp("finished_at"),
+    // Filled in server by server, so the page can show progress.
+    results: jsonb("results").$type<SshKeyJobResult[]>().notNull().default([]),
+    // Why the job itself stopped early (stable code); null when it ran out.
+    errorCode: text("error_code"),
+  },
+  (t) => [
+    check("ssh_key_jobs_kind_check", sql`${t.kind} in ('moveAll', 'rotate')`),
+    uniqueIndex("ssh_key_jobs_one_open_idx")
+      .on(sql`(true)`)
+      .where(sql`finished_at is null`),
+    index("ssh_key_jobs_requested_at_idx").on(t.requestedAt),
+  ]
+);
+
 export type InstanceSettings = InferSelectModel<typeof instanceSettings>;
+export type SshKeyJob = InferSelectModel<typeof sshKeyJobs>;
 export type InstanceBackup = InferSelectModel<typeof instanceBackups>;
 export type NewInstanceBackup = InferInsertModel<typeof instanceBackups>;

@@ -67,6 +67,7 @@ import {
 } from "@/lib/ssh";
 import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import { runInstanceUpdateCheck } from "@/server/services/instance-updates";
+import { runKeyJob } from "@/server/services/server-keys";
 
 // Bound for worker steps that move a whole database: dump, recreate, load, and
 // staging a dump file across hosts. Their run time grows with the data, so the
@@ -1201,14 +1202,16 @@ function normalizeJobName(name: string): JobName {
  * they skip the shim — otherwise the sweep would lose its only argument. Deploy
  * jobs postdate the rename and carry no environment id at all. Provision jobs
  * postdate it too and carry `environmentId` from the start, so the shim has
- * nothing to migrate in them. Instance jobs belong to no environment.
+ * nothing to migrate in them. Instance and server-key jobs belong to no
+ * environment.
  */
 function migrateLegacyPayload(name: JobName, data: unknown): unknown {
   if (
     name.startsWith("jira/") ||
     name.startsWith("deploy/") ||
     name.startsWith("provision/") ||
-    name.startsWith("instance/")
+    name.startsWith("instance/") ||
+    name.startsWith("server-key-")
   )
     return data;
   if (data && typeof data === "object" && !("environmentId" in data)) {
@@ -1297,6 +1300,12 @@ export async function processJob(job: Job): Promise<unknown> {
     case "instance/update.check":
       parseJobPayload(name, raw);
       return runInstanceUpdateCheck();
+    // A key job records its outcome in ssh_key_jobs, so it never throws for a
+    // server that failed.
+    case "server-key-move-all":
+      return runKeyJob("moveAll", parseJobPayload(name, raw).keyJobId);
+    case "server-key-rotate":
+      return runKeyJob("rotate", parseJobPayload(name, raw).keyJobId);
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;

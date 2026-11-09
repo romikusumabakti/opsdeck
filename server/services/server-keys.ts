@@ -1,11 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isIP } from "node:net";
-import { and, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, or } from "drizzle-orm";
 import type { NodeSSH } from "node-ssh";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { servers } from "@/lib/db/schema";
+import {
+  type SshKeyJob,
+  type SshKeyJobResult,
+  servers,
+  sshKeyJobs,
+  sshKeys,
+} from "@/lib/db/schema";
+import { enqueue, type JobName, jobExists } from "@/lib/queue";
 import { decryptNullable } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
 import { openSsh } from "@/lib/ssh";
@@ -17,12 +24,17 @@ import {
 } from "@/lib/ssh-connect";
 import {
   authorizedKeysLine,
+  beginRotation,
   ensureCurrentKey,
   fromAddress,
+  type InstanceKey,
   isOurs,
+  keyJobLock,
+  keyJobLockHeld,
   keyMarker,
   mergeAuthorizedKeys,
   removeAuthorizedKey,
+  retireKey,
   serverKeyLock,
 } from "@/lib/ssh-keys";
 import { CodedHTTPException } from "@/server/errors";
@@ -56,7 +68,9 @@ export type KeyMoveCode =
 export type KeyMoveResult = { ok: true } | { ok: false; code: KeyMoveCode };
 
 // What the admin got wrong (or another run holding the lock), not a state of
-// the server: these are answered but not kept in key_error.
+// the server: these are answered but not kept in key_error. passwordRejected
+// covers the stored password too: a plain move (or move-all) whose stored
+// password the server rejects keeps the key_error it had.
 const NOT_RECORDED: ReadonlySet<KeyMoveCode> = new Set([
   "keyJobRunning",
   "noPassword",
@@ -141,14 +155,22 @@ async function exec(
   }
 }
 
-/** Why a sign-in failed, as a code (the error itself may name the host). */
-function connectFailure(error: unknown, auth: "password" | "key"): KeyMoveCode {
+/**
+ * Why a sign-in failed, as a code (the error itself may name the host).
+ * `proving`: a key login just after a working session, where any failure
+ * means the key was not accepted.
+ */
+function connectFailure(
+  error: unknown,
+  auth: "password" | "key",
+  proving = auth === "key"
+): KeyMoveCode {
   if (error instanceof HostKeyMismatchError) return "hostKeyMismatch";
   const level = (error as { level?: unknown } | null)?.level;
   if (level === "client-authentication") {
     return auth === "password" ? "passwordRejected" : "keyLoginFailed";
   }
-  return auth === "password" ? "unreachable" : "keyLoginFailed";
+  return proving ? "keyLoginFailed" : "unreachable";
 }
 
 function scriptFailure(code: number | null, step: string): StepFailed {
@@ -215,6 +237,11 @@ async function proveKeyLogin(
   } finally {
     ssh?.dispose();
   }
+}
+
+/** The activity actor for a user id or "system" (a job whose admin is gone). */
+function activityActor(actorId: string): string | null {
+  return actorId === "system" ? null : actorId;
 }
 
 /** Whether the row already signs in with `keyId` and holds no password. */
@@ -388,7 +415,7 @@ async function moveLocked(
   // Committed: nothing after this point may turn the move into a failure.
   try {
     await recordActivity({
-      actorId,
+      actorId: activityActor(actorId),
       action:
         opts.passwordOnce === undefined
           ? "server.keyInstalled"
@@ -401,6 +428,423 @@ async function moveLocked(
     console.error(`move to key: activity not recorded for server ${serverId}`);
   }
   return { ok: true };
+}
+
+// --- Rotation, one server ---------------------------------------------------
+
+/**
+ * Move a key server from the key it signs in with to `key`: add the new line
+ * next to the old one, prove a login with the new key alone, point the row at
+ * it, then remove the old line. A failed proof removes the new line and keeps
+ * the old one. Failures are answered, not kept in key_error: the server still
+ * signs in with its old key. Null when there is nothing to rotate (the server
+ * is gone, on a password, or already on `key`).
+ */
+export async function rotateServerKey(
+  serverId: string,
+  actorId: string,
+  key: InstanceKey,
+  previousKeyId: string
+): Promise<KeyMoveResult | null> {
+  const release = await serverKeyLock(serverId);
+  if (!release) return { ok: false, code: "keyJobRunning" };
+  try {
+    return await rotateLocked(serverId, actorId, key, previousKeyId);
+  } finally {
+    await release().catch(() =>
+      console.error(`server key lock release failed for ${serverId}`)
+    );
+  }
+}
+
+async function rotateLocked(
+  serverId: string,
+  actorId: string,
+  key: InstanceKey,
+  previousKeyId: string
+): Promise<KeyMoveResult | null> {
+  const [server] = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.id, serverId))
+    .limit(1);
+  if (server?.auth !== "key" || server.sshKeyId === key.id) {
+    return null;
+  }
+  const fail = (code: KeyMoveCode): KeyMoveResult => ({ ok: false, code });
+  // The key the server has; a row that lost it (never expected) most likely
+  // still has the previous one.
+  const oldKeyId = server.sshKeyId ?? previousKeyId;
+  const oldMarker = keyMarker(oldKeyId);
+  const marker = keyMarker(key.id);
+  const target = sshTarget({ ...server, password: null });
+
+  let ssh: NodeSSH;
+  try {
+    ssh = await openSsh(target, SSH_TUNING, {
+      keyOnly: true,
+      keyId: oldKeyId,
+      actor: actorId,
+    });
+  } catch (error) {
+    return fail(connectFailure(error, "key", false));
+  }
+
+  let from: string;
+  try {
+    // The restriction the old line has; a row without one (never expected)
+    // gets the address this session comes from, as a move would.
+    const address =
+      server.sshFrom ??
+      fromAddress(
+        (await exec(ssh, "printf '%s' \"$SSH_CLIENT\"")).stdout,
+        ownSubnet()
+      );
+    if (address === null) {
+      console.error(`rotate key: no usable $SSH_CLIENT on server ${serverId}`);
+      return fail("keyInstallFailed");
+    }
+    from = address;
+    let line: string;
+    try {
+      line = authorizedKeysLine(key.publicKey, from, marker);
+    } catch (error) {
+      console.error(`rotate key: ${(error as Error).message}`);
+      return fail("keyInstallFailed");
+    }
+
+    const existing = await readAuthorizedKeys(ssh);
+    const previous = previousLine(existing, marker);
+    const undo = async () => {
+      if (previous === null && (await committedTo(serverId, key.id))) {
+        console.error(
+          `server ${serverId} already uses this key; its line is kept`
+        );
+        return;
+      }
+      await rollback(ssh, marker, previous);
+    };
+    try {
+      await writeAuthorizedKeys(
+        ssh,
+        mergeAuthorizedKeys(existing, line, marker)
+      );
+    } catch (error) {
+      await undo();
+      throw error;
+    }
+
+    const loginFailure = await proveKeyLogin(target, key.id, actorId);
+    if (loginFailure) {
+      await undo();
+      return fail(loginFailure);
+    }
+
+    // The row first: until it points at the new key, connections use the old
+    // one, so the old line stays until then.
+    const switched = await db
+      .update(servers)
+      .set({
+        sshKeyId: key.id,
+        sshFrom: from,
+        keyError: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(servers.id, serverId),
+          eq(servers.host, server.host),
+          eq(servers.username, server.username),
+          eq(servers.auth, "key"),
+          server.sshKeyId === null
+            ? isNull(servers.sshKeyId)
+            : eq(servers.sshKeyId, server.sshKeyId)
+        )
+      )
+      .returning({ id: servers.id });
+    if (switched.length === 0) {
+      await undo();
+      return fail("keyInstallFailed");
+    }
+
+    // Committed. A leftover old line still names a key nobody uses: logged,
+    // not a failure.
+    try {
+      const current = await readAuthorizedKeys(ssh);
+      await writeAuthorizedKeys(ssh, removeAuthorizedKey(current, oldMarker));
+    } catch {
+      console.error(`rotate key: old line kept on server ${serverId}`);
+    }
+  } catch (error) {
+    if (error instanceof StepFailed) return fail(error.code);
+    console.error(
+      `rotate key failed on server ${serverId}:`,
+      (error as Error).message
+    );
+    return fail("keyInstallFailed");
+  } finally {
+    ssh.dispose();
+  }
+
+  try {
+    await recordActivity({
+      actorId: activityActor(actorId),
+      action: "server.keyRotated",
+      entityType: "server",
+      entityId: serverId,
+      data: { server: server.name, from },
+    });
+  } catch {
+    console.error(`rotate key: activity not recorded for server ${serverId}`);
+  }
+  return { ok: true };
+}
+
+// --- Key jobs: move all, rotate ----------------------------------------------
+//
+// One job at a time across both kinds (a move-all during a rotation could
+// install the old key), made durable twice: ssh_key_jobs allows one open row
+// (a unique index), and the worker holds the key-job advisory lock for the
+// whole run. Servers are handled one at a time: each holds a pooled
+// connection for its lock over the whole SSH exchange, and the pool is small.
+
+export type KeyJobKind = SshKeyJob["kind"];
+
+const KEY_JOB_NAMES = {
+  moveAll: "server-key-move-all",
+  rotate: "server-key-rotate",
+} as const satisfies Record<KeyJobKind, JobName>;
+
+/** Why a key job stopped before it ran out (the Panel restarted, or a bug). */
+const JOB_INTERRUPTED = "keyJobInterrupted";
+
+async function finishKeyJob(keyJobId: string, errorCode: string | null) {
+  await db
+    .update(sshKeyJobs)
+    .set({ finishedAt: new Date(), errorCode })
+    .where(and(eq(sshKeyJobs.id, keyJobId), isNull(sshKeyJobs.finishedAt)));
+}
+
+/**
+ * Close the open job when nothing runs it any more: started but its worker no
+ * longer holds the lock (the process died), or never started and gone from
+ * the queue. The lock is checked after the row is read, and a worker sets
+ * started_at only while holding it, so a live job is never closed.
+ */
+async function closeAbandonedKeyJob() {
+  const [open] = await db
+    .select({ id: sshKeyJobs.id, startedAt: sshKeyJobs.startedAt })
+    .from(sshKeyJobs)
+    .where(isNull(sshKeyJobs.finishedAt))
+    .limit(1);
+  if (!open) return;
+  if (await keyJobLockHeld()) return;
+  if (open.startedAt === null && (await jobExists(open.id))) return;
+  console.error(`ssh key job ${open.id} was abandoned; closing it`);
+  await finishKeyJob(open.id, JOB_INTERRUPTED);
+}
+
+async function requestKeyJob(kind: KeyJobKind): Promise<{ queued: true }> {
+  const session = await requireOrgPermission({ server: ["manage"] });
+  await closeAbandonedKeyJob();
+  const [job] = await db
+    .insert(sshKeyJobs)
+    .values({ kind, actorId: session.user.id })
+    .onConflictDoNothing()
+    .returning({ id: sshKeyJobs.id });
+  if (!job) return refuse("keyJobRunning");
+  try {
+    await enqueue(KEY_JOB_NAMES[kind], { keyJobId: job.id }, { jobId: job.id });
+  } catch (error) {
+    await finishKeyJob(job.id, JOB_INTERRUPTED);
+    throw error;
+  }
+  return { queued: true };
+}
+
+/** Queue "Move all servers to the SSH key" (org server:manage). */
+export function requestMoveAll(): Promise<{ queued: true }> {
+  return requestKeyJob("moveAll");
+}
+
+/** Queue "Rotate the SSH key" (org server:manage). */
+export function requestRotate(): Promise<{ queued: true }> {
+  return requestKeyJob("rotate");
+}
+
+type Report = (result: SshKeyJobResult) => Promise<void>;
+
+async function moveAll(actorId: string, report: Report) {
+  const rows = await db
+    .select({ id: servers.id, name: servers.name })
+    .from(servers)
+    .where(eq(servers.auth, "password"))
+    .orderBy(asc(servers.name));
+  for (const server of rows) {
+    let result: KeyMoveResult;
+    try {
+      result = await moveServerToKey(server.id, actorId);
+    } catch (error) {
+      // Deleted meanwhile, or a database error: this server only.
+      console.error(
+        `move all: server ${server.id} failed:`,
+        (error as Error).message
+      );
+      result = { ok: false, code: "keyInstallFailed" };
+    }
+    await report({
+      serverId: server.id,
+      name: server.name,
+      ok: result.ok,
+      code: result.ok ? null : result.code,
+    });
+  }
+}
+
+/** Key servers not on `currentKeyId` yet (a lost key id counts as not). */
+function notOnKey(currentKeyId: string) {
+  return and(
+    eq(servers.auth, "key"),
+    or(isNull(servers.sshKeyId), ne(servers.sshKeyId, currentKeyId))
+  );
+}
+
+async function rotate(actorId: string, report: Report) {
+  const { current, previous } = await beginRotation();
+  const rows = await db
+    .select({ id: servers.id, name: servers.name })
+    .from(servers)
+    .where(notOnKey(current.id))
+    .orderBy(asc(servers.name));
+  for (const server of rows) {
+    let result: KeyMoveResult | null;
+    try {
+      result = await rotateServerKey(server.id, actorId, current, previous.id);
+    } catch (error) {
+      console.error(
+        `rotate: server ${server.id} failed:`,
+        (error as Error).message
+      );
+      result = { ok: false, code: "keyInstallFailed" };
+    }
+    if (result === null) continue;
+    await report({
+      serverId: server.id,
+      name: server.name,
+      ok: result.ok,
+      code: result.ok ? null : result.code,
+    });
+  }
+  // Re-read: a server moved or reinstalled meanwhile counts as it is now.
+  const [left] = await db
+    .select({ id: servers.id })
+    .from(servers)
+    .where(notOnKey(current.id))
+    .limit(1);
+  if (!left) await retireKey(previous.id);
+}
+
+/**
+ * The worker side of a key job. Results are written after every server, so
+ * GET /api/instance/ssh-key shows progress and, after a restart, the last
+ * outcome. A job already closed (abandoned, then picked up late) is skipped.
+ */
+export async function runKeyJob(
+  kind: KeyJobKind,
+  keyJobId: string
+): Promise<{ status: "done" | "skipped" | "keyJobRunning" }> {
+  const [job] = await db
+    .select()
+    .from(sshKeyJobs)
+    .where(eq(sshKeyJobs.id, keyJobId))
+    .limit(1);
+  if (!job || job.finishedAt !== null || job.kind !== kind) {
+    return { status: "skipped" };
+  }
+  const release = await keyJobLock();
+  if (!release) {
+    await finishKeyJob(keyJobId, "keyJobRunning");
+    return { status: "keyJobRunning" };
+  }
+  try {
+    const started = await db
+      .update(sshKeyJobs)
+      .set({ startedAt: new Date(), results: [] })
+      .where(and(eq(sshKeyJobs.id, keyJobId), isNull(sshKeyJobs.finishedAt)))
+      .returning({ id: sshKeyJobs.id });
+    if (started.length === 0) return { status: "skipped" };
+
+    const results: SshKeyJobResult[] = [];
+    const report: Report = async (result) => {
+      results.push(result);
+      await db
+        .update(sshKeyJobs)
+        .set({ results: [...results] })
+        .where(eq(sshKeyJobs.id, keyJobId));
+    };
+    const actorId = job.actorId ?? "system";
+    let errorCode: string | null = null;
+    try {
+      await (kind === "moveAll" ? moveAll : rotate)(actorId, report);
+    } catch (error) {
+      console.error(
+        `ssh key job ${keyJobId} failed:`,
+        (error as Error).message
+      );
+      errorCode = JOB_INTERRUPTED;
+    }
+    await finishKeyJob(keyJobId, errorCode);
+    return { status: "done" };
+  } finally {
+    await release().catch(() =>
+      console.error("ssh key job lock release failed")
+    );
+  }
+}
+
+export type InstanceSshKey = {
+  publicKey: string;
+  fingerprint: string;
+  previous?: { fingerprint: string };
+  lastJob: {
+    kind: KeyJobKind;
+    requestedAt: Date;
+    startedAt: Date | null;
+    finishedAt: Date | null;
+    results: SshKeyJobResult[];
+    errorCode: string | null;
+  } | null;
+};
+
+/** The instance key, a rotation left unfinished, and the last key job. */
+export async function getInstanceSshKey(): Promise<InstanceSshKey> {
+  await requireOrgPermission({ server: ["manage"] });
+  const current = await ensureCurrentKey();
+  const [previous] = await db
+    .select({ fingerprint: sshKeys.fingerprint })
+    .from(sshKeys)
+    .where(eq(sshKeys.status, "previous"))
+    .limit(1);
+  const [job] = await db
+    .select()
+    .from(sshKeyJobs)
+    .orderBy(desc(sshKeyJobs.requestedAt))
+    .limit(1);
+  return {
+    publicKey: current.publicKey,
+    fingerprint: current.fingerprint,
+    ...(previous ? { previous: { fingerprint: previous.fingerprint } } : {}),
+    lastJob: job
+      ? {
+          kind: job.kind,
+          requestedAt: job.requestedAt,
+          startedAt: job.startedAt,
+          finishedAt: job.finishedAt,
+          results: job.results,
+          errorCode: job.errorCode,
+        }
+      : null,
+  };
 }
 
 // --- The instance's own network --------------------------------------------
@@ -576,6 +1020,12 @@ function bridgeSubnet(table: string): string | null {
   if (defaultRoute.gateway !== connected.destination + 1) return null;
   return normaliseSubnet(`${intToIpv4(connected.destination)}/${bits}`);
 }
+
+// Residual: the route table cannot tell every network mode apart. With
+// network_mode: host, rootless Podman's own netns (pasta or slirp4netns),
+// macvlan or ipvlan, the subnet read here can be the LAN's (say a /24), and
+// from= would then admit every neighbour. The shipped compose file uses a
+// bridge network; any other setup sets OPSDECK_NETWORK_SUBNET.
 
 /**
  * The CIDR of the network the Panel's container sits in, which servers on the

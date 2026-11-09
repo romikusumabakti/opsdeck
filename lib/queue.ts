@@ -109,6 +109,12 @@ export type JobMap = {
   // updater for the available version inside the window
   // (server/services/instance-updates).
   "instance/update.check": Record<string, never>;
+  // --- Instance SSH key ---
+  // Move every password server to the instance key, or rotate the key, one
+  // server at a time. Carries the ssh_key_jobs row id, which is also the
+  // BullMQ job id; the requesting admin and the results live in that row.
+  "server-key-move-all": { keyJobId: string };
+  "server-key-rotate": { keyJobId: string };
 };
 
 export type JobName = keyof JobMap;
@@ -197,6 +203,11 @@ export async function enqueue<N extends JobName>(
           removeOnFail: { count: 500 },
         }),
   });
+}
+
+/** Whether a job with this id is still queued, running or retained. */
+export async function jobExists(jobId: string): Promise<boolean> {
+  return (await getQueue().getJob(jobId)) != null;
 }
 
 // How often the reconcile sweep runs per linked project. Frequent enough that a
