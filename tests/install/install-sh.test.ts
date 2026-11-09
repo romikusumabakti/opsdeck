@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -32,18 +33,20 @@ case "$1 $2" in
   "volume inspect")
     for v in \${STUB_VOLUMES:-}; do [ "$v" = "$3" ] && exit 0; done
     exit 1 ;;
-  "ps -q")
+  "ps -aq")
     case "$*" in *"volume=\${STUB_BUSY_VOLUME:-none}") echo 0123abcd ;; esac ;;
 esac
 exit 0
 `;
 
 const STUB_CURL = `#!/bin/sh
-out=; url=
+printf 'curl-argv %s\n' "$*" >> "$STUB_LOG"
+out=; url=; cfg=
 while [ $# -gt 0 ]; do
   case $1 in
     -o) out=$2; shift ;;
-    -w|--max-time|--proto|--proto-redir|-H) shift ;;
+    -K) cfg=$2; shift ;;
+    -w|--max-time|--proto|--proto-redir|-H|--aws-sigv4) shift ;;
     -*) ;;
     *) url=$1 ;;
   esac
@@ -60,6 +63,12 @@ case $url in
     rest=\${url#*/download/v}; ver=\${rest%%/*}; asset=\${rest#*/}
     [ -f "$STUB_RELEASES/$ver/$asset" ] || exit 22
     emit < "$STUB_RELEASES/$ver/$asset" ;;
+  https://r2.example.test/opsdeck-dr/*)
+    # The S3 keys must come from the -K config file.
+    grep -qF "user = \\"AKIDRESTORE:$STUB_S3_SECRET\\"" "$cfg" || exit 67
+    key=\${url#https://r2.example.test/opsdeck-dr/}
+    [ -f "$STUB_S3/$key" ] || exit 22
+    emit < "$STUB_S3/$key" ;;
   *) exit 6 ;;
 esac
 `;
@@ -90,6 +99,8 @@ function releaseJson(version: string) {
     notesUrl: `https://github.com/romikusumabakti/opsdeck/releases/tag/v${version}`,
   });
 }
+
+const S3_SECRET = "s3-restore-Secret/value+1";
 
 // Values that must never appear in the output.
 const OLD_SECRETS = {
@@ -136,7 +147,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true });
 });
 
-function setup() {
+function setup({ docker = true }: { docker?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), "install-sh-"));
   roots.push(root);
   const bin = join(root, "bin");
@@ -144,7 +155,7 @@ function setup() {
   const releases = join(root, "releases");
   mkdirSync(bin);
   mkdirSync(opt);
-  writeFileSync(join(bin, "docker"), STUB_DOCKER, { mode: 0o755 });
+  if (docker) writeFileSync(join(bin, "docker"), STUB_DOCKER, { mode: 0o755 });
   writeFileSync(join(bin, "curl"), STUB_CURL, { mode: 0o755 });
   for (const version of ["1.2.0", "1.3.0", "1.4.0-beta.1"]) {
     const d = join(releases, version);
@@ -167,18 +178,32 @@ function setup() {
 
 type Ctx = ReturnType<typeof setup>;
 
-function install(ctx: Ctx, args: string[], env: Record<string, string> = {}) {
-  const result = spawnSync("sh", [SCRIPT, ...args], {
-    encoding: "utf8",
-    env: {
-      PATH: `${ctx.bin}:/usr/bin:/bin`,
-      HOME: ctx.root,
-      OPSDECK_INSTALL_ROOT: ctx.opt,
-      STUB_LOG: ctx.log,
-      STUB_RELEASES: ctx.releases,
-      ...env,
-    },
-  });
+function install(
+  ctx: Ctx,
+  args: string[],
+  env: Record<string, string> = {},
+  { piped = false, cwd }: { piped?: boolean; cwd?: string } = {}
+) {
+  // piped: as `curl … | sh -s -- <args>`, the script on stdin.
+  const result = spawnSync(
+    "sh",
+    piped ? ["-s", "--", ...args] : [SCRIPT, ...args],
+    {
+      encoding: "utf8",
+      cwd,
+      input: piped ? readFileSync(SCRIPT, "utf8") : undefined,
+      env: {
+        PATH: `${ctx.bin}:/usr/bin:/bin`,
+        HOME: ctx.root,
+        OPSDECK_INSTALL_ROOT: ctx.opt,
+        STUB_LOG: ctx.log,
+        STUB_RELEASES: ctx.releases,
+        STUB_S3: join(ctx.root, "s3"),
+        STUB_S3_SECRET: S3_SECRET,
+        ...env,
+      },
+    }
+  );
   return { ...result, all: `${result.stdout}${result.stderr}` };
 }
 
@@ -304,6 +329,62 @@ describe("install.sh --dry-run", () => {
     expect(r.stdout).toContain("http://localhost:8090");
   });
 
+  it("works piped to sh -s -- (curl | sh), reading nothing from stdin", () => {
+    const ctx = setup();
+    const r = install(
+      ctx,
+      ["--dry-run", "--version", "v1.2.0", "--dir", ctx.dir],
+      {},
+      { piped: true }
+    );
+    expect(r.status, r.all).toBe(0);
+    inOrder(r.stdout, ["==> Docker", "==> .env", "==> Updater", "==> Start"]);
+  });
+
+  it("refuses a fresh install over an existing <name>_postgres volume", () => {
+    const ctx = setup();
+    const r = install(
+      ctx,
+      ["--dry-run", "--version", "v1.2.0", "--dir", ctx.dir],
+      { STUB_VOLUMES: "opsdeck_postgres" }
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("volume opsdeck_postgres already exists");
+  });
+
+  it("refuses to put docker-ce over the distribution's docker.io", () => {
+    const ctx = setup({ docker: false });
+    writeFileSync(
+      join(ctx.bin, "dpkg-query"),
+      '#!/bin/sh\ncase "$*" in *docker.io*) printf "install ok installed" ;; *) exit 1 ;; esac\n',
+      { mode: 0o755 }
+    );
+    const r = install(ctx, [
+      "--dry-run",
+      "--version",
+      "v1.2.0",
+      "--dir",
+      ctx.dir,
+    ]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("docker.io package is installed");
+    expect(r.stdout).not.toContain("apt-get install");
+  });
+
+  it("installs Docker from Docker's repository when it is missing", () => {
+    const ctx = setup({ docker: false });
+    const r = install(ctx, [
+      "--dry-run",
+      "--version",
+      "v1.2.0",
+      "--dir",
+      ctx.dir,
+    ]);
+    expect(r.status, r.all).toBe(0);
+    expect(r.stdout).toContain("/etc/apt/sources.list.d/docker.sources");
+    expect(r.stdout).toContain("apt-get install -y docker-ce docker-ce-cli");
+  });
+
   it("refuses an existing .env without --adopt", () => {
     const ctx = setup();
     mkdirSync(ctx.dir);
@@ -423,6 +504,30 @@ describe("install.sh --adopt --dry-run", () => {
     ]);
     // No beta settings and no generated SECRETS_KEY in adopt mode.
     expect(r.stdout).not.toContain("update_channel");
+    expect(r.stdout).not.toContain("warning:");
+  });
+
+  it("keeps the old stack's Caddy port 80 by default and warns when overridden", () => {
+    const { ctx, oldEnv } = adoptSetup();
+    const args = [
+      "--dry-run",
+      "--version",
+      "v1.2.0",
+      "--dir",
+      ctx.dir,
+      "--adopt",
+      oldEnv,
+    ];
+    const kept = install(ctx, args, { STUB_VOLUMES: LEGACY_VOLUMES });
+    expect(kept.status, kept.all).toBe(0);
+    expect(kept.stdout).toContain("Caddy on 127.0.0.1:80;");
+    const moved = install(ctx, [...args, "--http-port", "8080"], {
+      STUB_VOLUMES: LEGACY_VOLUMES,
+    });
+    expect(moved.status, moved.all).toBe(0);
+    expect(moved.stdout).toContain(
+      "warning: the old stack served on 127.0.0.1:80; with --http-port 8080"
+    );
   });
 
   it("refuses while the old stack still uses the database volume", () => {
@@ -436,7 +541,11 @@ describe("install.sh --adopt --dry-run", () => {
       }
     );
     expect(r.status).toBe(1);
+    // `docker ps -a`: a stopped container of the old stack counts too.
     expect(r.stderr).toContain("opsdeck_postgres_data is in use");
+    expect(readFileSync(ctx.log, "utf8")).toContain(
+      "docker ps -aq --filter volume=opsdeck_postgres_data"
+    );
   });
 
   it("refuses when the old database volume is missing", () => {
@@ -488,6 +597,8 @@ describe("install.sh --adopt --dry-run", () => {
 
 describe("install.sh --restore --dry-run", () => {
   const KEY = Buffer.alloc(32, 9).toString("base64");
+  const NAME = "2026-11-08T023000.000Z-a1b2c3-1.2.0";
+  const HOST = ["--hostname", "panel.example.test"];
 
   it("installs the backup's version and restores the copied folder before up", () => {
     const ctx = setup();
@@ -496,6 +607,7 @@ describe("install.sh --restore --dry-run", () => {
       "--dry-run",
       "--dir",
       ctx.dir,
+      ...HOST,
       "--restore",
       backup,
       "--secrets-key-file",
@@ -507,14 +619,171 @@ describe("install.sh --restore --dry-run", () => {
       "==> .env",
       "==> Updater",
       "==> Restore",
-      `+ cp -R ${backup} ${ctx.dir}/backups/opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0`,
+      `+ cp -R ${backup} ${ctx.dir}/backups/opsdeck/${NAME}`,
       "up -d --wait --wait-timeout 300 postgres valkey garage",
       "run --rm migrate",
-      "run --rm --no-deps app opsdeck restore local:opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0/",
+      `run --rm --no-deps app opsdeck restore local:opsdeck/${NAME}/`,
       "==> Start",
       "up -d --wait",
+      "https://panel.example.test",
     ]);
     expect(r.all).not.toContain(KEY);
+  });
+
+  it("treats a bare relative path as a folder on this host", () => {
+    const ctx = setup();
+    const { keyFile } = writeBackup(ctx, "1.2.0", KEY);
+    const r = install(
+      ctx,
+      [
+        "--dry-run",
+        "--dir",
+        ctx.dir,
+        ...HOST,
+        "--restore",
+        NAME,
+        "--secrets-key-file",
+        keyFile,
+      ],
+      {},
+      { cwd: ctx.root }
+    );
+    expect(r.status, r.all).toBe(0);
+    expect(r.stdout).toContain(
+      `+ cp -R ${NAME} ${ctx.dir}/backups/opsdeck/${NAME}`
+    );
+  });
+
+  describe("from s3://", () => {
+    const S3_KEY = `opsdeck-backups/opsdeck/${NAME}/`;
+
+    function s3Setup(mode = 0o600) {
+      const ctx = setup();
+      const { backup, keyFile } = writeBackup(ctx, "1.2.0", KEY);
+      mkdirSync(join(ctx.root, "s3", S3_KEY), { recursive: true });
+      copyFileSync(
+        join(backup, "manifest.json"),
+        join(ctx.root, "s3", S3_KEY, "manifest.json")
+      );
+      const s3Env = join(ctx.root, "restore-s3.env");
+      writeFileSync(
+        s3Env,
+        [
+          "OPSDECK_RESTORE_S3_ENDPOINT=https://r2.example.test",
+          "OPSDECK_RESTORE_S3_REGION=auto",
+          "OPSDECK_RESTORE_S3_BUCKET=opsdeck-dr",
+          "OPSDECK_RESTORE_S3_ACCESS_KEY_ID=AKIDRESTORE",
+          `OPSDECK_RESTORE_S3_SECRET_ACCESS_KEY=${S3_SECRET}`,
+          "OPSDECK_RESTORE_S3_FORCE_PATH_STYLE=true",
+          "",
+        ].join("\n"),
+        { mode }
+      );
+      chmodSync(s3Env, mode);
+      return { ctx, keyFile, s3Env };
+    }
+
+    it("pins the version from the manifest in the bucket and restores with the keys in the env only", () => {
+      const { ctx, keyFile, s3Env } = s3Setup();
+      const r = install(ctx, [
+        "--dry-run",
+        "--dir",
+        ctx.dir,
+        ...HOST,
+        "--restore",
+        `s3://${S3_KEY}`,
+        "--s3-env-file",
+        s3Env,
+        "--secrets-key-file",
+        keyFile,
+      ]);
+      expect(r.status, r.all).toBe(0);
+      expect(r.stdout).toContain("opsdeck 1.2.0 (stable)");
+      inOrder(r.stdout, [
+        "==> Restore",
+        "up -d --wait --wait-timeout 300 postgres valkey garage",
+        "run --rm migrate",
+        `run --rm --no-deps -e OPSDECK_RESTORE_S3_ENDPOINT -e OPSDECK_RESTORE_S3_REGION -e OPSDECK_RESTORE_S3_BUCKET -e OPSDECK_RESTORE_S3_ACCESS_KEY_ID -e OPSDECK_RESTORE_S3_SECRET_ACCESS_KEY -e OPSDECK_RESTORE_S3_FORCE_PATH_STYLE app opsdeck restore ${S3_KEY}`,
+        "==> Start",
+      ]);
+      const calls = readFileSync(ctx.log, "utf8");
+      expect(calls).toContain(
+        `curl https://r2.example.test/opsdeck-dr/${S3_KEY}manifest.json`
+      );
+      expect(calls).toContain("--aws-sigv4 aws:amz:auto:s3");
+      expect(`${r.all}${calls}`).not.toContain(S3_SECRET);
+      expect(r.all).not.toContain("AKIDRESTORE");
+    });
+
+    it("refuses an s3:// restore without --s3-env-file", () => {
+      const { ctx, keyFile } = s3Setup();
+      const r = install(ctx, [
+        "--dry-run",
+        "--dir",
+        ctx.dir,
+        ...HOST,
+        "--restore",
+        `s3://${S3_KEY}`,
+        "--secrets-key-file",
+        keyFile,
+      ]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain("--s3-env-file");
+    });
+
+    it("refuses an --s3-env-file readable by others", () => {
+      const { ctx, keyFile, s3Env } = s3Setup(0o644);
+      const r = install(ctx, [
+        "--dry-run",
+        "--dir",
+        ctx.dir,
+        ...HOST,
+        "--restore",
+        `s3://${S3_KEY}`,
+        "--s3-env-file",
+        s3Env,
+        "--secrets-key-file",
+        keyFile,
+      ]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain("0600");
+    });
+
+    it("refuses when the manifest is not in the bucket", () => {
+      const { ctx, keyFile, s3Env } = s3Setup();
+      const r = install(ctx, [
+        "--dry-run",
+        "--dir",
+        ctx.dir,
+        ...HOST,
+        "--restore",
+        "s3://opsdeck-backups/opsdeck/missing/",
+        "--s3-env-file",
+        s3Env,
+        "--secrets-key-file",
+        keyFile,
+      ]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(
+        "cannot download opsdeck-backups/opsdeck/missing/manifest.json"
+      );
+    });
+  });
+
+  it("refuses a restore without --hostname", () => {
+    const ctx = setup();
+    const { backup, keyFile } = writeBackup(ctx, "1.2.0", KEY);
+    const r = install(ctx, [
+      "--dry-run",
+      "--dir",
+      ctx.dir,
+      "--restore",
+      backup,
+      "--secrets-key-file",
+      keyFile,
+    ]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("--hostname");
   });
 
   it("refuses a key that does not match the backup's fingerprint", () => {
@@ -526,6 +795,7 @@ describe("install.sh --restore --dry-run", () => {
       "--dry-run",
       "--dir",
       ctx.dir,
+      ...HOST,
       "--restore",
       backup,
       "--secrets-key-file",
@@ -542,27 +812,12 @@ describe("install.sh --restore --dry-run", () => {
       "--dry-run",
       "--dir",
       ctx.dir,
+      ...HOST,
       "--restore",
       backup,
     ]);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("--secrets-key-file");
-  });
-
-  it("refuses an S3 object key on a fresh install, naming the way out", () => {
-    const ctx = setup();
-    const { keyFile } = writeBackup(ctx, "1.2.0", KEY);
-    const r = install(ctx, [
-      "--dry-run",
-      "--dir",
-      ctx.dir,
-      "--restore",
-      "opsdeck-backups/opsdeck/2026-11-08T023000.000Z-a1b2c3-1.2.0/",
-      "--secrets-key-file",
-      keyFile,
-    ]);
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain("download");
   });
 
   it("refuses a --version other than the backup's", () => {
@@ -572,6 +827,7 @@ describe("install.sh --restore --dry-run", () => {
       "--dry-run",
       "--dir",
       ctx.dir,
+      ...HOST,
       "--version",
       "v1.3.0",
       "--restore",
@@ -730,6 +986,45 @@ describe("lint", () => {
     }
     const r = spawnSync("actionlint", [WORKFLOW], { encoding: "utf8" });
     expect(r.status, r.stdout).toBe(0);
+  });
+
+  it("install.sh, update.sh and release-manifest.ts share IMAGE_RE, IMAGE_KEYS and the release/health checks", async () => {
+    const install = readFileSync(SCRIPT, "utf8");
+    const update = readFileSync(join(REPO, "ops/install/update.sh"), "utf8");
+    const line = (text: string, name: string) =>
+      text.split("\n").find((l) => l.startsWith(`${name}=`));
+    for (const name of ["VERSION_RE", "IMAGE_RE", "IMAGE_KEYS"]) {
+      expect(line(install, name), name).toBeDefined();
+      expect(line(install, name), name).toBe(line(update, name));
+    }
+    const fn = (text: string, name: string) => {
+      const start = text.indexOf(`\n${name}() {`);
+      return text.slice(start, text.indexOf("\n}\n", start) + 3);
+    };
+    for (const name of ["healthy", "one_line_json", "json_str"]) {
+      expect(fn(install, name).length, name).toBeGreaterThan(20);
+      expect(fn(install, name), name).toBe(fn(update, name));
+    }
+    const manifest = await import("@/scripts/release-manifest");
+    const shRe = line(update, "IMAGE_RE")?.replace(/^IMAGE_RE='|'$/g, "");
+    expect(manifest.IMAGE_RE.source).toBe(`^${shRe}$`);
+    const shKeys = line(update, "IMAGE_KEYS")
+      ?.replace(/^IMAGE_KEYS='|'$/g, "")
+      .split(" ")
+      .map((pair) => pair.split(":")[1]);
+    expect([...manifest.IMAGE_KEYS]).toEqual(shKeys);
+  });
+
+  it("pins every action in release.yml to a commit SHA", () => {
+    const uses = readFileSync(WORKFLOW, "utf8")
+      .split("\n")
+      .filter((l) => l.trim().startsWith("uses:"));
+    expect(uses.length).toBeGreaterThan(5);
+    for (const l of uses) {
+      expect(l).toMatch(
+        /uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/
+      );
+    }
   });
 
   it("release.yml uploads every install asset", () => {

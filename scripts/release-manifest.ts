@@ -26,7 +26,8 @@ export type ImageKey = (typeof IMAGE_KEYS)[number];
 const RELEASE_URL = "https://github.com/romikusumabakti/opsdeck/releases/tag";
 const VERSION_RE = /^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$/;
 // update.sh's IMAGE_RE; a `latest` tag is never pinned.
-const IMAGE_RE = /^[a-z0-9./_-]+(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}$/;
+export const IMAGE_RE =
+  /^[a-z0-9./_-]+(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}$/;
 
 export function buildReleaseManifest({
   version,
