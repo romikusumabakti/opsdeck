@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  "drizzle/20261107000000_setup_wizard/migration.sql",
+  "drizzle-legacy/20261107000000_setup_wizard/migration.sql",
   "utf8"
 );
 

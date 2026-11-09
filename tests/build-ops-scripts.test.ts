@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const scripts = [
+  "cli.js",
   "deploy-app.js",
   "encrypt-legacy-secrets.js",
   "backfill-build-actors.js",

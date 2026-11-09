@@ -508,7 +508,7 @@ describe("org read pages gate their management controls", () => {
 
 describe("access_control migration refuses a second run", () => {
   const sql = readFileSync(
-    "drizzle/20261003000000_access_control/migration.sql",
+    "drizzle-legacy/20261003000000_access_control/migration.sql",
     "utf8"
   );
   it("raises before any UPDATE when project_role already has contributor", () => {
