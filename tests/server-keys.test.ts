@@ -105,6 +105,7 @@ vi.mock("@/lib/db", () => {
       from: (table: { [k: symbol]: unknown }) =>
         String(table[Symbol.for("drizzle:Name")] ?? "") === "ssh_keys"
           ? {
+              ...query(async () => [{ id: KEY_ID, status: "current" }]),
               where: () =>
                 query(async () => [{ id: KEY_ID, status: "current" }]),
             }

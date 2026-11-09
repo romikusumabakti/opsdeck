@@ -24,6 +24,7 @@ import {
   isOurs,
   keyMarker,
   mergeAuthorizedKeys,
+  ownKeyMarkers,
   removeAuthorizedKey,
   serverKeyLock,
 } from "@/lib/ssh-keys";
@@ -258,7 +259,7 @@ function activityActor(actorId: string): string | null {
 }
 
 /**
- * Write our line with `marker`, dropping this instance's lines for any key
+ * Write our line with `marker`, dropping the lines of our other keys (`ours`)
  * not in `keep` (besides `marker`). Returns what an undo puts back.
  */
 async function installLine(
@@ -266,11 +267,13 @@ async function installLine(
   existing: string,
   line: string,
   marker: string,
-  keep: readonly string[]
+  keep: readonly string[],
+  ours: readonly string[]
 ): Promise<DroppedLine[]> {
   const { content, dropped } = dropOtherInstanceKeys(
     mergeAuthorizedKeys(existing, line, marker),
-    [marker, ...keep]
+    [marker, ...keep],
+    ours
   );
   await writeAuthorizedKeys(ssh, content);
   return dropped;
@@ -375,11 +378,20 @@ async function moveLocked(
 
     const existing = await readAuthorizedKeys(ssh);
     const previous = previousLine(existing, marker);
-    // A write drops this instance's lines for other keys (a key retired or
-    // leaked must not keep signing in); an undo puts them back.
-    let dropped: DroppedLine[] = dropOtherInstanceKeys(existing, [
-      marker,
-    ]).dropped;
+    // A write drops the lines of our other keys (a key retired or leaked must
+    // not keep signing in); an undo puts them back. The line of the key the
+    // row signs in with now stays until the commit (a reinstall during a
+    // rotation): if anything fails, the server keeps a way in.
+    const ours = await ownKeyMarkers();
+    const rowKey =
+      server.auth === "key" && server.sshKeyId && server.sshKeyId !== key.id
+        ? [keyMarker(server.sshKeyId)]
+        : [];
+    let dropped: DroppedLine[] = dropOtherInstanceKeys(
+      existing,
+      [marker, ...rowKey],
+      ours
+    ).dropped;
     // Removing our line is only safe while no run has committed the server to
     // this key: then the line is the only way in.
     const undo = async () => {
@@ -392,7 +404,7 @@ async function moveLocked(
       await rollback(ssh, marker, previous, dropped);
     };
     try {
-      dropped = await installLine(ssh, existing, line, marker, []);
+      dropped = await installLine(ssh, existing, line, marker, rowKey, ours);
     } catch (error) {
       // A write cut off by the timeout may still have landed.
       await undo();
@@ -409,10 +421,22 @@ async function moveLocked(
       return fail(loginFailure);
     }
 
-    const committed = await commitMove(server, key.id, from);
+    let committed: KeyMoveCode | null;
+    try {
+      committed = await commitMove(server, key.id, from);
+    } catch (error) {
+      // A database error: the row is as it was (the undo's guard checks).
+      await undo();
+      throw error;
+    }
     if (committed !== null) {
       await undo();
       return fail(committed);
+    }
+    // Committed: the row's old key goes too. A failure only leaves a line a
+    // later rotation removes.
+    if (rowKey.length > 0 && !(await keepOnly(ssh, marker))) {
+      console.error(`move to key: old line kept on server ${serverId}`);
     }
   } catch (error) {
     if (error instanceof StepFailed) return fail(error.code);
@@ -522,11 +546,15 @@ export async function rotateServerKey(
   }
 }
 
-/** Drop every line of this instance but `marker`'s; false if that failed. */
+/** Drop the lines of our keys but `marker`'s; false if that failed. */
 async function keepOnly(ssh: NodeSSH, marker: string): Promise<boolean> {
   try {
     const current = await readAuthorizedKeys(ssh);
-    const { content, dropped } = dropOtherInstanceKeys(current, [marker]);
+    const { content, dropped } = dropOtherInstanceKeys(
+      current,
+      [marker],
+      await ownKeyMarkers()
+    );
     if (dropped.length > 0) await writeAuthorizedKeys(ssh, content);
     return true;
   } catch {
@@ -620,10 +648,12 @@ async function rotateLocked(
     const previous = previousLine(existing, marker);
     // The old line stays as the proven way in until the new one is proven;
     // lines of any other key of ours go now (and come back on an undo).
-    let dropped: DroppedLine[] = dropOtherInstanceKeys(existing, [
-      marker,
-      oldMarker,
-    ]).dropped;
+    const ours = await ownKeyMarkers();
+    let dropped: DroppedLine[] = dropOtherInstanceKeys(
+      existing,
+      [marker, oldMarker],
+      ours
+    ).dropped;
     const undo = async () => {
       if (previous === null && (await committedTo(serverId, key.id))) {
         console.error(
@@ -634,7 +664,14 @@ async function rotateLocked(
       await rollback(ssh, marker, previous, dropped);
     };
     try {
-      dropped = await installLine(ssh, existing, line, marker, [oldMarker]);
+      dropped = await installLine(
+        ssh,
+        existing,
+        line,
+        marker,
+        [oldMarker],
+        ours
+      );
     } catch (error) {
       await undo();
       throw error;

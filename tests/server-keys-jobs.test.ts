@@ -62,6 +62,8 @@ const state = vi.hoisted(() => ({
   orgRole: "admin",
   // Text of every raw query sent through pgClient.
   rawQueries: [] as string[],
+  // Make db.transaction throw (a database error during a commit).
+  txFails: false,
 }));
 
 const camel = (name: string) =>
@@ -213,7 +215,10 @@ vi.mock("@/lib/db", async () => {
       }),
     }),
     insert,
-    transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(db),
+    transaction: async <T>(fn: (tx: unknown) => Promise<T>) => {
+      if (state.txFails) throw new Error("connection lost");
+      return fn(db);
+    },
   };
   const lockQuery = async (
     strings: TemplateStringsArray,
@@ -464,6 +469,22 @@ const serverById = (i: number) =>
 const lastJob = () =>
   state.tables.ssh_key_jobs.at(-1) as Row & { results: Row[] };
 const markerOf = (keyId: unknown) => `opsdeck:opsdeck:${String(keyId)}`;
+const NEW_KEY_ID = "0197f3a0-1b2c-7def-8000-0000000000bb";
+const DEAD_KEY_ID = "0197f3a0-1b2c-7def-8000-00000000dead";
+// Another Panel deployment with the same default instance name: its key id
+// is not in this database.
+const OTHER_PANEL = `ssh-ed25519 ${keyPair().public.split(" ")[1]} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-0000000f0e19`;
+
+/** A key this database once had, retired since. */
+function retiredKey() {
+  state.tables.ssh_keys.push({
+    id: DEAD_KEY_ID,
+    publicKey: keyPair().public,
+    privateKey: "",
+    fingerprint: "SHA256:dead",
+    status: "retired",
+  });
+}
 
 let homeCount = 0;
 beforeEach(() => {
@@ -484,6 +505,7 @@ beforeEach(() => {
   state.queued = new Set();
   state.locks = new Set();
   state.rawQueries = [];
+  state.txFails = false;
   state.orgRole = "admin";
   for (const [i, d] of sshds.entries()) {
     homeCount += 1;
@@ -740,23 +762,92 @@ describe("rotate", () => {
     );
   });
 
-  it("a move drops a stale line of this instance's other keys", async () => {
+  it("a move drops a stale line of this database's other keys only", async () => {
+    retiredKey();
     mkdirSync(join((sshds[0] as Sshd).home, ".ssh"), { mode: 0o700 });
-    const stale = `from="127.0.0.1",no-agent-forwarding,no-X11-forwarding ssh-ed25519 ${oldBase64} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-00000000dead`;
+    const stale = `from="127.0.0.1",no-agent-forwarding,no-X11-forwarding ssh-ed25519 ${oldBase64} opsdeck:opsdeck:${DEAD_KEY_ID}`;
     const otherInstance = `ssh-ed25519 ${oldBase64} opsdeck:beta:0197f3a0-1b2c-7def-8000-00000000beef`;
     writeFileSync(
       authorizedKeys(sshds[0] as Sshd),
-      `${FOREIGN}\n${stale}\n${otherInstance}\n`
+      `${FOREIGN}\n${stale}\n${otherInstance}\n${OTHER_PANEL}\n`
     );
     expect(await moveServerToKey(IDS[0] as string, USER_ID)).toEqual({
       ok: true,
     });
-    expect(fileOf(0)).toBe(`${FOREIGN}\n${otherInstance}\n${oldLine}\n`);
+    expect(fileOf(0)).toBe(
+      `${FOREIGN}\n${otherInstance}\n${OTHER_PANEL}\n${oldLine}\n`
+    );
+  });
+
+  it("another Panel's line with the same prefix survives move, reinstall and rotate", async () => {
+    mkdirSync(join((sshds[0] as Sshd).home, ".ssh"), { mode: 0o700 });
+    writeFileSync(
+      authorizedKeys(sshds[0] as Sshd),
+      `${FOREIGN}\n${OTHER_PANEL}\n`
+    );
+    state.tables.servers = [serverRow(0)];
+
+    await request("POST", "/api/instance/ssh-key/move-all");
+    await runQueued();
+    expect(lastJob().results[0]).toMatchObject({ ok: true });
+    expect(fileOf(0)).toContain(OTHER_PANEL);
+
+    expect(
+      await moveServerToKey(IDS[0] as string, USER_ID, { passwordOnce: "pw" })
+    ).toEqual({ ok: true });
+    expect(fileOf(0)).toContain(OTHER_PANEL);
+
+    await request("POST", "/api/instance/ssh-key/rotate");
+    await runQueued();
+    expect(lastJob().results[0]).toMatchObject({ ok: true });
+    expect(fileOf(0)).toContain(OTHER_PANEL);
+    expect(fileOf(0)).not.toContain(OLD_MARKER);
+  });
+
+  it("a reinstall keeps the line of the key the row uses until it commits", async () => {
+    // Mid-rotation: the row is on the old key, a new key is current, and the
+    // new key's proof fails; the undo's write fails too.
+    seedKeyServers();
+    (state.tables.ssh_keys[0] as Row).status = "previous";
+    const unusable = keyPair();
+    state.tables.ssh_keys.push({
+      id: NEW_KEY_ID,
+      publicKey: unusable.public,
+      privateKey: keyPair().private,
+      fingerprint: "SHA256:new",
+      status: "current",
+    });
+    (sshds[0] as Sshd).writesAllowed = 1;
+    expect(
+      await moveServerToKey(IDS[0] as string, USER_ID, { passwordOnce: "pw" })
+    ).toEqual({ ok: false, code: "keyLoginFailed" });
+    expect(fileOf(0)).toContain(oldLine);
+    expect(serverById(0)).toMatchObject({ sshKeyId: OLD_KEY_ID });
+  });
+
+  it("a move whose commit throws is undone", async () => {
+    seedKeyServers();
+    (state.tables.ssh_keys[0] as Row).status = "previous";
+    const fresh = keyPair();
+    state.tables.ssh_keys.push({
+      id: NEW_KEY_ID,
+      publicKey: fresh.public,
+      privateKey: fresh.private,
+      fingerprint: "SHA256:new",
+      status: "current",
+    });
+    state.txFails = true;
+    expect(
+      await moveServerToKey(IDS[0] as string, USER_ID, { passwordOnce: "pw" })
+    ).toEqual({ ok: false, code: "keyInstallFailed" });
+    expect(fileOf(0)).toBe(`${FOREIGN}\n${oldLine}\n`);
+    expect(serverById(0)).toMatchObject({ sshKeyId: OLD_KEY_ID });
   });
 
   it("a failed move puts back the stale lines it dropped", async () => {
+    retiredKey();
     mkdirSync(join((sshds[0] as Sshd).home, ".ssh"), { mode: 0o700 });
-    const stale = `ssh-ed25519 ${oldBase64} opsdeck:opsdeck:0197f3a0-1b2c-7def-8000-00000000dead`;
+    const stale = `ssh-ed25519 ${oldBase64} opsdeck:opsdeck:${DEAD_KEY_ID}`;
     writeFileSync(authorizedKeys(sshds[0] as Sshd), `${FOREIGN}\n${stale}\n`);
     // The proof signs in with a private key that does not match the line.
     state.tables.ssh_keys[0] = {
