@@ -502,6 +502,8 @@ describe("teardown error messages", () => {
     "productionConfirmRequired",
     "stackHostsSharedDatabase",
     "serverCommandFailed",
+    "cloudflareFailed",
+    "stepFailed",
   ];
 
   it("defines every code", () => {

@@ -2915,7 +2915,9 @@
       "environmentIsProduction": "Hanya admin yang dapat menghapus environment production",
       "productionConfirmRequired": "Konfirmasi bahwa Anda menghapus environment production",
       "stackHostsSharedDatabase": "Stack ini menjalankan container database yang dipakai oleh database host bersama atau environment lain",
-      "serverCommandFailed": "Perintah di server gagal. Periksa log run, lalu coba lagi"
+      "serverCommandFailed": "Perintah di server gagal. Periksa log run, lalu coba lagi",
+      "cloudflareFailed": "Objek Cloudflare tidak dapat dihapus. Periksa log run, lalu coba lagi",
+      "stepFailed": "Langkah ini gagal secara tak terduga. Periksa log run, lalu coba lagi"
     }
   },
   "environmentSetup": {

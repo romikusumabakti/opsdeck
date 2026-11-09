@@ -17,6 +17,8 @@ export const TEARDOWN_ERRORS = {
     "The stack runs a database container another environment uses",
   serverCommandFailed: "A command on the server failed",
   archiveFailed: "The archive could not be completed",
+  cloudflareFailed: "A Cloudflare object could not be removed",
+  stepFailed: "The step failed unexpectedly",
   confirmNameMismatch: "The confirmation does not match the environment name",
   environmentIsProduction: "Only an admin can delete a production environment",
   productionConfirmRequired:
@@ -44,7 +46,7 @@ export type TeardownRefusal = Extract<
 export class StepFailed extends Error {
   constructor(
     readonly code: TeardownErrorCode,
-    detail?: string
+    readonly detail?: string
   ) {
     super(
       detail ? `${TEARDOWN_ERRORS[code]}: ${detail}` : TEARDOWN_ERRORS[code]

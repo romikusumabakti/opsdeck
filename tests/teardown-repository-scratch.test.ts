@@ -31,7 +31,12 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
   const { encryptSecret } = await import("@/lib/secrets");
   const { buildTeardownPlan } = await import("@/lib/teardown/plan");
   const {
+    addArchiveFile,
+    createArchive,
+    deleteTeardownEnvironment,
+    findOpenArchive,
     listTeardownSteps,
+    loadArchiveSnapshot,
     loadStackGuard,
     loadTeardownDbService,
     loadTeardownEnvironment,
@@ -60,6 +65,9 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
   }
 
   async function cleanup() {
+    await db
+      .delete(s.environmentArchives)
+      .where(eq(s.environmentArchives.projectName, "Teardown IT"));
     const projectRows = await db
       .select({ id: s.projects.id })
       .from(s.projects)
@@ -345,9 +353,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       await expect(loadTeardownDbService(ids.dbService)).resolves.toEqual({
         environmentId: ids.env,
         role: "db",
+        dbType: "postgres",
         dbKind: "container",
         dbName: null,
         databaseHostId: null,
+        serverId: ids.server,
+        serviceType: "docker",
+        serviceName: "td-it-db",
       });
       await expect(loadTeardownDbService(crypto.randomUUID())).resolves.toBe(
         null
@@ -469,5 +481,73 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     expect(resaved).toHaveLength(plan.steps.length);
     expect(resaved[0]?.id).toBe(first.id);
     expect(resaved[0]?.status).toBe("done");
+  });
+
+  it("keeps one open archive, appends each file once, and closes it with the delete", async () => {
+    const gone = await environment("TD Gone");
+    await db.insert(s.teardownSteps).values({
+      environmentId: gone,
+      position: 0,
+      kind: "delete_environment",
+      params: {},
+    });
+    const run = await one(
+      db
+        .insert(s.runs)
+        .values({
+          environmentId: gone,
+          kind: "teardown",
+          description: "td-it teardown",
+          status: "started",
+          output: "",
+          runAt: new Date(),
+        })
+        .returning({ id: s.runs.id })
+    );
+
+    await expect(loadArchiveSnapshot(gone)).resolves.toEqual({
+      projectName: "Teardown IT",
+      environmentName: "TD Gone",
+      environmentSlug: "td-gone",
+    });
+    await expect(findOpenArchive(gone)).resolves.toBe(null);
+    const archive = await createArchive({
+      environmentId: gone,
+      projectName: "Teardown IT",
+      environmentName: "TD Gone",
+      environmentSlug: "td-gone",
+      expiresAt: new Date(Date.now() + 86_400_000),
+      location: "local",
+      keyPrefix: "/tmp/td-it/",
+    });
+    await addArchiveFile(archive.id, { name: "db-x.dump", size: 10 });
+    await addArchiveFile(archive.id, { name: "db-x.dump", size: 99 });
+    await addArchiveFile(archive.id, { name: "deploy-x.tar.gz", size: 20 });
+    const open = await findOpenArchive(gone);
+    expect(open?.id).toBe(archive.id);
+    expect(open?.files).toEqual([
+      { name: "db-x.dump", size: 10 },
+      { name: "deploy-x.tar.gz", size: 20 },
+    ]);
+
+    await expect(deleteTeardownEnvironment(gone)).resolves.toEqual({
+      environmentName: "TD Gone",
+      archiveId: archive.id,
+    });
+    const [kept] = await db
+      .select()
+      .from(s.environmentArchives)
+      .where(eq(s.environmentArchives.id, archive.id));
+    expect(kept?.completedAt).toBeInstanceOf(Date);
+    expect(kept?.environmentId).toBe(gone);
+    await expect(findOpenArchive(gone)).resolves.toBe(null);
+    // The cascade took the steps and the run.
+    await expect(listTeardownSteps(gone)).resolves.toEqual([]);
+    const runs = await db
+      .select({ id: s.runs.id })
+      .from(s.runs)
+      .where(eq(s.runs.id, run.id));
+    expect(runs).toEqual([]);
+    await expect(deleteTeardownEnvironment(gone)).resolves.toBe(null);
   });
 });

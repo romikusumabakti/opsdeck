@@ -99,6 +99,12 @@ export type JobMap = {
     environmentId: string;
     runId: string;
   };
+  // Delete an environment: archive, bring down, remove (lib/jobs/teardown).
+  // Carries only ids; the steps live in teardown_steps.
+  "environment/teardown.requested": {
+    environmentId: string;
+    runId: string;
+  };
   // Release every expired deploy lock (repeatable; see scheduleDeployLockSweep).
   "deploy/lock-sweep": Record<string, never>;
   // --- Instance self-backup ---

@@ -45,6 +45,7 @@ import {
 import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
 import { runProvisioning } from "@/lib/jobs/provision";
+import { runTeardown } from "@/lib/jobs/teardown";
 import { privileged } from "@/lib/privileged";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
@@ -1295,6 +1296,8 @@ export async function processJob(job: Job): Promise<unknown> {
       return handleDeploy(parseJobPayload(name, raw));
     case "provision/run.requested":
       return runProvisioning(parseJobPayload(name, raw));
+    case "environment/teardown.requested":
+      return runTeardown(parseJobPayload(name, raw));
     case "deploy/lock-sweep":
       parseJobPayload(name, raw);
       return sweepExpiredLocks();

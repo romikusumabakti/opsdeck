@@ -2915,7 +2915,9 @@
       "environmentIsProduction": "Solo un administrador puede eliminar un entorno de producción",
       "productionConfirmRequired": "Confirma que estás eliminando un entorno de producción",
       "stackHostsSharedDatabase": "La pila ejecuta un contenedor de base de datos que usa un host de base de datos compartido u otro entorno",
-      "serverCommandFailed": "Falló un comando en el servidor. Revisa el registro de la ejecución y vuelve a intentarlo"
+      "serverCommandFailed": "Falló un comando en el servidor. Revisa el registro de la ejecución y vuelve a intentarlo",
+      "cloudflareFailed": "No se pudo eliminar un objeto de Cloudflare. Revisa el registro de la ejecución y vuelve a intentarlo",
+      "stepFailed": "El paso falló de forma inesperada. Revisa el registro de la ejecución y vuelve a intentarlo"
     }
   },
   "environmentSetup": {

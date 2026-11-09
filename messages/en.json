@@ -2915,7 +2915,9 @@
       "environmentIsProduction": "Only an admin can delete a production environment",
       "productionConfirmRequired": "Confirm that you are deleting a production environment",
       "stackHostsSharedDatabase": "The stack runs a database container that a shared database host or another environment uses",
-      "serverCommandFailed": "A command on the server failed. Check the run log, then retry"
+      "serverCommandFailed": "A command on the server failed. Check the run log, then retry",
+      "cloudflareFailed": "A Cloudflare object could not be removed. Check the run log, then retry",
+      "stepFailed": "The step failed unexpectedly. Check the run log, then retry"
     }
   },
   "environmentSetup": {

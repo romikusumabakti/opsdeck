@@ -1,3 +1,6 @@
+import { createWriteStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import { type Config, NodeSSH } from "node-ssh";
 import type { ClientChannel } from "ssh2";
 import {
@@ -172,6 +175,100 @@ export async function runRemoteScript(
       stdout: result.stdout,
       stderr: result.stderr,
     };
+  } finally {
+    clearTimeout(timer);
+    ssh?.dispose();
+  }
+}
+
+export type StreamToFileResult = {
+  code: number | null;
+  /** Bytes of stdout written to the file. */
+  bytes: number;
+  /** The start of stderr (at most 4 KiB), for the caller to pick from. */
+  stderr: string;
+};
+
+const STREAM_STDERR_LIMIT = 4096;
+
+/**
+ * Runs `command` and writes its stdout into `filePath` (created 0600) as it
+ * arrives, with backpressure, so a dump or tarball never sits in memory.
+ * Returns the exit code instead of throwing on a non-zero exit; nothing is
+ * logged. `stdin` is written to the command's input and closed (a sudo
+ * password, never argv). Connection errors and the wall-clock timeout throw;
+ * the file may then hold partial output, which the caller removes.
+ */
+export async function streamRemoteCommandToFile(
+  target: SshTarget,
+  command: string,
+  filePath: string,
+  options: { timeoutMs: number; stdin?: string }
+): Promise<StreamToFileResult> {
+  const { timeoutMs, stdin } = options;
+  let ssh: NodeSSH | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    ssh = await openSsh(target, { readyTimeout: 5000 });
+    const client = ssh.connection;
+    if (!client) throw new Error("SSH connection is not open");
+    // node-ssh listens for connection errors only while connecting; one in
+    // the middle of a long stream (a reset) must fail the transfer, not go
+    // unhandled. The listener stays until the client is disposed.
+    const connectionLost = new Promise<never>((_, reject) => {
+      client.on("error", reject);
+    });
+    connectionLost.catch(() => {});
+    const transfer = () =>
+      new Promise<StreamToFileResult>((resolve, reject) => {
+        client.exec(command, (err, channel) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          // Every listener goes on before this callback returns: ssh2 can
+          // emit the exit status in the same tick.
+          let code: number | null = null;
+          let stderr = "";
+          channel.on("exit", (exitCode: number | null) => {
+            code = typeof exitCode === "number" ? exitCode : null;
+          });
+          const closed = new Promise<void>((done) =>
+            channel.on("close", () => done())
+          );
+          channel.stderr.on("data", (chunk: Buffer) => {
+            if (stderr.length < STREAM_STDERR_LIMIT) {
+              stderr += chunk
+                .toString("utf8")
+                .slice(0, STREAM_STDERR_LIMIT - stderr.length);
+            }
+          });
+          const written = pipeline(
+            channel,
+            createWriteStream(filePath, { mode: 0o600 })
+          );
+          channel.end(stdin);
+          written
+            .then(() => closed)
+            .then(() => stat(filePath))
+            .then((file) => resolve({ code, bytes: file.size, stderr }))
+            .catch(reject);
+        });
+      });
+    const work = transfer();
+    // On timeout, dispose (below) tears the channel down; the abandoned
+    // transfer's late rejection is already handled by the race.
+    work.catch(() => {});
+    return await Promise.race([
+      work,
+      connectionLost,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`SSH command timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      }),
+    ]);
   } finally {
     clearTimeout(timer);
     ssh?.dispose();
