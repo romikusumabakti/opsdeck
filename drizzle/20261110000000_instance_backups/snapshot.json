@@ -104,7 +104,8 @@
       "values": [
         "schedule",
         "manual",
-        "update"
+        "update",
+        "restore"
       ],
       "name": "instance_backup_trigger",
       "entityType": "enums",

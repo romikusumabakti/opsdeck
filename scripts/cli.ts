@@ -7,7 +7,7 @@ const USAGE = `Usage: bun dist/cli.js <command> [options]   (in the image: opsde
 
 Commands:
   migrate [--adopt]   Apply pending database migrations
-  backup run [--trigger schedule|manual|update]
+  backup run [--trigger schedule|manual|update|restore]
                       Back up the instance to its S3 destination (or local)
 
 Run a command with --help for its options.`;

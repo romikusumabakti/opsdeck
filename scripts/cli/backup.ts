@@ -1,9 +1,9 @@
-// `opsdeck backup run [--trigger schedule|manual|update]`: one instance
+// `opsdeck backup run [--trigger schedule|manual|update|restore]`: one instance
 // backup to the configured S3 connection, or local when none is chosen.
 // Prints the result as one JSON line; exits non-zero when it failed.
 import type { BackupTrigger } from "@/lib/instance-backup/archive";
 
-export const BACKUP_USAGE = `Usage: opsdeck backup run [--trigger schedule|manual|update]
+export const BACKUP_USAGE = `Usage: opsdeck backup run [--trigger schedule|manual|update|restore]
   (in the image: bun dist/cli.js backup run [--trigger …])
 
 Dumps DATABASE_URL, mirrors the Garage bucket and uploads both with a
@@ -14,7 +14,12 @@ While another backup runs, nothing is done: status "alreadyRunning", errorCode
 "backupAlreadyRunning", exit 1. id is null then, and when the run could not be
 recorded at all.`;
 
-const TRIGGERS: readonly BackupTrigger[] = ["schedule", "manual", "update"];
+const TRIGGERS: readonly BackupTrigger[] = [
+  "schedule",
+  "manual",
+  "update",
+  "restore",
+];
 
 /** The trigger from `run [--trigger <t>]`, or null for invalid arguments. */
 export function parseBackupArgs(args: string[]): BackupTrigger | null {

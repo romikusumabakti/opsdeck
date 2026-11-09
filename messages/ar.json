@@ -3035,7 +3035,8 @@
     "trigger": {
       "schedule": "مجدولة",
       "manual": "يدوية",
-      "update": "قبل التحديث"
+      "update": "قبل التحديث",
+      "restore": "قبل الاستعادة"
     },
     "status": {
       "running": "قيد التشغيل",

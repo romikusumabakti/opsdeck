@@ -34,6 +34,8 @@ REQUESTED_RE='"requestedBy":"[A-Za-z0-9_-]{1,64}","requestedAt":"[0-9]{4}-[0-9]{
 IMAGE_KEYS='OPSDECK_IMAGE:app POSTGRES_IMAGE:postgres VALKEY_IMAGE:valkey GARAGE_IMAGE:garage IMGPROXY_IMAGE:imgproxy CADDY_IMAGE:caddy'
 NL='
 '
+ESC=$(printf '\033')
+BEL=$(printf '\007')
 
 die() {
   printf 'update.sh: %s\n' "$1" >&2
@@ -78,13 +80,17 @@ json_or_null() {
   if [ -n "$1" ]; then printf '"%s"' "$1"; else printf 'null'; fi
 }
 
-# The last log lines as a JSON array: control characters dropped, quotes and
-# backslashes escaped, each line cut to 300 bytes.
+# The last log lines as a JSON array: ANSI escape sequences (CSI, OSC, then
+# any other ESC pair) and control characters dropped, each line cut to 300
+# bytes without leaving a partial UTF-8 sequence, quotes and backslashes
+# escaped.
 log_tail_json() {
   tail -n "$LOG_TAIL_LINES" "$log_file" |
+    LC_ALL=C sed -e "s|$ESC\\[[0-?]*[ -/]*[@-~]||g" \
+      -e "s|$ESC][^$BEL]*$BEL||g" -e "s|$ESC][^$ESC]*$ESC\\\\||g" -e "s|$ESC.||g" |
     LC_ALL=C tr '\011' ' ' |
     LC_ALL=C tr -d '\000-\010\013-\037\177' |
-    LC_ALL=C cut -c1-300 |
+    LC_ALL=C awk '{ if (length($0) > 300) { $0 = substr($0, 1, 300); sub(/[\300-\367][\200-\277]*$/, "") } print }' |
     LC_ALL=C sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' |
     awk 'BEGIN { printf "[" } { printf "%s\"%s\"", (NR > 1 ? "," : ""), $0 } END { printf "]" }'
 }
@@ -97,6 +103,10 @@ write_status() { # <state> [code]
       "$run_id" "$(json_or_null "$action")" "$(json_or_null "$version")" "$(json_or_null "$from")"
     printf '"step":"%s","state":"%s","code":%s,"startedAt":"%s","finishedAt":%s,' \
       "$step" "$1" "$(json_or_null "${2:-}")" "$started_at" "$(json_or_null "$finished_at")"
+    if [ -n "$safety_location" ]; then
+      printf '"safetyBackup":{"id":%s,"location":"%s","objectKey":"%s"},' \
+        "$(json_or_null "$safety_id")" "$safety_location" "$safety_key"
+    fi
     printf '"logTail":%s}\n' "$(log_tail_json)"
   } >"$tmp"
   chmod 0640 "$tmp"
@@ -110,27 +120,58 @@ set_step() {
   write_status running
 }
 
-finish() { # <state> [code]: the final status, then exit
+# The final status, without exiting (the EXIT trap uses it too).
+record_final() { # <state> [code]
   final=1
   finished_at=$(now)
   log "result: $1${2:+ ($2)}"
   write_status "$1" "${2:-}"
+}
+
+finish() { # <state> [code]: the final status, then exit
+  record_final "$@"
   if [ "$1" = succeeded ]; then exit 0; fi
   exit 1
 }
 
 refuse() { finish refused "$1"; }
 
+# An unexpected exit or a signal (TERM from systemd's stop or timeout, INT,
+# HUP) in the middle of a run still recovers, with signals ignored meanwhile:
+# - after `opsdeck restore` ran: start the restore version again, restoreFailed;
+# - after the previous lines were recorded: put them back (rolled_back);
+# - before: nothing changed, failed.
+# Then a request written during the run is picked up by a fresh run.
 # shellcheck disable=SC2329 # invoked by the EXIT trap
 on_exit() {
   status=$?
+  set +e
   if [ "$running" = 1 ] && [ "$final" = 0 ]; then
-    final=1
-    finished_at=$(now)
-    log "unexpected exit (status $status)" || true
-    write_status failed updaterError || true
+    trap '' TERM INT HUP
+    code=updaterError
+    if [ -n "$caught" ]; then code=interrupted; fi
+    log "unexpected exit in step $step (status $status${caught:+, SIG$caught})"
+    if [ "$restore_invoked" = 1 ]; then
+      compose_up
+      record_final failed restoreFailed
+    elif [ "$pinned" = 1 ] && [ "$step" != rollback ]; then
+      if restore_previous; then
+        record_final rolled_back "$code"
+      else
+        record_final failed rollbackFailed
+      fi
+    elif [ "$pinned" = 1 ]; then
+      record_final failed rollbackFailed
+    else
+      record_final failed "$code"
+    fi
   fi
   if [ -n "$work" ]; then rm -rf "$work"; fi
+  if [ "$running" = 1 ] && [ -z "$caught" ] &&
+    { [ -e "$request" ] || [ -L "$request" ]; }; then
+    exec 9<&-
+    exec sh "$0" "$dir"
+  fi
 }
 
 # --- .env ------------------------------------------------------------------
@@ -167,6 +208,7 @@ record_previous() {
     for pair in $IMAGE_KEYS; do env_line "${pair%%:*}"; done
   } >"$tmp"
   mv -f "$tmp" "$updates/previous.env"
+  pinned=1
 }
 
 # --- versions and releases ---------------------------------------------------
@@ -270,17 +312,29 @@ healthy() { # <expected version>
 
 compose_up() { run_logged docker compose up -d --wait --wait-timeout "$WAIT_TIMEOUT"; }
 
-# Puts previous.env back and starts it again; ends the run.
-rollback() { # <failed step>
-  log "$1 failed: putting the previous images back"
-  failed_step=$1
+# Puts previous.env back and starts it; 0 when that version is healthy.
+restore_previous() {
+  log "putting the previous images back"
   step=rollback
   write_status running
-  apply_env_lines "$updates/previous.env"
-  if compose_up && healthy "$(env_value OPSDECK_VERSION)"; then
-    finish rolled_back "${failed_step}Failed"
-  fi
+  apply_env_lines "$updates/previous.env" && compose_up &&
+    healthy "$(env_value OPSDECK_VERSION)"
+}
+
+# Ends the run after a failed step: rolled_back, or rollbackFailed.
+rollback() { # <failed step>
+  log "$1 failed"
+  if restore_previous; then finish rolled_back "${1}Failed"; fi
   finish failed rollbackFailed
+}
+
+# After `opsdeck restore` ran, the data is no longer the previous version's,
+# so nothing is rolled back: the restore version is started again and the run
+# fails with restoreFailed (the safety backup in the status undoes it).
+restore_failed() { # <failed step>
+  log "$1 failed after the restore started; starting version $version again"
+  compose_up || log "the panel did not come back up"
+  finish failed restoreFailed
 }
 
 # Steps 5-10: record, pin, pull, migrate, up, health; rollback on failure.
@@ -297,13 +351,32 @@ pin_and_start() { # <version> <pin file>
   healthy "$1" || rollback health
 }
 
-backup() {
+backup() { # <trigger>
   set_step backup
-  if ! run_logged docker compose run --rm app opsdeck backup run --trigger update; then
+  if ! run_logged docker compose run --rm app opsdeck backup run --trigger "$1"; then
     code=$(sed -n 's/.*"errorCode":"\([A-Za-z0-9_]*\)".*/\1/p' "$work/out" | tail -n 1)
     if [ -n "$code" ]; then log "backup error code: $code"; fi
     finish failed backupFailed
   fi
+}
+
+# The pre-restore backup, so the UI can offer to undo the restore. The CLI's
+# result line is checked like any other untrusted JSON.
+remember_safety_backup() {
+  grep -E '^\{"id":' "$work/out" | tail -n 1 >"$work/backup.json"
+  one_line_json "$work/backup.json" 4096 || return 0
+  id=$(json_str id "$work/backup.json") || id=
+  location=$(json_str location "$work/backup.json") || return 0
+  key=$(json_str objectKey "$work/backup.json") || return 0
+  case $key in *..*) return 0 ;; esac
+  [ "${#key}" -le 511 ] || return 0
+  matches "$key" "$OBJECT_KEY_RE" || return 0
+  matches "$location" '(local|s3)' || return 0
+  matches "$id" '[A-Za-z0-9_-]{1,64}' || id=
+  safety_id=$id
+  safety_location=$location
+  safety_key=$key
+  log "safety backup: $location $key"
 }
 
 update() {
@@ -311,14 +384,16 @@ update() {
   need_release "$version" "$pin" releaseNotFound
   if older "$from" "$release_min_from"; then refuse belowMinFrom; fi
   if older "$version" "$from"; then refuse downgrade; fi
-  backup
+  backup update
   pin_and_start "$version" "$pin"
   step="done"
   finish succeeded
 }
 
 # Restores under the backup's version, then updates to the running one when
-# that is newer. No downgrade check: the database is replaced.
+# that is newer. No downgrade check: the database is replaced. A safety
+# backup comes first; a failure once `opsdeck restore` ran is restoreFailed
+# (not rolled back: the data has changed).
 restore() {
   pin_backup=$work/pin-backup.env
   if older "$from" "$version"; then
@@ -335,19 +410,26 @@ restore() {
     if older "$version" "$release_min_from"; then refuse belowMinFrom; fi
   fi
 
+  # Taken by the running images, before anything changes.
+  backup restore
+  remember_safety_backup
   record_previous
   set_step pull
   apply_env_lines "$pin_backup"
   run_logged docker compose pull || rollback pull
   set_step restore
-  run_logged docker compose stop app terminal || rollback restore
-  run_logged docker compose run --rm app opsdeck restore "$object_key" || rollback restore
+  run_logged docker compose stop app terminal || rollback stop
+  restore_invoked=1
+  run_logged docker compose run --rm app opsdeck restore "$object_key" || restore_failed restore
   set_step up
-  compose_up || rollback up
+  compose_up || restore_failed up
   set_step health
-  healthy "$version" || rollback health
+  healthy "$version" || restore_failed health
+  restore_invoked=0
 
   if [ -n "$continue_to" ]; then
+    # From here on, a rollback returns to the restored version.
+    from=$version
     log "restored under $version; updating to $continue_to"
     pin_and_start "$continue_to" "$pin_current"
   fi
@@ -391,7 +473,11 @@ umask 077
 euid=$(id -u)
 running=0
 final=0
+pinned=0
+restore_invoked=0
+caught=
 work=
+request=$updates/request.json
 
 # Sticky: the app may create its request but not rename or delete what root
 # writes here.
@@ -408,7 +494,6 @@ fi
 exec 9<"$lock"
 flock -n 9 || exit 0
 
-request=$updates/request.json
 if [ ! -e "$request" ] && [ ! -L "$request" ]; then exit 0; fi
 
 logs=$updates/logs
@@ -426,11 +511,15 @@ action=
 version=
 object_key=
 from=
+safety_id=
+safety_location=
+safety_key=
 step=validate
 work=$(mktemp -d)
 trap on_exit EXIT
-trap 'exit 143' TERM
-trap 'exit 130' INT
+trap 'caught=TERM; exit 143' TERM
+trap 'caught=INT; exit 130' INT
+trap 'caught=HUP; exit 129' HUP
 log_file=$logs/$run_id.log
 : >"$log_file"
 chmod 0640 "$log_file"

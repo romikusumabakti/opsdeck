@@ -19,7 +19,7 @@ describe("instance settings and backups migration", () => {
       `CREATE TYPE "instance_backup_status" AS ENUM('running', 'succeeded', 'failed')`
     );
     expect(sql).toContain(
-      `CREATE TYPE "instance_backup_trigger" AS ENUM('schedule', 'manual', 'update')`
+      `CREATE TYPE "instance_backup_trigger" AS ENUM('schedule', 'manual', 'update', 'restore')`
     );
   });
 

@@ -3035,7 +3035,8 @@
     "trigger": {
       "schedule": "Programada",
       "manual": "Manual",
-      "update": "Antes de actualizar"
+      "update": "Antes de actualizar",
+      "restore": "Antes de restaurar"
     },
     "status": {
       "running": "En curso",
