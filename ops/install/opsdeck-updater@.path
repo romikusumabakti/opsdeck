@@ -1,0 +1,11 @@
+# Watches the request the opsdeck app at /opt/<instance> writes, e.g.
+# opsdeck-updater@opsdeck-beta.path for /opt/opsdeck-beta.
+[Unit]
+Description=opsdeck update requests for /opt/%i
+
+[Path]
+PathChanged=/opt/%i/updates/request.json
+Unit=opsdeck-updater@%i.service
+
+[Install]
+WantedBy=multi-user.target
