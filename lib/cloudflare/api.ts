@@ -369,7 +369,8 @@ export type AccessApp = {
   policies?: { id: string }[];
 };
 
-function appDomains(app: AccessApp): string[] {
+/** Every hostname the app covers: its domain, self-hosted domains, destinations. */
+export function accessAppDomains(app: AccessApp): string[] {
   return [
     app.domain,
     ...(app.self_hosted_domains ?? []),
@@ -388,11 +389,17 @@ export async function findAccessAppByDomain(
   creds: CloudflareCreds,
   domain: string
 ): Promise<AccessApp | null> {
+  return (await listAccessAppsByDomain(creds, domain))[0] ?? null;
+}
+
+/** Every Access app that covers exactly `domain`, as findAccessAppByDomain matches. */
+export async function listAccessAppsByDomain(
+  creds: CloudflareCreds,
+  domain: string
+): Promise<AccessApp[]> {
   const apps = await listAll<AccessApp>(creds, "/access/apps");
-  return (
-    apps.find((app) =>
-      appDomains(app).some((candidate) => sameHostname(candidate, domain))
-    ) ?? null
+  return apps.filter((app) =>
+    accessAppDomains(app).some((candidate) => sameHostname(candidate, domain))
   );
 }
 

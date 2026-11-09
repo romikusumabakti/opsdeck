@@ -55,6 +55,35 @@ export const originHostSchema = z
 
 export const entryPortSchema = z.number().int().min(1).max(65535);
 
+// A tunnel route's origin, in the shape provisioning writes
+// (`http://<origin host>:<port>`); https is allowed for an existing origin
+// that serves TLS. No path: cloudflared would ignore it.
+const INGRESS_SERVICE_PATTERN = /^https?:\/\/([^/:\s]+):(\d{1,5})$/;
+
+export const ingressServiceSchema = z
+  .string()
+  .trim()
+  .refine((service) => {
+    const match = INGRESS_SERVICE_PATTERN.exec(service);
+    if (!match) return false;
+    const [, host, port] = match;
+    return (
+      originHostSchema.safeParse(host).success &&
+      entryPortSchema.safeParse(Number(port)).success
+    );
+  }, "Enter an origin such as http://app:80");
+
+/** Adopting a hostname Cloudflare already publishes through a tunnel. */
+export const adoptDomainInputSchema = z
+  .object({
+    hostname: externalHostnameSchema,
+    remoteTunnelId: z.uuid(),
+    service: ingressServiceSchema,
+  })
+  .strict();
+
+export type AdoptDomainInput = z.infer<typeof adoptDomainInputSchema>;
+
 export const domainInputSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -85,6 +114,19 @@ export function isPublicPolicy(policy: {
   everyone: boolean;
 }): boolean {
   return policy.decision === "bypass" || policy.everyone;
+}
+
+/**
+ * The registered zone the hostname is in: the longest matching zone name, so
+ * `a.dev.example.com` picks `dev.example.com` over `example.com`.
+ */
+export function zoneOf<Z extends { name: string }>(
+  hostname: string,
+  zones: Z[]
+): Z | undefined {
+  return zones
+    .filter((zone) => isUnderZone(hostname, [zone.name]))
+    .sort((a, b) => b.name.length - a.name.length)[0];
 }
 
 /** Whether the hostname is a registered zone or a name under one. */

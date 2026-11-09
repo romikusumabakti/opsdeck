@@ -223,6 +223,32 @@ export async function saveDomainIn(
   return true;
 }
 
+/**
+ * Records a tunnel binding whose Cloudflare objects already exist, with their
+ * ids, and the environment's URL. Only for an environment without a binding:
+ * returns false (and writes nothing) when it has one. A hostname another
+ * environment holds fails with the unique violation (23505).
+ */
+export async function adoptDomain(
+  environmentId: string,
+  row: DomainWrite &
+    Pick<typeof environmentDomains.$inferInsert, "accessAppId" | "dnsRecordId">
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(environmentDomains)
+      .values({ environmentId, ...row })
+      .onConflictDoNothing({ target: environmentDomains.environmentId })
+      .returning({ id: environmentDomains.environmentId });
+    if (rows.length === 0) return false;
+    await tx
+      .update(environments)
+      .set({ url: domainUrl(row.hostname) })
+      .where(eq(environments.id, environmentId));
+    return true;
+  });
+}
+
 /** Removes an unprovisioned binding. False when none was removed. */
 export async function deleteDomain(environmentId: string): Promise<boolean> {
   const rows = await db

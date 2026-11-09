@@ -2899,7 +2899,12 @@
       "domainPublicForbidden": "Hanya admin yang dapat memublikasikan tanpa Access",
       "domainPortInUse": "Environment lain di server ini sudah memakai entry port ini",
       "domainPortForbidden": "Hanya admin yang dapat memilih entry port di luar 8100–8999",
-      "domainExternalInZone": "Hostname ini berada di bawah zona terdaftar: gunakan jenis tunnel Cloudflare"
+      "domainExternalInZone": "Hostname ini berada di bawah zona terdaftar: gunakan jenis tunnel Cloudflare",
+      "hostnameNotOnTunnel": "Hostname ini tidak punya DNS record yang mengarah ke tunnel ini",
+      "domainAccessAppAmbiguous": "Lebih dari satu Access app mencakup hostname ini",
+      "domainAccessAppShared": "Access app hostname ini juga mencakup hostname lain",
+      "domainRouteConflict": "Tunnel sudah merutekan hostname ini ke service lain",
+      "domainTunnelConfigUnsafe": "Config tunnel tidak punya ingress rule catch-all sehingga tidak aman diubah"
     }
   },
   "teardown": {
