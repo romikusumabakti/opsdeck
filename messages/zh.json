@@ -1365,6 +1365,7 @@
     "hostKeyChanged": "自您核查后，服务器又提供了另一个主机密钥。请核查新的指纹。",
     "keyInstallFailed": "无法在服务器上安装 SSH 密钥。已保留其密码。",
     "keyLoginFailed": "服务器不接受使用 SSH 密钥登录。已保留其密码。",
+    "keyTypeUnsupported": "服务器的 OpenSSH 版本过旧，无法使用 SSH 密钥（ed25519 需要 OpenSSH 6.5 或更高版本）。未做任何更改，已保留其密码。",
     "unreachable": "无法通过 SSH 连接到服务器。",
     "sudoNeedsPassword": "该登录用户执行 sudo 需要密码，因此无法切换到 SSH 密钥。请使用 root 或 NOPASSWD sudo 规则。",
     "noPassword": "此服务器没有保存密码。请使用密码重新安装密钥。",

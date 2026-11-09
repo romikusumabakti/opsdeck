@@ -259,49 +259,56 @@ function keyAuthorized(key: Buffer): boolean {
     .some((line) => line.includes(` ${key.toString("base64")} `));
 }
 
-function startSshd(privateHostKey: string): Promise<ssh2.Server> {
-  const server = new ssh2.Server({ hostKeys: [privateHostKey] }, (client) => {
-    client.on("error", () => {});
-    client.on("authentication", (ctx) => {
-      sshd.authMethods.push(ctx.method);
-      if (ctx.method === "publickey") sshd.onKeyAuth?.();
-      if (ctx.method === "password" && sshd.passwords.has(ctx.password)) {
-        ctx.accept();
-        return;
-      }
-      if (
-        ctx.method === "publickey" &&
-        !sshd.rejectKey &&
-        keyAuthorized(ctx.key.data)
-      ) {
-        ctx.accept();
-        return;
-      }
-      ctx.reject(["password", "publickey"]);
-    });
-    client.on("ready", () => {
-      client.on("session", (accept) => {
-        const session = accept();
-        session.on("exec", (acceptExec, _reject, info) => {
-          const stream = acceptExec();
-          const child = spawn("/bin/sh", ["-c", info.command], {
-            env: {
-              HOME: sshd.home,
-              SSH_CLIENT: sshd.sshClient,
-              PATH: `${sshd.bin}:/usr/bin:/bin`,
-            },
-          });
-          stream.pipe(child.stdin);
-          child.stdout.pipe(stream, { end: false });
-          child.stderr.pipe(stream.stderr, { end: false });
-          child.on("close", (code) => {
-            stream.exit(code ?? 1);
-            stream.end();
+function startSshd(
+  privateHostKey: string,
+  // The software version the server announces (ssh2's own by default).
+  ident?: string
+): Promise<ssh2.Server> {
+  const server = new ssh2.Server(
+    { hostKeys: [privateHostKey], ident },
+    (client) => {
+      client.on("error", () => {});
+      client.on("authentication", (ctx) => {
+        sshd.authMethods.push(ctx.method);
+        if (ctx.method === "publickey") sshd.onKeyAuth?.();
+        if (ctx.method === "password" && sshd.passwords.has(ctx.password)) {
+          ctx.accept();
+          return;
+        }
+        if (
+          ctx.method === "publickey" &&
+          !sshd.rejectKey &&
+          keyAuthorized(ctx.key.data)
+        ) {
+          ctx.accept();
+          return;
+        }
+        ctx.reject(["password", "publickey"]);
+      });
+      client.on("ready", () => {
+        client.on("session", (accept) => {
+          const session = accept();
+          session.on("exec", (acceptExec, _reject, info) => {
+            const stream = acceptExec();
+            const child = spawn("/bin/sh", ["-c", info.command], {
+              env: {
+                HOME: sshd.home,
+                SSH_CLIENT: sshd.sshClient,
+                PATH: `${sshd.bin}:/usr/bin:/bin`,
+              },
+            });
+            stream.pipe(child.stdin);
+            child.stdout.pipe(stream, { end: false });
+            child.stderr.pipe(stream.stderr, { end: false });
+            child.on("close", (code) => {
+              stream.exit(code ?? 1);
+              stream.end();
+            });
           });
         });
       });
-    });
-  });
+    }
+  );
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve(server));
   });
@@ -600,6 +607,46 @@ describe("moveServerToKey", () => {
       code: "unreachable",
     });
     expect(row()).toMatchObject({ password: "pw", keyError: "unreachable" });
+  });
+
+  it("an OpenSSH too old for ed25519 keys is told apart and changes nothing", async () => {
+    seedAuthorizedKeys(FOREIGN);
+    const old = await startSshd(hostKey.private, "OpenSSH_5.3");
+    try {
+      state.port = (old.address() as { port: number }).port;
+      expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({
+        ok: false,
+        code: "keyTypeUnsupported",
+      });
+      expect(readFileSync(authorizedKeys(), "utf8")).toBe(FOREIGN);
+      expect(row()).toMatchObject({
+        auth: "password",
+        password: "pw",
+        keyError: "keyTypeUnsupported",
+      });
+    } finally {
+      old.close();
+    }
+  });
+
+  it("keyTypeUnsupported has a message in every locale", () => {
+    const message = (locale: string) =>
+      JSON.parse(readFileSync(`messages/${locale}.json`, "utf8")).actionErrors
+        .keyTypeUnsupported;
+    for (const locale of ["en", "id", "es", "ar", "zh"]) {
+      expect(message(locale)).toEqual(expect.any(String));
+    }
+    expect(message("id")).not.toBe(message("en"));
+  });
+
+  it("an OpenSSH from 6.5 on moves", async () => {
+    const recent = await startSshd(hostKey.private, "OpenSSH_6.5p1 Debian-1");
+    try {
+      state.port = (recent.address() as { port: number }).port;
+      expect(await moveServerToKey(SERVER_ID, USER_ID)).toEqual({ ok: true });
+    } finally {
+      recent.close();
+    }
   });
 
   it("a mismatched host key refuses before any auth", async () => {
