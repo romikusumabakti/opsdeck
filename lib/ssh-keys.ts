@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { BlockList, isIP } from "node:net";
 import { eq } from "drizzle-orm";
 import { utils } from "ssh2";
-import { db } from "@/lib/db";
+import { db, pgClient } from "@/lib/db";
 import { sshKeys } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 
@@ -140,7 +140,8 @@ export function authorizedKeysLine(
   return `from="${from}",no-agent-forwarding,no-X11-forwarding ${type} ${base64} ${marker}`;
 }
 
-function isOurs(line: string, marker: string): boolean {
+/** Whether an authorized_keys line is ours: its last field is `marker`. */
+export function isOurs(line: string, marker: string): boolean {
   const trimmed = line.trim();
   if (trimmed.startsWith("#")) return false;
   return trimmed.split(/\s+/).at(-1) === marker;
@@ -201,4 +202,48 @@ export function fromAddress(
   return list.check(address, addressFamily === 4 ? "ipv4" : "ipv6")
     ? ownSubnet
     : address;
+}
+
+/**
+ * Class of the per-server key-operation advisory locks: "sshk" as a
+ * big-endian int32, in the two-int4 key space (apart from the instance backup
+ * lock's "opsd" class and the single-bigint provisioning locks). The object id
+ * is Postgres' hashtext of the server id; two servers sharing a hash only
+ * serialise, never corrupt.
+ */
+export const SERVER_KEY_LOCK_CLASS = 1936943211;
+
+/**
+ * Takes the lock that serialises key operations on one server (move,
+ * reinstall, move-all, rotate) across every process. Resolves to its release,
+ * or to null when another operation holds it. Session-level, on a reserved
+ * connection held for the run, so a crashed process releases it with its
+ * connection.
+ */
+export async function serverKeyLock(
+  serverId: string
+): Promise<(() => Promise<void>) | null> {
+  const conn = await pgClient().reserve();
+  try {
+    const [row] = await conn<{ locked: boolean }[]>`
+      select pg_try_advisory_lock(
+        ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
+      ) as locked`;
+    if (!row?.locked) {
+      conn.release();
+      return null;
+    }
+  } catch (error) {
+    conn.release();
+    throw error;
+  }
+  return async () => {
+    try {
+      await conn`select pg_advisory_unlock(
+        ${SERVER_KEY_LOCK_CLASS}::int, hashtext(${serverId}::text)
+      )`;
+    } finally {
+      conn.release();
+    }
+  };
 }

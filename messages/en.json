@@ -1346,6 +1346,8 @@
     "sudoNeedsPassword": "This login needs a password for sudo, so it cannot move to the SSH key. Use root or a NOPASSWD sudo rule.",
     "noPassword": "No password is stored for this server. Reinstall the key with the password.",
     "passwordRejected": "The server rejected the password.",
+    "keyJobRunning": "Another SSH key operation is running for this server. Try again when it has finished.",
+    "sshDirUnsafe": "The server's ~/.ssh is owned by another user or writable by others, so SSH would ignore the key. Fix its owner and mode (chmod 700) first.",
     "invalidInput": "Invalid input",
     "errorGeneric": "Something went wrong",
     "sourceNotFound": "Storage source not found",
