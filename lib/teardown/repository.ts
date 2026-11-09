@@ -663,10 +663,19 @@ export async function startTeardownRun(
   });
 }
 
-/** The steps a cancelled teardown may have finished: checks and archives. */
+/**
+ * The steps a cancelled teardown may have finished: checks, archives and the
+ * stop before the file archives (the stacks then stay stopped).
+ */
 export const CANCELLABLE_DONE_KINDS: ReadonlySet<string> = new Set<
   TeardownStep["kind"]
->(["check_stack", "archive_database", "archive_deploy_dir", "archive_volumes"]);
+>([
+  "check_stack",
+  "archive_database",
+  "stop_stack",
+  "archive_deploy_dir",
+  "archive_volumes",
+]);
 
 /**
  * Cancels a teardown that has changed nothing yet: deletes its steps, which

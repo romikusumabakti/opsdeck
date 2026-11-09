@@ -60,6 +60,7 @@ vi.mock("@/lib/teardown/archive", () => ({
 }));
 vi.mock("@/lib/teardown/server-steps", () => ({
   checkStack: fakeStep("check_stack"),
+  stopStack: fakeStep("stop_stack"),
   stackDown: fakeStep("stack_down"),
   dropDatabase: fakeStep("drop_database"),
   removeDeployDir: fakeStep("remove_deploy_dir"),
@@ -212,6 +213,7 @@ const DIR = { serverId: "srv", deployDir: "/deployments/hris-staging" };
 const PARAMS: Record<string, Record<string, unknown>> = {
   check_stack: DIR,
   archive_database: { serviceId: "svc" },
+  stop_stack: DIR,
   archive_deploy_dir: DIR,
   archive_volumes: DIR,
   stack_down: DIR,
@@ -299,6 +301,7 @@ describe("runTeardown", () => {
     expect(state.executed).toEqual([
       "check_stack",
       "archive_database",
+      "stop_stack",
       "archive_deploy_dir",
       "archive_volumes",
       "stack_down",
@@ -319,7 +322,7 @@ describe("runTeardown", () => {
       lastError: "archiveFailed",
     };
     expect(await run()).toEqual({ status: "success" });
-    expect(state.executed[0]).toBe("archive_deploy_dir");
+    expect(state.executed[0]).toBe("stop_stack");
     expect(state.executed).not.toContain("check_stack");
     expect(state.executed).not.toContain("archive_database");
   });

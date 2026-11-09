@@ -190,7 +190,8 @@ const {
   dropDatabase,
   removeDeployDir,
   stackDown,
-  stopProjectForArchive,
+  projectVolumes,
+  stopStack,
   volumeArchiveCommand,
 } = await import("@/lib/teardown/server-steps");
 const { StepFailed } = await import("@/lib/teardown/errors");
@@ -448,32 +449,53 @@ describe("checkStack", () => {
   });
 });
 
-describe("stopProjectForArchive and volumeArchiveCommand", () => {
-  it("stops the project after the checks and lists its real volumes", async () => {
-    const result = await stopProjectForArchive(ctx(), params);
-    expect(result.volumes).toEqual(["app_pgdata"]);
+describe("stopStack", () => {
+  it("stops the project after the checks, in one script", async () => {
+    await expect(stopStack(ctx(), params)).resolves.toContain("stopped");
     expect(composeLog()).toEqual(["app stop"]);
     expect(state.calls).toHaveLength(1);
   });
 
   it("stops nothing when a check refuses", async () => {
     containers([`app|shared-pg|${DIR}`]);
-    expect(await code(stopProjectForArchive(ctx(), params))).toBe(
+    expect(await code(stopStack(ctx(), params))).toBe(
       "stackHostsSharedDatabase"
     );
     expect(composeLog()).toEqual([]);
   });
 
+  it("is ok when the dir is gone", async () => {
+    rmSync(DIR, { recursive: true });
+    await expect(stopStack(ctx(), params)).resolves.toContain(
+      "nothing to stop"
+    );
+    expect(composeLog()).toEqual([]);
+  });
+});
+
+describe("projectVolumes and volumeArchiveCommand", () => {
+  it("lists the project's real volumes after the checks and stops nothing", async () => {
+    const result = await projectVolumes(ctx(), params);
+    expect(result).toEqual({
+      dir: DIR,
+      project: "app",
+      volumes: ["app_pgdata"],
+    });
+    expect(composeLog()).toEqual([]);
+    expect(state.calls).toHaveLength(1);
+  });
+
   it("is ok with no volumes when the dir is gone", async () => {
     rmSync(DIR, { recursive: true });
-    await expect(stopProjectForArchive(ctx(), params)).resolves.toMatchObject({
+    await expect(projectVolumes(ctx(), params)).resolves.toMatchObject({
+      project: null,
       volumes: [],
     });
   });
 
   it("refuses a volume name outside the strict pattern", async () => {
     volumes(["app|app_pgdata", "app|bad:name"]);
-    expect(await code(stopProjectForArchive(ctx(), params))).toBe(
+    expect(await code(projectVolumes(ctx(), params))).toBe(
       "serverCommandFailed"
     );
   });

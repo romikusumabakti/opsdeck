@@ -543,6 +543,18 @@ describe("GET /api/environments/:id/teardown", () => {
       cancellable: false,
     });
 
+    // The stop before the file archives is not destructive.
+    repo.listTeardownSteps.mockResolvedValue(
+      steps([
+        "check_stack",
+        "archive_database",
+        "stop_stack",
+        "archive_volumes",
+      ])
+    );
+    res = await send("GET", `/api/environments/${ENV_ID}/teardown`);
+    expect(await res.json()).toMatchObject({ cancellable: true });
+
     repo.listTeardownSteps.mockResolvedValue(steps(["check_stack"]));
     repo.teardownState.mockResolvedValue({
       planned: true,

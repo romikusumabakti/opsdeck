@@ -2974,6 +2974,7 @@
     "steps": {
       "check_stack": "检查 stack",
       "archive_database": "备份数据库",
+      "stop_stack": "停止栈",
       "archive_deploy_dir": "备份服务器文件夹",
       "archive_volumes": "备份卷",
       "stack_down": "停止并移除容器",

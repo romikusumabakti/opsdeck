@@ -182,19 +182,17 @@ vi.mock("@/lib/teardown/server-steps", async (importOriginal) => {
   };
   return {
     volumeArchiveCommand: real.volumeArchiveCommand,
-    stopProjectForArchive: async (
-      _ctx: unknown,
-      params: { deployDir: string }
-    ) => {
+    projectVolumes: async (_ctx: unknown, params: { deployDir: string }) => {
       if (state.stopError) throw state.stopError;
       state.stopped.push(params.deployDir);
       return {
-        message: `Stack app in ${params.deployDir} stopped`,
+        dir: params.deployDir,
         project: "app",
         volumes: state.stopVolumes,
       };
     },
     checkStack: record("check_stack"),
+    stopStack: record("stop_stack"),
     stackDown: record("stack_down"),
     removeDeployDir: record("remove_deploy_dir"),
     dropDatabase: record("drop_database"),
@@ -672,11 +670,13 @@ describe("archiveDeployDir", () => {
 });
 
 describe("archiveVolumes", () => {
-  it("stops the stack, then archives each volume that still exists", async () => {
+  it("lists the project's volumes without stopping, then archives each that still exists", async () => {
     state.stopVolumes = ["app_data", "app_cache"];
     await archiveVolumes(ctx(), DIR);
 
     expect(state.stopped).toEqual([DIR.deployDir]);
+    // stop_stack has stopped the stack already; archive_volumes stops nothing.
+    expect(state.serverSteps).toEqual([]);
     expect(state.streams).toHaveLength(2);
     const command = state.streams[0]?.command ?? "";
     // Checked right before it is read: docker run would create an empty one.
@@ -745,7 +745,7 @@ describe("archiveVolumes", () => {
     expect(command).toContain("exit 45");
   });
 
-  it("passes on a refusal before the stop as it is", async () => {
+  it("passes on a refusal of the checks as it is", async () => {
     state.stopError = new StepFailed("deployDirShared");
     await expect(archiveVolumes(ctx(), DIR)).rejects.toThrow(
       expect.objectContaining({ code: "deployDirShared" })
@@ -755,7 +755,7 @@ describe("archiveVolumes", () => {
 
   it("archives nothing when the stack has no volumes", async () => {
     const message = await archiveVolumes(ctx(), DIR);
-    expect(message).toContain("stopped");
+    expect(message).toContain("no volumes to archive");
     expect(state.streams).toEqual([]);
   });
 });
@@ -776,6 +776,7 @@ describe("a failed archive in the runner", () => {
     seed([
       ["check_stack", DIR],
       ["archive_database", { serviceId: "svc" }],
+      ["stop_stack", DIR],
       ["archive_deploy_dir", DIR],
       ["archive_volumes", DIR],
       ["stack_down", DIR],
@@ -795,6 +796,7 @@ describe("a failed archive in the runner", () => {
       "pending",
       "pending",
       "pending",
+      "pending",
     ]);
     expect(state.steps[1]?.lastError).toBe("archiveFailed");
     expect(state.serverSteps).toEqual(["check_stack"]);
@@ -809,6 +811,7 @@ describe("a failed archive in the runner", () => {
     );
     expect(state.serverSteps).toEqual([
       "check_stack",
+      "stop_stack",
       "stack_down",
       "remove_deploy_dir",
       "delete_environment",

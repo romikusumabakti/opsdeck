@@ -150,7 +150,7 @@ export async function retryTeardown(
 
 /**
  * Cancels a teardown that has only checked and archived: its steps go, and
- * the environment takes deploys again. A stack an archive_volumes step
+ * the environment takes deploys again. A stack the stop_stack step
  * stopped stays stopped. The open archive is detached and pruned as
  * incomplete later; a new teardown archives afresh.
  */
