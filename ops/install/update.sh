@@ -171,7 +171,7 @@ refuse() { finish refused "$1"; }
 # - after the previous lines were recorded: put them back (rolled_back);
 # - before: nothing changed, failed.
 # Then a request written during the run is picked up by a fresh run.
-# shellcheck disable=SC2329 # invoked by the EXIT trap
+# shellcheck disable=SC2317,SC2329 # invoked by the EXIT trap (SC2317 before 0.11)
 on_exit() {
   status=$?
   set +e
@@ -726,7 +726,7 @@ fi
 log "request: $action to $version${object_key:+ from $object_key}"
 
 # The instance: running version, pinned lines and the health endpoint.
-[ -f "$env_file" ] && [ ! -L "$env_file" ] || { log "instance: $env_file is missing"; refuse invalidInstall; }
+if [ ! -f "$env_file" ] || [ -L "$env_file" ]; then log "instance: $env_file is missing"; refuse invalidInstall; fi
 [ -f "$dir/compose.yaml" ] || { log "instance: $dir/compose.yaml is missing"; refuse invalidInstall; }
 [ -n "$from" ] || { log "instance: OPSDECK_VERSION in .env is not a release version"; refuse invalidInstall; }
 for pair in $IMAGE_KEYS; do

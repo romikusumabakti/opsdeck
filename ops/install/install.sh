@@ -224,7 +224,7 @@ way_back() {
   fi
 }
 
-# shellcheck disable=SC2329 # invoked by the EXIT trap
+# shellcheck disable=SC2317,SC2329 # invoked by the EXIT trap (SC2317 before 0.11)
 on_exit() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$changed" = 1 ]; then way_back; fi
@@ -235,7 +235,7 @@ on_exit() {
 # (exported for `docker compose run -e NAME`, which passes values without
 # putting them in an argument).
 load_s3_env() { # <file>
-  [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] || die "--s3-env-file: cannot read $1"
+  if [ ! -f "$1" ] || [ -L "$1" ] || [ ! -r "$1" ]; then die "--s3-env-file: cannot read $1"; fi
   case $(stat -c '%a' "$1") in
     600 | 400) ;;
     *) die "--s3-env-file: $1 must be mode 0600" ;;
@@ -331,8 +331,9 @@ main() {
     matches "$hostname" "$HOST_RE" || die "--hostname must be a bare host name, e.g. panel.example.com"
   fi
   if [ -n "$http_port" ]; then
-    matches "$http_port" '[0-9]{1,5}' && [ "$http_port" -ge 1 ] && [ "$http_port" -le 65535 ] ||
+    if ! matches "$http_port" '[0-9]{1,5}' || [ "$http_port" -lt 1 ] || [ "$http_port" -gt 65535 ]; then
       die "--http-port must be a port number"
+    fi
   fi
   [ -z "$adopt" ] || [ -z "$restore" ] || die "--adopt and --restore cannot be combined"
   [ -z "$key_file" ] || [ -n "$restore" ] || die "--secrets-key-file is only for --restore"
@@ -458,8 +459,9 @@ main() {
     fetch "$RELEASE_BASE/v$version/$asset" "$work/$asset" || die "release v$version: cannot download $asset"
   done
   rel=$work/release.json
-  one_line_json "$rel" 16384 && [ "$(json_str version "$rel")" = "$version" ] ||
+  if ! one_line_json "$rel" 16384 || [ "$(json_str version "$rel")" != "$version" ]; then
     die "release v$version: release.json is invalid"
+  fi
   for asset in $RELEASE_ASSETS; do
     sum=$(sha256sum <"$work/$asset")
     [ "${sum%% *}" = "$(json_str "$asset" "$rel")" ] ||
@@ -481,7 +483,7 @@ main() {
   have_docker=0
   if command -v docker >/dev/null 2>&1; then have_docker=1; fi
   if [ -n "$adopt" ]; then
-    [ -r "$adopt" ] && [ -f "$adopt" ] || die "--adopt: cannot read $adopt"
+    if [ ! -r "$adopt" ] || [ ! -f "$adopt" ]; then die "--adopt: cannot read $adopt"; fi
     for key in $ADOPT_REQUIRED; do
       [ -n "$(env_value "$key" "$adopt")" ] || die "--adopt: $key is missing in $adopt"
     done
