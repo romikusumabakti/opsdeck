@@ -589,6 +589,100 @@ describe("removeDeployDir", () => {
   });
 });
 
+describe("removeDeployDir on the resolved real dir", () => {
+  it("removes the symlink target and the link when the dir is a symlink", async () => {
+    rmSync(DIR, { recursive: true });
+    const real = join(ROOT, "data", "app");
+    mkdirSync(real, { recursive: true });
+    symlinkSync(real, DIR);
+    await expect(removeDeployDir(ctx(), params)).resolves.toContain("removed");
+    expect(existsSync(real)).toBe(false);
+    expect(existsSync(DIR)).toBe(false);
+    expect(existsSync(join(ROOT, "data"))).toBe(true);
+  });
+
+  it("refuses when the real dir is a system tree or a top-level dir", async () => {
+    for (const target of ["/proc/td-nonexistent", "/td-nonexistent-top"]) {
+      rmSync(DIR, { recursive: true, force: true });
+      symlinkSync(target, DIR);
+      expect(await code(removeDeployDir(ctx(), params)), target).toBe(
+        "unsafeDeployDir"
+      );
+    }
+  });
+});
+
+// busybox (Alpine) has no `realpath -m`: a fake `realpath` rejects -m and
+// hands everything else to the real one, so the fallbacks run for real.
+const NO_M_REALPATH = `#!/bin/sh
+for a; do [ "$a" = -m ] && { echo "realpath: unrecognized option: m" >&2; exit 1; }; done
+exec /usr/bin/realpath "$@"
+`;
+const FAILING = `#!/bin/sh
+echo "$0: not available" >&2
+exit 1
+`;
+
+describe("without realpath -m (busybox)", () => {
+  beforeEach(() => {
+    writeFileSync(join(BIN, "realpath"), NO_M_REALPATH);
+    chmodSync(join(BIN, "realpath"), 0o755);
+  });
+
+  /** Ours reached through a symlinked parent; the real parent returned. */
+  function symlinkedParent(): string {
+    rmSync(DEPLOY, { recursive: true });
+    const realParent = join(ROOT, "data", "deployments");
+    mkdirSync(realParent, { recursive: true });
+    symlinkSync(realParent, DEPLOY);
+    stack(DIR, { volumes: [] });
+    containers([]);
+    return realParent;
+  }
+
+  it("refuses a neighbour registered by its real path (review case)", async () => {
+    const realParent = symlinkedParent();
+    const worker = join(realParent, "app", "worker");
+    stack(worker);
+    setGuard({ otherDeployDirs: [worker] });
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+    expect(await code(removeDeployDir(ctx(), params))).toBe("deployDirShared");
+    expect(existsSync(join(worker, "compose.yaml"))).toBe(true);
+  });
+
+  it("refuses a neighbour's real path that does not exist yet", async () => {
+    const realParent = symlinkedParent();
+    setGuard({ otherDeployDirs: [join(realParent, "app", "later", "x")] });
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+    expect(await code(removeDeployDir(ctx(), params))).toBe("deployDirShared");
+    expect(existsSync(DIR)).toBe(true);
+  });
+
+  it("still removes our dir when nothing overlaps", async () => {
+    const realParent = symlinkedParent();
+    const other = join(realParent, "other");
+    stack(other);
+    setGuard({ otherDeployDirs: [other, join(ROOT, "missing", "dir")] });
+    await expect(checkStack(ctx(), params)).resolves.toContain("checked");
+    await expect(removeDeployDir(ctx(), params)).resolves.toContain("removed");
+    expect(existsSync(join(realParent, "app"))).toBe(false);
+    expect(existsSync(join(other, "compose.yaml"))).toBe(true);
+  });
+
+  it("refuses when no tool can resolve a path, and removes nothing", async () => {
+    for (const tool of ["realpath", "readlink"]) {
+      writeFileSync(join(BIN, tool), FAILING);
+      chmodSync(join(BIN, tool), 0o755);
+    }
+    for (const step of [checkStack, removeDeployDir]) {
+      const failed = await failure(step(ctx(), params));
+      expect(failed.code).toBe("serverCommandFailed");
+      expect(failed.message).toContain("could not resolve");
+    }
+    expect(existsSync(DIR)).toBe(true);
+  });
+});
+
 describe("dropDatabase", () => {
   const dbParams = { serviceId: "svc-db" };
 

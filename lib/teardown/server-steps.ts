@@ -19,6 +19,8 @@ import {
   dirsOverlap,
   isSafeDeployDir,
   normaliseDeployDir,
+  PARENT_DIRS,
+  SYSTEM_TREES,
 } from "@/lib/teardown/paths";
 import type { TeardownStepSpec } from "@/lib/teardown/plan";
 import {
@@ -73,6 +75,8 @@ const EXIT = {
   deployDirShared: 10,
   stackHostsSharedDatabase: 11,
   unreadableProject: 12,
+  unresolvablePath: 13,
+  unsafeRealDir: 14,
   composeConfigFailed: 20,
   dockerListFailed: 21,
   composeActionFailed: 30,
@@ -138,6 +142,13 @@ function failed(ctx: TeardownContext, result: RemoteScriptResult): StepFailed {
         "serverCommandFailed",
         "could not read the compose project of this or another environment's dir"
       );
+    case EXIT.unresolvablePath:
+      return new StepFailed(
+        "serverCommandFailed",
+        "could not resolve the real path of a deploy dir on the server"
+      );
+    case EXIT.unsafeRealDir:
+      return new StepFailed("unsafeDeployDir");
     case EXIT.composeConfigFailed:
       return new StepFailed(
         "serverCommandFailed",
@@ -188,12 +199,28 @@ async function load(
 }
 
 // Shell helpers every step script starts with. `under A B`: A is B or lies
-// inside it (B = / covers every absolute path). `resolved P`: realpath -m,
-// or P itself where realpath has no -m (busybox).
+// inside it (B = / covers every absolute path). `resolved P`: P with every
+// symlink resolved, or a non-zero status; never P unresolved, since an
+// unresolved path would hide an overlap. `realpath -m` (GNU and uutils
+// coreutils) first; where it has no -m (busybox), the deepest existing
+// ancestor is resolved with `realpath`/`readlink -f` and the rest appended.
+// Callers exit unresolvablePath on failure.
 const SHELL_HELPERS = [
   'under() { if [ "$2" = / ]; then return 0; fi; case "$1/" in "$2"/*) return 0;; esac; return 1; }',
   'overlap() { under "$1" "$2" || under "$2" "$1"; }',
-  'resolved() { realpath -m -- "$1" 2>/dev/null || printf \'%s\\n\' "$1"; }',
+  [
+    "resolved() {",
+    '  realpath -m -- "$1" 2>/dev/null && return 0',
+    '  case "$1" in /*) ;; *) return 1;; esac',
+    "  r_p=$1; r_rest=",
+    '  while [ ! -e "$r_p" ] && [ ! -L "$r_p" ]; do',
+    `    r_rest=/\${r_p##*/}$r_rest; r_p=\${r_p%/*}; [ -n "$r_p" ] || r_p=/`,
+    "  done",
+    '  r_real=$(realpath -- "$r_p" 2>/dev/null) || r_real=$(readlink -f -- "$r_p" 2>/dev/null) || return 1',
+    '  case "$r_real" in /*) ;; *) return 1;; esac',
+    `  if [ "$r_real" = / ]; then printf '%s\\n' "\${r_rest:-/}"; else printf '%s%s\\n' "$r_real" "$r_rest"; fi`,
+    "}",
+  ].join("\n"),
 ];
 
 /**
@@ -240,7 +267,7 @@ function stackGuardLines(
     'echo "project $name"',
     // $1 another environment's dir as stored, $2 its dir-derived project.
     "check_other() {",
-    '  o_real=$(resolved "$1")',
+    `  o_real=$(resolved "$1") || exit ${EXIT.unresolvablePath}`,
     `  if overlap "$real" "$o_real" || overlap "$D" "$1"; then exit ${EXIT.deployDirShared}; fi`,
     `  if [ -d "$1" ] && ${hasCompose('"$1"')}; then`,
     `    o_name=$(project_in "$1") || exit ${EXIT.unreadableProject}`,
@@ -258,7 +285,10 @@ function stackGuardLines(
     '  [ -n "$c_name" ] || continue',
     `  for db in ${dbList}; do if [ "$c_name" = "$db" ]; then exit ${EXIT.stackHostsSharedDatabase}; fi; done`,
     `  [ -n "$c_dir" ] || exit ${EXIT.deployDirShared}`,
-    `  if [ "$c_dir" != "$D" ] && [ "$(resolved "$c_dir")" != "$real" ]; then exit ${EXIT.deployDirShared}; fi`,
+    '  if [ "$c_dir" != "$D" ]; then',
+    `    c_real=$(resolved "$c_dir") || exit ${EXIT.deployDirShared}`,
+    `    [ "$c_real" = "$real" ] || exit ${EXIT.deployDirShared}`,
+    "  fi",
     "done <<EOF_CONTAINERS",
     "$cs",
     "EOF_CONTAINERS",
@@ -402,9 +432,11 @@ export async function stackDown(
 /**
  * remove_deploy_dir: `rm -rf --` on the canonical dir, once it is still a
  * safe path and no other environment's dir overlaps it, as stored and,
- * within the same script, once resolved on the server. Tried as the SSH
- * user first, then elevated (container-owned files in bind mounts). Ok when
- * already absent.
+ * within the same script, once resolved on the server. What is removed is
+ * the resolved real dir (re-checked as isSafeDeployDir does: two segments,
+ * no system tree, not a parent of real data), plus the stored path when it
+ * is itself a symlink. Tried as the SSH user first, then elevated
+ * (container-owned files in bind mounts). Ok when already absent.
  */
 export async function removeDeployDir(
   ctx: TeardownContext,
@@ -416,19 +448,23 @@ export async function removeDeployDir(
   if (others.some((other) => dirsOverlap(dir, other))) {
     throw new StepFailed("deployDirShared");
   }
-  const rm = 'rm -rf -- "$D"';
+  const rm = 'rm -rf -- "$real" "$D"';
   const elevated = privilegedViaStdin(rm, target);
   const remove =
     elevated.command === rm ? rm : `${rm} 2>/dev/null || ${elevated.command}`;
+  const parents = [...PARENT_DIRS].map(shq).join("|");
   const body = [
     `D=${shq(dir)}`,
     ...SHELL_HELPERS,
     `if [ ! -e "$D" ] && [ ! -L "$D" ]; then echo 'state absent'; exit 0; fi`,
-    'real=$(resolved "$D")',
-    ...others.map(
-      (other) =>
-        `if overlap "$real" "$(resolved ${shq(other)})"; then exit ${EXIT.deployDirShared}; fi`
-    ),
+    `real=$(resolved "$D") || exit ${EXIT.unresolvablePath}`,
+    ...others.flatMap((other) => [
+      `o_real=$(resolved ${shq(other)}) || exit ${EXIT.unresolvablePath}`,
+      `if overlap "$real" "$o_real"; then exit ${EXIT.deployDirShared}; fi`,
+    ]),
+    `case "$real" in /?*/?*) ;; *) exit ${EXIT.unsafeRealDir};; esac`,
+    `for t in ${SYSTEM_TREES.map(shq).join(" ")}; do if under "$real" "$t"; then exit ${EXIT.unsafeRealDir}; fi; done`,
+    `case "$real" in ${parents}) exit ${EXIT.unsafeRealDir};; /home/*/*) ;; /home/*) exit ${EXIT.unsafeRealDir};; esac`,
     `${remove} || exit ${EXIT.removeFailed}`,
     "echo 'state removed'",
   ].join("\n");
