@@ -19,6 +19,7 @@ import {
   runRestore,
   SwapOutcomeUnknownError,
   s3BackupSource,
+  suffixed,
 } from "@/lib/instance-backup/restore";
 import { RESTORE_REFUSED_EXIT } from "@/lib/updates/request";
 import { parseRestoreArgs, restoreExitCode } from "@/scripts/cli/restore";
@@ -474,6 +475,36 @@ describe("swap outcome and names", () => {
       status: "failed",
       errorCode: "restoreFailed",
     });
+  });
+
+  it("cuts names by bytes, never inside a UTF-8 sequence", () => {
+    // 31 two-byte characters and an "a": 63 bytes, 32 characters.
+    const name = `${"é".repeat(31)}a`;
+    expect(Buffer.byteLength(name)).toBe(63);
+    const scratch = suffixed(name, "_restore");
+    expect(Buffer.byteLength(scratch)).toBeLessThanOrEqual(63);
+    expect(scratch).toBe(`${"é".repeat(27)}_restore`);
+    expect(suffixed(name, "_pre_restore")).toBe(
+      `${"é".repeat(25)}_pre_restore`
+    );
+  });
+
+  it("refuses a multibyte 63-byte name whose scratch name would be itself", async () => {
+    // 27 × "é" + "a" is 55 bytes: by characters the old cut kept the whole
+    // name, and Postgres would have truncated `<name>_restore` back to it.
+    const name = `${"é".repeat(27)}a_restore`;
+    expect(Buffer.byteLength(name)).toBe(63);
+    const database = pgRestoreDatabase(
+      `postgres://u:p@h/${encodeURIComponent(name)}`,
+      {
+        connect: () => {
+          throw new Error("must not connect");
+        },
+      }
+    );
+    await expect(database.prepare("/x/database.dump")).rejects.toThrow(
+      /distinct scratch names/
+    );
   });
 
   it("refuses a database name that leaves no room for distinct scratch names", async () => {

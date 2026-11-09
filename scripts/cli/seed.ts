@@ -128,6 +128,9 @@ export async function seedDemo(
     );
   }
 
+  // Printed once the transaction commits: a password for an account that a
+  // rollback never created would be worthless, and misleading.
+  const lines: string[] = [];
   await db.transaction(async (tx) => {
     const projectIds: string[] = [];
     for (const project of DEMO_PROJECTS) {
@@ -195,13 +198,13 @@ export async function seedDemo(
           providerId: "credential",
           password: await opts.hashPassword(password),
         });
-        opts.out(
+        lines.push(
           opts.printPasswords
             ? `created ${email} (${account.orgRole}) password: ${password}`
             : `created ${email} (${account.orgRole})`
         );
       } else {
-        opts.out(`exists  ${email}`);
+        lines.push(`exists  ${email}`);
       }
       if (account.projectRole) {
         await tx
@@ -217,6 +220,7 @@ export async function seedDemo(
       }
     }
   });
+  for (const line of lines) opts.out(line);
 }
 
 export async function runSeed(args: string[]): Promise<number> {

@@ -413,9 +413,25 @@ const bunSpawn: Spawner = async (cmd, env) => {
 const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
 const literal = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
-/** A database name with a suffix, within Postgres' 63-byte identifier limit. */
-function suffixed(name: string, suffix: string): string {
-  return `${name.slice(0, 63 - suffix.length)}${suffix}`;
+/** Postgres' identifier limit (NAMEDATALEN - 1), in bytes. */
+const MAX_IDENTIFIER_BYTES = 63;
+
+/**
+ * A database name with an ASCII suffix, within Postgres' 63-byte identifier
+ * limit: the name is cut by bytes, never inside a UTF-8 sequence (Postgres
+ * would truncate a longer one itself, to a name that may be another's).
+ */
+export function suffixed(name: string, suffix: string): string {
+  const room = MAX_IDENTIFIER_BYTES - Buffer.byteLength(suffix);
+  let head = "";
+  let bytes = 0;
+  for (const char of name) {
+    const size = Buffer.byteLength(char);
+    if (bytes + size > room) break;
+    head += char;
+    bytes += size;
+  }
+  return `${head}${suffix}`;
 }
 
 /**
@@ -439,7 +455,11 @@ export function pgRestoreDatabase(
   const target = decodeURIComponent(new URL(url).pathname.slice(1));
   const scratch = suffixed(target, "_restore");
   const previous = suffixed(target, "_pre_restore");
-  const distinctNames = new Set([target, scratch, previous]).size === 3;
+  // A name over 63 bytes is not what Postgres stores, and a cut one can come
+  // out equal to the live name (`<55 a>_restore` → scratch `<55 a>_restore`).
+  const distinctNames =
+    Buffer.byteLength(target) <= MAX_IDENTIFIER_BYTES &&
+    new Set([target, scratch, previous]).size === 3;
   const maintenance = new URL(url);
   maintenance.pathname = "/postgres";
   let admin: Sql | null = null;
