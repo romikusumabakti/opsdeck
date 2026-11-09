@@ -61,6 +61,7 @@ export type KeyMoveCode =
   | "sshDirUnsafe"
   | "keyInstallFailed"
   | "keyLoginFailed"
+  | "keyTypeUnsupported"
   | "oldKeyNotRemoved";
 
 export type KeyMoveResult = { ok: true } | { ok: false; code: KeyMoveCode };
@@ -132,6 +133,24 @@ class StepFailed extends Error {
 }
 
 type ExecResult = { code: number | null; stdout: string };
+
+/**
+ * Whether the server announced an OpenSSH older than 6.5, the first to take
+ * ed25519 keys (the instance key's type). Read from the version the server
+ * sent in its identification string (ssh2 keeps it on the client); another
+ * sshd, or none announced, is not judged here.
+ */
+function lacksEd25519(ssh: NodeSSH): boolean {
+  const software = (ssh.connection as { _remoteVer?: unknown } | null)
+    ?._remoteVer;
+  const m =
+    typeof software === "string"
+      ? /^OpenSSH_(\d+)\.(\d+)/.exec(software)
+      : null;
+  if (!m) return false;
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  return major < 6 || (major === 6 && minor < 5);
+}
 
 async function exec(
   ssh: NodeSSH,
@@ -366,6 +385,8 @@ async function moveLocked(
 
   let from: string;
   try {
+    // Nothing to install on a server that cannot take the key.
+    if (lacksEd25519(ssh)) return fail("keyTypeUnsupported");
     if (server.username !== "root") {
       const sudo = await exec(ssh, "sudo -n true");
       if (sudo.code !== 0) return fail("sudoNeedsPassword");

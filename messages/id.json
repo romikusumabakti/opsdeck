@@ -1365,6 +1365,7 @@
     "hostKeyChanged": "Server menawarkan host key lain sejak Anda memeriksanya. Periksa fingerprint yang baru.",
     "keyInstallFailed": "Gagal memasang SSH key di server. Password-nya tetap disimpan.",
     "keyLoginFailed": "Server tidak menerima login dengan SSH key. Password-nya tetap disimpan.",
+    "keyTypeUnsupported": "OpenSSH di server terlalu lama untuk SSH key (ed25519 butuh OpenSSH 6.5 atau lebih baru). Tidak ada yang diubah; password-nya tetap disimpan.",
     "unreachable": "Server tidak dapat dihubungi lewat SSH.",
     "sudoNeedsPassword": "Login ini butuh password untuk sudo, jadi tidak bisa pindah ke SSH key. Gunakan root atau aturan sudo NOPASSWD.",
     "noPassword": "Tidak ada password tersimpan untuk server ini. Pasang ulang key dengan password.",

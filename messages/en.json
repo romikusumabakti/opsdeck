@@ -1365,6 +1365,7 @@
     "hostKeyChanged": "The server has offered another host key since you checked it. Review the new fingerprint.",
     "keyInstallFailed": "Could not install the SSH key on the server. Its password is kept.",
     "keyLoginFailed": "The server did not accept a login with the SSH key. Its password is kept.",
+    "keyTypeUnsupported": "The server's OpenSSH is too old for the SSH key (ed25519 needs OpenSSH 6.5 or later). Nothing was changed; it keeps its password.",
     "unreachable": "The server could not be reached over SSH.",
     "sudoNeedsPassword": "This login needs a password for sudo, so it cannot move to the SSH key. Use root or a NOPASSWD sudo rule.",
     "noPassword": "No password is stored for this server. Reinstall the key with the password.",

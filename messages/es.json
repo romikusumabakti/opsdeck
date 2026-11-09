@@ -1365,6 +1365,7 @@
     "hostKeyChanged": "El servidor ha ofrecido otra clave de host desde que la revisaste. Revisa la nueva huella.",
     "keyInstallFailed": "No se pudo instalar la clave SSH en el servidor. Se conserva su contraseña.",
     "keyLoginFailed": "El servidor no aceptó el inicio de sesión con la clave SSH. Se conserva su contraseña.",
+    "keyTypeUnsupported": "El OpenSSH del servidor es demasiado antiguo para la clave SSH (ed25519 requiere OpenSSH 6.5 o posterior). No se cambió nada; conserva su contraseña.",
     "unreachable": "No se pudo conectar con el servidor por SSH.",
     "sudoNeedsPassword": "Este usuario necesita contraseña para sudo, así que no puede pasar a la clave SSH. Usa root o una regla sudo NOPASSWD.",
     "noPassword": "No hay contraseña guardada para este servidor. Reinstala la clave con la contraseña.",
