@@ -162,6 +162,10 @@ describe("planTeardown", () => {
           params: { serverId: S1, deployDir: "/deployments/dms" },
         },
         {
+          kind: "archive_volumes",
+          params: { serverId: S1, deployDir: "/deployments/dms" },
+        },
+        {
           kind: "stack_down",
           params: { serverId: S1, deployDir: "/deployments/dms" },
         },
@@ -188,6 +192,8 @@ describe("planTeardown", () => {
       "check_stack",
       "archive_deploy_dir",
       "archive_deploy_dir",
+      "archive_volumes",
+      "archive_volumes",
       "stack_down",
       "stack_down",
       "remove_deploy_dir",
@@ -414,6 +420,7 @@ describe("planTeardown", () => {
       "check_stack",
       "archive_database",
       "archive_deploy_dir",
+      "archive_volumes",
       "stack_down",
       "drop_database",
       "remove_dns_record",
@@ -454,6 +461,7 @@ describe("teardownStepSpecSchema", () => {
     for (const kind of [
       "check_stack",
       "archive_deploy_dir",
+      "archive_volumes",
       "stack_down",
       "remove_deploy_dir",
     ]) {

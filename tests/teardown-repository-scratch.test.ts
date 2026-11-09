@@ -259,6 +259,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       "check_stack",
       "archive_database",
       "archive_deploy_dir",
+      "archive_volumes",
       "stack_down",
       "remove_deploy_dir",
       "delete_environment",
@@ -337,11 +338,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       expect(guard).toEqual({
         otherDeployDirs: ["/"],
         databaseContainers: ["td-it-shared-pg", "td-it-third-db"],
-        hasDbService: true,
       });
-      expect((await loadStackGuard(ids.other, ids.server2))?.hasDbService).toBe(
-        true
-      );
       await expect(loadStackGuard(ids.env, crypto.randomUUID())).resolves.toBe(
         null
       );

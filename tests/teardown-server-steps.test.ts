@@ -1,42 +1,92 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The server-side teardown steps against a fake SSH host: executeRemoteCommand
-// is replaced by a small model of one machine (deploy dirs, compose projects,
-// containers, volumes, databases on a shared host), so a step's commands
-// change that model as the real ones would change the server.
+// The server-side teardown steps run their real scripts under `sh` here: the
+// SSH layer is replaced by a local `sh -c`, with a fake `docker` (and `sudo`)
+// on PATH whose state lives in files. Deploy dirs are real directories under
+// a temp root, so `cd`, `pwd -P`, `realpath -m` and `rm -rf` act for real.
+// The fake `docker compose` prints the Podman provider banner on stderr and a
+// secret from the resolved config, as the real ones can.
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789a2";
 const OTHER_ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789b9";
 const RUN_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const SSH_PASSWORD = "ssh-pw-very-secret-42";
-const DIR = "/deployments/app";
+const CONFIG_SECRET = "config-secret-value-77";
 
-type Stack = {
-  composeFile: boolean;
-  // The project `docker compose config` resolves (a `name:` key wins).
-  name: string;
-  volumes: string[];
-  // What `pwd -P` prints (a symlinked dir resolves elsewhere).
-  real?: string;
-};
-type Container = { name: string; project: string; workingDir: string };
+const ROOT = mkdtempSync(join(tmpdir(), "td-steps-"));
+const BIN = join(ROOT, "bin");
+const FAKE = join(ROOT, "fake");
+const DEPLOY = join(ROOT, "deployments");
+const DIR = join(DEPLOY, "app");
+
+const FAKE_DOCKER = `#!/bin/sh
+F="$FAKE"
+if [ "$1" = compose ]; then
+  echo '>>>> Executing external compose provider "/usr/libexec/docker/cli-plugins/docker-compose". Please see podman-compose(1) for how to disable this message. <<<<' >&2
+  shift
+  if [ "$1" = config ]; then
+    if [ -e .config-fail ]; then echo "line 3: PW=${CONFIG_SECRET}" >&2; exit 15; fi
+    if [ "$2" = --volumes ]; then cat .volumes 2>/dev/null; exit 0; fi
+    if [ -e .name ]; then n=$(cat .name); else n=$(basename "$PWD"); fi
+    printf 'name: %s\\nservices:\\n  app:\\n    environment:\\n      PW: ${CONFIG_SECRET}\\n    name: nested\\n' "$n"
+    exit 0
+  fi
+  if [ "$1" = -p ]; then
+    p=$2; shift 2
+    echo "$p $*" >> "$F/compose.log"
+    if [ "$1" = down ]; then
+      grep -v "^$p|" "$F/containers" > "$F/c.tmp"; mv "$F/c.tmp" "$F/containers"
+      grep -v "^$p|" "$F/volumes" > "$F/v.tmp"; mv "$F/v.tmp" "$F/volumes"
+    fi
+    exit 0
+  fi
+  exit 2
+fi
+if [ "$1" = ps ]; then
+  p=\${4#label=com.docker.compose.project=}
+  grep "^$p|" "$F/containers" | cut -d'|' -f2-
+  exit 0
+fi
+if [ "$1" = volume ]; then
+  p=\${5#label=com.docker.compose.project=}
+  grep "^$p|" "$F/volumes" | cut -d'|' -f2
+  exit 0
+fi
+if [ "$1" = exec ]; then
+  if [ "$2" = -i ]; then cat > "$F/drop.sql"; echo 'absent|0' > "$F/probe"; exit 0; fi
+  cat "$F/probe"; exit 0
+fi
+echo "unexpected docker $*" >&2
+exit 2
+`;
+
+const FAKE_SUDO = `#!/bin/sh
+echo "sudo $*" >> "$FAKE/sudo.log"
+exit 1
+`;
+
 type Call = {
   host: string;
   run: string | undefined;
   command: string;
   stdin: string | undefined;
-  secrets: string[];
 };
 
 const state = vi.hoisted(() => ({
   calls: [] as Call[],
-  dirs: new Map<string, Stack | null>(),
-  containers: [] as Container[],
-  projectVolumes: [] as { name: string; project: string }[],
-  // Databases on the shared host's Postgres: name → owner's marker.
-  databases: new Map<string, string | null>(),
-  markedRoles: 0,
-  sshFailure: null as string | null,
   servers: {} as Record<
     string,
     {
@@ -50,7 +100,6 @@ const state = vi.hoisted(() => ({
   guard: null as null | {
     otherDeployDirs: string[];
     databaseContainers: string[];
-    hasDbService: boolean;
   },
   dbService: null as null | {
     environmentId: string;
@@ -69,90 +118,52 @@ const state = vi.hoisted(() => ({
       password: string | null;
     };
   },
+  env: {} as Record<string, string>,
 }));
 
-/** The single-quoted words of a command, unquoted. */
-function quoted(command: string): string[] {
-  return [...command.matchAll(/'((?:[^']|'\\'')*)'/g)].map((m) =>
-    (m[1] as string).replace(/'\\''/g, "'")
-  );
-}
-
-function fakeRemote(command: string, stdin: string | undefined): string {
-  if (state.sshFailure) {
-    throw new Error(`SSH Command Failed (exit 1): ${state.sshFailure}`);
-  }
-  const dir = quoted(command).find((w) => w.startsWith("/"));
-  if (command.includes("docker compose config")) {
-    const stack = dir === undefined ? undefined : state.dirs.get(dir);
-    if (stack === undefined) return "absent\n";
-    if (stack === null || !stack.composeFile) return "nofile\n";
-    const lines = [
-      `pwd ${dir}`,
-      `real ${stack.real ?? dir}`,
-      `name ${stack.name}`,
-      ...stack.volumes.map((v) => `volume ${v}`),
-      ...state.containers
-        .filter((c) => c.project === stack.name)
-        .map((c) => `container ${c.name}|${c.workingDir}`),
-      ...state.projectVolumes
-        .filter((v) => v.project === stack.name)
-        .map((v) => `projectvolume ${v.name}`),
-    ];
-    return `${lines.join("\n")}\n`;
-  }
-  if (command.includes("down --remove-orphans --volumes")) {
-    const project = quoted(command).find((w) => !w.startsWith("/"));
-    state.containers = state.containers.filter((c) => c.project !== project);
-    state.projectVolumes = state.projectVolumes.filter(
-      (v) => v.project !== project
-    );
-    return "";
-  }
-  if (command.includes("echo present")) {
-    return dir !== undefined && state.dirs.has(dir) ? "present\n" : "absent\n";
-  }
-  if (command.includes("rm -rf --")) {
-    if (dir !== undefined) state.dirs.delete(dir);
-    return "";
-  }
-  if (command.includes("psql") && stdin === undefined) {
-    const [db] = [...state.databases.keys()];
-    const marker = db === undefined ? undefined : state.databases.get(db);
-    const status =
-      db === undefined
-        ? "absent"
-        : marker === `opsdeck:${ENV_ID}`
-          ? "marked"
-          : "unmarked";
-    return `${status}|${state.markedRoles}\n`;
-  }
-  if (command.includes("psql") && stdin !== undefined) {
-    for (const [db, marker] of state.databases) {
-      if (marker === `opsdeck:${ENV_ID}` && stdin.includes("DROP DATABASE")) {
-        state.databases.delete(db);
-      }
-    }
-    if (stdin.includes("DROP ROLE")) state.markedRoles = 0;
-    return "";
-  }
-  throw new Error(`unexpected command: ${command}`);
+function runLocally(command: string, stdin: string | undefined) {
+  const result = spawnSync("sh", ["-c", command], {
+    env: state.env,
+    input: stdin ?? "",
+    encoding: "utf8",
+  });
+  return {
+    code: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+  };
 }
 
 vi.mock("@/lib/ssh", () => ({
-  executeRemoteCommand: async (
+  runRemoteScript: async (
     target: { host: string; run?: string },
     command: string,
-    options: { stdin?: string; secrets?: string[] } = {}
+    options: { stdin?: string } = {}
   ) => {
     state.calls.push({
       host: target.host,
       run: target.run,
       command,
       stdin: options.stdin,
-      secrets: options.secrets ?? [],
     });
-    return fakeRemote(command, options.stdin);
+    return runLocally(command, options.stdin);
+  },
+  executeRemoteCommand: async (
+    target: { host: string; run?: string },
+    command: string,
+    options: { stdin?: string } = {}
+  ) => {
+    state.calls.push({
+      host: target.host,
+      run: target.run,
+      command,
+      stdin: options.stdin,
+    });
+    const result = runLocally(command, options.stdin);
+    if (result.code !== 0) {
+      throw new Error(`SSH Command Failed (exit ${result.code})`);
+    }
+    return result.stdout;
   },
   redactSecrets: (m: string, secrets: string[]) =>
     secrets
@@ -174,9 +185,14 @@ vi.mock("@/lib/provisioning/repository", () => ({
   loadDatabaseHost: async () => state.dbHost,
 }));
 
-const { checkStack, dropDatabase, removeDeployDir, stackDown } = await import(
-  "@/lib/teardown/server-steps"
-);
+const {
+  checkStack,
+  dropDatabase,
+  removeDeployDir,
+  stackDown,
+  stopProjectForArchive,
+  volumeArchiveCommand,
+} = await import("@/lib/teardown/server-steps");
 const { StepFailed } = await import("@/lib/teardown/errors");
 
 type Guard = NonNullable<typeof state.guard>;
@@ -192,38 +208,57 @@ function ctx() {
 }
 const params = { serverId: "server-1", deployDir: DIR };
 
-async function failure(promise: Promise<unknown>): Promise<string> {
+async function failure(promise: Promise<unknown>): Promise<StepFailedLike> {
   try {
     await promise;
   } catch (error) {
-    if (error instanceof StepFailed) return error.code;
+    if (error instanceof StepFailed) return error;
     throw error;
   }
   throw new Error("expected the step to fail");
 }
-
-function commands(): string[] {
-  return state.calls.map((c) => c.command);
+type StepFailedLike = InstanceType<typeof StepFailed>;
+async function code(promise: Promise<unknown>): Promise<string> {
+  return (await failure(promise)).code;
 }
-function destructive(): string[] {
-  return commands().filter(
-    (c) => c.includes(" down ") || c.includes("rm -rf") || c.includes("DROP") // never in argv
-  );
+
+/** A deploy dir with a compose file, an optional `name:` and volumes. */
+function stack(dir: string, opts: { name?: string; volumes?: string[] } = {}) {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "compose.yaml"), "services: {}\n");
+  if (opts.name !== undefined) writeFileSync(join(dir, ".name"), opts.name);
+  writeFileSync(join(dir, ".volumes"), (opts.volumes ?? []).join("\n"));
+}
+function containers(lines: string[]) {
+  writeFileSync(join(FAKE, "containers"), lines.map((l) => `${l}\n`).join(""));
+}
+function volumes(lines: string[]) {
+  writeFileSync(join(FAKE, "volumes"), lines.map((l) => `${l}\n`).join(""));
+}
+function composeLog(): string[] {
+  const file = join(FAKE, "compose.log");
+  return existsSync(file)
+    ? readFileSync(file, "utf8").split("\n").filter(Boolean)
+    : [];
 }
 
 beforeEach(() => {
+  rmSync(ROOT, { recursive: true, force: true });
+  for (const dir of [BIN, FAKE, DEPLOY]) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(BIN, "docker"), FAKE_DOCKER);
+  writeFileSync(join(BIN, "sudo"), FAKE_SUDO);
+  chmodSync(join(BIN, "docker"), 0o755);
+  chmodSync(join(BIN, "sudo"), 0o755);
+  state.env = {
+    PATH: `${BIN}:/usr/bin:/bin`,
+    FAKE,
+    HOME: ROOT,
+  };
+  stack(DIR, { volumes: ["pgdata"] });
+  containers([`app|app-web-1|${DIR}`, `app|app-db-1|${DIR}`]);
+  volumes(["app|app_pgdata"]);
+  writeFileSync(join(FAKE, "probe"), "absent|0\n");
   state.calls = [];
-  state.dirs = new Map([
-    [DIR, { composeFile: true, name: "app", volumes: ["pgdata"] }],
-  ]);
-  state.containers = [
-    { name: "app-web-1", project: "app", workingDir: DIR },
-    { name: "app-db-1", project: "app", workingDir: DIR },
-  ];
-  state.projectVolumes = [{ name: "app_pgdata", project: "app" }];
-  state.databases = new Map();
-  state.markedRoles = 0;
-  state.sshFailure = null;
   state.servers = {
     "server-1": {
       serverId: "server-1",
@@ -234,9 +269,8 @@ beforeEach(() => {
     },
   };
   state.guard = {
-    otherDeployDirs: ["/deployments/other"],
+    otherDeployDirs: [join(DEPLOY, "other")],
     databaseContainers: ["shared-pg"],
-    hasDbService: true,
   };
   state.dbService = {
     environmentId: ENV_ID,
@@ -257,6 +291,10 @@ beforeEach(() => {
   };
 });
 
+afterAll(() => {
+  rmSync(ROOT, { recursive: true, force: true });
+});
+
 const HOSTILE = [
   "/",
   "/deployments",
@@ -269,174 +307,227 @@ const HOSTILE = [
 ];
 
 describe("checkStack", () => {
-  it("passes a stack whose volumes belong to a registered db service", async () => {
+  it("passes this environment's own stack and changes nothing", async () => {
     const line = await checkStack(ctx(), params);
     expect(line).toContain(DIR);
-    expect(destructive()).toEqual([]);
+    expect(composeLog()).toEqual([]);
     expect(state.calls).toHaveLength(1);
     expect(state.calls[0]?.run).toBe(RUN_ID);
     expect(state.calls[0]?.command).toContain(`'${DIR}'`);
   });
 
-  it("refuses databaseNotRegistered when named volumes exist and no db service is registered", async () => {
-    setGuard({ hasDbService: false });
-    expect(await failure(checkStack(ctx(), params))).toBe(
-      "databaseNotRegistered"
-    );
-  });
-
-  it("passes a stack without named volumes and no db service", async () => {
-    setGuard({ hasDbService: false });
-    state.dirs.set(DIR, { composeFile: true, name: "app", volumes: [] });
+  it("no longer refuses named volumes without a registered db service", async () => {
     await expect(checkStack(ctx(), params)).resolves.toContain(DIR);
   });
 
   it("is ok when the dir or its compose file is missing", async () => {
-    state.dirs.set(DIR, { composeFile: false, name: "app", volumes: [] });
+    rmSync(join(DIR, "compose.yaml"));
     await expect(checkStack(ctx(), params)).resolves.toBeTypeOf("string");
-    state.dirs.clear();
+    rmSync(DIR, { recursive: true });
     await expect(checkStack(ctx(), params)).resolves.toBeTypeOf("string");
+  });
+
+  it("finds a compose file named only by COMPOSE_FILE in .env", async () => {
+    rmSync(join(DIR, "compose.yaml"));
+    writeFileSync(join(DIR, ".env"), "COMPOSE_FILE=stack.yml\n");
+    await expect(checkStack(ctx(), params)).resolves.toContain("Stack app");
   });
 
   it("refuses hostile deploy dirs before any SSH", async () => {
     for (const deployDir of HOSTILE) {
-      expect(await failure(checkStack(ctx(), { ...params, deployDir }))).toBe(
+      expect(await code(checkStack(ctx(), { ...params, deployDir }))).toBe(
         "unsafeDeployDir"
       );
     }
     expect(state.calls).toEqual([]);
   });
 
-  it("refuses when the compose project is another environment's on the same machine", async () => {
-    // A `name:` key in our compose file gives our stack the project of the
-    // other environment's /opt/stacks/billing.
-    state.dirs.set(DIR, { composeFile: true, name: "billing", volumes: [] });
-    state.containers = [];
-    setGuard({ otherDeployDirs: ["/opt/stacks/billing"] });
-    expect(await failure(checkStack(ctx(), params))).toBe("deployDirShared");
+  it("refuses when our name: gives us another environment's dir-derived project", async () => {
+    stack(DIR, { name: "billing" });
+    containers([]);
+    setGuard({ otherDeployDirs: [join(ROOT, "stacks", "billing")] });
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+  });
+
+  it("refuses a foreign project, resolved through its name:, that only has volumes left", async () => {
+    // Env B at deployments/app-dev runs as project "app" (a name: key) and
+    // was stopped: no containers, only app_pgdata.
+    const other = join(DEPLOY, "app-dev");
+    stack(other, { name: "app", volumes: ["pgdata"] });
+    containers([]);
+    volumes(["app|app_pgdata"]);
+    setGuard({ otherDeployDirs: [other] });
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+    expect(await code(stackDown(ctx(), params))).toBe("deployDirShared");
+    expect(composeLog()).toEqual([]);
+  });
+
+  it("refuses when another environment's compose file cannot be read", async () => {
+    const other = join(DEPLOY, "app-dev");
+    stack(other);
+    writeFileSync(join(other, ".config-fail"), "");
+    setGuard({ otherDeployDirs: [other] });
+    const failed = await failure(checkStack(ctx(), params));
+    expect(failed.code).toBe("serverCommandFailed");
+    expect(failed.message).not.toContain(CONFIG_SECRET);
+  });
+
+  it("accepts a quoted numeric project name", async () => {
+    const dir = join(DEPLOY, "123");
+    stack(dir, { name: '"123"' });
+    containers([`123|123-web-1|${dir}`]);
+    volumes([]);
+    await expect(
+      checkStack(ctx(), { ...params, deployDir: dir })
+    ).resolves.toContain("Stack 123");
   });
 
   it("refuses when containers of the project were started from another dir", async () => {
-    state.containers.push({
-      name: "app-cron-1",
-      project: "app",
-      workingDir: "/home/ops/app",
-    });
-    expect(await failure(checkStack(ctx(), params))).toBe("deployDirShared");
+    containers([`app|app-web-1|${DIR}`, `app|app-cron-1|${ROOT}/elsewhere`]);
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+  });
+
+  it("refuses a container without a working dir label", async () => {
+    containers([`app|app-web-1|`]);
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
   });
 
   it("accepts containers whose working dir is the resolved symlink target", async () => {
-    state.dirs.set(DIR, {
-      composeFile: true,
-      name: "app",
-      volumes: ["pgdata"],
-      real: "/srv/deployments/app",
-    });
-    state.containers = [
-      { name: "app-web-1", project: "app", workingDir: "/srv/deployments/app" },
-    ];
-    await expect(checkStack(ctx(), params)).resolves.toContain(DIR);
+    const real = join(ROOT, "data", "app");
+    mkdirSync(join(ROOT, "data"), { recursive: true });
+    stack(real, { volumes: ["pgdata"] });
+    const link = join(DEPLOY, "linked");
+    symlinkSync(real, link);
+    // compose derives the project from the dir it was started in.
+    writeFileSync(join(real, ".name"), "app");
+    containers([`app|app-web-1|${real}`]);
+    await expect(
+      checkStack(ctx(), { ...params, deployDir: link })
+    ).resolves.toContain("Stack app");
+  });
+
+  it("refuses an overlap that only shows once paths are resolved", async () => {
+    // Ours is deployments/app through a symlinked parent; the other
+    // environment registered the real path.
+    rmSync(DEPLOY, { recursive: true });
+    const realParent = join(ROOT, "data", "deployments");
+    mkdirSync(realParent, { recursive: true });
+    symlinkSync(realParent, DEPLOY);
+    stack(DIR, { volumes: [] });
+    containers([]);
+    setGuard({ otherDeployDirs: [join(realParent, "app", "worker")] });
+    expect(await code(checkStack(ctx(), params))).toBe("deployDirShared");
+    expect(await code(removeDeployDir(ctx(), params))).toBe("deployDirShared");
+    expect(existsSync(DIR)).toBe(true);
   });
 
   it("refuses stackHostsSharedDatabase when the project runs a shared database host's container", async () => {
-    state.containers.push({
-      name: "shared-pg",
-      project: "app",
-      workingDir: DIR,
-    });
-    expect(await failure(checkStack(ctx(), params))).toBe(
+    containers([`app|app-web-1|${DIR}`, `app|shared-pg|${DIR}`]);
+    expect(await code(checkStack(ctx(), params))).toBe(
       "stackHostsSharedDatabase"
     );
   });
 
-  it("refuses a dir another environment's target overlaps, including /", async () => {
-    for (const other of [
-      DIR,
-      `${DIR}/`,
-      `${DIR}/worker`,
-      "/deployments",
-      "/",
-    ]) {
+  it("refuses a dir another environment's target overlaps, including /, before SSH", async () => {
+    for (const other of [DIR, `${DIR}/`, `${DIR}/worker`, DEPLOY, "/"]) {
       state.calls = [];
       setGuard({ otherDeployDirs: [other] });
-      expect(await failure(checkStack(ctx(), params)), other).toBe(
+      expect(await code(checkStack(ctx(), params)), other).toBe(
         "deployDirShared"
       );
       expect(state.calls, other).toEqual([]);
     }
   });
 
-  it("refuses a project name it cannot read", async () => {
-    state.dirs.set(DIR, { composeFile: true, name: "", volumes: [] });
-    expect(await failure(checkStack(ctx(), params))).toBe(
+  it("never puts compose's stderr into the error", async () => {
+    writeFileSync(join(DIR, ".config-fail"), "");
+    const failed = await failure(checkStack(ctx(), params));
+    expect(failed.code).toBe("serverCommandFailed");
+    expect(failed.message).not.toContain(CONFIG_SECRET);
+    expect(failed.message).not.toContain("line 3");
+  });
+});
+
+describe("stopProjectForArchive and volumeArchiveCommand", () => {
+  it("stops the project after the checks and lists its real volumes", async () => {
+    const result = await stopProjectForArchive(ctx(), params);
+    expect(result.volumes).toEqual(["app_pgdata"]);
+    expect(composeLog()).toEqual(["app stop"]);
+    expect(state.calls).toHaveLength(1);
+  });
+
+  it("stops nothing when a check refuses", async () => {
+    containers([`app|shared-pg|${DIR}`]);
+    expect(await code(stopProjectForArchive(ctx(), params))).toBe(
+      "stackHostsSharedDatabase"
+    );
+    expect(composeLog()).toEqual([]);
+  });
+
+  it("is ok with no volumes when the dir is gone", async () => {
+    rmSync(DIR, { recursive: true });
+    await expect(stopProjectForArchive(ctx(), params)).resolves.toMatchObject({
+      volumes: [],
+    });
+  });
+
+  it("refuses a volume name outside the strict pattern", async () => {
+    volumes(["app|app_pgdata", "app|bad:name"]);
+    expect(await code(stopProjectForArchive(ctx(), params))).toBe(
       "serverCommandFailed"
     );
   });
 
-  it("turns an SSH failure into serverCommandFailed with the secret redacted", async () => {
-    state.servers["server-1"] = {
-      ...(state.servers["server-1"] as Server),
-      auth: "password",
-      password: SSH_PASSWORD,
-    };
-    state.sshFailure = `sudo: wrong password ${SSH_PASSWORD}`;
-    const c = ctx();
-    try {
-      await removeDeployDir(c, params);
-      throw new Error("expected a failure");
-    } catch (error) {
-      expect(error).toBeInstanceOf(StepFailed);
-      expect((error as InstanceType<typeof StepFailed>).code).toBe(
-        "serverCommandFailed"
-      );
-      expect(String((error as Error).message)).not.toContain(SSH_PASSWORD);
+  it("streams a volume read-only from a throwaway container", () => {
+    expect(volumeArchiveCommand("app_pgdata")).toBe(
+      "docker run --rm --network none --log-driver none -v 'app_pgdata:/v:ro' docker.io/library/busybox:1.37 tar -C /v -czf - ."
+    );
+    for (const bad of ["", "a:b", "-x", "a b", "a'b", "../x", "a/b"]) {
+      expect(() => volumeArchiveCommand(bad), bad).toThrow(StepFailed);
     }
   });
 });
 
 describe("stackDown", () => {
-  it("brings the project down in its dir with single-quoted words", async () => {
+  it("brings the checked project down in its dir, in the same script", async () => {
     await stackDown(ctx(), params);
-    const down = commands().filter((c) => c.includes(" down "));
-    expect(down).toEqual([
-      `cd '${DIR}' && docker compose -p 'app' down --remove-orphans --volumes`,
-    ]);
-    expect(state.containers).toEqual([]);
-    expect(state.calls.every((c) => c.run === RUN_ID)).toBe(true);
+    expect(composeLog()).toEqual(["app down --remove-orphans --volumes"]);
+    expect(state.calls).toHaveLength(1);
+    expect(state.calls[0]?.command).toContain(`'${DIR}'`);
+    expect(readFileSync(join(FAKE, "containers"), "utf8")).toBe("");
   });
 
   it("is idempotent: a second call runs no further compose down", async () => {
     await stackDown(ctx(), params);
-    state.calls = [];
-    await expect(stackDown(ctx(), params)).resolves.toBeTypeOf("string");
-    expect(destructive()).toEqual([]);
+    await expect(stackDown(ctx(), params)).resolves.toContain("already down");
+    expect(composeLog()).toHaveLength(1);
   });
 
   it("is ok when the dir or its compose file is missing", async () => {
-    state.dirs.set(DIR, { composeFile: false, name: "app", volumes: [] });
+    rmSync(join(DIR, "compose.yaml"));
     await expect(stackDown(ctx(), params)).resolves.toBeTypeOf("string");
-    state.dirs.clear();
+    rmSync(DIR, { recursive: true });
     await expect(stackDown(ctx(), params)).resolves.toBeTypeOf("string");
-    expect(destructive()).toEqual([]);
+    expect(composeLog()).toEqual([]);
   });
 
   it("refuses when another environment's target appeared after planning", async () => {
-    setGuard({ otherDeployDirs: ["/deployments/other", DIR] });
-    expect(await failure(stackDown(ctx(), params))).toBe("deployDirShared");
-    expect(destructive()).toEqual([]);
+    setGuard({ otherDeployDirs: [join(DEPLOY, "other"), DIR] });
+    expect(await code(stackDown(ctx(), params))).toBe("deployDirShared");
+    expect(composeLog()).toEqual([]);
   });
 
   it("refuses when the project runs another environment's db container", async () => {
     setGuard({ databaseContainers: ["app-db-1"] });
-    expect(await failure(stackDown(ctx(), params))).toBe(
+    expect(await code(stackDown(ctx(), params))).toBe(
       "stackHostsSharedDatabase"
     );
-    expect(destructive()).toEqual([]);
+    expect(composeLog()).toEqual([]);
   });
 
   it("refuses hostile deploy dirs before any SSH", async () => {
     for (const deployDir of HOSTILE) {
-      expect(await failure(stackDown(ctx(), { ...params, deployDir }))).toBe(
+      expect(await code(stackDown(ctx(), { ...params, deployDir }))).toBe(
         "unsafeDeployDir"
       );
     }
@@ -445,39 +536,39 @@ describe("stackDown", () => {
 });
 
 describe("removeDeployDir", () => {
-  it("removes the dir with rm -rf -- on the single-quoted canonical path", async () => {
+  it("removes the canonical dir with rm -rf -- in one script", async () => {
     await removeDeployDir(ctx(), { ...params, deployDir: `${DIR}/` });
-    const rm = commands().filter((c) => c.includes("rm -rf"));
-    expect(rm).toHaveLength(1);
-    expect(rm[0]).toContain(`rm -rf -- '${DIR}'`);
-    expect(rm[0]).not.toContain(`'${DIR}/'`);
-    expect(state.dirs.has(DIR)).toBe(false);
+    expect(state.calls).toHaveLength(1);
+    expect(state.calls[0]?.command).toContain(`rm -rf -- `);
+    expect(state.calls[0]?.command).not.toContain(`'${DIR}/'`);
+    expect(existsSync(DIR)).toBe(false);
+    expect(existsSync(DEPLOY)).toBe(true);
   });
 
-  it("is idempotent: a second call runs no further rm", async () => {
+  it("is idempotent", async () => {
     await removeDeployDir(ctx(), params);
-    state.calls = [];
-    await expect(removeDeployDir(ctx(), params)).resolves.toBeTypeOf("string");
-    expect(destructive()).toEqual([]);
+    await expect(removeDeployDir(ctx(), params)).resolves.toContain(
+      "already removed"
+    );
   });
 
   it("refuses when another environment's target appeared after planning", async () => {
-    for (const other of [DIR, `${DIR}/data`, "/deployments", "/"]) {
+    for (const other of [DIR, `${DIR}/data`, DEPLOY, "/"]) {
       state.calls = [];
       setGuard({ otherDeployDirs: [other] });
-      expect(await failure(removeDeployDir(ctx(), params)), other).toBe(
+      expect(await code(removeDeployDir(ctx(), params)), other).toBe(
         "deployDirShared"
       );
       expect(state.calls, other).toEqual([]);
     }
-    expect(state.dirs.has(DIR)).toBe(true);
+    expect(existsSync(DIR)).toBe(true);
   });
 
   it("refuses hostile deploy dirs before any SSH", async () => {
     for (const deployDir of HOSTILE) {
-      expect(
-        await failure(removeDeployDir(ctx(), { ...params, deployDir }))
-      ).toBe("unsafeDeployDir");
+      expect(await code(removeDeployDir(ctx(), { ...params, deployDir }))).toBe(
+        "unsafeDeployDir"
+      );
     }
     expect(state.calls).toEqual([]);
   });
@@ -490,12 +581,11 @@ describe("removeDeployDir", () => {
     };
     const c = ctx();
     await removeDeployDir(c, params);
-    const rm = state.calls.find((call) => call.command.includes("rm -rf"));
-    expect(rm?.command).toContain("sudo -S");
-    expect(rm?.stdin).toBe(`${SSH_PASSWORD}\n`);
-    expect(rm?.secrets).toContain(SSH_PASSWORD);
+    const call = state.calls[0];
+    expect(call?.command).toContain("sudo -S -p");
+    expect(call?.stdin).toBe(`${SSH_PASSWORD}\n`);
     expect(c.secrets).toContain(SSH_PASSWORD);
-    expect(commands().join("\n")).not.toContain(SSH_PASSWORD);
+    expect(call?.command).not.toContain(SSH_PASSWORD);
   });
 });
 
@@ -503,11 +593,9 @@ describe("dropDatabase", () => {
   const dbParams = { serviceId: "svc-db" };
 
   it("drops a database the Panel provisioned for this environment, and its roles", async () => {
-    state.databases.set("app_db", `opsdeck:${ENV_ID}`);
-    state.markedRoles = 1;
+    writeFileSync(join(FAKE, "probe"), "marked|1\n");
     const line = await dropDatabase(ctx(), dbParams);
-    expect(line).toContain("app_db");
-    expect(state.databases.size).toBe(0);
+    expect(line).toContain("app_db dropped");
     const drop = state.calls.find((c) => c.stdin !== undefined);
     expect(drop?.command).toBe(
       "docker exec -i 'shared-pg' psql -U postgres -X -q -At -v ON_ERROR_STOP=1"
@@ -516,27 +604,25 @@ describe("dropDatabase", () => {
     expect(drop?.stdin).toContain(`'opsdeck:${ENV_ID}'`);
     expect(state.calls.every((c) => c.host === "db.lan")).toBe(true);
     expect(state.calls.every((c) => c.run === RUN_ID)).toBe(true);
-    // The SSH password is never needed: docker exec runs as the SSH user.
     expect(state.calls.map((c) => c.command).join("\n")).not.toContain(
       SSH_PASSWORD
     );
-    expect(destructive()).toEqual([]);
   });
 
   it("is idempotent: a second call sends no drop", async () => {
-    state.databases.set("app_db", `opsdeck:${ENV_ID}`);
-    state.markedRoles = 1;
+    writeFileSync(join(FAKE, "probe"), "marked|1\n");
     await dropDatabase(ctx(), dbParams);
     state.calls = [];
-    await expect(dropDatabase(ctx(), dbParams)).resolves.toContain("app_db");
+    await expect(dropDatabase(ctx(), dbParams)).resolves.toContain(
+      "already absent"
+    );
     expect(state.calls.filter((c) => c.stdin !== undefined)).toEqual([]);
   });
 
   it("leaves a database the Panel did not provision for this environment", async () => {
-    state.databases.set("app_db", `opsdeck:${OTHER_ENV_ID}`);
+    writeFileSync(join(FAKE, "probe"), "unmarked|0\n");
     const line = await dropDatabase(ctx(), dbParams);
     expect(line).toContain("left in place");
-    expect(state.databases.has("app_db")).toBe(true);
     expect(state.calls.filter((c) => c.stdin !== undefined)).toEqual([]);
   });
 
@@ -552,13 +638,13 @@ describe("dropDatabase", () => {
     ];
     for (const service of services) {
       state.dbService = service;
-      expect(await failure(dropDatabase(ctx(), dbParams))).toBe(
+      expect(await code(dropDatabase(ctx(), dbParams))).toBe(
         "databaseNotRegistered"
       );
     }
     state.dbService = shared;
     state.dbHost = null;
-    expect(await failure(dropDatabase(ctx(), dbParams))).toBe(
+    expect(await code(dropDatabase(ctx(), dbParams))).toBe(
       "databaseNotRegistered"
     );
     expect(state.calls).toEqual([]);
