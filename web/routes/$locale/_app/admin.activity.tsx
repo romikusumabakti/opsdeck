@@ -281,6 +281,56 @@ function message(
       return t("mailCleared", { actor, environment: String(d.environment) });
     case "server.preflight":
       return t("serverPreflight", { actor, server: String(d.server) });
+    // Pinned by whichever connection reached the server first. A job has no
+    // actor, so that sentence is about the server.
+    case "server.hostKeyPinned":
+      return row.actorName
+        ? t("serverHostKeyPinnedBy", {
+            actor,
+            server: String(d.server),
+            fingerprint: String(d.fingerprint),
+          })
+        : t("serverHostKeyPinned", {
+            server: String(d.server),
+            fingerprint: String(d.fingerprint),
+          });
+    case "server.hostKeyMismatch":
+      return t("serverHostKeyMismatch", {
+        server: String(d.server),
+        fingerprint: String(d.fingerprint),
+        pinned: String(d.pinned),
+      });
+    case "server.hostKeyTrusted":
+      return t("serverHostKeyTrusted", {
+        actor,
+        server: String(d.server),
+        fingerprint: String(d.fingerprint),
+      });
+    case "server.keyInstalled":
+      return t("serverKeyInstalled", {
+        actor,
+        server: String(d.server),
+        from: String(d.from),
+      });
+    case "server.keyReinstalled":
+      return t("serverKeyReinstalled", {
+        actor,
+        server: String(d.server),
+        from: String(d.from),
+      });
+    case "server.keyFromChanged":
+      return t("serverKeyFromChanged", {
+        actor,
+        server: String(d.server),
+        before: String(d.before || "—"),
+        after: String(d.after),
+      });
+    case "server.keyRotated":
+      return t("serverKeyRotated", {
+        actor,
+        server: String(d.server),
+        from: String(d.from),
+      });
     case "database_host.create":
       return t("databaseHostCreated", {
         actor,

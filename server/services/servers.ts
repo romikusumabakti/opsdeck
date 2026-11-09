@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -11,10 +11,20 @@ import {
   type Server,
   servers,
 } from "@/lib/db/schema";
-import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { decryptNullable, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
+import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
+import {
+  ensureCurrentKey,
+  isValidFrom,
+  KEY_NOT_VERIFIED,
+} from "@/lib/ssh-keys";
 import type { ActionResponse } from "@/lib/types";
-import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
+import {
+  type ServerInput,
+  serverInputSchema,
+  serverUpdateSchema,
+} from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
 
 export type ServerUsage = {
@@ -93,7 +103,7 @@ export async function getServerById(id: string): Promise<Server | undefined> {
 }
 
 export async function createServer(
-  data: NewServer
+  data: ServerInput
 ): Promise<ActionResponse<Server>> {
   await requireOrgPermission({ server: ["manage"] });
   const t = await getServerTranslator("actionErrors");
@@ -101,15 +111,41 @@ export async function createServer(
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
   }
+  const { auth = "password", password, sshFrom, ...fields } = parsed.data;
+  let values: NewServer;
+  if (auth === "key") {
+    // Installed by hand: the server signs in with the current key, restricted
+    // to the from= address its line was written with. No password at all.
+    if (password !== undefined) {
+      return { success: false, message: t("invalidInput") };
+    }
+    if (sshFrom === undefined || !isValidFrom(sshFrom)) {
+      return { success: false, message: t("invalidFrom") };
+    }
+    const key = await ensureCurrentKey();
+    values = {
+      ...fields,
+      auth: "key",
+      password: null,
+      sshKeyId: key.id,
+      sshFrom,
+      // Not proven until a key login succeeds: Check key login on the server
+      // page (or a move or rotation) clears it.
+      keyError: KEY_NOT_VERIFIED,
+    };
+  } else {
+    if (sshFrom !== undefined) {
+      return { success: false, message: t("invalidInput") };
+    }
+    values = {
+      ...fields,
+      auth: "password",
+      password: password === undefined ? null : encryptSecret(password),
+    };
+  }
   try {
     const created = one(
-      await db
-        .insert(servers)
-        .values({
-          ...parsed.data,
-          password: encryptSecret(parsed.data.password),
-        })
-        .returning(),
+      await db.insert(servers).values(values).returning(),
       "server"
     );
     return { success: true, data: created, message: t("serverCreated") };
@@ -132,13 +168,49 @@ export async function updateServer(
   // Encrypt the password only when the edit actually supplies one; an omitted
   // password means "keep the stored (already-encrypted) value".
   const patch = { ...parsed.data };
+  const settingPassword = Boolean(patch.password);
   if (patch.password) patch.password = encryptSecret(patch.password);
-  try {
-    const [updated] = await db
-      .update(servers)
-      .set({ ...patch, updatedAt: new Date() })
+  if (settingPassword) {
+    const [current] = await db
+      .select({ auth: servers.auth })
+      .from(servers)
       .where(eq(servers.id, id))
-      .returning();
+      .limit(1);
+    if (current?.auth === "key") {
+      return { success: false, message: t("keyServerNoPassword") };
+    }
+  }
+  try {
+    const write = (
+      tx: Pick<typeof db, "update">,
+      reset: Partial<typeof HOST_KEY_CLEARED> = {}
+    ) =>
+      tx
+        .update(servers)
+        .set({ ...patch, ...reset, updatedAt: new Date() })
+        // A key server stores no password: one sent for it is refused, also
+        // when the server moved to the key since it was read.
+        .where(
+          settingPassword
+            ? and(eq(servers.id, id), eq(servers.auth, "password"))
+            : eq(servers.id, id)
+        )
+        .returning();
+    const newHost = patch.host;
+    // A new address never inherits the old pin. The row is locked so a
+    // connection pinning the old host's key cannot land in between.
+    const [updated] =
+      newHost === undefined
+        ? await write(db)
+        : await db.transaction(async (tx) => {
+            const [current] = await tx
+              .select({ host: servers.host })
+              .from(servers)
+              .where(eq(servers.id, id))
+              .for("update");
+            const moved = current !== undefined && current.host !== newHost;
+            return write(tx, moved ? HOST_KEY_CLEARED : {});
+          });
     if (!updated) {
       return { success: false, message: t("serverNotFound") };
     }
@@ -150,17 +222,28 @@ export async function updateServer(
 }
 
 /**
- * Probe an SSH connection without persisting anything. Used by the "Test
+ * Probe an SSH connection; nothing is persisted except a first-use host key
+ * pin for a saved server. Used by the "Test
  * connection" button on server forms. In edit mode, the password may be
- * omitted — we then load the stored password by `serverId`.
+ * omitted — the server is then tested with its stored password or its key,
+ * and its host key is verified (or pinned) like any other connection.
  */
 export async function testServerConnection(input: {
   host: string;
   username: string;
   password?: string;
   serverId?: string;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireOrgPermission({ server: ["manage"] });
+  // An unsaved server whose key line was installed by hand.
+  auth?: "key";
+}): Promise<
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      code?: "passwordRequired" | "hostKeyMismatch";
+    }
+> {
+  const session = await requireOrgPermission({ server: ["manage"] });
   const t = await getServerTranslator("actionErrors");
 
   const host = input.host.trim();
@@ -170,22 +253,62 @@ export async function testServerConnection(input: {
     return { ok: false, message: t("hostAndUsernameRequired") };
   }
 
-  let password = input.password;
-  if (!password && input.serverId != null) {
+  // A typed password is tested as a password login. Otherwise an existing
+  // server is tested the way it signs in (its stored password, or the key).
+  const keyOnly = input.auth === "key" && !input.password;
+  let target: SshTarget = {
+    serverId: null,
+    host,
+    username,
+    password: keyOnly ? null : input.password || null,
+    auth: keyOnly ? "key" : "password",
+  };
+  if (input.serverId != null) {
     const [row] = await db
-      .select({ password: servers.password })
+      .select({
+        id: servers.id,
+        host: servers.host,
+        password: servers.password,
+        auth: servers.auth,
+      })
       .from(servers)
       .where(eq(servers.id, input.serverId))
       .limit(1);
     if (!row) return { ok: false, message: t("serverNotFound") };
-    password = decryptSecret(row.password);
+    // A host typed over the stored one is another machine, checked against no
+    // pin: the stored password must never be sent to it. The key is fine (it
+    // only signs a challenge).
+    const sameHost = row.host === host;
+    if (!input.password && !sameHost && row.auth === "password") {
+      return {
+        ok: false,
+        code: "passwordRequired",
+        message: t("passwordRequired"),
+      };
+    }
+    target = {
+      serverId: sameHost ? row.id : null,
+      host,
+      username,
+      password:
+        input.password || (sameHost ? decryptNullable(row.password) : null),
+      auth: input.password ? "password" : row.auth,
+    };
   }
 
-  if (!password) {
+  if (target.auth === "password" && !target.password) {
     return { ok: false, message: t("passwordRequiredForTest") };
   }
 
-  return testSshConnection({ host, username, password });
+  const result = await testSshConnection(target, { actor: session.user.id });
+  if (!result.ok && result.code === "hostKeyMismatch") {
+    return {
+      ok: false,
+      code: "hostKeyMismatch",
+      message: t("hostKeyMismatch"),
+    };
+  }
+  return result;
 }
 
 export type BulkDeleteServersResult =

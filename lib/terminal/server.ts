@@ -1,4 +1,5 @@
 import type { ServerWebSocket } from "bun";
+import { HostKeyMismatchError } from "@/lib/ssh-connect";
 import {
   createNonceGuard,
   parseClientMessage,
@@ -220,6 +221,7 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         cols: msg.cols,
         rows: msg.rows,
         ...(cwd ? { cwd } : {}),
+        actor: uid,
       });
     } catch (error) {
       deps.audit({
@@ -229,9 +231,15 @@ export function createTerminalHandlers(deps: TerminalDeps) {
         serverName: target.name,
         reason: "ssh-failed",
       });
+      // A host key mismatch goes out as its stable code for the browser to
+      // translate; the fingerprints are on the server page.
       fail(
         ws,
-        error instanceof Error ? error.message : "SSH connection failed"
+        error instanceof HostKeyMismatchError
+          ? error.code
+          : error instanceof Error
+            ? error.message
+            : "SSH connection failed"
       );
       return;
     }

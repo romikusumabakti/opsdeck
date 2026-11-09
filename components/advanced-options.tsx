@@ -11,10 +11,12 @@ import {
  * The "Advanced options" disclosure of the simple-by-default forms: closed
  * unless `defaultOpen`, or controlled through `open`/`onOpenChange`. When
  * `invalid`, it opens on every save attempt (`attempt` counts them), so a
- * failed save shows the field at fault.
+ * failed save shows the field at fault. `label` replaces "Advanced options"
+ * for a disclosure that holds one thing (e.g. "Show install command").
  */
 export function AdvancedOptions({
   children,
+  label,
   defaultOpen = false,
   open: controlledOpen,
   onOpenChange,
@@ -22,6 +24,7 @@ export function AdvancedOptions({
   attempt = 0,
 }: {
   children: React.ReactNode;
+  label?: React.ReactNode;
   invalid?: boolean;
   attempt?: number;
   defaultOpen?: boolean;
@@ -50,7 +53,7 @@ export function AdvancedOptions({
         ) : (
           <ChevronRight className="size-4 text-muted-foreground rtl:-scale-x-100" />
         )}
-        {t("advancedOptions")}
+        {label ?? t("advancedOptions")}
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-4">
         {children}

@@ -21,9 +21,31 @@ import {
   saveInstanceUpdateSettings,
   updateSettingsSchema,
 } from "@/server/services/instance-updates";
-import { json, param } from "@/server/validation";
+import {
+  getAuthorizedKeysLine,
+  getInstanceSshKey,
+  requestMoveAll,
+  requestRotate,
+} from "@/server/services/server-key-jobs";
+import { json, param, query } from "@/server/validation";
 
 const idParam = param(z.object({ id: uuidSchema }));
+
+/**
+ * The instance SSH key (Admin → Instance → SSH key): org server:manage, which
+ * the services check, not instance:manage. Mounted before instanceRouter, so
+ * its instance:manage guard never runs for these paths.
+ */
+export const instanceSshKeyRouter = sessionRouter()
+  .get("/", async (c) => c.json(await getInstanceSshKey()))
+  // The line a new server's admin installs by hand, restricted to `from`.
+  .get(
+    "/authorized-line",
+    query(z.object({ from: z.string().trim().min(1).max(64) })),
+    async (c) => c.json(await getAuthorizedKeysLine(c.req.valid("query").from))
+  )
+  .post("/move-all", async (c) => c.json(await requestMoveAll(), 202))
+  .post("/rotate", async (c) => c.json(await requestRotate(), 202));
 
 /**
  * The Panel instance itself (Admin → Instance). The router checks org

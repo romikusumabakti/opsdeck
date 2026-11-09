@@ -24,7 +24,7 @@ import {
 } from "@/lib/provisioning/repository";
 import type { JobMap } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
-import { decryptSecret } from "@/lib/secrets";
+import { decryptNullable } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { decodeVariableValue } from "@/lib/variables/managed-env";
@@ -64,13 +64,15 @@ function summarize(spec: ProvisioningStepSpec): string {
 }
 
 async function prepareDeployDir(
+  ctx: StepContext,
   params: Extract<
     ProvisioningStepSpec,
     { kind: "prepare_deploy_dir" }
   >["params"]
 ): Promise<string> {
-  const creds = await loadServerCredentials(params.serverId);
-  if (!creds) throw new StepFailed(`Server ${params.serverId} not found`);
+  const loaded = await loadServerCredentials(params.serverId);
+  if (!loaded) throw new StepFailed(`Server ${params.serverId} not found`);
+  const creds = { ...loaded, run: ctx.runId };
   const dir = shq(params.deployDir);
   // Never chmod an existing directory: someone may have set it deliberately.
   await executeRemoteCommand(
@@ -105,7 +107,10 @@ async function createDatabase(
   }
   await provisionSharedDatabase(
     {
-      server: { ...host.server, password: decryptSecret(host.server.password) },
+      server: {
+        ...host.server,
+        password: decryptNullable(host.server.password),
+      },
       containerName: host.containerName,
     },
     {
@@ -113,6 +118,7 @@ async function createDatabase(
       role: params.role,
       password,
       environmentId: ctx.environmentId,
+      runId: ctx.runId,
     }
   );
   return `Database ${params.database} and role ${params.role} ready`;
@@ -158,7 +164,7 @@ async function executeStep(
 ): Promise<string> {
   switch (spec.kind) {
     case "prepare_deploy_dir":
-      return prepareDeployDir(spec.params);
+      return prepareDeployDir(ctx, spec.params);
     case "create_database":
       return createDatabase(ctx, spec.params);
     case "tunnel_route":

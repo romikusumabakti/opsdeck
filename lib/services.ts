@@ -1,4 +1,5 @@
 import type { EnvironmentWithServers, Server } from "@/lib/db/schema";
+import { type PrivilegedServer, privileged } from "@/lib/privileged";
 import { shq } from "@/lib/sh";
 
 export type ServiceRole = "db" | "backend" | "frontend";
@@ -194,14 +195,15 @@ export function parseServiceState(
   return "unknown";
 }
 
-// systemctl needs sudo; docker and kubectl don't (the SSH user is assumed to
+// systemctl needs root; docker and kubectl don't (the SSH user is assumed to
 // be in the docker group / have a working KUBECONFIG, same assumption made by
-// the backup/restore commands).
+// the backup/restore commands). `server` decides how root is reached (see
+// lib/privileged).
 export function buildControlCommand(
   serviceType: ServiceType,
   serviceName: string,
   action: ServiceAction,
-  sudoPassword: string
+  server: PrivilegedServer
 ): string {
   if (serviceType === "docker") {
     return `docker ${action} ${shq(serviceName)}`;
@@ -216,9 +218,7 @@ export function buildControlCommand(
     const replicas = action === "start" ? 1 : 0;
     return `kubectl scale deploy ${shq(serviceName)} --replicas=${replicas}`;
   }
-  // `printf '%s\n' PASSWORD | sudo -S CMD` feeds the password to sudo via
-  // stdin so it never appears as an argv (which would be visible in `ps`).
-  return `printf '%s\\n' ${shq(sudoPassword)} | sudo -S systemctl ${action} ${shq(serviceName)}`;
+  return privileged(`systemctl ${action} ${shq(serviceName)}`, server);
 }
 
 export const LOG_LINE_OPTIONS = [100, 200, 500, 1000] as const;
@@ -228,7 +228,8 @@ export type LogLines = (typeof LOG_LINE_OPTIONS)[number];
 // execution environment. `docker exec` / `kubectl exec` run the pipeline
 // inside the container/pod (so it sees the container's filesystem and the
 // container user). `systemd` runs it directly on the SSH host; when
-// `runAsUser` is set, the pipeline is invoked via `sudo -S -u <user>` so
+// `runAsUser` is set, the pipeline runs as that user (lib/privileged: sudo -u,
+// or runuser when the SSH user is root) so
 // Postgres peer auth and OS-level write permissions (e.g. mssql owning
 // /var/opt/mssql/backups) are satisfied without forcing the operator to
 // chmod 777 the backup path. `runAsUser` is ignored for docker/kubernetes
@@ -246,7 +247,7 @@ export function buildDbShellCommand(
   inner: string,
   options: {
     runAsUser?: string;
-    sudoPassword?: string;
+    server?: PrivilegedServer;
   } = {}
 ): string {
   if (serviceType === "docker") {
@@ -256,16 +257,19 @@ export function buildDbShellCommand(
     return `kubectl exec deploy/${shq(serviceName)} -- bash -c ${shq(inner)}`;
   }
   if (options.runAsUser) {
-    if (!options.sudoPassword) {
+    if (!options.server) {
       throw new Error(
-        `buildDbShellCommand: sudoPassword is required when runAsUser is set (got runAsUser="${options.runAsUser}")`
+        `buildDbShellCommand: server is required when runAsUser is set (got runAsUser="${options.runAsUser}")`
       );
     }
-    // sudo -S consumes one newline-terminated password from stdin, then
-    // execs the inner shell as `runAsUser`. The inner shell manages its own
-    // stdin (e.g. `printf QUERY | psql`) — no stdin conflict because the
-    // outer printf only emits a single line consumed entirely by sudo.
-    return `printf '%s\\n' ${shq(options.sudoPassword)} | sudo -S -u ${shq(options.runAsUser)} bash -c ${shq(inner)}`;
+    // In sudo-password mode `sudo -S` consumes one newline-terminated password
+    // from stdin, then execs the inner shell as `runAsUser`; in the other
+    // modes nothing is piped and stdin is free. Either way the inner shell
+    // manages its own stdin (e.g. `printf QUERY | psql`) — no stdin conflict
+    // because the outer printf only emits a single line consumed by sudo.
+    return privileged(`bash -c ${shq(inner)}`, options.server, {
+      runAsUser: options.runAsUser,
+    });
   }
   return `bash -c ${shq(inner)}`;
 }
@@ -278,9 +282,10 @@ export function buildDbShellCommand(
 // know which SQL Server version each environment is on. The `printf | sqlcmd`
 // pipeline is built into the inner so it runs in the same shell context as
 // sqlcmd — that keeps stdin handling local and avoids competing with `sudo -S`
-// on systemd. sqlcmd authenticates over TCP to localhost:1433 with -U/-P, so no
-// `runAsUser` is needed for systemd. `extraArgs` appends extra sqlcmd flags
-// (e.g. `-h -1 -W` for header-less list output).
+// (sudo-password mode) on systemd. sqlcmd authenticates over TCP to
+// localhost:1433 with -U/-P, so no `runAsUser` is needed for systemd.
+// `extraArgs` appends extra sqlcmd flags (e.g. `-h -1 -W` for header-less list
+// output).
 export function buildSqlcmdCommand(
   query: string,
   user: string,
@@ -357,9 +362,9 @@ export function mysqlPasswordExport(password: string): string {
  * Pipe a SQL script into the MySQL/MariaDB client, wrapped for the service
  * type. The query goes in over stdin (not `-e`) so quoting survives untouched
  * and the statement stays out of argv; the pipeline is built inside the inner
- * shell for the same reason as sqlcmd's — on systemd the outer shell's stdin is
- * already carrying the sudo password. `extraArgs` appends client flags (e.g.
- * `-N -B` for header-less, tab-separated list output).
+ * shell for the same reason as sqlcmd's — on systemd in sudo-password mode the
+ * outer shell's stdin may be carrying the sudo password. `extraArgs` appends
+ * client flags (e.g. `-N -B` for header-less, tab-separated list output).
  */
 export function buildMysqlCommand(
   query: string,
@@ -391,7 +396,7 @@ export function buildFollowLogsCommand(
   serviceType: ServiceType,
   serviceName: string,
   lines: number,
-  sudoPassword: string
+  server: PrivilegedServer
 ): string {
   if (serviceType === "docker") {
     const inner = `docker logs --tail ${lines} --timestamps --follow ${shq(serviceName)} 2>&1`;
@@ -402,8 +407,8 @@ export function buildFollowLogsCommand(
     return `sh -c ${shq(inner)}`;
   }
   // `-f` follows the unit. `-n` seeds the initial tail. journalctl reads no
-  // stdin so it doesn't conflict with sudo -S consuming the password.
+  // stdin so it doesn't conflict with sudo -S consuming the password (in
+  // sudo-password mode; otherwise nothing is piped).
   const journal = `journalctl -u ${shq(serviceName)} -n ${lines} -f --no-pager --output=short-iso 2>&1`;
-  const inner = `printf '%s\\n' ${shq(sudoPassword)} | sudo -S ${journal}`;
-  return `sh -c ${shq(inner)}`;
+  return `sh -c ${shq(privileged(journal, server))}`;
 }

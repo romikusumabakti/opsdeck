@@ -16,7 +16,9 @@ import {
 } from "@/lib/db/schema";
 import { DOMAIN_ERRORS } from "@/lib/domains/errors";
 import { getAccountRowId } from "@/lib/domains/repository";
-import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { decryptNullable, decryptSecret, encryptSecret } from "@/lib/secrets";
+import { toSafeServer } from "@/lib/server-view";
+import { sshTarget } from "@/lib/ssh-connect";
 import {
   checkDnsRecord,
   cnameTarget,
@@ -251,11 +253,10 @@ export async function getTunnels(): Promise<TunnelWithContext[]> {
     .orderBy(tunnels.name);
 
   return rows.map((row) => {
-    const { password, ...server } = row.servers;
     const zone = row.cloudflare_zones;
     return {
       ...row.tunnels,
-      server,
+      server: toSafeServer(row.servers),
       zone: { id: zone.id, name: zone.name, zoneId: zone.zoneId },
     };
   });
@@ -271,11 +272,10 @@ export async function getTunnel(id: string): Promise<TunnelWithContext | null> {
     .where(eq(tunnels.id, id))
     .limit(1);
   if (!row) return null;
-  const { password, ...server } = row.servers;
   const zone = row.cloudflare_zones;
   return {
     ...row.tunnels,
-    server,
+    server: toSafeServer(row.servers),
     zone: { id: zone.id, name: zone.name, zoneId: zone.zoneId },
   };
 }
@@ -367,11 +367,10 @@ async function loadTunnel(id: string): Promise<LoadedTunnel | null> {
   if (!row) return null;
   return {
     tunnel: row.tunnels,
-    creds: {
-      host: row.servers.host,
-      username: row.servers.username,
-      password: decryptSecret(row.servers.password),
-    },
+    creds: sshTarget({
+      ...row.servers,
+      password: decryptNullable(row.servers.password),
+    }),
     zone: {
       zoneId: row.cloudflare_zones.zoneId,
       apiToken: await zoneApiToken(row.cloudflare_zones.apiToken),

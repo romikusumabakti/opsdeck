@@ -16,6 +16,7 @@ import {
   type ServiceState,
 } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
+import { sshTarget } from "@/lib/ssh-connect";
 import {
   serviceActionSchema,
   serviceRoleSchema,
@@ -38,11 +39,7 @@ async function probeServiceStatus(
   const cfg = getServiceConfig(environment, role);
   try {
     const output = await executeRemoteCommand(
-      {
-        host: cfg.server.host,
-        username: cfg.server.username,
-        password: cfg.server.password,
-      },
+      sshTarget(cfg.server),
       buildStatusCommand(cfg.serviceType, cfg.serviceName)
     );
     return {

@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
 import { db } from "@/lib/db";
 import { servers } from "@/lib/db/schema";
-import { decryptSecret } from "@/lib/secrets";
+import { decryptNullable } from "@/lib/secrets";
+import { sshTarget } from "@/lib/ssh-connect";
 import {
   createTerminalHandlers,
   type TerminalTarget,
@@ -41,11 +42,9 @@ const { fetch, websocket, registry } = createTerminalHandlers({
       .limit(1);
     if (!row) return null;
     return {
+      ...sshTarget({ ...row, password: decryptNullable(row.password) }),
       id: row.id,
       name: row.name,
-      host: row.host,
-      username: row.username,
-      password: decryptSecret(row.password),
     };
   },
 

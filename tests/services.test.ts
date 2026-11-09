@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildControlCommand,
   buildDbShellCommand,
+  buildFollowLogsCommand,
   buildMysqlCommand,
   buildSqlcmdCommand,
   buildStatusCommand,
@@ -11,6 +12,15 @@ import {
   hasService,
   parseServiceState,
 } from "@/lib/services";
+import { shq } from "@/lib/sh";
+
+const passwordServer = {
+  username: "ops",
+  auth: "password",
+  password: "p@ss'word",
+} as const;
+const keyServer = { username: "ops", auth: "key", password: null } as const;
+const rootServer = { username: "root", auth: "key", password: null } as const;
 
 describe("parseServiceState", () => {
   describe("docker", () => {
@@ -108,31 +118,43 @@ describe("buildStatusCommand", () => {
 
 describe("buildControlCommand", () => {
   it("builds a docker control command without sudo", () => {
-    expect(buildControlCommand("docker", "svc", "restart", "")).toBe(
+    expect(buildControlCommand("docker", "svc", "restart", keyServer)).toBe(
       "docker restart 'svc'"
     );
   });
 
   it("maps kubernetes restart to rollout restart", () => {
-    expect(buildControlCommand("kubernetes", "dep", "restart", "")).toBe(
+    expect(buildControlCommand("kubernetes", "dep", "restart", keyServer)).toBe(
       "kubectl rollout restart deploy 'dep'"
     );
   });
 
   it("maps kubernetes start/stop to scale", () => {
-    expect(buildControlCommand("kubernetes", "dep", "start", "")).toBe(
+    expect(buildControlCommand("kubernetes", "dep", "start", keyServer)).toBe(
       "kubectl scale deploy 'dep' --replicas=1"
     );
-    expect(buildControlCommand("kubernetes", "dep", "stop", "")).toBe(
+    expect(buildControlCommand("kubernetes", "dep", "stop", keyServer)).toBe(
       "kubectl scale deploy 'dep' --replicas=0"
     );
   });
 
   it("feeds the sudo password via stdin for systemd and quotes both args", () => {
-    const cmd = buildControlCommand("systemd", "nginx", "start", "p@ss'word");
-    expect(cmd).toContain("sudo -S systemctl start 'nginx'");
     // password is shq-quoted (the embedded quote is escaped)
-    expect(cmd).toContain("'p@ss'\\''word'");
+    expect(
+      buildControlCommand("systemd", "nginx", "start", passwordServer)
+    ).toBe("printf '%s\\n' 'p@ss'\\''word' | sudo -S systemctl start 'nginx'");
+  });
+
+  it("uses sudo -n for systemd on a key server", () => {
+    expect(buildControlCommand("systemd", "nginx", "start", keyServer)).toBe(
+      "sudo -n systemctl start 'nginx'"
+    );
+  });
+
+  it("runs systemctl directly as root", () => {
+    expect(buildControlCommand("systemd", "nginx", "start", rootServer)).toBe(
+      "systemctl start 'nginx'"
+    );
   });
 });
 
@@ -153,21 +175,63 @@ describe("buildDbShellCommand", () => {
     );
   });
 
-  it("uses sudo -u when runAsUser + sudoPassword are provided", () => {
+  it("uses sudo -S -u when runAsUser is set on a password server", () => {
     const cmd = buildDbShellCommand("systemd", "pg", "pg_dump db", {
       runAsUser: "postgres",
-      sudoPassword: "secret",
+      server: { username: "ops", auth: "password", password: "secret" },
     });
-    expect(cmd).toContain("sudo -S -u 'postgres' bash -c 'pg_dump db'");
-    expect(cmd).toContain("'secret'");
+    expect(cmd).toBe(
+      "printf '%s\\n' 'secret' | sudo -S -u 'postgres' bash -c 'pg_dump db'"
+    );
   });
 
-  it("THROWS when runAsUser is set without sudoPassword", () => {
+  it("uses sudo -n -u when runAsUser is set on a key server", () => {
+    const cmd = buildDbShellCommand("systemd", "pg", "pg_dump db", {
+      runAsUser: "postgres",
+      server: keyServer,
+    });
+    expect(cmd).toBe("sudo -n -u 'postgres' bash -c 'pg_dump db'");
+  });
+
+  it("uses runuser when runAsUser is set and the SSH user is root", () => {
+    const cmd = buildDbShellCommand("systemd", "pg", "pg_dump db", {
+      runAsUser: "postgres",
+      server: rootServer,
+    });
+    expect(cmd).toBe("runuser -u 'postgres' -- bash -c 'pg_dump db'");
+  });
+
+  it("THROWS when runAsUser is set without a server", () => {
     expect(() =>
       buildDbShellCommand("systemd", "pg", "pg_dump db", {
         runAsUser: "postgres",
       })
-    ).toThrow(/sudoPassword is required/);
+    ).toThrow(/server is required/);
+  });
+});
+
+describe("buildFollowLogsCommand", () => {
+  // The whole pipeline is shq-wrapped once more for `sh -c`.
+  const journal =
+    "journalctl -u 'app' -n 100 -f --no-pager --output=short-iso 2>&1";
+
+  it("feeds the sudo password to journalctl on a password server", () => {
+    // Same bytes as before privilege modes existed.
+    expect(buildFollowLogsCommand("systemd", "app", 100, passwordServer)).toBe(
+      `sh -c ${shq(`printf '%s\\n' 'p@ss'\\''word' | sudo -S ${journal}`)}`
+    );
+  });
+
+  it("uses sudo -n on a key server", () => {
+    expect(buildFollowLogsCommand("systemd", "app", 100, keyServer)).toBe(
+      `sh -c ${shq(`sudo -n ${journal}`)}`
+    );
+  });
+
+  it("runs journalctl directly as root", () => {
+    expect(buildFollowLogsCommand("systemd", "app", 100, rootServer)).toBe(
+      `sh -c ${shq(journal)}`
+    );
   });
 });
 

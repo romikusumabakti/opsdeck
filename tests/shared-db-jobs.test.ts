@@ -8,13 +8,20 @@ import type { EnvironmentWithServers } from "@/lib/db/schema";
 // says (including a restore from another environment's backups).
 
 const calls: string[] = [];
+// The run each connection was made for.
+const runs: unknown[] = [];
 vi.mock("@/lib/ssh", () => ({
-  executeRemoteCommand: async (_creds: unknown, command: string) => {
+  executeRemoteCommand: async (creds: { run?: string }, command: string) => {
     calls.push(command);
+    runs.push(creds.run);
     return "";
   },
-  downloadRemoteFile: async () => {},
-  uploadRemoteFile: async () => {},
+  downloadRemoteFile: async (creds: { run?: string }) => {
+    runs.push(creds.run);
+  },
+  uploadRemoteFile: async (creds: { run?: string }) => {
+    runs.push(creds.run);
+  },
 }));
 
 const server = { host: "db.test", username: "ops", password: "pw" };
@@ -61,6 +68,7 @@ const job = (name: string, data: Record<string, unknown>) =>
 
 beforeEach(() => {
   calls.length = 0;
+  runs.length = 0;
 });
 
 describe("shared database jobs run as the binding's role", () => {
@@ -72,6 +80,9 @@ describe("shared database jobs run as the binding's role", () => {
     expect(dump).toContain("pg_dump -U ");
     expect(dump).not.toContain("-U postgres");
     expect(dump).toContain("pcan_sb");
+    // A host key first seen here is recorded for system and this run.
+    expect(runs.length).toBeGreaterThan(0);
+    expect(new Set(runs)).toEqual(new Set([runId]));
   });
 
   for (const [label, extra] of [
@@ -95,6 +106,8 @@ describe("shared database jobs run as the binding's role", () => {
         expect(cmd).not.toMatch(/(DROP|CREATE) DATABASE/);
       }
       expect(restore.join("\n")).toContain("DROP OWNED BY CURRENT_USER");
+      // Every connection, the transfer's too, is made for this run.
+      expect(new Set(runs)).toEqual(new Set([runId]));
     });
   }
 

@@ -3,14 +3,15 @@ import { db } from "@/lib/db";
 import type {
   EnvironmentWithServers,
   SafeEnvironmentWithServers,
-  SafeServer,
   SafeServiceWithServer,
   Server,
   ServiceWithServer,
 } from "@/lib/db/schema";
 import { environments, projects } from "@/lib/db/schema";
 import { qualifiedEnvName } from "@/lib/nav-path";
-import { decryptNullable, decryptSecret } from "@/lib/secrets";
+import { decryptNullable } from "@/lib/secrets";
+import { toSafeServer } from "@/lib/server-view";
+import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import type { EnvironmentInput } from "@/lib/validation";
 
 /**
@@ -45,11 +46,10 @@ export async function loadEnvironmentWithServers(
  */
 export async function loadServerCredentials(
   serverId: string
-): Promise<{ host: string; username: string; password: string } | null> {
+): Promise<SshTarget | null> {
   const server = await db.query.servers.findFirst({ where: { id: serverId } });
   if (!server) return null;
-  const { host, username, password } = decryptServer(server);
-  return { host, username, password };
+  return sshTarget({ ...server, password: decryptNullable(server.password) });
 }
 
 // The owner fields every environment view reads (see EnvironmentOwner).
@@ -92,12 +92,7 @@ function decryptService(service: ServiceWithServer): ServiceWithServer {
 
 /** Decrypt a server's SSH password in place for server-side use. */
 function decryptServer(server: Server): Server {
-  return { ...server, password: decryptSecret(server.password) };
-}
-
-function stripServer(server: Server): SafeServer {
-  const { password: _password, ...safe } = server;
-  return safe;
+  return { ...server, password: decryptNullable(server.password) };
 }
 
 /** Drop a service's secrets, keeping presence flags for the edit forms. */
@@ -105,7 +100,7 @@ function stripService(service: ServiceWithServer): SafeServiceWithServer {
   const { dbPassword, mockTimeApiKey, server, ...rest } = service;
   return {
     ...rest,
-    server: stripServer(server),
+    server: toSafeServer(server),
     hasDbPassword: Boolean(dbPassword),
     hasMockTimeApiKey: Boolean(mockTimeApiKey),
   };

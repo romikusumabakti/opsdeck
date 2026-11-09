@@ -144,12 +144,66 @@ export const provisioningStepStatusEnum = pgEnum("provisioning_step_status", [
   "failed",
 ]);
 
+// How the Panel signs in to a server: with the stored password, or with the
+// instance's SSH key.
+export const serverAuthEnum = pgEnum("server_auth", ["password", "key"]);
+
+// "current" signs in and is installed on servers; "previous" is still
+// accepted while servers move to a newer key; "retired" is kept for history.
+export const sshKeyStatusEnum = pgEnum("ssh_key_status", [
+  "current",
+  "previous",
+  "retired",
+]);
+
+// The instance's own ed25519 key pair. The private key is encrypted with
+// lib/secrets.ts and never leaves the server.
+export const sshKeys = pgTable(
+  "ssh_keys",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    // OpenSSH format: "ssh-ed25519 AAAA...".
+    publicKey: text("public_key").notNull(),
+    privateKey: text("private_key").notNull(),
+    // "SHA256:..." of the public key.
+    fingerprint: text("fingerprint").notNull(),
+    status: sshKeyStatusEnum("status").notNull().default("current"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ssh_keys_one_current_idx")
+      .on(t.status)
+      .where(sql`status = 'current'`),
+  ]
+);
+
 export const servers = pgTable("servers", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   name: text("name").notNull(),
   host: text("host").notNull(),
   username: text("username").notNull(),
-  password: text("password").notNull(),
+  auth: serverAuthEnum("auth").notNull().default("password"),
+  // Null once the server signs in with the instance key.
+  password: text("password"),
+  // Pinned host key (trust on first use): algorithm, base64 blob and its
+  // SHA256 fingerprint. Null until first pinned.
+  hostKeyType: text("host_key_type"),
+  hostKey: text("host_key"),
+  hostKeyFingerprint: text("host_key_fingerprint"),
+  hostKeyPinnedAt: timestamp("host_key_pinned_at"),
+  // The key the server offered when it did not match the pinned one: type,
+  // base64 blob and fingerprint. Trusting it copies exactly this key into the
+  // pin.
+  hostKeyOfferedType: text("host_key_offered_type"),
+  hostKeyOffered: text("host_key_offered"),
+  hostKeyOfferedFingerprint: text("host_key_offered_fingerprint"),
+  sshKeyId: uuid("ssh_key_id").references(() => sshKeys.id, {
+    onDelete: "set null",
+  }),
+  // Address the installed key is restricted to (authorized_keys from=).
+  sshFrom: text("ssh_from"),
+  // Stable code of the last key install or login failure.
+  keyError: text("key_error"),
   // Root the SFTP file explorer is confined to (see lib/explorer/confineSftpPath).
   // Defaults to "/" (whole host as the SSH user). Narrow it per server — e.g.
   // "/home/deploy" or "/var/www" — to limit the blast radius of the explorer.
@@ -2002,7 +2056,22 @@ export type EnvironmentListItem = EnvironmentSummary & {
 // boundary (RSC payloads are visible in the browser). Server code loads the
 // full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers;
 // anything passed to a client component must be sanitized to these shapes first.
-export type SafeServer = Omit<Server, "password">;
+// A server seen through another object (lib/server-view#toSafeServer): no
+// password and nothing about how the Panel signs in.
+export type SafeServer = Omit<
+  Server,
+  | "password"
+  | "hostKeyType"
+  | "hostKey"
+  | "hostKeyFingerprint"
+  | "hostKeyPinnedAt"
+  | "hostKeyOfferedType"
+  | "hostKeyOffered"
+  | "hostKeyOfferedFingerprint"
+  | "sshKeyId"
+  | "sshFrom"
+  | "keyError"
+>;
 
 // A service stripped of its secrets, with presence flags so edit forms can show
 // a "leave blank to keep" affordance and validate per-engine password
@@ -2199,6 +2268,44 @@ export const instanceBackups = pgTable(
   ]
 );
 
+/** One server's outcome in an SSH key job; `code` is a stable error code. */
+export type SshKeyJobResult = {
+  serverId: string;
+  name: string;
+  ok: boolean;
+  code: string | null;
+};
+
+// "Move all servers to the key" and "Rotate the key" runs, newest last. At
+// most one is open (not finished) at a time, across both kinds: a move-all
+// during a rotation could install the old key.
+export const sshKeyJobs = pgTable(
+  "ssh_key_jobs",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    kind: text("kind", { enum: ["moveAll", "rotate"] }).notNull(),
+    // The admin who asked for it: the actor of its activity entries.
+    actorId: uuid("actor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    requestedAt: timestamp("requested_at").notNull().defaultNow(),
+    startedAt: timestamp("started_at"),
+    finishedAt: timestamp("finished_at"),
+    // Filled in server by server, so the page can show progress.
+    results: jsonb("results").$type<SshKeyJobResult[]>().notNull().default([]),
+    // Why the job itself stopped early (stable code); null when it ran out.
+    errorCode: text("error_code"),
+  },
+  (t) => [
+    check("ssh_key_jobs_kind_check", sql`${t.kind} in ('moveAll', 'rotate')`),
+    uniqueIndex("ssh_key_jobs_one_open_idx")
+      .on(sql`(true)`)
+      .where(sql`finished_at is null`),
+    index("ssh_key_jobs_requested_at_idx").on(t.requestedAt),
+  ]
+);
+
 export type InstanceSettings = InferSelectModel<typeof instanceSettings>;
+export type SshKeyJob = InferSelectModel<typeof sshKeyJobs>;
 export type InstanceBackup = InferSelectModel<typeof instanceBackups>;
 export type NewInstanceBackup = InferInsertModel<typeof instanceBackups>;

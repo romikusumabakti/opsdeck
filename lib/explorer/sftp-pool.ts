@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
-import { NodeSSH } from "node-ssh";
+import type { NodeSSH } from "node-ssh";
 import type { SFTPWrapper } from "ssh2";
+import { openSsh, type SshTarget } from "@/lib/ssh";
+import type { ConnectOptions } from "@/lib/ssh-connect";
 
-export type SshCreds = { host: string; username: string; password: string };
+export type SshCreds = SshTarget;
 
 // An SSH handshake is ~8-10 round trips (version banner, KEXINIT, key exchange,
 // NEWKEYS, service request, password auth, channel open, subsystem request)
@@ -56,12 +58,22 @@ if (process.env.NODE_ENV !== "production") {
   globalForSftp.__sftpPool = pool;
 }
 
-// The password is part of the key so rotating a server's credentials can never
-// hand back a connection authenticated with the old one — the new creds simply
-// miss the cache. Hashed to keep plaintext secrets out of map keys.
+// The password and auth mode are part of the key so changing a server's
+// credentials (or moving it to the instance key) can never hand back a
+// connection authenticated the old way — the new creds simply miss the cache.
+// Hashed to keep plaintext secrets out of map keys.
 function poolKey(creds: SshCreds): string {
   return createHash("sha256")
-    .update(`${creds.host}\0${creds.username}\0${creds.password}`)
+    .update(
+      [
+        creds.serverId ?? "",
+        creds.host,
+        creds.port ?? 22,
+        creds.username,
+        creds.auth,
+        creds.password ?? "",
+      ].join("\0")
+    )
     .digest("hex");
 }
 
@@ -96,13 +108,16 @@ function scheduleIdleClose(
 
 // Synchronous up to `pool.set`, so two concurrent first callers can't both dial:
 // the second one finds the in-flight promise.
-function acquire(key: string, creds: SshCreds): Promise<PooledConnection> {
+function acquire(
+  key: string,
+  creds: SshCreds,
+  options: ConnectOptions
+): Promise<PooledConnection> {
   const cached = pool.get(key);
   if (cached) return cached;
 
   const pending: Promise<PooledConnection> = (async () => {
-    const ssh = new NodeSSH();
-    await ssh.connect({ ...creds, ...CONNECT_OPTIONS });
+    const ssh = await openSsh(creds, CONNECT_OPTIONS, options);
     const sftp = await ssh.requestSFTP();
     const conn: PooledConnection = { ssh, sftp, leases: 0 };
     // A connection that dies (server restart, network drop) must not linger in
@@ -124,8 +139,12 @@ function acquire(key: string, creds: SshCreds): Promise<PooledConnection> {
 // Returns null when the pooled connection turned out to be dead (and was
 // evicted), so the caller can retry on a fresh one. A dial failure throws —
 // that is a real connectivity/credential error, not a stale-socket race.
-async function take(key: string, creds: SshCreds): Promise<SftpLease | null> {
-  const pending = acquire(key, creds);
+async function take(
+  key: string,
+  creds: SshCreds,
+  options: ConnectOptions
+): Promise<SftpLease | null> {
+  const pending = acquire(key, creds, options);
   const conn = await pending;
 
   if (!conn.ssh.isConnected()) {
@@ -149,16 +168,20 @@ async function take(key: string, creds: SshCreds): Promise<SftpLease | null> {
 }
 
 // Borrow the pooled SFTP channel for `creds`. The caller MUST release it.
-export async function leaseSftp(creds: SshCreds): Promise<SftpLease> {
+// `options.actor` is recorded only if this lease dials and pins the host key.
+export async function leaseSftp(
+  creds: SshCreds,
+  options: ConnectOptions = {}
+): Promise<SftpLease> {
   const key = poolKey(creds);
 
-  const first = await take(key, creds);
+  const first = await take(key, creds, options);
   if (first) return first;
 
   // The pooled connection had already died; `take` evicted it, so this attempt
   // dials fresh. One retry is enough — a second dead connection means a real
   // connectivity problem rather than a socket that went stale while idle.
-  const second = await take(key, creds);
+  const second = await take(key, creds, options);
   if (second) return second;
 
   throw new Error("SFTP connection unavailable");
@@ -167,9 +190,10 @@ export async function leaseSftp(creds: SshCreds): Promise<SftpLease> {
 // Run a short metadata operation on the pooled channel.
 export async function withPooledSftp<T>(
   creds: SshCreds,
-  fn: (sftp: SFTPWrapper) => Promise<T>
+  fn: (sftp: SFTPWrapper) => Promise<T>,
+  options: ConnectOptions = {}
 ): Promise<T> {
-  const lease = await leaseSftp(creds);
+  const lease = await leaseSftp(creds, options);
   try {
     return await fn(lease.sftp);
   } finally {
@@ -180,10 +204,10 @@ export async function withPooledSftp<T>(
 // Open a connection OUTSIDE the pool, for bulk transfers. The caller owns its
 // lifetime and must call `dispose`.
 export async function openSftp(
-  creds: SshCreds
+  creds: SshCreds,
+  options: ConnectOptions = {}
 ): Promise<{ sftp: SFTPWrapper; dispose: () => void }> {
-  const ssh = new NodeSSH();
-  await ssh.connect({ ...creds, ...CONNECT_OPTIONS });
+  const ssh = await openSsh(creds, CONNECT_OPTIONS, options);
   const sftp = await ssh.requestSFTP();
   let disposed = false;
   return {
