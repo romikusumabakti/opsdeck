@@ -5,15 +5,25 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rows: Record<string, unknown>[] = [];
+let racingWinner: Record<string, unknown> | null = null;
 
-// Minimal in-memory stand-in for the ssh_keys table that honours the
-// "one current row" unique index.
+vi.mock("drizzle-orm", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("drizzle-orm")>()),
+  eq: (column: { name: string }, value: unknown) => ({
+    column: column.name,
+    value,
+  }),
+}));
+
+// Minimal in-memory stand-in for the ssh_keys table: filters by the eq()
+// condition and honours the "one current row" unique index.
 vi.mock("@/lib/db", () => ({
   db: {
     select: () => ({
       from: () => ({
-        where: () => ({
-          limit: async () => rows.slice(0, 1),
+        where: (cond: { column: string; value: unknown }) => ({
+          limit: async () =>
+            rows.filter((r) => r[cond.column] === cond.value).slice(0, 1),
         }),
       }),
     }),
@@ -21,6 +31,11 @@ vi.mock("@/lib/db", () => ({
       values: (v: Record<string, unknown>) => ({
         onConflictDoNothing: () => ({
           returning: async () => {
+            if (racingWinner) {
+              // Another process wins between our select and insert.
+              rows.push(racingWinner);
+              return [];
+            }
             if (rows.some((r) => r.status === "current")) return [];
             const row = {
               id: `key-${rows.length + 1}`,
@@ -57,6 +72,8 @@ const OURS = authorizedKeysLine("ssh-ed25519 AAAA x", "10.0.0.1", MARKER);
 
 beforeEach(() => {
   rows.length = 0;
+  racingWinner = null;
+  vi.unstubAllEnvs();
 });
 
 describe("generateInstanceKey", () => {
@@ -118,11 +135,58 @@ describe("authorized_keys helpers", () => {
     ).toBe(`ssh-rsa A a\r\n${OURS}\n`);
   });
 
+  it("collapses duplicate marker lines and ignores comments", () => {
+    const existing = `# ${MARKER}\n${OURS}\nssh-rsa A a\n${OURS}\n`;
+    expect(mergeAuthorizedKeys(existing, OURS, MARKER)).toBe(
+      `# ${MARKER}\n${OURS}\nssh-rsa A a\n`
+    );
+    expect(removeAuthorizedKey(existing, MARKER)).toBe(
+      `# ${MARKER}\nssh-rsa A a\n`
+    );
+  });
+
   it("remove drops only our marker line", () => {
     const existing = `ssh-rsa A a\n${OURS}\nssh-rsa B opsdeck:opsdeck:K2\n`;
     expect(removeAuthorizedKey(existing, MARKER)).toBe(
       "ssh-rsa A a\nssh-rsa B opsdeck:opsdeck:K2\n"
     );
+  });
+});
+
+describe("authorizedKeysLine validation", () => {
+  const KEY = "ssh-ed25519 AAAA x";
+  it("accepts IPs and CIDRs", () => {
+    expect(authorizedKeysLine(KEY, "10.0.0.0/8", MARKER)).toContain(
+      'from="10.0.0.0/8"'
+    );
+    expect(authorizedKeysLine(KEY, "::1", MARKER)).toContain('from="::1"');
+    expect(authorizedKeysLine(KEY, "fd00::/64", MARKER)).toContain(
+      'from="fd00::/64"'
+    );
+  });
+
+  it.each([
+    '1.2.3.4",command="id',
+    "1.2.3.4,command=id",
+    "1.2.3.4 x",
+    "",
+    "not-an-ip",
+    "10.0.0.0/33",
+    "fd00::/129",
+    "10.0.0.0/",
+    "10.0.0.0/8/8",
+  ])("rejects from=%j", (from) => {
+    expect(() => authorizedKeysLine(KEY, from, MARKER)).toThrow();
+  });
+
+  it("rejects non-ed25519 keys, empty blobs, and bad markers", () => {
+    expect(() =>
+      authorizedKeysLine("ssh-rsa AAAA x", "1.2.3.4", MARKER)
+    ).toThrow();
+    expect(() =>
+      authorizedKeysLine("ssh-ed25519", "1.2.3.4", MARKER)
+    ).toThrow();
+    expect(() => authorizedKeysLine(KEY, "1.2.3.4", "opsdeck:a b:K")).toThrow();
   });
 });
 
@@ -136,11 +200,33 @@ describe("fromAddress", () => {
     );
     expect(fromAddress("103.75.27.250 5 22", null)).toBe("103.75.27.250");
   });
+
+  it("returns null when SSH_CLIENT does not start with an IP", () => {
+    expect(fromAddress("", null)).toBeNull();
+    expect(fromAddress("   ", "172.29.0.0/16")).toBeNull();
+    expect(fromAddress('1.2.3.4",command="id 1 22', null)).toBeNull();
+    expect(
+      fromAddress("sudo: unable to resolve host", "172.29.0.0/16")
+    ).toBeNull();
+  });
+
+  it("falls back to the plain address on an invalid subnet", () => {
+    expect(fromAddress("172.29.0.7 1 22", "172.29.0.0/99")).toBe("172.29.0.7");
+    expect(fromAddress("172.29.0.7 1 22", "garbage")).toBe("172.29.0.7");
+  });
 });
 
 describe("keyMarker", () => {
   it("embeds the instance name and key id", () => {
-    expect(keyMarker("abc")).toMatch(/^opsdeck:[^:]+:abc$/);
+    vi.stubEnv("COMPOSE_PROJECT_NAME", "panel-2");
+    expect(keyMarker("abc")).toBe("opsdeck:panel-2:abc");
+  });
+
+  it("falls back to opsdeck when the project name is missing or invalid", () => {
+    vi.stubEnv("COMPOSE_PROJECT_NAME", "");
+    expect(keyMarker("abc")).toBe("opsdeck:opsdeck:abc");
+    vi.stubEnv("COMPOSE_PROJECT_NAME", "bad name:x");
+    expect(keyMarker("abc")).toBe("opsdeck:opsdeck:abc");
   });
 });
 
@@ -151,6 +237,34 @@ describe("ensureCurrentKey", () => {
     expect(rows).toHaveLength(1);
     expect(b.id).toBe(a.id);
     expect(a.publicKey.startsWith("ssh-ed25519 ")).toBe(true);
-    expect(await loadPrivateKey(a.id)).toContain("BEGIN OPENSSH PRIVATE KEY");
+  });
+
+  it("returns the winner's row when the insert loses the race", async () => {
+    racingWinner = {
+      id: "winner",
+      status: "current",
+      publicKey: "ssh-ed25519 WIN",
+      fingerprint: "SHA256:w",
+      privateKey: "enc:p",
+    };
+    const key = await ensureCurrentKey();
+    expect(key).toEqual({
+      id: "winner",
+      publicKey: "ssh-ed25519 WIN",
+      fingerprint: "SHA256:w",
+    });
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe("loadPrivateKey", () => {
+  it("selects by id and decrypts", async () => {
+    rows.push(
+      { id: "a", status: "previous", privateKey: "enc:PEM-A" },
+      { id: "b", status: "current", privateKey: "enc:PEM-B" }
+    );
+    expect(await loadPrivateKey("b")).toBe("PEM-B");
+    expect(await loadPrivateKey("a")).toBe("PEM-A");
+    await expect(loadPrivateKey("zzz")).rejects.toThrow();
   });
 });
