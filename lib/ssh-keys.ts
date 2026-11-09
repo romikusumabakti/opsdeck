@@ -87,22 +87,56 @@ export async function loadPrivateKey(keyId: string): Promise<string> {
 }
 
 export function keyMarker(keyId: string): string {
-  const instance = process.env.COMPOSE_PROJECT_NAME || "opsdeck";
-  return `opsdeck:${instance}:${keyId}`;
+  const configured = process.env.COMPOSE_PROJECT_NAME;
+  const instance =
+    configured && /^[A-Za-z0-9_.-]+$/.test(configured) ? configured : "opsdeck";
+  const marker = `opsdeck:${instance}:${keyId}`;
+  if (!/^opsdeck:[A-Za-z0-9_.-]+:[A-Za-z0-9-]+$/.test(marker)) {
+    throw new Error("invalid ssh key marker");
+  }
+  return marker;
 }
 
-/** The public key restricted to `from`, with the marker as its only comment. */
+function isValidFrom(from: string): boolean {
+  const [addr = "", prefix, ...rest] = from.split("/");
+  if (rest.length > 0) return false;
+  const family = isIP(addr);
+  if (!family) return false;
+  if (prefix === undefined) return true;
+  return validPrefix(prefix, family);
+}
+
+function validPrefix(prefix: string, family: number): boolean {
+  return (
+    /^\d{1,3}$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128)
+  );
+}
+
+/**
+ * The public key restricted to `from`, with the marker as its only comment.
+ * Throws on anything that is not a plain key, an IP or IP/prefix, or a marker,
+ * so no option can be injected into the line.
+ */
 export function authorizedKeysLine(
   publicKey: string,
   from: string,
   marker: string
 ): string {
   const [type, base64] = publicKey.trim().split(/\s+/);
+  if (type !== "ssh-ed25519" || !base64 || !/^[A-Za-z0-9+/=]+$/.test(base64)) {
+    throw new Error("invalid public key");
+  }
+  if (!isValidFrom(from)) throw new Error("invalid from address");
+  if (!/^opsdeck:[A-Za-z0-9_.-]+:[A-Za-z0-9-]+$/.test(marker)) {
+    throw new Error("invalid ssh key marker");
+  }
   return `from="${from}",no-agent-forwarding,no-X11-forwarding ${type} ${base64} ${marker}`;
 }
 
 function isOurs(line: string, marker: string): boolean {
-  return line.trim().split(/\s+/).at(-1) === marker;
+  const trimmed = line.trim();
+  if (trimmed.startsWith("#")) return false;
+  return trimmed.split(/\s+/).at(-1) === marker;
 }
 
 // Foreign lines are kept byte for byte (including a trailing \r); only the
@@ -139,20 +173,25 @@ export function removeAuthorizedKey(existing: string, marker: string): string {
 /**
  * The address to put in from=: the client address of $SSH_CLIENT, or the
  * instance's own subnet (CIDR) when that address lies inside it, so a
- * container restart that changes the IP does not lock the key out.
+ * container restart that changes the IP does not lock the key out. Returns
+ * null when $SSH_CLIENT does not start with an IP address (empty under sudo
+ * env_reset, or noise); callers must treat that as a failed install.
  */
 export function fromAddress(
   sshClient: string,
   ownSubnet: string | null
-): string {
+): string | null {
   const address = sshClient.trim().split(/\s+/)[0] ?? "";
+  const addressFamily = isIP(address);
+  if (!addressFamily) return null;
   if (!ownSubnet) return address;
-  const [net = "", prefix = ""] = ownSubnet.split("/");
+  const [net = "", prefix = "", ...rest] = ownSubnet.split("/");
   const family = isIP(net);
-  if (!family || !isIP(address) || !/^\d+$/.test(prefix)) return address;
+  if (rest.length > 0 || !family || !validPrefix(prefix, family))
+    return address;
   const list = new BlockList();
   list.addSubnet(net, Number(prefix), family === 4 ? "ipv4" : "ipv6");
-  return list.check(address, isIP(address) === 4 ? "ipv4" : "ipv6")
+  return list.check(address, addressFamily === 4 ? "ipv4" : "ipv6")
     ? ownSubnet
     : address;
 }
