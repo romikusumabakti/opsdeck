@@ -12,6 +12,11 @@ import {
   suggestEntryPort,
 } from "@/server/services/preflight";
 import {
+  moveToKeyAction,
+  reinstallKeyAction,
+  trustHostKeyAction,
+} from "@/server/services/server-keys";
+import {
   bulkDeleteServers,
   createServer,
   deleteServer,
@@ -95,4 +100,33 @@ export const serversRouter = sessionRouter()
   )
   .get("/:id/free-port", idParam, async (c) =>
     c.json(await suggestEntryPort(c.req.valid("param").id))
+  )
+  // Moving to the instance SSH key; the services check server:manage. The
+  // reinstall password signs in once and is never stored.
+  .post("/:id/move-to-key", idParam, async (c) =>
+    c.json(await moveToKeyAction(c.req.valid("param").id))
+  )
+  .post(
+    "/:id/reinstall-key",
+    idParam,
+    json(z.object({ password: z.string().min(1).max(1024) })),
+    async (c) =>
+      c.json(
+        await reinstallKeyAction(
+          c.req.valid("param").id,
+          c.req.valid("json").password
+        )
+      )
+  )
+  .post(
+    "/:id/trust-host-key",
+    idParam,
+    json(z.object({ expectedFingerprint: z.string().min(1).max(100) })),
+    async (c) =>
+      c.json(
+        await trustHostKeyAction(
+          c.req.valid("param").id,
+          c.req.valid("json").expectedFingerprint
+        )
+      )
   );

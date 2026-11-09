@@ -27,11 +27,14 @@ const state = vi.hoisted(() => ({
   servers: [] as Record<string, unknown>[],
   activity: [] as Record<string, unknown>[],
   clientPrivateKey: "",
+  loadedKeyIds: [] as string[],
   // When > 0, pin attempts wait until this many have arrived, so concurrent
   // first connections both see "no pin" before either writes.
   pinBarrier: 0,
   pinArrived: 0,
   pinWaiters: [] as (() => void)[],
+  // Runs just before an update applies, to interleave a concurrent write.
+  beforeUpdate: null as ((values: Record<string, unknown>) => void) | null,
 }));
 
 // "host_key" -> "hostKey": the fake rows are keyed like drizzle's JS fields.
@@ -100,6 +103,7 @@ vi.mock("@/lib/db", () => {
           query(async () => {
             const isPin = typeof values.hostKey === "string";
             if (isPin && state.pinBarrier > 0) await barrier();
+            state.beforeUpdate?.(values);
             const hit = state.servers.filter((r) => matches(r, cond));
             for (const r of hit) Object.assign(r, values);
             return hit.map((r) => ({ ...r }));
@@ -119,7 +123,10 @@ vi.mock("@/lib/activity", () => ({
 
 vi.mock("@/lib/ssh-keys", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ssh-keys")>()),
-  loadPrivateKey: async () => state.clientPrivateKey,
+  loadPrivateKey: async (id: string) => {
+    state.loadedKeyIds.push(id);
+    return state.clientPrivateKey;
+  },
   ensureCurrentKey: async () => ({
     id: "key-current",
     publicKey: "",
@@ -276,6 +283,8 @@ beforeEach(() => {
   state.pinBarrier = 0;
   state.pinArrived = 0;
   state.pinWaiters = [];
+  state.beforeUpdate = null;
+  state.loadedKeyIds = [];
   sshdA.authMethods.length = 0;
   sshdB.authMethods.length = 0;
   vi.mocked(connectConfig).mockClear();
@@ -365,6 +374,21 @@ describe("host key pinning", () => {
     ).toHaveLength(1);
   });
 
+  it("does not record an offered key for an address the row no longer has", async () => {
+    state.servers = [serverRow(pinnedTo(blobA))];
+    // An admin edits the host between the pin read and the offered write.
+    state.beforeUpdate = (values) => {
+      if (typeof values.hostKeyOffered === "string") row().host = "10.9.9.9";
+    };
+
+    await expect(
+      executeRemoteCommand(target(sshdB), "true")
+    ).rejects.toMatchObject({ code: "hostKeyMismatch" });
+
+    expect(row().hostKeyOfferedFingerprint).toBeNull();
+    expect(state.activity).toEqual([]);
+  });
+
   it("reports a mismatch from the connection test as a code", async () => {
     state.servers = [serverRow(pinnedTo(blobA))];
     const result = await testSshConnection(target(sshdB));
@@ -435,6 +459,15 @@ describe("credentials", () => {
     const config = await connectConfig(target(sshdA), { keyOnly: true });
     expect(config.password).toBeUndefined();
     expect(config.privateKey).toBe(clientKey.private);
+  });
+
+  it("keyId picks the key over the one the server has", async () => {
+    state.servers = [serverRow({ auth: "key", sshKeyId: "key-1" })];
+    await connectConfig(target(sshdA, { auth: "key" }), {
+      keyOnly: true,
+      keyId: "key-2",
+    });
+    expect(state.loadedKeyIds).toEqual(["key-2"]);
   });
 
   it("passwordOnce is used instead of the key or the stored password", async () => {

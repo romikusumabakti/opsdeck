@@ -57,6 +57,9 @@ export type ObservedHostKey = {
 export type ConnectOptions = {
   // Offer the instance key only, never a password (key login verification).
   keyOnly?: boolean;
+  // The instance key to sign in with, instead of the one the server has
+  // (verifying a key just installed).
+  keyId?: string;
   // A password typed for this one connection; never stored.
   passwordOnce?: string;
   // Who a trust-on-first-use pin is recorded for: a user id, or "system".
@@ -153,7 +156,8 @@ export async function connectConfig(
   const useKey =
     opts.keyOnly || (target.auth === "key" && opts.passwordOnce === undefined);
   if (useKey) {
-    const keyId = stored?.sshKeyId ?? (await ensureCurrentKey()).id;
+    const keyId =
+      opts.keyId ?? stored?.sshKeyId ?? (await ensureCurrentKey()).id;
     config.privateKey = await loadPrivateKey(keyId);
   } else {
     const password = opts.passwordOnce ?? target.password;
@@ -277,6 +281,8 @@ async function checkHostKey(
     .where(
       and(
         eq(servers.id, serverId),
+        // An edit to another address in between: this key is not its offer.
+        eq(servers.host, target.host),
         or(
           isNull(servers.hostKeyOfferedFingerprint),
           ne(servers.hostKeyOfferedFingerprint, observed.fingerprint)
