@@ -35,6 +35,7 @@ import {
   type BackupDestination,
   loadBackupDestination,
   type ObjectStore,
+  restoreS3Source,
 } from "./destination";
 import {
   type BackupManifest,
@@ -192,16 +193,29 @@ export function s3BackupSource(store: ObjectStore, key: string): BackupSource {
 
 /**
  * The source of a restore key: `local:<instance>/<name>/` in the local
- * backups dir, anything else on the configured S3 destination.
+ * backups dir; anything else on the S3 store from OPSDECK_RESTORE_S3_* when
+ * set (a fresh install, whose database has no destination yet), else on the
+ * configured S3 destination.
  */
 export async function openBackupSource(
   objectKey: string,
   loadDestination: () => Promise<BackupDestination | null> = loadBackupDestination,
-  localRoot: string = LOCAL_BACKUP_ROOT
+  localRoot: string = LOCAL_BACKUP_ROOT,
+  envSource: () => ObjectStore | null = () => restoreS3Source()
 ): Promise<BackupSource> {
   if (objectKey.startsWith("local:")) {
     return localBackupSource(localRoot, objectKey.slice("local:".length));
   }
+  let fromEnv: ObjectStore | null;
+  try {
+    fromEnv = envSource();
+  } catch (error) {
+    throw new RestoreError(
+      "restoreNotFound",
+      error instanceof Error ? error.message : "invalid OPSDECK_RESTORE_S3_*"
+    );
+  }
+  if (fromEnv) return s3BackupSource(fromEnv, objectKey);
   const destination = await loadDestination();
   if (!destination) {
     throw new RestoreError("restoreNotFound", "no backup destination is set");
