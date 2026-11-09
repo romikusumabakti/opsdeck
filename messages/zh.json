@@ -2915,7 +2915,9 @@
       "environmentIsProduction": "只有管理员可以删除生产环境",
       "productionConfirmRequired": "请确认你正在删除生产环境",
       "stackHostsSharedDatabase": "该堆栈运行着共享数据库主机或其他环境正在使用的数据库容器",
-      "serverCommandFailed": "服务器上的命令失败。请查看运行日志后重试"
+      "serverCommandFailed": "服务器上的命令失败。请查看运行日志后重试",
+      "cloudflareFailed": "无法删除 Cloudflare 对象。请查看运行日志后重试",
+      "stepFailed": "该步骤意外失败。请查看运行日志后重试"
     }
   },
   "environmentSetup": {

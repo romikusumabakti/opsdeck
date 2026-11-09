@@ -1,11 +1,18 @@
-import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { one } from "@/lib/db/one";
 import {
   databaseHosts,
   deployTargets,
+  type EnvironmentArchive,
+  type EnvironmentArchiveFile,
+  environmentArchives,
   environmentDomains,
   environmentServices,
   environments,
+  projects,
+  type Run,
+  runs,
   servers,
   type TeardownStep,
   teardownSteps,
@@ -223,17 +230,182 @@ export async function loadStackGuard(
   };
 }
 
-/** The db binding a drop_database step names, or null when it is gone. */
+/**
+ * The db binding an archive_database or drop_database step names, or null
+ * when it is gone.
+ */
 export async function loadTeardownDbService(serviceId: string) {
   const [row] = await db
     .select({
       environmentId: environmentServices.environmentId,
       role: environmentServices.role,
+      dbType: environmentServices.dbType,
       dbKind: environmentServices.dbKind,
       dbName: environmentServices.dbName,
       databaseHostId: environmentServices.databaseHostId,
+      serverId: environmentServices.serverId,
+      serviceType: environmentServices.serviceType,
+      serviceName: environmentServices.serviceName,
     })
     .from(environmentServices)
     .where(eq(environmentServices.id, serviceId));
   return row ?? null;
+}
+
+// --- The runner's rows ---
+
+export async function getTeardownRun(runId: string): Promise<{
+  environmentId: string;
+  userId: string | null;
+  status: Run["status"];
+} | null> {
+  const [row] = await db
+    .select({
+      environmentId: runs.environmentId,
+      userId: runs.userId,
+      status: runs.status,
+    })
+    .from(runs)
+    .where(eq(runs.id, runId));
+  return row ?? null;
+}
+
+/** `error` is the stable code of a failure (TEARDOWN_ERRORS). */
+export async function markTeardownStep(
+  id: string,
+  status: TeardownStep["status"],
+  { error, runId }: { error?: string; runId: string }
+): Promise<void> {
+  await db
+    .update(teardownSteps)
+    .set({
+      status,
+      lastError: status === "failed" ? (error ?? null) : null,
+      lastRunId: runId,
+      completedAt: status === "done" ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(teardownSteps.id, id));
+}
+
+/** Marks the environment's `running` steps failed with `code`. */
+export async function failRunningTeardownSteps(
+  environmentId: string,
+  code: string
+): Promise<void> {
+  await db
+    .update(teardownSteps)
+    .set({ status: "failed", lastError: code, updatedAt: new Date() })
+    .where(
+      and(
+        eq(teardownSteps.environmentId, environmentId),
+        eq(teardownSteps.status, "running")
+      )
+    );
+}
+
+// --- Archives ---
+
+/** The names an archive row keeps of a deleted environment. */
+export async function loadArchiveSnapshot(environmentId: string): Promise<{
+  projectName: string;
+  environmentName: string;
+  environmentSlug: string;
+} | null> {
+  const [row] = await db
+    .select({
+      projectName: projects.name,
+      environmentName: environments.name,
+      environmentSlug: environments.slug,
+    })
+    .from(environments)
+    .innerJoin(projects, eq(projects.id, environments.projectId))
+    .where(eq(environments.id, environmentId));
+  return row ?? null;
+}
+
+/**
+ * The environment's archive still being written: one per teardown, found by
+ * the environment and an unset completed_at, so a retry adds to it.
+ */
+export async function findOpenArchive(
+  environmentId: string
+): Promise<EnvironmentArchive | null> {
+  const [row] = await db
+    .select()
+    .from(environmentArchives)
+    .where(
+      and(
+        eq(environmentArchives.environmentId, environmentId),
+        isNull(environmentArchives.completedAt)
+      )
+    )
+    .orderBy(asc(environmentArchives.createdAt), asc(environmentArchives.id))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function createArchive(
+  values: typeof environmentArchives.$inferInsert
+): Promise<EnvironmentArchive> {
+  return one(
+    await db.insert(environmentArchives).values(values).returning(),
+    "environment archive"
+  );
+}
+
+/** Appends a file to the archive's list, unless one of that name is listed. */
+export async function addArchiveFile(
+  archiveId: string,
+  file: EnvironmentArchiveFile
+): Promise<void> {
+  const entry = JSON.stringify([file]);
+  const named = JSON.stringify([{ name: file.name }]);
+  await db
+    .update(environmentArchives)
+    .set({
+      files: sql`case when ${environmentArchives.files} @> ${named}::jsonb then ${environmentArchives.files} else ${environmentArchives.files} || ${entry}::jsonb end`,
+    })
+    .where(eq(environmentArchives.id, archiveId));
+}
+
+/**
+ * delete_environment: in one transaction, closes the environment's open
+ * archive (completed_at), then deletes the environment row; the cascade
+ * removes its steps and runs. The archive id is the one just closed, else
+ * the newest one already closed (a retry after a crash in between). Null
+ * when the environment is gone already.
+ */
+export async function deleteTeardownEnvironment(
+  environmentId: string
+): Promise<{ environmentName: string; archiveId: string | null } | null> {
+  return db.transaction(async (tx) => {
+    const [closed] = await tx
+      .update(environmentArchives)
+      .set({ completedAt: new Date() })
+      .where(
+        and(
+          eq(environmentArchives.environmentId, environmentId),
+          isNull(environmentArchives.completedAt)
+        )
+      )
+      .returning({ id: environmentArchives.id });
+    const [latest] = closed
+      ? [closed]
+      : await tx
+          .select({ id: environmentArchives.id })
+          .from(environmentArchives)
+          .where(eq(environmentArchives.environmentId, environmentId))
+          .orderBy(
+            desc(environmentArchives.createdAt),
+            desc(environmentArchives.id)
+          )
+          .limit(1);
+    const [deleted] = await tx
+      .delete(environments)
+      .where(eq(environments.id, environmentId))
+      .returning({ name: environments.name });
+    if (!deleted) return null;
+    return { environmentName: deleted.name, archiveId: latest?.id ?? null };
+  });
 }

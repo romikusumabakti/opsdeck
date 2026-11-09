@@ -2915,7 +2915,9 @@
       "environmentIsProduction": "يمكن للمسؤول فقط حذف بيئة إنتاج",
       "productionConfirmRequired": "أكّد أنك تحذف بيئة إنتاج",
       "stackHostsSharedDatabase": "يشغّل المكدس حاوية قاعدة بيانات يستخدمها مضيف قاعدة بيانات مشترك أو بيئة أخرى",
-      "serverCommandFailed": "فشل أمر على الخادم. راجع سجل التشغيل ثم أعد المحاولة"
+      "serverCommandFailed": "فشل أمر على الخادم. راجع سجل التشغيل ثم أعد المحاولة",
+      "cloudflareFailed": "تعذر إزالة كائن Cloudflare. راجع سجل التشغيل ثم أعد المحاولة",
+      "stepFailed": "فشلت الخطوة بشكل غير متوقع. راجع سجل التشغيل ثم أعد المحاولة"
     }
   },
   "environmentSetup": {
