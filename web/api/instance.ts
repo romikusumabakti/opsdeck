@@ -85,3 +85,38 @@ export async function restoreSafetyBackup(confirm: string) {
 export type InstanceUpdatesData = Awaited<
   ReturnType<typeof getInstanceUpdates>
 >;
+
+const sshKey = routes["ssh-key"];
+
+/** The instance SSH key (public half only) and the last key job. */
+export async function getInstanceSshKey() {
+  return parseResponse(sshKey.$get());
+}
+
+export const getInstanceSshKeyQuery = () =>
+  queryOptions({
+    queryKey: ["instance", "getInstanceSshKey"],
+    queryFn: getInstanceSshKey,
+  });
+
+export type InstanceSshKeyData = Awaited<ReturnType<typeof getInstanceSshKey>>;
+
+export async function moveAllServersToKey() {
+  return parseResponse(sshKey["move-all"].$post());
+}
+
+export async function rotateInstanceSshKey() {
+  return parseResponse(sshKey.rotate.$post());
+}
+
+/** The authorized_keys line for `from` and the command that installs it. */
+export async function getAuthorizedKeysLine(from: string) {
+  return parseResponse(sshKey["authorized-line"].$get({ query: { from } }));
+}
+
+export const getAuthorizedKeysLineQuery = (from: string) =>
+  queryOptions({
+    queryKey: ["instance", "getAuthorizedKeysLine", from],
+    queryFn: () => getAuthorizedKeysLine(from),
+    retry: false,
+  });

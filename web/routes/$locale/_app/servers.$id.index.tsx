@@ -21,6 +21,7 @@ import { getServerByIdQuery, getServerUsageQuery } from "@/web/api/servers";
 import { useMe } from "@/web/api/session";
 import { orNotFound, requireOrgRole } from "@/web/project-guard";
 import { PreflightCard } from "./-components/servers/preflight-card";
+import { ServerAccessCard } from "./-components/servers/server-access-card";
 import { ServerPending } from "./-components/servers/skeletons";
 
 export const Route = createFileRoute("/$locale/_app/servers/$id/")({
@@ -70,18 +71,24 @@ function EditServerPage() {
         }
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem] max-w-5xl w-full">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <ServerCog className="size-5 text-muted-foreground" />
-              <CardTitle className="text-base">{t("formTitle")}</CardTitle>
-            </div>
-            <CardDescription>{t("formDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ServerForm mode={{ type: "edit", server }} readOnly={!canManage} />
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-6">
+          <ServerAccessCard server={server} canManage={canManage} />
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ServerCog className="size-5 text-muted-foreground" />
+                <CardTitle className="text-base">{t("formTitle")}</CardTitle>
+              </div>
+              <CardDescription>{t("formDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ServerForm
+                mode={{ type: "edit", server }}
+                readOnly={!canManage}
+              />
+            </CardContent>
+          </Card>
+        </div>
 
         {canManage ? (
           <div className="lg:col-span-2">

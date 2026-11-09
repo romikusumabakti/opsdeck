@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
 
 // The browser half of the terminal. xterm reaches for `window` during
 // construction, so the library is imported inside the effect rather than at
@@ -42,10 +43,14 @@ export function ServerTerminal({
   cwd?: string;
 }) {
   const t = useTranslations("terminal");
+  const tErrors = useTranslations("actionErrors");
   const { resolvedTheme } = useTheme();
   const hostRef = React.useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = React.useState<Status>("connecting");
   const [error, setError] = React.useState<string | null>(null);
+  // The server's host key changed: nothing connects until an admin reviews it
+  // on the server page.
+  const [hostKeyMismatch, setHostKeyMismatch] = React.useState(false);
   // Bumping this re-runs the effect, which is what "Reconnect" does.
   const [attempt, setAttempt] = React.useState(0);
   // Survives reconnects within the effect's lifetime so a dropped socket
@@ -168,6 +173,7 @@ export function ServerTerminal({
       const connect = async (): Promise<void> => {
         if (disposed) return;
         setError(null);
+        setHostKeyMismatch(false);
 
         let ticket: string;
         try {
@@ -234,6 +240,13 @@ export function ServerTerminal({
             term.write(`\r\n\x1b[2m${t("sessionEnded")}\x1b[0m\r\n`);
             return;
           }
+          // The sidecar sends a changed host key as its stable code; retrying
+          // would only be refused again.
+          if (msg.message === "hostKeyMismatch") {
+            ended = true;
+            setHostKeyMismatch(true);
+            return;
+          }
           setError(msg.message);
         };
 
@@ -295,8 +308,16 @@ export function ServerTerminal({
           />
           {t(`status.${status}`)}
           {error && <span className="text-destructive">· {error}</span>}
+          {hostKeyMismatch && (
+            <span className="text-destructive">
+              · {tErrors("hostKeyMismatch")}{" "}
+              <Link href={`/servers/${serverId}`} className="underline">
+                {t("reviewHostKey")}
+              </Link>
+            </span>
+          )}
         </span>
-        {(status === "closed" || error) && (
+        {(status === "closed" || error || hostKeyMismatch) && (
           <Button
             size="sm"
             variant="outline"

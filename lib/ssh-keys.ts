@@ -120,7 +120,8 @@ export function keyMarker(keyId: string): string {
   return marker;
 }
 
-function isValidFrom(from: string): boolean {
+/** Whether `from` is an IP or IP/prefix that can go into from="…". */
+export function isValidFrom(from: string): boolean {
   // isIP accepts IPv6 zone ids ("fe80::1%eth0"), which sshd does not match.
   if (from.includes("%")) return false;
   const [addr = "", prefix, ...rest] = from.split("/");

@@ -1009,7 +1009,15 @@
     "searchPlaceholder": "按名称搜索…",
     "colName": "名称",
     "colHost": "主机",
-    "colUsername": "用户名"
+    "colUsername": "用户名",
+    "colAccess": "访问方式",
+    "accessKey": "密钥",
+    "accessPassword": "密码",
+    "accessHostKeyChanged": "主机密钥已变更",
+    "hostKeyHint": "主机密钥 {fingerprint}",
+    "hostKeyNotPinnedHint": "主机密钥尚未固定",
+    "deleteKeyNote": "面板的密钥仍保留在该服务器的 ~/.ssh/authorized_keys 中。请手动删除以 {marker} 结尾的那一行。",
+    "bulkDeleteKeyNote": "使用 SSH 密钥的服务器仍会在 ~/.ssh/authorized_keys 中保留面板的密钥。请手动删除该行。"
   },
   "serverForm": {
     "name": "名称",
@@ -1035,19 +1043,32 @@
     "placementRestricted": "受限：仅管理员和基础设施，以及项目默认服务器上的 Engineer",
     "placementOpen": "开放：项目 Engineer",
     "placementDescription": "谁可以在此服务器上创建新环境。在开放的服务器上，项目 Engineer无需服务器权限即可在此服务器上创建环境；只有可丢弃的开发/沙盒服务器才应设为开放。现有环境不受影响。",
-    "sftpRootInvalid": "必须是绝对路径（以 / 开头）"
+    "sftpRootInvalid": "必须是绝对路径（以 / 开头）",
+    "accessMethod": "面板的登录方式",
+    "methodKey": "自行安装密钥",
+    "methodKeyDescription": "在服务器上运行一条命令。不会保存任何密码。",
+    "methodPassword": "使用一次 root 密码",
+    "methodPasswordDescription": "面板用它安装密钥，且不会保存它。",
+    "publicKey": "面板公钥",
+    "sshFrom": "服务器看到的面板地址",
+    "sshFromDescription": "面板发起连接的 IP 或子网。密钥仅在该地址有效。",
+    "sshFromPlaceholder": "例如 192.168.1.10",
+    "installCommand": "以 SSH 用户身份在服务器上运行",
+    "installCommandEmpty": "输入地址以获取命令。",
+    "passwordOnce": "密码（仅使用一次，不保存）",
+    "keyNotInstalled": "服务器已添加，但密钥未安装：{message}"
   },
   "newServer": {
     "title": "添加服务器",
-    "description": "注册新服务器的 SSH 凭据。服务器可被多个环境复用。",
-    "formTitle": "SSH 凭据",
-    "formDescription": "提供主机、用户名和密码。在保存前使用测试连接进行验证。"
+    "description": "注册面板通过 SSH 访问的服务器。服务器可在多个环境中复用。",
+    "formTitle": "服务器",
+    "formDescription": "输入主机和 SSH 用户，然后选择面板的登录方式。"
   },
   "editServer": {
     "title": "编辑服务器：{name}",
-    "description": "更新 SSH 凭据并查看此服务器的使用情况。",
-    "formTitle": "SSH 凭据",
-    "formDescription": "留空密码则保持不变。",
+    "description": "更新服务器并查看其使用位置。",
+    "formTitle": "服务器",
+    "formDescription": "主机、SSH 用户和文件浏览器设置。",
     "backToServers": "返回服务器列表",
     "viewTitle": "服务器：{name}"
   },
@@ -1447,7 +1468,8 @@
     "sharedDatabaseConfined": "此环境的数据库主机是共享的；你只能使用此环境自己的数据库。其他数据库请联系管理员。",
     "sharedDatabaseServiceConfined": "此数据库容器与其他环境共享；只有管理员可以控制它或查看其日志。",
     "databaseHostVersion": "该容器运行的 Postgres 版本低于 15；只能注册 Postgres 15 或更高版本。",
-    "defaultServerForbidden": "只有管理员和基础设施人员可以更改项目的默认服务器。"
+    "defaultServerForbidden": "只有管理员和基础设施人员可以更改项目的默认服务器。",
+    "invalidFrom": "请输入 IP 地址或子网，例如 192.168.1.10 或 172.29.0.0/16。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -1621,7 +1643,8 @@
     "serverFilesTitle": "文件 — {name}",
     "serverFilesSubtitle": "通过 SFTP 浏览 {root}",
     "storageFilesTitle": "文件 — {name}",
-    "storageFilesSubtitle": "浏览存储桶 {bucket}"
+    "storageFilesSubtitle": "浏览存储桶 {bucket}",
+    "reviewHostKey": "查看主机密钥"
   },
   "storage": {
     "title": "存储",
@@ -2065,7 +2088,8 @@
     "environmentDomainUpdated": "{actor} 将 {environment} 的域名设置为 {hostname}",
     "environmentDomainDeleted": "{actor} 从 {environment} 移除了域名 {hostname}",
     "projectDefaultServerSet": "{actor} 将 {project} 的默认服务器设为 {server}",
-    "projectDefaultServerCleared": "{actor} 清除了 {project} 的默认服务器"
+    "projectDefaultServerCleared": "{actor} 清除了 {project} 的默认服务器",
+    "serverKeyRotated": "{actor} 轮换了 {server} 上的 SSH 密钥（来源 {from}）"
   },
   "jira": {
     "title": "Jira",
@@ -2159,7 +2183,8 @@
       "connected": "已连接",
       "reconnecting": "重新连接中…",
       "closed": "已断开"
-    }
+    },
+    "reviewHostKey": "查看主机密钥"
   },
   "tunnels": {
     "title": "Cloudflare 隧道",
@@ -3020,9 +3045,10 @@
   },
   "instance": {
     "title": "实例",
-    "subtitle": "本 Panel 自身的备份与更新。",
+    "subtitle": "此面板自身的备份、更新和 SSH 密钥。",
     "tabBackups": "备份",
-    "tabUpdates": "更新"
+    "tabUpdates": "更新",
+    "tabSshKey": "SSH 密钥"
   },
   "instanceBackups": {
     "settingsTitle": "计划与目标",
@@ -3202,5 +3228,54 @@
       "updateCheckFailed": "无法连接 GitHub 检查更新。"
     },
     "autoUpdateSkipped": "自动更新跳过 {version}：其上次运行未成功。准备好后请手动更新。"
+  },
+  "serverAccess": {
+    "title": "SSH 访问",
+    "description": "面板如何登录此服务器。",
+    "signIn": "登录方式",
+    "key": "SSH 密钥",
+    "password": "密码",
+    "hostKey": "主机密钥",
+    "notPinned": "尚未固定。首次连接时固定。",
+    "pinnedAt": "固定于 {date}",
+    "from": "允许来源",
+    "lastError": "最近错误",
+    "moveToKey": "切换为 SSH 密钥",
+    "moveToKeyDone": "该服务器现在使用 SSH 密钥登录。",
+    "reinstallKey": "重新安装密钥",
+    "passwordOnceDescription": "输入一次 {username} 的密码。面板用它登录、安装密钥，且不会保存它。",
+    "passwordLabel": "密码",
+    "install": "安装密钥",
+    "mismatchTitle": "主机密钥已变更",
+    "mismatchDescription": "服务器提供了不同的主机密钥，因此面板不会连接。信任前请在服务器本机上核对新密钥。",
+    "pinnedFingerprint": "已固定",
+    "offeredFingerprint": "当前提供",
+    "trustNewKey": "信任新密钥",
+    "trustTitle": "信任新的主机密钥？",
+    "trustDescription": "只有在服务器本机上核对过 {fingerprint} 后才信任它。",
+    "trustDone": "已信任新的主机密钥。",
+    "reviewHostKey": "查看主机密钥"
+  },
+  "instanceSshKey": {
+    "title": "SSH 密钥",
+    "description": "面板使用此密钥登录服务器。私钥永远不会离开面板。",
+    "publicKey": "公钥",
+    "fingerprint": "指纹",
+    "moveAll": "将所有服务器切换为 SSH 密钥",
+    "moveAllTitle": "将所有服务器切换为 SSH 密钥？",
+    "moveAllDescription": "每台使用密码的服务器都会安装密钥，并删除已保存的密码。失败的服务器保留其密码并会列出。",
+    "rotate": "轮换",
+    "rotateTitle": "轮换 SSH 密钥？",
+    "rotateDescription": "在每台使用密钥的服务器上安装新密钥并删除旧密钥。失败的服务器保留旧密钥并会列出。",
+    "started": "已开始。进度显示在下方。",
+    "runningMoveAll": "正在将服务器切换为密钥…已完成 {count} 台",
+    "runningRotate": "正在轮换密钥…已完成 {count} 台",
+    "lastMoveAll": "最近一次切换为密钥",
+    "lastRotate": "最近一次轮换",
+    "noServers": "没有服务器需要。",
+    "colServer": "服务器",
+    "colResult": "结果",
+    "ok": "完成",
+    "failed": "失败"
   }
 }

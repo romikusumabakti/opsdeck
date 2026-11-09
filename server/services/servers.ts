@@ -14,9 +14,54 @@ import {
 import { decryptNullable, encryptSecret } from "@/lib/secrets";
 import { testSshConnection } from "@/lib/ssh";
 import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
+import { ensureCurrentKey, isValidFrom, keyMarker } from "@/lib/ssh-keys";
 import type { ActionResponse } from "@/lib/types";
-import { serverInputSchema, serverUpdateSchema } from "@/lib/validation";
+import {
+  type ServerInput,
+  serverInputSchema,
+  serverUpdateSchema,
+} from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
+
+/**
+ * A server as the browser sees it: no password, no host key blobs (only their
+ * fingerprints), and what the access UI needs — whether a password is stored,
+ * whether the server offered another host key, and the marker of the Panel's
+ * authorized_keys line on it.
+ */
+export type ServerView = Omit<
+  Server,
+  | "password"
+  | "hostKeyType"
+  | "hostKey"
+  | "hostKeyOfferedType"
+  | "hostKeyOffered"
+  | "hostKeyOfferedFingerprint"
+> & {
+  hasPassword: boolean;
+  hostKeyMismatch: boolean;
+  offeredFingerprint: string | null;
+  keyMarker: string | null;
+};
+
+export function serverView({
+  password,
+  hostKeyType: _hostKeyType,
+  hostKey: _hostKey,
+  hostKeyOfferedType: _hostKeyOfferedType,
+  hostKeyOffered: _hostKeyOffered,
+  hostKeyOfferedFingerprint,
+  ...rest
+}: Server): ServerView {
+  return {
+    ...rest,
+    hasPassword: password !== null,
+    hostKeyMismatch: hostKeyOfferedFingerprint !== null,
+    offeredFingerprint: hostKeyOfferedFingerprint,
+    keyMarker:
+      rest.auth === "key" && rest.sshKeyId ? keyMarker(rest.sshKeyId) : null,
+  };
+}
 
 export type ServerUsage = {
   // The environment that uses this server, with the parts needed to link to its
@@ -94,7 +139,7 @@ export async function getServerById(id: string): Promise<Server | undefined> {
 }
 
 export async function createServer(
-  data: NewServer
+  data: ServerInput
 ): Promise<ActionResponse<Server>> {
   await requireOrgPermission({ server: ["manage"] });
   const t = await getServerTranslator("actionErrors");
@@ -102,15 +147,38 @@ export async function createServer(
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
   }
+  const { auth = "password", password, sshFrom, ...fields } = parsed.data;
+  let values: NewServer;
+  if (auth === "key") {
+    // Installed by hand: the server signs in with the current key, restricted
+    // to the from= address its line was written with. No password at all.
+    if (password !== undefined) {
+      return { success: false, message: t("invalidInput") };
+    }
+    if (sshFrom === undefined || !isValidFrom(sshFrom)) {
+      return { success: false, message: t("invalidFrom") };
+    }
+    const key = await ensureCurrentKey();
+    values = {
+      ...fields,
+      auth: "key",
+      password: null,
+      sshKeyId: key.id,
+      sshFrom,
+    };
+  } else {
+    if (sshFrom !== undefined) {
+      return { success: false, message: t("invalidInput") };
+    }
+    values = {
+      ...fields,
+      auth: "password",
+      password: password === undefined ? null : encryptSecret(password),
+    };
+  }
   try {
     const created = one(
-      await db
-        .insert(servers)
-        .values({
-          ...parsed.data,
-          password: encryptSecret(parsed.data.password),
-        })
-        .returning(),
+      await db.insert(servers).values(values).returning(),
       "server"
     );
     return { success: true, data: created, message: t("serverCreated") };
@@ -181,6 +249,8 @@ export async function testServerConnection(input: {
   username: string;
   password?: string;
   serverId?: string;
+  // An unsaved server whose key line was installed by hand.
+  auth?: "key";
 }): Promise<
   | { ok: true }
   | {
@@ -201,12 +271,13 @@ export async function testServerConnection(input: {
 
   // A typed password is tested as a password login. Otherwise an existing
   // server is tested the way it signs in (its stored password, or the key).
+  const keyOnly = input.auth === "key" && !input.password;
   let target: SshTarget = {
     serverId: null,
     host,
     username,
-    password: input.password || null,
-    auth: "password",
+    password: keyOnly ? null : input.password || null,
+    auth: keyOnly ? "key" : "password",
   };
   if (input.serverId != null) {
     const [row] = await db

@@ -192,6 +192,9 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const [entries, setEntries] = React.useState<ExplorerEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  // The listing was refused on a changed host key: link to the server page,
+  // where an admin reviews it.
+  const [hostKeyMismatch, setHostKeyMismatch] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   // The file currently open in the editor; null when the editor is closed.
   const [editing, setEditing] = React.useState<ExplorerEntry | null>(null);
@@ -242,11 +245,13 @@ export function FileExplorer({ source, rootLabel }: Props) {
   const refresh = React.useCallback(async () => {
     setLoading(true);
     setError(null);
+    setHostKeyMismatch(false);
     const result = await listEntries(source, path);
     if (result.success) {
       setEntries(result.data);
     } else {
       setError(result.message);
+      setHostKeyMismatch("code" in result && result.code === "hostKeyMismatch");
       setEntries([]);
     }
     setLoading(false);
@@ -1568,6 +1573,17 @@ export function FileExplorer({ source, rootLabel }: Props) {
             icon={Folder}
             title={t("loadFailed")}
             description={error}
+            action={
+              hostKeyMismatch && source.kind === "sftp" ? (
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/servers/${source.serverId}`} />}
+                >
+                  {t("reviewHostKey")}
+                </Button>
+              ) : undefined
+            }
           />
         </div>
       ) : loading ? (

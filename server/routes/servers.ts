@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { SafeServer, Server } from "@/lib/db/schema";
 import {
   serverInputSchema,
   serverUpdateSchema,
@@ -23,17 +22,15 @@ import {
   getServerById,
   getServers,
   getServerUsage,
+  serverView,
   testServerConnection,
   updateServer,
 } from "@/server/services/servers";
 import { json, param, query } from "@/server/validation";
 
-// The services return whole rows, encrypted SSH password included; under Next
-// the pages projected it away before rendering. No client form reads it (edit
-// forms send a new password or none), so it never leaves the server.
-function toSafe({ password: _password, ...rest }: Server): SafeServer {
-  return rest;
-}
+// The services return whole rows, encrypted SSH password and host key blobs
+// included; serverView keeps the password and the blobs on the server (edit
+// forms send a new password or none).
 
 // Bulk delete acts on what the servers table shows; the cap keeps a crafted
 // request from naming the whole table.
@@ -42,10 +39,12 @@ const idParam = param(z.object({ id: uuidSchema }));
 const serverIds = z.array(uuidSchema).max(500);
 
 export const serversRouter = sessionRouter()
-  .get("/get-servers", async (c) => c.json((await getServers()).map(toSafe)))
+  .get("/get-servers", async (c) =>
+    c.json((await getServers()).map(serverView))
+  )
   .get("/get-server-by-id", query(z.object({ id: uuidSchema })), async (c) => {
     const server = await getServerById(c.req.valid("query").id);
-    return c.json(server ? toSafe(server) : null);
+    return c.json(server ? serverView(server) : null);
   })
   .get(
     "/get-server-usage",
@@ -58,7 +57,7 @@ export const serversRouter = sessionRouter()
     async (c) => {
       const result = await createServer(c.req.valid("json").data);
       return c.json(
-        result.success ? { ...result, data: toSafe(result.data) } : result
+        result.success ? { ...result, data: serverView(result.data) } : result
       );
     }
   )
@@ -80,6 +79,7 @@ export const serversRouter = sessionRouter()
           username: z.string().max(255),
           password: z.string().max(1024).optional(),
           serverId: uuidSchema.optional(),
+          auth: z.literal("key").optional(),
         }),
       })
     ),
