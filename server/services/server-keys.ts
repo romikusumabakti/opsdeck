@@ -92,10 +92,14 @@ m=$(stat -c %a "$d") || exit 22
 if [ $(( 0$m & 022 )) -ne 0 ]; then exit 24; fi`;
 
 // Prints the file as base64 (nothing when missing), so its bytes cross the
-// wire untouched; creates ~/.ssh 0700 when missing.
+// wire untouched; creates ~/.ssh 0700 when missing, with its SELinux label
+// where there is one (sshd may not read a mislabelled ~/.ssh).
 const READ_SCRIPT = `${KEYS_PATHS}
 if [ -L "$d" ]; then exit 21; fi
-if [ ! -e "$d" ]; then mkdir -m 700 "$d" || exit 22; fi
+if [ ! -e "$d" ]; then
+  mkdir -m 700 "$d" || exit 22
+  if command -v restorecon >/dev/null 2>&1; then restorecon -R "$d" >/dev/null 2>&1 || true; fi
+fi
 if [ ! -d "$d" ] || [ -L "$f" ]; then exit 21; fi
 ${DIR_SAFE}
 if [ ! -e "$f" ]; then exit 0; fi
