@@ -371,13 +371,14 @@ export type AccessApp = {
 
 /** Every hostname the app covers: its domain, self-hosted domains, destinations. */
 export function accessAppDomains(app: AccessApp): string[] {
+  // `domain` may be absent (or empty) on an app defined by destinations only.
   return [
     app.domain,
     ...(app.self_hosted_domains ?? []),
     ...(app.destinations ?? [])
       .filter((d) => d.type === "public" && d.uri)
       .map((d) => d.uri as string),
-  ];
+  ].filter(Boolean);
 }
 
 /**

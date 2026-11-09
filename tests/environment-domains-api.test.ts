@@ -36,6 +36,7 @@ const state = vi.hoisted(() => ({
   }[],
   stepsStarted: false,
   saveResult: true,
+  tearingDown: false,
   deleteResult: true,
   zoneNames: ["dssconsulting.id"] as string[],
   saveError: null as unknown,
@@ -136,9 +137,10 @@ vi.mock("@/lib/domains/repository", () => ({
   saveDomain: vi.fn(
     async (_id: string, write: Record<string, unknown>, entryPort?: number) => {
       if (state.saveError) throw state.saveError;
-      if (!state.saveResult) return false;
+      if (state.tearingDown) return "tearingDown";
+      if (!state.saveResult) return "provisioned";
       state.saved = { write, entryPort };
-      return true;
+      return "saved";
     }
   ),
   deleteDomain: vi.fn(async () => {
@@ -179,6 +181,7 @@ beforeEach(() => {
   state.existing = undefined;
   state.stepsStarted = false;
   state.saveResult = true;
+  state.tearingDown = false;
   state.deleteResult = true;
   state.saveError = null;
   state.zoneNames = ["dssconsulting.id"];
@@ -385,6 +388,14 @@ describe("provisioning guard", () => {
     expect((await send("DELETE", url)).status).toBe(409);
     expect(state.saved).toBeNull();
     expect(state.deleted).toBe(false);
+  });
+
+  it("refuses with teardownRunning while the environment is being deleted", async () => {
+    state.tearingDown = true;
+    const put = await send("PUT", url, tunnelBody());
+    expect(put.status).toBe(409);
+    expect((await put.json()).code).toBe("teardownRunning");
+    expect(state.saved).toBeNull();
   });
 
   it("answers 409 when the guarded write returns no row", async () => {
