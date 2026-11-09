@@ -44,6 +44,11 @@ export async function runBackup(args: string[]): Promise<number> {
     return result.status === "succeeded" ? 0 : 1;
   } catch (error) {
     // The run could not even be recorded (e.g. the database is down).
+    // runInstanceBackup only throws BackupRecordError, which carries the
+    // location the run would have used (destination configured or failing →
+    // "s3", none → "local"). Anything else failed before the destination was
+    // read (setting up the run itself), so no destination is known and the
+    // location is the one a run without a destination uses: "local".
     console.error(
       error instanceof BackupRecordError
         ? error.message
