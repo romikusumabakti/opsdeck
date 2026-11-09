@@ -3124,6 +3124,9 @@
       "refused": "已拒绝"
     },
     "rolledBackTitle": "已重新运行之前的版本",
+    "restoredRolledBackTitle": "备份已恢复",
+    "restoredRolledBack": "备份已恢复，并在其版本 {version} 上运行。更新到之前运行的版本未完成，已回滚；准备好后请再次更新。",
+    "interruptedFailed": "运行在完成前停止（服务器已重启或更新程序被停止）。请检查面板运行的是否为预期版本。",
     "safetyTitle": "撤销恢复",
     "safetyDescription": "恢复前刚刚做了一份安全备份。恢复它即可让数据回到原样。",
     "restoreSafety": "恢复安全备份",

@@ -221,6 +221,59 @@ describe("Admin → Instance → Updates", () => {
     ).toBe("done");
   });
 
+  it("says a restore stands on the backup's version when only its follow-up update rolled back", async () => {
+    await render(
+      data({
+        status: status({
+          action: "restore",
+          version: "1.1.0",
+          from: "1.1.0",
+          step: "rollback",
+          state: "rolled_back",
+          code: "healthFailed",
+          restored: true,
+          finishedAt: "2026-11-09T20:05:00Z",
+        }),
+      })
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain(t.restoredRolledBackTitle);
+    expect(text).toContain(t.restoredRolledBack.replace("{version}", "1.1.0"));
+    expect(text).not.toContain(t.rolledBackTitle);
+  });
+
+  it("keeps the plain rollback wording for a restore refused before any change", async () => {
+    await render(
+      data({
+        status: status({
+          action: "restore",
+          version: "1.1.0",
+          step: "rollback",
+          state: "rolled_back",
+          code: "restoreKeyMismatch",
+          finishedAt: "2026-11-09T20:05:00Z",
+        }),
+      })
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain(t.rolledBackTitle);
+    expect(text).toContain(t.statusCodes.restoreKeyMismatch);
+    expect(text).not.toContain(t.restoredRolledBackTitle);
+  });
+
+  it("does not claim the previous version runs after a failed, interrupted run", async () => {
+    await render(
+      data({
+        status: status({ state: "failed", code: "interrupted" }),
+      })
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain(t.interruptedFailed);
+    expect(text).not.toContain(t.statusCodes.interrupted);
+    // Not busy: an admin may start another run.
+    expect(button(t.update)?.disabled).toBe(false);
+  });
+
   it("offers the safety backup after a failed restore, behind the typed name", async () => {
     api.restoreSafety.mockResolvedValue({ requested: true });
     await render(
