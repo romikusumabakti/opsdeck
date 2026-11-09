@@ -49,7 +49,7 @@ export type UpdateRequest = z.infer<typeof updateRequestSchema>;
 
 /**
  * Contract of `opsdeck restore <objectKey>` (Task 7) with update.sh, which
- * runs it as `docker compose run --rm app opsdeck restore <key>`:
+ * runs it as `docker compose run --rm --no-deps app opsdeck restore <key>`:
  * - It prints one JSON line with an `errorCode` (string or null).
  * - Exit 0: restored.
  * - Exit RESTORE_REFUSED_EXIT (3): refused, and the database and Garage are

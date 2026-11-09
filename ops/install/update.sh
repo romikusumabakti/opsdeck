@@ -370,9 +370,11 @@ pin_and_start() { # <version> <pin file>
   healthy "$1" || rollback health
 }
 
+# `run --no-deps`: a one-shot app container must never start `migrate` (its
+# dependency) against the live database.
 backup() { # <trigger>
   set_step backup
-  if ! run_logged docker compose run --rm app opsdeck backup run --trigger "$1"; then
+  if ! run_logged docker compose run --rm --no-deps app opsdeck backup run --trigger "$1"; then
     code=$(sed -n 's/.*"errorCode":"\([A-Za-z0-9_]*\)".*/\1/p' "$work/out" | tail -n 1)
     if [ -n "$code" ]; then log "backup error code: $code"; fi
     finish failed backupFailed
@@ -446,7 +448,7 @@ restore() {
   run_logged docker compose stop app terminal || rollback stop
   restore_invoked=1
   rc=0
-  run_logged docker compose run --rm app opsdeck restore "$object_key" || rc=$?
+  run_logged docker compose run --rm --no-deps app opsdeck restore "$object_key" || rc=$?
   if [ "$rc" -eq 3 ]; then
     restore_refused
   elif [ "$rc" -ne 0 ]; then
