@@ -138,16 +138,37 @@ export function keyMarker(keyId: string): string {
   return marker;
 }
 
-/** Whether `from` is an IP or IP/prefix that can go into from="…". */
+/**
+ * The narrowest prefix from= may widen to: /8 for IPv4, /32 for IPv6 (as
+ * normaliseSubnet). Anything wider, up to 0.0.0.0/0, is no restriction.
+ */
+export const MIN_FROM_PREFIX = { 4: 8, 6: 32 } as const;
+
+/** The key_error of a key server whose key login has never succeeded. */
+export const KEY_NOT_VERIFIED = "keyNotVerified";
+
+/** Whether `from` is an IP or IP/prefix (not wider than /8, /32) for from="…". */
 export function isValidFrom(from: string): boolean {
   // isIP accepts IPv6 zone ids ("fe80::1%eth0"), which sshd does not match.
   if (from.includes("%")) return false;
   const [addr = "", prefix, ...rest] = from.split("/");
   if (rest.length > 0) return false;
   const family = isIP(addr);
-  if (!family) return false;
+  if (family !== 4 && family !== 6) return false;
   if (prefix === undefined) return true;
-  return validPrefix(prefix, family);
+  return (
+    validPrefix(prefix, family) && Number(prefix) >= MIN_FROM_PREFIX[family]
+  );
+}
+
+/**
+ * The from= address of a line we wrote (authorizedKeysLine's format), or null
+ * when the line has none or a value we would not write.
+ */
+export function fromOfLine(line: string): string | null {
+  const match = /^from="([^"]*)",/.exec(line.trim());
+  const from = match?.[1];
+  return from !== undefined && isValidFrom(from) ? from : null;
 }
 
 function validPrefix(prefix: string, family: number): boolean {

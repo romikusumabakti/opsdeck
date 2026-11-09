@@ -1474,7 +1474,8 @@
     "invalidFrom": "Isi alamat IP atau subnet, misalnya 192.168.1.10 atau 172.29.0.0/16.",
     "keyNotVerified": "SSH key belum pernah berhasil masuk. Jalankan perintah pemasangan di server, lalu Cek login key.",
     "notKeyServer": "Server ini tidak masuk dengan SSH key.",
-    "keyServerNoPassword": "Server ini masuk dengan SSH key, jadi tidak menyimpan password."
+    "keyServerNoPassword": "Server ini masuk dengan SSH key, jadi tidak menyimpan password.",
+    "keyLineNotFound": "Key bisa masuk, tetapi baris Panel tidak ada di ~/.ssh/authorized_keys server. Jalankan perintah pemasangan yang tampil di sini."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -2094,7 +2095,8 @@
     "environmentDomainDeleted": "{actor} menghapus domain {hostname} dari {environment}",
     "projectDefaultServerSet": "{actor} mengatur server default {project} ke {server}",
     "projectDefaultServerCleared": "{actor} menghapus server default {project}",
-    "serverKeyRotated": "{actor} mengganti SSH key di {server} (dari {from})"
+    "serverKeyRotated": "{actor} mengganti SSH key di {server} (dari {from})",
+    "serverKeyFromChanged": "{actor} memperbarui alamat SSH key {server} (dari {before} menjadi {after})"
   },
   "jira": {
     "title": "Jira",

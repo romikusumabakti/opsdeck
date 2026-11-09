@@ -123,7 +123,7 @@ export const serversRouter = sessionRouter()
       )
   )
   // A key installed by hand: its command, and a key-only login check that
-  // records the from= it was installed with.
+  // records the from= its line on the host carries.
   .get(
     "/:id/authorized-line",
     idParam,
@@ -136,17 +136,8 @@ export const serversRouter = sessionRouter()
         )
       )
   )
-  .post(
-    "/:id/check-key-login",
-    idParam,
-    json(z.object({ from: fromSchema.optional() })),
-    async (c) =>
-      c.json(
-        await checkKeyLoginAction(
-          c.req.valid("param").id,
-          c.req.valid("json").from
-        )
-      )
+  .post("/:id/check-key-login", idParam, async (c) =>
+    c.json(await checkKeyLoginAction(c.req.valid("param").id))
   )
   .post(
     "/:id/trust-host-key",

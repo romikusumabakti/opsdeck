@@ -1,5 +1,10 @@
 import { Client, type ClientChannel } from "ssh2";
-import { connectConfig, connectError, type SshTarget } from "@/lib/ssh-connect";
+import {
+  connectConfig,
+  connectError,
+  connectSucceeded,
+  type SshTarget,
+} from "@/lib/ssh-connect";
 import type { ShellHandle } from "@/lib/terminal/session";
 
 // Adapts an ssh2 shell channel to the ShellHandle the session registry expects.
@@ -44,6 +49,7 @@ export async function openSshShell(
     client.on("error", fail);
 
     client.on("ready", () => {
+      connectSucceeded(config);
       client.shell(
         {
           term: "xterm-256color",

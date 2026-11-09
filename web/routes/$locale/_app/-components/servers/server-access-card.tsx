@@ -346,7 +346,8 @@ function PasswordOnceDialog({
 /**
  * A key server's install command for its own key, with an editable from=
  * (prefilled from the row), and Check key login: a key-only sign-in that, on
- * success, marks the key verified and saves a changed from.
+ * success, marks the key verified and saves the from= its line on the host
+ * carries (the field only shapes the command).
  */
 function KeyInstallCheck({ server }: { server: ServerRow }) {
   const t = useTranslations("serverAccess");
@@ -366,10 +367,7 @@ function KeyInstallCheck({ server }: { server: ServerRow }) {
   async function check() {
     setChecking(true);
     try {
-      await checkServerKeyLogin(
-        server.id,
-        typed && typed !== server.sshFrom ? typed : undefined
-      );
+      await checkServerKeyLogin(server.id);
       toast.success(t("checkKeyLoginDone"));
     } catch (error) {
       reportError(error);

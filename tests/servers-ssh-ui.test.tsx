@@ -448,7 +448,7 @@ describe("servers that cannot sign in yet", () => {
     expect(rows[1]).not.toContain(tServers.accessPassword);
   });
 
-  it("an unverified key server's page shows its own command and checks the key with a changed from", async () => {
+  it("an unverified key server's page shows its own command for an edited from, and checks the key", async () => {
     api.check.mockResolvedValue({ ok: true });
     await render(
       <ServerAccessCard
@@ -470,16 +470,9 @@ describe("servers that cannot sign in yet", () => {
     await vi.waitFor(() =>
       expect(text()).toContain('install from="192.0.2.5" row-key')
     );
+    // The host's line decides the saved from=, not this field.
     await click(button(t.checkKeyLogin));
-    expect(api.check).toHaveBeenCalledWith(ID, "192.0.2.5");
-  });
-
-  it("Check key login with the saved from sends none", async () => {
-    api.check.mockResolvedValue({ ok: true });
-    await render(<ServerAccessCard server={server()} canManage />);
-    await click(button(t.showInstallCommand));
-    await click(button(t.checkKeyLogin));
-    expect(api.check).toHaveBeenCalledWith(ID, undefined);
+    expect(api.check).toHaveBeenCalledWith(ID);
   });
 
   it("Needs setup: Move to SSH key asks for the password and installs with it", async () => {
