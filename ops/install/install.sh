@@ -10,8 +10,9 @@
 #
 # One instance per dir, /opt/<name>: <name> is its compose project and its
 # updater unit, opsdeck-updater@<name>.path. In order: Docker (from Docker's
-# apt repository when missing), the dir, compose.yaml, .env (0600, generated
-# secrets), the updater, then `docker compose up -d --wait`.
+# apt repository when missing; Compose 2.23.1 or later), the dir,
+# compose.yaml, .env (0600, generated secrets), the updater (its own copy in
+# <dir>/.updater, 0700 root), then `docker compose up -d --wait`.
 #
 # --adopt   takes over an existing stack (the repo-root compose.yaml layout):
 #           copies its settings from the old .env, keeps its volumes
@@ -35,7 +36,6 @@ RELEASE_BASE=https://github.com/$REPO/releases/download
 API=https://api.github.com/repos/$REPO
 APP_UID=1001
 APP_GID=1001
-LIB_DIR=/usr/local/lib/opsdeck
 UNIT_DIR=/etc/systemd/system
 WAIT_TIMEOUT=300
 HEALTH_ATTEMPTS=20
@@ -57,6 +57,12 @@ ADOPT_KEYS='POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL BETTER_AUTH
 ADOPT_REQUIRED='POSTGRES_PASSWORD DATABASE_URL BETTER_AUTH_SECRET SECRETS_KEY'
 # The old stack's Caddy port (repo-root compose.yaml publishes 127.0.0.1:80).
 ADOPT_DEFAULT_PORT=80
+# compose.yaml's volumes (<name>_<suffix> outside adopt mode).
+INSTANCE_VOLUMES='postgres valkey garage_meta garage_data caddy_data caddy_config'
+# compose.yaml uses configs.content, added in Compose 2.23.1.
+MIN_COMPOSE=2.23.1
+# Release assets checked against their sha256 in release.json.
+RELEASE_ASSETS='compose.yaml update.sh'
 RESTORE_S3_KEYS='OPSDECK_RESTORE_S3_ENDPOINT OPSDECK_RESTORE_S3_REGION OPSDECK_RESTORE_S3_BUCKET OPSDECK_RESTORE_S3_ACCESS_KEY_ID OPSDECK_RESTORE_S3_SECRET_ACCESS_KEY OPSDECK_RESTORE_S3_FORCE_PATH_STYLE'
 # sha256 of an empty body: S3 signs GET requests with it.
 EMPTY_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -64,7 +70,7 @@ NL='
 '
 
 usage() {
-  sed -n '2,29s/^# \{0,1\}//p' "$0" 2>/dev/null || true
+  sed -n '2,30s/^# \{0,1\}//p' "$0" 2>/dev/null || true
   exit "${1:-1}"
 }
 
@@ -164,7 +170,40 @@ distro_docker() {
   return 1
 }
 
-# After a failure once the host was changed: how to get back.
+# 0 when the volume exists, 1 when Docker says it does not; any other answer
+# (the daemon is down) stops the install rather than count as "absent".
+volume_exists() { # <volume>
+  if err=$(docker volume inspect "$1" 2>&1 >/dev/null </dev/null); then return 0; fi
+  case $err in
+    *"no such volume"* | *"No such volume"*) return 1 ;;
+  esac
+  die "cannot check Docker volume $1 (is the Docker daemon running?): $err"
+}
+
+# The x.y.z of `docker compose version`, or nothing.
+compose_version() {
+  docker compose version 2>/dev/null </dev/null | head -n 1 |
+    sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'
+}
+
+# <a> is x.y.z at least <b>.
+version_at_least() { # <a> <b>
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    split(a, p, "."); split(b, q, ".")
+    for (i = 1; i <= 3; i++) if (p[i] + 0 != q[i] + 0) exit !(p[i] + 0 > q[i] + 0)
+    exit 0
+  }'
+}
+
+require_compose() {
+  v=$(compose_version)
+  if [ -z "$v" ] || ! version_at_least "$v" "$MIN_COMPOSE"; then
+    die "Docker Compose ${v:-of unknown version} is too old: compose.yaml needs $MIN_COMPOSE or later (configs.content). Update docker-compose-plugin (Docker's repository), then run install.sh again"
+  fi
+}
+
+# After a failure once the host was changed: how to get back. `down -v` only
+# when every volume of this instance is one this run created.
 way_back() {
   printf '\ninstall.sh failed after changing the host. ' >&2
   if [ -n "$adopt" ]; then
@@ -172,9 +211,15 @@ way_back() {
       "  docker compose -f $dir/compose.yaml down        (without -v: keeps the volumes)" \
       "  then start the old stack from its own dir again (docker compose up -d there)." \
       "migrate --adopt only records the baseline in drizzle.__drizzle_migrations; later migrations are expand-only, so the old version runs on them." >&2
+  elif [ -n "$preexisting" ]; then
+    printf '%s\n' "No other instance was touched. These volumes existed before install.sh and are kept:$preexisting" \
+      "To start over:" \
+      "  docker compose -f $dir/compose.yaml down        (without -v: keeps those volumes)" \
+      "  docker volume rm <the other ${name}_* volumes>  (only the ones this run created)" \
+      "  rm -rf $dir, then run install.sh again." >&2
   else
     printf '%s\n' "No other instance was touched. To start over:" \
-      "  docker compose -f $dir/compose.yaml down -v     (removes this instance's containers and volumes)" \
+      "  docker compose -f $dir/compose.yaml down -v     (removes this instance's containers and the volumes this run created)" \
       "  rm -rf $dir, then run install.sh again." >&2
   fi
 }
@@ -415,6 +460,11 @@ main() {
   rel=$work/release.json
   one_line_json "$rel" 16384 && [ "$(json_str version "$rel")" = "$version" ] ||
     die "release v$version: release.json is invalid"
+  for asset in $RELEASE_ASSETS; do
+    sum=$(sha256sum <"$work/$asset")
+    [ "${sum%% *}" = "$(json_str "$asset" "$rel")" ] ||
+      die "release v$version: $asset does not match its sha256 in release.json"
+  done
   pins=$work/pins.env
   printf 'OPSDECK_VERSION=%s\n' "$version" >"$pins"
   for pair in $IMAGE_KEYS; do
@@ -427,6 +477,7 @@ main() {
   # --- the volumes: adopt's old stack, or none for a fresh install -----------
 
   copied=
+  preexisting=
   have_docker=0
   if command -v docker >/dev/null 2>&1; then have_docker=1; fi
   if [ -n "$adopt" ]; then
@@ -437,7 +488,7 @@ main() {
     [ "$have_docker" = 1 ] || die "--adopt: Docker is not installed, so there is no stack to adopt"
     for pair in $ADOPT_VOLUMES; do
       volume=${pair#*:}
-      if docker volume inspect "$volume" >/dev/null 2>&1 </dev/null; then
+      if volume_exists "$volume"; then
         # Stopped containers count: `up` or a restart policy would bring them back.
         if [ -n "$(docker ps -aq --filter "volume=$volume" </dev/null)" ]; then
           die "--adopt: volume $volume is in use: remove the old stack's containers first (docker compose down, without -v)"
@@ -452,9 +503,14 @@ main() {
       say "warning: the old stack served on 127.0.0.1:$old_port; with --http-port $http_port the tunnel or proxy must be repointed"
     fi
     http_port=${http_port:-$old_port}
-  elif [ -z "$restore" ] && [ "$have_docker" = 1 ] &&
-    docker volume inspect "${name}_postgres" >/dev/null 2>&1 </dev/null; then
-    die "volume ${name}_postgres already exists: an earlier install of $name left its data (use --adopt, or remove the volume)"
+  elif [ "$have_docker" = 1 ]; then
+    # A restore too: it must never replace data it did not install.
+    if volume_exists "${name}_postgres"; then
+      die "volume ${name}_postgres already exists: an earlier install of $name left its data (use --adopt, or remove the volume)"
+    fi
+    for suffix in $INSTANCE_VOLUMES; do
+      if volume_exists "${name}_$suffix"; then preexisting="$preexisting ${name}_$suffix"; fi
+    done
   fi
   port=${http_port:-8080}
 
@@ -463,6 +519,7 @@ main() {
   step "Docker"
   if [ "$have_docker" = 1 ] && docker compose version >/dev/null 2>&1 </dev/null; then
     say "found: $(docker compose version 2>/dev/null </dev/null | head -n 1)"
+    require_compose
   elif pkg=$(distro_docker); then
     die "the distribution's $pkg package is installed; Docker's docker-ce conflicts with it. Remove it (apt-get remove $pkg) or add its Compose v2 (docker-compose-v2), then run install.sh again"
   elif [ "$have_docker" = 1 ]; then
@@ -487,6 +544,7 @@ EOF
     run apt-get update
     run apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     run systemctl enable --now docker.service
+    if [ "$dry_run" = 0 ]; then require_compose; fi
   fi
 
   # --- 2. The install dir ----------------------------------------------------
@@ -561,7 +619,7 @@ EOF
   if [ -n "$adopt" ]; then
     for pair in $ADOPT_VOLUMES; do
       volume=${pair#*:}
-      if docker volume inspect "$volume" >/dev/null 2>&1 </dev/null; then
+      if volume_exists "$volume"; then
         add "OPSDECK_VOLUME_${pair%%:*}" "$volume"
         say "keeps volume: OPSDECK_VOLUME_${pair%%:*}=$volume"
       fi
@@ -578,10 +636,14 @@ EOF
   # --- 4. The updater --------------------------------------------------------
 
   step "Updater"
-  run install -d -m 0755 "$LIB_DIR"
-  run install -m 0755 "$work/update.sh" "$LIB_DIR/update.sh"
+  # This instance's own updater, out of the app's reach; each successful
+  # update replaces it with the release's.
+  run install -d -m 0700 -o 0 -g 0 "$dir/.updater"
+  run install -m 0700 -o 0 -g 0 "$work/update.sh" "$dir/.updater/update.sh"
   run install -m 0644 "$work/opsdeck-updater@.path" "$work/opsdeck-updater@.service" "$UNIT_DIR/"
   run systemctl daemon-reload
+  # The service also runs once at boot (a request written before a reboot).
+  run systemctl enable "opsdeck-updater@$name.service"
   run systemctl enable --now "opsdeck-updater@$name.path"
 
   # --- 5. Adopt or restore before the first start ----------------------------
