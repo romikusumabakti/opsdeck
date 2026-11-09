@@ -29,6 +29,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# The release workflow passes the version without the leading v (1.2.3). It is
+# baked in so /api/health and the update check can report what is running.
+ARG OPSDECK_VERSION=0.0.0-dev
+ENV OPSDECK_VERSION=$OPSDECK_VERSION
+
 # Debian's useradd/groupadd — oven/bun:slim has no busybox addgroup/adduser.
 # The home directory is needed: Bun writes to $HOME when it loads the native
 # .node addon bundled with the server (ssh2's cpufeatures) and fails with EACCES
