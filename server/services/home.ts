@@ -1,10 +1,16 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
+import { requireSession } from "@/lib/auth-session";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { runs } from "@/lib/db/schema";
+import { instanceBackups, runs, users } from "@/lib/db/schema";
 import { environmentName } from "@/lib/environments";
+import {
+  type InstanceBackupAttention,
+  instanceBackupAttention,
+} from "@/lib/home/attention";
+import { canOrg } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 
@@ -113,4 +119,50 @@ export async function unacknowledgeRuns(
     console.error("Failed to unacknowledge runs:", error);
     return { success: false, message: "Failed to undo" };
   }
+}
+
+/**
+ * Home's "Needs attention" item for the Panel's own backups, shown to those
+ * who manage the instance (null for everyone else): the latest backup failed
+ * unacknowledged, or none succeeded in 36 h. The first user's sign-up stands
+ * in for the install time, so a fresh install is not flagged at once.
+ */
+export async function getInstanceBackupAttention(): Promise<InstanceBackupAttention | null> {
+  const session = await requireSession();
+  if (!canOrg(session.user.role, { instance: ["manage"] })) return null;
+  const [[latest], [lastSuccess]] = await Promise.all([
+    db
+      .select({
+        id: instanceBackups.id,
+        status: instanceBackups.status,
+        errorCode: instanceBackups.errorCode,
+        startedAt: instanceBackups.startedAt,
+        acknowledgedAt: instanceBackups.acknowledgedAt,
+      })
+      .from(instanceBackups)
+      .where(ne(instanceBackups.status, "running"))
+      .orderBy(desc(instanceBackups.startedAt))
+      .limit(1),
+    db
+      .select({ startedAt: instanceBackups.startedAt })
+      .from(instanceBackups)
+      .where(eq(instanceBackups.status, "succeeded"))
+      .orderBy(desc(instanceBackups.startedAt))
+      .limit(1),
+  ]);
+  let installedAt: Date | null = null;
+  if (!lastSuccess) {
+    const [first] = await db
+      .select({ createdAt: users.createdAt })
+      .from(users)
+      .orderBy(asc(users.createdAt))
+      .limit(1);
+    installedAt = first?.createdAt ?? null;
+  }
+  return instanceBackupAttention({
+    latest: latest ?? null,
+    lastSucceededAt: lastSuccess?.startedAt ?? null,
+    installedAt,
+    now: new Date(),
+  });
 }

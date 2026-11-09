@@ -142,7 +142,8 @@
     "ci": "CI",
     "cloudflare": "Cloudflare",
     "repositories": "Repositorios",
-    "variables": "Variables"
+    "variables": "Variables",
+    "instance": "Instancia"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -1846,7 +1847,9 @@
       "undo": "Deshacer",
       "undoFailed": "No se pudo deshacer.",
       "issueTitle": "{kind} fallida: {environment}",
-      "runHistory": "Historial de ejecuciones"
+      "runHistory": "Historial de ejecuciones",
+      "instanceBackupFailed": "Falló la copia de seguridad del Panel",
+      "instanceBackupStale": "Ninguna copia del Panel correcta en 36 horas"
     },
     "issues": {
       "title": "Mis incidencias",
@@ -2986,6 +2989,81 @@
       "pipelineFileExists": "La rama ya tiene un .woodpecker.yaml que el Panel no generó. Haga que notifique al Panel o elimínelo.",
       "pipelineBranchMissing": "El pipeline debe compilar la rama del entorno: añádala a las ramas.",
       "pipelineForbidden": "Solo un administrador puede elegir el pipeline de un repositorio."
+    }
+  },
+  "instance": {
+    "title": "Instancia",
+    "subtitle": "Las copias de seguridad de este Panel.",
+    "tabBackups": "Copias de seguridad"
+  },
+  "instanceBackups": {
+    "settingsTitle": "Programación y destino",
+    "settingsDescription": "Cada día a esta hora se hace una copia. Incluye la base de datos y los archivos guardados.",
+    "destination": "Destino",
+    "destinationLocal": "Ninguno: solo en este servidor",
+    "destinationDescription": "Una conexión S3, idealmente externa (por ejemplo Cloudflare R2).",
+    "time": "Hora",
+    "timeDescription": "Diaria, en {zone}.",
+    "keepDaily": "Copias diarias a conservar",
+    "keepDailyDescription": "De 1 a 90. La copia más reciente de cada día.",
+    "keepWeekly": "Copias semanales a conservar",
+    "keepWeeklyDescription": "De 0 a 52, además de las diarias.",
+    "invalidTime": "Introduce una hora como HH:MM",
+    "invalidRange": "Introduce un número entero de {min} a {max}",
+    "saved": "Ajustes de copia guardados",
+    "runNow": "Copiar ahora",
+    "runQueued": "Copia iniciada",
+    "notOffsiteTitle": "Las copias no están fuera del servidor",
+    "notOffsiteDescription": "Sin destino, las copias se quedan en este servidor (se conservan las 3 más recientes). Si se pierde el servidor, se pierden también. Elige una conexión S3.",
+    "secretsKeyTitle": "Guarda SECRETS_KEY en lugar seguro",
+    "secretsKeyDescription": "Restaurar requiere la SECRETS_KEY de esta instancia, y la clave no está en la copia. Guarda una copia sin conexión. Su huella es {fingerprint}.",
+    "secretsKeyNoFingerprint": "desconocida",
+    "verifyKeyLabel": "Comprueba tu copia de SECRETS_KEY",
+    "verifyKeyPlaceholder": "Pega la clave",
+    "verifyKey": "Comprobar",
+    "keyMatches": "Coincide con la clave de esta instancia.",
+    "keyMismatch": "No coincide con la clave de esta instancia.",
+    "historyTitle": "Historial",
+    "historyEmpty": "Aún no hay copias.",
+    "colStarted": "Inicio",
+    "colTrigger": "Origen",
+    "colStatus": "Estado",
+    "colLocation": "Ubicación",
+    "colVersion": "Versión",
+    "colSize": "Tamaño",
+    "colError": "Error",
+    "trigger": {
+      "schedule": "Programada",
+      "manual": "Manual",
+      "update": "Antes de actualizar"
+    },
+    "status": {
+      "running": "En curso",
+      "succeeded": "Correcta",
+      "failed": "Fallida"
+    },
+    "location": {
+      "s3": "S3",
+      "local": "Este servidor"
+    },
+    "acknowledge": "Marcar como vista",
+    "acknowledged": "Marcada como vista",
+    "errors": {
+      "backupAlreadyRunning": "Ya hay una copia en curso.",
+      "backupDestinationNotFound": "Esa conexión S3 ya no existe.",
+      "backupScheduleFailed": "Los ajustes se guardaron, pero no se pudo actualizar la programación. Se vuelve a configurar cuando el Panel se reinicia."
+    },
+    "errorCodes": {
+      "backupSecretsKeyMissing": "SECRETS_KEY no está configurada en el Panel.",
+      "backupDestinationFailed": "No se pudo leer el destino. Se guardó una copia en este servidor.",
+      "backupDumpFailed": "Falló el volcado de la base de datos.",
+      "backupGarageFailed": "No se pudieron copiar los archivos guardados.",
+      "backupWriteFailed": "No se pudo escribir la copia en este servidor.",
+      "backupUploadFailed": "Falló la subida al destino. Se guardó una copia en este servidor.",
+      "backupRecordFailed": "La copia terminó, pero no se pudo registrar.",
+      "backupInterrupted": "La copia se interrumpió.",
+      "backupFailed": "La copia falló.",
+      "unknown": "La copia falló ({code})."
     }
   }
 }

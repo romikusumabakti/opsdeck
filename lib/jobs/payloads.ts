@@ -109,6 +109,7 @@ const JOB_PAYLOAD_SCHEMAS: { [N in JobName]: z.ZodType<JobMap[N]> } = {
     runId: uuidSchema,
   }),
   "deploy/lock-sweep": z.object({}).strict(),
+  "instance/backup.run": z.object({ trigger: z.enum(["schedule", "manual"]) }),
 };
 
 /**

@@ -63,6 +63,16 @@ export const getHomeAccessQuery = (...args: Parameters<typeof getHomeAccess>) =>
     queryFn: () => getHomeAccess(...args),
   });
 
+export async function getInstanceBackupAttention() {
+  return parseResponse(routes["instance-backup-attention"].$get());
+}
+
+export const getInstanceBackupAttentionQuery = () =>
+  queryOptions({
+    queryKey: ["home", "getInstanceBackupAttention"],
+    queryFn: getInstanceBackupAttention,
+  });
+
 export async function acknowledgeAttentionGroup(
   environmentId: Body<"acknowledge-attention-group">["environmentId"],
   key: Body<"acknowledge-attention-group">["key"]
@@ -103,3 +113,6 @@ export type RecentEnvironment = Awaited<
 export type IssueProject = Awaited<
   ReturnType<typeof listIssueProjects>
 >[number];
+export type InstanceBackupAttentionItem = NonNullable<
+  Awaited<ReturnType<typeof getInstanceBackupAttention>>
+>;

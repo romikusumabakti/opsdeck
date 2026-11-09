@@ -142,7 +142,8 @@
     "ci": "CI",
     "cloudflare": "Cloudflare",
     "repositories": "代码仓库",
-    "variables": "变量"
+    "variables": "变量",
+    "instance": "实例"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -1846,7 +1847,9 @@
       "undo": "撤销",
       "undoFailed": "无法撤销确认。",
       "issueTitle": "{kind}失败：{environment}",
-      "runHistory": "运行历史"
+      "runHistory": "运行历史",
+      "instanceBackupFailed": "Panel 备份失败",
+      "instanceBackupStale": "36 小时内没有成功的 Panel 备份"
     },
     "issues": {
       "title": "我的事项",
@@ -2986,6 +2989,81 @@
       "pipelineFileExists": "该分支已有一个不是 Panel 生成的 .woodpecker.yaml。请让它通知 Panel，或将其删除。",
       "pipelineBranchMissing": "流水线必须构建该环境的分支：请将其加入分支列表。",
       "pipelineForbidden": "只有管理员可以选择仓库的流水线。"
+    }
+  },
+  "instance": {
+    "title": "实例",
+    "subtitle": "本 Panel 自身的备份。",
+    "tabBackups": "备份"
+  },
+  "instanceBackups": {
+    "settingsTitle": "计划与目标",
+    "settingsDescription": "每天在此时间运行一次备份，包含数据库和已存储的文件。",
+    "destination": "目标",
+    "destinationLocal": "无 — 仅保存在本服务器",
+    "destinationDescription": "一个 S3 连接，最好在异地（例如 Cloudflare R2）。",
+    "time": "时间",
+    "timeDescription": "每天，时区 {zone}。",
+    "keepDaily": "保留的每日备份",
+    "keepDailyDescription": "1 到 90。每天最新的一份备份。",
+    "keepWeekly": "保留的每周备份",
+    "keepWeeklyDescription": "0 到 52，在每日备份之外。",
+    "invalidTime": "请按 HH:MM 输入时间",
+    "invalidRange": "请输入 {min} 到 {max} 之间的整数",
+    "saved": "备份设置已保存",
+    "runNow": "立即备份",
+    "runQueued": "备份已开始",
+    "notOffsiteTitle": "备份不在异地",
+    "notOffsiteDescription": "未设置目标时，备份只保存在本服务器（保留最新 3 份）。服务器丢失时备份也会丢失。请选择一个 S3 连接。",
+    "secretsKeyTitle": "妥善保管 SECRETS_KEY",
+    "secretsKeyDescription": "恢复需要本实例的 SECRETS_KEY，而该密钥不在备份中。请离线保存一份副本。其指纹为 {fingerprint}。",
+    "secretsKeyNoFingerprint": "未知",
+    "verifyKeyLabel": "检查你保存的 SECRETS_KEY",
+    "verifyKeyPlaceholder": "粘贴密钥",
+    "verifyKey": "检查",
+    "keyMatches": "与本实例的密钥一致。",
+    "keyMismatch": "与本实例的密钥不一致。",
+    "historyTitle": "历史",
+    "historyEmpty": "还没有备份。",
+    "colStarted": "开始时间",
+    "colTrigger": "触发方式",
+    "colStatus": "状态",
+    "colLocation": "位置",
+    "colVersion": "版本",
+    "colSize": "大小",
+    "colError": "错误",
+    "trigger": {
+      "schedule": "计划",
+      "manual": "手动",
+      "update": "更新前"
+    },
+    "status": {
+      "running": "进行中",
+      "succeeded": "成功",
+      "failed": "失败"
+    },
+    "location": {
+      "s3": "S3",
+      "local": "本服务器"
+    },
+    "acknowledge": "确认",
+    "acknowledged": "已确认",
+    "errors": {
+      "backupAlreadyRunning": "已有备份正在进行。",
+      "backupDestinationNotFound": "该 S3 连接已不存在。",
+      "backupScheduleFailed": "设置已保存，但无法更新计划。Panel 重启时会重新设置。"
+    },
+    "errorCodes": {
+      "backupSecretsKeyMissing": "Panel 上未设置 SECRETS_KEY。",
+      "backupDestinationFailed": "无法读取目标。已在本服务器保留一份副本。",
+      "backupDumpFailed": "数据库导出失败。",
+      "backupGarageFailed": "无法复制已存储的文件。",
+      "backupWriteFailed": "无法在本服务器写入备份。",
+      "backupUploadFailed": "上传到目标失败。已在本服务器保留一份副本。",
+      "backupRecordFailed": "备份已完成，但无法记录。",
+      "backupInterrupted": "备份被中断。",
+      "backupFailed": "备份失败。",
+      "unknown": "备份失败（{code}）。"
     }
   }
 }

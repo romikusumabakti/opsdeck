@@ -132,12 +132,13 @@ describe("app sidebar", () => {
     }
   );
 
-  it("admin group: Activity, Users, Repositories, then Integrations: Jira, CI, Cloudflare; no Tunnels", async () => {
+  it("admin group: Activity, Users, Repositories, Instance, then Integrations: Jira, CI, Cloudflare; no Tunnels", async () => {
     await renderSidebar("admin", "/admin/activity");
     expect(groupRows(messages.nav.admin)).toEqual([
       messages.nav.activity,
       messages.nav.users,
       messages.nav.repositories,
+      messages.nav.instance,
     ]);
     expect(groupRows(messages.nav.integrations)).toEqual([
       messages.nav.jira,
@@ -151,6 +152,7 @@ describe("app sidebar", () => {
       headings.indexOf(messages.nav.admin) + 1
     );
     expect(hrefs()).toContain("/admin/repositories");
+    expect(hrefs()).toContain("/admin/instance");
     expect(hrefs().some((h) => h?.startsWith("/admin/tunnels"))).toBe(false);
   });
 

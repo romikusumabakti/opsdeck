@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CircleDot,
   CloudCog,
+  Cog,
   Folder,
   FolderKanban,
   HardDrive,
@@ -242,14 +243,25 @@ export function CommandPalette({
               </CommandItem>
             )}
             {canOrg(orgRole, { integration: ["manage"] }) && (
+              <CommandItem
+                value="repositories repos apps pipelines"
+                onSelect={() => run(() => router.push("/admin/repositories"))}
+              >
+                <Boxes />
+                {tNav("repositories")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { instance: ["manage"] }) && (
+              <CommandItem
+                value="instance panel backups updates"
+                onSelect={() => run(() => router.push("/admin/instance"))}
+              >
+                <Cog />
+                {tNav("instance")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { integration: ["manage"] }) && (
               <>
-                <CommandItem
-                  value="repositories repos apps pipelines"
-                  onSelect={() => run(() => router.push("/admin/repositories"))}
-                >
-                  <Boxes />
-                  {tNav("repositories")}
-                </CommandItem>
                 <CommandItem
                   value="jira integration connections"
                   onSelect={() => run(() => router.push("/admin/jira"))}

@@ -142,7 +142,8 @@
     "ci": "CI",
     "cloudflare": "Cloudflare",
     "repositories": "المستودعات",
-    "variables": "المتغيرات"
+    "variables": "المتغيرات",
+    "instance": "المثيل"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -1846,7 +1847,9 @@
       "undo": "تراجع",
       "undoFailed": "تعذّر التراجع عن الإقرار.",
       "issueTitle": "فشل {kind}: {environment}",
-      "runHistory": "سجل التشغيل"
+      "runHistory": "سجل التشغيل",
+      "instanceBackupFailed": "فشل النسخ الاحتياطي للوحة",
+      "instanceBackupStale": "لا توجد نسخة احتياطية ناجحة للوحة منذ 36 ساعة"
     },
     "issues": {
       "title": "مشكلاتي",
@@ -2986,6 +2989,81 @@
       "pipelineFileExists": "يحتوي الفرع بالفعل على ‎.woodpecker.yaml لم ينشئه Panel. اجعله يُبلغ Panel أو احذفه.",
       "pipelineBranchMissing": "يجب أن يبني خط البناء فرع البيئة: أضفه إلى الفروع.",
       "pipelineForbidden": "لا يختار خط بناء المستودع إلا المسؤول."
+    }
+  },
+  "instance": {
+    "title": "المثيل",
+    "subtitle": "النسخ الاحتياطية الخاصة بهذه اللوحة.",
+    "tabBackups": "النسخ الاحتياطية"
+  },
+  "instanceBackups": {
+    "settingsTitle": "الجدول والوجهة",
+    "settingsDescription": "تُنشأ نسخة احتياطية كل يوم في هذا الوقت، وتضم قاعدة البيانات والملفات المخزنة.",
+    "destination": "الوجهة",
+    "destinationLocal": "لا شيء — على هذا الخادم فقط",
+    "destinationDescription": "اتصال S3، ويُفضّل أن يكون خارج الموقع (مثل Cloudflare R2).",
+    "time": "الوقت",
+    "timeDescription": "يوميًا، بتوقيت {zone}.",
+    "keepDaily": "النسخ اليومية المحفوظة",
+    "keepDailyDescription": "من 1 إلى 90. أحدث نسخة في كل يوم.",
+    "keepWeekly": "النسخ الأسبوعية المحفوظة",
+    "keepWeeklyDescription": "من 0 إلى 52، إضافةً إلى اليومية.",
+    "invalidTime": "أدخل الوقت بصيغة HH:MM",
+    "invalidRange": "أدخل عددًا صحيحًا من {min} إلى {max}",
+    "saved": "تم حفظ إعدادات النسخ الاحتياطي",
+    "runNow": "انسخ الآن",
+    "runQueued": "بدأ النسخ الاحتياطي",
+    "notOffsiteTitle": "النسخ الاحتياطية ليست خارج الموقع",
+    "notOffsiteDescription": "من دون وجهة تبقى النسخ على هذا الخادم (تُحفظ أحدث 3). إذا فُقد الخادم فُقدت معه. اختر اتصال S3.",
+    "secretsKeyTitle": "احفظ SECRETS_KEY في مكان آمن",
+    "secretsKeyDescription": "تتطلب الاستعادة مفتاح SECRETS_KEY لهذا المثيل، والمفتاح غير موجود في النسخة الاحتياطية. احتفظ بنسخة منه دون اتصال. بصمته {fingerprint}.",
+    "secretsKeyNoFingerprint": "غير معروفة",
+    "verifyKeyLabel": "تحقق من نسختك من SECRETS_KEY",
+    "verifyKeyPlaceholder": "الصق المفتاح",
+    "verifyKey": "تحقق",
+    "keyMatches": "يطابق مفتاح هذا المثيل.",
+    "keyMismatch": "لا يطابق مفتاح هذا المثيل.",
+    "historyTitle": "السجل",
+    "historyEmpty": "لا توجد نسخ احتياطية بعد.",
+    "colStarted": "البدء",
+    "colTrigger": "المُشغِّل",
+    "colStatus": "الحالة",
+    "colLocation": "الموقع",
+    "colVersion": "الإصدار",
+    "colSize": "الحجم",
+    "colError": "الخطأ",
+    "trigger": {
+      "schedule": "مجدولة",
+      "manual": "يدوية",
+      "update": "قبل التحديث"
+    },
+    "status": {
+      "running": "قيد التشغيل",
+      "succeeded": "ناجحة",
+      "failed": "فاشلة"
+    },
+    "location": {
+      "s3": "S3",
+      "local": "هذا الخادم"
+    },
+    "acknowledge": "إقرار",
+    "acknowledged": "تم الإقرار",
+    "errors": {
+      "backupAlreadyRunning": "هناك نسخ احتياطي قيد التشغيل بالفعل.",
+      "backupDestinationNotFound": "اتصال S3 هذا لم يعد موجودًا.",
+      "backupScheduleFailed": "تم حفظ الإعدادات، لكن تعذّر تحديث الجدول. سيُضبط مجددًا عند إعادة تشغيل اللوحة."
+    },
+    "errorCodes": {
+      "backupSecretsKeyMissing": "لم يُضبط SECRETS_KEY في اللوحة.",
+      "backupDestinationFailed": "تعذّرت قراءة الوجهة. حُفظت نسخة على هذا الخادم.",
+      "backupDumpFailed": "فشل تفريغ قاعدة البيانات.",
+      "backupGarageFailed": "تعذّر نسخ الملفات المخزنة.",
+      "backupWriteFailed": "تعذّرت كتابة النسخة على هذا الخادم.",
+      "backupUploadFailed": "فشل الرفع إلى الوجهة. حُفظت نسخة على هذا الخادم.",
+      "backupRecordFailed": "اكتملت النسخة لكن تعذّر تسجيلها.",
+      "backupInterrupted": "انقطع النسخ الاحتياطي.",
+      "backupFailed": "فشل النسخ الاحتياطي.",
+      "unknown": "فشل النسخ الاحتياطي ({code})."
     }
   }
 }

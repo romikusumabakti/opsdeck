@@ -6,6 +6,10 @@ import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
 import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
 import { loadEnvironmentWithServers } from "@/lib/environments";
+import {
+  isBackupRunning,
+  runInstanceBackup,
+} from "@/lib/instance-backup/archive";
 import { pushComment, pushIssue } from "@/lib/jira/push";
 import { pullProject, syncIssueById } from "@/lib/jira/sync";
 import type { MssqlBackupFile } from "@/lib/jobs/commands";
@@ -1248,13 +1252,14 @@ function normalizeJobName(name: string): JobName {
  * they skip the shim — otherwise the sweep would lose its only argument. Deploy
  * jobs postdate the rename and carry no environment id at all. Provision jobs
  * postdate it too and carry `environmentId` from the start, so the shim has
- * nothing to migrate in them.
+ * nothing to migrate in them. Instance jobs belong to no environment.
  */
 function migrateLegacyPayload(name: JobName, data: unknown): unknown {
   if (
     name.startsWith("jira/") ||
     name.startsWith("deploy/") ||
-    name.startsWith("provision/")
+    name.startsWith("provision/") ||
+    name.startsWith("instance/")
   )
     return data;
   if (data && typeof data === "object" && !("environmentId" in data)) {
@@ -1269,6 +1274,24 @@ function migrateLegacyPayload(name: JobName, data: unknown): unknown {
     };
   }
   return data;
+}
+
+/**
+ * One instance backup, unless another is still running (a manual run, the
+ * schedule and an update's backup must never overlap). The outcome is
+ * recorded in instance_backups by runInstanceBackup, so a failed backup is a
+ * completed job.
+ */
+export async function handleInstanceBackup(
+  trigger: "schedule" | "manual"
+): Promise<unknown> {
+  if (await isBackupRunning()) {
+    console.warn(
+      `Instance backup (${trigger}) skipped: one is already running`
+    );
+    return { skipped: true };
+  }
+  return runInstanceBackup(trigger);
 }
 
 // Dispatches a job to its handler by name. The Worker calls this for every job;
@@ -1319,6 +1342,8 @@ export async function processJob(job: Job): Promise<unknown> {
     case "deploy/lock-sweep":
       parseJobPayload(name, raw);
       return sweepExpiredLocks();
+    case "instance/backup.run":
+      return handleInstanceBackup(parseJobPayload(name, raw).trigger);
     default: {
       // Exhaustiveness guard: a new JobName without a case is a compile error.
       const _exhaustive: never = name;
