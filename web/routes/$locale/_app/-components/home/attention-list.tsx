@@ -7,14 +7,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { failurePrefill } from "@/lib/home/attention";
-import type { AttentionGroup } from "@/web/api/home";
+import type {
+  AttentionGroup,
+  InstanceBackupAttentionItem,
+} from "@/web/api/home";
 import { acknowledgeAttentionGroup, unacknowledgeRuns } from "@/web/api/home";
+import { acknowledgeInstanceBackup } from "@/web/api/instance";
 import { useIssueDialog } from "./home-issue-dialog";
 
 const groupId = (g: AttentionGroup) => `${g.environmentId}\u0000${g.key}`;
 const KINDS = ["backup", "restore", "mock_time", "test", "deploy"] as const;
 
-export function AttentionList({ groups }: { groups: AttentionGroup[] }) {
+export function AttentionList({
+  groups,
+  instanceBackup = null,
+}: {
+  groups: AttentionGroup[];
+  /** The Panel's own backup, for those who manage the instance. */
+  instanceBackup?: InstanceBackupAttentionItem | null;
+}) {
   const t = useTranslations("homePage");
   const issueDialog = useIssueDialog();
   const [, startTransition] = React.useTransition();
@@ -88,8 +99,49 @@ export function AttentionList({ groups }: { groups: AttentionGroup[] }) {
     });
   }
 
+  function acknowledgeBackup(backupId: string) {
+    startTransition(async () => {
+      try {
+        await acknowledgeInstanceBackup(backupId);
+        toast.success(t("attention.acknowledged"));
+      } catch {
+        toast.error(t("attention.ackFailed"));
+      }
+    });
+  }
+
   return (
     <ul className="flex flex-col divide-y">
+      {instanceBackup ? (
+        <li className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors">
+          <CircleAlert className="size-3.5 shrink-0 text-destructive" />
+          <Link
+            href="/admin/instance"
+            className="flex min-w-0 flex-1 items-center gap-2"
+          >
+            <span className="truncate text-sm">
+              {instanceBackup.kind === "failed"
+                ? t("attention.instanceBackupFailed")
+                : t("attention.instanceBackupStale")}
+            </span>
+          </Link>
+          {instanceBackup.kind === "failed" ? (
+            <>
+              <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+                <RelativeTime date={instanceBackup.at} />
+              </span>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => acknowledgeBackup(instanceBackup.backupId)}
+              >
+                <Check />
+                {t("attention.acknowledge")}
+              </Button>
+            </>
+          ) : null}
+        </li>
+      ) : null}
       {visible.map((g) => (
         <li
           key={groupId(g)}

@@ -7,6 +7,7 @@ import "reflect-metadata";
 import { validateEnv } from "@/lib/env";
 import { startWorker } from "@/lib/jobs/worker";
 import { app } from "@/server/app";
+import { syncInstanceBackupOnBoot } from "@/server/services/instance-backups";
 import { mountStatic } from "@/server/static";
 
 // The server process. Two jobs besides serving requests:
@@ -20,6 +21,10 @@ import { mountStatic } from "@/server/static";
 //     separate worker service).
 validateEnv();
 startWorker();
+// Store the SECRETS_KEY fingerprint once and register the daily backup.
+syncInstanceBackupOnBoot().catch((error) => {
+  console.error("Failed to set up the instance backup:", error);
+});
 
 // In production the same process serves the built SPA (server/static.ts).
 mountStatic(app);

@@ -23,6 +23,7 @@ import { environmentDomainsRouter } from "@/server/routes/environment-domains";
 import { environmentsRouter } from "@/server/routes/environments";
 import { explorerRouter } from "@/server/routes/explorer";
 import { homeRouter } from "@/server/routes/home";
+import { instanceRouter } from "@/server/routes/instance";
 import {
   issueAttachmentFilesRouter,
   issueAttachmentsRouter,
@@ -138,6 +139,7 @@ export const app = createBaseApp()
   .route("/api/apps", variableTemplatesRouter)
   .route("/api/ci-connections", ciConnectionsRouter)
   .route("/api/cloudflare-account", cloudflareAccountRouter)
+  .route("/api/instance", instanceRouter)
   // The favicon keeps its pre-API path; the SPA's <link rel="icon"> uses it.
   .route("/brand", brandRouter);
 

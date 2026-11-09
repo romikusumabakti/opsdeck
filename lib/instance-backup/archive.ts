@@ -22,7 +22,7 @@ import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { instanceBackups, instanceSettings } from "@/lib/db/schema";
 import { OPSDECK_VERSION } from "@/lib/version";
@@ -264,6 +264,30 @@ export const dbBackupRecorder: BackupRecorder = {
       );
   },
 };
+
+/**
+ * True while another backup is in progress: a `running` row younger than
+ * INTERRUPTED_AFTER_MS (an older one belongs to a crashed process). The
+ * worker and the "Back up now" route check it so two backups never overlap.
+ */
+export async function isBackupRunning(
+  now: Date = new Date()
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: instanceBackups.id })
+    .from(instanceBackups)
+    .where(
+      and(
+        eq(instanceBackups.status, "running"),
+        gte(
+          instanceBackups.startedAt,
+          new Date(now.getTime() - INTERRUPTED_AFTER_MS)
+        )
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
+}
 
 function defaultDeps(): BackupDeps {
   return {

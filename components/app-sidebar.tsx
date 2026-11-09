@@ -6,6 +6,7 @@ import {
   CircleDot,
   Clock,
   CloudCog,
+  Cog,
   DatabaseZap,
   FolderKanban,
   HardDrive,
@@ -129,6 +130,12 @@ const adminItems: AdminItem[] = [
     url: "/admin/repositories",
     icon: Boxes,
     perm: { integration: ["manage"] },
+  },
+  {
+    key: "instance",
+    url: "/admin/instance",
+    icon: Cog,
+    perm: { instance: ["manage"] },
   },
 ];
 

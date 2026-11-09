@@ -10,6 +10,7 @@ import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
   acknowledgeAttentionGroup,
+  getInstanceBackupAttention,
   unacknowledgeRuns,
 } from "@/server/services/home";
 import { json } from "@/server/validation";
@@ -26,6 +27,9 @@ export const homeRouter = sessionRouter()
   )
   .get("/issue-projects", async (c) => c.json(await listIssueProjects()))
   .get("/access", async (c) => c.json(await getHomeAccess()))
+  .get("/instance-backup-attention", async (c) =>
+    c.json(await getInstanceBackupAttention())
+  )
   .post(
     "/acknowledge-attention-group",
     json(

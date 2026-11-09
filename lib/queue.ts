@@ -1,6 +1,7 @@
 import { type ConnectionOptions, Queue } from "bullmq";
 import IORedis from "ioredis";
 import type { ServiceAction, ServiceRole } from "@/lib/services";
+import { APP_TIMEZONE } from "@/lib/timezone";
 
 // The single BullMQ queue that carries every background operation. Job type is
 // discriminated by the job *name* (a key of JobMap); the worker switches on it.
@@ -100,6 +101,10 @@ export type JobMap = {
   };
   // Release every expired deploy lock (repeatable; see scheduleDeployLockSweep).
   "deploy/lock-sweep": Record<string, never>;
+  // --- Instance self-backup ---
+  // One backup of the Panel itself (lib/instance-backup/archive). The
+  // destination and retention are read from instance_settings in the worker.
+  "instance/backup.run": { trigger: "schedule" | "manual" };
 };
 
 export type JobName = keyof JobMap;
@@ -252,6 +257,41 @@ export async function scheduleDeployLockSweep(
     {
       name: "deploy/lock-sweep",
       data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 50 },
+      },
+    }
+  );
+}
+
+const INSTANCE_BACKUP_SCHEDULER_ID = "instance-backup";
+/** The job id of a manual run: a second click while one waits is dropped. */
+export const INSTANCE_BACKUP_MANUAL_JOB_ID = "instance-backup-manual";
+
+/** The daily cron pattern for a backup time `HH:MM`. */
+export function instanceBackupCron(time: string): string {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
+  if (!match) throw new Error(`Invalid backup time: ${time}`);
+  return `${Number(match[2])} ${Number(match[1])} * * *`;
+}
+
+/**
+ * Register the daily instance backup at `time` (HH:MM) in the instance time
+ * zone. Keyed like the other schedulers, so a settings change or a worker
+ * boot replaces the schedule instead of stacking a second one.
+ */
+export async function scheduleInstanceBackup(
+  time: string,
+  tz: string = APP_TIMEZONE
+): Promise<void> {
+  await getQueue().upsertJobScheduler(
+    INSTANCE_BACKUP_SCHEDULER_ID,
+    { pattern: instanceBackupCron(time), tz },
+    {
+      name: "instance/backup.run",
+      data: { trigger: "schedule" },
       opts: {
         attempts: 1,
         removeOnComplete: { count: 20 },
