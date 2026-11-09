@@ -5,6 +5,7 @@ import { utils } from "ssh2";
 import { db, lockConnection, pgClient } from "@/lib/db";
 import { servers, sshKeys } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { parseableKeyPair } from "@/lib/ssh-keypair";
 
 // The instance's own ed25519 key and the helpers that edit a server's
 // authorized_keys without touching lines that are not ours. Server-only: the
@@ -27,19 +28,6 @@ export function generateInstanceKey(): {
     privateKeyPem: pair.private,
     fingerprint: sshFingerprint(blob),
   };
-}
-
-// ssh2's generator now and then (about 1 in 250, measured under Bun and Node)
-// emits an ed25519 private key its own parser rejects as malformed; such a key
-// could never sign in, and a rotation to it would fail on every server.
-const KEYGEN_ATTEMPTS = 20;
-
-function parseableKeyPair(): { public: string; private: string } {
-  for (let attempt = 0; attempt < KEYGEN_ATTEMPTS; attempt++) {
-    const pair = utils.generateKeyPairSync("ed25519");
-    if (!(utils.parseKey(pair.private) instanceof Error)) return pair;
-  }
-  throw new Error("could not generate a usable ed25519 key");
 }
 
 /** OpenSSH's `SHA256:<base64, unpadded>` fingerprint of a public key blob. */

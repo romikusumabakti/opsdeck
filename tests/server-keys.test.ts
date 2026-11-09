@@ -24,6 +24,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { parseableKeyPair } from "@/lib/ssh-keypair";
 
 // Move, reinstall and trust against a real in-process sshd (ssh2's Server)
 // whose exec handler runs each command with /bin/sh in a temp home: the
@@ -215,9 +216,9 @@ const { moveServerToKey, normaliseSubnet, ownSubnet, rotateServerKey } =
 const { serverKeyLock, sshFingerprint } = await import("@/lib/ssh-keys");
 const { app } = await import("@/server/app");
 
-const hostKey = ssh2.utils.generateKeyPairSync("ed25519");
-const otherHostKey = ssh2.utils.generateKeyPairSync("ed25519");
-const clientKey = ssh2.utils.generateKeyPairSync("ed25519");
+const hostKey = parseableKeyPair();
+const otherHostKey = parseableKeyPair();
+const clientKey = parseableKeyPair();
 const blobOf = (publicKey: string) =>
   Buffer.from(publicKey.split(" ")[1] ?? "", "base64");
 const hostBlob = blobOf(hostKey.public);
