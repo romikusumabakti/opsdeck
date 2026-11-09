@@ -26,18 +26,40 @@ export async function hasPendingRequest(dir: string): Promise<boolean> {
     .catch(() => false);
 }
 
-/** The updater's last status; null when there is none or it does not parse. */
+/**
+ * How long a run can be "running": systemd stops opsdeck-updater@.service
+ * after TimeoutStartSec (1 h) and kills it TimeoutStopSec (5 min) later, plus
+ * a margin. An older "running" status is a run that died without recording
+ * its end (SIGKILL, power loss).
+ */
+export const STALE_RUN_MS = 70 * 60 * 1000;
+
+/**
+ * The updater's last status; null when there is none or it does not parse.
+ * A "running" status older than STALE_RUN_MS reads as failed/`interrupted`,
+ * so it never blocks another update or restore.
+ */
 export async function readUpdateStatus(
-  dir: string
+  dir: string,
+  now: Date = new Date()
 ): Promise<UpdateStatus | null> {
   const text = await readFile(join(dir, STATUS_FILE), "utf8").catch(() => null);
   if (text === null) return null;
+  let status: UpdateStatus;
   try {
     const parsed = updateStatusSchema.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    status = parsed.data;
   } catch {
     return null;
   }
+  if (
+    status.state === "running" &&
+    now.getTime() - Date.parse(status.startedAt) > STALE_RUN_MS
+  ) {
+    return { ...status, state: "failed", code: "interrupted" };
+  }
+  return status;
 }
 
 /**

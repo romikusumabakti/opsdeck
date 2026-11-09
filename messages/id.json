@@ -3124,6 +3124,9 @@
       "refused": "Ditolak"
     },
     "rolledBackTitle": "Versi sebelumnya berjalan lagi",
+    "restoredRolledBackTitle": "Backup sudah dipulihkan",
+    "restoredRolledBack": "Backup sudah dipulihkan dan berjalan pada versinya, {version}. Pembaruan ke versi yang berjalan sebelumnya tidak selesai dan dikembalikan; perbarui lagi bila sudah siap.",
+    "interruptedFailed": "Proses berhenti sebelum selesai (server dimulai ulang atau updater dihentikan). Periksa bahwa Panel menjalankan versi yang Anda harapkan.",
     "safetyTitle": "Batalkan pemulihan",
     "safetyDescription": "Cadangan pengaman dibuat tepat sebelum pemulihan. Memulihkannya mengembalikan data seperti semula.",
     "restoreSafety": "Pulihkan cadangan pengaman",

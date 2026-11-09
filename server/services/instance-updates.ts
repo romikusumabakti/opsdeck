@@ -249,7 +249,7 @@ export async function runInstanceUpdateCheck(
   if (belowMinFrom(available)) return { requested: null };
   if (!(await updaterInstalled(UPDATES_DIR))) return { requested: null };
   if (await hasPendingRequest(UPDATES_DIR)) return { requested: null };
-  const status = await readUpdateStatus(UPDATES_DIR);
+  const status = await readUpdateStatus(UPDATES_DIR, now);
   if (status?.state === "running") return { requested: null };
   if (lastRunFailedFor(status, available.version)) return { requested: null };
   await writeUpdateRequest(UPDATES_DIR, {

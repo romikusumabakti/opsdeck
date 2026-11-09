@@ -174,6 +174,10 @@ const AVAILABLE = {
   minFrom: "1.0.0",
 };
 
+/** An ISO time `ms` before now, to the second like update.sh writes it. */
+const ago = (ms: number) =>
+  new Date(Date.now() - ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+
 function status(extra: Record<string, unknown> = {}) {
   return {
     runId: "20261109T200000Z-0a0b0c0d",
@@ -183,7 +187,8 @@ function status(extra: Record<string, unknown> = {}) {
     step: "health",
     state: "running",
     code: null,
-    startedAt: "2026-11-09T20:00:00Z",
+    // A run in progress: under the 70 min after which "running" is stale.
+    startedAt: ago(60_000),
     finishedAt: null,
     logTail: ["step: health"],
     ...extra,
@@ -418,6 +423,37 @@ describe("POST /api/instance/updates/apply", () => {
     expect(await res.json()).toMatchObject({ code: "updaterMissing" });
   });
 
+  it("treats a run still running after 70 min as interrupted, not in progress", async () => {
+    const stale = status({ startedAt: ago(71 * 60_000) });
+    await writeFile(join(dirs.updates, "status.json"), JSON.stringify(stale));
+    const body = await (await send("GET", "/api/instance/updates")).json();
+    expect(body.status).toMatchObject({
+      runId: stale.runId,
+      state: "failed",
+      code: "interrupted",
+    });
+    const res = await send("POST", "/api/instance/updates/apply", {
+      version: "1.2.1",
+    });
+    expect(res.status).toBe(202);
+    expect(JSON.parse(await readRequest())).toMatchObject({
+      action: "update",
+      version: "1.2.1",
+    });
+  });
+
+  it("still refuses a run under 70 min old", async () => {
+    await writeFile(
+      join(dirs.updates, "status.json"),
+      JSON.stringify(status({ startedAt: ago(69 * 60_000) }))
+    );
+    const res = await send("POST", "/api/instance/updates/apply", {
+      version: "1.2.1",
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "updateInProgress" });
+  });
+
   it("refuses while a run is in progress or a request is pending", async () => {
     await writeFile(
       join(dirs.updates, "status.json"),
@@ -585,7 +621,7 @@ describe("runInstanceUpdateCheck (hourly job)", () => {
     state.results[`select:${T.settings}`] = [settingsRow({ autoUpdate: true })];
     await writeFile(
       join(dirs.updates, "status.json"),
-      JSON.stringify(status())
+      JSON.stringify(status({ startedAt: "2026-11-09T19:30:00Z" }))
     );
     expect(await runInstanceUpdateCheck(inWindow)).toEqual({ requested: null });
     await writeFile(
@@ -600,5 +636,18 @@ describe("runInstanceUpdateCheck (hourly job)", () => {
     );
     expect(await runInstanceUpdateCheck(inWindow)).toEqual({ requested: null });
     expect(await readdir(dirs.updates)).toEqual(["status.json"]);
+  });
+
+  it("is not held off by a stale running status of another version", async () => {
+    state.results[`select:${T.settings}`] = [settingsRow({ autoUpdate: true })];
+    await writeFile(
+      join(dirs.updates, "status.json"),
+      JSON.stringify(
+        status({ version: "1.2.0-beta.1", startedAt: "2026-11-09T18:49:00Z" })
+      )
+    );
+    expect(await runInstanceUpdateCheck(inWindow)).toEqual({
+      requested: "1.2.1",
+    });
   });
 });
