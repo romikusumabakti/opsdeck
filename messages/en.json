@@ -893,7 +893,7 @@
     "dangerZoneDescription": "Deleting an environment also removes its task history. This cannot be undone.",
     "deleteButton": "Delete environment",
     "deleteTitle": "Delete environment",
-    "deleteDescription": "Delete environment {name}? This action cannot be undone.",
+    "deleteDescription": "Deleting {name} removes:",
     "deleteEscrowedTitle": "Delete escrowed variables too?",
     "deleteEscrowedDescription": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Deleting it destroys them for good: confirm only once they are stored elsewhere.",
     "deleteFailed": "Failed to delete environment",
@@ -915,7 +915,20 @@
     "mockTimeTitle": "Mock time",
     "mockTimeDescription": "The backend's time-mocking API, used by the Mock time page.",
     "serverMixedAdminOnly": "This environment's services run on different servers. Only someone with server management access can rebind them.",
-    "serverSharedDbElsewhere": "This environment's shared database lives on another server's database host, so moving the app there would break it. Pick the database host's server or keep the current one."
+    "serverSharedDbElsewhere": "This environment's shared database lives on another server's database host, so moving the app there would break it. Pick the database host's server or keep the current one.",
+    "deleteRemovesContainers": "Its containers and volumes",
+    "deleteRemovesDatabase": "Its database",
+    "deleteRemovesFolder": "Its folder on the server",
+    "deleteRemovesAddress": "Its public address",
+    "deleteBackupKept": "A backup is kept for 30 days. Admins can download it from Admin → Instance → Backups.",
+    "deleteConfirmLabel": "Type {name} to confirm",
+    "deleteConfirm": "Delete",
+    "deleteProductionEngineer": "This is a production environment. Only an admin can delete it.",
+    "deleteProductionConfirm": "This is production. I want to delete it.",
+    "deleteStarted": "Deleting {name}. Progress shows at the top of the page.",
+    "removeFromPanel": "Remove from Panel only",
+    "removeFromPanelDescription": "Removes the environment from the Panel only. Nothing on the server or in Cloudflare is touched.",
+    "removedFromPanel": "{name} removed from the Panel"
   },
   "userMenu": {
     "users": "User management",
@@ -2098,7 +2111,9 @@
     "projectDefaultServerSet": "{actor} set the default server of {project} to {server}",
     "projectDefaultServerCleared": "{actor} cleared the default server of {project}",
     "serverKeyRotated": "{actor} rotated the SSH key on {server} (from {from})",
-    "serverKeyFromChanged": "{actor} updated the SSH key address of {server} (from {before} to {after})"
+    "serverKeyFromChanged": "{actor} updated the SSH key address of {server} (from {before} to {after})",
+    "environmentDeleted": "{actor} deleted {environment}",
+    "environmentDomainAdopted": "{actor} adopted the hostname {hostname} for {environment}"
   },
   "jira": {
     "title": "Jira",
@@ -2905,6 +2920,20 @@
       "domainAccessAppShared": "The hostname's Access app also covers other hostnames",
       "domainRouteConflict": "The tunnel already routes this hostname to another service",
       "domainTunnelConfigUnsafe": "The tunnel's config has no catch-all ingress rule and cannot be edited safely"
+    },
+    "adopt": {
+      "title": "Adopt an existing hostname",
+      "description": "For a hostname that already points at a registered tunnel. The Panel records it and removes it when the environment is deleted.",
+      "hostname": "Hostname",
+      "tunnel": "Tunnel",
+      "tunnelPlaceholder": "Choose a tunnel",
+      "noTunnels": "No tunnel is registered",
+      "service": "Service",
+      "serviceDescription": "Where the tunnel sends the traffic.",
+      "serviceInvalid": "Enter an origin such as http://app:80",
+      "submit": "Adopt hostname",
+      "adopting": "Adopting…",
+      "adopted": "{hostname} adopted"
     }
   },
   "teardown": {
@@ -2926,6 +2955,34 @@
       "cloudflareFailed": "A Cloudflare object could not be removed. Check the run log, then retry",
       "stepFailed": "The step failed unexpectedly. Check the run log, then retry",
       "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment."
+    },
+    "banner": {
+      "runningTitle": "Deleting this environment",
+      "runningStep": "Now: {step}",
+      "failedTitle": "Deleting this environment stopped",
+      "failedStep": "Stopped at: {step}",
+      "viewLog": "View log",
+      "retry": "Retry",
+      "cancel": "Cancel deletion",
+      "cancelTitle": "Cancel the deletion?",
+      "cancelDescription": "Nothing has been removed yet, and the environment takes deploys again. A stack that was stopped for the backup stays stopped until you start it again.",
+      "cancelConfirm": "Cancel deletion",
+      "cancelled": "Deletion cancelled",
+      "logTitle": "Deletion log",
+      "deleted": "Environment deleted"
+    },
+    "steps": {
+      "check_stack": "Check the stack",
+      "archive_database": "Back up the database",
+      "archive_deploy_dir": "Back up the server folder",
+      "archive_volumes": "Back up the volumes",
+      "stack_down": "Stop and remove the containers",
+      "drop_database": "Drop the database",
+      "remove_tunnel_route": "Remove the tunnel route",
+      "remove_access_app": "Remove the Access app",
+      "remove_dns_record": "Remove the DNS record",
+      "remove_deploy_dir": "Remove the server folder",
+      "delete_environment": "Remove from the Panel"
     }
   },
   "environmentSetup": {
@@ -3156,7 +3213,19 @@
       "unknown": "The backup failed ({code})."
     },
     "restore": "Restore",
-    "colActions": "Actions"
+    "colActions": "Actions",
+    "deletedEnvironments": {
+      "title": "Deleted environments",
+      "description": "Backups taken when an environment was deleted, kept for 30 days.",
+      "empty": "No deleted environments",
+      "loadFailed": "The deleted environments could not be loaded",
+      "colProject": "Project",
+      "colEnvironment": "Environment",
+      "colDeleted": "Deleted",
+      "colExpires": "Expires",
+      "colFiles": "Files",
+      "incomplete": "Incomplete"
+    }
   },
   "instanceUpdates": {
     "versionTitle": "Version",

@@ -186,6 +186,7 @@ describe("GET /api/instance/environment-archives", () => {
         environmentName: "HRIS Dev",
         createdAt: "2026-11-01T00:00:00.000Z",
         expiresAt: "2026-12-01T00:00:00.000Z",
+        completedAt: "2026-11-01T00:05:00.000Z",
         files: [{ name: "db-hris-0123456789.dump", size: 10 }],
       },
     ]);

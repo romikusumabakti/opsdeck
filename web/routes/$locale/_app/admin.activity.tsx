@@ -134,6 +134,12 @@ function message(
         environment: String(d.environment),
         hostname: String(d.hostname),
       });
+    case "environment.domain.adopted":
+      return t("environmentDomainAdopted", {
+        actor,
+        environment: String(d.environment),
+        hostname: String(d.hostname),
+      });
     case "environment.domain.delete":
       return t("environmentDomainDeleted", {
         actor,
@@ -195,6 +201,11 @@ function message(
         environment: String(d.environment),
         count: Number(d.count),
         names: String(d.names) || "—",
+      });
+    case "environment.deleted":
+      return t("environmentDeleted", {
+        actor,
+        environment: String(d.environment),
       });
     case "environment.provision":
       return t("environmentProvisioned", {

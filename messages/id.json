@@ -893,7 +893,7 @@
     "dangerZoneDescription": "Menghapus environment juga akan menghapus riwayat task-nya. Tindakan ini tidak bisa dibatalkan.",
     "deleteButton": "Hapus environment",
     "deleteTitle": "Hapus environment",
-    "deleteDescription": "Hapus environment {name}? Tindakan ini tidak bisa dibatalkan.",
+    "deleteDescription": "Menghapus {name} akan menghapus:",
     "deleteEscrowedTitle": "Hapus juga variabel escrow?",
     "deleteEscrowedDescription": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Menghapusnya memusnahkan variabel itu selamanya: konfirmasi hanya jika sudah disimpan di tempat lain.",
     "deleteFailed": "Gagal menghapus environment",
@@ -915,7 +915,20 @@
     "mockTimeTitle": "Mock time",
     "mockTimeDescription": "API mock time milik backend, dipakai oleh halaman Mock time.",
     "serverMixedAdminOnly": "Layanan environment ini berjalan di server yang berbeda. Hanya pengguna dengan akses manajemen server yang bisa memindahkannya.",
-    "serverSharedDbElsewhere": "Basis data bersama environment ini ada di host basis data server lain, jadi memindahkan aplikasi ke sini akan merusaknya. Pilih server host basis data atau tetap di server saat ini."
+    "serverSharedDbElsewhere": "Basis data bersama environment ini ada di host basis data server lain, jadi memindahkan aplikasi ke sini akan merusaknya. Pilih server host basis data atau tetap di server saat ini.",
+    "deleteRemovesContainers": "Container dan volume-nya",
+    "deleteRemovesDatabase": "Database-nya",
+    "deleteRemovesFolder": "Folder-nya di server",
+    "deleteRemovesAddress": "Alamat publiknya",
+    "deleteBackupKept": "Cadangan disimpan selama 30 hari. Admin dapat mengunduhnya dari Admin → Instans → Cadangan.",
+    "deleteConfirmLabel": "Ketik {name} untuk konfirmasi",
+    "deleteConfirm": "Hapus",
+    "deleteProductionEngineer": "Ini environment produksi. Hanya admin yang dapat menghapusnya.",
+    "deleteProductionConfirm": "Ini produksi. Saya ingin menghapusnya.",
+    "deleteStarted": "Menghapus {name}. Progresnya tampil di bagian atas halaman.",
+    "removeFromPanel": "Hapus dari Panel saja",
+    "removeFromPanelDescription": "Hanya menghapus environment dari Panel. Tidak ada yang diubah di server maupun di Cloudflare.",
+    "removedFromPanel": "{name} dihapus dari Panel"
   },
   "userMenu": {
     "users": "Manajemen pengguna",
@@ -2098,7 +2111,9 @@
     "projectDefaultServerSet": "{actor} mengatur server default {project} ke {server}",
     "projectDefaultServerCleared": "{actor} menghapus server default {project}",
     "serverKeyRotated": "{actor} mengganti SSH key di {server} (dari {from})",
-    "serverKeyFromChanged": "{actor} memperbarui alamat SSH key {server} (dari {before} menjadi {after})"
+    "serverKeyFromChanged": "{actor} memperbarui alamat SSH key {server} (dari {before} menjadi {after})",
+    "environmentDeleted": "{actor} menghapus {environment}",
+    "environmentDomainAdopted": "{actor} mengadopsi hostname {hostname} untuk {environment}"
   },
   "jira": {
     "title": "Jira",
@@ -2905,6 +2920,20 @@
       "domainAccessAppShared": "Access app hostname ini juga mencakup hostname lain",
       "domainRouteConflict": "Tunnel sudah merutekan hostname ini ke service lain",
       "domainTunnelConfigUnsafe": "Config tunnel tidak punya ingress rule catch-all sehingga tidak aman diubah"
+    },
+    "adopt": {
+      "title": "Adopsi hostname yang sudah ada",
+      "description": "Untuk hostname yang sudah mengarah ke tunnel terdaftar. Panel mencatatnya dan menghapusnya saat environment dihapus.",
+      "hostname": "Hostname",
+      "tunnel": "Tunnel",
+      "tunnelPlaceholder": "Pilih tunnel",
+      "noTunnels": "Belum ada tunnel terdaftar",
+      "service": "Service",
+      "serviceDescription": "Tujuan trafik dari tunnel.",
+      "serviceInvalid": "Masukkan origin seperti http://app:80",
+      "submit": "Adopsi hostname",
+      "adopting": "Mengadopsi…",
+      "adopted": "{hostname} diadopsi"
     }
   },
   "teardown": {
@@ -2926,6 +2955,34 @@
       "cloudflareFailed": "Objek Cloudflare tidak dapat dihapus. Periksa log run, lalu coba lagi",
       "stepFailed": "Langkah ini gagal secara tak terduga. Periksa log run, lalu coba lagi",
       "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini."
+    },
+    "banner": {
+      "runningTitle": "Environment ini sedang dihapus",
+      "runningStep": "Sekarang: {step}",
+      "failedTitle": "Penghapusan environment ini berhenti",
+      "failedStep": "Berhenti di: {step}",
+      "viewLog": "Lihat log",
+      "retry": "Coba lagi",
+      "cancel": "Batalkan penghapusan",
+      "cancelTitle": "Batalkan penghapusan?",
+      "cancelDescription": "Belum ada yang dihapus, dan environment kembali menerima deploy. Stack yang dihentikan untuk pencadangan tetap berhenti sampai Anda menjalankannya lagi.",
+      "cancelConfirm": "Batalkan penghapusan",
+      "cancelled": "Penghapusan dibatalkan",
+      "logTitle": "Log penghapusan",
+      "deleted": "Environment dihapus"
+    },
+    "steps": {
+      "check_stack": "Periksa stack",
+      "archive_database": "Cadangkan database",
+      "archive_deploy_dir": "Cadangkan folder di server",
+      "archive_volumes": "Cadangkan volume",
+      "stack_down": "Hentikan dan hapus container",
+      "drop_database": "Hapus database",
+      "remove_tunnel_route": "Hapus rute tunnel",
+      "remove_access_app": "Hapus aplikasi Access",
+      "remove_dns_record": "Hapus record DNS",
+      "remove_deploy_dir": "Hapus folder di server",
+      "delete_environment": "Hapus dari Panel"
     }
   },
   "environmentSetup": {
@@ -3156,7 +3213,19 @@
       "unknown": "Pencadangan gagal ({code})."
     },
     "restore": "Pulihkan",
-    "colActions": "Aksi"
+    "colActions": "Aksi",
+    "deletedEnvironments": {
+      "title": "Environment yang dihapus",
+      "description": "Cadangan yang dibuat saat environment dihapus, disimpan selama 30 hari.",
+      "empty": "Tidak ada environment yang dihapus",
+      "loadFailed": "Daftar environment yang dihapus tidak dapat dimuat",
+      "colProject": "Proyek",
+      "colEnvironment": "Environment",
+      "colDeleted": "Dihapus",
+      "colExpires": "Kedaluwarsa",
+      "colFiles": "Berkas",
+      "incomplete": "Belum selesai"
+    }
   },
   "instanceUpdates": {
     "versionTitle": "Versi",

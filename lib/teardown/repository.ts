@@ -664,12 +664,9 @@ export async function startTeardownRun(
 }
 
 /** The steps a cancelled teardown may have finished: checks and archives. */
-const CANCELLABLE_DONE_KINDS = new Set<TeardownStep["kind"]>([
-  "check_stack",
-  "archive_database",
-  "archive_deploy_dir",
-  "archive_volumes",
-]);
+export const CANCELLABLE_DONE_KINDS: ReadonlySet<string> = new Set<
+  TeardownStep["kind"]
+>(["check_stack", "archive_database", "archive_deploy_dir", "archive_volumes"]);
 
 /**
  * Cancels a teardown that has changed nothing yet: deletes its steps, which
