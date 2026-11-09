@@ -37,13 +37,17 @@ ENV OPSDECK_VERSION=$OPSDECK_VERSION
 # Debian's useradd/groupadd — oven/bun:slim has no busybox addgroup/adduser.
 # The home directory is needed: Bun writes to $HOME when it loads the native
 # .node addon bundled with the server (ssh2's cpufeatures) and fails with EACCES
-# if $HOME does not exist.
+# if $HOME does not exist. `opsdeck` on PATH runs the CLI (bun dist/cli.js).
 RUN groupadd --system --gid 1001 app \
-    && useradd --system --create-home --uid 1001 --gid app app
+    && useradd --system --create-home --uid 1001 --gid app app \
+    && printf '#!/bin/sh\nexec bun /app/dist/cli.js "$@"\n' > /usr/local/bin/opsdeck \
+    && chmod 755 /usr/local/bin/opsdeck
 
 # The server resolves ./dist/client and ./public against the working directory.
 COPY --from=builder --chown=app:app /app/dist ./dist
 COPY --from=builder --chown=app:app /app/public ./public
+# `opsdeck migrate` (dist/cli.js) reads the migrations from ./drizzle.
+COPY --from=builder --chown=app:app /app/drizzle ./drizzle
 
 USER app
 

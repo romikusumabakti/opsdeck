@@ -27,6 +27,10 @@ import type { MotifPreference } from "@/lib/motifs";
 import type { ServerPreflight } from "@/lib/provisioning/preflight";
 import type { WorkingHours } from "@/lib/user-display";
 
+// Constraint names are spelled out wherever they differ from drizzle-kit's
+// defaults: they are the names the legacy migrations (drizzle-legacy/) gave
+// the live databases, which drizzle/00000000000000_baseline reproduces.
+
 export const serviceTypeEnum = pgEnum("service_type", [
   "docker",
   "systemd",
@@ -167,7 +171,10 @@ export const databaseHosts = pgTable(
     // restrict: a server backing a database host can't be deleted.
     serverId: uuid("server_id")
       .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
+      .references(() => servers.id, {
+        name: "database_hosts_server_id_fkey",
+        onDelete: "restrict",
+      }),
     containerName: text("container_name").notNull(),
     // Where backups are written, as a path inside the container.
     backupPath: text("backup_path").notNull(),
@@ -203,7 +210,7 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   // Short stable identifier used as the issue-key prefix (e.g. "CMEM" -> CMEM-42)
   // and in URLs. Uppercase, unique across all projects.
-  key: text("key").notNull().unique(),
+  key: text("key").notNull().unique("projects_key_unique"),
   // Optional grouping label for the owning client/tenant (e.g. "DPLK", "TMLI").
   // A plain nullable column, not a table — promote to `clients` only if per-client
   // access control is ever needed. Keeps the model two-level, not three.
@@ -212,6 +219,7 @@ export const projects = pgTable("projects", {
   // The server new environments of this project deploy to by default. Cleared
   // when the server is deleted.
   defaultServerId: uuid("default_server_id").references(() => servers.id, {
+    name: "projects_default_server_id_fkey",
     onDelete: "set null",
   }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -227,7 +235,10 @@ export const environments = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => projects.id, {
+        name: "environments_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
     name: text("name").notNull(),
     // URL-friendly identifier, unique within a project. Lowercase. Kept stable
     // across renames so a shared link doesn't rot. Routed as /[key]/[slug]/….
@@ -241,6 +252,7 @@ export const environments = pgTable(
     // display relation, not an access grant. An offboarded (banned) owner
     // stays linked; deleting the user clears it.
     ownerId: uuid("owner_id").references(() => users.id, {
+      name: "environments_owner_id_users_id_fk",
       onDelete: "set null",
     }),
     // Where the deployed app opens in a browser (absolute http/https URL).
@@ -248,7 +260,10 @@ export const environments = pgTable(
     // The app this environment deploys. Null until one is assigned (e.g. an
     // environment with no deploy targets yet). restrict: an app in use by an
     // environment can't be deleted.
-    appId: uuid("app_id").references(() => apps.id, { onDelete: "restrict" }),
+    appId: uuid("app_id").references(() => apps.id, {
+      name: "environments_app_id_apps_id_fk",
+      onDelete: "restrict",
+    }),
     // Whether the Panel renders this environment's .env on every deploy. False
     // keeps the server-side file hand-managed (only the tag line changes).
     envFileManaged: boolean("env_file_managed").notNull().default(false),
@@ -285,13 +300,19 @@ export const environmentServices = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "environment_services_environment_id_fkey",
+        onDelete: "cascade",
+      }),
     role: serviceRoleEnum("role").notNull(),
     // The server this service runs on. restrict: a server backing any service
     // can't be deleted out from under it.
     serverId: uuid("server_id")
       .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
+      .references(() => servers.id, {
+        name: "environment_services_server_id_fkey",
+        onDelete: "restrict",
+      }),
     serviceType: serviceTypeEnum("service_type").notNull(),
     serviceName: text("service_name").notNull(),
 
@@ -316,7 +337,10 @@ export const environmentServices = pgTable(
     // Set when dbKind is "shared". restrict: a host in use can't be deleted.
     databaseHostId: uuid("database_host_id").references(
       () => databaseHosts.id,
-      { onDelete: "restrict" }
+      {
+        name: "environment_services_database_host_id_fkey",
+        onDelete: "restrict",
+      }
     ),
     // The role the app connects as. Not a secret.
     dbRole: text("db_role"),
@@ -359,7 +383,10 @@ export const environmentServices = pgTable(
 export const environmentMailpit = pgTable("environment_mailpit", {
   environmentId: uuid("environment_id")
     .primaryKey()
-    .references(() => environments.id, { onDelete: "cascade" }),
+    .references(() => environments.id, {
+      name: "environment_mailpit_environment_id_environments_id_fk",
+      onDelete: "cascade",
+    }),
   // Base URL of the Mailpit UI/API, including any webroot
   // (e.g. `https://mail-qa.example.com/` or `http://10.0.0.5:8025`).
   url: text("url").notNull(),
@@ -392,14 +419,18 @@ export const runKindEnum = pgEnum("run_kind", [
 export const runs = pgTable(
   "runs",
   {
-    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    id: uuid("id").notNull().default(sql`uuidv7()`),
     // A run acts on ONE deployment (environment).
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "tasks_project_id_projects_id_fkey",
+        onDelete: "cascade",
+      }),
     // Nullable + set null on user delete: preserve audit history even after the
     // initiating user is removed. UI shows "Unknown" when null.
     userId: uuid("user_id").references(() => users.id, {
+      name: "tasks_user_id_users_id_fkey",
       onDelete: "set null",
     }),
     description: text("description").notNull(),
@@ -414,6 +445,7 @@ export const runs = pgTable(
     // Set on `test` runs to tie a QA result to the issue it verifies. set null:
     // the run's audit record outlives the issue. Null for ops runs.
     issueId: uuid("issue_id").references((): AnyPgColumn => issues.id, {
+      name: "runs_issue_id_issues_id_fk",
       onDelete: "set null",
     }),
     // Streaming log appended by worker job steps via appendRunOutput. Lines are
@@ -428,10 +460,13 @@ export const runs = pgTable(
     // (the run stays acknowledged) without pinning the user row.
     acknowledgedAt: timestamp("acknowledged_at"),
     acknowledgedById: uuid("acknowledged_by_id").references(() => users.id, {
+      name: "runs_acknowledged_by_id_users_id_fk",
       onDelete: "set null",
     }),
   },
   (t) => [
+    // Named explicitly: the table was created as "tasks" and keeps that name.
+    primaryKey({ name: "tasks_pkey", columns: [t.id] }),
     // Every run query filters by environmentId and orders by runAt desc
     // (getEnvironmentRuns, getEnvironmentKpis, findLatestByKind, DISTINCT ON).
     index("runs_environment_run_idx").on(t.environmentId, t.runAt.desc()),
@@ -481,7 +516,7 @@ export const pipelineModeEnum = pgEnum("pipeline_mode", [
 // once so components can move between forges one at a time.
 export const ciConnections = pgTable("ci_connections", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull().unique("ci_connections_name_unique"),
   provider: ciProviderEnum("provider").notNull(),
   forge: forgeKindEnum("forge").notNull(),
   // CI root, no trailing slash (e.g. https://ci.example.net).
@@ -502,7 +537,7 @@ export const ciConnections = pgTable("ci_connections", {
 export const apps = pgTable("apps", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   // Stable slug, e.g. "dplk-customer-portal".
-  appKey: text("app_key").notNull().unique(),
+  appKey: text("app_key").notNull().unique("apps_app_key_unique"),
   name: text("name").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -518,10 +553,16 @@ export const appComponents = pgTable(
     componentKey: text("component_key").primaryKey(),
     appId: uuid("app_id")
       .notNull()
-      .references(() => apps.id, { onDelete: "restrict" }),
+      .references(() => apps.id, {
+        name: "app_components_app_id_apps_id_fk",
+        onDelete: "restrict",
+      }),
     ciConnectionId: uuid("ci_connection_id")
       .notNull()
-      .references(() => ciConnections.id, { onDelete: "restrict" }),
+      .references(() => ciConnections.id, {
+        name: "app_components_ci_connection_id_ci_connections_id_fk",
+        onDelete: "restrict",
+      }),
     // Repository on the connection's forge, e.g. "dss-consulting/hris".
     repoFullName: text("repo_full_name").notNull(),
     // The CI server's id for the repository; null until it is activated there.
@@ -562,7 +603,10 @@ export const appVariableTemplates = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     appId: uuid("app_id")
       .notNull()
-      .references(() => apps.id, { onDelete: "cascade" }),
+      .references(() => apps.id, {
+        name: "app_variable_templates_app_id_fkey",
+        onDelete: "cascade",
+      }),
     name: text("name").notNull(),
     kind: variableKindEnum("kind").notNull(),
     required: boolean("required").notNull().default(false),
@@ -579,6 +623,10 @@ export const appVariableTemplates = pgTable(
   },
   (t) => [
     uniqueIndex("app_variable_templates_app_name_idx").on(t.appId, t.name),
+    check(
+      "app_variable_templates_generated_length_check",
+      sql`${t.generatedLength} >= 16 AND ${t.generatedLength} <= 128`
+    ),
   ]
 );
 
@@ -589,13 +637,17 @@ export const environmentVariables = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "environment_variables_environment_id_fkey",
+        onDelete: "cascade",
+      }),
     name: text("name").notNull(),
     kind: variableKindEnum("kind").notNull(),
     // Encrypted at rest via lib/secrets.ts unless the kind is "plain".
     value: text("value").notNull(),
     escrow: boolean("escrow").notNull().default(false),
     updatedBy: uuid("updated_by").references(() => users.id, {
+      name: "environment_variables_updated_by_fkey",
       onDelete: "set null",
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -617,8 +669,12 @@ export const environmentDeployLocks = pgTable(
   {
     environmentId: uuid("environment_id")
       .primaryKey()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "environment_deploy_locks_environment_id_fkey",
+        onDelete: "cascade",
+      }),
     lockedBy: uuid("locked_by").references(() => users.id, {
+      name: "environment_deploy_locks_locked_by_fkey",
       onDelete: "set null",
     }),
     reason: text("reason").notNull(),
@@ -638,7 +694,10 @@ export const provisioningSteps = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "provisioning_steps_environment_id_fkey",
+        onDelete: "cascade",
+      }),
     position: integer("position").notNull(),
     kind: provisioningStepKindEnum("kind").notNull(),
     // Non-secret parameters only; secrets come from the environment's
@@ -648,6 +707,7 @@ export const provisioningSteps = pgTable(
     lastError: text("last_error"),
     // set null: the step outlives the run that last executed it.
     lastRunId: uuid("last_run_id").references(() => runs.id, {
+      name: "provisioning_steps_last_run_id_fkey",
       onDelete: "set null",
     }),
     completedAt: timestamp("completed_at"),
@@ -670,13 +730,22 @@ export const deployTargets = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "deploy_targets_environment_id_environments_id_fk",
+        onDelete: "cascade",
+      }),
     componentKey: text("component_key")
       .notNull()
-      .references(() => appComponents.componentKey, { onDelete: "restrict" }),
+      .references(() => appComponents.componentKey, {
+        name: "deploy_targets_component_key_app_components_component_key_fk",
+        onDelete: "restrict",
+      }),
     serverId: uuid("server_id")
       .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
+      .references(() => servers.id, {
+        name: "deploy_targets_server_id_servers_id_fk",
+        onDelete: "restrict",
+      }),
     sourceBranch: text("source_branch").notNull(),
     autoDeploy: boolean("auto_deploy").notNull().default(false),
     deployDir: text("deploy_dir").notNull(),
@@ -712,7 +781,10 @@ export const builds = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     componentKey: text("component_key")
       .notNull()
-      .references(() => appComponents.componentKey, { onDelete: "cascade" }),
+      .references(() => appComponents.componentKey, {
+        name: "builds_component_key_app_components_component_key_fk",
+        onDelete: "cascade",
+      }),
     branch: text("branch").notNull(),
     tag: text("tag").notNull(),
     commitSha: text("commit_sha").notNull(),
@@ -730,7 +802,7 @@ export const builds = pgTable(
     index("builds_component_branch_received_idx").on(
       t.componentKey,
       t.branch,
-      t.receivedAt.desc()
+      t.receivedAt.desc().nullsFirst()
     ),
   ]
 );
@@ -742,19 +814,29 @@ export const deployments = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     targetId: uuid("target_id")
       .notNull()
-      .references(() => deployTargets.id, { onDelete: "cascade" }),
+      .references(() => deployTargets.id, {
+        name: "deployments_target_id_deploy_targets_id_fk",
+        onDelete: "cascade",
+      }),
     // Denormalised from the target so the partial unique index below can
     // enforce one running deploy per environment.
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "deployments_environment_id_environments_id_fk",
+        onDelete: "cascade",
+      }),
     // Null while `held`: the run is created when the deployment is queued
     // (at request time, or when the deploy lock is released).
-    runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").references(() => runs.id, {
+      name: "deployments_run_id_runs_id_fk",
+      onDelete: "cascade",
+    }),
     tag: text("tag").notNull(),
     trigger: deployTriggerEnum("trigger").notNull(),
     status: deploymentStatusEnum("status").notNull().default("queued"),
     buildId: uuid("build_id").references(() => builds.id, {
+      name: "deployments_build_id_builds_id_fk",
       onDelete: "set null",
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -768,7 +850,10 @@ export const deployments = pgTable(
     finishedAt: timestamp("finished_at"),
   },
   (t) => [
-    index("deployments_target_created_idx").on(t.targetId, t.createdAt.desc()),
+    index("deployments_target_created_idx").on(
+      t.targetId,
+      t.createdAt.desc().nullsFirst()
+    ),
     // DB-level guarantee of at most one running deploy per environment.
     uniqueIndex("deployments_one_running_per_env_idx")
       .on(t.environmentId)
@@ -785,14 +870,23 @@ export const environmentAccess = pgTable(
   {
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, {
+        name: "project_access_user_id_users_id_fkey",
+        onDelete: "cascade",
+      }),
     environmentId: uuid("environment_id")
       .notNull()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "project_access_project_id_projects_id_fkey",
+        onDelete: "cascade",
+      }),
     lastAccessedAt: timestamp("last_accessed_at").notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.userId, t.environmentId] }),
+    primaryKey({
+      name: "project_access_pkey",
+      columns: [t.userId, t.environmentId],
+    }),
     // listEnvironments orders one user's rows by lastAccessedAt desc; a covering
     // index on (userId, lastAccessedAt) serves that without a sort.
     index("environment_access_user_recency_idx").on(
@@ -820,15 +914,24 @@ export const projectMembers = pgTable(
   {
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => projects.id, {
+        name: "project_members_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, {
+        name: "project_members_user_id_users_id_fk",
+        onDelete: "cascade",
+      }),
     role: projectRoleEnum("role").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.projectId, t.userId] }),
+    primaryKey({
+      name: "project_members_project_id_user_id_pk",
+      columns: [t.projectId, t.userId],
+    }),
     // "Which projects can this user reach, and at what role" — the membership
     // lookup on every capability check that carries a project/environment scope.
     index("project_members_user_idx").on(t.userId),
@@ -849,7 +952,10 @@ export const milestones = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => projects.id, {
+        name: "milestones_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
     name: text("name").notNull(),
     description: text("description"),
     dueAt: timestamp("due_at"),
@@ -871,7 +977,10 @@ export const issues = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => projects.id, {
+        name: "issues_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
     // Per-project sequential number -> `${project.key}-${number}` (e.g. CMEM-42).
     number: integer("number").notNull(),
     title: text("title").notNull(),
@@ -885,21 +994,26 @@ export const issues = pgTable(
     // Parent issue for epic → story → subtask nesting. Self-FK; set null so
     // deleting a parent re-parents children to top level instead of cascading.
     parentId: uuid("parent_id").references((): AnyPgColumn => issues.id, {
+      name: "issues_parent_id_issues_id_fk",
       onDelete: "set null",
     }),
     // Planning bucket. set null: the issue outlives a milestone that's deleted.
     milestoneId: uuid("milestone_id").references(() => milestones.id, {
+      name: "issues_milestone_id_milestones_id_fk",
       onDelete: "set null",
     }),
     // Which deployment the issue was observed in. set null: the issue outlives
     // any single environment. Null = not tied to a specific one.
     environmentId: uuid("environment_id").references(() => environments.id, {
+      name: "issues_environment_id_environments_id_fk",
       onDelete: "set null",
     }),
     createdById: uuid("created_by_id").references(() => users.id, {
+      name: "issues_created_by_id_users_id_fk",
       onDelete: "set null",
     }),
     assigneeId: uuid("assignee_id").references(() => users.id, {
+      name: "issues_assignee_id_users_id_fk",
       onDelete: "set null",
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -929,7 +1043,7 @@ export const issues = pgTable(
     index("issues_project_status_idx").on(t.projectId, t.status),
     // Default order of the cross-project list (newest activity first). Paging
     // without it means a full sort of the table on every page.
-    index("issues_updated_at_idx").on(t.updatedAt.desc()),
+    index("issues_updated_at_idx").on(t.updatedAt.desc().nullsFirst()),
     // Cross-project filters: "assigned to me" and the status dropdown.
     index("issues_assignee_idx").on(t.assigneeId),
     index("issues_status_idx").on(t.status),
@@ -948,8 +1062,12 @@ export const issueComments = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     issueId: uuid("issue_id")
       .notNull()
-      .references(() => issues.id, { onDelete: "cascade" }),
+      .references(() => issues.id, {
+        name: "issue_comments_issue_id_issues_id_fk",
+        onDelete: "cascade",
+      }),
     authorId: uuid("author_id").references(() => users.id, {
+      name: "issue_comments_author_id_users_id_fk",
       onDelete: "set null",
     }),
     body: text("body").notNull(),
@@ -979,12 +1097,16 @@ export const issueAttachments = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     issueId: uuid("issue_id")
       .notNull()
-      .references(() => issues.id, { onDelete: "cascade" }),
+      .references(() => issues.id, {
+        name: "issue_attachments_issue_id_issues_id_fk",
+        onDelete: "cascade",
+      }),
     storageKey: text("storage_key").notNull(),
     filename: text("filename").notNull(),
     mime: text("mime").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     uploadedById: uuid("uploaded_by_id").references(() => users.id, {
+      name: "issue_attachments_uploaded_by_id_users_id_fk",
       onDelete: "set null",
     }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -996,7 +1118,7 @@ export const issueAttachments = pgTable(
 // view can filter by one taxonomy). `color` is a hex string rendered as a chip.
 export const labels = pgTable("labels", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull().unique("labels_name_unique"),
   color: text("color").notNull().default("#64748b"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -1007,13 +1129,22 @@ export const issueLabels = pgTable(
   {
     issueId: uuid("issue_id")
       .notNull()
-      .references(() => issues.id, { onDelete: "cascade" }),
+      .references(() => issues.id, {
+        name: "issue_labels_issue_id_issues_id_fk",
+        onDelete: "cascade",
+      }),
     labelId: uuid("label_id")
       .notNull()
-      .references(() => labels.id, { onDelete: "cascade" }),
+      .references(() => labels.id, {
+        name: "issue_labels_label_id_labels_id_fk",
+        onDelete: "cascade",
+      }),
   },
   (t) => [
-    primaryKey({ columns: [t.issueId, t.labelId] }),
+    primaryKey({
+      name: "issue_labels_issue_id_label_id_pk",
+      columns: [t.issueId, t.labelId],
+    }),
     // "Which issues have label X" for the label filter.
     index("issue_labels_label_idx").on(t.labelId),
   ]
@@ -1028,7 +1159,10 @@ export const savedViews = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, {
+        name: "saved_views_user_id_users_id_fk",
+        onDelete: "cascade",
+      }),
     name: text("name").notNull(),
     params: jsonb("params").$type<Record<string, string>>().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1051,6 +1185,7 @@ export const activityLog = pgTable(
   {
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     actorId: uuid("actor_id").references(() => users.id, {
+      name: "activity_log_actor_id_users_id_fk",
       onDelete: "set null",
     }),
     action: text("action").notNull(),
@@ -1060,7 +1195,7 @@ export const activityLog = pgTable(
     data: jsonb("data").$type<Record<string, string | number>>().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("activity_created_idx").on(t.createdAt.desc())]
+  (t) => [index("activity_created_idx").on(t.createdAt.desc().nullsFirst())]
 );
 
 // =========================
@@ -1083,7 +1218,10 @@ export const notifications = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, {
+        name: "notifications_user_id_users_id_fk",
+        onDelete: "cascade",
+      }),
     type: notificationTypeEnum("type").notNull(),
     // Params for the i18n template keyed by `type` (e.g. { key, number, title }).
     data: jsonb("data").$type<Record<string, string | number>>().notNull(),
@@ -1094,7 +1232,10 @@ export const notifications = pgTable(
   },
   (t) => [
     // The bell lists one user's notifications newest-first and counts unread.
-    index("notifications_user_created_idx").on(t.userId, t.createdAt.desc()),
+    index("notifications_user_created_idx").on(
+      t.userId,
+      t.createdAt.desc().nullsFirst()
+    ),
   ]
 );
 
@@ -1225,7 +1366,10 @@ export const passkeys = pgTable(
     name: text("name"),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => users.id, {
+        name: "passkeys_user_id_fkey",
+        onDelete: "cascade",
+      }),
     // Base64url values from the authenticator, not UUID-shaped.
     credentialID: text("credential_id").notNull(),
     publicKey: text("public_key").notNull(),
@@ -1343,10 +1487,16 @@ export const jiraProjectLinks = pgTable(
   {
     projectId: uuid("project_id")
       .primaryKey()
-      .references(() => projects.id, { onDelete: "cascade" }),
+      .references(() => projects.id, {
+        name: "jira_project_links_project_id_fkey",
+        onDelete: "cascade",
+      }),
     connectionId: uuid("connection_id")
       .notNull()
-      .references(() => jiraConnections.id, { onDelete: "cascade" }),
+      .references(() => jiraConnections.id, {
+        name: "jira_project_links_connection_id_fkey",
+        onDelete: "cascade",
+      }),
     // Remote project key ("CMEM"). Unrelated to projects.key — a project may
     // mirror a Jira project with a different prefix.
     jiraProjectKey: text("jira_project_key").notNull(),
@@ -1397,7 +1547,7 @@ export const cloudflareZones = pgTable("cloudflare_zones", {
   // The apex domain, e.g. "example.net". Hostnames are formed as
   // `<label>.<name>`, and the panel refuses anything that isn't under a zone
   // registered here.
-  name: text("name").notNull().unique(),
+  name: text("name").notNull().unique("cloudflare_zones_name_unique"),
   // Cloudflare's own zone identifier, taken from the dashboard overview.
   zoneId: text("zone_id").notNull(),
   // API token, encrypted at rest via lib/secrets.ts and stripped before any row
@@ -1427,12 +1577,18 @@ export const tunnels = pgTable(
     // under the tunnels that depend on its credential.
     zoneId: uuid("zone_id")
       .notNull()
-      .references(() => cloudflareZones.id, { onDelete: "restrict" }),
+      .references(() => cloudflareZones.id, {
+        name: "tunnels_zone_id_cloudflare_zones_id_fk",
+        onDelete: "restrict",
+      }),
     // The host the tunnel's stack and container live on. The panel reaches it
     // with this server's existing SSH credentials.
     serverId: uuid("server_id")
       .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
+      .references(() => servers.id, {
+        name: "tunnels_server_id_servers_id_fk",
+        onDelete: "restrict",
+      }),
     // Human label, matching what `cloudflared tunnel list` shows (e.g.
     // "dss-apps-136"). Display only — never used to address the tunnel, because
     // resolving a name needs the origin certificate that isn't kept on the host.
@@ -1485,10 +1641,16 @@ export const remoteTunnels = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     accountId: uuid("account_id")
       .notNull()
-      .references(() => cloudflareAccounts.id, { onDelete: "restrict" }),
+      .references(() => cloudflareAccounts.id, {
+        name: "remote_tunnels_account_id_fkey",
+        onDelete: "restrict",
+      }),
     serverId: uuid("server_id")
       .notNull()
-      .references(() => servers.id, { onDelete: "restrict" }),
+      .references(() => servers.id, {
+        name: "remote_tunnels_server_id_fkey",
+        onDelete: "restrict",
+      }),
     tunnelId: text("tunnel_id").notNull(),
     name: text("name").notNull(),
     // Where cloudflared reaches the environment's entry port from.
@@ -1513,16 +1675,23 @@ export const environmentDomains = pgTable(
   {
     environmentId: uuid("environment_id")
       .primaryKey()
-      .references(() => environments.id, { onDelete: "cascade" }),
+      .references(() => environments.id, {
+        name: "environment_domains_environment_id_fkey",
+        onDelete: "cascade",
+      }),
     kind: domainKindEnum("kind").notNull(),
     hostname: text("hostname").notNull().unique(),
     // Tunnel domains only (see the check below).
     zoneId: uuid("zone_id").references(() => cloudflareZones.id, {
+      name: "environment_domains_zone_id_fkey",
       onDelete: "restrict",
     }),
     remoteTunnelId: uuid("remote_tunnel_id").references(
       () => remoteTunnels.id,
-      { onDelete: "restrict" }
+      {
+        name: "environment_domains_remote_tunnel_id_fkey",
+        onDelete: "restrict",
+      }
     ),
     accessPolicyId: text("access_policy_id"),
     accessAppId: text("access_app_id"),
@@ -1627,6 +1796,7 @@ export const knowledgeDocuments = pgTable(
     // Optional link to a project so a runbook can surface in project context.
     // set null: the doc outlives the project (standalone KB is primary).
     projectId: uuid("project_id").references(() => projects.id, {
+      name: "knowledge_documents_project_id_projects_id_fk",
       onDelete: "set null",
     }),
     createdById: uuid("created_by_id").references(() => users.id, {
