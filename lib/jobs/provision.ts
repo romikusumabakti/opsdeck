@@ -24,7 +24,7 @@ import {
 } from "@/lib/provisioning/repository";
 import type { JobMap } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
-import { decryptSecret } from "@/lib/secrets";
+import { decryptNullable } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { decodeVariableValue } from "@/lib/variables/managed-env";
@@ -107,7 +107,7 @@ async function createDatabase(
     {
       server: {
         ...host.server,
-        password: decryptSecret(host.server.password ?? ""),
+        password: decryptNullable(host.server.password),
       },
       containerName: host.containerName,
     },

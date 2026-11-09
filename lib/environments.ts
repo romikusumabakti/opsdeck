@@ -10,7 +10,7 @@ import type {
 } from "@/lib/db/schema";
 import { environments, projects } from "@/lib/db/schema";
 import { qualifiedEnvName } from "@/lib/nav-path";
-import { decryptNullable, decryptSecret } from "@/lib/secrets";
+import { decryptNullable } from "@/lib/secrets";
 import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
 import type { EnvironmentInput } from "@/lib/validation";
 
@@ -92,7 +92,7 @@ function decryptService(service: ServiceWithServer): ServiceWithServer {
 
 /** Decrypt a server's SSH password in place for server-side use. */
 function decryptServer(server: Server): Server {
-  return { ...server, password: decryptSecret(server.password ?? "") };
+  return { ...server, password: decryptNullable(server.password) };
 }
 
 function stripServer(server: Server): SafeServer {

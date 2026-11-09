@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { privileged } from "@/lib/privileged";
 import {
   buildDbShellCommand,
   type DatabaseType,
@@ -151,11 +152,11 @@ export function dbBackupExtensionPattern(dbType: DatabaseType): string {
 /**
  * Wrap a Postgres statement in the pipeline that feeds it to `psql`.
  *
- * The query is piped inside the INNER shell on purpose: on systemd the outer
- * shell's stdin is already carrying the sudo password (`sudo -S`), so a
- * pipeline built outside would compete with it. `-v ON_ERROR_STOP=on` aborts at
- * the first failing statement instead of continuing through a half-applied
- * change.
+ * The query is piped inside the INNER shell on purpose: on systemd in
+ * sudo-password mode the outer shell's stdin is already carrying the sudo
+ * password (`sudo -S`), so a pipeline built outside would compete with it.
+ * `-v ON_ERROR_STOP=on` aborts at the first failing statement instead of
+ * continuing through a half-applied change.
  */
 export function pgPsqlPipeline(query: string): string {
   return `printf '%s\\n' ${shq(query)} | psql -v ON_ERROR_STOP=on -U postgres -d postgres`;
@@ -676,7 +677,8 @@ export function mssqlRestoreQuery(
 // source host, SFTP it down to the panel, SFTP it up to the target host, then
 // place it into the target's backup dir with the DB user's ownership. Streaming
 // host-to-host directly isn't possible (SFTP is per-connection), and passing
-// the bytes through a shell would collide with `sudo -S`'s stdin.
+// the bytes through a shell would collide with `sudo -S`'s stdin (in
+// sudo-password mode; see lib/privileged).
 
 /**
  * The slice of an environment the three builders below actually read.
@@ -694,7 +696,12 @@ export type CommandTargetEnvironment = {
     dbType: DatabaseType | null;
     dbName: string | null;
     dbBackupPath: string | null;
-    server: { host: string; username: string; password: string | null };
+    server: {
+      host: string;
+      username: string;
+      password: string | null;
+      auth: "password" | "key";
+    };
   }[];
 };
 
@@ -716,7 +723,7 @@ export function buildExtractCommand(
     `cat ${shq(filePath)}`,
     {
       runAsUser: dbOsUser(db.dbType),
-      sudoPassword: db.server.password ?? "",
+      server: db.server,
     }
   );
   return `${inner} > ${shq(hostTmp)}`;
@@ -747,15 +754,15 @@ export function buildPlaceCommand(
       `kubectl exec deploy/${shq(name)} -- chmod 644 ${shq(dst)}`
     );
   }
-  // systemd: copy in as root, then hand ownership to the DB user. The password
-  // only feeds sudo (the file is an argument, not stdin), so there's no stdin
-  // conflict.
+  // systemd: copy in as root, then hand ownership to the DB user. A sudo
+  // password only feeds sudo (the file is an argument, not stdin), so there's
+  // no stdin conflict.
   const user = dbOsUser(db.dbType);
   const script =
     `cp ${shq(hostTmp)} ${shq(dst)}; ` +
     `chown ${user}:${user} ${shq(dst)}; ` +
     `chmod 644 ${shq(dst)}`;
-  return `printf '%s\\n' ${shq(db.server.password ?? "")} | sudo -S bash -c ${shq(script)}`;
+  return privileged(`bash -c ${shq(script)}`, db.server);
 }
 
 /**
@@ -774,5 +781,5 @@ export function buildRemovePlacedCommand(
   if (db.serviceType === "kubernetes") {
     return `kubectl exec deploy/${shq(name)} -- rm -f ${shq(dst)}`;
   }
-  return `printf '%s\\n' ${shq(db.server.password ?? "")} | sudo -S rm -f ${shq(dst)}`;
+  return privileged(`rm -f ${shq(dst)}`, db.server);
 }

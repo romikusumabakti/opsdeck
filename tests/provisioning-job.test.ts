@@ -104,7 +104,10 @@ vi.mock("@/lib/run-progress", () => ({
   },
 }));
 
-vi.mock("@/lib/secrets", () => ({ decryptSecret: (v: string) => v }));
+vi.mock("@/lib/secrets", () => ({
+  decryptSecret: (v: string) => v,
+  decryptNullable: (v: string | null) => v,
+}));
 vi.mock("@/lib/environments", () => ({
   loadServerCredentials: async () => ({
     host: "app.test",

@@ -1044,9 +1044,25 @@ describe("mysqlRenameDatabasePipeline", () => {
 });
 
 describe("cross-server transfer commands", () => {
+  type TestServer = CommandTargetEnvironment["services"][number]["server"];
+  const passwordServer: TestServer = {
+    host: "10.0.0.1",
+    username: "ops",
+    password: "s3cr3t",
+    auth: "password",
+  };
+  const keyServer: TestServer = {
+    host: "10.0.0.1",
+    username: "ops",
+    password: null,
+    auth: "key",
+  };
+  const rootServer: TestServer = { ...keyServer, username: "root" };
+
   function env(
     serviceType: "docker" | "systemd" | "kubernetes",
-    dbType: "postgres" | "mssql" | "mysql" = "postgres"
+    dbType: "postgres" | "mssql" | "mysql" = "postgres",
+    server: TestServer = passwordServer
   ): CommandTargetEnvironment {
     return {
       id: "env-1",
@@ -1058,7 +1074,7 @@ describe("cross-server transfer commands", () => {
           dbType,
           dbName: "car2",
           dbBackupPath: "/backups",
-          server: { host: "10.0.0.1", username: "ops", password: "s3cr3t" },
+          server,
         },
       ],
     };
@@ -1084,6 +1100,27 @@ describe("cross-server transfer commands", () => {
         buildExtractCommand(env("systemd", "mssql"), "/backups/x.bak", "/tmp/x")
       ).toBe(
         "printf '%s\\n' 's3cr3t' | sudo -S -u 'mssql' bash -c 'cat '\\''/backups/x.bak'\\''' > '/tmp/x'"
+      );
+    });
+
+    it("cats the file as the engine's OS user without a password", () => {
+      expect(
+        buildExtractCommand(
+          env("systemd", "mssql", keyServer),
+          "/backups/x.bak",
+          "/tmp/x"
+        )
+      ).toBe(
+        "sudo -n -u 'mssql' bash -c 'cat '\\''/backups/x.bak'\\''' > '/tmp/x'"
+      );
+      expect(
+        buildExtractCommand(
+          env("systemd", "mssql", rootServer),
+          "/backups/x.bak",
+          "/tmp/x"
+        )
+      ).toBe(
+        "runuser -u 'mssql' -- bash -c 'cat '\\''/backups/x.bak'\\''' > '/tmp/x'"
       );
     });
 
@@ -1137,6 +1174,25 @@ describe("cross-server transfer commands", () => {
       expect(cmd.startsWith("printf '%s\\n' 's3cr3t' | sudo -S ")).toBe(true);
     });
 
+    it("places under sudo -n on a key server and directly as root", () => {
+      const script =
+        "cp '\\''/tmp/x'\\'' '\\''/b/x'\\''; chown postgres:postgres '\\''/b/x'\\''; chmod 644 '\\''/b/x'\\''";
+      expect(
+        buildPlaceCommand(
+          env("systemd", "postgres", keyServer),
+          "/tmp/x",
+          "/b/x"
+        )
+      ).toBe(`sudo -n bash -c '${script}'`);
+      expect(
+        buildPlaceCommand(
+          env("systemd", "postgres", rootServer),
+          "/tmp/x",
+          "/b/x"
+        )
+      ).toBe(`bash -c '${script}'`);
+    });
+
     it("chains with && so a failed copy doesn't get reported as success", () => {
       expect(buildPlaceCommand(env("docker"), "/tmp/x", "/b/x")).toContain(
         " && "
@@ -1164,6 +1220,15 @@ describe("cross-server transfer commands", () => {
       expect(buildRemovePlacedCommand(env("systemd"), "/b/x")).toBe(
         "printf '%s\\n' 's3cr3t' | sudo -S rm -f '/b/x'"
       );
+    });
+
+    it("removes under sudo -n on a key server and directly as root", () => {
+      expect(
+        buildRemovePlacedCommand(env("systemd", "postgres", keyServer), "/b/x")
+      ).toBe("sudo -n rm -f '/b/x'");
+      expect(
+        buildRemovePlacedCommand(env("systemd", "postgres", rootServer), "/b/x")
+      ).toBe("rm -f '/b/x'");
     });
 
     it("uses rm -f so a missing file isn't a failure", () => {

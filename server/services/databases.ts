@@ -105,7 +105,7 @@ function buildDatabaseListCommand(environment: EnvironmentWithServers): string {
   const inner = `psql -U postgres -tAc ${shq(query)}`;
   return buildDbShellCommand(dbSvc.serviceType, dbSvc.serviceName, inner, {
     runAsUser: "postgres",
-    sudoPassword: dbSvc.server.password ?? undefined,
+    server: dbSvc.server,
   });
 }
 
