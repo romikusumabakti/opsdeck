@@ -105,7 +105,7 @@ export async function loadPrivateKey(keyId: string): Promise<string> {
 }
 
 /** `opsdeck:<instance>:`, the start of every marker this instance writes. */
-export function instanceMarkerPrefix(): string {
+function instanceMarkerPrefix(): string {
   const configured = process.env.COMPOSE_PROJECT_NAME;
   const instance =
     configured && /^[A-Za-z0-9_.-]+$/.test(configured) ? configured : "opsdeck";
@@ -196,27 +196,40 @@ export function removeAuthorizedKey(existing: string, marker: string): string {
   return lines.length ? `${lines.join("\n")}\n` : "";
 }
 
-/** The marker of a line this instance wrote (for any of its keys), or null. */
-function instanceMarkerOf(line: string): string | null {
+/** The last field of a non-comment line, where our marker sits. */
+function markerOf(line: string): string | null {
   const trimmed = line.trim();
   if (trimmed.startsWith("#")) return null;
-  const last = trimmed.split(/\s+/).at(-1) ?? "";
-  return last.startsWith(instanceMarkerPrefix()) ? last : null;
+  return trimmed.split(/\s+/).at(-1) ?? null;
 }
 
 /**
- * Drop this instance's lines for keys other than `keep` (a retired or leaked
- * key must not keep signing in), and return them so a failed step can put
- * them back. Other instances' and foreign lines are untouched.
+ * The markers of every key in this database's ssh_keys (any status). Another
+ * Panel deployment can share the instance name (the default "opsdeck"), so a
+ * marker counts as ours only for a key id we hold.
+ */
+export async function ownKeyMarkers(): Promise<string[]> {
+  const rows = await db.select({ id: sshKeys.id }).from(sshKeys);
+  return rows.map((r) => keyMarker(r.id));
+}
+
+/**
+ * Drop the lines of our own keys (`ours`, from ownKeyMarkers) other than
+ * `keep` (a retired or leaked key must not keep signing in), and return them
+ * so a failed step can put them back. Lines of keys we do not hold (another
+ * Panel's, foreign) are untouched.
  */
 export function dropOtherInstanceKeys(
   existing: string,
-  keep: readonly string[]
+  keep: readonly string[],
+  ours: readonly string[]
 ): { content: string; dropped: { marker: string; line: string }[] } {
   const dropped: { marker: string; line: string }[] = [];
   const lines = splitLines(existing).filter((l) => {
-    const marker = instanceMarkerOf(l);
-    if (marker === null || keep.includes(marker)) return true;
+    const marker = markerOf(l);
+    if (marker === null || keep.includes(marker) || !ours.includes(marker)) {
+      return true;
+    }
     dropped.push({ marker, line: l.replace(/\r$/, "") });
     return false;
   });
@@ -420,7 +433,6 @@ export async function beginRotation(): Promise<{
   return { current: pick(created), previous: old };
 }
 
-/** Marks a `previous` key `retired`: no server signs in with it any more. */
 /**
  * Marks a `previous` key `retired`, in one statement that checks no key
  * server still signs in with it. Whether every server's file is free of its
