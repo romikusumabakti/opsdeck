@@ -7476,6 +7476,27 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "environment_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"completed_at\" IS NULL",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "environment_archives_open_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "environment_archives"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "expires_at",
           "isExpression": false,
           "asc": true,

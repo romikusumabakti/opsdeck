@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, rename, rm, rmdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { v7 as uuidv7 } from "uuid";
@@ -8,6 +9,7 @@ import {
   type BackupDestination,
   loadBackupDestination,
 } from "@/lib/instance-backup/destination";
+import { sharedDbRole } from "@/lib/jobs/commands";
 import { privilegedViaStdin } from "@/lib/privileged";
 import { loadDatabaseHost } from "@/lib/provisioning/repository";
 import { decryptNullable } from "@/lib/secrets";
@@ -51,10 +53,17 @@ export const ENV_ARCHIVE_RETENTION_DAYS = 30;
 export const ENV_ARCHIVE_PREFIX = "opsdeck-env-archives/";
 
 const DAY_MS = 86_400_000;
-// One dump or tarball can take long; the stream has no other bound.
-const ARCHIVE_COMMAND_TIMEOUT_MS = 2 * 60 * 60_000;
-// Exit code of an archive command whose source is gone (dir, volume).
+/**
+ * The time budget of one archive file (a dump, or a deploy dir's plain and
+ * elevated tar together); the stream has no other bound.
+ */
+export const ARCHIVE_COMMAND_TIMEOUT_MS = 2 * 60 * 60_000;
+// An elevated tar retry needs at least this much of the budget left.
+const MIN_RETRY_MS = 60_000;
+// Exit codes of an archive command: its source is gone (dir, volume), or
+// docker could not say whether the volume exists.
 const SOURCE_MISSING = 44;
+const INSPECT_FAILED = 45;
 
 /** A step's context plus the user the teardown runs for (deleted_by). */
 export type ArchiveContext = TeardownContext & { userId: string | null };
@@ -83,6 +92,21 @@ function slug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9_]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * An archive file name: a readable slug, then 10 hex of the sha256 of the
+ * exact source (`identity`), so two sources never share a name even when
+ * their slugs do (`/srv/app-x` and `/srv/app/x`, `App` and `app`).
+ */
+function fileName(
+  kind: "db" | "deploy" | "volume",
+  readable: string,
+  identity: string,
+  extension: string
+): string {
+  const hash = createHash("sha256").update(identity).digest("hex");
+  return `${kind}-${readable}-${hash.slice(0, 10)}.${extension}`;
 }
 
 function errorMessage(ctx: TeardownContext, error: unknown): string {
@@ -195,9 +219,17 @@ async function storeFile(
   }
 }
 
+type StreamOptions = {
+  timeoutMs: number;
+  stdin?: string;
+  /** The command exits SOURCE_MISSING when its source is gone. */
+  missingExit: boolean;
+};
+
 /**
  * Streams `command`'s stdout into `path`. A non-zero exit, or no output, is
- * archiveFailed with the first stderr line; SOURCE_MISSING is "missing".
+ * a failure with the first stderr line; SOURCE_MISSING is "missing" only for
+ * a command that checks its source.
  */
 async function streamTo(
   ctx: TeardownContext,
@@ -205,19 +237,19 @@ async function streamTo(
   command: string,
   path: string,
   what: string,
-  stdin?: string
+  options: StreamOptions
 ): Promise<"written" | "missing" | { failed: string }> {
   let result: Awaited<ReturnType<typeof streamRemoteCommandToFile>>;
   try {
     result = await streamRemoteCommandToFile(target, command, path, {
-      timeoutMs: ARCHIVE_COMMAND_TIMEOUT_MS,
-      ...(stdin === undefined ? {} : { stdin }),
+      timeoutMs: options.timeoutMs,
+      ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
     });
   } catch (error) {
     if (error instanceof HostKeyMismatchError) throw error;
     return { failed: `${what}: ${errorMessage(ctx, error)}` };
   }
-  if (result.code === SOURCE_MISSING) return "missing";
+  if (options.missingExit && result.code === SOURCE_MISSING) return "missing";
   if (result.code !== 0) {
     const line = redactSecrets(
       result.stderr.split("\n")[0]?.trim() ?? "",
@@ -237,9 +269,13 @@ async function streamOrFail(
   target: SshTarget,
   command: string,
   path: string,
-  what: string
+  what: string,
+  missingExit: boolean
 ): Promise<"written" | "missing"> {
-  const result = await streamTo(ctx, target, command, path, what);
+  const result = await streamTo(ctx, target, command, path, what, {
+    timeoutMs: ARCHIVE_COMMAND_TIMEOUT_MS,
+    missingExit,
+  });
   if (typeof result === "object") {
     throw new StepFailed("archiveFailed", result.failed);
   }
@@ -258,10 +294,11 @@ async function serverTarget(
   return { ...creds, run: ctx.runId };
 }
 
+/** The step's log line; "missing" without a message is a failure. */
 function stored(
   result: "stored" | "already" | "missing",
   name: string,
-  missing: string
+  missing?: string
 ): string {
   switch (result) {
     case "stored":
@@ -269,14 +306,21 @@ function stored(
     case "already":
       return `${name} already archived`;
     case "missing":
+      if (missing === undefined) {
+        throw new StepFailed(
+          "archiveFailed",
+          `nothing was written for ${name}`
+        );
+      }
       return missing;
   }
 }
 
 /**
- * archive_database: `pg_dump -Fc` of the environment's database, run in its
- * container (a docker db service on its server, or the shared host's
- * container), kept as `db-<db>.dump`.
+ * archive_database: `pg_dump -Fc` of the environment's database, kept as
+ * `db-<db>-<hash of the service id>.dump`. A docker db service is dumped in
+ * its container as postgres; a shared binding in its host's container as the
+ * binding's own role, never as postgres (see pgSharedBackupPipeline).
  */
 export async function archiveDatabase(
   ctx: ArchiveContext,
@@ -297,7 +341,10 @@ export async function archiveDatabase(
 
   let target: SshTarget;
   let container: string;
+  let user: string;
   if (service.dbKind === "shared") {
+    if (!service.dbRole) throw new StepFailed("databaseNotRegistered");
+    user = sharedDbRole(service);
     const host = service.databaseHostId
       ? await loadDatabaseHost(service.databaseHostId)
       : null;
@@ -316,18 +363,19 @@ export async function archiveDatabase(
   } else if (service.serviceType === "docker") {
     target = await serverTarget(ctx, service.serverId);
     container = service.serviceName;
+    user = "postgres";
   } else {
     // A systemd or Kubernetes database: the Panel has no dump path for it.
     throw new StepFailed("databaseBackupUnsupported");
   }
 
   const database = service.dbName;
-  const name = `db-${slug(database)}.dump`;
-  const command = `docker exec ${shq(container)} pg_dump -Fc -U postgres ${shq(database)}`;
+  const name = fileName("db", slug(database), params.serviceId, "dump");
+  const command = `docker exec ${shq(container)} pg_dump -Fc -U ${user === "postgres" ? user : shq(user)} ${shq(database)}`;
   const result = await storeFile(ctx, name, (path) =>
-    streamOrFail(ctx, target, command, path, "pg_dump")
+    streamOrFail(ctx, target, command, path, "pg_dump", false)
   );
-  return stored(result, name, `Database ${database} not found to archive`);
+  return stored(result, name);
 }
 
 /** The canonical deploy dir, or unsafeDeployDir before any SSH. */
@@ -338,15 +386,16 @@ function safeDir(deployDir: string): string {
   return dir;
 }
 
-/** A file-name part for the machine, so two servers' files never clash. */
-const machine = (target: SshTarget) => slug(normaliseHost(target.host));
+/** The machine part of a file name and of its source identity. */
+const machine = (target: SshTarget) => normaliseHost(target.host);
 
 /**
  * archive_deploy_dir: `tar -C <parent> -czf - <base>` of the deploy dir
  * (hand-placed .env files, server-only config), kept as
- * `deploy-<host>-<dir>.tar.gz`. As the SSH user first, then elevated when
- * that fails (containers leave root-owned files in bind mounts). Nothing to
- * archive when the dir is gone.
+ * `deploy-<host>-<dir>-<hash of host and dir>.tar.gz`. As the SSH user
+ * first, then elevated when that fails (containers leave root-owned files in
+ * bind mounts); both share one time budget. Nothing to archive when the dir
+ * is gone.
  */
 export async function archiveDeployDir(
   ctx: ArchiveContext,
@@ -361,13 +410,30 @@ export async function archiveDeployDir(
   const quoted = shq(dir);
   const check = `if [ ! -e ${quoted} ] && [ ! -L ${quoted} ]; then exit ${SOURCE_MISSING}; fi`;
   const elevated = privilegedViaStdin(tar, target);
-  const name = `deploy-${machine(target)}-${slug(dir)}.tar.gz`;
+  const host = machine(target);
+  const name = fileName(
+    "deploy",
+    `${slug(host)}-${slug(dir)}`,
+    `${host}\n${dir}`,
+    "tar.gz"
+  );
 
   const result = await storeFile(ctx, name, async (path) => {
-    const plain = await streamTo(ctx, target, `${check}; ${tar}`, path, "tar");
+    const deadline = Date.now() + ARCHIVE_COMMAND_TIMEOUT_MS;
+    const plain = await streamTo(ctx, target, `${check}; ${tar}`, path, "tar", {
+      timeoutMs: ARCHIVE_COMMAND_TIMEOUT_MS,
+      missingExit: true,
+    });
     if (typeof plain !== "object") return plain;
     if (elevated.command === tar) {
       throw new StepFailed("archiveFailed", plain.failed);
+    }
+    const left = deadline - Date.now();
+    if (left < MIN_RETRY_MS) {
+      throw new StepFailed(
+        "archiveFailed",
+        `${plain.failed}; no time left to retry elevated`
+      );
     }
     const retry = await streamTo(
       ctx,
@@ -375,7 +441,11 @@ export async function archiveDeployDir(
       `${check}; ${elevated.command}`,
       path,
       "tar (elevated)",
-      elevated.stdin
+      {
+        timeoutMs: left,
+        missingExit: true,
+        ...(elevated.stdin === undefined ? {} : { stdin: elevated.stdin }),
+      }
     );
     if (typeof retry === "object") {
       throw new StepFailed("archiveFailed", `${plain.failed}; ${retry.failed}`);
@@ -388,8 +458,10 @@ export async function archiveDeployDir(
 /**
  * archive_volumes: stops the stack (stopProjectForArchive, after its checks)
  * so its volumes are consistent, then keeps each of the project's volumes as
- * `volume-<host>-<volume>.tar.gz`. Each volume is checked to still exist
- * right before it is read: `docker run -v` would create an empty one. A
+ * `volume-<host>-<volume>-<hash of host and volume>.tar.gz`. Each volume is
+ * checked to still exist right before it is read (`docker run -v` would
+ * create an empty one); only docker's "no such volume" counts as gone, any
+ * other inspect error fails with docker's message. A
  * failure after the stop leaves the stack stopped, and says so; a retry
  * resumes with the volumes not archived yet.
  */
@@ -403,10 +475,31 @@ export async function archiveVolumes(
   try {
     const target = await serverTarget(ctx, params.serverId);
     for (const volume of stopped.volumes) {
-      const name = `volume-${machine(target)}-${volume}.tar.gz`;
-      const command = `docker volume inspect ${shq(volume)} >/dev/null 2>&1 || exit ${SOURCE_MISSING}; ${volumeArchiveCommand(volume)}`;
+      const host = machine(target);
+      const name = fileName(
+        "volume",
+        `${slug(host)}-${volume}`,
+        `${host}\n${volume}`,
+        "tar.gz"
+      );
+      // Docker says "no such volume", Podman "no such volume" too, either
+      // capitalised; anything else (daemon down, permission) is not gone.
+      const inspect = [
+        `if ! err=$(docker volume inspect ${shq(volume)} 2>&1 >/dev/null); then`,
+        `  case "$err" in *[Nn]"o such volume"*) exit ${SOURCE_MISSING};; esac`,
+        `  printf '%s\\n' "$err" >&2; exit ${INSPECT_FAILED}`,
+        "fi",
+      ].join("\n");
+      const command = `${inspect}\n${volumeArchiveCommand(volume)}`;
       const result = await storeFile(ctx, name, (path) =>
-        streamOrFail(ctx, target, command, path, `the archive of ${volume}`)
+        streamOrFail(
+          ctx,
+          target,
+          command,
+          path,
+          `the archive of ${volume}`,
+          true
+        )
       );
       if (result === "missing") {
         throw new StepFailed(

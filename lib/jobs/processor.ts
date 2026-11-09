@@ -41,6 +41,7 @@ import {
   pgRestorePipeline,
   pgSharedBackupPipeline,
   pgSharedRestorePipeline,
+  sharedDbRole,
 } from "@/lib/jobs/commands";
 import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
@@ -739,13 +740,6 @@ async function runPostgresRecreateDatabase(
     server: credentials,
   });
   await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
-}
-
-function sharedDbRole(db: { dbRole: string | null }): string {
-  if (!db.dbRole) {
-    throw new Error("Shared database binding has no role configured");
-  }
-  return db.dbRole;
 }
 
 async function runPostgresSharedRestore(

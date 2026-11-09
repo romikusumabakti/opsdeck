@@ -34,6 +34,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     addArchiveFile,
     createArchive,
     deleteTeardownEnvironment,
+    environmentExists,
     findOpenArchive,
     listTeardownSteps,
     loadArchiveSnapshot,
@@ -356,6 +357,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
         dbType: "postgres",
         dbKind: "container",
         dbName: null,
+        dbRole: null,
         databaseHostId: null,
         serverId: ids.server,
         serviceType: "docker",
@@ -520,6 +522,19 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       location: "local",
       keyPrefix: "/tmp/td-it/",
     });
+    // A second open row for the environment is refused; the open one comes
+    // back instead (a concurrent first archive step).
+    const again = await createArchive({
+      environmentId: gone,
+      projectName: "Teardown IT",
+      environmentName: "TD Gone",
+      environmentSlug: "td-gone",
+      expiresAt: new Date(Date.now() + 86_400_000),
+      location: "s3",
+      keyPrefix: "other/",
+    });
+    expect(again.id).toBe(archive.id);
+    expect(again.location).toBe("local");
     await addArchiveFile(archive.id, { name: "db-x.dump", size: 10 });
     await addArchiveFile(archive.id, { name: "db-x.dump", size: 99 });
     await addArchiveFile(archive.id, { name: "deploy-x.tar.gz", size: 20 });
@@ -530,10 +545,22 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       { name: "deploy-x.tar.gz", size: 20 },
     ]);
 
-    await expect(deleteTeardownEnvironment(gone)).resolves.toEqual({
+    await expect(deleteTeardownEnvironment(gone, null)).resolves.toEqual({
       environmentName: "TD Gone",
       archiveId: archive.id,
     });
+    // Recorded in the delete's transaction.
+    const activity = await db
+      .select()
+      .from(s.activityLog)
+      .where(eq(s.activityLog.entityId, gone));
+    expect(activity.map((a) => ({ action: a.action, data: a.data }))).toEqual([
+      {
+        action: "environment.deleted",
+        data: { environment: "TD Gone", archiveId: archive.id },
+      },
+    ]);
+    await expect(environmentExists(gone)).resolves.toBe(false);
     const [kept] = await db
       .select()
       .from(s.environmentArchives)
@@ -548,6 +575,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       .from(s.runs)
       .where(eq(s.runs.id, run.id));
     expect(runs).toEqual([]);
-    await expect(deleteTeardownEnvironment(gone)).resolves.toBe(null);
+    await expect(deleteTeardownEnvironment(gone, null)).resolves.toBe(null);
+    await db.delete(s.activityLog).where(eq(s.activityLog.entityId, gone));
   });
 });

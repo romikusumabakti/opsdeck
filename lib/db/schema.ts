@@ -873,6 +873,10 @@ export const environmentArchives = pgTable(
   },
   (t) => [
     index("environment_archives_environment_idx").on(t.environmentId),
+    // At most one open archive per environment: the teardown's.
+    uniqueIndex("environment_archives_open_idx")
+      .on(t.environmentId)
+      .where(sql`${t.completedAt} IS NULL`),
     index("environment_archives_expires_at_idx").on(t.expiresAt),
     index("environment_archives_deleted_by_idx").on(t.deletedById),
   ]
