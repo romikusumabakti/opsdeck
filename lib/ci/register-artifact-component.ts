@@ -96,8 +96,8 @@ async function resolveConnectionId(name: string | undefined): Promise<string> {
 
 /**
  * Validates everything the Panel knows, activates (or finds) the repository
- * in Woodpecker, applies the repo settings, writes the notify secret to
- * Woodpecker, then stores the component (and its app when missing) with
+ * in Woodpecker, applies the repo settings (only for a repository's first
+ * component), writes the notify secret to Woodpecker, then stores the component (and its app when missing) with
  * `pipeline_mode: "generated"`. Commits no pipeline file: the spec has no
  * branch yet, and picking a target's branch commits it.
  */
@@ -155,14 +155,18 @@ export async function registerArtifactComponent(
     repoHasOtherComponent
   );
 
-  await step(`Updating the Woodpecker settings of ${repo.fullName}`, () =>
-    provider.updateRepoSettings(repo.ciRepoId, {
-      timeoutMinutes: spec.timeoutMinutes,
-      cancelPreviousOnPush: true,
-      // The pipeline comes from the committed file only.
-      configExtensionEndpoint: null,
-    })
-  );
+  // The settings (timeout included) are per repository: a repository that
+  // already builds a component keeps those its first registration applied.
+  if (!repoHasOtherComponent) {
+    await step(`Updating the Woodpecker settings of ${repo.fullName}`, () =>
+      provider.updateRepoSettings(repo.ciRepoId, {
+        timeoutMinutes: spec.timeoutMinutes,
+        cancelPreviousOnPush: true,
+        // The pipeline comes from the committed file only.
+        configExtensionEndpoint: null,
+      })
+    );
+  }
   const secret = randomBytes(32).toString("hex");
   await step(`Storing the Woodpecker secret ${notifySecretName}`, () =>
     provider.upsertRepoSecret(

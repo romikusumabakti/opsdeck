@@ -6,6 +6,7 @@ import {
   bundleImageFor,
   type RegisterComponentInput,
   registerAppSchema,
+  repoRepresentative,
 } from "@/lib/ci/registration";
 import { CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { db } from "@/lib/db";
@@ -150,17 +151,22 @@ function registryComponents(registry: AppWithComponents[]) {
   );
 }
 
-/** The component a CI repository builds, if any. */
+/**
+ * The component a CI repository builds, if any; for a repository building
+ * several, its non-artifact one (see repoRepresentative).
+ */
 function componentOfRepo(
   components: RegistryComponent[],
   ciConnectionId: string,
   repo: { fullName: string; ciRepoId?: string }
 ): RegistryComponent | undefined {
-  return components.find(
-    (c) =>
-      c.ciConnectionId === ciConnectionId &&
-      ((!!repo.ciRepoId && c.ciRepoId === repo.ciRepoId) ||
-        c.repoFullName === repo.fullName)
+  return repoRepresentative(
+    components.filter(
+      (c) =>
+        c.ciConnectionId === ciConnectionId &&
+        ((!!repo.ciRepoId && c.ciRepoId === repo.ciRepoId) ||
+          c.repoFullName === repo.fullName)
+    )
   );
 }
 

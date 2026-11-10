@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
+import { repoRepresentative } from "@/lib/ci/registration";
 import {
   buildSetupInput,
   type DraftContext,
@@ -120,7 +121,7 @@ export type NewEnvironmentApp = {
     componentKey: string;
     ciConnectionId: string;
     repoFullName: string;
-    buildSpec?: { branches: string[] } | null;
+    buildSpec?: { branches: string[]; artifact?: unknown } | null;
   }[];
 };
 
@@ -191,8 +192,11 @@ export function NewEnvironmentForm({
       ),
     [apps]
   );
+  // For a repository building several, its non-artifact component.
   const componentOfRepo = (repoFullName: string) =>
-    components.find((c) => c.repoFullName === repoFullName);
+    repoRepresentative(
+      components.filter((c) => c.repoFullName === repoFullName)
+    );
   const startComponent = initialRepo ? componentOfRepo(initialRepo) : undefined;
 
   // Copy sources: the project's environments of an app, newest first

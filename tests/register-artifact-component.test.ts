@@ -68,6 +68,7 @@ import {
   notifySecretNameFor,
   registerArtifactComponent,
 } from "@/lib/ci/register-artifact-component";
+import { repoRepresentative } from "@/lib/ci/registration";
 import { CiProviderError } from "@/lib/ci/types";
 import {
   ensureComponentBranch,
@@ -142,6 +143,21 @@ describe("notifySecretNameFor", () => {
   });
 });
 
+describe("repoRepresentative", () => {
+  const artifact = { componentKey: "a", buildSpec: SPEC };
+  const container = { componentKey: "b", buildSpec: null };
+
+  it("prefers a non-artifact component, whatever the order", () => {
+    expect(repoRepresentative([artifact, container])).toBe(container);
+    expect(repoRepresentative([container, artifact])).toBe(container);
+  });
+
+  it("falls back to the first match", () => {
+    expect(repoRepresentative([artifact])).toBe(artifact);
+    expect(repoRepresentative([])).toBeUndefined();
+  });
+});
+
 describe("registerArtifactComponent", () => {
   it("keeps opsdeck_notify for the first component of a repository", async () => {
     const result = await registerArtifactComponent(INPUT);
@@ -190,6 +206,13 @@ describe("registerArtifactComponent", () => {
         buildSpec: SPEC,
       }
     );
+  });
+
+  it("leaves the repo settings of a repository that builds another component alone", async () => {
+    mocks.linkedCiRepos.mockResolvedValue([OTHER]);
+    await registerArtifactComponent(INPUT);
+    expect(mocks.updateRepoSettings).not.toHaveBeenCalled();
+    expect(mocks.upsertRepoSecret).toHaveBeenCalledTimes(1);
   });
 
   it("matches the other component by repository name when it has no ci repo id", async () => {

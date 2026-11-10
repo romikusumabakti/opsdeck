@@ -15,6 +15,17 @@ export function bundleImageFor(componentKey: string): string {
   return `${componentKey}-deploy`;
 }
 
+/**
+ * The component that stands for a repository building several (a container
+ * component and legacy artifact ones): the first that is not an artifact
+ * component, else the first. Deterministic whatever order apps are listed in.
+ */
+export function repoRepresentative<
+  T extends { buildSpec?: { artifact?: unknown } | null },
+>(matches: readonly T[]): T | undefined {
+  return matches.find((c) => !c.buildSpec?.artifact) ?? matches[0];
+}
+
 export const PIPELINE_MODES = ["custom", "generated"] as const;
 
 /**

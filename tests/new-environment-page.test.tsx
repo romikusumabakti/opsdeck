@@ -488,6 +488,31 @@ describe("New environment page", () => {
     );
   });
 
+  it("takes ?repo='s non-artifact component when the repo builds several", async () => {
+    // An artifact component of the same repo, in an app listed first.
+    const legacy: NewEnvironmentApp = {
+      id: "0197f3a0-1b2c-7def-8000-0123456789b0",
+      appKey: "aaa-legacy",
+      name: "Legacy",
+      components: [
+        {
+          componentKey: "scmb-legacy-api",
+          ciConnectionId: CONN,
+          repoFullName: "dss/scmb-api",
+          buildSpec: { branches: [], artifact: { kind: "jar", path: "a.jar" } },
+        },
+      ],
+    };
+    await mount({
+      project: projectWithEnvs,
+      apps: [legacy, ...apps],
+      initialRepo: "dss/scmb-api",
+    });
+    expect(document.querySelector("#env-start-from")?.textContent).toContain(
+      "Copy of Dev 2"
+    );
+  });
+
   it("preselects ?repo= and starts new when no environment has its app", async () => {
     await mount({ initialRepo: "dss/scmb-worker" });
     expect(document.querySelector("#env-start-from")?.textContent).toContain(

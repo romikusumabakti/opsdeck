@@ -843,6 +843,41 @@ describe("GET /api/setup/repos", () => {
     ]);
   });
 
+  it("names a repo's non-artifact component when it builds several", async () => {
+    // The artifact component's app sorts first.
+    state.apps = [
+      {
+        id: "0197f3a0-1b2c-7def-8000-0123456789b0",
+        appKey: "aaa-legacy",
+        name: "Legacy",
+        components: [
+          {
+            ...hrisApp("custom").components[0],
+            componentKey: "hris-legacy-web",
+            appId: "0197f3a0-1b2c-7def-8000-0123456789b0",
+            pipelineMode: "generated",
+            buildSpec: {
+              branches: [],
+              images: [],
+              bundleFiles: [],
+              artifact: { kind: "static", path: "dist" },
+              checks: [
+                { name: "b", image: "oven/bun:1", dir: ".", commands: ["x"] },
+              ],
+              timeoutMinutes: 60,
+            },
+          },
+        ],
+      },
+      hrisApp("custom"),
+    ];
+    const res = await app.request("/api/setup/repos?q=hris");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject([
+      { repoFullName: "dss/hris", appKey: "hris", componentKey: "hris" },
+    ]);
+  });
+
   it("refuses a user who may not register repos", async () => {
     state.projectRole = "qa";
     const res = await app.request("/api/setup/repos?q=");
