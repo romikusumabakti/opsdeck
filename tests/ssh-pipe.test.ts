@@ -11,11 +11,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const PASSWORD = "pipe-test-password";
 const port = vi.hoisted(() => ({ value: 0 }));
 const received = vi.hoisted(() => ({ sha: "", bytes: 0 }));
+const closedOnError = vi.hoisted(() => ({ count: 0 }));
+const connectFail = vi.hoisted(() => ({ on: false }));
 
 vi.mock("@/lib/ssh-connect", () => ({
   connectConfig: async () => ({
     host: "127.0.0.1",
-    port: port.value,
+    port: connectFail.on ? 1 : port.value,
     username: "ops",
     password: PASSWORD,
     hostVerifier: () => true,
@@ -65,6 +67,12 @@ beforeAll(async () => {
             stream.end();
             break;
           case "hang":
+            break;
+          case "close-on-error":
+            stream.on("data", () => {});
+            stream.on("close", () => {
+              closedOnError.count += 1;
+            });
             break;
         }
       });
@@ -150,5 +158,44 @@ describe("pipeToRemoteCommand", () => {
     ).rejects.toThrow(/timed out after 300ms/);
     expect(Date.now() - started).toBeLessThan(5000);
     expect(state.cancelled).toBe(true);
+  });
+
+  it("cancels the body when the connection cannot be opened", async () => {
+    const state = { pulled: 0, cancelled: false };
+    connectFail.on = true;
+    try {
+      await expect(
+        pipeToRemoteCommand(target, "sink", bodyOf(5, 10, state), {
+          timeoutMs: 10_000,
+        })
+      ).rejects.toThrow();
+    } finally {
+      connectFail.on = false;
+    }
+    expect(state.cancelled).toBe(true);
+  });
+
+  it("rejects promptly when the body errors mid-stream", async () => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= 3) {
+          controller.error(new Error("socket reset"));
+          return;
+        }
+        pulled += 1;
+        controller.enqueue(new Uint8Array(1024));
+      },
+    });
+    closedOnError.count = 0;
+    const started = Date.now();
+    await expect(
+      pipeToRemoteCommand(target, "close-on-error", body, {
+        timeoutMs: 10_000,
+        secrets: ["reset"],
+      })
+    ).rejects.toThrow("socket [redacted]");
+    expect(Date.now() - started).toBeLessThan(3000);
+    await vi.waitFor(() => expect(closedOnError.count).toBe(1));
   });
 });
