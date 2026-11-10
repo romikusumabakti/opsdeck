@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,9 +30,14 @@ import {
 type JarInput = Extract<ArtifactDeployScriptInput, { kind: "jar" }>;
 type StaticInput = Extract<ArtifactDeployScriptInput, { kind: "static" }>;
 
+const ID = "0197f3a0-1b2c-7def-8000-0123456789a4";
+const OTHER_ID = "0197f3a0-1b2c-7def-8000-0123456789b5";
+const INCOMING = `.opsdeck-incoming-${ID}`;
+
 const jarBase: JarInput = {
   kind: "jar",
   deployDir: "/srv/core",
+  deploymentId: ID,
   jarName: "core-web-service.jar",
   systemdUnit: "core",
   healthUrl: null,
@@ -42,22 +48,45 @@ const jarBase: JarInput = {
 const staticBase: StaticInput = {
   kind: "static",
   deployDir: "/usr/share/nginx/html",
+  deploymentId: ID,
   healthTimeoutSeconds: 180,
 };
 
 describe("artifactStagingDir and buildArtifactExtractCommand", () => {
   it("puts the jar staging inside the deploy dir, the static one beside the web root", () => {
-    expect(artifactStagingDir("jar", "/srv/core")).toBe(
-      "/srv/core/.opsdeck-incoming"
+    expect(artifactStagingDir("jar", "/srv/core", ID)).toBe(
+      `/srv/core/.opsdeck-incoming-${ID}`
     );
-    expect(artifactStagingDir("static", "/usr/share/nginx/html")).toBe(
-      "/usr/share/nginx/html.opsdeck-incoming"
+    expect(artifactStagingDir("static", "/usr/share/nginx/html", ID)).toBe(
+      `/usr/share/nginx/html.opsdeck-incoming-${ID}`
     );
   });
 
-  it("rejects an invalid deploy dir", () => {
-    expect(() => artifactStagingDir("jar", "/")).toThrow();
-    expect(() => artifactStagingDir("static", "/srv/a b")).toThrow();
+  it("is per deployment, in the path and in the script", () => {
+    for (const kind of ["jar", "static"] as const) {
+      const mine = artifactStagingDir(kind, "/srv/core", ID);
+      const other = artifactStagingDir(kind, "/srv/core", OTHER_ID);
+      expect(mine).not.toBe(other);
+      const base = kind === "jar" ? jarBase : staticBase;
+      const script = buildArtifactDeployScript({
+        ...base,
+        deployDir: "/srv/core",
+      });
+      expect(script).toContain(mine);
+      expect(script).not.toContain(OTHER_ID);
+    }
+  });
+
+  it("rejects an invalid deploy dir or deployment id", () => {
+    expect(() => artifactStagingDir("jar", "/", ID)).toThrow();
+    expect(() => artifactStagingDir("static", "/srv/a b", ID)).toThrow();
+    expect(() => artifactStagingDir("jar", "/srv/core", "x; reboot")).toThrow();
+    expect(() =>
+      buildArtifactDeployScript({ ...jarBase, deploymentId: "../x" })
+    ).toThrow();
+    expect(() =>
+      buildArtifactDeployScript({ ...staticBase, deploymentId: "" })
+    ).toThrow();
   });
 
   it("recreates the staging dir and extracts only bundle/artifact from stdin", () => {
@@ -114,10 +143,10 @@ describe("buildArtifactDeployScript output", () => {
         [
           "set -eu",
           "trap '' HUP PIPE",
+          `trap 'rm -rf '\\''/srv/core/${INCOMING}'\\''' EXIT`,
           "cd '/srv/core'",
           "exec 9>'/srv/core/.opsdeck-deploy.lock'",
           "flock -w 600 9 || { echo 'DEPLOY LOCKED'; exit 1; }",
-          `trap 'rm -rf '\\''/srv/core/.opsdeck-incoming'\\''' EXIT`,
           "",
         ].join("\n")
       )
@@ -172,7 +201,7 @@ const STUB_SYSTEMCTL = `#!/bin/sh
 printf 'systemctl %s\\n' "$*" >> "$STUB_LOG"
 case "$1" in
   cat) if [ -n "\${STUB_UNIT_MISSING:-}" ]; then echo "No files found for $2." >&2; exit 1; fi; echo "[Unit]" ;;
-  is-enabled) s=\${STUB_ENABLED:-enabled}; echo "$s"; [ "$s" = enabled ] ;;
+  is-enabled) s=\${STUB_ENABLED:-enabled}; echo "$s"; case "$s" in enabled|enabled-runtime|static|indirect|generated|alias) exit 0 ;; *) exit 1 ;; esac ;;
   show)
     case "$3" in
       ActiveState) echo "\${STUB_STATE:-active}" ;;
@@ -213,6 +242,7 @@ exec /usr/bin/${name} "$@"
 const STUB_FLOCK = `#!/bin/sh
 for fd; do :; done
 printf 'flock %s -> %s\\n' "$*" "$(readlink "/proc/$$/fd/$fd")" >> "$STUB_LOG"
+if [ -n "\${STUB_FLOCK_FAIL:-}" ]; then exit 1; fi
 exec /usr/bin/flock "$@"
 `;
 
@@ -268,6 +298,7 @@ async function runScript(
 }
 
 const read = (path: string) => readFileSync(path, "utf8");
+const modeOf = (path: string) => statSync(path).mode & 0o777;
 
 /** Stages `jars` (name → content) the way buildArtifactExtractCommand leaves them. */
 async function runJar(
@@ -275,13 +306,14 @@ async function runJar(
   options: {
     jars?: Record<string, string>;
     current?: string | null;
+    currentMode?: number;
     env?: Record<string, string>;
   } = {}
 ) {
   const root = mkdtempSync(join(tmpdir(), "artifact-script-"));
   const deployDir = join(root, "deploy");
   const artifact = join(
-    artifactStagingDir("jar", deployDir),
+    artifactStagingDir("jar", deployDir, ID),
     "bundle/artifact"
   );
   mkdirSync(artifact, { recursive: true });
@@ -289,10 +321,22 @@ async function runJar(
     options.jars ?? { "core-0.0.1-SNAPSHOT.jar": "NEW" }
   )) {
     writeFileSync(join(artifact, name), body);
+    chmodSync(join(artifact, name), 0o644);
   }
+  // Another deployment's upload of the same target, still in flight.
+  const other = join(
+    artifactStagingDir("jar", deployDir, OTHER_ID),
+    "bundle/artifact"
+  );
+  mkdirSync(other, { recursive: true });
+  writeFileSync(join(other, "other.jar"), "OTHER");
   const current = options.current === undefined ? "OLD" : options.current;
   if (current !== null) {
     writeFileSync(join(deployDir, "core-web-service.jar"), current);
+    chmodSync(
+      join(deployDir, "core-web-service.jar"),
+      options.currentMode ?? 0o644
+    );
   }
   const script = buildArtifactDeployScript({ ...jarBase, deployDir, ...input });
   const run = await runScript(script, root, options.env ?? {});
@@ -304,22 +348,33 @@ async function runStatic(
     index?: boolean;
     current?: string | null;
     staleNext?: boolean;
+    rootMode?: number;
     env?: Record<string, string>;
   } = {}
 ) {
   const root = mkdtempSync(join(tmpdir(), "artifact-script-"));
   const webRoot = join(root, "html");
   const artifact = join(
-    artifactStagingDir("static", webRoot),
+    artifactStagingDir("static", webRoot, ID),
     "bundle/artifact"
   );
   mkdirSync(join(artifact, "assets"), { recursive: true });
+  chmodSync(artifact, 0o755);
   if (options.index ?? true) writeFileSync(join(artifact, "index.html"), "NEW");
   writeFileSync(join(artifact, "assets/app.js"), "js");
+  chmodSync(join(artifact, "assets/app.js"), 0o644);
+  // Another deployment's upload of the same target, still in flight.
+  const other = join(
+    artifactStagingDir("static", webRoot, OTHER_ID),
+    "bundle/artifact"
+  );
+  mkdirSync(other, { recursive: true });
+  writeFileSync(join(other, "index.html"), "OTHER");
   const current = options.current === undefined ? "OLD" : options.current;
   if (current !== null) {
     mkdirSync(webRoot);
     writeFileSync(join(webRoot, "index.html"), current);
+    chmodSync(webRoot, options.rootMode ?? 0o755);
   }
   if (options.staleNext) {
     mkdirSync(`${webRoot}.opsdeck-new`);
@@ -348,7 +403,7 @@ describe.concurrent("buildArtifactDeployScript stub runs (jar)", () => {
       expect(
         read(join(r.deployDir, ".opsdeck-prev/core-web-service.jar"))
       ).toBe("OLD");
-      expect(existsSync(join(r.deployDir, ".opsdeck-incoming"))).toBe(false);
+      expect(existsSync(join(r.deployDir, INCOMING))).toBe(false);
       const calls = r.log
         .split("\n")
         .filter((l) => /^systemctl (stop|start|enable)/.test(l));
@@ -381,7 +436,88 @@ describe.concurrent("buildArtifactDeployScript stub runs (jar)", () => {
       expect(read(join(r.deployDir, "core-web-service.jar"))).toBe("OLD");
       expect(existsSync(join(r.deployDir, ".opsdeck-prev"))).toBe(false);
       expect(r.log).not.toMatch(/systemctl (stop|start)/);
-      expect(existsSync(join(r.deployDir, ".opsdeck-incoming"))).toBe(false);
+      expect(existsSync(join(r.deployDir, INCOMING))).toBe(false);
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("leaves another deployment's staging dir alone", async () => {
+    const r = await runJar({});
+    try {
+      expect(r.status).toBe(0);
+      expect(existsSync(join(r.deployDir, INCOMING))).toBe(false);
+      expect(
+        read(
+          join(
+            artifactStagingDir("jar", r.deployDir, OTHER_ID),
+            "bundle/artifact/other.jar"
+          )
+        )
+      ).toBe("OTHER");
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("removes its own staging dir when the target is locked", async () => {
+    const root = mkdtempSync(join(tmpdir(), "artifact-script-"));
+    const deployDir = join(root, "deploy");
+    const staging = artifactStagingDir("jar", deployDir, ID);
+    mkdirSync(join(staging, "bundle/artifact"), { recursive: true });
+    const script = buildArtifactDeployScript({ ...jarBase, deployDir });
+    // A flock that times out, as when another deploy holds the lock.
+    const r = await runScript(script, root, { STUB_FLOCK_FAIL: "1" });
+    try {
+      expect(r.stdout).toContain("DEPLOY LOCKED");
+      expect(r.status).toBe(1);
+      expect(existsSync(staging)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true });
+    }
+  });
+
+  for (const state of ["static", "indirect", "generated", "enabled-runtime"]) {
+    it(`unit reporting ${state}: deploys without enable`, async () => {
+      const r = await runJar({}, { env: { STUB_ENABLED: state } });
+      try {
+        expect(r.stdout).toContain("HEALTHY");
+        expect(r.status).toBe(0);
+        expect(r.log).not.toContain("systemctl enable");
+        expect(r.stdout).not.toContain("Enabled");
+      } finally {
+        rmSync(r.root, { recursive: true });
+      }
+    });
+  }
+
+  it("new jar takes the owner and mode of the jar it replaces", async () => {
+    const r = await runJar({}, { currentMode: 0o600 });
+    try {
+      expect(r.status).toBe(0);
+      const target = join(r.deployDir, "core-web-service.jar");
+      expect(modeOf(target)).toBe(0o600);
+      const staged = join(
+        r.deployDir,
+        INCOMING,
+        "bundle/artifact/core-0.0.1-SNAPSHOT.jar"
+      );
+      expect(r.log).toContain(`chown --reference=${target} ${staged}\n`);
+      expect(r.log).toContain(`chmod --reference=${target} ${staged}\n`);
+      expect(r.log.indexOf("chown --reference")).toBeLessThan(
+        r.log.indexOf("systemctl stop")
+      );
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("first jar keeps the extracted owner and mode", async () => {
+    const r = await runJar({}, { current: null });
+    try {
+      expect(r.status).toBe(0);
+      expect(modeOf(join(r.deployDir, "core-web-service.jar"))).toBe(0o644);
+      expect(r.log).not.toMatch(/^(chown|chmod) /m);
     } finally {
       rmSync(r.root, { recursive: true });
     }
@@ -514,7 +650,7 @@ describe.concurrent("buildArtifactDeployScript stub runs (jar)", () => {
         expect(r.status).toBe(1);
         expect(read(join(r.deployDir, "core-web-service.jar"))).toBe("OLD");
         expect(r.log).not.toMatch(/systemctl (stop|start)/);
-        expect(existsSync(join(r.deployDir, ".opsdeck-incoming"))).toBe(false);
+        expect(existsSync(join(r.deployDir, INCOMING))).toBe(false);
       } finally {
         rmSync(r.root, { recursive: true });
       }
@@ -532,10 +668,11 @@ describe.concurrent("buildArtifactDeployScript stub runs (static)", () => {
       expect(read(join(r.webRoot, "assets/app.js"))).toBe("js");
       expect(read(`${r.webRoot}.opsdeck-prev/index.html`)).toBe("OLD");
       expect(existsSync(`${r.webRoot}.opsdeck-new`)).toBe(false);
-      expect(existsSync(`${r.webRoot}.opsdeck-incoming`)).toBe(false);
-      const staged = `${r.webRoot}.opsdeck-incoming/bundle/artifact`;
+      expect(existsSync(`${r.webRoot}${INCOMING}`)).toBe(false);
+      const staged = `${r.webRoot}${INCOMING}/bundle/artifact`;
       expect(r.log).toContain(`chown -R --reference=${r.webRoot} ${staged}\n`);
-      expect(r.log).toContain(`chmod -R --reference=${r.webRoot} ${staged}\n`);
+      expect(r.log).toContain(`chmod --reference=${r.webRoot} ${staged}\n`);
+      expect(r.log).not.toContain("chmod -R");
       expect(r.log).toContain(`chcon -R --reference=${r.webRoot} ${staged}\n`);
       expect(r.log.indexOf("nginx -t")).toBeLessThan(
         r.log.indexOf("systemctl reload nginx")
@@ -543,6 +680,36 @@ describe.concurrent("buildArtifactDeployScript stub runs (static)", () => {
       expect(r.log).toContain(
         `flock -w 600 9 -> ${r.webRoot}.opsdeck-deploy.lock`
       );
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("new root gets the old root dir's mode; file modes stay as built", async () => {
+    const r = await runStatic({ rootMode: 0o750 });
+    try {
+      expect(r.status).toBe(0);
+      expect(modeOf(r.webRoot)).toBe(0o750);
+      expect(modeOf(join(r.webRoot, "assets/app.js"))).toBe(0o644);
+      expect(modeOf(join(r.webRoot, "assets"))).toBe(0o755);
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("leaves another deployment's staging dir alone", async () => {
+    const r = await runStatic();
+    try {
+      expect(r.status).toBe(0);
+      expect(existsSync(`${r.webRoot}${INCOMING}`)).toBe(false);
+      expect(
+        read(
+          join(
+            artifactStagingDir("static", r.webRoot, OTHER_ID),
+            "bundle/artifact/index.html"
+          )
+        )
+      ).toBe("OTHER");
     } finally {
       rmSync(r.root, { recursive: true });
     }
@@ -582,7 +749,7 @@ describe.concurrent("buildArtifactDeployScript stub runs (static)", () => {
       expect(read(join(r.webRoot, "index.html"))).toBe("OLD");
       expect(existsSync(`${r.webRoot}.opsdeck-prev`)).toBe(false);
       expect(existsSync(`${r.webRoot}.opsdeck-new`)).toBe(false);
-      expect(existsSync(`${r.webRoot}.opsdeck-incoming`)).toBe(false);
+      expect(existsSync(`${r.webRoot}${INCOMING}`)).toBe(false);
       expect(r.log).not.toContain("systemctl reload");
     } finally {
       rmSync(r.root, { recursive: true });
@@ -632,7 +799,7 @@ describe.concurrent("buildArtifactDeployScript stub runs (static)", () => {
       expect(r.status).toBe(1);
       expect(read(join(r.webRoot, "index.html"))).toBe("OLD");
       expect(r.log).not.toContain("nginx");
-      expect(existsSync(`${r.webRoot}.opsdeck-incoming`)).toBe(false);
+      expect(existsSync(`${r.webRoot}${INCOMING}`)).toBe(false);
     } finally {
       rmSync(r.root, { recursive: true });
     }

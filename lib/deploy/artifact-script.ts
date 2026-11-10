@@ -27,6 +27,8 @@ export type ArtifactDeployScriptInput =
   | {
       kind: "jar";
       deployDir: string;
+      /** Names the staging dir, see {@link artifactStagingDir}. */
+      deploymentId: string;
       jarName: string;
       systemdUnit: string;
       healthUrl: string | null;
@@ -39,7 +41,12 @@ export type ArtifactDeployScriptInput =
        */
       stableSeconds?: number;
     }
-  | { kind: "static"; deployDir: string; healthTimeoutSeconds: number };
+  | {
+      kind: "static";
+      deployDir: string;
+      deploymentId: string;
+      healthTimeoutSeconds: number;
+    };
 
 /** Host-wide: every static deploy on a host swaps its root and reloads nginx under it. */
 export const NGINX_LOCK_FILE = "/run/opsdeck-nginx.lock";
@@ -63,6 +70,7 @@ const inputSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("jar"),
     deployDir: deployDirSchema,
+    deploymentId: z.uuid(),
     jarName: jarNameSchema,
     systemdUnit: systemdUnitSchema,
     healthUrl: healthUrlSchema.nullable(),
@@ -77,6 +85,7 @@ const inputSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("static"),
     deployDir: deployDirSchema,
+    deploymentId: z.uuid(),
     healthTimeoutSeconds: healthTimeoutSecondsSchema,
   }),
 ]);
@@ -85,15 +94,19 @@ const inputSchema = z.discriminatedUnion("kind", [
  * Where the artifact is uploaded before the deploy script runs: inside the
  * deploy dir for a jar, beside the web root for static (so the final `mv` is a
  * rename on the same filesystem and nginx never serves a half-written tree).
+ * Per deployment: the upload runs outside the deploy lock, so a second deploy
+ * of the same target never overwrites a staging dir that is still in use.
  */
 export function artifactStagingDir(
   kind: ArtifactKind,
-  deployDir: string
+  deployDir: string,
+  deploymentId: string
 ): string {
   const dir = deployDirSchema.parse(deployDir);
+  const id = z.uuid().parse(deploymentId);
   return kind === "jar"
-    ? `${dir}/.opsdeck-incoming`
-    : `${dir}.opsdeck-incoming`;
+    ? `${dir}/.opsdeck-incoming-${id}`
+    : `${dir}.opsdeck-incoming-${id}`;
 }
 
 /** Reads the artifact image's layer (a `.tar.gz`) from stdin into the staging dir. */
@@ -107,14 +120,19 @@ export function buildArtifactDeployScript(
   input: ArtifactDeployScriptInput
 ): string {
   const v = inputSchema.parse(input);
-  const lines = v.kind === "jar" ? jarLines(v) : staticLines(v.deployDir);
+  const lines =
+    v.kind === "jar"
+      ? jarLines(v)
+      : staticLines(
+          v.deployDir,
+          artifactStagingDir("static", v.deployDir, v.deploymentId)
+        );
   return `${lines.join("\n")}\n`;
 }
 
-// Shared preamble: survive a dropped SSH session, one deploy per target at a
-// time, and always remove the staging dir. The cleanup trap is set only once
-// the lock is held, so a run that finds the target locked leaves the running
-// deploy's staging dir alone.
+// Shared preamble: survive a dropped SSH session, always remove this
+// deployment's own staging dir (also when the target is locked), and one
+// deploy per target at a time.
 function preamble(
   lockFile: string,
   staging: string,
@@ -123,15 +141,16 @@ function preamble(
   return [
     "set -eu",
     "trap '' HUP PIPE",
+    `trap ${shq(`rm -rf ${shq(staging)}`)} EXIT`,
     ...(cdDir === null ? [] : [`cd ${shq(cdDir)}`]),
     `exec 9>${shq(lockFile)}`,
     `flock -w ${LOCK_WAIT_SECONDS} 9 || { echo 'DEPLOY LOCKED'; exit 1; }`,
-    `trap ${shq(`rm -rf ${shq(staging)}`)} EXIT`,
   ];
 }
 
 function jarLines(v: {
   deployDir: string;
+  deploymentId: string;
   jarName: string;
   systemdUnit: string;
   healthUrl: string | null;
@@ -139,7 +158,7 @@ function jarLines(v: {
   stableSeconds: number;
 }): string[] {
   const dir = v.deployDir;
-  const staging = artifactStagingDir("jar", dir);
+  const staging = artifactStagingDir("jar", dir, v.deploymentId);
   const unit = shq(v.systemdUnit);
   const target = shq(`${dir}/${v.jarName}`);
   const prevDir = shq(`${dir}/.opsdeck-prev`);
@@ -153,11 +172,21 @@ function jarLines(v: {
     "staged_jar=$1",
 
     // 2-3. The unit must exist (checked before anything is stopped or moved),
-    //      and starts on boot.
+    //      and starts on boot. Only a plain `disabled` unit is enabled:
+    //      `static`, `indirect`, `generated`, `enabled-runtime` and the like
+    //      are left as they are (`enable` would fail or change their meaning).
     `systemctl cat ${unit} >/dev/null || { echo 'UNIT NOT FOUND'; exit 1; }`,
-    `if [ "$(systemctl is-enabled ${unit} 2>/dev/null || true)" != enabled ]; then`,
+    `if [ "$(systemctl is-enabled ${unit} 2>/dev/null || true)" = disabled ]; then`,
     `  systemctl enable ${unit}`,
     `  echo ${shq(`Enabled ${v.systemdUnit}`)}`,
+    "fi",
+
+    // The new jar takes over the owner and mode of the one it replaces (the
+    // unit's User= must still read it); a first jar keeps the extracted ones.
+    // Done before the stop, so a failure leaves the unit running.
+    `if [ -e ${target} ]; then`,
+    `  chown --reference=${target} "$staged_jar"`,
+    `  chmod --reference=${target} "$staged_jar"`,
     "fi",
 
     // 4-6. Stop, keep the current jar as prev, rename the staged one, start.
@@ -205,8 +234,7 @@ function jarLines(v: {
   ];
 }
 
-function staticLines(webRoot: string): string[] {
-  const staging = artifactStagingDir("static", webRoot);
+function staticLines(webRoot: string, staging: string): string[] {
   const artifact = shq(`${staging}/bundle/artifact`);
   const root = shq(webRoot);
   const next = shq(`${webRoot}.opsdeck-new`);
@@ -217,11 +245,12 @@ function staticLines(webRoot: string): string[] {
     // 1. A web root without index.html is not a build.
     `if [ ! -f ${artifact}/index.html ]; then echo 'ARTIFACT INVALID'; exit 1; fi`,
 
-    // 2. The new tree gets the current root's owner, mode and SELinux label
-    //    (a first deploy inherits the parent dir's defaults).
+    // 2. The new tree gets the current root's owner and SELinux label, and the
+    //    new root dir its mode; file modes stay as built. A first deploy
+    //    inherits the parent dir's defaults.
     `if [ -e ${root} ]; then`,
     `  chown -R --reference=${root} ${artifact}`,
-    `  chmod -R --reference=${root} ${artifact}`,
+    `  chmod --reference=${root} ${artifact}`,
     `  if selinuxenabled; then chcon -R --reference=${root} ${artifact}; fi`,
     "fi",
 
