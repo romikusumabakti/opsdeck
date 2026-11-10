@@ -138,9 +138,13 @@ export function ProvisioningPanel({
   }).data;
   const hosts = useQuery({ ...listDatabaseHostsQuery(), enabled: canRun }).data;
 
-  // A deploy that finished (a target's current tag changed) can end the
-  // need for provisioning: re-read it so the panel hides or updates.
-  const tagsKey = targets.map((x) => `${x.id}=${x.currentTag ?? ""}`).join(",");
+  // A deploy that finished can end the need for provisioning: re-read it so
+  // the panel hides or updates. The current tag already changes when the
+  // deploy script starts, so its status is part of the key: running → success
+  // is the change that matters.
+  const tagsKey = targets
+    .map((x) => `${x.id}=${x.currentTag ?? ""}:${x.currentStatus ?? ""}`)
+    .join(",");
   const previousTags = React.useRef(tagsKey);
   React.useEffect(() => {
     if (previousTags.current !== tagsKey) {
