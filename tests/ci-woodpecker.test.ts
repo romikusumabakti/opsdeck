@@ -327,6 +327,70 @@ describe("woodpecker triggerPipeline", () => {
   });
 });
 
+describe("woodpecker listActivePipelines", () => {
+  it("GETs a bounded page of the branch's pipelines and keeps the active ones, newest first", async () => {
+    const { calls, provider } = mockFetch([
+      json([
+        { number: 9, branch: "sucor/development", status: "success" },
+        { number: 11, branch: "sucor/development", status: "pending" },
+        { number: 12, branch: "main", status: "running" },
+        { number: 14, branch: "sucor/development", status: "running" },
+        { number: 10, branch: "sucor/development", status: "failure" },
+      ]),
+    ]);
+    await expect(
+      provider.listActivePipelines("2", "sucor/development")
+    ).resolves.toEqual([
+      { number: 14, url: `${BASE}/repos/2/pipeline/14` },
+      { number: 11, url: `${BASE}/repos/2/pipeline/11` },
+    ]);
+    expect(calls[0]?.method).toBe("GET");
+    const url = new URL(calls[0]?.url ?? "");
+    expect(`${url.origin}${url.pathname}`).toBe(
+      `${BASE}/api/repos/2/pipelines`
+    );
+    expect(url.searchParams.get("branch")).toBe("sucor/development");
+    expect(url.searchParams.get("perPage")).toBe("20");
+    expect(calls[0]?.headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(calls[0]?.init.redirect).toBe("manual");
+  });
+
+  it("answers an empty list when nothing is active or the answer is not a list", async () => {
+    const { provider } = mockFetch([
+      json([{ number: 3, branch: "main", status: "success" }]),
+      json(null),
+    ]);
+    await expect(provider.listActivePipelines("2", "main")).resolves.toEqual(
+      []
+    );
+    await expect(provider.listActivePipelines("2", "main")).resolves.toEqual(
+      []
+    );
+  });
+
+  it("skips entries without a valid number", async () => {
+    const { provider } = mockFetch([
+      json([
+        { number: "7", branch: "main", status: "running" },
+        { branch: "main", status: "running" },
+      ]),
+    ]);
+    await expect(provider.listActivePipelines("2", "main")).resolves.toEqual(
+      []
+    );
+  });
+
+  it("throws CiProviderError without the token on failure", async () => {
+    const { provider } = mockFetch([json({}, 500)]);
+    const err = await provider
+      .listActivePipelines("2", "main")
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CiProviderError);
+    expect((err as CiProviderError).status).toBe(500);
+    expect((err as CiProviderError).message).not.toContain(TOKEN);
+  });
+});
+
 describe("parsePipelineNumber", () => {
   it("reads the number from a pipeline URL of the component's repo", () => {
     expect(

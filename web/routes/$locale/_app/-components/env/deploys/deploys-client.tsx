@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   CircleAlert,
@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
 import { firstLine, runActorLabel } from "@/lib/deploy/run-actor";
-import { startComponentBuild } from "@/web/api/apps";
+import { getActiveBuild, startComponentBuild } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 import {
   type DeployTargetState,
@@ -299,7 +299,7 @@ function TargetCard({
             )}
           </div>
           {canRollback && target.previousTag && (
-            <LockHint reason={lockedReason}>
+            <DisabledHint reason={lockedReason}>
               <Button
                 variant="outline"
                 size="sm"
@@ -313,7 +313,7 @@ function TargetCard({
                 )}
                 {t("rollbackTo", { tag: target.previousTag })}
               </Button>
-            </LockHint>
+            </DisabledHint>
           )}
         </div>
 
@@ -327,11 +327,13 @@ function TargetCard({
               <p className="text-sm text-muted-foreground">
                 {t("buildsEmpty", { branch: target.sourceBranch })}
               </p>
-              {canRun && target.appKey && (
-                <StartBuildButton
+              {target.appKey && (
+                <FirstBuild
                   appKey={target.appKey}
                   componentKey={target.componentKey}
                   branch={target.sourceBranch}
+                  canStart={canRun}
+                  deploysOnArrival={target.autoDeploy || target.deployNextBuild}
                 />
               )}
             </div>
@@ -391,24 +393,50 @@ export function WaitingForFirstBuild({ branch }: { branch: string }) {
   );
 }
 
+const ACTIVE_BUILD_POLL_MS = 10_000;
+
 /**
- * Starts a build of the target's branch when none has arrived yet (a first
- * build that did not start). The server decides who may: admins, and callers
- * who run deploys where a target deploys this branch.
+ * The branch's first build while none has arrived yet: the pipeline already
+ * running in Woodpecker (polled until it ends), or else Start build for a
+ * caller who runs deploys. The server decides who may start one: admins, and
+ * callers who run deploys where a target deploys this branch.
  */
-export function StartBuildButton({
+export function FirstBuild({
   appKey,
   componentKey,
   branch,
+  canStart,
+  deploysOnArrival,
 }: {
   appKey: string;
   componentKey: string;
   branch: string;
+  canStart: boolean;
+  // Auto-deploy is on or the next build is flagged to deploy once.
+  deploysOnArrival: boolean;
 }) {
   const t = useTranslations("deploys");
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const [starting, setStarting] = React.useState(false);
+  const queryKey = ["activeBuild", appKey, componentKey, branch];
+  const { data: active } = useQuery({
+    queryKey,
+    queryFn: () => getActiveBuild(appKey, componentKey, branch),
+    refetchInterval: (query) =>
+      query.state.data ? ACTIVE_BUILD_POLL_MS : false,
+  });
+
+  // A pipeline that just ended may have delivered the build: re-read them.
+  const wasActive = React.useRef(false);
+  React.useEffect(() => {
+    if (active) {
+      wasActive.current = true;
+    } else if (active === null && wasActive.current) {
+      wasActive.current = false;
+      queryClient.invalidateQueries({ queryKey: ["deploys"] });
+    }
+  }, [active, queryClient]);
 
   async function onStart() {
     setStarting(true);
@@ -420,6 +448,7 @@ export function StartBuildButton({
       );
       toast.success(t("buildStarted", { number }));
       queryClient.invalidateQueries({ queryKey: ["deploys"] });
+      await queryClient.invalidateQueries({ queryKey });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : tCommon("errorGeneric")
@@ -429,12 +458,40 @@ export function StartBuildButton({
     }
   }
 
+  if (active) {
+    const label = t("buildRunning", { number: active.number });
+    return (
+      <p
+        role="status"
+        className="flex items-center gap-1.5 text-sm text-muted-foreground"
+      >
+        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+        {active.url ? (
+          <a
+            href={active.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 hover:text-foreground"
+          >
+            {label}
+            <ExternalLink className="size-3.5" aria-hidden />
+          </a>
+        ) : (
+          label
+        )}
+      </p>
+    );
+  }
+
+  if (!canStart) return null;
   return (
     <Button
       variant="outline"
       size="sm"
       disabled={starting}
-      title={t("startBuildHint", { branch })}
+      title={t(deploysOnArrival ? "startBuildHint" : "startBuildHintManual", {
+        branch,
+      })}
       onClick={onStart}
     >
       {starting ? (
@@ -508,7 +565,13 @@ function BuildsTable({
             </TableCell>
             {onDeploy && (
               <TableCell className="text-end">
-                <LockHint reason={lockedReason}>
+                <DisabledHint
+                  reason={
+                    build.tag === deployedTag
+                      ? t("alreadyDeployed")
+                      : lockedReason
+                  }
+                >
                   <Button
                     variant="outline"
                     size="sm"
@@ -529,7 +592,7 @@ function BuildsTable({
                     )}
                     {t("deploy")}
                   </Button>
-                </LockHint>
+                </DisabledHint>
               </TableCell>
             )}
           </TableRow>
@@ -681,8 +744,8 @@ function DeploymentStatusBadge({ status }: { status: Deployment["status"] }) {
 }
 
 // A disabled button gets no pointer events of its own, so the tooltip hangs
-// off a wrapper. Without a lock the button renders as is.
-function LockHint({
+// off a wrapper. Without a reason the button renders as is.
+function DisabledHint({
   reason,
   children,
 }: {

@@ -441,8 +441,11 @@
       "saveLock": "حفظ القفل"
     },
     "startBuild": "بدء البناء",
-    "startBuildHint": "Build {branch} now; the build deploys when it lands.",
-    "buildStarted": "Build {number} started",
+    "startBuildHint": "ابدأ بناء {branch} الآن؛ يُنشر عند اكتماله.",
+    "buildStarted": "بدأ البناء {number}",
+    "startBuildHintManual": "ابدأ بناء {branch} الآن؛ يظهر هنا عند اكتماله، ثم انشره.",
+    "buildRunning": "البناء #{number} قيد التشغيل…",
+    "alreadyDeployed": "منشور بالفعل",
     "waitingForFirstBuild": "في انتظار أول بناء للفرع {branch}",
     "settingsLink": "إعدادات النشر",
     "settingsHint": "تُعدَّل الفروع والخوادم وأهداف النشر من الإعدادات ← المصدر والنشر."

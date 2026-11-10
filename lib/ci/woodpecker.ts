@@ -1,5 +1,6 @@
 import { ciFetch } from "@/lib/ci/http";
 import {
+  type ActivePipeline,
   type CiProvider,
   CiProviderError,
   type CiRepo,
@@ -30,6 +31,16 @@ type WoodpeckerPipeline = {
   author_email?: unknown;
   message?: unknown;
 };
+
+type WoodpeckerPipelineSummary = {
+  number?: unknown;
+  branch?: unknown;
+  status?: unknown;
+};
+
+const ACTIVE_STATUSES = new Set(["pending", "running"]);
+// Woodpecker caps a page at 50; an active pipeline is among the latest few.
+const ACTIVE_PIPELINES_PAGE = 20;
 
 const PIPELINE_PATH =
   /^\/repos\/([1-9][0-9]{0,15})\/pipeline\/([1-9][0-9]{0,15})$/;
@@ -229,7 +240,39 @@ export function createWoodpeckerProvider(
     return { number: pipeline?.number as number };
   }
 
+  async function listActivePipelines(
+    ciRepoId: string,
+    branch: string
+  ): Promise<ActivePipeline[]> {
+    const repo = encodeURIComponent(ciRepoId);
+    const query = new URLSearchParams({
+      branch,
+      perPage: String(ACTIVE_PIPELINES_PAGE),
+    });
+    const res = await request("GET", `/api/repos/${repo}/pipelines?${query}`);
+    const pipelines = (await res.json()) as unknown;
+    if (!Array.isArray(pipelines)) return [];
+    // Filtered here too: the branch filter is the server's, the status filter
+    // takes one status only.
+    return (pipelines as WoodpeckerPipelineSummary[])
+      .filter(
+        (p): p is WoodpeckerPipelineSummary & { number: number } =>
+          Number.isSafeInteger(p?.number) &&
+          (p.number as number) > 0 &&
+          p.branch === branch &&
+          typeof p.status === "string" &&
+          ACTIVE_STATUSES.has(p.status)
+      )
+      .sort((a, b) => b.number - a.number)
+      .map((p) => ({
+        number: p.number,
+        // The same URL Woodpecker hands pipelines as CI_PIPELINE_URL.
+        url: `${root}/repos/${repo}/pipeline/${p.number}`,
+      }));
+  }
+
   return {
+    listActivePipelines,
     listRepos,
     activateRepo,
     updateRepoSettings,

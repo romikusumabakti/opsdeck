@@ -63,6 +63,20 @@ export async function startComponentBuild(
   );
 }
 
+/** The branch's newest running pipeline, or null (who may: the service's). */
+export async function getActiveBuild(
+  appKey: string,
+  componentKey: string,
+  branch: string
+) {
+  return parseResponse(
+    routes[":appKey"].components[":componentKey"].builds.active.$get({
+      param: { appKey, componentKey },
+      query: { branch },
+    })
+  );
+}
+
 /** Commits the generated pipeline file to every built branch, or to one. */
 export async function commitPipelineFile(
   appKey: string,

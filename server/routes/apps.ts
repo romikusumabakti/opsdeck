@@ -8,6 +8,7 @@ import {
 } from "@/lib/deploy/validation";
 import { sessionRouter } from "@/server/router";
 import {
+  getActiveComponentBuild,
   listAllApps,
   previewPipeline,
   registerApp,
@@ -25,7 +26,8 @@ const componentParam = param(
  * Apps and their components. Listing is for every signed-in user; registering
  * is for app registrants (admins and project engineers; generated pipelines
  * for admins only); starting a build is for admins and project engineers
- * (see triggerComponentBuild); rotating a notify secret and committing the
+ * (see triggerComponentBuild); reading a branch's running build is for
+ * whoever views that branch's deploys (see getActiveComponentBuild); rotating a notify secret and committing the
  * pipeline file are for admins. Each service function checks its own
  * permission.
  */
@@ -54,6 +56,19 @@ export const appsRouter = sessionRouter()
       const { appKey, componentKey } = c.req.valid("param");
       const { branch } = c.req.valid("json");
       return c.json(await triggerComponentBuild(appKey, componentKey, branch));
+    }
+  )
+  // The branch's newest running pipeline, or null. Who may is the service's.
+  .get(
+    "/:appKey/components/:componentKey/builds/active",
+    componentParam,
+    query(z.object({ branch: branchSchema })),
+    async (c) => {
+      const { appKey, componentKey } = c.req.valid("param");
+      const { branch } = c.req.valid("query");
+      return c.json(
+        await getActiveComponentBuild(appKey, componentKey, branch)
+      );
     }
   )
   .post(
