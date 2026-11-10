@@ -143,7 +143,8 @@ agent attaches every step to `ci-build`, so `tcp://buildkitd:1234` resolves. Its
 `buildkitd.toml` marks `192.168.56.113:5000` as plain HTTP. `docker login` needs
 a daemon, so steps write `~/.docker/config.json` themselves. Working reference:
 `dplk-accounting` `.woodpecker.yaml` on `sucor/development`. App images are built with the same builder and the same `TAG`
-(`docker buildx build --push -t <registry>/<image>:$TAG ...`).
+(`docker buildx build --provenance=false --output type=registry,oci-mediatypes=false -t <registry>/<image>:$TAG ...`;
+Docker media types, because Podman ignores HEALTHCHECK in OCI images).
 
 ```yaml
 steps:
@@ -162,8 +163,8 @@ steps:
       - docker buildx create --name remote --driver remote tcp://buildkitd:1234 --use
       - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
       # App image(s) first, with the same builder and tag, e.g.:
-      # - docker buildx build --push -t $REGISTRY/myapp:$TAG .
-      - docker buildx build --push -t "$REGISTRY/myapp-bundle:$TAG" -f Dockerfile.bundle .
+      # - docker buildx build --provenance=false --output type=registry,oci-mediatypes=false -t $REGISTRY/myapp:$TAG .
+      - docker buildx build --provenance=false --output type=registry,oci-mediatypes=false -t "$REGISTRY/myapp-bundle:$TAG" -f Dockerfile.bundle .
 
   - name: notify-opsdeck
     image: alpine:3

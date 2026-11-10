@@ -36,10 +36,11 @@ steps:
         mkdir -p ~/.docker
         printf '{"auths":{"%s":{"auth":"%s"}}}' "$${REGISTRY}" "$(printf '%s:%s' "$${REGISTRY_USERNAME}" "$${REGISTRY_PASSWORD}" | base64 | tr -d '\n')" > ~/.docker/config.json
       - docker buildx create --name remote --driver remote tcp://buildkitd:1234 --use
+      # Docker media types, no provenance: Podman ignores HEALTHCHECK in OCI images.
       - |
         TAG=$(cat .tag)
-        docker buildx build --push -f backend/Dockerfile -t "$${REGISTRY}/dplk-membership-backend:$${TAG}" backend
-        docker buildx build --push -f frontend/Dockerfile -t "$${REGISTRY}/dplk-membership-frontend:$${TAG}" frontend
+        docker buildx build --provenance=false --output type=registry,oci-mediatypes=false -f backend/Dockerfile -t "$${REGISTRY}/dplk-membership-backend:$${TAG}" backend
+        docker buildx build --provenance=false --output type=registry,oci-mediatypes=false -f frontend/Dockerfile -t "$${REGISTRY}/dplk-membership-frontend:$${TAG}" frontend
       # Deploy bundle: only the listed files, laid out as the deploy dir.
       - |
         TAG=$(cat .tag)
@@ -48,7 +49,7 @@ steps:
         mkdir -p .bundle/bundle/migrate
         cp -r deploy/migrate/init_db.sql .bundle/bundle/migrate/init_db.sql
         printf 'FROM scratch\nCOPY bundle /bundle\n' > .bundle/Dockerfile
-        docker buildx build --push -t "$${REGISTRY}/dplk-membership-deploy:$${TAG}" .bundle
+        docker buildx build --provenance=false --output type=registry,oci-mediatypes=false -t "$${REGISTRY}/dplk-membership-deploy:$${TAG}" .bundle
 
   - name: notify-panel
     image: alpine:3
