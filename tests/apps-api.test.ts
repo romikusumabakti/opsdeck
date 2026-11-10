@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   insertError: null as Error | null,
   secretWriteError: null as Error | null,
   selectedFields: [] as unknown[],
+  // The newest stored pipeline URL of the component's builds.
+  storedPipelineUrl: null as string | null,
 }));
 
 vi.mock("@/lib/auth-session", () => ({
@@ -150,6 +152,7 @@ vi.mock("@/lib/apps", async (importOriginal) => {
     }),
     projectIdsWithAppEnvironment: vi.fn(async () => [...state.envProjects]),
     componentTargetBranches: vi.fn(async () => [...state.targetBranches]),
+    latestComponentPipelineUrl: vi.fn(async () => state.storedPipelineUrl),
     getComponent: vi.fn(async (componentKey: string) => {
       const c = state.components.find((x) => x.componentKey === componentKey);
       const app = c && state.apps.find((a) => a.id === c.appId);
@@ -278,6 +281,7 @@ beforeEach(() => {
   state.insertError = null;
   state.secretWriteError = null;
   state.selectedFields = [];
+  state.storedPipelineUrl = null;
   connections.getProviderForConnection.mockResolvedValue(provider);
   connections.getForgeCredentials.mockResolvedValue({
     forge: "bitbucket",
@@ -1065,10 +1069,7 @@ describe("GET active build", () => {
     appKey: "a",
     createdAt: new Date(),
   };
-  const RUNNING = [
-    { number: 14, url: "https://ci.example.test/repos/1/pipeline/14" },
-    { number: 11, url: null },
-  ];
+  const RUNNING = [{ number: 14 }, { number: 11 }];
 
   beforeEach(() => {
     state.apps = [APP_ROW];
@@ -1079,8 +1080,36 @@ describe("GET active build", () => {
   it("answers the newest active pipeline of the branch to an admin", async () => {
     const res = await send("GET", PATH);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(RUNNING[0]);
+    expect(await res.json()).toEqual({ number: 14, url: null });
     expect(provider.listActivePipelines).toHaveBeenCalledWith("1", "main");
+  });
+
+  it("links the pipeline from the public URL a stored build of the component carries", async () => {
+    state.storedPipelineUrl = "https://ci.example.net/repos/1/pipeline/9";
+    const res = await send("GET", PATH);
+    expect(await res.json()).toEqual({
+      number: 14,
+      url: "https://ci.example.net/repos/1/pipeline/14",
+    });
+  });
+
+  it("gives no link without a stored pipeline URL of the component", async () => {
+    state.storedPipelineUrl = null;
+    const res = await send("GET", PATH);
+    expect(await res.json()).toEqual({ number: 14, url: null });
+  });
+
+  it("gives no link from a stored URL of another repository or shape", async () => {
+    state.storedPipelineUrl = "https://ci.example.net/repos/7/pipeline/9";
+    expect(await (await send("GET", PATH)).json()).toEqual({
+      number: 14,
+      url: null,
+    });
+    state.storedPipelineUrl = "javascript:alert(1)//repos/1/pipeline/9";
+    expect(await (await send("GET", PATH)).json()).toEqual({
+      number: 14,
+      url: null,
+    });
   });
 
   it("answers null when nothing is running", async () => {
@@ -1096,7 +1125,7 @@ describe("GET active build", () => {
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     const res = await send("GET", PATH);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(RUNNING[0]);
+    expect(await res.json()).toEqual({ number: 14, url: null });
   });
 
   it("refuses a branch no target of the component deploys", async () => {

@@ -9,6 +9,7 @@ import {
   getComponent,
   insertAppWithComponents,
   insertComponents,
+  latestComponentPipelineUrl,
   linkedCiRepos,
   listApps,
   type NewAppComponent,
@@ -41,12 +42,7 @@ import {
   type RegisterComponentInput,
   registerAppSchema,
 } from "@/lib/ci/registration";
-import {
-  type ActivePipeline,
-  type CiProvider,
-  CiProviderError,
-  type CiRepo,
-} from "@/lib/ci/types";
+import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { branchSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { canOrg, canProject, canRegisterApp } from "@/lib/permissions";
@@ -830,12 +826,14 @@ export async function triggerComponentBuild(
  * others only a branch a deploy target of this component deploys from, in a
  * project where they view deploys. A component without a repository, or a CI
  * call that fails, answers null (logged): the page must not break over it.
+ * The link comes from a stored build's pipeline URL (see pipelineUrlFor),
+ * never from the connection's base URL, which may be internal.
  */
 export async function getActiveComponentBuild(
   appKey: string,
   componentKey: string,
   branch: string
-): Promise<ActivePipeline | null> {
+): Promise<{ number: number; url: string | null } | null> {
   const session = await requireSession();
   const component = await requireAppComponent(appKey, componentKey);
   if (!canOrg(session.user.role, { ...INTEGRATION_MANAGE })) {
@@ -856,13 +854,35 @@ export async function getActiveComponentBuild(
   if (!component.ciRepoId) return null;
   try {
     const provider = await getProviderForConnection(component.ciConnectionId);
-    const [newest] = await provider.listActivePipelines(
-      component.ciRepoId,
-      branch
+    const ciRepoId = component.ciRepoId;
+    const [newest] = await provider.listActivePipelines(ciRepoId, branch);
+    if (!newest) return null;
+    const stored = await latestComponentPipelineUrl(
+      component.componentKey,
+      ciRepoId
     );
-    return newest ?? null;
+    return {
+      number: newest.number,
+      url: pipelineUrlFor(stored, ciRepoId, newest.number),
+    };
   } catch (error) {
     console.error("Reading the running pipelines failed", error);
     return null;
   }
+}
+
+const STORED_PIPELINE_URL = /^(https?:\/\/.+\/repos\/(\d+)\/pipeline\/)\d+$/;
+
+/**
+ * Pipeline `number`'s page, from a stored pipeline URL of the same Woodpecker
+ * repo with its number swapped; null when there is none of that shape.
+ */
+function pipelineUrlFor(
+  stored: string | null,
+  ciRepoId: string,
+  number: number
+): string | null {
+  const match = stored ? STORED_PIPELINE_URL.exec(stored) : null;
+  if (!match || match[2] !== ciRepoId) return null;
+  return `${match[1]}${number}`;
 }

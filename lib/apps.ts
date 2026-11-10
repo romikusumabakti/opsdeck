@@ -1,4 +1,12 @@
-import { and, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { type DbExecutor, db } from "@/lib/db";
 import {
@@ -6,6 +14,7 @@ import {
   type AppComponent,
   appComponents,
   apps,
+  builds,
   deployTargets,
   environments,
 } from "@/lib/db/schema";
@@ -73,6 +82,31 @@ export async function componentTargetBranches(
     .from(deployTargets)
     .innerJoin(environments, eq(environments.id, deployTargets.environmentId))
     .where(eq(deployTargets.componentKey, componentKey));
+}
+
+/**
+ * The newest pipeline URL a build of the component brought (any branch) that
+ * points at a pipeline of Woodpecker repo `ciRepoId`, or null. Builds carry
+ * CI_PIPELINE_URL, Woodpecker's public address, unlike the connection's base
+ * URL, which may be internal.
+ */
+export async function latestComponentPipelineUrl(
+  componentKey: string,
+  ciRepoId: string
+): Promise<string | null> {
+  if (!/^[0-9]+$/.test(ciRepoId)) return null;
+  const [row] = await db
+    .select({ pipelineUrl: builds.pipelineUrl })
+    .from(builds)
+    .where(
+      and(
+        eq(builds.componentKey, componentKey),
+        sql`${builds.pipelineUrl} ~ ${`^https?://.+/repos/${ciRepoId}/pipeline/[0-9]+$`}`
+      )
+    )
+    .orderBy(desc(builds.receivedAt), desc(builds.id))
+    .limit(1);
+  return row?.pipelineUrl ?? null;
 }
 
 /** One app with its public components, or undefined when the key is unknown. */
