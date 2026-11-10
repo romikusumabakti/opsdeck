@@ -957,6 +957,7 @@ function targetRow(
 ) {
   return {
     ...target,
+    kind: "compose" as const,
     environmentId,
     serverId: input.server.serverId,
     preStartCommand: target.preStartCommand ?? null,
