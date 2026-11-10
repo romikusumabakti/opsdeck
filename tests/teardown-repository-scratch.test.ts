@@ -394,6 +394,36 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     }
   });
 
+  it("guards the environment's own jar and static dirs at run time", async () => {
+    await db.insert(s.deployTargets).values({
+      environmentId: ids.env,
+      componentKey: "td-it",
+      serverId: ids.serverAlias,
+      sourceBranch: "main",
+      deployDir: "/srv/td-it-jar",
+      kind: "jar",
+      services: ["backend"],
+    });
+    try {
+      const guard = await loadStackGuard(ids.env, ids.server);
+      expect(guard?.otherDeployDirs).toContain("/srv/td-it-jar");
+      // Its own compose dirs stay out: the step removes those.
+      expect(guard?.otherDeployDirs).not.toContain("/deployments/td-it");
+      expect(
+        (await loadTeardownEnvironment(ids.env))?.targets.map((t) => t.kind)
+      ).toContain("jar");
+    } finally {
+      await db
+        .delete(s.deployTargets)
+        .where(
+          and(
+            eq(s.deployTargets.environmentId, ids.env),
+            eq(s.deployTargets.deployDir, "/srv/td-it-jar")
+          )
+        );
+    }
+  });
+
   it("loads the domain's Cloudflare ids", async () => {
     ids.account = (
       await one(

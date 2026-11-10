@@ -218,6 +218,23 @@ describe("provisioning API", () => {
     expect(body.plan).toEqual([]);
   });
 
+  it("POST refuses and starts nothing for jar and static targets only", async () => {
+    repo.loadProvisioningConfig.mockResolvedValue({
+      ...goodConfig,
+      db: {
+        dbKind: "shared",
+        databaseHostId: "h1",
+        dbName: "d",
+        dbRole: "r",
+        dbPasswordVariable: "DB_PASSWORD",
+      },
+      targets: [{ ...goodConfig.targets[0], kind: "jar" }],
+    });
+    expect((await post()).status).toBe(422);
+    expect(repo.startProvisioningRun).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
   it("GET hides the panel for a legacy environment that already deployed", async () => {
     const get = async () =>
       (await app.request(`/api/environments/${ENV_ID}/provisioning`)).json();

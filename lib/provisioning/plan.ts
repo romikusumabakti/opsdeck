@@ -157,11 +157,14 @@ export type ProvisioningEnvironment = {
 export function planProvisioning(
   env: ProvisioningEnvironment
 ): ProvisioningStepSpec[] {
-  if (env.targets.length === 0) throw new ProvisioningPlanError("no_targets");
-
   const composeTargets = env.targets.filter(
     (target) => !target.kind || target.kind === "compose"
   );
+  // jar and static targets are not provisioned, and neither is anything that
+  // would only serve them (database, domain).
+  if (composeTargets.length === 0)
+    throw new ProvisioningPlanError("no_targets");
+
   const steps: ProvisioningStepSpec[] = [];
   const seen = new Set<string>();
   for (const target of composeTargets) {

@@ -87,13 +87,25 @@ describe("planProvisioning", () => {
     ]);
   });
 
-  it("plans nothing, and does not throw, for static-only targets", () => {
-    expect(
+  it("has nothing to plan for jar and static targets only, even with a domain and a shared database", () => {
+    expect(() =>
       planProvisioning({
-        targets: [{ ...target("t1"), kind: "static" }],
-        db: null,
+        targets: [
+          { ...target("t1"), kind: "static" },
+          { ...target("t2", "/opt/jar"), kind: "jar" },
+        ],
+        db: shared,
+        domain: {
+          kind: "tunnel",
+          hostname: "app.example.test",
+          zoneId: "z-1",
+          remoteTunnelId: "rt-1",
+          originHost: "localhost",
+          accessPolicyId: "pol-1",
+          entryPort: 8091,
+        },
       })
-    ).toEqual([]);
+    ).toThrow(expect.objectContaining({ code: "no_targets" }));
   });
 
   it("orders directory, database, deploy for a shared database", () => {
