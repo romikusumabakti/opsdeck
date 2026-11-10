@@ -138,6 +138,17 @@ export function ProvisioningPanel({
   }).data;
   const hosts = useQuery({ ...listDatabaseHostsQuery(), enabled: canRun }).data;
 
+  // A deploy that finished (a target's current tag changed) can end the
+  // need for provisioning: re-read it so the panel hides or updates.
+  const tagsKey = targets.map((x) => `${x.id}=${x.currentTag ?? ""}`).join(",");
+  const previousTags = React.useRef(tagsKey);
+  React.useEffect(() => {
+    if (previousTags.current !== tagsKey) {
+      queryClient.invalidateQueries({ queryKey: ["provisioning"] });
+    }
+    previousTags.current = tagsKey;
+  }, [tagsKey, queryClient]);
+
   // A run's deploy step queues deployments the Deploys list does not poll
   // for: refresh it (current tag, recent deployments) when the run ends.
   const activeRunId = provisioning?.activeRunId ?? null;

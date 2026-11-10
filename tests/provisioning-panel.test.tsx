@@ -357,6 +357,35 @@ describe("ProvisioningPanel", () => {
     container.remove();
   });
 
+  it("re-reads provisioning when a target's current tag changes (a deploy finished)", async () => {
+    const queryClient = client();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const render = (currentTag: string | null) =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          {wrap(
+            <ProvisioningPanel
+              environment={environment}
+              targets={
+                [{ id: "t1", componentKey: "hris", currentTag }] as never
+              }
+            />
+          )}
+        </QueryClientProvider>
+      );
+    await act(async () => render(null));
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["provisioning"] });
+    await act(async () => render("main-abc"));
+    await vi.waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["provisioning"] })
+    );
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   describe("Provision button", () => {
     (
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
