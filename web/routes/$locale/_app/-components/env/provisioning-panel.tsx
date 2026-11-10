@@ -138,6 +138,17 @@ export function ProvisioningPanel({
   }).data;
   const hosts = useQuery({ ...listDatabaseHostsQuery(), enabled: canRun }).data;
 
+  // A run's deploy step queues deployments the Deploys list does not poll
+  // for: refresh it (current tag, recent deployments) when the run ends.
+  const activeRunId = provisioning?.activeRunId ?? null;
+  const previousRunId = React.useRef(activeRunId);
+  React.useEffect(() => {
+    if (previousRunId.current && !activeRunId) {
+      queryClient.invalidateQueries({ queryKey: ["deploys"] });
+    }
+    previousRunId.current = activeRunId;
+  }, [activeRunId, queryClient]);
+
   const domain = provisioning?.domain;
   const lookups = React.useMemo<ProvisioningLookups>(() => {
     const servers = new Map(
