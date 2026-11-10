@@ -167,3 +167,57 @@ describe("openArtifactLayer", () => {
     );
   });
 });
+
+describe("openArtifactLayer timeouts", () => {
+  const never = () => new Promise<Response>(() => {});
+  const signalOf = (call: number): AbortSignal =>
+    fetchMock.mock.calls[call]?.[1].signal;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("gives up on a manifest request that never answers after 30 s", async () => {
+    fetchMock.mockImplementationOnce(never);
+    const result = openArtifactLayer("core-deploy", "main-abc").catch(
+      (e: Error) => e
+    );
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(signalOf(0).aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const err = await result;
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe(
+      "registry did not answer within 30 s for manifest core-deploy:main-abc"
+    );
+    expect((err as Error).message).not.toContain(PASSWORD);
+    expect(signalOf(0).aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up on a blob request whose headers never arrive", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(dockerManifest()))
+      .mockImplementationOnce(never);
+    const result = openArtifactLayer("core-deploy", "t").catch((e: Error) => e);
+    await vi.advanceTimersByTimeAsync(30_000);
+    const err = await result;
+    expect((err as Error).message).toBe(
+      `registry did not answer within 30 s for blob ${DIGEST}`
+    );
+    expect(signalOf(1).aborted).toBe(true);
+  });
+
+  it("never bounds the blob body once its headers arrived", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(dockerManifest()))
+      .mockResolvedValueOnce(new Response("gzdata"));
+    const layer = await openArtifactLayer("core-deploy", "t");
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(signalOf(1).aborted).toBe(false);
+    expect(await new Response(layer.stream).text()).toBe("gzdata");
+  });
+});
