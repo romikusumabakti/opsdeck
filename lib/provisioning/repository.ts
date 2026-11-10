@@ -69,6 +69,7 @@ export async function loadProvisioningConfig(
       id: deployTargets.id,
       serverId: deployTargets.serverId,
       deployDir: deployTargets.deployDir,
+      kind: deployTargets.kind,
       sourceBranch: deployTargets.sourceBranch,
       deployed: sql<boolean>`exists (select 1 from ${deployments} where ${deployments.targetId} = ${deployTargets.id} and ${deployments.status} = 'success')`,
     })

@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
   activityLog,
+  type DeployTargetKind,
   databaseHosts,
   deployTargets,
   type EnvironmentArchive,
@@ -44,7 +45,13 @@ import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 /** What planTeardown needs of an environment. Dirs and hosts as stored. */
 export type TeardownEnvironment = {
   /** The environment's deploy targets with their server's host. */
-  targets: { serverId: string; host: string; deployDir: string }[];
+  targets: {
+    serverId: string;
+    host: string;
+    deployDir: string;
+    /** Absent counts as compose. */
+    kind?: DeployTargetKind;
+  }[];
   /** Every other environment's target with its server's host. */
   otherTargets: { host: string; deployDir: string }[];
   dbServices: {
@@ -80,6 +87,7 @@ export async function loadTeardownEnvironment(
       serverId: deployTargets.serverId,
       host: servers.host,
       deployDir: deployTargets.deployDir,
+      kind: deployTargets.kind,
     })
     .from(deployTargets)
     .innerJoin(servers, eq(servers.id, deployTargets.serverId))

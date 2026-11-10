@@ -114,6 +114,8 @@ export type ProvisioningEnvironment = {
     id: string;
     serverId: string;
     deployDir: string;
+    /** Absent counts as compose; jar and static targets are not provisioned. */
+    kind?: "compose" | "jar" | "static";
     sourceBranch: string;
     /** The target already has a successful deployment: no first deploy. */
     deployed?: boolean;
@@ -142,7 +144,9 @@ export type ProvisioningEnvironment = {
 };
 
 /**
- * The ordered steps that bring an environment up: one deploy directory per
+ * The ordered steps that bring an environment up (compose targets only; jar
+ * and static targets live on long-lived VMs and get no prepare or deploy
+ * step): one deploy directory per
  * distinct (server, directory), then the shared database when the binding is
  * `shared`, then for a tunnel domain the Access app (when a policy is set),
  * the route and the DNS record, then one deploy per target that has not
@@ -155,9 +159,12 @@ export function planProvisioning(
 ): ProvisioningStepSpec[] {
   if (env.targets.length === 0) throw new ProvisioningPlanError("no_targets");
 
+  const composeTargets = env.targets.filter(
+    (target) => !target.kind || target.kind === "compose"
+  );
   const steps: ProvisioningStepSpec[] = [];
   const seen = new Set<string>();
-  for (const target of env.targets) {
+  for (const target of composeTargets) {
     const key = JSON.stringify([target.serverId, target.deployDir]);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -217,7 +224,7 @@ export function planProvisioning(
     });
   }
 
-  for (const target of env.targets) {
+  for (const target of composeTargets) {
     // The deploy step is the first deploy; a target that has deployed (from
     // the Deploys page, a build hook or an earlier run) needs none.
     if (target.deployed) continue;

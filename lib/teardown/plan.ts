@@ -127,6 +127,9 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   const machineDirs: { host: string; deployDir: string }[] = [];
   const seen = new Set<string>();
   for (const target of env.targets) {
+    // jar and static targets live on long-lived client VMs: the Panel only
+    // drops their records, so their dirs get no server steps.
+    if (target.kind && target.kind !== "compose") continue;
     if (!isSafeDeployDir(target.deployDir)) {
       return { refusal: "unsafeDeployDir" };
     }

@@ -69,6 +69,33 @@ const shared = {
 };
 
 describe("planProvisioning", () => {
+  it("plans no prepare or deploy step for jar and static targets", () => {
+    const plan = planProvisioning({
+      targets: [
+        { ...target("t1"), kind: "compose" },
+        { ...target("t2", "/opt/jar"), kind: "jar" },
+        { ...target("t3", "/var/www/site"), kind: "static" },
+      ],
+      db: null,
+    });
+    expect(plan).toEqual([
+      {
+        kind: "prepare_deploy_dir",
+        params: { serverId: "srv-1", deployDir: "/opt/app" },
+      },
+      { kind: "deploy", params: { targetId: "t1", branch: "main" } },
+    ]);
+  });
+
+  it("plans nothing, and does not throw, for static-only targets", () => {
+    expect(
+      planProvisioning({
+        targets: [{ ...target("t1"), kind: "static" }],
+        db: null,
+      })
+    ).toEqual([]);
+  });
+
   it("orders directory, database, deploy for a shared database", () => {
     const plan = planProvisioning({ targets: [target("t1")], db: shared });
     expect(plan.map((s) => s.kind)).toEqual([
