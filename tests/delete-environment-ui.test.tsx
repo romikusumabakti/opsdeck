@@ -435,6 +435,27 @@ describe("Teardown banner polling and the end of a teardown", () => {
     expect(api.toast.success).toHaveBeenCalledWith(tt.banner.deleted);
   });
 
+  it("goes to the project page when a teardown this page started ends before any poll saw it running", async () => {
+    api.startTeardown.mockResolvedValue({ runId: RUN });
+    api.getTeardown
+      .mockResolvedValueOnce(null)
+      .mockRejectedValue(new ApiError(404, "Not found"));
+    await render(
+      <>
+        <TeardownBanner environmentId={ENV} projectKey="HRIS" />
+        <DeleteEnvironmentCard
+          environment={{ id: ENV, name: "Dev 1", kind: "dev" }}
+          projectKey="HRIS"
+        />
+      </>
+    );
+    await act(async () => button(t.deleteButton)?.click());
+    await type("input", "Dev 1");
+    await act(async () => button(t.deleteConfirm)?.click());
+    await vi.waitFor(() => expect(api.push).toHaveBeenCalledWith("/HRIS"));
+    expect(api.toast.success).toHaveBeenCalledWith(tt.banner.deleted);
+  });
+
   it("says nothing for a 404 without a running teardown (no access, or removed from the Panel)", async () => {
     api.getTeardown.mockRejectedValue(new ApiError(404, "Not found"));
     await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
