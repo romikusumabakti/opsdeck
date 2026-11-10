@@ -41,10 +41,12 @@ import {
   pgRestorePipeline,
   pgSharedBackupPipeline,
   pgSharedRestorePipeline,
+  sharedDbRole,
 } from "@/lib/jobs/commands";
 import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
 import { runProvisioning } from "@/lib/jobs/provision";
+import { runTeardown } from "@/lib/jobs/teardown";
 import { privileged } from "@/lib/privileged";
 import type { JobMap, JobName } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
@@ -66,6 +68,7 @@ import {
   uploadRemoteFile,
 } from "@/lib/ssh";
 import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
+import { pruneEnvironmentArchives } from "@/server/services/environment-archives";
 import { runInstanceUpdateCheck } from "@/server/services/instance-updates";
 import { runKeyJob } from "@/server/services/server-key-jobs";
 
@@ -740,13 +743,6 @@ async function runPostgresRecreateDatabase(
   await executeRemoteCommand(credentials, cmd, DATA_COMMAND_TIMEOUT_MS);
 }
 
-function sharedDbRole(db: { dbRole: string | null }): string {
-  if (!db.dbRole) {
-    throw new Error("Shared database binding has no role configured");
-  }
-  return db.dbRole;
-}
-
 async function runPostgresSharedRestore(
   data: EnvironmentWithServers,
   database: string,
@@ -1295,6 +1291,11 @@ export async function processJob(job: Job): Promise<unknown> {
       return handleDeploy(parseJobPayload(name, raw));
     case "provision/run.requested":
       return runProvisioning(parseJobPayload(name, raw));
+    case "environment/teardown.requested":
+      return runTeardown(parseJobPayload(name, raw));
+    case "environment/archives.prune":
+      parseJobPayload(name, raw);
+      return pruneEnvironmentArchives();
     case "deploy/lock-sweep":
       parseJobPayload(name, raw);
       return sweepExpiredLocks();

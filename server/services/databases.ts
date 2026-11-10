@@ -2,7 +2,6 @@ import { requireProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
-import { createRun } from "@/lib/run-progress";
 import {
   buildDbShellCommand,
   buildMysqlCommand,
@@ -18,6 +17,7 @@ import {
   filterAllowedDatabaseNames,
   requireUnconfined,
 } from "@/server/services/database-hosts";
+import { createRunOrRefuse } from "@/server/services/teardown-runs";
 
 export interface DatabaseEntry {
   name: string;
@@ -208,7 +208,7 @@ export async function createDatabase(
   if (!environment) throw new Error("Environment not found");
   await requireUnconfined(environment, session.user.role);
 
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: `Create database (${database})`,
@@ -247,7 +247,7 @@ export async function dropDatabase(
     throw new Error("Cannot drop the environment's configured database");
   }
 
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: `Drop database (${database})`,
@@ -294,7 +294,7 @@ export async function renameDatabase(
     throw new Error("Cannot rename the environment's configured database");
   }
 
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: `Rename database (${from} → ${to})`,

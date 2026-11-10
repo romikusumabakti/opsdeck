@@ -162,6 +162,15 @@ describe("provisioning API", () => {
     expect(queue.enqueue).toHaveBeenCalledTimes(1);
   });
 
+  it("answers 409 teardownRunning while the environment is being deleted", async () => {
+    repo.startProvisioningRun.mockResolvedValueOnce({ tearingDown: true });
+    const res = await post();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "teardownRunning" });
+    expect(repo.savePlan).not.toHaveBeenCalled();
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
   it("answers 422 with the plan error code", async () => {
     repo.loadProvisioningConfig.mockResolvedValue({
       ...goodConfig,

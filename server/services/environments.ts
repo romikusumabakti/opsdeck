@@ -58,6 +58,8 @@ import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
 import { findService, hasService, type ServiceRole } from "@/lib/services";
 import { baseEnvSlug } from "@/lib/setup/slug";
+import { holdEnvironmentExclusive, tearingDownIn } from "@/lib/teardown/guard";
+import { teardownState } from "@/lib/teardown/repository";
 import type { ActionResponse } from "@/lib/types";
 import type { EnvironmentInput } from "@/lib/validation";
 import {
@@ -66,8 +68,9 @@ import {
   sharedDatabaseNameSchema,
   sharedDatabaseNamesOverlap,
 } from "@/lib/validation";
-import { badRequest } from "@/server/errors";
+import { badRequest, CodedHTTPException } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
+import { teardownRunningError } from "@/server/services/teardown-runs";
 
 // The form posts one flat payload (db*/backend*/frontend* fields); storage is
 // one `environments` row plus one `environment_services` row per role. These
@@ -1017,6 +1020,21 @@ export async function updateEnvironment(
   // A shared database binding's server, container, engine and backup path
   // come from its host, before anything compares them with the stored ones.
   const input = await withDerivedDbBinding(parsed.data, stored);
+  // Only an admin may delete a production environment
+  // (environment-teardown), so only one may mark an environment as
+  // production or un-mark it: else an engineer re-marks it and deletes it.
+  if (
+    input.kind !== undefined &&
+    (input.kind === "prod") !== (stored.kind === "prod") &&
+    !canOrg(session.user.role, { server: ["manage"] })
+  ) {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(
+      403,
+      "environmentKindProductionAdminOnly",
+      t("environmentKindProductionAdminOnly")
+    );
+  }
   const removesService =
     (input.hasDatabase === false && hasService(stored, "db")) ||
     (input.hasFrontend === false && hasService(stored, "frontend"));
@@ -1139,6 +1157,9 @@ export async function updateEnvironment(
     );
 
     const updatedEnvironment = await db.transaction(async (tx) => {
+      // A service edited while a teardown takes the environment apart would
+      // not be undone by it (its steps were planned from the old rows).
+      if (await tearingDownIn(tx, id)) return "teardownRunning" as const;
       // Always re-read the row so a services-only edit still reports "not found"
       // for a bad id; only issue the UPDATE when the env itself changed.
       const [env] = Object.keys(envPatch).length
@@ -1179,6 +1200,9 @@ export async function updateEnvironment(
       return env;
     });
 
+    if (updatedEnvironment === "teardownRunning") {
+      throw teardownRunningError();
+    }
     if (!updatedEnvironment) {
       return { success: false, message: "Environment not found" };
     }
@@ -1193,19 +1217,34 @@ export async function updateEnvironment(
       data: updatedEnvironment,
     };
   } catch (error) {
+    if (error instanceof CodedHTTPException) throw error;
     console.error(`Failed to update environment ${id}:`, error);
     return { success: false, message: "Failed to update environment" };
   }
 }
 
+/** The 409 of a delete refused because the environment has escrowed variables. */
+export async function escrowRefusal(): Promise<CodedHTTPException> {
+  const t = await getServerTranslator("actionErrors");
+  return new CodedHTTPException(
+    409,
+    "environmentHasEscrowedVariables",
+    t("environmentHasEscrowedVariables")
+  );
+}
+
 /**
- * Deletes an environment; its services, deploy targets and variables go with
+ * "Remove from Panel only": deletes the environment's rows and leaves its
+ * servers, databases and Cloudflare objects alone (a full delete is
+ * startTeardown). Org server:manage only, on top of project
+ * environment:delete. Its services, deploy targets and variables go with
  * it. Escrowed variables (e.g. a data encryption key) exist nowhere else, so
  * while the environment has any the delete is refused (409) unless an admin
  * with org integration:manage passes `confirmEscrowedDeletion`. The delete
  * itself re-checks escrow, so a variable escrowed after the check still
- * blocks it. A delete that removes variables is recorded in the activity
- * feed with their names and count, never their values.
+ * blocks it. Refused (409 teardownRunning) while a teardown runs. A delete
+ * that removes variables is recorded in the activity feed with their names
+ * and count, never their values.
  */
 export async function deleteEnvironment(
   id: string,
@@ -1217,6 +1256,9 @@ export async function deleteEnvironment(
     { environmentId: id },
     { environment: ["delete"] }
   );
+  if (!canOrg(session.user.role, { server: ["manage"] })) {
+    throw new ForbiddenError();
+  }
   const variables = await db
     .select({
       name: environmentVariables.name,
@@ -1229,40 +1271,47 @@ export async function deleteEnvironment(
     confirmEscrowedDeletion &&
     canOrg(session.user.role, { integration: ["manage"] });
   const refuseEscrowed = async (): Promise<never> => {
-    const t = await getServerTranslator("actionErrors");
-    throw new HTTPException(409, {
-      message: t("environmentHasEscrowedVariables"),
-    });
+    throw await escrowRefusal();
   };
   if (!confirmed && variables.some((v) => v.escrow)) await refuseEscrowed();
 
-  let deleted: { name: string } | undefined;
+  let deleted: { name: string } | "teardownRunning" | undefined;
   try {
-    [deleted] = await db
-      .delete(environments)
-      .where(
-        confirmed
-          ? eq(environments.id, id)
-          : and(
-              eq(environments.id, id),
-              notExists(
-                db
-                  .select({ id: environmentVariables.id })
-                  .from(environmentVariables)
-                  .where(
-                    and(
-                      eq(environmentVariables.environmentId, id),
-                      eq(environmentVariables.escrow, true)
+    deleted = await db.transaction(async (tx) => {
+      // Exclusively, as a teardown start takes it: a running teardown's job
+      // would go on acting for rows that are gone and leave its archive open.
+      await holdEnvironmentExclusive(tx, id);
+      if ((await teardownState(id, tx)).running) {
+        return "teardownRunning" as const;
+      }
+      const [row] = await tx
+        .delete(environments)
+        .where(
+          confirmed
+            ? eq(environments.id, id)
+            : and(
+                eq(environments.id, id),
+                notExists(
+                  db
+                    .select({ id: environmentVariables.id })
+                    .from(environmentVariables)
+                    .where(
+                      and(
+                        eq(environmentVariables.environmentId, id),
+                        eq(environmentVariables.escrow, true)
+                      )
                     )
-                  )
+                )
               )
-            )
-      )
-      .returning({ name: environments.name });
+        )
+        .returning({ name: environments.name });
+      return row;
+    });
   } catch (error) {
     console.error(`Failed to delete environment ${id}:`, error);
     return { success: false, message: "Failed to delete environment" };
   }
+  if (deleted === "teardownRunning") throw teardownRunningError();
   // The environment exists (the guard found it): nothing deleted means a
   // variable was escrowed since the check.
   if (!deleted) {

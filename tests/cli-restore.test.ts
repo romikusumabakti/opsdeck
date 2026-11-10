@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ObjectStore } from "@/lib/instance-backup/destination";
 import {
@@ -83,6 +84,11 @@ function memoryStore(initial: Record<string, Buffer> = {}) {
       if (!body) throw new Error(`NoSuchKey ${key}`);
       await writeFile(filePath, body);
       return body.length;
+    },
+    async read(key) {
+      const body = objects.get(key);
+      if (!body) throw new Error(`NoSuchKey ${key}`);
+      return Readable.from([body]);
     },
     async upload(key, filePath) {
       const { readFile } = await import("node:fs/promises");

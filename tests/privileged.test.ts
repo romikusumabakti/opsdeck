@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { privileged, privilegeMode } from "@/lib/privileged";
+import {
+  privileged,
+  privilegedViaStdin,
+  privilegeMode,
+} from "@/lib/privileged";
 
 const root = { username: "root", auth: "key", password: null } as const;
 const rootWithPassword = {
@@ -121,5 +125,29 @@ describe("privileged", () => {
         `printf '%s\\n' 'p@ss'\\''word' | sudo -S ${JOURNAL}`
       );
     });
+  });
+});
+
+describe("privilegedViaStdin", () => {
+  it("runs as root without stdin", () => {
+    expect(privilegedViaStdin("rm -rf -- '/d/x'", rootWithPassword)).toEqual({
+      command: "rm -rf -- '/d/x'",
+    });
+  });
+
+  it("uses sudo -n without stdin on key servers", () => {
+    expect(privilegedViaStdin("rm -rf -- '/d/x'", keyUserWithPassword)).toEqual(
+      { command: "sudo -n rm -rf -- '/d/x'" }
+    );
+  });
+
+  it("sends the sudo password on stdin, never in the command", () => {
+    const { command, stdin } = privilegedViaStdin(
+      "rm -rf -- '/d/x'",
+      passwordUser
+    );
+    expect(command).toBe("sudo -S -p '' rm -rf -- '/d/x'");
+    expect(command).not.toContain("word");
+    expect(stdin).toBe("p@ss'word\n");
   });
 });

@@ -249,7 +249,7 @@ export function sameStepSpec(
  */
 export function matchDoneSteps(
   existing: { id: string; kind: string; params: unknown; status: string }[],
-  specs: ProvisioningStepSpec[]
+  specs: { kind: string; params: unknown }[]
 ): (string | null)[] {
   const taken = new Set<string>();
   return specs.map((spec) => {

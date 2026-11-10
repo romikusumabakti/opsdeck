@@ -53,6 +53,14 @@ vi.mock("drizzle-orm", async (importOriginal) => ({
   and: (...conditions: unknown[]) => conditions,
 }));
 
+// No teardown under way (lib/teardown/guard has its own tests).
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  tearingDownIn: async () => teardown.blocks,
+  holdEnvironmentExclusive: async () => {},
+}));
+const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
+
 vi.mock("@/lib/db", () => {
   // A query builder: awaiting it yields rows, and every builder method returns
   // it again so any chain order works.
@@ -172,6 +180,18 @@ describe("updateEnvironment with optional services", () => {
     expect(deletes[0]?.where).toEqual([ENV_ID, "frontend"]);
     expect(state.calls.filter((c) => c.op === "update")).toEqual([]);
     expect(rolesInserted()).toEqual([]);
+  });
+
+  it("refuses (409 teardownRunning) any edit while a teardown runs", async () => {
+    teardown.blocks = true;
+    try {
+      await expect(
+        updateEnvironment(ENV_ID, { hasFrontend: false })
+      ).rejects.toMatchObject({ status: 409, code: "teardownRunning" });
+      expect(state.calls.filter((c) => c.op === "delete")).toEqual([]);
+    } finally {
+      teardown.blocks = false;
+    }
   });
 
   it("refuses to drop the database while a target backs up before deploy", async () => {

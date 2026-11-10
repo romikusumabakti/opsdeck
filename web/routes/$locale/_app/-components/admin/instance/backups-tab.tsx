@@ -65,6 +65,7 @@ import {
   saveInstanceBackupSettings,
   verifySecretsKey,
 } from "@/web/api/instance";
+import { DeletedEnvironmentsCard } from "./deleted-environments-card";
 import { reportError } from "./report-error";
 import { RestoreDialog } from "./restore-dialog";
 
@@ -119,6 +120,7 @@ export function BackupsTab() {
       </Alert>
       <SettingsCard data={data} />
       <HistoryCard backups={data.backups} instance={data.instance} />
+      <DeletedEnvironmentsCard />
     </div>
   );
 }

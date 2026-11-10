@@ -99,6 +99,15 @@ export type JobMap = {
     environmentId: string;
     runId: string;
   };
+  // Delete an environment: archive, bring down, remove (lib/jobs/teardown).
+  // Carries only ids; the steps live in teardown_steps.
+  "environment/teardown.requested": {
+    environmentId: string;
+    runId: string;
+  };
+  // Daily: delete the archives of deleted environments past their retention
+  // (repeatable; see scheduleEnvironmentArchivePrune).
+  "environment/archives.prune": Record<string, never>;
   // Release every expired deploy lock (repeatable; see scheduleDeployLockSweep).
   "deploy/lock-sweep": Record<string, never>;
   // --- Instance self-backup ---
@@ -333,6 +342,34 @@ export async function scheduleInstanceUpdateCheck(
     { pattern: INSTANCE_UPDATE_CHECK_CRON, tz },
     {
       name: "instance/update.check",
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 50 },
+      },
+    }
+  );
+}
+
+const ENVIRONMENT_ARCHIVE_PRUNE_SCHEDULER_ID = "environment-archives-prune";
+
+/** Daily at 03:40 in the instance time zone, off the hour of other jobs. */
+export const ENVIRONMENT_ARCHIVE_PRUNE_CRON = "40 3 * * *";
+
+/**
+ * Register the daily prune of deleted environments' archives
+ * (server/services/environment-archives). Keyed like the other schedulers,
+ * so every worker boot replaces it instead of stacking a second one.
+ */
+export async function scheduleEnvironmentArchivePrune(
+  tz: string = APP_TIMEZONE
+): Promise<void> {
+  await getQueue().upsertJobScheduler(
+    ENVIRONMENT_ARCHIVE_PRUNE_SCHEDULER_ID,
+    { pattern: ENVIRONMENT_ARCHIVE_PRUNE_CRON, tz },
+    {
+      name: "environment/archives.prune",
       data: {},
       opts: {
         attempts: 1,

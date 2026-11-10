@@ -41,6 +41,11 @@ vi.mock("@/web/api/instance", () => ({
   acknowledgeInstanceBackup: api.acknowledge,
   verifySecretsKey: api.verify,
   restoreInstanceBackup: api.restore,
+  listEnvironmentArchivesQuery: () => ({
+    queryKey: ["instance", "listEnvironmentArchives"],
+    queryFn: async () => [],
+  }),
+  environmentArchiveFileHref: () => "",
 }));
 
 import { AttentionList } from "../web/routes/$locale/_app/-components/home/attention-list";

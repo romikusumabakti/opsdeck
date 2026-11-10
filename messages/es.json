@@ -893,7 +893,7 @@
     "dangerZoneDescription": "Eliminar un entorno también borra su historial de tareas. Esto no se puede deshacer.",
     "deleteButton": "Eliminar entorno",
     "deleteTitle": "Eliminar entorno",
-    "deleteDescription": "¿Eliminar el entorno {name}? Esta acción no se puede deshacer.",
+    "deleteDescription": "Eliminar {name} quita:",
     "deleteEscrowedTitle": "¿Eliminar también las variables en custodia?",
     "deleteEscrowedDescription": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Eliminarlo las destruye para siempre: confirma solo si ya están guardadas en otro lugar.",
     "deleteFailed": "No se pudo eliminar el entorno",
@@ -915,7 +915,20 @@
     "mockTimeTitle": "Hora simulada",
     "mockTimeDescription": "La API de simulación de hora del backend, que usa la página Hora simulada.",
     "serverMixedAdminOnly": "Los servicios de este entorno se ejecutan en servidores distintos. Solo quien tenga acceso de gestión de servidores puede reasignarlos.",
-    "serverSharedDbElsewhere": "La base de datos compartida de este entorno está en el host de bases de datos de otro servidor, así que mover la aplicación aquí la rompería. Elige el servidor del host de la base de datos o mantén el actual."
+    "serverSharedDbElsewhere": "La base de datos compartida de este entorno está en el host de bases de datos de otro servidor, así que mover la aplicación aquí la rompería. Elige el servidor del host de la base de datos o mantén el actual.",
+    "deleteRemovesContainers": "Sus contenedores y volúmenes",
+    "deleteRemovesDatabase": "Su base de datos",
+    "deleteRemovesFolder": "Su carpeta en el servidor",
+    "deleteRemovesAddress": "Su dirección pública",
+    "deleteBackupKept": "Se guarda una copia de seguridad durante {days, plural, one {# día} other {# días}}. Los administradores pueden descargarla en Administración → Instancia → Copias de seguridad.",
+    "deleteConfirmLabel": "Escribe {name} para confirmar",
+    "deleteConfirm": "Eliminar",
+    "deleteProductionEngineer": "Este es un entorno de producción. Solo un administrador puede eliminarlo.",
+    "deleteProductionConfirm": "Es producción. Quiero eliminarlo.",
+    "deleteStarted": "Eliminando {name}. El progreso se muestra en la parte superior de la página.",
+    "removeFromPanel": "Quitar solo del Panel",
+    "removeFromPanelDescription": "Quita el entorno solo del Panel. No se toca nada en el servidor ni en Cloudflare. Escribe arriba el nombre del entorno para activarlo.",
+    "removedFromPanel": "{name} se quitó del Panel"
   },
   "userMenu": {
     "users": "Gestión de usuarios",
@@ -1326,6 +1339,7 @@
     "noServerAvailable": "No hay ningún servidor disponible para este proyecto. Pida a un administrador que defina un servidor predeterminado o abra uno."
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "Solo un administrador puede marcar un entorno como producción o cambiar el tipo de un entorno de producción.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "El nombre y el correo son obligatorios",
     "domainNotAllowed": "Solo se permiten correos @{domain}",
@@ -2097,7 +2111,9 @@
     "projectDefaultServerSet": "{actor} fijó el servidor predeterminado de {project} en {server}",
     "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}",
     "serverKeyRotated": "{actor} rotó la clave SSH en {server} (desde {from})",
-    "serverKeyFromChanged": "{actor} actualizó la dirección de la clave SSH de {server} (de {before} a {after})"
+    "serverKeyFromChanged": "{actor} actualizó la dirección de la clave SSH de {server} (de {before} a {after})",
+    "environmentDeleted": "{actor} eliminó {environment}",
+    "environmentDomainAdopted": "{actor} adoptó el hostname {hostname} para {environment}"
   },
   "jira": {
     "title": "Jira",
@@ -2898,7 +2914,77 @@
       "domainPublicForbidden": "Solo un administrador puede publicar sin Access",
       "domainPortInUse": "Otro entorno de este servidor ya usa este puerto de entrada",
       "domainPortForbidden": "Solo un administrador puede elegir un puerto de entrada fuera de 8100–8999",
-      "domainExternalInZone": "Este hostname está bajo una zona registrada: usa el tipo túnel de Cloudflare"
+      "domainExternalInZone": "Este hostname está bajo una zona registrada: usa el tipo túnel de Cloudflare",
+      "hostnameNotOnTunnel": "El hostname no tiene un registro DNS que apunte a este túnel",
+      "domainAccessAppAmbiguous": "Más de una app de Access cubre este hostname",
+      "domainAccessAppShared": "La app de Access de este hostname también cubre otros hostnames",
+      "domainRouteConflict": "El túnel ya enruta este hostname a otro servicio",
+      "domainTunnelConfigUnsafe": "La configuración del túnel no tiene una regla de ingress catch-all y no se puede editar con seguridad"
+    },
+    "adopt": {
+      "title": "Adoptar un hostname existente",
+      "description": "Para un hostname que ya apunta a un túnel registrado. El Panel lo registra y lo quita cuando se elimina el entorno.",
+      "hostname": "Hostname",
+      "tunnel": "Túnel",
+      "tunnelPlaceholder": "Elige un túnel",
+      "noTunnels": "No hay ningún túnel registrado",
+      "service": "Servicio",
+      "serviceDescription": "A dónde envía el túnel el tráfico.",
+      "serviceInvalid": "Introduce un origen como http://app:80",
+      "submit": "Adoptar hostname",
+      "adopting": "Adoptando…",
+      "adopted": "{hostname} adoptado",
+      "failed": "No se pudo adoptar el nombre de host"
+    }
+  },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "Otro entorno usa este directorio de despliegue en el mismo servidor",
+      "domainShared": "La aplicación de Access o el registro DNS de Cloudflare está compartido: otro entorno lo registra, o desde entonces se cambió para cubrir otro nombre de host",
+      "databaseBackupUnsupported": "Solo las bases de datos PostgreSQL se pueden archivar antes de eliminarlas. Usa Quitar solo del Panel",
+      "unsafeDeployDir": "El directorio de despliegue no es una ruta segura para eliminar",
+      "environmentBusy": "Hay un despliegue o aprovisionamiento en curso en este entorno. Inténtalo de nuevo cuando termine",
+      "teardownRunning": "Este entorno ya se está eliminando",
+      "teardownCannotCancel": "Esta eliminación ya ha empezado a quitar el entorno, así que ya no se puede cancelar. Reinténtalo para terminarla",
+      "databaseNotRegistered": "El servicio de base de datos del entorno, o su host de base de datos, ya no está registrado como cuando se planificó la eliminación. Revisa el servicio de base de datos y vuelve a intentarlo, o usa Quitar solo del Panel",
+      "archiveFailed": "No se pudo completar el archivo, así que no se eliminó nada. Reintenta para continuar",
+      "confirmNameMismatch": "Escribe exactamente el nombre del entorno para confirmar",
+      "environmentIsProduction": "Solo un administrador puede eliminar un entorno de producción",
+      "productionConfirmRequired": "Confirma que estás eliminando un entorno de producción",
+      "stackHostsSharedDatabase": "La pila ejecuta un contenedor de base de datos que usa un host de base de datos compartido u otro entorno",
+      "serverCommandFailed": "Falló un comando en el servidor. Revisa el registro de la ejecución y vuelve a intentarlo",
+      "cloudflareFailed": "No se pudo eliminar un objeto de Cloudflare. Revisa el registro de la ejecución y vuelve a intentarlo",
+      "stepFailed": "El paso falló de forma inesperada. Revisa el registro de la ejecución y vuelve a intentarlo",
+      "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno."
+    },
+    "banner": {
+      "runningTitle": "Eliminando este entorno",
+      "runningStep": "Ahora: {step}",
+      "failedTitle": "La eliminación de este entorno se detuvo",
+      "failedStep": "Se detuvo en: {step}",
+      "viewLog": "Ver registro",
+      "retry": "Reintentar",
+      "cancel": "Cancelar la eliminación",
+      "cancelTitle": "¿Cancelar la eliminación?",
+      "cancelDescription": "Aún no se ha quitado nada y el entorno vuelve a aceptar despliegues. Un stack detenido para la copia de seguridad sigue detenido hasta que lo vuelvas a iniciar.",
+      "cancelConfirm": "Cancelar la eliminación",
+      "cancelled": "Eliminación cancelada",
+      "logTitle": "Registro de la eliminación",
+      "deleted": "Entorno eliminado"
+    },
+    "steps": {
+      "check_stack": "Revisar el stack",
+      "archive_database": "Copiar la base de datos",
+      "stop_stack": "Detener el stack",
+      "archive_deploy_dir": "Copiar la carpeta del servidor",
+      "archive_volumes": "Copiar los volúmenes",
+      "stack_down": "Detener y quitar los contenedores",
+      "drop_database": "Eliminar la base de datos",
+      "remove_tunnel_route": "Quitar la ruta del túnel",
+      "remove_access_app": "Quitar la aplicación de Access",
+      "remove_dns_record": "Quitar el registro DNS",
+      "remove_deploy_dir": "Quitar la carpeta del servidor",
+      "delete_environment": "Quitar del Panel"
     }
   },
   "environmentSetup": {
@@ -3129,7 +3215,19 @@
       "unknown": "La copia falló ({code})."
     },
     "restore": "Restaurar",
-    "colActions": "Acciones"
+    "colActions": "Acciones",
+    "deletedEnvironments": {
+      "title": "Entornos eliminados",
+      "description": "Copias de seguridad tomadas al eliminar un entorno, guardadas durante 30 días.",
+      "empty": "No hay entornos eliminados",
+      "loadFailed": "No se pudieron cargar los entornos eliminados",
+      "colProject": "Proyecto",
+      "colEnvironment": "Entorno",
+      "colDeleted": "Eliminado",
+      "colExpires": "Caduca",
+      "colFiles": "Archivos",
+      "incomplete": "Incompleto"
+    }
   },
   "instanceUpdates": {
     "versionTitle": "Versión",

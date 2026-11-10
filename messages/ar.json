@@ -893,7 +893,7 @@
     "dangerZoneDescription": "حذف بيئة يؤدي أيضاً إلى حذف سجل مهامها. لا يمكن التراجع عن هذا.",
     "deleteButton": "حذف البيئة",
     "deleteTitle": "حذف البيئة",
-    "deleteDescription": "حذف البيئة {name}؟ لا يمكن التراجع عن هذا الإجراء.",
+    "deleteDescription": "حذف {name} يزيل:",
     "deleteEscrowedTitle": "حذف المتغيرات المحفوظة أيضًا؟",
     "deleteEscrowedDescription": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. حذفها يتلفها نهائيًا: أكّد فقط إذا كانت محفوظة في مكان آخر.",
     "deleteFailed": "فشل حذف البيئة",
@@ -915,7 +915,20 @@
     "mockTimeTitle": "الوقت المحاكى",
     "mockTimeDescription": "واجهة محاكاة الوقت في الخلفية، تستخدمها صفحة الوقت المحاكى.",
     "serverMixedAdminOnly": "تعمل خدمات هذه البيئة على خوادم مختلفة. لا يمكن إعادة ربطها إلا لمن لديه صلاحية إدارة الخوادم.",
-    "serverSharedDbElsewhere": "قاعدة البيانات المشتركة لهذه البيئة موجودة على مضيف قواعد بيانات في خادم آخر، لذا سيؤدي نقل التطبيق إلى هنا إلى تعطيلها. اختر خادم مضيف قاعدة البيانات أو أبقِ الخادم الحالي."
+    "serverSharedDbElsewhere": "قاعدة البيانات المشتركة لهذه البيئة موجودة على مضيف قواعد بيانات في خادم آخر، لذا سيؤدي نقل التطبيق إلى هنا إلى تعطيلها. اختر خادم مضيف قاعدة البيانات أو أبقِ الخادم الحالي.",
+    "deleteRemovesContainers": "حاوياتها ووحدات التخزين",
+    "deleteRemovesDatabase": "قاعدة بياناتها",
+    "deleteRemovesFolder": "مجلدها على الخادم",
+    "deleteRemovesAddress": "عنوانها العام",
+    "deleteBackupKept": "تُحفظ نسخة احتياطية لمدة {days} يومًا. يمكن للمسؤولين تنزيلها من المشرف → المثيل → النسخ الاحتياطية.",
+    "deleteConfirmLabel": "اكتب {name} للتأكيد",
+    "deleteConfirm": "حذف",
+    "deleteProductionEngineer": "هذه بيئة إنتاج. لا يمكن حذفها إلا لمسؤول.",
+    "deleteProductionConfirm": "هذه بيئة إنتاج. أريد حذفها.",
+    "deleteStarted": "جارٍ حذف {name}. يظهر التقدم أعلى الصفحة.",
+    "removeFromPanel": "الإزالة من اللوحة فقط",
+    "removeFromPanelDescription": "يزيل البيئة من اللوحة فقط. لا يُمس أي شيء على الخادم أو في Cloudflare. اكتب اسم البيئة أعلاه لتفعيله.",
+    "removedFromPanel": "أُزيلت {name} من اللوحة"
   },
   "userMenu": {
     "users": "إدارة المستخدمين",
@@ -1326,6 +1339,7 @@
     "noServerAvailable": "لا يتوفر خادم لهذا المشروع. اطلب من المسؤول تعيين خادم افتراضي أو فتح خادم."
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "يمكن للمسؤول فقط تمييز بيئة على أنها بيئة إنتاج أو تغيير نوع بيئة إنتاج.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "الاسم والبريد الإلكتروني مطلوبان",
     "domainNotAllowed": "يُسمح فقط بالبريد الإلكتروني @{domain}",
@@ -2097,7 +2111,9 @@
     "projectDefaultServerSet": "عيّن {actor} الخادم الافتراضي لـ {project} إلى {server}",
     "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}",
     "serverKeyRotated": "{actor} بدّل مفتاح SSH على {server} (من {from})",
-    "serverKeyFromChanged": "{actor} حدّث عنوان مفتاح SSH لـ {server} (من {before} إلى {after})"
+    "serverKeyFromChanged": "{actor} حدّث عنوان مفتاح SSH لـ {server} (من {before} إلى {after})",
+    "environmentDeleted": "حذف {actor} البيئة {environment}",
+    "environmentDomainAdopted": "اعتمد {actor} اسم المضيف {hostname} للبيئة {environment}"
   },
   "jira": {
     "title": "Jira",
@@ -2898,7 +2914,77 @@
       "domainPublicForbidden": "وحده المسؤول يمكنه النشر بدون Access",
       "domainPortInUse": "بيئة أخرى على هذا الخادم تستخدم منفذ الدخول هذا",
       "domainPortForbidden": "وحده المسؤول يمكنه اختيار منفذ دخول خارج النطاق 8100–8999",
-      "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare"
+      "domainExternalInZone": "اسم المضيف هذا ضمن منطقة مسجّلة: استخدم نوع نفق Cloudflare",
+      "hostnameNotOnTunnel": "لا يوجد لاسم المضيف سجل DNS يشير إلى هذا النفق",
+      "domainAccessAppAmbiguous": "أكثر من تطبيق Access يغطي اسم المضيف هذا",
+      "domainAccessAppShared": "تطبيق Access لاسم المضيف هذا يغطي أسماء مضيفين أخرى أيضًا",
+      "domainRouteConflict": "النفق يوجّه اسم المضيف هذا بالفعل إلى خدمة أخرى",
+      "domainTunnelConfigUnsafe": "إعداد النفق لا يحتوي على قاعدة ingress شاملة ولا يمكن تعديله بأمان"
+    },
+    "adopt": {
+      "title": "اعتماد اسم مضيف موجود",
+      "description": "لاسم مضيف يشير بالفعل إلى نفق مسجل. تسجله اللوحة وتزيله عند حذف البيئة.",
+      "hostname": "اسم المضيف",
+      "tunnel": "النفق",
+      "tunnelPlaceholder": "اختر نفقًا",
+      "noTunnels": "لا يوجد نفق مسجل",
+      "service": "الخدمة",
+      "serviceDescription": "الوجهة التي يرسل إليها النفق حركة المرور.",
+      "serviceInvalid": "أدخل مصدرًا مثل http://app:80",
+      "submit": "اعتماد اسم المضيف",
+      "adopting": "جارٍ الاعتماد…",
+      "adopted": "اعتُمد {hostname}",
+      "failed": "تعذّر اعتماد اسم المضيف"
+    }
+  },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "بيئة أخرى تستخدم مجلد النشر هذا على الخادم نفسه",
+      "domainShared": "تطبيق Cloudflare Access أو سجل DNS مشترك: بيئة أخرى تسجّله، أو تم تغييره لاحقًا ليغطي اسم مضيف آخر",
+      "databaseBackupUnsupported": "يمكن أرشفة قواعد بيانات PostgreSQL فقط قبل الحذف. استخدم الإزالة من اللوحة فقط بدلاً من ذلك",
+      "unsafeDeployDir": "مجلد النشر ليس مسارًا آمنًا للحذف",
+      "environmentBusy": "توجد عملية نشر أو تجهيز نشطة على هذه البيئة. أعد المحاولة عند انتهائها",
+      "teardownRunning": "يجري حذف هذه البيئة بالفعل",
+      "teardownCannotCancel": "بدأ هذا الحذف بالفعل في إزالة البيئة، لذا لم يعد من الممكن إلغاؤه. أعد المحاولة لإكماله",
+      "databaseNotRegistered": "خدمة قاعدة بيانات البيئة، أو مضيف قاعدة البيانات الخاص بها، لم تعد مسجلة كما كانت عند التخطيط للحذف. تحقّق من خدمة قاعدة البيانات ثم أعد المحاولة، أو استخدم الإزالة من اللوحة فقط",
+      "archiveFailed": "تعذر إكمال الأرشيف، لذلك لم يُحذف أي شيء. أعد المحاولة للمتابعة",
+      "confirmNameMismatch": "اكتب اسم البيئة تمامًا للتأكيد",
+      "environmentIsProduction": "يمكن للمسؤول فقط حذف بيئة إنتاج",
+      "productionConfirmRequired": "أكّد أنك تحذف بيئة إنتاج",
+      "stackHostsSharedDatabase": "يشغّل المكدس حاوية قاعدة بيانات يستخدمها مضيف قاعدة بيانات مشترك أو بيئة أخرى",
+      "serverCommandFailed": "فشل أمر على الخادم. راجع سجل التشغيل ثم أعد المحاولة",
+      "cloudflareFailed": "تعذر إزالة كائن Cloudflare. راجع سجل التشغيل ثم أعد المحاولة",
+      "stepFailed": "فشلت الخطوة بشكل غير متوقع. راجع سجل التشغيل ثم أعد المحاولة",
+      "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة."
+    },
+    "banner": {
+      "runningTitle": "جارٍ حذف هذه البيئة",
+      "runningStep": "الآن: {step}",
+      "failedTitle": "توقف حذف هذه البيئة",
+      "failedStep": "توقف عند: {step}",
+      "viewLog": "عرض السجل",
+      "retry": "إعادة المحاولة",
+      "cancel": "إلغاء الحذف",
+      "cancelTitle": "إلغاء الحذف؟",
+      "cancelDescription": "لم يُحذف أي شيء بعد، وتعود البيئة لقبول عمليات النشر. يبقى الـ stack الذي أُوقف للنسخ الاحتياطي متوقفًا حتى تشغّله مرة أخرى.",
+      "cancelConfirm": "إلغاء الحذف",
+      "cancelled": "أُلغي الحذف",
+      "logTitle": "سجل الحذف",
+      "deleted": "حُذفت البيئة"
+    },
+    "steps": {
+      "check_stack": "فحص الـ stack",
+      "archive_database": "نسخ قاعدة البيانات احتياطيًا",
+      "stop_stack": "إيقاف المكدس",
+      "archive_deploy_dir": "نسخ مجلد الخادم احتياطيًا",
+      "archive_volumes": "نسخ وحدات التخزين احتياطيًا",
+      "stack_down": "إيقاف الحاويات وإزالتها",
+      "drop_database": "حذف قاعدة البيانات",
+      "remove_tunnel_route": "إزالة مسار النفق",
+      "remove_access_app": "إزالة تطبيق Access",
+      "remove_dns_record": "إزالة سجل DNS",
+      "remove_deploy_dir": "إزالة مجلد الخادم",
+      "delete_environment": "الإزالة من اللوحة"
     }
   },
   "environmentSetup": {
@@ -3129,7 +3215,19 @@
       "unknown": "فشل النسخ الاحتياطي ({code})."
     },
     "restore": "استعادة",
-    "colActions": "الإجراءات"
+    "colActions": "الإجراءات",
+    "deletedEnvironments": {
+      "title": "البيئات المحذوفة",
+      "description": "نسخ احتياطية أُخذت عند حذف بيئة، تُحفظ لمدة 30 يومًا.",
+      "empty": "لا توجد بيئات محذوفة",
+      "loadFailed": "تعذر تحميل البيئات المحذوفة",
+      "colProject": "المشروع",
+      "colEnvironment": "البيئة",
+      "colDeleted": "تاريخ الحذف",
+      "colExpires": "تنتهي",
+      "colFiles": "الملفات",
+      "incomplete": "غير مكتمل"
+    }
   },
   "instanceUpdates": {
     "versionTitle": "الإصدار",

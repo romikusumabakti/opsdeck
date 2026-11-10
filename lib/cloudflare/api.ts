@@ -219,6 +219,58 @@ export function withIngressRoute(
   return { config: next, changed: true };
 }
 
+/**
+ * The inverse of withIngressRoute: the config without the rule for `hostname`,
+ * without mutating `config`. `removed` is false (and the config unchanged) when
+ * no rule matches. The catch-all has no hostname, so it is never removed, and a
+ * config that is not safe to write back is refused like withIngressRoute does.
+ */
+export function withoutIngressRoute(
+  fetched: FetchedTunnelConfig,
+  hostname: string
+): { config: TunnelConfig; removed: boolean } {
+  const config = editableConfig(fetched);
+  if (!config.ingress.some((rule) => sameHostname(rule.hostname, hostname))) {
+    return { config, removed: false };
+  }
+  const next = structuredClone(config);
+  next.ingress = next.ingress.filter(
+    (rule) => !sameHostname(rule.hostname, hostname)
+  );
+  return { config: next, removed: true };
+}
+
+/** Run a GET of one resource, mapping Cloudflare's 404 (gone) to null. */
+async function getResource<T>(
+  creds: CloudflareCreds,
+  path: string
+): Promise<T | null> {
+  try {
+    return await request<T>(creds.apiToken, path);
+  } catch (error) {
+    if (error instanceof CloudflareApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/** Run a DELETE, mapping Cloudflare's 404 (already gone) to "absent". */
+async function deleteResource(
+  creds: CloudflareCreds,
+  path: string
+): Promise<"deleted" | "absent"> {
+  try {
+    await request<unknown>(creds.apiToken, path, { method: "DELETE" });
+    return "deleted";
+  } catch (error) {
+    if (error instanceof CloudflareApiError && error.status === 404) {
+      return "absent";
+    }
+    throw error;
+  }
+}
+
 // --- DNS ---
 
 export type DnsRecord = {
@@ -268,6 +320,29 @@ export async function createProxiedCname(
         comment,
       }),
     }
+  );
+}
+
+/** The DNS record with this id, or null when it is gone. */
+export async function getDnsRecord(
+  creds: CloudflareCreds,
+  zoneId: string,
+  recordId: string
+): Promise<DnsRecord | null> {
+  return getResource<DnsRecord>(
+    creds,
+    `/zones/${encodeURIComponent(zoneId)}/dns_records/${encodeURIComponent(recordId)}`
+  );
+}
+
+export async function deleteDnsRecord(
+  creds: CloudflareCreds,
+  zoneId: string,
+  recordId: string
+): Promise<"deleted" | "absent"> {
+  return deleteResource(
+    creds,
+    `/zones/${encodeURIComponent(zoneId)}/dns_records/${encodeURIComponent(recordId)}`
   );
 }
 
@@ -321,14 +396,26 @@ export type AccessApp = {
   policies?: { id: string }[];
 };
 
-function appDomains(app: AccessApp): string[] {
+/** Every hostname the app covers: its domain, self-hosted domains, destinations. */
+export function accessAppDomains(app: AccessApp): string[] {
+  // `domain` may be absent (or empty) on an app defined by destinations only.
   return [
     app.domain,
     ...(app.self_hosted_domains ?? []),
     ...(app.destinations ?? [])
       .filter((d) => d.type === "public" && d.uri)
       .map((d) => d.uri as string),
-  ];
+  ].filter(Boolean);
+}
+
+/**
+ * The hostnames an Access app covers, lowercased: a destination's path
+ * (`host/path`) is dropped, and an absent domain skipped.
+ */
+export function accessAppHostnames(app: AccessApp): string[] {
+  return accessAppDomains(app).map(
+    (domain) => domain.split("/")[0]?.toLowerCase() ?? ""
+  );
 }
 
 /**
@@ -340,11 +427,17 @@ export async function findAccessAppByDomain(
   creds: CloudflareCreds,
   domain: string
 ): Promise<AccessApp | null> {
+  return (await listAccessAppsByDomain(creds, domain))[0] ?? null;
+}
+
+/** Every Access app that covers exactly `domain`, as findAccessAppByDomain matches. */
+export async function listAccessAppsByDomain(
+  creds: CloudflareCreds,
+  domain: string
+): Promise<AccessApp[]> {
   const apps = await listAll<AccessApp>(creds, "/access/apps");
-  return (
-    apps.find((app) =>
-      appDomains(app).some((candidate) => sameHostname(candidate, domain))
-    ) ?? null
+  return apps.filter((app) =>
+    accessAppDomains(app).some((candidate) => sameHostname(candidate, domain))
   );
 }
 
@@ -363,4 +456,27 @@ export async function createAccessApp(
       policies: [{ id: app.policyId, precedence: 1 }],
     }),
   });
+}
+
+/** The Access app with this id, or null when it is gone. */
+export async function getAccessApp(
+  creds: CloudflareCreds,
+  accountId: string,
+  appId: string
+): Promise<AccessApp | null> {
+  return getResource<AccessApp>(
+    creds,
+    `${account({ ...creds, accountId })}/access/apps/${encodeURIComponent(appId)}`
+  );
+}
+
+export async function deleteAccessApp(
+  creds: CloudflareCreds,
+  accountId: string,
+  appId: string
+): Promise<"deleted" | "absent"> {
+  return deleteResource(
+    creds,
+    `${account({ ...creds, accountId })}/access/apps/${encodeURIComponent(appId)}`
+  );
 }
