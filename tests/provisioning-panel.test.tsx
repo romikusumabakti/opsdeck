@@ -349,7 +349,10 @@ describe("ProvisioningPanel", () => {
         domain: null,
       });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["deploys"] });
+    // React Query notifies observers on a scheduled tick, not inside act().
+    await vi.waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["deploys"] })
+    );
     await act(async () => root.unmount());
     container.remove();
   });
