@@ -722,9 +722,29 @@ export async function ensureComponentBranch(
   componentKey: string,
   branch: string,
   projectId: string
-): Promise<{ added: boolean; pipelineFileFailures: PipelineFileFailure[] }> {
+): Promise<EnsuredBranch> {
   await requireProjectPermission({ projectId }, { environment: ["create"] });
   const component = (await getComponent(componentKey)) ?? notFound();
+  return ensureComponentBranchFor(component, branch);
+}
+
+export type EnsuredBranch = {
+  added: boolean;
+  pipelineFileFailures: PipelineFileFailure[];
+};
+
+/**
+ * ensureComponentBranch without the permission check, for callers that
+ * checked their own (a deploy target choosing its source branch needs
+ * deploy:configure). Artifact components, whose `branches` may start empty,
+ * take the same append-and-commit path. The commit carries the normal
+ * message, so it builds the branch.
+ */
+export async function ensureComponentBranchFor(
+  component: NonNullable<Awaited<ReturnType<typeof getComponent>>>,
+  branch: string
+): Promise<EnsuredBranch> {
+  const { componentKey } = component;
   const none = { added: false, pipelineFileFailures: [] };
   if (component.pipelineMode !== "generated" || !component.buildSpec) {
     return none;
