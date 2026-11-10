@@ -359,6 +359,13 @@ describe("environment settings tabs", () => {
     ]);
   });
 
+  it("an environment without services still opens Settings", async () => {
+    await mount({ environment: { ...environment, services: [] } });
+    expect(document.querySelectorAll('[role="tab"]').length).toBe(6);
+    await openTab(t.tabMailMockTime);
+    expect(document.body.textContent).not.toContain("has no backend service");
+  });
+
   it("URL is read-only with a domain", async () => {
     await mount({ domain: tunnelDomain });
     const url = document.querySelector<HTMLInputElement>("#env-url");

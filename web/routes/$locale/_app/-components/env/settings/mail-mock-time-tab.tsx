@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { backendService } from "@/lib/services";
+import { findService } from "@/lib/services";
 import type { MailpitSettings } from "@/web/api/mailpit-settings";
 import { Hint, SaveButton } from "./fields";
 import {
@@ -102,7 +102,7 @@ export function MailMockTimeTab({
                       autoComplete="new-password"
                       disabled={readOnly}
                       placeholder={
-                        backendService(environment).hasMockTimeApiKey
+                        findService(environment, "backend")?.hasMockTimeApiKey
                           ? t("mockTimeApiKeyEditPlaceholder")
                           : ""
                       }

@@ -16,7 +16,7 @@ import type {
 import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import type { DB_KINDS } from "@/lib/environment-database-binding";
 import { buildEnvironmentPayload } from "@/lib/environment-submit-payload";
-import { backendService, findService } from "@/lib/services";
+import { findService } from "@/lib/services";
 import { sharedDatabaseNameSchema } from "@/lib/validation";
 import { ApiError, type Serialized } from "@/web/api/client";
 import { type DeployTargetState, updateDeployTarget } from "@/web/api/deploys";
@@ -145,7 +145,7 @@ export function settingsValues(
   targets: DeployTargetState[]
 ): SettingsValues {
   const db = findService(environment, "db");
-  const backend = backendService(environment);
+  const backend = findService(environment, "backend");
   const frontend = findService(environment, "frontend");
   return {
     projectId: environment.projectId,
