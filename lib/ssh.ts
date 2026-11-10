@@ -1,6 +1,8 @@
 import { createWriteStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { type Config, NodeSSH } from "node-ssh";
 import type { ClientChannel } from "ssh2";
 import {
@@ -271,6 +273,119 @@ export async function streamRemoteCommandToFile(
     ]);
   } finally {
     clearTimeout(timer);
+    ssh?.dispose();
+  }
+}
+
+const PIPE_OUTPUT_LIMIT = 64 * 1024;
+
+/**
+ * Runs `command` with `body` piped into its stdin, with backpressure, so a
+ * large body (a registry blob) never sits in memory. Resolves with the
+ * output on exit code 0; throws with the (redacted) stderr otherwise. If the
+ * command exits before the body is consumed (tar failing), the body stream is
+ * cancelled and the call rejects at once. Fresh connection per call; on
+ * timeout the connection is torn down. `secrets` are redacted from every
+ * thrown message.
+ */
+export async function pipeToRemoteCommand(
+  target: SshTarget,
+  command: string,
+  body: ReadableStream<Uint8Array>,
+  options: { timeoutMs: number; secrets?: string[] }
+): Promise<{ stdout: string; stderr: string }> {
+  const { timeoutMs, secrets = [] } = options;
+  let ssh: NodeSSH | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let source: Readable | undefined;
+  try {
+    ssh = await openSsh(target, { readyTimeout: 5000 });
+    const client = ssh.connection;
+    if (!client) throw new Error("SSH connection is not open");
+    // A connection error mid-stream (a reset) must fail the transfer, not go
+    // unhandled; node-ssh only listens while connecting.
+    const connectionLost = new Promise<never>((_, reject) => {
+      client.on("error", reject);
+    });
+    connectionLost.catch(() => {});
+    const transfer = () =>
+      new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        client.exec(command, (err, channel) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          // Every listener goes on before this callback returns: ssh2 can
+          // emit the exit status in the same tick.
+          let code: number | null = null;
+          let stdout = "";
+          let stderr = "";
+          const append = (current: string, chunk: Buffer) =>
+            current.length < PIPE_OUTPUT_LIMIT
+              ? current +
+                chunk
+                  .toString("utf8")
+                  .slice(0, PIPE_OUTPUT_LIMIT - current.length)
+              : current;
+          channel.on("data", (chunk: Buffer) => {
+            stdout = append(stdout, chunk);
+          });
+          channel.stderr.on("data", (chunk: Buffer) => {
+            stderr = append(stderr, chunk);
+          });
+          channel.on("exit", (exitCode: number | null) => {
+            code = typeof exitCode === "number" ? exitCode : null;
+          });
+          channel.on("error", reject);
+          channel.on("close", () => {
+            // The command is over: stop reading the body and cancel it.
+            source?.destroy();
+            if (code === 0) {
+              resolve({ stdout, stderr });
+              return;
+            }
+            const detail = [stderr, stdout]
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .join("\n");
+            reject(
+              new Error(
+                `SSH Command Failed (exit ${code ?? "none"}): ${detail || "(no output)"}`
+              )
+            );
+          });
+          source = Readable.fromWeb(body as unknown as WebReadableStream);
+          // Reading the body failed: fail the call (the channel is closed by
+          // dispose). Destroying the source after a premature channel close
+          // is not an error.
+          source.on("error", reject);
+          // pipe() honours the channel's backpressure and ends stdin at EOF.
+          // An EPIPE on a channel the command already closed surfaces as a
+          // channel error or close, both handled above.
+          source.pipe(channel);
+        });
+      });
+    const work = transfer();
+    work.catch(() => {});
+    return await Promise.race([
+      work,
+      connectionLost,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`SSH command timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        );
+      }),
+    ]);
+  } catch (error) {
+    // Carries no secret, and its code must reach the caller.
+    if (error instanceof HostKeyMismatchError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(redactSecrets(message, secrets));
+  } finally {
+    clearTimeout(timer);
+    // Cancels the body if it is still open (timeout, connection loss).
+    source?.destroy();
     ssh?.dispose();
   }
 }
