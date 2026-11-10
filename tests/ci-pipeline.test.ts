@@ -12,7 +12,36 @@ const FIXTURE = await readFile(
   "utf8"
 );
 
+const readFixture = (name: string) =>
+  readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
+
 const REGISTRY = "192.168.56.113:5000";
+
+const JAR_SPEC: BuildSpec = buildSpecSchema.parse({
+  branches: ["sucor/development"],
+  artifact: { kind: "jar", path: "build/libs/dss-service-0.1.0.jar" },
+  checks: [
+    {
+      name: "gradle-build",
+      image: "docker.io/library/eclipse-temurin:8-jdk",
+      dir: ".",
+      commands: ["./gradlew build -x test"],
+    },
+  ],
+});
+
+const STATIC_SPEC: BuildSpec = buildSpecSchema.parse({
+  branches: ["main"],
+  artifact: { kind: "static", path: "dist" },
+  checks: [
+    {
+      name: "vite-build",
+      image: "docker.io/oven/bun:1",
+      dir: ".",
+      commands: ["bun install --frozen-lockfile", "bun run build"],
+    },
+  ],
+});
 
 const SPEC: BuildSpec = buildSpecSchema.parse({
   branches: ["main"],
@@ -204,6 +233,40 @@ describe("generateWoodpeckerPipeline", () => {
     expect(() => render(bad)).toThrow();
   });
 
+  describe("artifact", () => {
+    it("renders the artifact jar pipeline byte-equal to the fixture", async () => {
+      expect(render(JAR_SPEC, "core")).toBe(
+        await readFixture("pipeline-artifact-jar.yaml")
+      );
+    });
+
+    it("renders the artifact static pipeline byte-equal to the fixture", async () => {
+      expect(render(STATIC_SPEC, "backoffice")).toBe(
+        await readFixture("pipeline-artifact-static.yaml")
+      );
+    });
+
+    it("triggers on any branch", () => {
+      const doc = parseDocument(render(JAR_SPEC, "core"));
+      expect(doc.toJS().when).toEqual([{ event: ["push", "manual"] }]);
+    });
+
+    it("uses the given notify secret name", () => {
+      const yaml = generateWoodpeckerPipeline("core", JAR_SPEC, {
+        registry: REGISTRY,
+        notifySecretName: "opsdeck_notify_core",
+      });
+      expect(yaml).toContain("from_secret: opsdeck_notify_core");
+      expect(yaml).not.toContain("from_secret: opsdeck_notify\n");
+    });
+
+    it("defaults the notify secret name", () => {
+      expect(render(JAR_SPEC, "core")).toContain(
+        "from_secret: opsdeck_notify\n"
+      );
+    });
+  });
+
   describe("registry", () => {
     afterEach(() => {
       vi.unstubAllEnvs();
@@ -231,6 +294,66 @@ describe("buildSpecSchema", () => {
     images: [{ name: "app", dockerfile: "Dockerfile", context: "." }],
     bundleFiles: [{ from: "compose.yaml", to: "compose.yaml" }],
   };
+
+  describe("artifact", () => {
+    const check = {
+      name: "build-it",
+      image: "alpine:3",
+      dir: ".",
+      commands: ["true"],
+    };
+    const artifact = { kind: "jar", path: "build/app.jar" };
+
+    it("accepts an artifact with checks and no branches, images or files", () => {
+      expect(
+        buildSpecSchema.safeParse({ artifact, checks: [check], branches: [] })
+          .success
+      ).toBe(true);
+    });
+
+    it("artifact spec with images is rejected", () => {
+      expect(
+        buildSpecSchema.safeParse({
+          artifact,
+          checks: [check],
+          branches: ["main"],
+          images: base.images,
+        }).success
+      ).toBe(false);
+    });
+
+    it("artifact spec with bundle files is rejected", () => {
+      expect(
+        buildSpecSchema.safeParse({
+          artifact,
+          checks: [check],
+          branches: ["main"],
+          bundleFiles: base.bundleFiles,
+        }).success
+      ).toBe(false);
+    });
+
+    it("artifact spec without checks is rejected", () => {
+      expect(
+        buildSpecSchema.safeParse({ artifact, branches: ["main"] }).success
+      ).toBe(false);
+    });
+
+    it("rejects an artifact path with ..", () => {
+      expect(
+        buildSpecSchema.safeParse({
+          artifact: { kind: "static", path: "../dist" },
+          checks: [check],
+        }).success
+      ).toBe(false);
+    });
+
+    it("still requires images and bundle files without an artifact", () => {
+      expect(buildSpecSchema.safeParse({ branches: ["main"] }).success).toBe(
+        false
+      );
+    });
+  });
 
   it("applies defaults", () => {
     expect(buildSpecSchema.parse(base)).toMatchObject({
