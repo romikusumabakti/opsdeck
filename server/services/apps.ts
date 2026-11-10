@@ -38,6 +38,10 @@ import {
   PANEL_PIPELINE_MARKER,
 } from "@/lib/ci/pipeline";
 import {
+  NOTIFY_SECRET_EVENTS,
+  notifySecretNameFor,
+} from "@/lib/ci/register-artifact-component";
+import {
   type RegisterAppInput,
   type RegisterComponentInput,
   registerAppSchema,
@@ -76,8 +80,6 @@ import {
  * integration:manage.
  */
 
-const NOTIFY_SECRET_NAME = "opsdeck_notify";
-const NOTIFY_SECRET_EVENTS: ("push" | "manual")[] = ["push", "manual"];
 const CUSTOM_TIMEOUT_MINUTES = 60;
 const PIPELINE_FILE_PATH = ".woodpecker.yaml";
 /** Recorded for a branch whose pipeline file is not Panel-generated. */
@@ -145,7 +147,10 @@ export async function listRegistrationConnections() {
 
 export type RegistrableRepo = CiRepo & { linkedComponentKey: string | null };
 
-/** The connection's repos, each marked with the component it already builds. */
+/**
+ * The connection's repos, each marked with a component it already builds (any
+ * one of them when it builds several); linked repos are listed too.
+ */
 export async function listRegistrableRepos(
   connectionId: string
 ): Promise<RegistrableRepo[]> {
@@ -312,6 +317,8 @@ async function commitPipelineFiles(
 type Prepared = {
   input: RegisterAppInput["components"][number];
   provider: CiProvider;
+  /** Always the default: a repository that builds a component is refused. */
+  notifySecretName: string;
   yaml: string | null;
   repo?: CiRepo;
   secret?: string;
@@ -500,13 +507,16 @@ async function registerComponents(
       provider = await getProviderForConnection(component.ciConnectionId);
       providers.set(component.ciConnectionId, provider);
     }
+    const notifySecretName = notifySecretNameFor(component.componentKey, false);
     prepared.push({
       input: component,
       provider,
+      notifySecretName,
       yaml: component.buildSpec
         ? generateWoodpeckerPipeline(
             component.componentKey,
-            component.buildSpec
+            component.buildSpec,
+            { notifySecretName }
           )
         : null,
     });
@@ -516,7 +526,9 @@ async function registerComponents(
 
   // Activate every repo first (Woodpecker reuses an already active one) and
   // refuse a repo that already builds a component, before any setting or
-  // secret on it changes: overwriting its secret would break that component.
+  // secret on it changes: the form registers a repository's first component
+  // only. A second one is registered from the command line
+  // (registerArtifactComponent), under its own notify secret name.
   for (const item of prepared) {
     const { componentKey, ciConnectionId, forgeRemoteId } = item.input;
     const repo = await step(
@@ -563,7 +575,7 @@ async function registerComponents(
       () =>
         item.provider.upsertRepoSecret(
           repo.ciRepoId,
-          NOTIFY_SECRET_NAME,
+          item.notifySecretName,
           secret,
           NOTIFY_SECRET_EVENTS
         )
@@ -578,6 +590,7 @@ async function registerComponents(
     ciRepoId: (item.repo as CiRepo).ciRepoId,
     bundleImage: item.input.bundleImage,
     notifySecret: encryptSecret(item.secret as string),
+    notifySecretName: item.notifySecretName,
     pipelineMode: item.input.pipelineMode,
     buildSpec: item.input.buildSpec ?? null,
   }));
@@ -643,7 +656,7 @@ export async function rotateNotifySecret(
   try {
     await provider.upsertRepoSecret(
       component.ciRepoId as string,
-      NOTIFY_SECRET_NAME,
+      component.notifySecretName,
       secret,
       NOTIFY_SECRET_EVENTS
     );
@@ -685,7 +698,9 @@ export async function retryPipelineFileCommit(
   await commitPipelineFiles(
     component,
     branch === undefined ? branches : [branch],
-    generateWoodpeckerPipeline(component.componentKey, spec)
+    generateWoodpeckerPipeline(component.componentKey, spec, {
+      notifySecretName: component.notifySecretName,
+    })
   );
   const updated = (await getApp(appKey))?.components.find(
     (c) => c.componentKey === componentKey
@@ -717,6 +732,7 @@ export async function ensureComponentBranch(
   const parsedBranch = branchSchema.safeParse(branch);
   if (!parsedBranch.success) badRequest("Invalid branch name");
   const spec = component.buildSpec as BuildSpec;
+  const notifyOptions = { notifySecretName: component.notifySecretName };
   if (spec.branches.includes(branch)) {
     if (!component.pipelineFileCommits?.[branch]?.error) return none;
     return {
@@ -724,7 +740,7 @@ export async function ensureComponentBranch(
       pipelineFileFailures: await commitPipelineFiles(
         component,
         [branch],
-        generateWoodpeckerPipeline(componentKey, spec)
+        generateWoodpeckerPipeline(componentKey, spec, notifyOptions)
       ),
     };
   }
@@ -733,7 +749,7 @@ export async function ensureComponentBranch(
     ...spec,
     branches: [...spec.branches, branch],
   });
-  const yaml = generateWoodpeckerPipeline(componentKey, next);
+  const yaml = generateWoodpeckerPipeline(componentKey, next, notifyOptions);
   if (!(await appendBuildSpecBranch(componentKey, branch))) return none;
   const saved = (await getComponent(componentKey))?.buildSpec as
     | BuildSpec
@@ -744,7 +760,9 @@ export async function ensureComponentBranch(
     pipelineFileFailures: await commitPipelineFiles(
       component,
       [branch],
-      saved ? generateWoodpeckerPipeline(componentKey, saved) : yaml
+      saved
+        ? generateWoodpeckerPipeline(componentKey, saved, notifyOptions)
+        : yaml
     ),
   };
 }

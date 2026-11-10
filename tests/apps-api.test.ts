@@ -259,6 +259,7 @@ function existingComponent(extra: Row = {}) {
     ciRepoId: "1",
     bundleImage: "accounting-deploy",
     notifySecret: encryptSecret("old-notify-secret"),
+    notifySecretName: "opsdeck_notify",
     pipelineMode: "generated",
     buildSpec: SPEC,
     pipelineFileCommits: null,
@@ -394,7 +395,8 @@ describe("GET /api/apps", () => {
     const res = await send("GET", "/api/apps");
     expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).not.toContain("notifySecret");
+    // The secret's Woodpecker name (notifySecretName) is public.
+    expect(text).not.toContain('"notifySecret"');
     expect(text).not.toContain("enc:v1:");
     const [entry] = JSON.parse(text);
     expect(entry.components[0]).toMatchObject({
@@ -445,7 +447,8 @@ describe("POST /api/apps", () => {
 
     const text = await res.text();
     expect(text).not.toContain(secret);
-    expect(text).not.toContain("notifySecret");
+    // The secret's Woodpecker name (notifySecretName) is public.
+    expect(text).not.toContain('"notifySecret"');
 
     expect(forge.commitFile).toHaveBeenCalledTimes(2);
     const [auth, repo, branch, path, content] = at(forge.commitFile.mock.calls);

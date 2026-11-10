@@ -1,8 +1,12 @@
-// Creates an app component (and its app when missing) or rotates the
-// component's CI notify secret.
-// Usage (production): docker exec opsdeck-app bun dist/deploy-app.js <create|rotate> <componentKey> ...
-// Local dev: bun --conditions react-server scripts/deploy-app.ts <create|rotate> <componentKey> ...
+// Creates an app component (and its app when missing), registers a generated
+// artifact component, or rotates a component's CI notify secret.
+// Usage (production): docker exec opsdeck-app bun dist/deploy-app.js <create|create-artifact|rotate> <componentKey> ...
+// Local dev: bun --conditions react-server scripts/deploy-app.ts <create|create-artifact|rotate> <componentKey> ...
+// First: create-artifact loads lib/authz, whose auth module (better-auth's
+// passkey plugin) pulls in tsyringe, which needs the polyfill before anything.
+import "reflect-metadata";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { eq } from "drizzle-orm";
 import type { z } from "zod";
@@ -19,13 +23,14 @@ import { describeDbError } from "@/lib/secrets-migration";
 
 const USAGE = `Usage:
   bun dist/deploy-app.js create <componentKey> <bundleImage> --app <appKey> --repo <owner/name> [--ci <connection name>]
+  bun dist/deploy-app.js create-artifact <componentKey> --app <appKey> --repo <owner/name> --spec <path.json> [--ci <connection name>]
   bun dist/deploy-app.js rotate <componentKey>`;
 
 const rawArgs = process.argv.slice(2);
 
 if (rawArgs.includes("--help")) {
   console.log(
-    `${USAGE}\nCreates an app component (and its app when missing) or rotates its CI notify secret.`
+    `${USAGE}\nCreates an app component (and its app when missing), registers a generated artifact component in Woodpecker (its notify secret goes straight there), or rotates a component's CI notify secret.`
   );
   process.exit(0);
 }
@@ -44,6 +49,7 @@ const { values, positionals } = (() => {
         app: { type: "string" },
         repo: { type: "string" },
         ci: { type: "string" },
+        spec: { type: "string" },
       },
     });
   } catch {
@@ -52,8 +58,23 @@ const { values, positionals } = (() => {
 })();
 const [command, componentKey, bundleImage] = positionals;
 
-if ((command !== "create" && command !== "rotate") || !componentKey) usage();
+if (
+  !(
+    command === "create" ||
+    command === "create-artifact" ||
+    command === "rotate"
+  ) ||
+  !componentKey
+) {
+  usage();
+}
 if (command === "create" && (!bundleImage || !values.app || !values.repo)) {
+  usage();
+}
+if (
+  command === "create-artifact" &&
+  (bundleImage || !values.app || !values.repo || !values.spec)
+) {
   usage();
 }
 
@@ -68,8 +89,8 @@ function check(schema: z.ZodType<string>, value: string) {
   }
 }
 check(componentKeySchema, componentKey);
-if (command === "create") {
-  check(bundleImageSchema, bundleImage as string);
+if (command === "create" || command === "create-artifact") {
+  if (command === "create") check(bundleImageSchema, bundleImage as string);
   check(appKeySchema, values.app as string);
   if (!/^[\w.-]+\/[\w.-]+$/.test(values.repo as string)) {
     console.error("Repo must be <owner>/<name>");
@@ -108,6 +129,41 @@ async function resolveCiConnectionId(name: string | undefined) {
   return match.id;
 }
 
+if (command === "create-artifact") {
+  let spec: unknown;
+  try {
+    spec = JSON.parse(readFileSync(values.spec as string, "utf8"));
+  } catch {
+    console.error(`Cannot read a JSON build spec from ${values.spec}`);
+    process.exit(1);
+  }
+  const { ArtifactRegistrationError, registerArtifactComponent } = await import(
+    "@/lib/ci/register-artifact-component"
+  );
+  try {
+    // The notify secret goes straight to Woodpecker; it is never printed.
+    const registered = await registerArtifactComponent({
+      componentKey,
+      appKey: values.app as string,
+      repoFullName: values.repo as string,
+      ciConnectionName: values.ci,
+      spec: spec as Parameters<typeof registerArtifactComponent>[0]["spec"],
+    });
+    console.log(
+      `Registered ${registered.componentKey}: Woodpecker repo ${registered.ciRepoId}, notify secret ${registered.notifySecretName}`
+    );
+    process.exit(0);
+  } catch (error) {
+    if (error instanceof ArtifactRegistrationError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    // Database errors embed query params; print only a safe code.
+    console.error(`Registration failed (${describeDbError(error)})`);
+    process.exit(1);
+  }
+}
+
 const secret = randomBytes(32).toString("hex");
 const notifySecret = encryptSecret(secret);
 
@@ -137,25 +193,29 @@ if (command === "create") {
     console.error(`Component ${componentKey} already exists — use rotate`);
     process.exit(1);
   }
+  console.log(secret);
+  console.error(
+    "Shown once. Put it in the Woodpecker repo secret opsdeck_notify."
+  );
 } else {
-  let rows: { componentKey: string }[] = [];
+  let rows: { notifySecretName: string }[] = [];
   try {
     rows = await db
       .update(appComponents)
       .set({ notifySecret })
       .where(eq(appComponents.componentKey, componentKey))
-      .returning({ componentKey: appComponents.componentKey });
+      .returning({ notifySecretName: appComponents.notifySecretName });
   } catch (error) {
     failDb(error);
   }
-  if (rows.length === 0) {
+  const [row] = rows;
+  if (!row) {
     console.error(`Unknown component: ${componentKey}`);
     process.exit(1);
   }
+  console.log(secret);
+  console.error(
+    `Shown once. Put it in the Woodpecker repo secret ${row.notifySecretName}.`
+  );
 }
-
-console.log(secret);
-console.error(
-  `Shown once. Put it in the Woodpecker repo secret opsdeck_notify.`
-);
 process.exit(0);

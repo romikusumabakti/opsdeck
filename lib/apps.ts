@@ -136,7 +136,10 @@ export async function takenComponentKeys(keys: string[]): Promise<string[]> {
   return rows.map((row) => row.componentKey);
 }
 
-/** The repositories of a CI connection that already build a component. */
+/**
+ * The repositories of a CI connection that already build a component, one row
+ * per component (a repository may build several).
+ */
 export async function linkedCiRepos(ciConnectionId: string): Promise<
   {
     componentKey: string;
@@ -160,8 +163,8 @@ export type NewAppComponent = Omit<
 >;
 
 /**
- * Inserts an app and its components in one transaction. A taken app key,
- * component key or CI repo surfaces as a unique violation.
+ * Inserts an app and its components in one transaction. A taken app key or
+ * component key surfaces as a unique violation.
  */
 export async function insertAppWithComponents(
   app: { appKey: string; name: string },
@@ -180,8 +183,8 @@ export async function insertAppWithComponents(
 }
 
 /**
- * Inserts components into an existing app. A taken component key or CI repo
- * surfaces as a unique violation.
+ * Inserts components into an existing app. A taken component key surfaces as
+ * a unique violation.
  */
 export async function insertComponents(
   appId: string,
@@ -190,6 +193,28 @@ export async function insertComponents(
   await db
     .insert(appComponents)
     .values(components.map((c) => ({ ...c, appId })));
+}
+
+/**
+ * Inserts a component, creating its app (named after its key) when missing,
+ * in one transaction. A taken component key surfaces as a unique violation.
+ */
+export async function insertComponentCreatingApp(
+  appKey: string,
+  component: NewAppComponent
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(apps)
+      .values({ appKey, name: appKey })
+      .onConflictDoNothing({ target: apps.appKey });
+    const [app] = await tx
+      .select({ id: apps.id })
+      .from(apps)
+      .where(eq(apps.appKey, appKey));
+    if (!app) throw new Error(`App ${appKey} vanished after insert`);
+    await tx.insert(appComponents).values({ ...component, appId: app.id });
+  });
 }
 
 /**
