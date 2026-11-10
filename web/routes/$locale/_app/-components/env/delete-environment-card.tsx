@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Trash2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,8 +26,10 @@ import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 import { ApiError } from "@/web/api/client";
 import {
   deleteEnvironment,
+  getTeardownQuery,
   type StartTeardownBody,
   startTeardown,
+  type TeardownStatus,
 } from "@/web/api/environments";
 import { useMe } from "@/web/api/session";
 import { useTeardownErrorText } from "./use-teardown-error-text";
@@ -70,6 +73,7 @@ export function DeleteEnvironmentCard({
   const [productionConfirmed, setProductionConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
 
   const nameMatches = typed === environment.name;
   const canConfirm =
@@ -105,9 +109,10 @@ export function DeleteEnvironmentCard({
     setError(null);
     // Once the escrow question closed this dialog, failures go to a toast.
     let closed = false;
+    let started: { runId: string } | undefined;
     try {
       try {
-        await startTeardown(environment.id, body);
+        started = await startTeardown(environment.id, body);
       } catch (refusal) {
         const escrowed =
           refusal instanceof ApiError &&
@@ -115,7 +120,7 @@ export function DeleteEnvironmentCard({
         if (!escrowed || !canDeleteEscrowed) throw refusal;
         closed = true;
         if (!(await confirmEscrowed())) return;
-        await startTeardown(environment.id, {
+        started = await startTeardown(environment.id, {
           ...body,
           confirmEscrowedDeletion: true,
         });
@@ -133,6 +138,17 @@ export function DeleteEnvironmentCard({
     }
     onOpenChange(false);
     toast.success(t("deleteStarted", { name: environment.name }));
+    // The banner treats a 404 as "deleted" only after it saw a running
+    // teardown; one with nothing on a server can finish before its first
+    // poll, so record the run this page started, then poll.
+    const { queryKey } = getTeardownQuery(environment.id);
+    queryClient.setQueryData<TeardownStatus>(queryKey, {
+      steps: [],
+      runId: started?.runId ?? null,
+      running: true,
+      cancellable: false,
+    });
+    void queryClient.invalidateQueries({ queryKey });
   }
 
   async function onRemoveFromPanel() {
