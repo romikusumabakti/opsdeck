@@ -26,6 +26,9 @@ const MANAGED: string[] = [
   "IMGPROXY_SALT",
   "RESEND_API_KEY",
   "REDIS_URL",
+  "DEPLOY_REGISTRY_USERNAME",
+  "DEPLOY_REGISTRY_PASSWORD",
+  "DEPLOY_REGISTRY_SCHEME",
 ];
 
 let saved: Record<string, string | undefined> = {};
@@ -101,6 +104,23 @@ describe("validateEnv", () => {
   it("rejects a DATABASE_URL with the wrong scheme", () => {
     setEnv({ ...validCore(), DATABASE_URL: "mysql://user:pass@host/db" });
     expect(() => validateEnv()).toThrow(/DATABASE_URL/);
+  });
+
+  it("rejects registry credentials set without their pair", () => {
+    setEnv({ ...validCore(), DEPLOY_REGISTRY_USERNAME: "panel" });
+    expect(() => validateEnv()).toThrow(/DEPLOY_REGISTRY_PASSWORD/);
+  });
+
+  it("accepts a registry credential pair and rejects a bad scheme", () => {
+    setEnv({
+      ...validCore(),
+      DEPLOY_REGISTRY_USERNAME: "panel",
+      DEPLOY_REGISTRY_PASSWORD: "pw",
+      DEPLOY_REGISTRY_SCHEME: "http",
+    });
+    expect(() => validateEnv()).not.toThrow();
+    setEnv({ ...validCore(), DEPLOY_REGISTRY_SCHEME: "ftp" });
+    expect(() => validateEnv()).toThrow(/DEPLOY_REGISTRY_SCHEME/);
   });
 
   it("rejects a malformed BETTER_AUTH_URL", () => {
