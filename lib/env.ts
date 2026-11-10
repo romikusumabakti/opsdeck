@@ -259,6 +259,19 @@ function collectFindings(): Finding[] {
     checkOptional("DEPLOY_REGISTRY", deployRegistrySchema, findings);
   }
 
+  // Registry credentials (HTTP Basic) and scheme; all optional, but the
+  // credentials only make sense as a pair.
+  checkOptional("DEPLOY_REGISTRY_SCHEME", z.enum(["http", "https"]), findings);
+  const hasRegistryUser = Boolean(process.env.DEPLOY_REGISTRY_USERNAME);
+  const hasRegistryPassword = Boolean(process.env.DEPLOY_REGISTRY_PASSWORD);
+  if (hasRegistryUser !== hasRegistryPassword) {
+    findings.push({
+      level: "error",
+      message:
+        "DEPLOY_REGISTRY_USERNAME and DEPLOY_REGISTRY_PASSWORD must be set together, or both left unset",
+    });
+  }
+
   // The in-process worker already warns and no-ops without this; repeat it here
   // so the whole picture is in one place at boot.
   if (!process.env.REDIS_URL) {
