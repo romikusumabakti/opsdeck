@@ -1,6 +1,5 @@
 import { ciFetch } from "@/lib/ci/http";
 import {
-  type ActivePipeline,
   type CiProvider,
   CiProviderError,
   type CiRepo,
@@ -243,7 +242,7 @@ export function createWoodpeckerProvider(
   async function listActivePipelines(
     ciRepoId: string,
     branch: string
-  ): Promise<ActivePipeline[]> {
+  ): Promise<{ number: number }[]> {
     const repo = encodeURIComponent(ciRepoId);
     const query = new URLSearchParams({
       branch,
@@ -264,11 +263,7 @@ export function createWoodpeckerProvider(
           ACTIVE_STATUSES.has(p.status)
       )
       .sort((a, b) => b.number - a.number)
-      .map((p) => ({
-        number: p.number,
-        // The same URL Woodpecker hands pipelines as CI_PIPELINE_URL.
-        url: `${root}/repos/${repo}/pipeline/${p.number}`,
-      }));
+      .map((p) => ({ number: p.number }));
   }
 
   return {

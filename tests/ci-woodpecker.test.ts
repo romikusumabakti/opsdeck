@@ -340,10 +340,7 @@ describe("woodpecker listActivePipelines", () => {
     ]);
     await expect(
       provider.listActivePipelines("2", "sucor/development")
-    ).resolves.toEqual([
-      { number: 14, url: `${BASE}/repos/2/pipeline/14` },
-      { number: 11, url: `${BASE}/repos/2/pipeline/11` },
-    ]);
+    ).resolves.toEqual([{ number: 14 }, { number: 11 }]);
     expect(calls[0]?.method).toBe("GET");
     const url = new URL(calls[0]?.url ?? "");
     expect(`${url.origin}${url.pathname}`).toBe(
