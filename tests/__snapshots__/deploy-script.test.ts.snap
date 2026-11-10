@@ -32,11 +32,11 @@ while :; do
     ids=$(docker compose ps -q "$svc") || ok=0
     if [ -z "$ids" ]; then ok=0; fi
     for id in $ids; do
-      info=$(docker inspect -f '{{.RestartCount}} {{.State.StartedAt}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id") || { ok=0; continue; }
+      info=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}} {{.RestartCount}} {{.State.StartedAt}}' "$id") || { ok=0; continue; }
       snap="$snap $id $(printf '%s
-' "$info" | awk '{ print $1, $2 }')"
+' "$info" | cut -d' ' -f3-)"
       printf '%s
-' "$info" | awk '{ exit !($3 == "running" && ($4 == "" || $4 == "healthy")) }' || ok=0
+' "$info" | awk '{ exit !($1 == "running" && ($2 == "-" || $2 == "healthy")) }' || ok=0
     done
   done
   if [ "$snap" != "$prev_snap" ]; then ok=0; fi

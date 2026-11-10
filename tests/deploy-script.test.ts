@@ -361,8 +361,19 @@ case "$1" in
       r=$(cat "$STUB_LOG.restarts" 2>/dev/null || echo 0)
       echo $((r + 1)) > "$STUB_LOG.restarts"
     fi
-    printf '%s\\n' "$table" | awk -v id="$4" -v r="$r" \\
-      '"c-" $1 "-" NR == id { print r, "2026-11-03T00:00:" r "Z", $2, $3 }' ;;
+    # Docker prints StartedAt as one RFC 3339 word; Podman as
+    # "2026-11-03 00:00:00 +0000 UTC" (STUB_PODMAN_TIME). Fields follow the
+    # template's order (status first in the current one).
+    started="2026-11-03T00:00:\${r}Z"
+    if [ -n "\${STUB_PODMAN_TIME:-}" ]; then started="2026-11-03 00:00:0\${r} +0000 UTC"; fi
+    case "$3" in
+      "{{.State.Status}}"*)
+        printf '%s\\n' "$table" | awk -v id="$4" -v r="$r" -v t="$started" \\
+          '"c-" $1 "-" NR == id { h = ($3 == "") ? "-" : $3; print $2, h, r, t }' ;;
+      *)
+        printf '%s\\n' "$table" | awk -v id="$4" -v r="$r" -v t="$started" \\
+          '"c-" $1 "-" NR == id { print r, t, $2, $3 }' ;;
+    esac ;;
 esac
 exit 0
 `;
@@ -506,6 +517,17 @@ exec /bin/mv "$@"
 `;
 
 describe.concurrent("buildDeployScript stub runs", () => {
+  it("stub run, healthy on Podman, whose StartedAt has spaces", async () => {
+    const r = await runStub(
+      { healthUrl: "http://localhost:8080/health" },
+      "IMAGE_TAG=old\n",
+      "backend running healthy\nfrontend running",
+      { STUB_PODMAN_TIME: "1" }
+    );
+    expect(r.stdout).toContain("HEALTHY");
+    expect(r.status).toBe(0);
+  }, 60_000);
+
   it(
     "stub run, healthy",
     async () => {
