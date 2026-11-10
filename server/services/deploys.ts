@@ -4,7 +4,11 @@ import { recordActivity } from "@/lib/activity";
 import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
 import { type DbTransaction, db } from "@/lib/db";
-import type { DeployTarget } from "@/lib/db/schema";
+import {
+  type DeployTarget,
+  type DeployTargetKind,
+  deployTargetKindEnum,
+} from "@/lib/db/schema";
 import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import {
   deleteTarget,
@@ -24,8 +28,10 @@ import {
   deployDirSchema,
   healthTimeoutSchema,
   healthUrlSchema,
+  jarNameSchema,
   preStartCommandSchema,
   servicesSchema,
+  systemdUnitSchema,
   tagVariableSchema,
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
@@ -65,25 +71,55 @@ function failTarget(code: keyof typeof TARGET_ERRORS): never {
   throw targetError(code);
 }
 
-export const createTargetSchema = z.object({
+const commonTargetFields = {
   environmentId: uuidSchema,
   componentKey: componentKeySchema,
   serverId: uuidSchema,
   sourceBranch: branchSchema,
   autoDeploy: z.boolean().default(false),
   deployDir: deployDirSchema,
+  healthTimeoutSeconds: healthTimeoutSchema.default(180),
+};
+
+export const composeTargetSchema = z.object({
+  ...commonTargetFields,
+  kind: z.literal("compose").default("compose"),
   services: servicesSchema,
   tagVariable: tagVariableSchema.default("IMAGE_TAG"),
   preStartCommand: preStartCommandSchema.nullish(),
   healthUrl: healthUrlSchema.nullish(),
-  healthTimeoutSeconds: healthTimeoutSchema.default(180),
   backupBeforeDeploy: z.boolean().default(false),
 });
 
+export const jarTargetSchema = z
+  .object({
+    ...commonTargetFields,
+    kind: z.literal("jar"),
+    jarName: jarNameSchema,
+    systemdUnit: systemdUnitSchema,
+    healthUrl: healthUrlSchema.nullish(),
+  })
+  .strict();
+
+// `deployDir` is the web root.
+export const staticTargetSchema = z
+  .object({ ...commonTargetFields, kind: z.literal("static") })
+  .strict();
+
+// `kind` defaults to compose when absent.
+export const createTargetSchema = z.discriminatedUnion("kind", [
+  composeTargetSchema,
+  jarTargetSchema,
+  staticTargetSchema,
+]);
+
 // The component and environment of a target are fixed once it exists: its history
-// (builds, deployments) is keyed to them.
+// (builds, deployments) is keyed to them. The fields allowed for the target's own
+// kind are checked in updateDeployTarget (see rejectForeignFields), since the
+// kind is not in the body.
 export const updateTargetSchema = z
   .object({
+    kind: z.enum(deployTargetKindEnum.enumValues),
     serverId: uuidSchema,
     sourceBranch: branchSchema,
     autoDeploy: z.boolean(),
@@ -91,12 +127,50 @@ export const updateTargetSchema = z
     services: servicesSchema,
     tagVariable: tagVariableSchema,
     preStartCommand: preStartCommandSchema.nullable(),
+    jarName: jarNameSchema,
+    systemdUnit: systemdUnitSchema,
     healthUrl: healthUrlSchema.nullable(),
     healthTimeoutSeconds: healthTimeoutSchema,
     backupBeforeDeploy: z.boolean(),
   })
   .partial()
   .strict();
+
+const FOREIGN_UPDATE_FIELDS = {
+  jar: ["services", "tagVariable", "preStartCommand", "backupBeforeDeploy"],
+  static: [
+    "services",
+    "tagVariable",
+    "preStartCommand",
+    "backupBeforeDeploy",
+    "jarName",
+    "systemdUnit",
+    "healthUrl",
+  ],
+} as const satisfies Partial<
+  Record<DeployTargetKind, readonly (keyof TargetChanges)[]>
+>;
+const COMPOSE_FOREIGN_UPDATE_FIELDS = [
+  "jarName",
+  "systemdUnit",
+] as const satisfies readonly (keyof TargetChanges)[];
+
+/** 400 when the update changes the kind or sets a field its kind does not have. */
+function rejectForeignFields(target: DeployTarget, changes: TargetChanges) {
+  if (changes.kind !== undefined) {
+    throw new HTTPException(400, { message: "Target kind cannot change" });
+  }
+  const forbidden: readonly (keyof TargetChanges)[] =
+    target.kind === "jar" || target.kind === "static"
+      ? FOREIGN_UPDATE_FIELDS[target.kind]
+      : COMPOSE_FOREIGN_UPDATE_FIELDS;
+  const foreign = forbidden.filter((field) => changes[field] !== undefined);
+  if (foreign.length > 0) {
+    throw new HTTPException(400, {
+      message: `Not valid for a ${target.kind} target: ${foreign.join(", ")}`,
+    });
+  }
+}
 
 async function requireTarget(id: string): Promise<DeployTarget> {
   return (await getTarget(id)) ?? fail(404, "Target not found");
@@ -133,6 +207,8 @@ const LOGGED_VALUES = [
   "deployDir",
   "services",
   "tagVariable",
+  "jarName",
+  "systemdUnit",
   "healthUrl",
   "healthTimeoutSeconds",
   "backupBeforeDeploy",
@@ -237,7 +313,9 @@ export async function createDeployTarget(
     failTarget("componentNotFound");
   }
   await requireServerInEnvironment(input.environmentId, input.serverId);
-  await requireTagVariableFree(input.environmentId, input.tagVariable);
+  if (input.kind === "compose") {
+    await requireTagVariableFree(input.environmentId, input.tagVariable);
+  }
   let created: DeployTarget;
   try {
     created = await db.transaction(async (tx) => {
@@ -269,12 +347,13 @@ export async function insertDeployTargetIn(
     input.componentKey,
     tx
   );
+  // Jar and static targets run no compose project: their `services` is empty.
+  const row =
+    input.kind === "compose"
+      ? { ...input, preStartCommand: input.preStartCommand ?? null }
+      : { ...input, services: [] };
   return upsertTarget(
-    {
-      ...input,
-      preStartCommand: input.preStartCommand ?? null,
-      healthUrl: input.healthUrl ?? null,
-    },
+    { ...row, healthUrl: ("healthUrl" in row && row.healthUrl) || null },
     tx
   );
 }
@@ -288,6 +367,7 @@ export async function updateDeployTarget(
     { environmentId: target.environmentId },
     { deploy: ["configure"] }
   );
+  rejectForeignFields(target, changes);
   if (changes.serverId) {
     await requireServerInEnvironment(target.environmentId, changes.serverId);
   }

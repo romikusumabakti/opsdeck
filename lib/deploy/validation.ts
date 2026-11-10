@@ -115,6 +115,27 @@ export const servicesSchema = z
   .max(20)
   .refine((list) => new Set(list).size === list.length, "Duplicate service");
 
+// Jar targets: the file name the jar gets on the host, and the systemd unit
+// that runs it. Both end up in a shell script and a `systemctl` call.
+export const jarNameSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.jar$/,
+    "Jar name must be a file name of letters, digits, '_', '.' or '-' ending in .jar"
+  );
+
+// Passed to systemctl as given: the script appends no `.service`.
+export const systemdUnitSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9@._-]{0,99}$/,
+    "Unit must be letters, digits, '@', '_', '.' or '-'"
+  )
+  .refine(
+    (unit) => !unit.endsWith(".service"),
+    "Unit must be given without the .service suffix"
+  );
+
 export const preStartCommandSchema = z
   .string()
   .min(1)
