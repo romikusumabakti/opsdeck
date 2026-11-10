@@ -33,6 +33,8 @@ const state = vi.hoisted(() => ({
   sshRuns: [] as unknown[],
   listError: false,
   runMissing: false,
+  // The target already has a successful deployment.
+  targetDeployed: false,
 }));
 
 vi.mock("@/lib/provisioning/repository", () => ({
@@ -73,6 +75,7 @@ vi.mock("@/lib/provisioning/repository", () => ({
     containerName: "pg",
     server: { host: "db.test", username: "ops", password: "ssh-pw" },
   }),
+  targetHasSuccessfulDeployment: async () => state.targetDeployed,
   findNewestBuild: async () => {
     state.calls.push("findNewestBuild");
     if (state.hookTakesBuild) state.flag = false;
@@ -199,6 +202,7 @@ beforeEach(() => {
   state.flag = false;
   state.calls = [];
   state.hookTakesBuild = false;
+  state.targetDeployed = false;
   requestFlaggedDeployment.mockReset();
   requestFlaggedDeployment.mockImplementation(async () => {
     if (!state.flag) return null;
@@ -275,6 +279,16 @@ describe("runProvisioning", () => {
       "Waiting for the first build of main; it deploys when it lands"
     );
     expect(requestFlaggedDeployment).not.toHaveBeenCalled();
+  });
+
+  it("deploys nothing for a target that already deployed (no flag, no placement)", async () => {
+    seed(["deploy"]);
+    state.targetDeployed = true;
+    await run();
+    expect(state.steps[0]?.status).toBe("done");
+    expect(state.flagged).toEqual([]);
+    expect(requestFlaggedDeployment).not.toHaveBeenCalled();
+    expect(state.log.join("\n")).toContain("already deployed");
   });
 
   it("sets the flag before looking for a build", async () => {

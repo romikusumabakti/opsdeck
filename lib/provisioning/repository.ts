@@ -70,6 +70,7 @@ export async function loadProvisioningConfig(
       serverId: deployTargets.serverId,
       deployDir: deployTargets.deployDir,
       sourceBranch: deployTargets.sourceBranch,
+      deployed: sql<boolean>`exists (select 1 from ${deployments} where ${deployments.targetId} = ${deployTargets.id} and ${deployments.status} = 'success')`,
     })
     .from(deployTargets)
     .where(eq(deployTargets.environmentId, environmentId))
@@ -194,6 +195,20 @@ export async function failStaleProvisionRuns(): Promise<number> {
 }
 
 /** Whether any deploy target of the environment has a successful deployment. */
+/** Whether this deploy target has ever deployed successfully. */
+export async function targetHasSuccessfulDeployment(
+  targetId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: deployments.id })
+    .from(deployments)
+    .where(
+      and(eq(deployments.targetId, targetId), eq(deployments.status, "success"))
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
 export async function hasSuccessfulDeployment(
   environmentId: string
 ): Promise<boolean> {

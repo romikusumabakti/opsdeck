@@ -102,6 +102,16 @@ describe("planProvisioning", () => {
     }
   );
 
+  it("skips the deploy of a target that already deployed successfully", () => {
+    const plan = planProvisioning({
+      targets: [{ ...target("t1"), deployed: true }, target("t2")],
+      db: null,
+    });
+    expect(plan.filter((s) => s.kind === "deploy")).toEqual([
+      { kind: "deploy", params: { targetId: "t2", branch: "main" } },
+    ]);
+  });
+
   it("has no create_database without a db service", () => {
     const plan = planProvisioning({ targets: [target("t1")], db: null });
     expect(plan.some((s) => s.kind === "create_database")).toBe(false);

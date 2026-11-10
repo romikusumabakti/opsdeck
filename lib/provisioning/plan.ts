@@ -115,6 +115,8 @@ export type ProvisioningEnvironment = {
     serverId: string;
     deployDir: string;
     sourceBranch: string;
+    /** The target already has a successful deployment: no first deploy. */
+    deployed?: boolean;
   }[];
   db: {
     dbKind: string | null;
@@ -143,7 +145,8 @@ export type ProvisioningEnvironment = {
  * The ordered steps that bring an environment up: one deploy directory per
  * distinct (server, directory), then the shared database when the binding is
  * `shared`, then for a tunnel domain the Access app (when a policy is set),
- * the route and the DNS record, then one deploy per target. Access comes
+ * the route and the DNS record, then one deploy per target that has not
+ * deployed yet. Access comes
  * first so no route or record ever serves the hostname unprotected; an Access
  * app alone gates nothing. Pure: reads nothing but its argument.
  */
@@ -215,6 +218,9 @@ export function planProvisioning(
   }
 
   for (const target of env.targets) {
+    // The deploy step is the first deploy; a target that has deployed (from
+    // the Deploys page, a build hook or an earlier run) needs none.
+    if (target.deployed) continue;
     steps.push({
       kind: "deploy",
       params: { targetId: target.id, branch: target.sourceBranch },
