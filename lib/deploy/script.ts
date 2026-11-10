@@ -78,10 +78,11 @@ const HEALTH_POLL_SECONDS = 5;
 // How long a deploy waits for an earlier script on the same deploy dir.
 const LOCK_WAIT_SECONDS = 600;
 
-// Per container: restart count, start time, status, health (empty when the
-// image has no healthcheck).
+// Per container: status, health ("-" when the image has no healthcheck),
+// restart count, start time. The start time goes last: Podman prints it with
+// spaces ("2026-11-10 07:16:29.2 +0000 UTC"), Docker as one word.
 const INSPECT_FORMAT =
-  "{{.RestartCount}} {{.State.StartedAt}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}";
+  "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}} {{.RestartCount}} {{.State.StartedAt}}";
 
 const deployScriptInputSchema = z.object({
   registry: deployRegistrySchema,
@@ -255,8 +256,8 @@ export function buildDeployScript(input: DeployScriptInput): string {
     `    if [ -z "$ids" ]; then ok=0; fi`,
     "    for id in $ids; do",
     `      info=$(docker inspect -f ${shq(INSPECT_FORMAT)} "$id") || { ok=0; continue; }`,
-    `      snap="$snap $id $(printf '%s\n' "$info" | awk '{ print $1, $2 }')"`,
-    `      printf '%s\n' "$info" | awk '{ exit !($3 == "running" && ($4 == "" || $4 == "healthy")) }' || ok=0`,
+    `      snap="$snap $id $(printf '%s\n' "$info" | cut -d' ' -f3-)"`,
+    `      printf '%s\n' "$info" | awk '{ exit !($1 == "running" && ($2 == "-" || $2 == "healthy")) }' || ok=0`,
     "    done",
     "  done",
     `  if [ "$snap" != "$prev_snap" ]; then ok=0; fi`,
