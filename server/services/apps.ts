@@ -41,7 +41,12 @@ import {
   type RegisterComponentInput,
   registerAppSchema,
 } from "@/lib/ci/registration";
-import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
+import {
+  type ActivePipeline,
+  type CiProvider,
+  CiProviderError,
+  type CiRepo,
+} from "@/lib/ci/types";
 import { branchSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { canOrg, canProject, canRegisterApp } from "@/lib/permissions";
@@ -816,4 +821,48 @@ export async function triggerComponentBuild(
     },
   });
   return pipeline;
+}
+
+/**
+ * The newest pipeline of the component's branch still pending or running in
+ * Woodpecker, or null: the Deploys page shows it instead of Start build while
+ * a first build is under way. Org integration managers may read any branch;
+ * others only a branch a deploy target of this component deploys from, in a
+ * project where they view deploys. A component without a repository, or a CI
+ * call that fails, answers null (logged): the page must not break over it.
+ */
+export async function getActiveComponentBuild(
+  appKey: string,
+  componentKey: string,
+  branch: string
+): Promise<ActivePipeline | null> {
+  const session = await requireSession();
+  const component = await requireAppComponent(appKey, componentKey);
+  if (!canOrg(session.user.role, { ...INTEGRATION_MANAGE })) {
+    const [access, targets] = await Promise.all([
+      getProjectAccess(),
+      componentTargetBranches(component.componentKey),
+    ]);
+    if (
+      !targets.some(
+        (t) =>
+          t.sourceBranch === branch &&
+          canProject(access.roles[t.projectId] ?? null, { deploy: ["view"] })
+      )
+    ) {
+      forbidden();
+    }
+  }
+  if (!component.ciRepoId) return null;
+  try {
+    const provider = await getProviderForConnection(component.ciConnectionId);
+    const [newest] = await provider.listActivePipelines(
+      component.ciRepoId,
+      branch
+    );
+    return newest ?? null;
+  } catch (error) {
+    console.error("Reading the running pipelines failed", error);
+    return null;
+  }
 }

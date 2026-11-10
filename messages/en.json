@@ -441,8 +441,11 @@
       "saveLock": "Save lock"
     },
     "startBuild": "Start build",
-    "startBuildHint": "Build {branch} now; the build deploys when it lands.",
+    "startBuildHint": "Build {branch} now; it deploys when it lands.",
     "buildStarted": "Build {number} started",
+    "startBuildHintManual": "Build {branch} now; it shows here when done, then deploy it.",
+    "buildRunning": "Build #{number} running…",
+    "alreadyDeployed": "Already deployed",
     "waitingForFirstBuild": "Waiting for the first build of {branch}",
     "settingsLink": "Deploy settings",
     "settingsHint": "Branches, servers and deploy targets are edited in Settings → Source & Deploy."

@@ -174,6 +174,7 @@ const provider = vi.hoisted(() => ({
   updateRepoSettings: vi.fn(),
   upsertRepoSecret: vi.fn(),
   triggerPipeline: vi.fn(),
+  listActivePipelines: vi.fn(),
 }));
 
 const connections = vi.hoisted(() => ({
@@ -1054,5 +1055,119 @@ describe("POST build", () => {
     );
     const res = await send("POST", PATH, { branch: "nope" });
     expect(res.status).toBe(502);
+  });
+});
+
+describe("GET active build", () => {
+  const PATH = "/api/apps/a/components/accounting/builds/active?branch=main";
+  const APP_ROW = {
+    id: "0197f3a0-1b2c-7def-8000-0123456789a9",
+    appKey: "a",
+    createdAt: new Date(),
+  };
+  const RUNNING = [
+    { number: 14, url: "https://ci.example.test/repos/1/pipeline/14" },
+    { number: 11, url: null },
+  ];
+
+  beforeEach(() => {
+    state.apps = [APP_ROW];
+    state.components = [existingComponent()];
+    provider.listActivePipelines.mockResolvedValue(RUNNING);
+  });
+
+  it("answers the newest active pipeline of the branch to an admin", async () => {
+    const res = await send("GET", PATH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(RUNNING[0]);
+    expect(provider.listActivePipelines).toHaveBeenCalledWith("1", "main");
+  });
+
+  it("answers null when nothing is running", async () => {
+    provider.listActivePipelines.mockResolvedValue([]);
+    const res = await send("GET", PATH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBeNull();
+  });
+
+  it("lets a viewer of a project where a target deploys the branch see it", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "viewer" };
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
+    const res = await send("GET", PATH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(RUNNING[0]);
+  });
+
+  it("refuses a branch no target of the component deploys", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "engineer" };
+    state.targetBranches = [
+      { projectId: "project-1", sourceBranch: "release" },
+    ];
+    expect((await send("GET", PATH)).status).toBe(403);
+    expect(provider.listActivePipelines).not.toHaveBeenCalled();
+  });
+
+  it("refuses a member of another project", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-2": "engineer" };
+    state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
+    expect((await send("GET", PATH)).status).toBe(403);
+    expect(provider.listActivePipelines).not.toHaveBeenCalled();
+  });
+
+  it("refuses a member when the component has no target", async () => {
+    state.orgRole = "member";
+    state.projectRoles = { "project-1": "engineer" };
+    expect((await send("GET", PATH)).status).toBe(403);
+  });
+
+  it("answers null for a component without a repository", async () => {
+    state.components = [existingComponent({ ciRepoId: null })];
+    const res = await send("GET", PATH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBeNull();
+    expect(provider.listActivePipelines).not.toHaveBeenCalled();
+  });
+
+  it("answers null and logs when Woodpecker fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    provider.listActivePipelines.mockRejectedValue(
+      new CiProviderError("Woodpecker GET failed with 500", 500)
+    );
+    const res = await send("GET", PATH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBeNull();
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("answers null and logs when the connection has no provider", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    connections.getProviderForConnection.mockRejectedValue(
+      new Error("This CI connection has no API token")
+    );
+    const res = await send("GET", PATH);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBeNull();
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("answers 400 without a branch", async () => {
+    const res = await send(
+      "GET",
+      "/api/apps/a/components/accounting/builds/active"
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("answers 404 for a component of another app", async () => {
+    const res = await send(
+      "GET",
+      "/api/apps/zzz/components/accounting/builds/active?branch=main"
+    );
+    expect(res.status).toBe(404);
   });
 });

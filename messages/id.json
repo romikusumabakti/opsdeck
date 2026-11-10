@@ -441,8 +441,11 @@
       "saveLock": "Simpan kunci"
     },
     "startBuild": "Mulai build",
-    "startBuildHint": "Build {branch} sekarang; hasil build di-deploy saat tiba.",
+    "startBuildHint": "Build {branch} sekarang; langsung di-deploy saat selesai.",
     "buildStarted": "Build {number} dimulai",
+    "startBuildHintManual": "Build {branch} sekarang; muncul di sini saat selesai, lalu deploy.",
+    "buildRunning": "Build #{number} sedang berjalan…",
+    "alreadyDeployed": "Sudah di-deploy",
     "waitingForFirstBuild": "Menunggu build pertama dari {branch}",
     "settingsLink": "Pengaturan deploy",
     "settingsHint": "Branch, server, dan target deploy diubah di Pengaturan → Sumber & Deploy."

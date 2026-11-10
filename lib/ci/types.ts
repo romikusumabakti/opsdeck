@@ -55,7 +55,18 @@ export interface CiProvider {
     ciRepoId: string,
     branch: string
   ): Promise<{ number: number }>;
+  /**
+   * The branch's pipelines still pending or running, newest first, from a
+   * bounded page of its latest ones. `url` is the pipeline's web page, when
+   * the provider can tell.
+   */
+  listActivePipelines(
+    ciRepoId: string,
+    branch: string
+  ): Promise<ActivePipeline[]>;
 }
+
+export type ActivePipeline = { number: number; url: string | null };
 
 /** A failed CI provider call. The message never contains credentials. */
 export class CiProviderError extends Error {
