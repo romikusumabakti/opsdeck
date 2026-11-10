@@ -227,14 +227,27 @@ function TargetCard({
     }
   }
 
+  // What the deploy restarts: the compose services, the jar's unit, or
+  // (static) nothing but an nginx reload.
+  function deployConfirmDescription(tag: string): string {
+    const app = target.componentKey;
+    if (target.kind === "jar") {
+      return t("deployConfirmDescriptionJar", {
+        tag,
+        app,
+        unit: target.systemdUnit ?? "",
+      });
+    }
+    if (target.kind === "static") {
+      return t("deployConfirmDescriptionStatic", { tag, app });
+    }
+    return t("deployConfirmDescription", { tag, app, services });
+  }
+
   async function onDeploy(tag: string) {
     const ok = await dialog.confirm({
       title: t("deployConfirmTitle", { tag }),
-      description: t("deployConfirmDescription", {
-        tag,
-        app: target.componentKey,
-        services,
-      }),
+      description: deployConfirmDescription(tag),
       confirmText: t("deploy"),
       cancelText: tCommon("cancel"),
     });

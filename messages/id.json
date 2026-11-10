@@ -338,6 +338,8 @@
     "rollbackTo": "Rollback ke {tag}",
     "deployConfirmTitle": "Deploy {tag}?",
     "deployConfirmDescription": "{app} akan menjalankan {tag}. Service berikut di-restart: {services}.",
+    "deployConfirmDescriptionJar": "{app} akan menjalankan {tag}. Unit systemd {unit} di-restart.",
+    "deployConfirmDescriptionStatic": "{app} akan menyajikan {tag}. Web root diganti dan nginx di-reload; tidak ada yang di-restart.",
     "rollbackConfirmTitle": "Rollback ke {tag}?",
     "rollbackConfirmDescription": "{app} akan kembali menjalankan {tag} sebagai deployment baru. Migrasi database tidak dikembalikan: kalau rilis yang lebih baru mengubah skema, versi lama mungkin tidak cocok lagi dengannya.",
     "runTitle": "Deploy {tag}",

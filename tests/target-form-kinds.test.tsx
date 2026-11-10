@@ -366,6 +366,64 @@ describe("target summary", () => {
       />
     );
 
+  const build = {
+    id: "b1",
+    tag: "abc1234",
+    commitSha: "abc1234def",
+    commitMessage: null,
+    commitAuthorEmail: null,
+    receivedAt: new Date().toISOString(),
+    pipelineUrl: null,
+  };
+  async function confirmText(target: Record<string, unknown>) {
+    api.getActiveBuild.mockResolvedValue(null);
+    await show({ recentBuilds: [build], ...target });
+    const deploy = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent === messages.deploys.deploy
+    );
+    await act(async () => deploy?.click());
+    await settle();
+    return document.querySelector('[role="alertdialog"], [role="dialog"]')
+      ?.textContent;
+  }
+
+  it("the deploy confirmation of a jar target names the unit it restarts", async () => {
+    const text = await confirmText({
+      kind: "jar",
+      deployDir: "/opt/core-web",
+      jarName: "core-web-service.jar",
+      systemdUnit: "core-web",
+    });
+    expect(text).toContain(
+      messages.deploys.deployConfirmDescriptionJar
+        .replace("{app}", "core-web")
+        .replace("{tag}", "abc1234")
+        .replace("{unit}", "core-web")
+    );
+    expect(text).not.toContain("These services restart");
+  });
+
+  it("the deploy confirmation of a static target says nginx reloads", async () => {
+    const text = await confirmText({ kind: "static" });
+    expect(text).toContain(
+      messages.deploys.deployConfirmDescriptionStatic
+        .replace("{app}", "core-web")
+        .replace("{tag}", "abc1234")
+    );
+    expect(text).not.toContain("These services restart");
+  });
+
+  it("the deploy confirmation of a compose target lists its services", async () => {
+    const text = await confirmText({
+      kind: "compose",
+      deployDir: "/opt/core-web",
+      services: ["backend", "frontend"],
+    });
+    expect(text).toContain(
+      "core-web will run abc1234. These services restart: backend, frontend."
+    );
+  });
+
   it("static renders the web root", async () => {
     api.getActiveBuild.mockResolvedValue(null);
     await show({ kind: "static" });
