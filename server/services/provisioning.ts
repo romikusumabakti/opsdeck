@@ -69,14 +69,18 @@ function domainPending(
  * environment has never deployed successfully (a new one), for a shared
  * database binding, or for a tunnel domain not yet provisioned. A running
  * legacy environment gets no panel, so one click can't redeploy every
- * target's newest build.
+ * target's newest build. An environment whose targets are all jar or static
+ * gets none either: nothing there is provisioned.
  */
 export function showProvisioningPanel(input: {
   hasSteps: boolean;
   hasSuccessfulDeployment: boolean;
   dbKind: string | null | undefined;
   domain?: Parameters<typeof domainPending>[0];
+  /** Every target is jar or static (at least one target exists). */
+  onlyLegacyKinds?: boolean;
 }): boolean {
+  if (input.onlyLegacyKinds) return false;
   return (
     input.hasSteps ||
     !input.hasSuccessfulDeployment ||
@@ -137,6 +141,11 @@ export async function getProvisioning(environmentId: string) {
     hasSuccessfulDeployment: deployed,
     dbKind: config.db?.dbKind,
     domain: config.domain,
+    onlyLegacyKinds:
+      config.targets.length > 0 &&
+      config.targets.every(
+        (target) => target.kind === "jar" || target.kind === "static"
+      ),
   });
   return { steps, plan, activeRunId, showPanel, domain };
 }

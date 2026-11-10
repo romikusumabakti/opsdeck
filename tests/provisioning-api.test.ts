@@ -203,6 +203,21 @@ describe("provisioning API", () => {
     expect(body.showPanel).toBe(true);
   });
 
+  it("GET hides the panel and plans nothing for jar and static targets only", async () => {
+    repo.loadProvisioningConfig.mockResolvedValue({
+      ...goodConfig,
+      targets: [
+        { ...goodConfig.targets[0], kind: "static" },
+        { ...goodConfig.targets[0], id: "t-jar", kind: "jar" },
+      ],
+    });
+    const body = await (
+      await app.request(`/api/environments/${ENV_ID}/provisioning`)
+    ).json();
+    expect(body.showPanel).toBe(false);
+    expect(body.plan).toEqual([]);
+  });
+
   it("GET hides the panel for a legacy environment that already deployed", async () => {
     const get = async () =>
       (await app.request(`/api/environments/${ENV_ID}/provisioning`)).json();
