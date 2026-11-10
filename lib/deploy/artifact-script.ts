@@ -190,8 +190,10 @@ function jarLines(v: {
     "fi",
 
     // 4-6. Stop, keep the current jar as prev, rename the staged one, start.
-    `systemctl stop ${unit}`,
+    //      The prev dir exists before the stop, so only same-directory renames
+    //      run while the unit is down.
     `mkdir -p ${prevDir}`,
+    `systemctl stop ${unit}`,
     `if [ -e ${target} ]; then mv -f ${target} ${prev}; fi`,
     `mv -f "$staged_jar" ${target}`,
     `systemctl start ${unit}`,
@@ -265,7 +267,8 @@ function staticLines(webRoot: string, staging: string): string[] {
     `rm -rf ${prev}`,
     "had_root=0",
     `if [ -e ${root} ]; then mv ${root} ${prev}; had_root=1; fi`,
-    `mv ${next} ${root}`,
+    // A failed move-in puts the old root back, so a web root always remains.
+    `mv ${next} ${root} || { if [ "$had_root" = 1 ]; then mv ${prev} ${root}; fi; echo 'SWAP FAILED'; exit 1; }`,
     "if ! nginx -t; then",
     `  rm -rf ${root}`,
     `  if [ "$had_root" = 1 ]; then mv ${prev} ${root}; fi`,

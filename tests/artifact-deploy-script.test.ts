@@ -182,13 +182,14 @@ describe("buildArtifactDeployScript output", () => {
     expect(unquoted(web)).not.toContain("/usr/share");
   });
 
-  it("jar: stops before moving the jar, starts after", () => {
+  it("jar: creates the prev dir before the stop, moves the jar after, starts after", () => {
     const script = buildArtifactDeployScript(jarBase);
     const order = [
       "systemctl cat",
       "systemctl is-enabled",
-      "systemctl stop",
       "mkdir -p '/srv/core/.opsdeck-prev'",
+      "systemctl stop",
+      "mv -f '/srv/core/core-web-service.jar'",
       "systemctl start",
       "systemctl show",
     ].map((m) => script.indexOf(m));
@@ -238,6 +239,26 @@ printf '${name} %s\\n' "$*" >> "$STUB_LOG"
 exec /usr/bin/${name} "$@"
 `;
 
+// Fails when asked to (a full disk, a read-only dir), else the real tool.
+const STUB_MKDIR = `#!/bin/sh
+printf 'mkdir %s\\n' "$*" >> "$STUB_LOG"
+if [ -n "\${STUB_MKDIR_FAIL:-}" ]; then echo "mkdir: cannot create directory" >&2; exit 1; fi
+exec /usr/bin/mkdir "$@"
+`;
+
+// Fails the move of the source named by STUB_MV_FAIL_SUFFIX.
+const STUB_MV = `#!/bin/sh
+printf 'mv %s\\n' "$*" >> "$STUB_LOG"
+if [ -n "\${STUB_MV_FAIL_SUFFIX:-}" ]; then
+  for arg; do
+    case $arg in -*) continue ;; esac
+    case $arg in *"$STUB_MV_FAIL_SUFFIX") echo "mv: cannot move" >&2; exit 1 ;; esac
+    break
+  done
+fi
+exec /usr/bin/mv "$@"
+`;
+
 // Logs the path open on the fd it is asked to lock, then locks it for real.
 const STUB_FLOCK = `#!/bin/sh
 for fd; do :; done
@@ -269,6 +290,8 @@ async function runScript(
     chown: loggingWrapper("chown"),
     chmod: loggingWrapper("chmod"),
     flock: STUB_FLOCK,
+    mkdir: STUB_MKDIR,
+    mv: STUB_MV,
   };
   for (const [name, body] of Object.entries(stubs)) {
     writeFileSync(join(bin, name), body);
@@ -423,6 +446,19 @@ describe.concurrent("buildArtifactDeployScript stub runs (jar)", () => {
       expect(r.status).toBe(0);
       expect(read(join(r.deployDir, "core-web-service.jar"))).toBe("NEW");
       expect(readdirSync(join(r.deployDir, ".opsdeck-prev"))).toEqual([]);
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("the prev dir failing to be created: nothing stopped, the current jar unchanged", async () => {
+    const r = await runJar({}, { env: { STUB_MKDIR_FAIL: "1" } });
+    try {
+      expect(r.status).not.toBe(0);
+      expect(r.stdout).not.toContain("HEALTHY");
+      expect(r.log).toContain("mkdir -p");
+      expect(r.log).not.toContain("systemctl stop");
+      expect(read(join(r.deployDir, "core-web-service.jar"))).toBe("OLD");
     } finally {
       rmSync(r.root, { recursive: true });
     }
@@ -751,6 +787,38 @@ describe.concurrent("buildArtifactDeployScript stub runs (static)", () => {
       expect(existsSync(`${r.webRoot}.opsdeck-new`)).toBe(false);
       expect(existsSync(`${r.webRoot}${INCOMING}`)).toBe(false);
       expect(r.log).not.toContain("systemctl reload");
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("the new tree failing to move in: old root restored, SWAP FAILED, no reload", async () => {
+    const r = await runStatic({
+      env: { STUB_MV_FAIL_SUFFIX: ".opsdeck-new" },
+    });
+    try {
+      expect(r.stdout).toContain("SWAP FAILED");
+      expect(r.stdout).not.toContain("HEALTHY");
+      expect(r.status).toBe(1);
+      expect(read(join(r.webRoot, "index.html"))).toBe("OLD");
+      expect(existsSync(`${r.webRoot}.opsdeck-prev`)).toBe(false);
+      expect(r.log).not.toContain("nginx -t");
+      expect(r.log).not.toContain("systemctl reload");
+    } finally {
+      rmSync(r.root, { recursive: true });
+    }
+  });
+
+  it("the new tree failing to move in on a first deploy: SWAP FAILED, nothing restored", async () => {
+    const r = await runStatic({
+      current: null,
+      env: { STUB_MV_FAIL_SUFFIX: ".opsdeck-new" },
+    });
+    try {
+      expect(r.stdout).toContain("SWAP FAILED");
+      expect(r.status).toBe(1);
+      expect(existsSync(r.webRoot)).toBe(false);
+      expect(existsSync(`${r.webRoot}.opsdeck-prev`)).toBe(false);
     } finally {
       rmSync(r.root, { recursive: true });
     }
