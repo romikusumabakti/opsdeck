@@ -8,6 +8,7 @@ import {
   type DeployTarget,
   type DeployTargetKind,
   deployTargetKindEnum,
+  type NewDeployTarget,
 } from "@/lib/db/schema";
 import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import {
@@ -39,6 +40,10 @@ import { tearingDownIn } from "@/lib/teardown/guard";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
 import { CodedHTTPException } from "@/server/errors";
+import {
+  ensureComponentBranchFor,
+  type PipelineFileFailure,
+} from "@/server/services/apps";
 import { assertNotDeployLocked } from "@/server/services/deploy-locks";
 import {
   type RequestedDeployment,
@@ -295,6 +300,49 @@ async function auditTarget(
   });
 }
 
+type Component = NonNullable<Awaited<ReturnType<typeof getComponent>>>;
+
+/** A saved target and the branches its pipeline file was not committed to. */
+export type SavedDeployTarget = DeployTarget & {
+  pipelineFileFailures: PipelineFileFailure[];
+};
+
+/** Whether the Panel generates (and commits) the component's pipeline. */
+function hasGeneratedPipeline(component: Component | undefined | null) {
+  return component?.pipelineMode === "generated" && !!component.buildSpec;
+}
+
+/**
+ * Commits the generated pipeline file to the target's source branch, adding
+ * the branch to the build spec; the commit builds the branch. Runs after the
+ * target is saved and never throws: the target stays saved and a failure is
+ * returned (Review Focus 5).
+ */
+async function commitTargetBranch(
+  component: Component,
+  branch: string
+): Promise<PipelineFileFailure[]> {
+  try {
+    return (await ensureComponentBranchFor(component, branch))
+      .pipelineFileFailures;
+  } catch (error) {
+    if (!(error instanceof HTTPException)) {
+      console.error("Committing the target's pipeline file failed", error);
+    }
+    return [
+      {
+        componentKey: component.componentKey,
+        branch,
+        code: null,
+        error:
+          error instanceof HTTPException
+            ? error.message
+            : "The pipeline file could not be committed",
+      },
+    ];
+  }
+}
+
 export async function listDeployTargets(
   environmentId: string
 ): Promise<TargetState[]> {
@@ -304,14 +352,16 @@ export async function listDeployTargets(
 
 export async function createDeployTarget(
   input: z.infer<typeof createTargetSchema>
-): Promise<DeployTarget> {
+): Promise<SavedDeployTarget> {
   const { session } = await requireProjectPermission(
     { environmentId: input.environmentId },
     { deploy: ["configure"] }
   );
-  if (!(await getComponent(input.componentKey))) {
-    failTarget("componentNotFound");
-  }
+  const component =
+    (await getComponent(input.componentKey)) ?? failTarget("componentNotFound");
+  // The pipeline commit below builds the branch; a manual target deploys
+  // that build when it lands.
+  const generated = hasGeneratedPipeline(component);
   await requireServerInEnvironment(input.environmentId, input.serverId);
   if (input.kind === "compose") {
     await requireTagVariableFree(input.environmentId, input.tagVariable);
@@ -323,14 +373,21 @@ export async function createDeployTarget(
       if (await tearingDownIn(tx, input.environmentId)) {
         throw teardownRunningError();
       }
-      return insertDeployTargetIn(tx, input);
+      return insertDeployTargetIn(tx, input, {
+        deployNextBuild: generated && !input.autoDeploy,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error)) return failTarget("targetDuplicate");
     throw error;
   }
   await auditTarget(session.user.id, created, "deployTarget.created");
-  return created;
+  return {
+    ...created,
+    pipelineFileFailures: generated
+      ? await commitTargetBranch(component, created.sourceBranch)
+      : [],
+  };
 }
 
 /**
@@ -340,7 +397,8 @@ export async function createDeployTarget(
  */
 export async function insertDeployTargetIn(
   tx: DbTransaction,
-  input: z.infer<typeof createTargetSchema>
+  input: z.infer<typeof createTargetSchema>,
+  flags: Pick<NewDeployTarget, "deployNextBuild"> = {}
 ): Promise<DeployTarget> {
   await assertTargetMatchesEnvironmentApp(
     input.environmentId,
@@ -353,7 +411,11 @@ export async function insertDeployTargetIn(
       ? { ...input, preStartCommand: input.preStartCommand ?? null }
       : { ...input, services: [] };
   return upsertTarget(
-    { ...row, healthUrl: ("healthUrl" in row && row.healthUrl) || null },
+    {
+      ...row,
+      ...flags,
+      healthUrl: ("healthUrl" in row && row.healthUrl) || null,
+    },
     tx
   );
 }
@@ -361,7 +423,7 @@ export async function insertDeployTargetIn(
 export async function updateDeployTarget(
   id: string,
   changes: z.infer<typeof updateTargetSchema>
-): Promise<DeployTarget> {
+): Promise<SavedDeployTarget> {
   const target = await requireTarget(id);
   const { session } = await requireProjectPermission(
     { environmentId: target.environmentId },
@@ -378,16 +440,27 @@ export async function updateDeployTarget(
   // target stops auto-deploying or follows another branch, they must not
   // deploy on unlock. Same transaction as the change. (No deploy-lock row is
   // touched here, so the lock order of lib/deploy/repository is unaffected.)
-  const dropHeld =
-    changes.autoDeploy === false ||
-    (changes.sourceBranch !== undefined &&
-      changes.sourceBranch !== target.sourceBranch);
+  const branchChanged =
+    changes.sourceBranch !== undefined &&
+    changes.sourceBranch !== target.sourceBranch;
+  const dropHeld = changes.autoDeploy === false || branchChanged;
+  // A new branch of a generated component gets the pipeline file, whose
+  // commit builds it; a manual target deploys that build when it lands.
+  const component = branchChanged
+    ? await getComponent(target.componentKey)
+    : undefined;
+  const commitBranch = hasGeneratedPipeline(component);
+  const deployNextBuild =
+    commitBranch && !(changes.autoDeploy ?? target.autoDeploy);
   const updated = await db.transaction(async (tx) => {
     // A target moved while a teardown runs would leave its stack behind.
     if (await tearingDownIn(tx, target.environmentId)) {
       throw teardownRunningError();
     }
-    const row = await upsertTarget({ ...changes, id }, tx);
+    const row = await upsertTarget(
+      { ...changes, ...(deployNextBuild && { deployNextBuild }), id },
+      tx
+    );
     if (dropHeld) await supersedeHeldDeployments(id, tx);
     return row;
   });
@@ -398,7 +471,13 @@ export async function updateDeployTarget(
       changes: changed.changes.join("; "),
     });
   }
-  return updated;
+  return {
+    ...updated,
+    pipelineFileFailures:
+      commitBranch && component
+        ? await commitTargetBranch(component, updated.sourceBranch)
+        : [],
+  };
 }
 
 export async function deleteDeployTarget(id: string): Promise<void> {
