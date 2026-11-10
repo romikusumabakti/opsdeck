@@ -23,7 +23,11 @@ import {
 } from "@/lib/variables/errors";
 import { ApiError } from "@/web/api/client";
 import { setEnvFileManaged } from "@/web/api/variables";
-import { TargetFormDialog } from "../deploys/target-form-dialog";
+import {
+  deployDirCopy,
+  kindLabelKey,
+  TargetFormDialog,
+} from "../deploys/target-form-dialog";
 import { useVariableErrorText } from "../variables/variable-form-dialog";
 import { EnumSelect, Hint, SaveButton, ServerSelect } from "./fields";
 import {
@@ -38,6 +42,8 @@ import {
 type TextField =
   | "sourceBranch"
   | "deployDir"
+  | "jarName"
+  | "systemdUnit"
   | "services"
   | "tagVariable"
   | "preStartCommand"
@@ -144,14 +150,15 @@ export function SourceDeployTab({
   const targetText = (
     index: number,
     name: TextField,
-    props: React.ComponentProps<typeof Input> = {}
+    props: React.ComponentProps<typeof Input> = {},
+    copy: string = name
   ) => (
     <FormField
       control={form.control}
       name={`targets.${index}.${name}`}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{tTarget(name)}</FormLabel>
+          <FormLabel>{tTarget(copy as "deployDir")}</FormLabel>
           <FormControl>
             <Input
               autoComplete="off"
@@ -161,7 +168,7 @@ export function SourceDeployTab({
               {...props}
             />
           </FormControl>
-          <Hint>{tTarget(`${name}Hint`)}</Hint>
+          <Hint>{tTarget(`${copy}Hint` as "deployDirHint")}</Hint>
           <FormMessage />
         </FormItem>
       )}
@@ -336,22 +343,57 @@ export function SourceDeployTab({
                       </FormItem>
                     )}
                   />
-                  {targetText(index, "deployDir", {
-                    placeholder: "/opt/dplk-accounting",
-                  })}
-                  {targetText(index, "services", {
-                    placeholder: "backend, frontend",
-                  })}
-                  {targetText(index, "tagVariable")}
-                  {targetText(index, "healthUrl", {
-                    inputMode: "url",
-                    placeholder: "http://localhost:8080/health",
-                  })}
+                  {target.kind !== "compose" && (
+                    <p className="flex flex-wrap gap-2 text-sm">
+                      <span className="text-muted-foreground">
+                        {tTarget("kind")}
+                      </span>
+                      <span>{tTarget(kindLabelKey(target.kind))}</span>
+                    </p>
+                  )}
+                  {targetText(
+                    index,
+                    "deployDir",
+                    {
+                      placeholder:
+                        target.kind === "static"
+                          ? "/var/www/app"
+                          : "/opt/dplk-accounting",
+                    },
+                    deployDirCopy(target.kind)
+                  )}
+                  {target.kind === "compose" && (
+                    <>
+                      {targetText(index, "services", {
+                        placeholder: "backend, frontend",
+                      })}
+                      {targetText(index, "tagVariable")}
+                    </>
+                  )}
+                  {target.kind === "jar" && (
+                    <>
+                      {targetText(index, "jarName", {
+                        placeholder: "core-web-service.jar",
+                      })}
+                      {targetText(index, "systemdUnit", {
+                        placeholder: "core-web",
+                      })}
+                    </>
+                  )}
+                  {target.kind !== "static" &&
+                    targetText(index, "healthUrl", {
+                      inputMode: "url",
+                      placeholder: "http://localhost:8080/health",
+                    })}
                   {targetText(index, "healthTimeoutSeconds", {
                     inputMode: "numeric",
                   })}
-                  {targetText(index, "preStartCommand")}
-                  {targetSwitch(index, "backupBeforeDeploy")}
+                  {target.kind === "compose" && (
+                    <>
+                      {targetText(index, "preStartCommand")}
+                      {targetSwitch(index, "backupBeforeDeploy")}
+                    </>
+                  )}
                 </section>
               ))}
 

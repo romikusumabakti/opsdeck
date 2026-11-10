@@ -274,7 +274,17 @@ function TargetCard({
           <code className="font-mono text-xs">{target.sourceBranch}</code>
           {serverName && <span> · {serverName}</span>}
           <span> · </span>
-          <code className="font-mono text-xs">{target.deployDir}</code>
+          <code className="font-mono text-xs">
+            {target.kind === "jar"
+              ? `${target.deployDir}/${target.jarName}`
+              : target.deployDir}
+          </code>
+          {target.kind === "jar" && (
+            <>
+              <span> · </span>
+              <code className="font-mono text-xs">{target.systemdUnit}</code>
+            </>
+          )}
         </CardDescription>
       </CardHeader>
 
