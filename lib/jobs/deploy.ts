@@ -1,4 +1,10 @@
 import { getComponent } from "@/lib/apps";
+import type { DeployTarget } from "@/lib/db/schema";
+import {
+  artifactStagingDir,
+  buildArtifactDeployScript,
+  buildArtifactExtractCommand,
+} from "@/lib/deploy/artifact-script";
 import {
   claimDeployment,
   deployDirSharedWithOtherEnvironment,
@@ -22,6 +28,7 @@ import { deployTagSchema, envVarNameSchema } from "@/lib/deploy/validation";
 import { loadServerCredentials } from "@/lib/environments";
 import { handleCreateDatabaseBackup } from "@/lib/jobs/processor";
 import { enqueue, type JobMap } from "@/lib/queue";
+import { openArtifactLayer } from "@/lib/registry/artifact";
 import {
   appendRunOutput,
   completeRun,
@@ -31,6 +38,7 @@ import {
 import { shq } from "@/lib/sh";
 import {
   executeRemoteCommand,
+  pipeToRemoteCommand,
   type SshTarget,
   uploadRemoteContent,
 } from "@/lib/ssh";
@@ -59,6 +67,10 @@ const DEPLOY_COMMAND_TIMEOUT_MS = 20 * 60_000;
  */
 export const HEARTBEAT_INTERVAL_MS = 60_000;
 export const STALE_RUNNING_DEPLOY_MS = 5 * 60_000;
+
+// Bound on streaming an artifact layer from the registry into the server's
+// staging dir.
+const ARTIFACT_EXTRACT_TIMEOUT_MS = 10 * 60_000;
 
 // Bound on reading the other components' tag lines from the server's .env.
 const READ_TAGS_TIMEOUT_MS = 30_000;
@@ -256,6 +268,18 @@ async function runClaimedDeployment(
   if (!loaded) throw new Error(`Server ${target.serverId} not found`);
   const credentials = { ...loaded, run: runId };
 
+  if (target.kind === "jar" || target.kind === "static") {
+    await runArtifactDeployment(
+      deploymentId,
+      runId,
+      deployment.tag,
+      { ...target, kind: target.kind },
+      component.bundleImage,
+      credentials
+    );
+    return;
+  }
+
   // A managed environment gets its whole .env rendered from the Panel's
   // variables; null leaves the deploy exactly as it was before (tag line only).
   const managedVars = await loadManagedEnvFileVariables(target.environmentId);
@@ -361,14 +385,8 @@ async function runClaimedDeployment(
     }
   }
 
-  // The last check before touching the server: if the stale sweep failed this
-  // deployment (say the heartbeat stalled during a long backup), another
-  // deploy may already own the environment.
-  if (!(await heartbeatDeployment(deploymentId))) {
-    throw new DeployAborted(
-      "Deployment was marked failed while waiting (stale) — not deploying"
-    );
-  }
+  // The heartbeat may have stalled during a long backup.
+  await requireLiveDeployment(deploymentId);
   // Set once the rendered .env is staged on the server; a failure before the
   // script ran removes it again (best-effort).
   let stagedPaths: string[] = [];
@@ -457,6 +475,115 @@ async function runClaimedDeployment(
   }
   const trimmed = output.trim();
   if (trimmed) await appendRunOutput(runId, trimmed);
+}
+
+/**
+ * Deploys a jar or static artifact to a legacy VM: no .env, compose overlay,
+ * database network or backup. The artifact image's single layer is streamed
+ * from the registry into a per-deployment staging dir on the server, then the
+ * deploy script installs it. A registry or upload failure fails the deployment
+ * before markScriptStarted, so the target's current tag does not move.
+ */
+async function runArtifactDeployment(
+  deploymentId: string,
+  runId: string,
+  tag: string,
+  target: DeployTarget & { kind: "jar" | "static" },
+  image: string,
+  credentials: SshTarget
+): Promise<void> {
+  let script: string;
+  if (target.kind === "jar") {
+    if (!target.jarName || !target.systemdUnit) {
+      throw new DeployAborted(
+        "The jar target has no jar name or systemd unit — set them in the Panel"
+      );
+    }
+    script = buildArtifactDeployScript({
+      kind: "jar",
+      deployDir: target.deployDir,
+      deploymentId,
+      jarName: target.jarName,
+      systemdUnit: target.systemdUnit,
+      healthUrl: target.healthUrl,
+      healthTimeoutSeconds: target.healthTimeoutSeconds,
+    });
+  } else {
+    script = buildArtifactDeployScript({
+      kind: "static",
+      deployDir: target.deployDir,
+      deploymentId,
+      healthTimeoutSeconds: target.healthTimeoutSeconds,
+    });
+  }
+  const staging = artifactStagingDir(
+    target.kind,
+    target.deployDir,
+    deploymentId
+  );
+
+  await requireLiveDeployment(deploymentId);
+  const layer = await openArtifactLayer(image, tag);
+
+  // From the upload on, until the script runs, a failure leaves the staging
+  // dir behind; remove it (best-effort). Once the script runs, its EXIT trap
+  // owns the dir (it may still be running after an SSH timeout).
+  try {
+    try {
+      await appendRunOutput(
+        runId,
+        `Fetched ${image}:${tag} (${layer.size} bytes)`
+      );
+    } catch (err) {
+      // pipeToRemoteCommand never got the stream, so cancel it here.
+      await layer.stream.cancel().catch(() => {});
+      throw err;
+    }
+    await pipeToRemoteCommand(
+      credentials,
+      buildArtifactExtractCommand(staging),
+      layer.stream,
+      { timeoutMs: ARTIFACT_EXTRACT_TIMEOUT_MS }
+    );
+    // The upload can take minutes; check again before touching what runs.
+    await requireLiveDeployment(deploymentId);
+    // Not best-effort: if it cannot be recorded, do not touch the server.
+    await markScriptStarted(deploymentId);
+    await appendRunOutput(
+      runId,
+      `Deploying ${target.componentKey} ${tag} to ${target.deployDir}`
+    );
+  } catch (err) {
+    await bestEffort("remove the staged artifact", () =>
+      executeRemoteCommand(
+        credentials,
+        `rm -rf ${shq(staging)}`,
+        REMOVE_STAGED_TIMEOUT_MS
+      )
+    );
+    throw err;
+  }
+
+  // A non-zero exit (a marker line or a plain `set -e` failure) throws.
+  const output = await executeRemoteCommand(
+    credentials,
+    script,
+    DEPLOY_COMMAND_TIMEOUT_MS
+  );
+  const trimmed = output.trim();
+  if (trimmed) await appendRunOutput(runId, trimmed);
+}
+
+/**
+ * The last check before touching the server: if the stale sweep failed this
+ * deployment, another deploy may already own the environment.
+ */
+async function requireLiveDeployment(deploymentId: string): Promise<void> {
+  if (!(await heartbeatDeployment(deploymentId))) {
+    throw new DeployAborted(
+      "Deployment was marked failed while waiting (stale) — not deploying"
+    );
+  }
 }
 
 /** Renders the compose overlay; its inputs were validated when saved. */
