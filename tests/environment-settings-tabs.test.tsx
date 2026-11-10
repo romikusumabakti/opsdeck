@@ -334,7 +334,7 @@ beforeEach(() => {
     success: true,
     data: { id: ENV },
   });
-  api.updateDeployTarget.mockResolvedValue({});
+  api.updateDeployTarget.mockResolvedValue({ pipelineFileFailures: [] });
 });
 
 afterEach(async () => {

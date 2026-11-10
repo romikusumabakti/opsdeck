@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -43,8 +44,10 @@ import {
   envVarNameSchema,
   healthTimeoutSchema,
   healthUrlSchema,
+  jarNameSchema,
   preStartCommandSchema,
   servicesSchema,
+  systemdUnitSchema,
 } from "@/lib/deploy/validation";
 import { hasReservedPrefix } from "@/lib/variables/validation";
 import { listAppsQuery } from "@/web/api/apps";
@@ -69,11 +72,48 @@ export function environmentServers(
 export const splitServices = (value: string) =>
   value.split(/[\s,]+/).filter((s) => s.length > 0);
 
+export const TARGET_KINDS = ["compose", "jar", "static"] as const;
+export type TargetKind = (typeof TARGET_KINDS)[number];
+
+const KIND_LABELS = {
+  compose: "kindCompose",
+  jar: "kindJar",
+  static: "kindStatic",
+} as const;
+
+/** The `deploys.form` message key of a kind's name. */
+export const kindLabelKey = (kind: TargetKind) => KIND_LABELS[kind];
+
+/** The `deploys.form` message prefix of the directory field of a kind. */
+export const deployDirCopy = (kind: TargetKind) =>
+  kind === "jar" ? "jarDeployDir" : kind === "static" ? "webRoot" : "deployDir";
+
+/**
+ * Shows the pipeline-file failures a saved target returned, as the same
+ * warning the new-environment form uses.
+ */
+export function usePipelineFailureNotice() {
+  const t = useTranslations("newEnvironment");
+  return (failures: { branch: string; componentKey: string }[]) => {
+    for (const failure of failures) {
+      toast.warning(
+        t("pipelineFileNotCommitted", {
+          branch: failure.branch,
+          component: failure.componentKey,
+        })
+      );
+    }
+  };
+}
+
 /** A deploy target's settings as form strings and switches. */
 export type TargetValues = {
+  kind: TargetKind;
   serverId: string;
   sourceBranch: string;
   deployDir: string;
+  jarName: string;
+  systemdUnit: string;
   services: string;
   tagVariable: string;
   preStartCommand: string;
@@ -91,11 +131,14 @@ export function targetFormValues(
   servers: { id: string }[]
 ): TargetValues {
   return {
+    kind: target?.kind ?? "compose",
     // One server is the common case; preselect it.
     serverId:
       target?.serverId ?? (servers.length === 1 ? (servers[0]?.id ?? "") : ""),
     sourceBranch: target?.sourceBranch ?? "",
     deployDir: target?.deployDir ?? "",
+    jarName: target?.jarName ?? "",
+    systemdUnit: target?.systemdUnit ?? "",
     services: target?.services.join(", ") ?? "",
     tagVariable: target?.tagVariable ?? "IMAGE_TAG",
     preStartCommand: target?.preStartCommand ?? "",
@@ -106,24 +149,69 @@ export function targetFormValues(
   };
 }
 
-/** The API payload of a target's form values. */
-export function targetSettings(values: TargetValues) {
+function commonSettings(values: TargetValues) {
   return {
     serverId: values.serverId,
     sourceBranch: values.sourceBranch.trim(),
     deployDir: values.deployDir.trim(),
+    healthTimeoutSeconds: Number(values.healthTimeoutSeconds),
+    autoDeploy: values.autoDeploy,
+  };
+}
+
+function composeSettings(values: TargetValues) {
+  return {
+    ...commonSettings(values),
     services: splitServices(values.services),
     tagVariable: values.tagVariable.trim(),
     preStartCommand: values.preStartCommand.trim() || null,
     healthUrl: values.healthUrl.trim() || null,
-    healthTimeoutSeconds: Number(values.healthTimeoutSeconds),
-    autoDeploy: values.autoDeploy,
     backupBeforeDeploy: values.backupBeforeDeploy,
   };
 }
 
-/** The API's own target field schemas, with the form's localized messages. */
-export function useTargetSchema() {
+function jarSettings(values: TargetValues) {
+  return {
+    ...commonSettings(values),
+    jarName: values.jarName.trim(),
+    systemdUnit: values.systemdUnit.trim(),
+    healthUrl: values.healthUrl.trim() || null,
+  };
+}
+
+/**
+ * The API payload of a target's form values to update it: only the fields of
+ * its kind (the API rejects the others), and never the kind itself.
+ */
+export function targetSettings(values: TargetValues) {
+  if (values.kind === "static") return commonSettings(values);
+  return values.kind === "jar" ? jarSettings(values) : composeSettings(values);
+}
+
+/** The API payload to create a target: its settings and its kind. */
+export function newTargetInput(
+  values: TargetValues,
+  target: { environmentId: string; componentKey: string }
+) {
+  switch (values.kind) {
+    case "jar":
+      return { ...jarSettings(values), kind: "jar", ...target } as const;
+    case "static":
+      return { ...commonSettings(values), kind: "static", ...target } as const;
+    default:
+      return {
+        ...composeSettings(values),
+        kind: "compose",
+        ...target,
+      } as const;
+  }
+}
+
+/**
+ * The API's own target field schemas per kind, with the form's localized
+ * messages. `extra` fields join every kind.
+ */
+export function useTargetSchema<S extends z.ZodRawShape>(extra?: S) {
   const t = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
   const required = tCommon("required");
@@ -132,36 +220,12 @@ export function useTargetSchema() {
     schema.safeParse(value.trim()).success;
   const optional = (schema: z.ZodType) => (value: string) =>
     value.trim() === "" || schema.safeParse(value.trim()).success;
-  return z.object({
+  const requiredText = (schema: z.ZodType) =>
+    z.string().trim().min(1, required).refine(matches(schema), invalid);
+  const common = {
     serverId: z.string().min(1, required),
-    sourceBranch: z
-      .string()
-      .trim()
-      .min(1, required)
-      .refine(matches(branchSchema), invalid),
-    deployDir: z
-      .string()
-      .trim()
-      .min(1, required)
-      .refine(matches(deployDirSchema), invalid),
-    services: z
-      .string()
-      .trim()
-      .min(1, required)
-      .refine(
-        (value) => servicesSchema.safeParse(splitServices(value)).success,
-        invalid
-      ),
-    tagVariable: z
-      .string()
-      .trim()
-      .min(1, required)
-      .refine(matches(envVarNameSchema), invalid)
-      .refine((value) => !hasReservedPrefix(value), t("tagVariableReserved")),
-    preStartCommand: z
-      .string()
-      .refine(optional(preStartCommandSchema), invalid),
-    healthUrl: z.string().refine(optional(healthUrlSchema), invalid),
+    sourceBranch: requiredText(branchSchema),
+    deployDir: requiredText(deployDirSchema),
     healthTimeoutSeconds: z
       .string()
       .trim()
@@ -172,8 +236,42 @@ export function useTargetSchema() {
         invalid
       ),
     autoDeploy: z.boolean(),
-    backupBeforeDeploy: z.boolean(),
-  });
+    ...(extra ?? ({} as S)),
+  };
+  const healthUrl = z.string().refine(optional(healthUrlSchema), invalid);
+  return z.discriminatedUnion("kind", [
+    z.object({
+      ...common,
+      kind: z.literal("compose"),
+      services: z
+        .string()
+        .trim()
+        .min(1, required)
+        .refine(
+          (value) => servicesSchema.safeParse(splitServices(value)).success,
+          invalid
+        ),
+      tagVariable: z
+        .string()
+        .trim()
+        .min(1, required)
+        .refine(matches(envVarNameSchema), invalid)
+        .refine((value) => !hasReservedPrefix(value), t("tagVariableReserved")),
+      preStartCommand: z
+        .string()
+        .refine(optional(preStartCommandSchema), invalid),
+      healthUrl,
+      backupBeforeDeploy: z.boolean(),
+    }),
+    z.object({
+      ...common,
+      kind: z.literal("jar"),
+      jarName: requiredText(jarNameSchema),
+      systemdUnit: requiredText(systemdUnitSchema),
+      healthUrl,
+    }),
+    z.object({ ...common, kind: z.literal("static") }),
+  ]);
 }
 
 /**
@@ -201,6 +299,7 @@ export function TargetFormDialog({
 }) {
   const t = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
+  const noticePipelineFailures = usePipelineFailureNotice();
   const appId = environment.appId ?? null;
   const fromApp = appId !== null;
   // Apps and their public components are listed for every signed-in user.
@@ -224,7 +323,7 @@ export function TargetFormDialog({
   const cannotAdd = loading || failed || nothingToPick !== null;
 
   const invalid = t("invalid");
-  const schema = useTargetSchema().extend({
+  const schema = useTargetSchema({
     componentKey: z
       .string()
       .trim()
@@ -237,7 +336,8 @@ export function TargetFormDialog({
   });
 
   const form = useForm<Values>({
-    resolver: zodResolver(schema),
+    // The schema is one object per kind; the form values hold every field.
+    resolver: zodResolver(schema) as unknown as Resolver<Values>,
     defaultValues: defaults(),
   });
 
@@ -251,12 +351,14 @@ export function TargetFormDialog({
 
   async function onSubmit(values: Values) {
     try {
-      await createDeployTarget({
-        ...targetSettings(values),
-        environmentId: environment.id,
-        componentKey: values.componentKey.trim(),
-      });
+      const created = await createDeployTarget(
+        newTargetInput(values, {
+          environmentId: environment.id,
+          componentKey: values.componentKey.trim(),
+        })
+      );
       toast.success(t("created"));
+      noticePipelineFailures(created.pipelineFileFailures);
       onOpenChange(false);
     } catch (error) {
       if (
@@ -281,19 +383,24 @@ export function TargetFormDialog({
     }
   }
 
+  const kind = form.watch("kind");
+
+  // `copy` is the message prefix of the label and hint, for a field whose
+  // wording depends on the kind (the directory).
   const text = (
     name: Exclude<
       keyof Values,
-      "serverId" | "autoDeploy" | "backupBeforeDeploy"
+      "serverId" | "kind" | "autoDeploy" | "backupBeforeDeploy"
     >,
-    props: React.ComponentProps<typeof Input> = {}
+    props: React.ComponentProps<typeof Input> = {},
+    copy: string = name
   ) => (
     <FormField
       control={form.control}
       name={name}
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{t(name)}</FormLabel>
+          <FormLabel>{t(copy as "deployDir")}</FormLabel>
           <FormControl>
             <Input
               autoComplete="off"
@@ -302,7 +409,9 @@ export function TargetFormDialog({
               {...props}
             />
           </FormControl>
-          <FormDescription>{t(`${name}Hint`)}</FormDescription>
+          <FormDescription>
+            {t(`${copy}Hint` as "deployDirHint")}
+          </FormDescription>
           <FormMessage />
         </FormItem>
       )}
@@ -404,6 +513,39 @@ export function TargetFormDialog({
             )}
             <FormField
               control={form.control}
+              name="kind"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("kind")}</FormLabel>
+                  <RadioGroup
+                    aria-label={t("kind")}
+                    className="flex flex-wrap gap-4"
+                    value={field.value}
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      form.clearErrors();
+                    }}
+                  >
+                    {TARGET_KINDS.map((option) => (
+                      <label
+                        key={option}
+                        htmlFor={`target-kind-${option}`}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <RadioGroupItem
+                          value={option}
+                          id={`target-kind-${option}`}
+                        />
+                        {t(kindLabelKey(option))}
+                      </label>
+                    ))}
+                  </RadioGroup>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="serverId"
               render={({ field }) => (
                 <FormItem>
@@ -431,17 +573,35 @@ export function TargetFormDialog({
               )}
             />
             {text("sourceBranch", { placeholder: "kestrel/development" })}
-            {text("deployDir", { placeholder: "/opt/dplk-accounting" })}
-            {text("services", { placeholder: "backend, frontend" })}
-            {text("tagVariable")}
-            {text("preStartCommand")}
-            {text("healthUrl", {
-              inputMode: "url",
-              placeholder: "http://localhost:8080/health",
-            })}
+            {text(
+              "deployDir",
+              {
+                placeholder:
+                  kind === "static" ? "/var/www/app" : "/opt/dplk-accounting",
+              },
+              deployDirCopy(kind)
+            )}
+            {kind === "compose" && (
+              <>
+                {text("services", { placeholder: "backend, frontend" })}
+                {text("tagVariable")}
+                {text("preStartCommand")}
+              </>
+            )}
+            {kind === "jar" && (
+              <>
+                {text("jarName", { placeholder: "core-web-service.jar" })}
+                {text("systemdUnit", { placeholder: "core-web" })}
+              </>
+            )}
+            {kind !== "static" &&
+              text("healthUrl", {
+                inputMode: "url",
+                placeholder: "http://localhost:8080/health",
+              })}
             {text("healthTimeoutSeconds", { inputMode: "numeric" })}
             {toggle("autoDeploy")}
-            {toggle("backupBeforeDeploy")}
+            {kind === "compose" && toggle("backupBeforeDeploy")}
             <DialogFooter>
               <Button
                 type="button"

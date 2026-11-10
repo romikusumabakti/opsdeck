@@ -25,6 +25,7 @@ import {
   type TargetValues,
   targetFormValues,
   targetSettings,
+  usePipelineFailureNotice,
   useTargetSchema,
 } from "../deploys/target-form-dialog";
 
@@ -363,6 +364,7 @@ export function useSettingsForm(
   const t = useTranslations("environmentForm");
   const tDeploys = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
+  const noticePipelineFailures = usePipelineFailureNotice();
   const schemas = useTabSchemas(environment);
   const initial = settingsValues(environment, targets);
   const saved = useRef<SettingsValues>(initial);
@@ -407,7 +409,8 @@ export function useSettingsForm(
       const changes = targetChanges(target, before);
       if (Object.keys(changes).length === 0) continue;
       try {
-        await updateDeployTarget(target.id, changes);
+        const result = await updateDeployTarget(target.id, changes);
+        noticePipelineFailures(result.pipelineFileFailures);
         saved.current = {
           ...saved.current,
           targets: saved.current.targets.map((s) =>
