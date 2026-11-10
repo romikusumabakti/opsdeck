@@ -317,6 +317,43 @@ describe("ProvisioningPanel", () => {
     expect(panel("engineer", false)).toBe("");
   });
 
+  it("refreshes the deploy targets when a provisioning run ends (its deploy step queued a deployment)", async () => {
+    const queryClient = client();
+    queryClient.setQueryData(["provisioning", "getProvisioning", "e1"], {
+      steps: [],
+      plan,
+      activeRunId: "run-1",
+      showPanel: true,
+      domain: null,
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          {wrap(
+            <ProvisioningPanel environment={environment} targets={targets} />
+          )}
+        </QueryClientProvider>
+      )
+    );
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["deploys"] });
+    await act(async () => {
+      queryClient.setQueryData(["provisioning", "getProvisioning", "e1"], {
+        steps: [],
+        plan,
+        activeRunId: null,
+        showPanel: true,
+        domain: null,
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["deploys"] });
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   describe("Provision button", () => {
     (
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
