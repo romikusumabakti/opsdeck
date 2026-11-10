@@ -3,7 +3,7 @@ import { ArtifactImageError, openArtifactLayer } from "@/lib/registry/artifact";
 
 const DOCKER = "application/vnd.docker.distribution.manifest.v2+json";
 const LAYER = "application/vnd.docker.image.rootfs.diff.tar.gzip";
-const DIGEST = "sha256:abc123";
+const DIGEST = `sha256:${"a".repeat(64)}`;
 const PASSWORD = "s3cr3t-pw";
 
 const json = (body: unknown, status = 200) =>
@@ -47,7 +47,7 @@ describe("openArtifactLayer", () => {
     expect(manifestUrl).toBe(
       "http://192.168.56.113:5000/v2/core-deploy/manifests/main-abc"
     );
-    expect(manifestInit.headers.Accept).toBe(DOCKER);
+    expect(manifestInit.headers.Accept.startsWith(DOCKER)).toBe(true);
     expect(manifestInit.headers.Authorization).toBe(
       `Basic ${Buffer.from(`panel:${PASSWORD}`).toString("base64")}`
     );
@@ -86,7 +86,7 @@ describe("openArtifactLayer", () => {
       "a two-layer manifest",
       dockerManifest([
         { mediaType: LAYER, digest: DIGEST, size: 5 },
-        { mediaType: LAYER, digest: "sha256:def", size: 6 },
+        { mediaType: LAYER, digest: `sha256:${"b".repeat(64)}`, size: 6 },
       ]),
     ],
   ])("rejects %s", async (_name, body) => {
@@ -97,6 +97,48 @@ describe("openArtifactLayer", () => {
       /^artifact image must be a single-layer Docker image \(.+\)$/
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts OCI and list manifest types so the registry returns what it stores", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(dockerManifest()))
+      .mockResolvedValueOnce(new Response("x"));
+    await openArtifactLayer("core-deploy", "t");
+    const accept: string = fetchMock.mock.calls[0]?.[1].headers.Accept;
+    expect(accept.startsWith(DOCKER)).toBe(true);
+    expect(accept).toContain("application/vnd.oci.image.index.v1+json");
+    expect(accept).toContain("application/vnd.oci.image.manifest.v1+json");
+    expect(accept).toContain(
+      "application/vnd.docker.distribution.manifest.list.v2+json"
+    );
+  });
+
+  it("names the received media type when rejecting", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ mediaType: "application/vnd.oci.image.index.v1+json" })
+    );
+    await expect(openArtifactLayer("core-deploy", "t")).rejects.toThrow(
+      /application\/vnd\.oci\.image\.index\.v1\+json/
+    );
+  });
+
+  it("rejects a malformed layer digest before building the blob URL", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(
+        dockerManifest([{ mediaType: LAYER, digest: "sha256:../x", size: 5 }])
+      )
+    );
+    await expect(openArtifactLayer("core-deploy", "t")).rejects.toBeInstanceOf(
+      ArtifactImageError
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns a non-JSON manifest into ArtifactImageError", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("<html>", { status: 200 }));
+    await expect(openArtifactLayer("core-deploy", "t")).rejects.toBeInstanceOf(
+      ArtifactImageError
+    );
   });
 
   it("reports a missing manifest", async () => {
