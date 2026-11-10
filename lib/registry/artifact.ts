@@ -17,6 +17,9 @@ const MANIFEST_ACCEPT = [
 ].join(", ");
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const LAYER_TYPE = "application/vnd.docker.image.rootfs.diff.tar.gzip";
+// How long the registry may take to answer: the whole manifest, and the blob
+// up to its response headers. The blob body streams for minutes, unbounded.
+const RESPONSE_TIMEOUT_MS = 30_000;
 
 export class ArtifactImageError extends Error {
   constructor(detail: string) {
@@ -53,6 +56,34 @@ function failStatus(what: string, res: Response): Error {
   return new Error(`registry returned HTTP ${res.status} for ${what}`);
 }
 
+/**
+ * Runs `request` with a signal that aborts after RESPONSE_TIMEOUT_MS, and
+ * rejects then with an error naming `what` (never a URL or credential).
+ * Once `request` settles the timer is cleared: a body read later is not
+ * bounded by the signal.
+ */
+async function withResponseTimeout<T>(
+  what: string,
+  request: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(
+        `registry did not answer within ${RESPONSE_TIMEOUT_MS / 1000} s for ${what}`
+      );
+      controller.abort(error);
+      reject(error);
+    }, RESPONSE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([request(controller.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function openArtifactLayer(
   image: string,
   tag: string
@@ -65,9 +96,21 @@ export async function openArtifactLayer(
     `/v2/${image}/manifests/${tag}`,
     MANIFEST_ACCEPT
   );
-  const manifestRes = await fetch(manifestReq.url, {
-    headers: manifestReq.headers,
-  });
+  // The manifest is small: its body is read within the timeout too.
+  const { manifestRes, manifestText } = await withResponseTimeout(
+    `manifest ${image}:${tag}`,
+    async (signal) => {
+      const res = await fetch(manifestReq.url, {
+        headers: manifestReq.headers,
+        signal,
+      });
+      if (!res.ok) {
+        await res.body?.cancel();
+        return { manifestRes: res, manifestText: "" };
+      }
+      return { manifestRes: res, manifestText: await res.text() };
+    }
+  );
   if (manifestRes.status === 404) {
     throw new Error(`artifact ${image}:${tag} not found in the registry`);
   }
@@ -76,7 +119,7 @@ export async function openArtifactLayer(
 
   let manifest: Manifest;
   try {
-    manifest = (await manifestRes.json()) as Manifest;
+    manifest = JSON.parse(manifestText) as Manifest;
   } catch {
     throw new ArtifactImageError("manifest is not valid JSON");
   }
@@ -104,10 +147,9 @@ export async function openArtifactLayer(
   }
 
   const blobReq = registryRequest(`/v2/${image}/blobs/${layer.digest}`);
-  const blobRes = await fetch(blobReq.url, {
-    headers: blobReq.headers,
-    redirect: "follow",
-  });
+  const blobRes = await withResponseTimeout(`blob ${layer.digest}`, (signal) =>
+    fetch(blobReq.url, { headers: blobReq.headers, redirect: "follow", signal })
+  );
   if (!blobRes.ok) {
     await blobRes.body?.cancel();
     throw failStatus(`blob ${layer.digest}`, blobRes);
