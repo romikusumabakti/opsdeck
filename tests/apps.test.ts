@@ -52,7 +52,7 @@ describe("assertTargetMatchesEnvironmentApp", () => {
     state.updated = [{ id: ENV_ID }];
     await expect(
       assertTargetMatchesEnvironmentApp(ENV_ID, "portal-backend")
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
     expect(state.setValues).toEqual([{ appId: APP_A }]);
   });
 
@@ -60,7 +60,19 @@ describe("assertTargetMatchesEnvironmentApp", () => {
     state.selects = [[{ appId: APP_A }], [{ appId: APP_A }]];
     await expect(
       assertTargetMatchesEnvironmentApp(ENV_ID, "portal-backend")
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
+  });
+
+  it("returns the artifact kind of a legacy artifact component", async () => {
+    for (const kind of ["jar", "static"]) {
+      state.selects = [
+        [{ appId: APP_A, buildSpec: { artifact: { kind, path: "x" } } }],
+      ];
+      state.updated = [{ id: ENV_ID }];
+      await expect(
+        assertTargetMatchesEnvironmentApp(ENV_ID, "core-web")
+      ).resolves.toBe(kind);
+    }
   });
 
   it("rejects with 409 when the environment belongs to another app", async () => {

@@ -92,12 +92,17 @@ function isInside(child: string, parent: string): boolean {
     : child.startsWith(`${parent}/`);
 }
 
+/** Whether `child` is `parent` or lies inside it (canonical dirs). */
+export function dirWithin(child: string, parent: string): boolean {
+  return child === parent || isInside(child, parent);
+}
+
 /**
  * Whether one directory is the other or lies inside it (canonical dirs).
  * `/` is the ancestor of every absolute dir.
  */
 export function dirsOverlap(a: string, b: string): boolean {
-  return a === b || isInside(a, b) || isInside(b, a);
+  return dirWithin(a, b) || isInside(b, a);
 }
 
 /**

@@ -427,6 +427,14 @@ export function useSettingsForm(
           form.setError(`targets.${index}.tagVariable`, {
             message: tDeploys("tagVariableIsVariable"),
           });
+        } else if (
+          error instanceof ApiError &&
+          (error.code === "staticRootContainsTarget" ||
+            error.code === "targetInsideStaticRoot")
+        ) {
+          form.setError(`targets.${index}.deployDir`, {
+            message: tDeploys(error.code),
+          });
         } else {
           toast.error(
             error instanceof Error ? error.message : tCommon("errorGeneric")

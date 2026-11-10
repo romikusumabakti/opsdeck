@@ -18,6 +18,7 @@ import {
   deployTargets,
   environments,
 } from "@/lib/db/schema";
+import type { ArtifactKind } from "@/lib/deploy/artifact-script";
 import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
 import { CodedHTTPException } from "@/server/errors";
 
@@ -285,15 +286,16 @@ export async function setNotifySecret(
  * environment with no app yet (managed without deploy, or new) adopts the
  * component's app; the conditional UPDATE keeps two concurrent first targets
  * from setting different apps. Pass the transaction that inserts the target so
- * a failed insert leaves `app_id` unchanged.
+ * a failed insert leaves `app_id` unchanged. Returns the component's artifact
+ * kind (its build spec's `artifact`), null for a container component.
  */
 export async function assertTargetMatchesEnvironmentApp(
   environmentId: string,
   componentKey: string,
   executor: DbExecutor = db
-): Promise<void> {
+): Promise<ArtifactKind | null> {
   const [component] = await executor
-    .select({ appId: appComponents.appId })
+    .select({ appId: appComponents.appId, buildSpec: appComponents.buildSpec })
     .from(appComponents)
     .where(eq(appComponents.componentKey, componentKey));
   if (!component) {
@@ -304,7 +306,8 @@ export async function assertTargetMatchesEnvironmentApp(
     .set({ appId: component.appId })
     .where(and(eq(environments.id, environmentId), isNull(environments.appId)))
     .returning({ id: environments.id });
-  if (adopted.length > 0) return;
+  const artifactKind = component.buildSpec?.artifact?.kind ?? null;
+  if (adopted.length > 0) return artifactKind;
   const [environment] = await executor
     .select({ appId: environments.appId })
     .from(environments)
@@ -319,4 +322,5 @@ export async function assertTargetMatchesEnvironmentApp(
       COMPONENT_OTHER_APP_MESSAGE
     );
   }
+  return artifactKind;
 }

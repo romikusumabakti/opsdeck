@@ -741,6 +741,83 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     await db.delete(s.environments).where(eq(s.environments.id, envId));
   });
 
+  it("refuses an artifact component, whose target the wizard would make compose", async () => {
+    await db
+      .update(s.appComponents)
+      .set({
+        buildSpec: {
+          branches: [],
+          tagShaLength: 7,
+          images: [],
+          bundleFiles: [],
+          checks: [
+            { name: "build", image: "gradle:8", dir: ".", commands: ["x"] },
+          ],
+          artifact: { kind: "jar", path: "build/libs/app.jar" },
+          timeoutMinutes: 60,
+        },
+      })
+      .where(eq(s.appComponents.componentKey, "wiz-it"));
+    try {
+      const before = await counts();
+      const preview = await (
+        await post("/api/setup/environments/preview", input())
+      ).json();
+      expect(preview.issues).toContainEqual({
+        field: "targets.0.componentKey",
+        code: "targetKindMismatch",
+      });
+      const res = await post("/api/setup/environments", input());
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "targetKindMismatch" });
+      expect(await counts()).toEqual(before);
+    } finally {
+      await db
+        .update(s.appComponents)
+        .set({ buildSpec: null })
+        .where(eq(s.appComponents.componentKey, "wiz-it"));
+    }
+  });
+
+  it("refuses a deploy dir inside another environment's static web root", async () => {
+    const [sourceC] = await db
+      .update(s.deployTargets)
+      .set({ kind: "static", services: [], deployDir: "/deployments/wiz-web" })
+      .where(eq(s.deployTargets.environmentId, ids.sourceC))
+      .returning({ deployDir: s.deployTargets.deployDir });
+    expect(sourceC).toBeDefined();
+    try {
+      const before = await counts();
+      const body = input({
+        targets: [
+          { ...input().targets[0], deployDir: "/deployments/wiz-web/app" },
+        ],
+      });
+      const preview = await (
+        await post("/api/setup/environments/preview", body)
+      ).json();
+      expect(preview.issues).toContainEqual({
+        field: "targets.0.deployDir",
+        code: "targetInsideStaticRoot",
+      });
+      const res = await post("/api/setup/environments", body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: "targetInsideStaticRoot",
+      });
+      expect(await counts()).toEqual(before);
+    } finally {
+      await db
+        .update(s.deployTargets)
+        .set({
+          kind: "compose",
+          services: ["backend"],
+          deployDir: `/deployments/${ids.sourceC}`,
+        })
+        .where(eq(s.deployTargets.environmentId, ids.sourceC));
+    }
+  });
+
   it("refuses a taken label with 409 and writes nothing", async () => {
     const before = await counts();
     const body = input({

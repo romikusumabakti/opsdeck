@@ -32,6 +32,9 @@ export const TARGET_ISSUE_CODES = [
   "componentNotFound",
   "tagVariableIsVariable",
   "targetDuplicate",
+  "targetKindMismatch",
+  "staticRootContainsTarget",
+  "targetInsideStaticRoot",
   "componentOtherApp",
 ] as const;
 

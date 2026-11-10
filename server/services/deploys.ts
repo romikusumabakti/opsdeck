@@ -18,11 +18,13 @@ import {
   getEnvironmentForLock,
   getTagState,
   getTarget,
+  listTargetDirsOnMachine,
   listTargetsForEnvironment,
   supersedeHeldDeployments,
   type TargetState,
   upsertTarget,
 } from "@/lib/deploy/repository";
+import { staticRootConflict } from "@/lib/deploy/target-dirs";
 import {
   branchSchema,
   componentKeySchema,
@@ -63,7 +65,21 @@ export const TARGET_ERRORS = {
     409,
     "This component already has a target in the environment",
   ],
-} as const satisfies Record<string, readonly [404 | 409, string]>;
+  // A container component deploys as compose; an artifact one as its kind.
+  targetKindMismatch: [
+    409,
+    "The target kind does not match the component's build",
+  ],
+  // A static deploy swaps its whole web root (lib/deploy/target-dirs).
+  staticRootContainsTarget: [
+    400,
+    "A static web root may not be or contain another target's deploy dir on the server",
+  ],
+  targetInsideStaticRoot: [
+    400,
+    "A deploy dir may not be or lie inside a static web root on the server",
+  ],
+} as const satisfies Record<string, readonly [400 | 404 | 409, string]>;
 
 export function targetError(
   code: keyof typeof TARGET_ERRORS
@@ -391,20 +407,43 @@ export async function createDeployTarget(
 }
 
 /**
+ * 400 when the target's dir conflicts with a static web root among the other
+ * targets on its machine (see staticRootConflict).
+ */
+async function requireNoStaticRootConflict(
+  tx: DbTransaction,
+  target: Pick<DeployTarget, "kind" | "serverId" | "deployDir"> & {
+    id?: string;
+  }
+) {
+  const others = (await listTargetDirsOnMachine(target.serverId, tx)).filter(
+    (other) => other.id !== target.id
+  );
+  const conflict = staticRootConflict(target, others);
+  if (conflict) failTarget(conflict);
+}
+
+/**
  * Inserts a target inside the caller's transaction, after the environment
- * adopts the component's app (409 when it deploys another app). A second
- * target for the component surfaces as a unique violation.
+ * adopts the component's app (409 when it deploys another app). The kind must
+ * be the component's (compose for a container component, else its artifact
+ * kind) and its dir clear of static web roots on the machine. A second target
+ * for the component surfaces as a unique violation.
  */
 export async function insertDeployTargetIn(
   tx: DbTransaction,
   input: z.infer<typeof createTargetSchema>,
   flags: Pick<NewDeployTarget, "deployNextBuild"> = {}
 ): Promise<DeployTarget> {
-  await assertTargetMatchesEnvironmentApp(
+  const artifactKind = await assertTargetMatchesEnvironmentApp(
     input.environmentId,
     input.componentKey,
     tx
   );
+  if ((artifactKind ?? "compose") !== input.kind) {
+    failTarget("targetKindMismatch");
+  }
+  await requireNoStaticRootConflict(tx, input);
   // Jar and static targets run no compose project: their `services` is empty.
   const row =
     input.kind === "compose"
@@ -456,6 +495,14 @@ export async function updateDeployTarget(
     // A target moved while a teardown runs would leave its stack behind.
     if (await tearingDownIn(tx, target.environmentId)) {
       throw teardownRunningError();
+    }
+    if (changes.deployDir !== undefined || changes.serverId !== undefined) {
+      await requireNoStaticRootConflict(tx, {
+        id,
+        kind: target.kind,
+        serverId: changes.serverId ?? target.serverId,
+        deployDir: changes.deployDir ?? target.deployDir,
+      });
     }
     const row = await upsertTarget(
       { ...changes, ...(deployNextBuild && { deployNextBuild }), id },

@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   createDeployTarget: vi.fn(),
   getActiveBuild: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+  apps: [] as unknown[],
 }));
 vi.mock("sonner", () => ({ toast: api.toast }));
 vi.mock("@/web/api/deploys", () => ({
@@ -23,7 +24,7 @@ vi.mock("@/web/api/deploys", () => ({
   updateDeployTarget: vi.fn(),
 }));
 vi.mock("@/web/api/apps", () => ({
-  listAppsQuery: () => ({ queryKey: ["apps"], queryFn: async () => [] }),
+  listAppsQuery: () => ({ queryKey: ["apps"], queryFn: async () => api.apps }),
   getActiveBuild: api.getActiveBuild,
   startComponentBuild: vi.fn(),
 }));
@@ -89,6 +90,7 @@ beforeEach(() => {
   root = createRoot(container);
 });
 afterEach(() => {
+  api.apps = [];
   act(() => root.unmount());
   container.remove();
   document.body.innerHTML = "";
@@ -135,6 +137,58 @@ const dialog = () => (
     servers={[{ id: SERVER, name: ".56.129" }]}
   />
 );
+
+const APP = "0197f3a0-1b2c-7def-8000-0123456789a1";
+const checkedKind = () =>
+  document
+    .querySelector('[role="radio"][aria-checked="true"]')
+    ?.closest("label")
+    ?.textContent?.trim();
+
+describe("the kind follows the component", () => {
+  const component = (componentKey: string, artifact?: string) => ({
+    componentKey,
+    repoFullName: `dss/${componentKey}`,
+    buildSpec: artifact
+      ? { artifact: { kind: artifact, path: "x" } }
+      : { branches: ["main"] },
+  });
+  const appDialog = (targetedKeys: string[]) => (
+    <TargetFormDialog
+      open
+      onOpenChange={() => {}}
+      environment={{ id: ENV, appId: APP }}
+      servers={[{ id: SERVER, name: ".56.129" }]}
+      targetedKeys={targetedKeys}
+    />
+  );
+
+  it.each([
+    ["Jar for a jar component", "jar", f.kindJar],
+    ["Static web for a static component", "static", f.kindStatic],
+  ])("preselects %s", async (_label, artifact, kindLabel) => {
+    api.apps = [
+      {
+        id: APP,
+        components: [component("core"), component("core-web", artifact)],
+      },
+    ];
+    await render(appDialog(["core"]));
+    expect(checkedKind()).toBe(kindLabel);
+    expect(hasLabel(f.services)).toBe(false);
+  });
+
+  it("keeps Compose for a container component", async () => {
+    api.apps = [
+      {
+        id: APP,
+        components: [component("core"), component("core-web", "jar")],
+      },
+    ];
+    await render(appDialog(["core-web"]));
+    expect(checkedKind()).toBe(f.kindCompose);
+  });
+});
 
 describe("target form kinds", () => {
   it("choosing Jar hides the compose fields and shows the jar fields", async () => {
